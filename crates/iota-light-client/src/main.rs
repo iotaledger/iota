@@ -1,14 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    fs,
+    io::{Read, Write},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use move_core_types::account_address::AccountAddress;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-
-use sui_rest_api::{CheckpointData, Client};
-use sui_types::{
-    base_types::{ObjectID, SequenceNumber},
+use clap::{Parser, Subcommand};
+use iota_config::genesis::Genesis;
+use iota_json::IotaJsonValue;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_package_resolver::{Package, PackageStore, Resolver, Result as ResolverResult};
+use iota_rest_api::{CheckpointData, Client};
+use iota_sdk::IotaClientBuilder;
+use iota_types::{
+    base_types::ObjectID,
     committee::Committee,
     crypto::AuthorityQuorumSignInfo,
     digests::TransactionDigest,
@@ -17,19 +29,9 @@ use sui_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary, EndOfEpochData},
     object::{Data, Object},
 };
+use move_core_types::account_address::AccountAddress;
 
-use sui_config::genesis::Genesis;
-
-use sui_json::SuiJsonValue;
-use sui_package_resolver::Result as ResolverResult;
-use sui_package_resolver::{Package, PackageStore, Resolver};
-use sui_sdk::SuiClientBuilder;
-
-use clap::{Parser, Subcommand};
-use std::{fs, io::Write, path::PathBuf, str::FromStr};
-use std::{io::Read, sync::Arc};
-
-/// A light client for the Sui blockchain
+/// A light client for the Iota blockchain
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -42,27 +44,22 @@ struct Args {
 }
 
 struct RemotePackageStore {
-    client: Client,
     config: Config,
 }
 
 impl RemotePackageStore {
-    pub fn new(client: Client, config: Config) -> Self {
-        Self { client, config }
+    pub fn new(config: Config) -> Self {
+        Self { config }
     }
 }
 
 #[async_trait]
 impl PackageStore for RemotePackageStore {
-    /// Latest version of the object at `id`.
-    async fn version(&self, id: AccountAddress) -> ResolverResult<SequenceNumber> {
-        Ok(self.client.get_object(id.into()).await.unwrap().version())
-    }
-    /// Read package contents. Fails if `id` is not an object, not a package, or is malformed in
-    /// some way.
+    /// Read package contents. Fails if `id` is not an object, not a package, or
+    /// is malformed in some way.
     async fn fetch(&self, id: AccountAddress) -> ResolverResult<Arc<Package>> {
         let object = get_verified_object(&self.config, id.into()).await.unwrap();
-        let package = Package::read(&object).unwrap();
+        let package = Package::read_from_object(&object).unwrap();
         Ok(Arc::new(package))
     }
 }
@@ -87,7 +84,8 @@ enum SCommands {
     },
 }
 
-// The config file for the light client including the root of trust genesis digest
+// The config file for the light client including the root of trust genesis
+// digest
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 struct Config {
     /// Full node url
@@ -101,8 +99,8 @@ struct Config {
 }
 
 impl Config {
-    pub fn rest_url(&self) -> String {
-        format!("{}/rest", self.full_node_url)
+    pub fn rest_url(&self) -> &str {
+        &self.full_node_url
     }
 }
 
@@ -191,7 +189,7 @@ async fn download_checkpoint_summary(
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
     // Download the checkpoint from the server
     let client = Client::new(config.rest_url());
-    client.get_checkpoint_summary(seq).await
+    client.get_checkpoint_summary(seq).await.map_err(Into::into)
 }
 
 /// Run binary search to for each end of epoch checkpoint that is missing
@@ -280,7 +278,8 @@ async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
 
     let mut prev_committee = genesis_committee;
     for ckp_id in &checkpoints_list.checkpoints {
-        // check if there is a file with this name ckp_id.yaml in the checkpoint_summary_dir
+        // check if there is a file with this name ckp_id.yaml in the
+        // checkpoint_summary_dir
         let mut checkpoint_path = config.checkpoint_summary_dir.clone();
         checkpoint_path.push(format!("{}.yaml", ckp_id));
 
@@ -290,7 +289,7 @@ async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
         } else {
             // Download the checkpoint from the server
             let summary = download_checkpoint_summary(config, *ckp_id).await?;
-            summary.clone().verify(&prev_committee)?;
+            summary.clone().try_into_verified(&prev_committee)?;
             // Write the checkpoint summary to a file
             write_checkpoint(config, &summary)?;
             summary
@@ -368,16 +367,16 @@ async fn get_verified_effects_and_events(
     config: &Config,
     tid: TransactionDigest,
 ) -> anyhow::Result<(TransactionEffects, Option<TransactionEvents>)> {
-    let sui_mainnet: Arc<sui_sdk::SuiClient> = Arc::new(
-        SuiClientBuilder::default()
+    let iota_mainnet: Arc<iota_sdk::IotaClient> = Arc::new(
+        IotaClientBuilder::default()
             .build(config.full_node_url.as_str())
             .await
             .unwrap(),
     );
-    let read_api = sui_mainnet.read_api();
+    let read_api = iota_mainnet.read_api();
 
     // Lookup the transaction id and get the checkpoint sequence number
-    let options = SuiTransactionBlockResponseOptions::new();
+    let options = IotaTransactionBlockResponseOptions::new();
     let seq = read_api
         .get_transaction_with_options(tid, options)
         .await?
@@ -466,8 +465,7 @@ pub async fn main() {
         config.checkpoint_summary_dir.display()
     );
 
-    let client: Client = Client::new(config.rest_url());
-    let remote_package_store = RemotePackageStore::new(client, config.clone());
+    let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
 
     match args.command {
@@ -492,7 +490,7 @@ pub async fn main() {
                     .unwrap();
 
                 let json_val =
-                    SuiJsonValue::from_bcs_bytes(Some(&type_layout), &event.contents).unwrap();
+                    IotaJsonValue::from_bcs_bytes(Some(&type_layout), &event.contents).unwrap();
 
                 println!(
                     "Event:\n - Package: {}\n - Module: {}\n - Sender: {}\n - Type: {}\n{}",
@@ -517,7 +515,7 @@ pub async fn main() {
                     .unwrap();
 
                 let json_val =
-                    SuiJsonValue::from_bcs_bytes(Some(&type_layout), move_object.contents())
+                    IotaJsonValue::from_bcs_bytes(Some(&type_layout), move_object.contents())
                         .unwrap();
 
                 let (oid, version, hash) = object.compute_object_reference();
@@ -545,10 +543,11 @@ pub async fn main() {
 // Make a test namespace
 #[cfg(test)]
 mod tests {
-    use sui_types::messages_checkpoint::FullCheckpointContents;
+    use std::path::{Path, PathBuf};
+
+    use iota_types::messages_checkpoint::FullCheckpointContents;
 
     use super::*;
-    use std::path::{Path, PathBuf};
 
     async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
         let mut reader = fs::File::open(checkpoint_path.clone())?;
@@ -626,24 +625,30 @@ mod tests {
         // Change committee
         committee.epoch += 10;
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
     async fn test_checkpoint_no_transaction() {
         let (committee, full_checkpoint) = read_data().await;
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
@@ -654,12 +659,15 @@ mod tests {
         let random_contents = FullCheckpointContents::random_for_testing();
         full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
@@ -679,11 +687,14 @@ mod tests {
             }
         }
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 }
