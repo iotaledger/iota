@@ -1,23 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::monitored_scope;
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::Duration,
+};
+
 use futures::FutureExt;
 use parking_lot::Mutex;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
     IntGaugeVec, Registry,
 };
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::runtime::Handle;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TrySendError;
-use tokio::time::Instant;
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc, mpsc::error::TrySendError},
+    time::Instant,
+};
 use tracing::{debug, error};
+
+use crate::monitored_scope;
 
 type Point = u64;
 type HistogramMessage = (HistogramLabels, Point);
@@ -60,30 +65,37 @@ struct HistogramLabelsInner {
 }
 
 /// Reports the histogram to the given prometheus gauge.
-/// Unlike the histogram from prometheus crate, this histogram does not require to specify buckets
-/// It works by calculating 'true' histogram by aggregating and sorting values.
+/// Unlike the histogram from prometheus crate, this histogram does not require
+/// to specify buckets It works by calculating 'true' histogram by aggregating
+/// and sorting values.
 ///
-/// The values are reported into prometheus gauge with requested labels and additional dimension
-/// for the histogram percentile.
+/// The values are reported into prometheus gauge with requested labels and
+/// additional dimension for the histogram percentile.
 ///
-/// It worth pointing out that due to those more precise calculations, this Histogram usage
-/// is somewhat more limited comparing to original prometheus Histogram.
+/// It worth pointing out that due to those more precise calculations, this
+/// Histogram usage is somewhat more limited comparing to original prometheus
+/// Histogram.
 ///
-/// On the bright side, this histogram exports less data to Prometheus comparing to prometheus::Histogram,
-/// it exports each requested percentile into separate prometheus gauge, while original implementation creates
-/// gauge per bucket.
+/// On the bright side, this histogram exports less data to Prometheus comparing
+/// to prometheus::Histogram, it exports each requested percentile into separate
+/// prometheus gauge, while original implementation creates gauge per bucket.
 /// It also exports _sum and _count aggregates same as original implementation.
 ///
-/// It is ok to measure timings for things like network latencies and expensive crypto operations.
-/// However as a rule of thumb this histogram should not be used in places that can produce very high data point count.
+/// It is ok to measure timings for things like network latencies and expensive
+/// crypto operations. However as a rule of thumb this histogram should not be
+/// used in places that can produce very high data point count.
 ///
-/// As a last round of defence this histogram emits error log when too much data is flowing in and drops data points.
+/// As a last round of defence this histogram emits error log when too much data
+/// is flowing in and drops data points.
 ///
-/// This implementation puts great deal of effort to make sure the metric does not cause any harm to the code itself:
+/// This implementation puts great deal of effort to make sure the metric does
+/// not cause any harm to the code itself:
 /// * Reporting data point is a non-blocking send to a channel
 /// * Data point collections tries to clear the channel as fast as possible
-/// * Expensive histogram calculations are done in a separate blocking tokio thread pool to avoid effects on main scheduler
-/// * If histogram data is produced too fast, the data is dropped and error! log is emitted
+/// * Expensive histogram calculations are done in a separate blocking tokio
+///   thread pool to avoid effects on main scheduler
+/// * If histogram data is produced too fast, the data is dropped and error! log
+///   is emitted
 impl HistogramVec {
     pub fn new_in_registry(name: &str, desc: &str, labels: &[&str], registry: &Registry) -> Self {
         Self::new_in_registry_with_percentiles(
@@ -95,7 +107,8 @@ impl HistogramVec {
         )
     }
 
-    /// Allows to specify percentiles in 1/1000th, e.g. 90pct is specified as 900
+    /// Allows to specify percentiles in 1/1000th, e.g. 90pct is specified as
+    /// 900
     pub fn new_in_registry_with_percentiles(
         name: &str,
         desc: &str,
@@ -114,7 +127,8 @@ impl HistogramVec {
         Self::new(gauge, sum, count, percentiles, name)
     }
 
-    // Do not expose it to public interface because we need labels to have a specific format (e.g. add last label is "pct")
+    // Do not expose it to public interface because we need labels to have a
+    // specific format (e.g. add last label is "pct")
     fn new(
         gauge: IntGaugeVec,
         sum: IntCounterVec,
@@ -205,7 +219,8 @@ impl HistogramCollector {
     pub async fn run(mut self) {
         let mut deadline = Instant::now();
         loop {
-            // We calculate deadline here instead of just using sleep inside cycle to avoid accumulating error
+            // We calculate deadline here instead of just using sleep inside cycle to avoid
+            // accumulating error
             #[cfg(test)]
             const HISTOGRAM_WINDOW_SEC: u64 = 1;
             #[cfg(not(test))]
@@ -248,7 +263,10 @@ impl HistogramCollector {
         }
         if Arc::strong_count(&self.reporter) != 1 {
             #[cfg(not(debug_assertions))]
-            error!("Histogram data overflow - we receive histogram data for {} faster then can process. Some histogram data is dropped", self._name);
+            error!(
+                "Histogram data overflow - we receive histogram data for {} faster then can process. Some histogram data is dropped",
+                self._name
+            );
         } else {
             let reporter = self.reporter.clone();
             Handle::current().spawn_blocking(move || reporter.lock().report(labeled_data));
@@ -318,8 +336,9 @@ impl<'a> Drop for HistogramTimerGuard<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use prometheus::proto::MetricFamily;
+
+    use super::*;
 
     #[test]
     fn pct_index_test() {

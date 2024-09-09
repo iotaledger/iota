@@ -1,13 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
+use std::{
+    future::Future,
+    task::{Context, Poll},
+};
+
 use async_trait::async_trait;
-use std::future::Future;
-// TODO: complete tests - This kinda sorta facades the whole tokio::mpsc::{Sender, Receiver}: without tests, this will be fragile to maintain.
+// TODO: complete tests - This kinda sorta facades the whole tokio::mpsc::{Sender, Receiver}:
+// without tests, this will be fragile to maintain.
 use futures::{FutureExt, Stream, TryFutureExt};
 use prometheus::{IntCounter, IntGauge};
-use std::task::{Context, Poll};
 use tokio::sync::mpsc::{
     self,
     error::{SendError, TryRecvError, TrySendError},
@@ -166,8 +171,11 @@ impl<'a, T> Permit<'a, T> {
 
 impl<'a, T> Drop for Permit<'a, T> {
     fn drop(&mut self) {
-        // in the case the permit is dropped without sending, we still want to decrease the occupancy of the channel
-        self.gauge_ref.dec()
+        // in the case the permit is dropped without sending, we still want to decrease
+        // the occupancy of the channel
+        if self.permit.is_some() {
+            self.gauge_ref.dec();
+        }
     }
 }
 
@@ -198,8 +206,10 @@ impl<T> Sender<T> {
             })
     }
 
-    // TODO: facade [`send_timeout`](tokio::mpsc::Sender::send_timeout) under the tokio feature flag "time"
-    // TODO: facade [`blocking_send`](tokio::mpsc::Sender::blocking_send) under the tokio feature flag "sync"
+    // TODO: facade [`send_timeout`](tokio::mpsc::Sender::send_timeout) under the
+    // tokio feature flag "time" TODO: facade
+    // [`blocking_send`](tokio::mpsc::Sender::blocking_send) under the tokio feature
+    // flag "sync"
 
     /// Checks if the channel has been closed. This happens when the
     /// [`Receiver`] is dropped, or when the [`Receiver::close`] method is
@@ -224,8 +234,8 @@ impl<T> Sender<T> {
             .await
     }
 
-    /// Tries to acquire a slot in the channel without waiting for the slot to become
-    /// available.
+    /// Tries to acquire a slot in the channel without waiting for the slot to
+    /// become available.
     /// Increments the gauge in case of a successful `try_reserve`.
     pub fn try_reserve(&self) -> Result<Permit<'_, T>, TrySendError<()>> {
         self.inner.try_reserve().map(|val| {
@@ -237,8 +247,8 @@ impl<T> Sender<T> {
 
     // TODO: consider exposing the _owned methods
 
-    // Note: not exposing `same_channel`, as it is hard to implement with callers able to
-    // break the coupling between channel and gauge using `gauge`.
+    // Note: not exposing `same_channel`, as it is hard to implement with callers
+    // able to break the coupling between channel and gauge using `gauge`.
 
     /// Returns the current capacity of the channel.
     pub fn capacity(&self) -> usize {
@@ -257,8 +267,8 @@ impl<T> Sender<T> {
 /// Stream API Wrappers!
 ////////////////////////////////
 
-/// A wrapper around [`crate::metered_channel::Receiver`] that implements [`Stream`].
-///
+/// A wrapper around [`crate::metered_channel::Receiver`] that implements
+/// [`Stream`].
 #[derive(Debug)]
 pub struct ReceiverStream<T> {
     inner: Receiver<T>,
@@ -311,13 +321,15 @@ impl<T> From<Receiver<T>> for ReceiverStream<T> {
 }
 
 // TODO: facade PollSender
-// TODO: add prom metrics reporting for gauge and migrate all existing use cases.
+// TODO: add prom metrics reporting for gauge and migrate all existing use
+// cases.
 
 ////////////////////////////////////////////////////////////////
 /// Constructor
 ////////////////////////////////////////////////////////////////
 
-/// Similar to `mpsc::channel`, `channel` creates a pair of `Sender` and `Receiver`
+/// Similar to `mpsc::channel`, `channel` creates a pair of `Sender` and
+/// `Receiver` Deprecated: use `monitored_mpsc::channel` instead.
 #[track_caller]
 pub fn channel<T>(size: usize, gauge: &IntGauge) -> (Sender<T>, Receiver<T>) {
     gauge.set(0);
@@ -335,6 +347,7 @@ pub fn channel<T>(size: usize, gauge: &IntGauge) -> (Sender<T>, Receiver<T>) {
     )
 }
 
+/// Deprecated: use `monitored_mpsc::channel` instead.
 #[track_caller]
 pub fn channel_with_total<T>(
     size: usize,
