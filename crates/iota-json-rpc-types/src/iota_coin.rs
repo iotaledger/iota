@@ -1,21 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
 
+use iota_types::{
+    base_types::{EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    coin::CoinMetadata,
+    error::IotaError,
+    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
+    object::Object,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::Page;
-use sui_types::base_types::{
-    EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-};
-use sui_types::coin::CoinMetadata;
-use sui_types::error::SuiError;
-use sui_types::object::Object;
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_serde::SequenceNumber as AsSequenceNumber;
 
 pub type CoinPage = Page<Coin, ObjectID>;
 
@@ -69,7 +69,7 @@ impl Coin {
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiCoinMetadata {
+pub struct IotaCoinMetadata {
     /// Number of decimal places the coin uses.
     pub decimals: u8,
     /// Name for the token
@@ -84,8 +84,8 @@ pub struct SuiCoinMetadata {
     pub id: Option<ObjectID>,
 }
 
-impl TryFrom<Object> for SuiCoinMetadata {
-    type Error = SuiError;
+impl TryFrom<Object> for IotaCoinMetadata {
+    type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         let metadata: CoinMetadata = object.try_into()?;
         let CoinMetadata {

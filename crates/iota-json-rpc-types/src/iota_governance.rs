@@ -1,18 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::{
+    base_types::{AuthorityName, EpochId, IotaAddress, ObjectID},
+    committee::{Committee, StakeUnit},
+    iota_serde::BigInt,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use sui_types::base_types::{AuthorityName, EpochId, ObjectID, SuiAddress};
-use sui_types::committee::{Committee, StakeUnit};
-use sui_types::sui_serde::BigInt;
 
 /// RPC representation of the [Committee] type.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename = "CommitteeInfo")]
-pub struct SuiCommittee {
+pub struct IotaCommittee {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch: EpochId,
@@ -21,7 +24,7 @@ pub struct SuiCommittee {
     pub validators: Vec<(AuthorityName, StakeUnit)>,
 }
 
-impl From<Committee> for SuiCommittee {
+impl From<Committee> for IotaCommittee {
     fn from(committee: Committee) -> Self {
         Self {
             epoch: committee.epoch,
@@ -34,7 +37,7 @@ impl From<Committee> for SuiCommittee {
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedStake {
     /// Validator's Address.
-    pub validator_address: SuiAddress,
+    pub validator_address: IotaAddress,
     /// Staking pool object id.
     pub staking_pool: ObjectID,
     pub stakes: Vec<Stake>,
@@ -58,8 +61,8 @@ pub enum StakeStatus {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Stake {
-    /// ID of the StakedSui receipt object.
-    pub staked_sui_id: ObjectID,
+    /// ID of the StakedIota receipt object.
+    pub staked_iota_id: ObjectID,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub stake_request_epoch: EpochId,
@@ -85,6 +88,6 @@ pub struct ValidatorApys {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ValidatorApy {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     pub apy: f64,
 }

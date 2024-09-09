@@ -1,22 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
+use iota_types::{
+    base_types::{AuthorityName, EpochId, ObjectID},
+    committee::Committee,
+    iota_serde::BigInt,
+    iota_system_state::iota_system_state_summary::IotaValidatorSummary,
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use move_core_types::identifier::Identifier;
 use schemars::JsonSchema;
-use serde::Deserialize;
-use serde::Serialize;
-use serde_with::serde_as;
-use serde_with::DisplayFromStr;
-
-use sui_types::base_types::AuthorityName;
-use sui_types::base_types::{EpochId, ObjectID};
-use sui_types::committee::Committee;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::sui_system_state_summary::SuiValidatorSummary;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 
 use crate::Page;
 
@@ -31,7 +30,7 @@ pub struct EpochInfo {
     #[serde_as(as = "BigInt<u64>")]
     pub epoch: EpochId,
     /// list of validators included in epoch
-    pub validators: Vec<SuiValidatorSummary>,
+    pub validators: Vec<IotaValidatorSummary>,
     /// count of tx in epoch
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]

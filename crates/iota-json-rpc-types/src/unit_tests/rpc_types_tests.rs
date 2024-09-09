@@ -1,25 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use move_core_types::annotated_value::{MoveStruct, MoveValue};
-use move_core_types::ident_str;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::{StructTag, TypeTag};
+use iota_types::{
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    gas_coin::GasCoin,
+    object::{MoveObject, Owner},
+    parse_iota_struct_tag, IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
+};
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveValue},
+    ident_str,
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+};
 use serde_json::json;
 
-use sui_types::base_types::{ObjectDigest, SequenceNumber};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::{MoveObject, Owner};
-use sui_types::{parse_sui_struct_tag, MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS};
-
-use crate::{ObjectChange, SuiMoveStruct, SuiMoveValue};
+use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
 
 #[test]
-fn test_move_value_to_sui_coin() {
+fn test_move_value_to_iota_coin() {
     let id = ObjectID::random();
     let value = 10000;
     let coin = GasCoin::new(id, value);
@@ -28,8 +31,8 @@ fn test_move_value_to_sui_coin() {
     let layout = GasCoin::layout();
 
     let move_struct = move_object.to_move_struct(&layout).unwrap();
-    let sui_struct = SuiMoveStruct::from(move_struct);
-    let gas_coin = GasCoin::try_from(&sui_struct).unwrap();
+    let iota_struct = IotaMoveStruct::from(move_struct);
+    let gas_coin = GasCoin::try_from(&iota_struct).unwrap();
     assert_eq!(coin.value(), gas_coin.value());
     assert_eq!(coin.id(), gas_coin.id());
 }
@@ -53,14 +56,14 @@ fn test_move_value_to_string() {
         fields: vec![(ident_str!("bytes").to_owned(), MoveValue::Vector(values))],
     });
 
-    let sui_value = SuiMoveValue::from(move_value);
+    let iota_value = IotaMoveValue::from(move_value);
 
-    assert!(matches!(sui_value, SuiMoveValue::String(s) if s == test_string));
+    assert!(matches!(iota_value, IotaMoveValue::String(s) if s == test_string));
 }
 
 #[test]
 fn test_option() {
-    // bugfix for https://github.com/MystenLabs/sui/issues/4995
+    // bugfix for https://github.com/iotaledger/iota/issues/4995
     let option = MoveValue::Struct(MoveStruct {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
@@ -73,10 +76,10 @@ fn test_option() {
             MoveValue::Vector(vec![MoveValue::U8(5)]),
         )],
     });
-    let sui_value = SuiMoveValue::from(option);
+    let iota_value = IotaMoveValue::from(option);
     assert!(matches!(
-        sui_value,
-        SuiMoveValue::Option(value) if *value == Some(SuiMoveValue::Number(5))
+        iota_value,
+        IotaMoveValue::Option(value) if *value == Some(IotaMoveValue::Number(5))
     ));
 }
 
@@ -101,7 +104,7 @@ fn test_move_value_to_url() {
 
     let url_move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: ident_str!("url").to_owned(),
             name: ident_str!("Url").to_owned(),
             type_params: vec![],
@@ -109,32 +112,32 @@ fn test_move_value_to_url() {
         fields: vec![(ident_str!("url").to_owned(), string_move_value)],
     });
 
-    let sui_value = SuiMoveValue::from(url_move_value);
+    let iota_value = IotaMoveValue::from(url_move_value);
 
-    assert!(matches!(sui_value, SuiMoveValue::String(s) if s == test_url));
+    assert!(matches!(iota_value, IotaMoveValue::String(s) if s == test_url));
 }
 
 #[test]
 fn test_serde() {
     let test_values = [
-        SuiMoveValue::Number(u32::MAX),
-        SuiMoveValue::UID {
+        IotaMoveValue::Number(u32::MAX),
+        IotaMoveValue::UID {
             id: ObjectID::random(),
         },
-        SuiMoveValue::String("some test string".to_string()),
-        SuiMoveValue::Address(SuiAddress::random_for_testing_only()),
-        SuiMoveValue::Bool(true),
-        SuiMoveValue::Option(Box::new(None)),
-        SuiMoveValue::Vector(vec![
-            SuiMoveValue::Number(1000000),
-            SuiMoveValue::Number(2000000),
-            SuiMoveValue::Number(3000000),
+        IotaMoveValue::String("some test string".to_string()),
+        IotaMoveValue::Address(IotaAddress::random_for_testing_only()),
+        IotaMoveValue::Bool(true),
+        IotaMoveValue::Option(Box::new(None)),
+        IotaMoveValue::Vector(vec![
+            IotaMoveValue::Number(1000000),
+            IotaMoveValue::Number(2000000),
+            IotaMoveValue::Number(3000000),
         ]),
     ];
 
     for value in test_values {
         let json = serde_json::to_string(&value).unwrap();
-        let serde_value: SuiMoveValue = serde_json::from_str(&json)
+        let serde_value: IotaMoveValue = serde_json::from_str(&json)
             .map_err(|e| anyhow!("Serde failed for [{:?}], Error msg : {}", value, e))
             .unwrap();
         assert_eq!(
@@ -149,8 +152,8 @@ fn test_serde() {
 fn test_serde_bytearray() {
     // ensure that we serialize byte arrays as number array
     let test_values = MoveValue::Vector(vec![MoveValue::U8(1), MoveValue::U8(2), MoveValue::U8(3)]);
-    let sui_move_value = SuiMoveValue::from(test_values);
-    let json = serde_json::to_value(&sui_move_value).unwrap();
+    let iota_move_value = IotaMoveValue::from(test_values);
+    let json = serde_json::to_value(&iota_move_value).unwrap();
     assert_eq!(json, json!([1, 2, 3]));
 }
 
@@ -158,16 +161,16 @@ fn test_serde_bytearray() {
 fn test_serde_number() {
     // ensure that we serialize byte arrays as number array
     let test_values = MoveValue::U8(1);
-    let sui_move_value = SuiMoveValue::from(test_values);
-    let json = serde_json::to_value(&sui_move_value).unwrap();
+    let iota_move_value = IotaMoveValue::from(test_values);
+    let json = serde_json::to_value(&iota_move_value).unwrap();
     assert_eq!(json, json!(1));
     let test_values = MoveValue::U16(1);
-    let sui_move_value = SuiMoveValue::from(test_values);
-    let json = serde_json::to_value(&sui_move_value).unwrap();
+    let iota_move_value = IotaMoveValue::from(test_values);
+    let json = serde_json::to_value(&iota_move_value).unwrap();
     assert_eq!(json, json!(1));
     let test_values = MoveValue::U32(1);
-    let sui_move_value = SuiMoveValue::from(test_values);
-    let json = serde_json::to_value(&sui_move_value).unwrap();
+    let iota_move_value = IotaMoveValue::from(test_values);
+    let json = serde_json::to_value(&iota_move_value).unwrap();
     assert_eq!(json, json!(1));
 }
 
@@ -185,7 +188,7 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
         let oc = ObjectChange::Created {
             sender: Default::default(),
             owner: Owner::Immutable,
-            object_type: parse_sui_struct_tag(tag).unwrap(),
+            object_type: parse_iota_struct_tag(tag).unwrap(),
             object_id: ObjectID::random(),
             version: Default::default(),
             digest: ObjectDigest::random(),

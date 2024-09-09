@@ -1,28 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::displays::Pretty;
 use std::fmt::{Display, Formatter};
 
-use crate::{
-    SuiArgument, SuiCallArg, SuiCommand, SuiObjectArg, SuiProgrammableMoveCall,
-    SuiProgrammableTransactionBlock,
-};
-use sui_types::transaction::write_sep;
+use iota_types::transaction::write_sep;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
 
-impl<'a> Display for Pretty<'a, SuiProgrammableTransactionBlock> {
+use crate::{
+    displays::Pretty, IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg,
+    IotaProgrammableMoveCall, IotaProgrammableTransactionBlock,
+};
+
+impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(ptb) = self;
-        let SuiProgrammableTransactionBlock { inputs, commands } = ptb;
+        let IotaProgrammableTransactionBlock { inputs, commands } = ptb;
         if !inputs.is_empty() {
             let mut builder = TableBuilder::default();
             for (i, input) in inputs.iter().enumerate() {
                 match input {
-                    SuiCallArg::Pure(v) => {
+                    IotaCallArg::Pure(v) => {
                         let pure_arg = if let Some(t) = v.value_type() {
                             format!(
                                 "{i:<3} Pure Arg: Type: {}, Value: {}",
@@ -34,19 +35,19 @@ impl<'a> Display for Pretty<'a, SuiProgrammableTransactionBlock> {
                         };
                         builder.push_record(vec![pure_arg]);
                     }
-                    SuiCallArg::Object(SuiObjectArg::ImmOrOwnedObject { object_id, .. }) => {
+                    IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject { object_id, .. }) => {
                         builder.push_record(vec![format!(
                             "{i:<3} Imm/Owned Object ID: {}",
                             object_id
                         )]);
                     }
-                    SuiCallArg::Object(SuiObjectArg::SharedObject { object_id, .. }) => {
+                    IotaCallArg::Object(IotaObjectArg::SharedObject { object_id, .. }) => {
                         builder.push_record(vec![format!(
                             "{i:<3} Shared Object    ID: {}",
                             object_id
                         )]);
                     }
-                    SuiCallArg::Object(SuiObjectArg::Receiving { object_id, .. }) => {
+                    IotaCallArg::Object(IotaObjectArg::Receiving { object_id, .. }) => {
                         builder.push_record(vec![format!(
                             "{i:<3} Receiving Object ID: {}",
                             object_id
@@ -88,11 +89,11 @@ impl<'a> Display for Pretty<'a, SuiProgrammableTransactionBlock> {
     }
 }
 
-impl<'a> Display for Pretty<'a, SuiCommand> {
+impl<'a> Display for Pretty<'a, IotaCommand> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(command) = self;
         match command {
-            SuiCommand::MakeMoveVec(ty_opt, elems) => {
+            IotaCommand::MakeMoveVec(ty_opt, elems) => {
                 write!(f, "MakeMoveVec:\n ┌")?;
                 if let Some(ty) = ty_opt {
                     write!(f, "\n │ Type Tag: {ty}")?;
@@ -102,9 +103,9 @@ impl<'a> Display for Pretty<'a, SuiCommand> {
                 write!(f, "\n └")
             }
 
-            SuiCommand::MoveCall(p) => write!(f, "{}", Pretty(&**p)),
+            IotaCommand::MoveCall(p) => write!(f, "{}", Pretty(&**p)),
 
-            SuiCommand::MergeCoins(target, coins) => {
+            IotaCommand::MergeCoins(target, coins) => {
                 write!(
                     f,
                     "MergeCoins:\n ┌\n │ Target: {}\n │ Coins: \n │   ",
@@ -114,7 +115,7 @@ impl<'a> Display for Pretty<'a, SuiCommand> {
                 write!(f, "\n └")
             }
 
-            SuiCommand::SplitCoins(coin, amounts) => {
+            IotaCommand::SplitCoins(coin, amounts) => {
                 write!(
                     f,
                     "SplitCoins:\n ┌\n │ Coin: {}\n │ Amounts: \n │   ",
@@ -124,19 +125,19 @@ impl<'a> Display for Pretty<'a, SuiCommand> {
                 write!(f, "\n └")
             }
 
-            SuiCommand::Publish(deps) => {
+            IotaCommand::Publish(deps) => {
                 write!(f, "Publish:\n ┌\n │ Dependencies: \n │   ")?;
                 write_sep(f, deps, "\n │   ")?;
                 write!(f, "\n └")
             }
 
-            SuiCommand::TransferObjects(objs, addr) => {
+            IotaCommand::TransferObjects(objs, addr) => {
                 write!(f, "TransferObjects:\n ┌\n │ Arguments: \n │   ")?;
                 write_sep(f, objs.iter().map(Pretty), "\n │   ")?;
                 write!(f, "\n │ Address: {}\n └", Pretty(addr))
             }
 
-            SuiCommand::Upgrade(deps, current_package_id, ticket) => {
+            IotaCommand::Upgrade(deps, current_package_id, ticket) => {
                 write!(f, "Upgrade:\n ┌\n │ Dependencies: \n │   ")?;
                 write_sep(f, deps, "\n │   ")?;
                 write!(f, "\n │ Current Package ID: {current_package_id}")?;
@@ -147,10 +148,10 @@ impl<'a> Display for Pretty<'a, SuiCommand> {
     }
 }
 
-impl<'a> Display for Pretty<'a, SuiProgrammableMoveCall> {
+impl<'a> Display for Pretty<'a, IotaProgrammableMoveCall> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(move_call) = self;
-        let SuiProgrammableMoveCall {
+        let IotaProgrammableMoveCall {
             package,
             module,
             function,
@@ -177,15 +178,15 @@ impl<'a> Display for Pretty<'a, SuiProgrammableMoveCall> {
     }
 }
 
-impl<'a> Display for Pretty<'a, SuiArgument> {
+impl<'a> Display for Pretty<'a, IotaArgument> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(argument) = self;
 
         let output = match argument {
-            SuiArgument::GasCoin => "GasCoin".to_string(),
-            SuiArgument::Input(i) => format!("Input  {}", i),
-            SuiArgument::Result(i) => format!("Result {}", i),
-            SuiArgument::NestedResult(j, k) => format!("Nested Result {}: {}", j, k),
+            IotaArgument::GasCoin => "GasCoin".to_string(),
+            IotaArgument::Input(i) => format!("Input  {}", i),
+            IotaArgument::Result(i) => format!("Result {}", i),
+            IotaArgument::NestedResult(j, k) => format!("Nested Result {}: {}", j, k),
         };
         write!(f, "{}", output)
     }

@@ -1,41 +1,41 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(any(feature = "test-utils", test))]
+use std::str::FromStr;
+use std::{fmt, fmt::Display};
+
 use fastcrypto::encoding::{Base58, Base64};
-use move_core_types::annotated_value::MoveStructLayout;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::StructTag;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    error::IotaResult,
+    event::{Event, EventEnvelope, EventID},
+    iota_serde::{BigInt, IotaStructTag},
+};
+use json_to_table::json_to_table;
+use move_core_types::{
+    annotated_value::MoveDatatypeLayout, identifier::Identifier, language_storage::StructTag,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use serde_with::{serde_as, DisplayFromStr};
-use std::fmt;
-use std::fmt::Display;
-use sui_types::base_types::{ObjectID, SuiAddress, TransactionDigest};
-use sui_types::error::SuiResult;
-use sui_types::event::{Event, EventEnvelope, EventID};
-use sui_types::sui_serde::BigInt;
-
-use json_to_table::json_to_table;
 use tabled::settings::Style as TableStyle;
 
-use crate::{type_and_fields_from_move_struct, Page};
-use sui_types::sui_serde::SuiStructTag;
+use crate::{type_and_fields_from_move_event_data, Page};
 
-#[cfg(any(feature = "test-utils", test))]
-use std::str::FromStr;
-
-pub type EventPage = Page<SuiEvent, EventID>;
+pub type EventPage = Page<IotaEvent, EventID>;
 
 #[serde_as]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Event", rename_all = "camelCase")]
-pub struct SuiEvent {
+pub struct IotaEvent {
     /// Sequential event ID, ie (transaction seq number, event seq number).
     /// 1) Serves as a unique event ID for each fullnode
-    /// 2) Also serves to sequence events for the purposes of pagination and querying.
-    ///    A higher id is an event seen later by that fullnode.
+    /// 2) Also serves to sequence events for the purposes of pagination and
+    ///    querying. A higher id is an event seen later by that fullnode.
     /// This ID is the "cursor" for event querying.
     pub id: EventID,
     /// Move package where this event was emitted.
@@ -44,10 +44,10 @@ pub struct SuiEvent {
     #[serde_as(as = "DisplayFromStr")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
-    /// Sender's Sui address.
-    pub sender: SuiAddress,
+    /// Sender's Iota address.
+    pub sender: IotaAddress,
     #[schemars(with = "String")]
-    #[serde_as(as = "SuiStructTag")]
+    #[serde_as(as = "IotaStructTag")]
     /// Move event type.
     pub type_: StructTag,
     /// Parsed json value of the event
@@ -63,7 +63,7 @@ pub struct SuiEvent {
     pub timestamp_ms: Option<u64>,
 }
 
-impl From<EventEnvelope> for SuiEvent {
+impl From<EventEnvelope> for IotaEvent {
     fn from(ev: EventEnvelope) -> Self {
         Self {
             id: EventID {
@@ -81,8 +81,8 @@ impl From<EventEnvelope> for SuiEvent {
     }
 }
 
-impl From<SuiEvent> for Event {
-    fn from(val: SuiEvent) -> Self {
+impl From<IotaEvent> for Event {
+    fn from(val: IotaEvent) -> Self {
         Event {
             package_id: val.package_id,
             transaction_module: val.transaction_module,
@@ -93,28 +93,28 @@ impl From<SuiEvent> for Event {
     }
 }
 
-impl SuiEvent {
+impl IotaEvent {
     pub fn try_from(
         event: Event,
         tx_digest: TransactionDigest,
         event_seq: u64,
         timestamp_ms: Option<u64>,
-        layout: MoveStructLayout,
-    ) -> SuiResult<Self> {
+        layout: MoveDatatypeLayout,
+    ) -> IotaResult<Self> {
         let Event {
             package_id,
             transaction_module,
             sender,
-            type_,
+            type_: _,
             contents,
         } = event;
 
         let bcs = contents.to_vec();
 
-        let move_struct = Event::move_event_to_move_struct(&contents, layout)?;
-        let (type_, field) = type_and_fields_from_move_struct(&type_, move_struct);
+        let move_value = Event::move_event_to_move_value(&contents, layout)?;
+        let (type_, fields) = type_and_fields_from_move_event_data(move_value)?;
 
-        Ok(SuiEvent {
+        Ok(IotaEvent {
             id: EventID {
                 tx_digest,
                 event_seq,
@@ -123,23 +123,30 @@ impl SuiEvent {
             transaction_module,
             sender,
             type_,
-            parsed_json: field.to_json_value(),
+            parsed_json: fields,
             bcs,
             timestamp_ms,
         })
     }
 }
 
-impl Display for SuiEvent {
+impl Display for IotaEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let parsed_json = &mut self.parsed_json.clone();
         bytes_array_to_base64(parsed_json);
         let mut table = json_to_table(parsed_json);
         let style = TableStyle::modern();
         table.collapse().with(style);
-        write!(f,
+        write!(
+            f,
             " ┌──\n │ EventID: {}:{}\n │ PackageID: {}\n │ Transaction Module: {}\n │ Sender: {}\n │ EventType: {}\n",
-            self.id.tx_digest, self.id.event_seq, self.package_id, self.transaction_module, self.sender, self.type_)?;
+            self.id.tx_digest,
+            self.id.event_seq,
+            self.package_id,
+            self.transaction_module,
+            self.sender,
+            self.type_
+        )?;
         if let Some(ts) = self.timestamp_ms {
             writeln!(f, " │ Timestamp: {}\n └──", ts)?;
         }
@@ -155,7 +162,7 @@ impl Display for SuiEvent {
 }
 
 #[cfg(any(feature = "test-utils", test))]
-impl SuiEvent {
+impl IotaEvent {
     pub fn random_for_testing() -> Self {
         Self {
             id: EventID {
@@ -164,7 +171,7 @@ impl SuiEvent {
             },
             package_id: ObjectID::random(),
             transaction_module: Identifier::from_str("random_for_testing").unwrap(),
-            sender: SuiAddress::random_for_testing_only(),
+            sender: IotaAddress::random_for_testing_only(),
             type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
             parsed_json: json!({}),
             bcs: vec![],
@@ -204,10 +211,10 @@ fn try_into_byte(v: &Value) -> Option<u8> {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum EventFilter {
     /// Query by sender address.
-    Sender(SuiAddress),
+    Sender(IotaAddress),
     /// Return events emitted by the given transaction.
     Transaction(
-        ///digest of the transaction, as base-64 encoded string
+        /// digest of the transaction, as base-64 encoded string
         TransactionDigest,
     ),
     /// Return events emitted in a specified Package.
@@ -229,13 +236,13 @@ pub enum EventFilter {
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
     MoveEventType(
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         StructTag,
     ),
-    /// Return events with the given Move module name where the event struct is defined.
-    /// If the event is defined in Module A but emitted in a tx with Module B,
-    /// query `MoveEventModule` by module A returns the event.
-    /// Query `MoveModule` by module B returns the event too.
+    /// Return events with the given Move module name where the event struct is
+    /// defined. If the event is defined in Module A but emitted in a tx
+    /// with Module B, query `MoveEventModule` by module A returns the
+    /// event. Query `MoveModule` by module B returns the event too.
     MoveEventModule {
         /// the Move package ID
         package: ObjectID,
@@ -268,7 +275,7 @@ pub enum EventFilter {
 }
 
 impl EventFilter {
-    fn try_matches(&self, item: &SuiEvent) -> SuiResult<bool> {
+    fn try_matches(&self, item: &IotaEvent) -> IotaResult<bool> {
         Ok(match self {
             EventFilter::MoveEventType(event_type) => &item.type_ == event_type,
             EventFilter::MoveEventField { path, value } => {
@@ -313,8 +320,8 @@ impl EventFilter {
     }
 }
 
-impl Filter<SuiEvent> for EventFilter {
-    fn matches(&self, item: &SuiEvent) -> bool {
+impl Filter<IotaEvent> for EventFilter {
+    fn matches(&self, item: &IotaEvent) -> bool {
         let _scope = monitored_scope("EventFilter::matches");
         self.try_matches(item).unwrap_or_default()
     }
