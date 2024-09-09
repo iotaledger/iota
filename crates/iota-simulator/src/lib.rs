@@ -1,36 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(msim)]
-pub use msim::*;
-
-#[cfg(msim)]
 use std::hash::Hasher;
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// Re-export things used by sui-macros
+// Re-export things used by iota-macros
 pub use ::rand as rand_crate;
 pub use anemo;
 pub use anemo_tower;
 pub use fastcrypto;
+pub use iota_framework;
+pub use iota_move_build;
+pub use iota_types;
 pub use lru;
 pub use move_package;
+#[cfg(msim)]
+pub use msim::*;
 pub use narwhal_network;
-pub use sui_framework;
-pub use sui_move_build;
-pub use sui_types;
 pub use telemetry_subscribers;
 pub use tempfile;
 pub use tower;
 
 #[cfg(msim)]
 pub mod configs {
-    use msim::*;
-    use std::collections::HashMap;
-    use std::ops::Range;
-    use std::time::Duration;
+    use std::{collections::HashMap, ops::Range, time::Duration};
 
+    use msim::*;
     use tracing::info;
 
     fn ms_to_dur(range: Range<u64>) -> Range<Duration> {
@@ -82,22 +79,22 @@ pub mod configs {
         }
     }
 
-    /// Select from among a number of configs using the SUI_SIM_CONFIG env var.
+    /// Select from among a number of configs using the IOTA_SIM_CONFIG env var.
     pub fn env_config(
-        // Config to use when SUI_SIM_CONFIG is not set.
+        // Config to use when IOTA_SIM_CONFIG is not set.
         default: SimConfig,
         // List of (&str, SimConfig) pairs - the SimConfig associated with the value
-        // of the SUI_SIM_CONFIG var is chosen.
+        // of the IOTA_SIM_CONFIG var is chosen.
         env_configs: impl IntoIterator<Item = (&'static str, SimConfig)>,
     ) -> SimConfig {
         let mut env_configs = HashMap::<&'static str, SimConfig>::from_iter(env_configs);
-        if let Some(env) = std::env::var("SUI_SIM_CONFIG").ok() {
+        if let Some(env) = std::env::var("IOTA_SIM_CONFIG").ok() {
             if let Some(cfg) = env_configs.remove(env.as_str()) {
-                info!("Using test config for SUI_SIM_CONFIG={}", env);
+                info!("Using test config for IOTA_SIM_CONFIG={}", env);
                 cfg
             } else {
                 panic!(
-                    "No config found for SUI_SIM_CONFIG={}. Available configs are: {:?}",
+                    "No config found for IOTA_SIM_CONFIG={}. Available configs are: {:?}",
                     env,
                     env_configs.keys()
                 );
@@ -110,7 +107,7 @@ pub mod configs {
 }
 
 thread_local! {
-    static NODE_COUNT: AtomicUsize = AtomicUsize::new(0);
+    static NODE_COUNT: AtomicUsize = const { AtomicUsize::new(0) };
 }
 
 pub struct NodeLeakDetector(());
@@ -151,16 +148,16 @@ pub fn current_simnode_id() -> msim::task::NodeId {
 
 #[cfg(msim)]
 pub mod random {
-    use super::*;
+    use std::{cell::RefCell, collections::HashSet, hash::Hash};
 
     use rand_crate::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
     use serde::Serialize;
-    use std::cell::RefCell;
-    use std::collections::HashSet;
-    use std::hash::Hash;
 
-    /// Given a value, produce a random probability using the value as a seed, with
-    /// an additional seed that is constant only for the current test thread.
+    use super::*;
+
+    /// Given a value, produce a random probability using the value as a seed,
+    /// with an additional seed that is constant only for the current test
+    /// thread.
     pub fn deterministic_probability<T: Hash>(value: T, chance: f32) -> bool {
         thread_local! {
             // a random seed that is shared by the whole test process, so that equal `value`
@@ -178,8 +175,9 @@ pub mod random {
             })
     }
 
-    /// Like deterministic_probability, but only returns true once for each unique value. May eventually
-    /// consume all memory if there are a large number of unique, failing values.
+    /// Like deterministic_probability, but only returns true once for each
+    /// unique value. May eventually consume all memory if there are a large
+    /// number of unique, failing values.
     pub fn deterministic_probability_once<T: Hash + Serialize>(value: T, chance: f32) -> bool {
         thread_local! {
             static FAILING_VALUES: RefCell<HashSet<(msim::task::NodeId, Vec<u8>)>> = RefCell::new(HashSet::new());
