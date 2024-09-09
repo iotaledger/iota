@@ -75,7 +75,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         );
 
     return (
-        <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+        <div className="-mr-3 h-full overflow-y-auto overflow-x-hidden">
             <TransactionStatus
                 success={summary.status === 'success'}
                 timestamp={txn.timestampMs ?? undefined}

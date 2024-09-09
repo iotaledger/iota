@@ -27,31 +27,27 @@ export function TransactionSummary({
 }) {
     if (isError) return null;
     return (
-        <section className="bg-iota/10 -mx-6 min-h-full">
+        <section className={clsx('h-full py-lg', { 'py-md': isDryRun })}>
             {isLoading ? (
                 <div className="flex items-center justify-center p-10">
                     <LoadingIndicator />
                 </div>
             ) : (
-                <div>
-                    <div className={clsx('px-5 py-8', { 'py-6': isDryRun })}>
-                        <div className="flex flex-col gap-4">
-                            {isDryRun && (
-                                <div className="pl-4.5">
-                                    <Heading variant="heading6" color="steel-darker">
-                                        Do you approve these actions?
-                                    </Heading>
-                                </div>
-                            )}
-                            <BalanceChanges changes={summary?.balanceChanges} />
-                            <ObjectChanges changes={summary?.objectSummary} />
-                            {showGasSummary && <GasSummary gasSummary={summary?.gas} />}
-                            <ExplorerLinkCard
-                                digest={summary?.digest}
-                                timestamp={summary?.timestamp ?? undefined}
-                            />
+                <div className="flex flex-col gap-3">
+                    {isDryRun && (
+                        <div className="pl-4.5">
+                            <Heading variant="heading6" color="steel-darker">
+                                Do you approve these actions?
+                            </Heading>
                         </div>
-                    </div>
+                    )}
+                    <BalanceChanges changes={summary?.balanceChanges} />
+                    <ObjectChanges changes={summary?.objectSummary} />
+                    {showGasSummary && <GasSummary gasSummary={summary?.gas} />}
+                    <ExplorerLinkCard
+                        digest={summary?.digest}
+                        timestamp={summary?.timestamp ?? undefined}
+                    />
                 </div>
             )}
         </section>
