@@ -40,33 +40,25 @@ export function ObjectResult(): JSX.Element {
 
     return (
         <PageLayout
-            isError={!!isPageError}
-            gradient={
-                isPackage
-                    ? undefined
-                    : {
-                          size: 'md',
-                          content: (
-                              <div>
-                                  <PageHeader
-                                      type="Object"
-                                      title={resp?.id ?? ''}
-                                      before={<ObjectDetailsHeader className="h-6 w-6" />}
-                                  />
-
-                                  <ErrorBoundary>
-                                      {data && (
-                                          <div className="mt-5">
-                                              <ObjectView data={data} />
-                                          </div>
-                                      )}
-                                  </ErrorBoundary>
-                              </div>
-                          ),
-                      }
-            }
             content={
                 <>
+                    {isPackage ? undefined : (
+                        <div>
+                            <PageHeader
+                                type="Object"
+                                title={resp?.id ?? ''}
+                                before={<ObjectDetailsHeader className="h-6 w-6" />}
+                            />
+
+                            <ErrorBoundary>
+                                {data && (
+                                    <div className="mt-5">
+                                        <ObjectView data={data} />
+                                    </div>
+                                )}
+                            </ErrorBoundary>
+                        </div>
+                    )}
                     {isPageError || !data || !resp ? (
                         <Banner variant="error" spacing="lg" fullWidth>
                             Data could not be extracted on the following specified object ID:{' '}

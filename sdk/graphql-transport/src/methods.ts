@@ -60,8 +60,6 @@ import {
     PaginateTransactionBlockListsDocument,
     QueryEventsDocument,
     QueryTransactionBlocksDocument,
-    ResolveNameServiceAddressDocument,
-    ResolveNameServiceNamesDocument,
     TransactionBlockKindInput,
     TryGetPastObjectDocument,
 } from './generated/queries.js';
@@ -1272,7 +1270,7 @@ export const RPC_METHODS: {
             epochTotalTransactions: '0', // TODO
             firstCheckpointId: epoch.firstCheckpoint?.nodes[0]?.sequenceNumber.toString()!,
             endOfEpochInfo: null,
-            referenceGasPrice: Number.parseInt(epoch.referenceGasPrice, 10),
+            referenceGasPrice: epoch.referenceGasPrice,
             epochStartTimestamp: new Date(epoch.startTimestamp).getTime().toString(),
         };
     },
@@ -1389,35 +1387,6 @@ export const RPC_METHODS: {
             protocolVersion: protocolConfig.protocolVersion?.toString(),
             attributes,
             featureFlags,
-        };
-    },
-    async resolveNameServiceAddress(transport, [name]): Promise<string | null> {
-        const data = await transport.graphqlQuery({
-            query: ResolveNameServiceAddressDocument,
-            variables: {
-                domain: name,
-            },
-        });
-
-        return data.resolveIotansAddress?.address ?? null;
-    },
-    async resolveNameServiceNames(transport, [address, cursor, limit]) {
-        const iotansRegistrations = await transport.graphqlQuery(
-            {
-                query: ResolveNameServiceNamesDocument,
-                variables: {
-                    address: address,
-                    cursor,
-                    limit,
-                },
-            },
-            (data) => data.address?.iotansRegistrations,
-        );
-
-        return {
-            hasNextPage: iotansRegistrations.pageInfo.hasNextPage,
-            nextCursor: iotansRegistrations.pageInfo.endCursor ?? null,
-            data: iotansRegistrations?.nodes.map((node) => node.domain) ?? [],
         };
     },
 };
