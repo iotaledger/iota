@@ -149,3 +149,14 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
+
+  deny:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: |
+      !cancelled() && needs.diff.outputs.isRust == 'true' && success('dprint-format', 'license-check', 'typos')
+    uses: ./.github/workflows/_cargo_deny.yml
+    secrets: inherit
