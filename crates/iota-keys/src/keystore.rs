@@ -1,26 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::key_derive::{derive_key_pair_from_path, generate_new_key};
-use crate::random_names::{random_name, random_names};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt::{Display, Formatter, Write},
+    fs,
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
+
 use anyhow::{anyhow, bail, ensure, Context};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        enum_dispatch, get_key_pair_from_rng, EncodeDecodeBase64, IotaKeyPair, PublicKey,
+        Signature, SignatureScheme,
+    },
+};
 use rand::{rngs::StdRng, SeedableRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::collections::{BTreeMap, HashSet};
-use std::fmt::Write;
-use std::fmt::{Display, Formatter};
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::get_key_pair_from_rng;
-use sui_types::crypto::{
-    enum_dispatch, EncodeDecodeBase64, PublicKey, Signature, SignatureScheme, SuiKeyPair,
+
+use crate::{
+    key_derive::{derive_key_pair_from_path, generate_new_key},
+    random_names::{random_name, random_names},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -31,24 +39,26 @@ pub enum Keystore {
 }
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
-    fn add_key(&mut self, alias: Option<String>, keypair: SuiKeyPair) -> Result<(), anyhow::Error>;
+    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
+    -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
-    fn get_key(&self, address: &SuiAddress) -> Result<&SuiKeyPair, anyhow::Error>;
+    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
 
-    fn sign_hashed(&self, address: &SuiAddress, msg: &[u8]) -> Result<Signature, signature::Error>;
+    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
+    -> Result<Signature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
-        address: &SuiAddress,
+        address: &IotaAddress,
         msg: &T,
         intent: Intent,
     ) -> Result<Signature, signature::Error>
     where
         T: Serialize;
-    fn addresses(&self) -> Vec<SuiAddress> {
+    fn addresses(&self) -> Vec<IotaAddress> {
         self.keys().iter().map(|k| k.into()).collect()
     }
-    fn addresses_with_alias(&self) -> Vec<(&SuiAddress, &Alias)>;
+    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)>;
     fn aliases(&self) -> Vec<&Alias>;
     fn aliases_mut(&mut self) -> Vec<&mut Alias>;
     fn alias_names(&self) -> Vec<&str> {
@@ -58,8 +68,8 @@ pub trait AccountKeystore: Send + Sync {
             .collect()
     }
     /// Get alias of address
-    fn get_alias_by_address(&self, address: &SuiAddress) -> Result<String, anyhow::Error>;
-    fn get_address_by_alias(&self, alias: String) -> Result<&SuiAddress, anyhow::Error>;
+    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error>;
+    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error>;
     /// Check if an alias exists by its name
     fn alias_exists(&self, alias: &str) -> bool {
         self.alias_names().contains(&alias)
@@ -110,7 +120,7 @@ pub trait AccountKeystore: Send + Sync {
         alias: Option<String>,
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
-    ) -> Result<(SuiAddress, String, SignatureScheme), anyhow::Error> {
+    ) -> Result<(IotaAddress, String, SignatureScheme), anyhow::Error> {
         let (address, kp, scheme, phrase) =
             generate_new_key(key_scheme, derivation_path, word_length)?;
         self.add_key(alias, kp)?;
@@ -122,13 +132,14 @@ pub trait AccountKeystore: Send + Sync {
         phrase: &str,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
-    ) -> Result<SuiAddress, anyhow::Error> {
+        alias: Option<String>,
+    ) -> Result<IotaAddress, anyhow::Error> {
         let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
             .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))?;
         let seed = Seed::new(&mnemonic, "");
         match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {
             Ok((address, kp)) => {
-                self.add_key(None, kp)?;
+                self.add_key(alias, kp)?;
                 Ok(address)
             }
             Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
@@ -161,8 +172,8 @@ pub struct Alias {
 
 #[derive(Default)]
 pub struct FileBasedKeystore {
-    keys: BTreeMap<SuiAddress, SuiKeyPair>,
-    aliases: BTreeMap<SuiAddress, Alias>,
+    keys: BTreeMap<IotaAddress, IotaKeyPair>,
+    aliases: BTreeMap<IotaAddress, Alias>,
     path: Option<PathBuf>,
 }
 
@@ -193,7 +204,11 @@ impl<'de> Deserialize<'de> for FileBasedKeystore {
 }
 
 impl AccountKeystore for FileBasedKeystore {
-    fn sign_hashed(&self, address: &SuiAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
         Ok(Signature::new_hashed(
             msg,
             self.keys.get(address).ok_or_else(|| {
@@ -203,7 +218,7 @@ impl AccountKeystore for FileBasedKeystore {
     }
     fn sign_secure<T>(
         &self,
-        address: &SuiAddress,
+        address: &IotaAddress,
         msg: &T,
         intent: Intent,
     ) -> Result<Signature, signature::Error>
@@ -218,8 +233,12 @@ impl AccountKeystore for FileBasedKeystore {
         ))
     }
 
-    fn add_key(&mut self, alias: Option<String>, keypair: SuiKeyPair) -> Result<(), anyhow::Error> {
-        let address: SuiAddress = (&keypair.public()).into();
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
+        let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
         self.aliases.insert(
             address,
@@ -233,16 +252,18 @@ impl AccountKeystore for FileBasedKeystore {
         Ok(())
     }
 
-    /// Return an array of `Alias`, consisting of every alias and its corresponding public key.
+    /// Return an array of `Alias`, consisting of every alias and its
+    /// corresponding public key.
     fn aliases(&self) -> Vec<&Alias> {
         self.aliases.values().collect()
     }
 
-    fn addresses_with_alias(&self) -> Vec<(&SuiAddress, &Alias)> {
+    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)> {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
-    /// Return an array of `Alias`, consisting of every alias and its corresponding public key.
+    /// Return an array of `Alias`, consisting of every alias and its
+    /// corresponding public key.
     fn aliases_mut(&mut self) -> Vec<&mut Alias> {
         self.aliases.values_mut().collect()
     }
@@ -251,8 +272,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.keys.values().map(|key| key.public()).collect()
     }
 
-    /// This function returns an error if the provided alias already exists. If the alias
-    /// has not already been used, then it returns the alias.
+    /// This function returns an error if the provided alias already exists. If
+    /// the alias has not already been used, then it returns the alias.
     /// If no alias has been passed, it will generate a new alias.
     fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
         match alias {
@@ -271,7 +292,7 @@ impl AccountKeystore for FileBasedKeystore {
     }
 
     /// Get the address by its alias
-    fn get_address_by_alias(&self, alias: String) -> Result<&SuiAddress, anyhow::Error> {
+    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error> {
         self.addresses_with_alias()
             .iter()
             .find(|x| x.1.alias == alias)
@@ -280,14 +301,14 @@ impl AccountKeystore for FileBasedKeystore {
     }
 
     /// Get the alias if it exists, or return an error if it does not exist.
-    fn get_alias_by_address(&self, address: &SuiAddress) -> Result<String, anyhow::Error> {
+    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error> {
         match self.aliases.get(address) {
             Some(alias) => Ok(alias.alias.clone()),
             None => bail!("Cannot find alias for address {address}"),
         }
     }
 
-    fn get_key(&self, address: &SuiAddress) -> Result<&SuiKeyPair, anyhow::Error> {
+    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error> {
         match self.keys.get(address) {
             Some(key) => Ok(key),
             None => Err(anyhow!("Cannot find key for address: [{address}]")),
@@ -320,8 +341,8 @@ impl FileBasedKeystore {
             kp_strings
                 .iter()
                 .map(|kpstr| {
-                    let key = SuiKeyPair::decode_base64(kpstr);
-                    key.map(|k| (SuiAddress::from(&k.public()), k))
+                    let key = IotaKeyPair::decode_base64(kpstr);
+                    key.map(|k| (IotaAddress::from(&k.public()), k))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?
@@ -352,7 +373,7 @@ impl FileBasedKeystore {
                 .into_iter()
                 .map(|alias| {
                     let key = PublicKey::decode_base64(&alias.public_key_base64);
-                    key.map(|k| (Into::<SuiAddress>::into(&k), alias))
+                    key.map(|k| (Into::<IotaAddress>::into(&k), alias))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .map_err(|e| {
@@ -369,10 +390,10 @@ impl FileBasedKeystore {
             let aliases = keys
                 .iter()
                 .zip(names)
-                .map(|((sui_address, skp), alias)| {
+                .map(|((iota_address, skp), alias)| {
                     let public_key_base64 = skp.public().encode_base64();
                     (
-                        *sui_address,
+                        *iota_address,
                         Alias {
                             alias,
                             public_key_base64,
@@ -420,13 +441,11 @@ impl FileBasedKeystore {
         Ok(())
     }
 
+    /// Keys saved as Base64 with 33 bytes `flag || privkey` ($BASE64_STR).
+    /// To see Bech32 format encoding, use `iota keytool export $IOTA_ADDRESS`
+    /// where $IOTA_ADDRESS can be found with `iota keytool list`. Or use
+    /// `iota keytool convert $BASE64_STR`
     pub fn save_keystore(&self) -> Result<(), anyhow::Error> {
-        println!(
-            "Keys saved as Base64 with 33 bytes `flag || privkey` ($BASE64_STR). 
-        To see Bech32 format encoding, use `sui keytool export $SUI_ADDRESS` where 
-        $SUI_ADDRESS can be found with `sui keytool list`. Or use `sui keytool convert $BASE64_STR`."
-        );
-
         if let Some(path) = &self.path {
             let store = serde_json::to_string_pretty(
                 &self
@@ -447,19 +466,23 @@ impl FileBasedKeystore {
         Ok(())
     }
 
-    pub fn key_pairs(&self) -> Vec<&SuiKeyPair> {
+    pub fn key_pairs(&self) -> Vec<&IotaKeyPair> {
         self.keys.values().collect()
     }
 }
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct InMemKeystore {
-    aliases: BTreeMap<SuiAddress, Alias>,
-    keys: BTreeMap<SuiAddress, SuiKeyPair>,
+    aliases: BTreeMap<IotaAddress, Alias>,
+    keys: BTreeMap<IotaAddress, IotaKeyPair>,
 }
 
 impl AccountKeystore for InMemKeystore {
-    fn sign_hashed(&self, address: &SuiAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
         Ok(Signature::new_hashed(
             msg,
             self.keys.get(address).ok_or_else(|| {
@@ -469,7 +492,7 @@ impl AccountKeystore for InMemKeystore {
     }
     fn sign_secure<T>(
         &self,
-        address: &SuiAddress,
+        address: &IotaAddress,
         msg: &T,
         intent: Intent,
     ) -> Result<Signature, signature::Error>
@@ -484,8 +507,12 @@ impl AccountKeystore for InMemKeystore {
         ))
     }
 
-    fn add_key(&mut self, alias: Option<String>, keypair: SuiKeyPair) -> Result<(), anyhow::Error> {
-        let address: SuiAddress = (&keypair.public()).into();
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
+        let address: IotaAddress = (&keypair.public()).into();
         let alias = alias.unwrap_or_else(|| {
             random_name(
                 &self
@@ -511,7 +538,7 @@ impl AccountKeystore for InMemKeystore {
         self.aliases.values().collect()
     }
 
-    fn addresses_with_alias(&self) -> Vec<(&SuiAddress, &Alias)> {
+    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)> {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
@@ -519,7 +546,7 @@ impl AccountKeystore for InMemKeystore {
         self.keys.values().map(|key| key.public()).collect()
     }
 
-    fn get_key(&self, address: &SuiAddress) -> Result<&SuiKeyPair, anyhow::Error> {
+    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error> {
         match self.keys.get(address) {
             Some(key) => Ok(key),
             None => Err(anyhow!("Cannot find key for address: [{address}]")),
@@ -527,7 +554,7 @@ impl AccountKeystore for InMemKeystore {
     }
 
     /// Get alias of address
-    fn get_alias_by_address(&self, address: &SuiAddress) -> Result<String, anyhow::Error> {
+    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error> {
         match self.aliases.get(address) {
             Some(alias) => Ok(alias.alias.clone()),
             None => bail!("Cannot find alias for address {address}"),
@@ -535,7 +562,7 @@ impl AccountKeystore for InMemKeystore {
     }
 
     /// Get the address by its alias
-    fn get_address_by_alias(&self, alias: String) -> Result<&SuiAddress, anyhow::Error> {
+    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error> {
         self.addresses_with_alias()
             .iter()
             .find(|x| x.1.alias == alias)
@@ -543,8 +570,8 @@ impl AccountKeystore for InMemKeystore {
             .map(|x| x.0)
     }
 
-    /// This function returns an error if the provided alias already exists. If the alias
-    /// has not already been used, then it returns the alias.
+    /// This function returns an error if the provided alias already exists. If
+    /// the alias has not already been used, then it returns the alias.
     /// If no alias has been passed, it will generate a new alias.
     fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
         match alias {
@@ -582,16 +609,16 @@ impl InMemKeystore {
         let mut rng = StdRng::from_seed([0; 32]);
         let keys = (0..initial_key_number)
             .map(|_| get_key_pair_from_rng(&mut rng))
-            .map(|(ad, k)| (ad, SuiKeyPair::Ed25519(k)))
-            .collect::<BTreeMap<SuiAddress, SuiKeyPair>>();
+            .map(|(ad, k)| (ad, IotaKeyPair::Ed25519(k)))
+            .collect::<BTreeMap<IotaAddress, IotaKeyPair>>();
 
         let aliases = keys
             .iter()
             .zip(random_names(HashSet::new(), keys.len()))
-            .map(|((sui_address, skp), alias)| {
+            .map(|((iota_address, skp), alias)| {
                 let public_key_base64 = skp.public().encode_base64();
                 (
-                    *sui_address,
+                    *iota_address,
                     Alias {
                         alias,
                         public_key_base64,
@@ -624,7 +651,7 @@ mod tests {
         // OK
         assert!(validate_alias("A.B_dash").is_ok());
         assert!(validate_alias("A.B-C1_dash").is_ok());
-        assert!(validate_alias("abc_123.sui").is_ok());
+        assert!(validate_alias("abc_123.iota").is_ok());
         // Not allowed
         assert!(validate_alias("A.B-C_dash!").is_err());
         assert!(validate_alias(".B-C_dash!").is_err());

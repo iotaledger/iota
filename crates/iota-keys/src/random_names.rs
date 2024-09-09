@@ -1,8 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::{rngs::ThreadRng, thread_rng, Rng};
 use std::collections::HashSet;
+
+use rand::{rngs::ThreadRng, thread_rng, Rng};
 
 /// This library provides two functions to generate
 /// a random combination of an adjective
@@ -183,7 +185,8 @@ const RIGHT_LENGTH: usize = RIGHT_NAMES.len();
 
 /// Return a random name formatted as first-second from a list of strings.
 ///
-/// The main purpose of this function is to generate random aliases for addresses.
+/// The main purpose of this function is to generate random aliases for
+/// addresses.
 pub fn random_name(conflicts: &HashSet<String>) -> String {
     let mut rng = thread_rng();
     // as long as the generated name is in the list of conflicts,
