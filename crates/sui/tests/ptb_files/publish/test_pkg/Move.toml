@@ -1,7 +1,0 @@
-[package]
-name = "test_pkg"
-
-[dependencies]
-
-[addresses]
-test_pkg = "0x0"
