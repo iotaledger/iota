@@ -1,41 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{path::PathBuf, sync::Arc, time::Duration};
+
 use clap::{ArgGroup, Parser};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::broadcast;
-use tokio::time::sleep;
+use iota_common::sync::async_once_cell::AsyncOnceCell;
+use iota_config::{node::RunWithRange, Config, NodeConfig};
+use iota_core::runtime::IotaRuntimes;
+use iota_node::metrics;
+use iota_telemetry::send_telemetry_event;
+use iota_types::{
+    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
+    supported_protocol_versions::SupportedProtocolVersions,
+};
+use tokio::{sync::broadcast, time::sleep};
 use tracing::{error, info};
 
-use mysten_common::sync::async_once_cell::AsyncOnceCell;
-use sui_config::node::RunWithRange;
-use sui_config::{Config, NodeConfig};
-use sui_core::runtime::SuiRuntimes;
-use sui_node::metrics;
-use sui_protocol_config::SupportedProtocolVersions;
-use sui_telemetry::send_telemetry_event;
-use sui_types::committee::EpochId;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::multiaddr::Multiaddr;
-
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
@@ -57,12 +40,13 @@ struct Args {
 }
 
 fn main() {
-    // Ensure that a validator never calls get_for_min_version/get_for_max_version_UNSAFE.
-    // TODO: re-enable after we figure out how to eliminate crashes in prod because of this.
+    // Ensure that a validator never calls
+    // get_for_min_version/get_for_max_version_UNSAFE. TODO: re-enable after we
+    // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
 
     move_vm_profiler::gas_profiler_feature_enabled! {
-        panic!("Cannot run the sui-node binary with gas-profiler feature enabled");
+        panic!("Cannot run the iota-node binary with gas-profiler feature enabled");
     }
 
     let args = Args::parse();
@@ -75,8 +59,8 @@ fn main() {
 
     // match run_with_range args
     // this means that we always modify the config used to start the node
-    // for run_with_range. i.e if this is set in the config, it is ignored. only the cli args
-    // enable/disable run_with_range
+    // for run_with_range. i.e if this is set in the config, it is ignored. only the
+    // cli args enable/disable run_with_range
     match (args.run_with_range_epoch, args.run_with_range_checkpoint) {
         (None, Some(checkpoint)) => {
             config.run_with_range = Some(RunWithRange::Checkpoint(checkpoint))
@@ -85,9 +69,9 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
-    let runtimes = SuiRuntimes::new(&config);
+    let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
-    let registry_service = mysten_metrics::start_prometheus_server(config.metrics_address);
+    let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
@@ -98,7 +82,7 @@ fn main() {
 
     drop(metrics_rt);
 
-    info!("Sui Node version: {VERSION}");
+    info!("Iota Node version: {VERSION}");
     info!(
         "Supported protocol versions: {:?}",
         config.supported_protocol_versions
@@ -122,19 +106,19 @@ fn main() {
 
     let admin_interface_port = config.admin_interface_port;
 
-    // Run node in a separate runtime so that admin/monitoring functions continue to work
-    // if it deadlocks.
-    let node_once_cell = Arc::new(AsyncOnceCell::<Arc<sui_node::SuiNode>>::new());
+    // Run node in a separate runtime so that admin/monitoring functions continue to
+    // work if it deadlocks.
+    let node_once_cell = Arc::new(AsyncOnceCell::<Arc<iota_node::IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
     let rpc_runtime = runtimes.json_rpc.handle().clone();
 
-    // let sui-node signal main to shutdown runtimes
+    // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
-    runtimes.sui_node.spawn(async move {
-        match sui_node::SuiNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
-            Ok(sui_node) => node_once_cell_clone
-                .set(sui_node)
+    runtimes.iota_node.spawn(async move {
+        match iota_node::IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
+            Ok(iota_node) => node_once_cell_clone
+                .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
 
             Err(e) => {
@@ -147,11 +131,11 @@ fn main() {
         let node = node_once_cell_clone.get().await;
         let mut shutdown_rx = node.subscribe_to_shutdown_channel();
 
-        // when we get a shutdown signal from sui-node, forward it on to the runtime_shutdown_channel here in
+        // when we get a shutdown signal from iota-node, forward it on to the runtime_shutdown_channel here in
         // main to signal runtimes to all shutdown.
         tokio::select! {
            _ = shutdown_rx.recv() => {
-                runtime_shutdown_tx.send(()).expect("failed to forward shutdown signal from sui-node to sui-node main");
+                runtime_shutdown_tx.send(()).expect("failed to forward shutdown signal from iota-node to iota-node main");
             }
         }
         // TODO: Do we want to provide a way for the node to gracefully shutdown?
@@ -168,9 +152,9 @@ fn main() {
             None => "unknown".to_string(),
         };
 
-        info!("Sui chain identifier: {chain_identifier}");
+        info!("Iota chain identifier: {chain_identifier}");
         prometheus_registry
-            .register(mysten_metrics::uptime_metric(
+            .register(iota_metrics::uptime_metric(
                 if is_validator {
                     "validator"
                 } else {
@@ -181,7 +165,7 @@ fn main() {
             ))
             .unwrap();
 
-        sui_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
+        iota_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
     });
 
     runtimes.metrics.spawn(async move {
