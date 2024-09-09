@@ -392,7 +392,6 @@ pub async fn parse(
     } else {
         let intent: IntentMessage<TransactionData> =
             bcs::from_bytes(&request.transaction.to_vec()?)?;
-        // TODO: Is TransactionDigest::default() safe to use here?
         (intent.value, TransactionDigest::default())
     };
     let account_identifier_signers = if request.signed {
