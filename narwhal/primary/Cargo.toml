@@ -1,10 +1,10 @@
 [package]
 name = "narwhal-primary"
 version = "0.1.0"
-license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
-publish = false
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
+publish = false
 
 [dependencies]
 anyhow.workspace = true
@@ -12,8 +12,8 @@ async-trait.workspace = true
 backoff.workspace = true
 bcs.workspace = true
 bytes.workspace = true
-config = { path = "../config", package = "narwhal-config" }
 cfg-if.workspace = true
+config = { path = "../config", package = "narwhal-config" }
 futures.workspace = true
 governor.workspace = true
 itertools.workspace = true
@@ -21,49 +21,49 @@ once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
+tap.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "test-util"] }
 tokio-stream.workspace = true
 tower.workspace = true
 tracing.workspace = true
-tap.workspace = true
 
-fastcrypto.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
+fastcrypto.workspace = true
+iota-macros.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
 network = { path = "../network", package = "narwhal-network" }
-types = { path = "../types", package = "narwhal-types" }
 storage = { path = "../storage", package = "narwhal-storage" }
 store = { path = "../../crates/typed-store", package = "typed-store" }
-sui-macros.workspace = true
-mysten-network.workspace = true
-sui-protocol-config.workspace = true
+types = { path = "../types", package = "narwhal-types" }
 
-mysten-common.workspace = true
-mysten-metrics.workspace = true
+iota-common.workspace = true
+iota-metrics.workspace = true
 
 anemo.workspace = true
 anemo-tower.workspace = true
 
 [dev-dependencies]
-dashmap.workspace = true
 arc-swap.workspace = true
 async-trait.workspace = true
 bincode.workspace = true
 criterion.workspace = true
-futures.workspace = true
+dashmap.workspace = true
 executor = { path = "../executor", package = "narwhal-executor" }
+futures.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
 mockall.workspace = true
 node = { path = "../node", package = "narwhal-node" }
 proptest.workspace = true
+reqwest.workspace = true
+storage = { path = "../storage", package = "narwhal-storage" }
+telemetry-subscribers.workspace = true
 tempfile.workspace = true
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 tracing.workspace = true
 worker = { path = "../worker", package = "narwhal-worker" }
-storage = { path = "../storage", package = "narwhal-storage" }
-reqwest.workspace = true
-telemetry-subscribers.workspace = true
 
 [features]
 benchmark = []

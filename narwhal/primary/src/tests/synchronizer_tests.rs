@@ -1,14 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    certificate_fetcher::CertificateFetcherCommand,
-    common::create_db_stores,
-    consensus::{gc_round, ConsensusRound},
-    metrics::PrimaryMetrics,
-    synchronizer::Synchronizer,
-    PrimaryChannelMetrics,
+use std::{
+    collections::{BTreeSet, HashMap},
+    num::NonZeroUsize,
+    sync::Arc,
+    time::Duration,
 };
+
 use config::Committee;
 use crypto::AggregateSignatureBytes;
 use fastcrypto::{hash::Hash, traits::KeyPair};
@@ -16,12 +16,6 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use network::client::NetworkClient;
 use prometheus::Registry;
-use std::{
-    collections::{BTreeSet, HashMap},
-    num::NonZeroUsize,
-    sync::Arc,
-    time::Duration,
-};
 use test_utils::{
     get_protocol_config, latest_protocol_version, make_optimal_signed_certificates,
     mock_signed_certificate, CommitteeFixture,
@@ -30,6 +24,15 @@ use tokio::sync::watch;
 use types::{
     error::DagError, Certificate, CertificateAPI, Header, HeaderAPI, Round,
     SignatureVerificationState,
+};
+
+use crate::{
+    certificate_fetcher::CertificateFetcherCommand,
+    common::create_db_stores,
+    consensus::{gc_round, ConsensusRound},
+    metrics::PrimaryMetrics,
+    synchronizer::Synchronizer,
+    PrimaryChannelMetrics,
 };
 
 #[tokio::test]
@@ -59,7 +62,8 @@ async fn accept_certificates() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -94,9 +98,11 @@ async fn accept_certificates() {
         synchronizer.try_accept_certificate(cert).await.unwrap();
     }
 
-    // Ensure the Synchronizer sends the parents of the certificates to the proposer.
+    // Ensure the Synchronizer sends the parents of the certificates to the
+    // proposer.
     //
-    // The first messages are the Synchronizer letting us know about the round of parent certificates
+    // The first messages are the Synchronizer letting us know about the round of
+    // parent certificates
     for _i in 0..3 {
         let received = rx_parents.recv().await.unwrap();
         assert_eq!(received, (vec![], 0));
@@ -157,7 +163,8 @@ async fn accept_suspended_certificates() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -188,7 +195,8 @@ async fn accept_suspended_certificates() {
     );
     let certificates = certificates.into_iter().collect_vec();
 
-    // Try to accept certificates from round 2 to 5. All of them should be suspended.
+    // Try to accept certificates from round 2 to 5. All of them should be
+    // suspended.
     let accept = FuturesUnordered::new();
     for cert in &certificates[NUM_AUTHORITIES..] {
         match synchronizer.try_accept_certificate(cert.clone()).await {
@@ -212,7 +220,8 @@ async fn accept_suspended_certificates() {
     // Wait for all notifications to arrive.
     accept.collect::<Vec<()>>().await;
 
-    // Try to accept certificates from round 2 and above again. All of them should be accepted.
+    // Try to accept certificates from round 2 and above again. All of them should
+    // be accepted.
     for cert in &certificates[NUM_AUTHORITIES..] {
         match synchronizer.try_accept_certificate(cert.clone()).await {
             Ok(()) => continue,
@@ -264,7 +273,8 @@ async fn synchronizer_recover_basic() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -313,7 +323,8 @@ async fn synchronizer_recover_basic() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -381,7 +392,8 @@ async fn synchronizer_recover_partial_certs() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -432,7 +444,8 @@ async fn synchronizer_recover_partial_certs() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -492,7 +505,8 @@ async fn synchronizer_recover_previous_round() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -516,7 +530,8 @@ async fn synchronizer_recover_previous_round() {
         .unwrap();
     client.set_primary_network(network.clone());
 
-    // Send 3 certificates from round 1, and 2 certificates from round 2 to Synchronizer.
+    // Send 3 certificates from round 1, and 2 certificates from round 2 to
+    // Synchronizer.
     let genesis_certs = Certificate::genesis(&latest_protocol_version(), &committee);
     let genesis = genesis_certs
         .iter()
@@ -562,7 +577,8 @@ async fn synchronizer_recover_previous_round() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client.clone(),
         certificate_store.clone(),
         payload_store.clone(),
@@ -575,8 +591,8 @@ async fn synchronizer_recover_previous_round() {
     ));
     client.set_primary_network(network.clone());
 
-    // the recovery flow sends message that contains the parents for the last round for which we
-    // have a quorum of certificates, in this case is round 1.
+    // the recovery flow sends message that contains the parents for the last round
+    // for which we have a quorum of certificates, in this case is round 1.
     let received = rx_parents.recv().await.unwrap();
     assert_eq!(received.0.len(), round_1_certificates.len());
     assert_eq!(received.1, 1);
@@ -608,7 +624,8 @@ async fn deliver_certificate_using_store() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificates_store.clone(),
         payload_store.clone(),
@@ -680,7 +697,8 @@ async fn deliver_certificate_not_found_parents() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificates_store,
         payload_store,
@@ -730,7 +748,8 @@ async fn deliver_certificate_not_found_parents() {
         panic!("Expected CertificateFetcherCommand::Ancestors");
     };
 
-    // Be inactive would result in a kick signal from synchronizer to fetcher eventually.
+    // Be inactive would result in a kick signal from synchronizer to fetcher
+    // eventually.
     let CertificateFetcherCommand::Kick = rx_certificate_fetcher.recv().await.unwrap() else {
         panic!("Expected CertificateFetcherCommand::Kick");
     };
@@ -761,7 +780,8 @@ async fn sanitize_fetched_certificates() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificates_store.clone(),
         payload_store.clone(),
@@ -819,8 +839,8 @@ async fn sanitize_fetched_certificates() {
         .await
         .unwrap_err();
 
-    // Fail to verify a batch of certificates with bad signatures for leaves and the verification
-    // round, but good signatures at other rounds.
+    // Fail to verify a batch of certificates with bad signatures for leaves and the
+    // verification round, but good signatures at other rounds.
     let mut certs = Vec::new();
     for cert in &verified_certificates {
         let r = cert.round();
@@ -837,8 +857,8 @@ async fn sanitize_fetched_certificates() {
         .await
         .unwrap_err();
 
-    // Able to verify a batch of certificates with good signatures for leaves and the verification
-    // round, but bad signatures at other rounds.
+    // Able to verify a batch of certificates with good signatures for leaves and
+    // the verification round, but bad signatures at other rounds.
     let mut certs = Vec::new();
     for cert in &verified_certificates {
         let r = cert.round();
@@ -855,7 +875,8 @@ async fn sanitize_fetched_certificates() {
         .await
         .unwrap();
 
-    // Able to verify a batch of certificates with good signatures, but leaves in more rounds.
+    // Able to verify a batch of certificates with good signatures, but leaves in
+    // more rounds.
     let mut certs = Vec::new();
     for cert in &verified_certificates {
         let r = cert.round();
@@ -896,7 +917,8 @@ async fn sync_batches_drops_old() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -982,7 +1004,8 @@ async fn gc_suspended_certificates_v1() {
         fixture.committee(),
         cert_v1_config.clone(),
         worker_cache.clone(),
-        /* gc_depth */ GC_DEPTH,
+        // gc_depth
+        GC_DEPTH,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -1013,7 +1036,8 @@ async fn gc_suspended_certificates_v1() {
     );
     let certificates = certificates.into_iter().collect_vec();
 
-    // Try to aceept certificates from round 2 and above. All of them should be suspended.
+    // Try to accept certificates from round 2 and above. All of them should be
+    // suspended.
     let accept = FuturesUnordered::new();
     for cert in &certificates[NUM_AUTHORITIES..] {
         match synchronizer.try_accept_certificate(cert.clone()).await {
@@ -1032,7 +1056,8 @@ async fn gc_suspended_certificates_v1() {
         (NUM_AUTHORITIES * 4, NUM_AUTHORITIES * 4)
     );
 
-    // Re-insertion of missing certificate as fetched certificates should be suspended too.
+    // Re-insertion of missing certificate as fetched certificates should be
+    // suspended too.
     for cert in &certificates[NUM_AUTHORITIES * 2..NUM_AUTHORITIES * 4] {
         match synchronizer
             .try_accept_fetched_certificate(cert.clone())
@@ -1102,7 +1127,8 @@ async fn gc_suspended_certificates_v2() {
         fixture.committee(),
         cert_v2_config.clone(),
         worker_cache.clone(),
-        /* gc_depth */ GC_DEPTH,
+        // gc_depth
+        GC_DEPTH,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -1133,7 +1159,8 @@ async fn gc_suspended_certificates_v2() {
     );
     let certificates = certificates.into_iter().collect_vec();
 
-    // Try to aceept certificates from round 2 and above. All of them should be suspended.
+    // Try to accept certificates from round 2 and above. All of them should be
+    // suspended.
     let accept = FuturesUnordered::new();
     for cert in &certificates[NUM_AUTHORITIES..] {
         match synchronizer.try_accept_certificate(cert.clone()).await {
@@ -1152,7 +1179,8 @@ async fn gc_suspended_certificates_v2() {
         (NUM_AUTHORITIES * 4, NUM_AUTHORITIES * 4)
     );
 
-    // Re-insertion of missing certificate as fetched certificates should be suspended too.
+    // Re-insertion of missing certificate as fetched certificates should be
+    // suspended too.
     for (idx, cert) in certificates[NUM_AUTHORITIES * 2..NUM_AUTHORITIES * 4]
         .iter()
         .enumerate()
@@ -1160,7 +1188,8 @@ async fn gc_suspended_certificates_v2() {
         let mut verified_cert = cert.clone();
         // Simulate CertificateV2 fetched certificate leaf only verification
         if (idx + NUM_AUTHORITIES * 2) < NUM_AUTHORITIES * 3 {
-            // Round 3 certs are parents of round 4 certs, so we mark them as verified indirectly
+            // Round 3 certs are parents of round 4 certs, so we mark them as verified
+            // indirectly
             verified_cert.set_signature_verification_state(
                 SignatureVerificationState::VerifiedIndirectly(
                     verified_cert

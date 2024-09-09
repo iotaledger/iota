@@ -1,20 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{num::NonZeroUsize, time::Duration};
 
 use config::Parameters;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::RegistryService;
-use narwhal_node::execution_state::SimpleExecutionState;
-use narwhal_node::primary_node::PrimaryNode;
-use narwhal_node::worker_node::WorkerNodes;
+use iota_metrics::RegistryService;
+use narwhal_node::{
+    execution_state::SimpleExecutionState, primary_node::PrimaryNode, worker_node::WorkerNodes,
+};
 use network::client::NetworkClient;
 use prometheus::Registry;
-use std::num::NonZeroUsize;
-use std::time::Duration;
 use storage::NodeStorage;
 use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
-use tokio::sync::mpsc::channel;
-use tokio::time::sleep;
+use tokio::{sync::mpsc::channel, time::sleep};
 use worker::TrivialTransactionValidator;
 
 #[tokio::test]
@@ -79,8 +79,8 @@ async fn simple_primary_worker_node_start_stop() {
     sleep(Duration::from_secs(2)).await;
 
     // THEN
-    // unfortunately we don't have strong signal to check whether a node is up and running complete,
-    // so just use the admin endpoint to check it's running
+    // unfortunately we don't have strong signal to check whether a node is up and
+    // running complete, so just use the admin endpoint to check it's running
     let client = reqwest::Client::new();
     let response = client
         .get(format!(

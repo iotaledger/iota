@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use network::metrics::{NetworkConnectionMetrics, NetworkMetrics};
 use prometheus::{
@@ -51,72 +52,93 @@ pub(crate) fn initialise_metrics(metrics_registry: &Registry) -> Metrics {
 
 #[derive(Clone)]
 pub struct PrimaryChannelMetrics {
-    /// occupancy of the channel from the `primary::WorkerReceiverHandler` to the `primary::PayloadReceiver`
+    /// occupancy of the channel from the `primary::WorkerReceiverHandler` to
+    /// the `primary::PayloadReceiver`
     pub tx_others_digests: IntGauge,
-    /// occupancy of the channel from the `primary::WorkerReceiverHandler` to the `primary::Proposer`
+    /// occupancy of the channel from the `primary::WorkerReceiverHandler` to
+    /// the `primary::Proposer`
     pub tx_our_digests: IntGauge,
-    /// occupancy of the channel from the `primary::Synchronizer` to the `primary::Proposer`
+    /// occupancy of the channel from the `primary::Synchronizer` to the
+    /// `primary::Proposer`
     pub tx_parents: IntGauge,
-    /// occupancy of the channel from the `primary::Proposer` to the `primary::Certifier`
+    /// occupancy of the channel from the `primary::Proposer` to the
+    /// `primary::Certifier`
     pub tx_headers: IntGauge,
-    /// occupancy of the channel from the `primary::Synchronizer` to the `primary::CertificaterWaiter`
+    /// occupancy of the channel from the `primary::Synchronizer` to the
+    /// `primary::CertificaterWaiter`
     pub tx_certificate_fetcher: IntGauge,
-    /// occupancy of the channel from the `Consensus` to the `primary::StateHandler`
+    /// occupancy of the channel from the `Consensus` to the
+    /// `primary::StateHandler`
     pub tx_committed_certificates: IntGauge,
-    /// occupancy of the channel from the `primary::Synchronizer` to the `Consensus`
+    /// occupancy of the channel from the `primary::Synchronizer` to the
+    /// `Consensus`
     pub tx_new_certificates: IntGauge,
     /// occupancy of the channel signaling own committed headers
     pub tx_committed_own_headers: IntGauge,
-    /// An internal synchronizer channel. Occupancy of the channel sending certificates to the internal
-    /// task that accepts certificates.
+    /// An internal synchronizer channel. Occupancy of the channel sending
+    /// certificates to the internal task that accepts certificates.
     pub tx_certificate_acceptor: IntGauge,
-    /// Occupancy of the channel synchronizing batches for provided headers & certificates.
+    /// Occupancy of the channel synchronizing batches for provided headers &
+    /// certificates.
     pub tx_batch_tasks: IntGauge,
 
     // totals
-    /// total received on channel from the `primary::WorkerReceiverHandler` to the `primary::PayloadReceiver`
+    /// total received on channel from the `primary::WorkerReceiverHandler` to
+    /// the `primary::PayloadReceiver`
     pub tx_others_digests_total: IntCounter,
-    /// total received on channel from the `primary::WorkerReceiverHandler` to the `primary::Proposer`
+    /// total received on channel from the `primary::WorkerReceiverHandler` to
+    /// the `primary::Proposer`
     pub tx_our_digests_total: IntCounter,
-    /// total received on channel from the `primary::Synchronizer` to the `primary::Proposer`
+    /// total received on channel from the `primary::Synchronizer` to the
+    /// `primary::Proposer`
     pub tx_parents_total: IntCounter,
-    /// total received on channel from the `primary::Proposer` to the `primary::Certifier`
+    /// total received on channel from the `primary::Proposer` to the
+    /// `primary::Certifier`
     pub tx_headers_total: IntCounter,
-    /// total received on channel from the `primary::Synchronizer` to the `primary::CertificaterWaiter`
+    /// total received on channel from the `primary::Synchronizer` to the
+    /// `primary::CertificaterWaiter`
     pub tx_certificate_fetcher_total: IntCounter,
-    /// total received on channel from the `primary::WorkerReceiverHandler` to the `primary::StateHandler`
+    /// total received on channel from the `primary::WorkerReceiverHandler` to
+    /// the `primary::StateHandler`
     pub tx_state_handler_total: IntCounter,
-    /// total received on channel from the `Consensus` to the `primary::StateHandler`
+    /// total received on channel from the `Consensus` to the
+    /// `primary::StateHandler`
     pub tx_committed_certificates_total: IntCounter,
-    /// total received on channel from the `primary::Synchronizer` to the `Consensus`
+    /// total received on channel from the `primary::Synchronizer` to the
+    /// `Consensus`
     pub tx_new_certificates_total: IntCounter,
     /// total received on the channel signaling own committed headers
     pub tx_committed_own_headers_total: IntCounter,
-    /// Total received by the channel sending certificates to the internal task that accepts certificates.
+    /// Total received by the channel sending certificates to the internal task
+    /// that accepts certificates.
     pub tx_certificate_acceptor_total: IntCounter,
     /// Total received the channel to synchronize missing batches
     pub tx_batch_tasks_total: IntCounter,
 }
 
 impl PrimaryChannelMetrics {
-    // The consistent use of this constant in the below, as well as in `node::spawn_primary` is
-    // load-bearing, see `replace_registered_committed_certificates_metric`.
+    // The consistent use of this constant in the below, as well as in
+    // `node::spawn_primary` is load-bearing, see
+    // `replace_registered_committed_certificates_metric`.
     pub const NAME_COMMITTED_CERTS: &'static str = "tx_committed_certificates";
     pub const DESC_COMMITTED_CERTS: &'static str =
         "occupancy of the channel from the `Consensus` to the `primary::StateHandler`";
-    // The consistent use of this constant in the below, as well as in `node::spawn_primary` is
-    // load-bearing, see `replace_registered_new_certificates_metric`.
+    // The consistent use of this constant in the below, as well as in
+    // `node::spawn_primary` is load-bearing, see
+    // `replace_registered_new_certificates_metric`.
     pub const NAME_NEW_CERTS: &'static str = "tx_new_certificates";
     pub const DESC_NEW_CERTS: &'static str =
         "occupancy of the channel from the `primary::Synchronizer` to the `Consensus`";
 
-    // The consistent use of this constant in the below, as well as in `node::spawn_primary` is
-    // load-bearing, see `replace_registered_committed_certificates_metric`.
+    // The consistent use of this constant in the below, as well as in
+    // `node::spawn_primary` is load-bearing, see
+    // `replace_registered_committed_certificates_metric`.
     pub const NAME_COMMITTED_CERTS_TOTAL: &'static str = "tx_committed_certificates_total";
     pub const DESC_COMMITTED_CERTS_TOTAL: &'static str =
         "total received on channel from the `Consensus` to the `primary::StateHandler`";
-    // The consistent use of this constant in the below, as well as in `node::spawn_primary` is
-    // load-bearing, see `replace_registered_new_certificates_metric`.
+    // The consistent use of this constant in the below, as well as in
+    // `node::spawn_primary` is load-bearing, see
+    // `replace_registered_new_certificates_metric`.
     pub const NAME_NEW_CERTS_TOTAL: &'static str = "tx_new_certificates_total";
     pub const DESC_NEW_CERTS_TOTAL: &'static str =
         "total received on channel from the `primary::Synchronizer` to the `Consensus`";
@@ -287,7 +309,8 @@ pub struct PrimaryMetrics {
     pub certificates_suspended: IntCounterVec,
     /// number of certificates that are currently suspended.
     pub certificates_currently_suspended: IntGauge,
-    /// count number of duplicate certificates that the node processed (others + own)
+    /// count number of duplicate certificates that the node processed (others +
+    /// own)
     pub duplicate_certificates_processed: IntCounter,
     /// The current Narwhal round in proposer
     pub current_round: IntGauge,
@@ -303,9 +326,11 @@ pub struct PrimaryMetrics {
     pub certificate_fetcher_num_certificates_processed: IntCounter,
     /// Total time spent in certificate verifications, in microseconds.
     pub certificate_fetcher_total_verification_us: IntCounter,
-    /// Total time spent to accept certificates via Synchronizer, in microseconds.
+    /// Total time spent to accept certificates via Synchronizer, in
+    /// microseconds.
     pub certificate_fetcher_total_accept_us: IntCounter,
-    /// Number of votes that were requested but not sent due to previously having voted differently
+    /// Number of votes that were requested but not sent due to previously
+    /// having voted differently
     pub votes_dropped_equivocation_protection: IntCounter,
     /// Number of pending batches in proposer
     pub num_of_pending_batches_in_proposer: IntGauge,
@@ -326,7 +351,8 @@ pub struct PrimaryMetrics {
     pub header_to_certificate_latency: Histogram,
     /// Millisecs taken to wait for max parent time, when proposing headers.
     pub header_max_parent_wait_ms: IntCounter,
-    /// Counts when the GC loop in synchronizer times out waiting for consensus commit.
+    /// Counts when the GC loop in synchronizer times out waiting for consensus
+    /// commit.
     pub synchronizer_gc_timeout: IntCounter,
     // Total number of fetched certificates verified directly.
     pub fetched_certificates_verified_directly: IntCounter,

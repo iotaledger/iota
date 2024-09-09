@@ -1,15 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::collections::HashMap;
+
 use axum::{routing::get, Extension, Router};
 use config::{AuthorityIdentifier, WorkerId};
-use mysten_metrics::{metrics, spawn_logged_monitored_task};
-use mysten_network::multiaddr::Multiaddr;
+use iota_metrics::{metrics, spawn_logged_monitored_task};
+use iota_network_stack::multiaddr::Multiaddr;
 use prometheus::{
     register_counter_with_registry, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry, Counter, Histogram,
     IntCounter, IntGauge, Registry,
 };
-use std::collections::HashMap;
 use tokio::task::JoinHandle;
 
 const METRICS_ROUTE: &str = "/metrics";
@@ -105,10 +107,8 @@ pub fn start_prometheus_server(addr: Multiaddr, registry: &Registry) -> JoinHand
 
     spawn_logged_monitored_task!(
         async move {
-            axum::Server::bind(&socket_addr)
-                .serve(app.into_make_service())
-                .await
-                .unwrap();
+            let listener = tokio::net::TcpListener::bind(&socket_addr).await.unwrap();
+            axum::serve(listener, app).await.unwrap();
         },
         "MetricsServerTask"
     )

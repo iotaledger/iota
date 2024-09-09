@@ -1,8 +1,9 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# This script attempts to update the Narwhal pointer in Sui
+# This script attempts to update the Narwhal pointer in Iota
 # It is expected to fail in cases 
 set -e
 set -eo pipefail
@@ -35,14 +36,14 @@ function check_gnu_grep() {
 function latest_mi_revision() {
 	MI_CHECKOUT=$(mktemp -d)
 	cd "$MI_CHECKOUT"
-	git clone --depth 1 https://github.com/mystenlabs/mysten-infra
-	cd mysten-infra
+	git clone --depth 1 https://github.com/iotaledger/iota-infra
+	cd iota-infra
 	git rev-parse HEAD
 }
 
 function current_mi_revision() {
 	cd "$TOPLEVEL"
-	readarray -t <<< "$(find ./ -iname '*.toml' -exec $GREP -oPie 'git = "https://github.com/[mM]ystenLabs/mysten-infra(\.git)?", *rev *= *\"\K[0-9a-fA-F]+' '{}' \;)"
+	readarray -t <<< "$(find ./ -iname '*.toml' -exec $GREP -oPie 'git = "https://github.com/[mM]ystenLabs/iota-infra(\.git)?", *rev *= *\"\K[0-9a-fA-F]+' '{}' \;)"
 	watermark=${MAPFILE[0]}
 	for i in "${MAPFILE[@]}"; do
 	    if [[ "$watermark" != "$i" ]]; then
@@ -51,18 +52,18 @@ function current_mi_revision() {
 	    fi
 	done
 
-	[[ -n "$not_equal" ]] && echo "Different values found for the current mysten-infra revision in NW, aborting" && exit 1
+	[[ -n "$not_equal" ]] && echo "Different values found for the current iota-infra revision in NW, aborting" && exit 1
 	echo "$watermark"
 }
 
 # Check for tooling
 check_gnu_grep
 
-# Debug prints for mysten-infra
+# Debug prints for iota-infra
 CURRENT_MI=$(current_mi_revision)
 LATEST_MI=$(latest_mi_revision)
 if [[ "$CURRENT_MI" != "$LATEST_MI" ]]; then
-	echo "About to replace $CURRENT_MI with $LATEST_MI as the mysten-infra pointer in Narwhal"
+	echo "About to replace $CURRENT_MI with $LATEST_MI as the iota-infra pointer in Narwhal"
 else
 	exit 0
 fi

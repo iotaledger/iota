@@ -1,23 +1,25 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::*;
-use crate::common::create_db_stores;
+use std::num::NonZeroUsize;
 
-use crate::{consensus::ConsensusRound, PrimaryChannelMetrics, NUM_SHUTDOWN_RECEIVERS};
 use crypto::KeyPair as DefinedKeyPair;
 use fastcrypto::traits::KeyPair;
 use network::client::NetworkClient;
 use prometheus::Registry;
 use rand::{rngs::StdRng, SeedableRng};
-use std::num::NonZeroUsize;
-use test_utils::CommitteeFixture;
-use test_utils::{get_protocol_config, latest_protocol_version};
-use tokio::sync::watch;
-use tokio::time::Duration;
+use test_utils::{get_protocol_config, latest_protocol_version, CommitteeFixture};
+use tokio::{sync::watch, time::Duration};
 use types::{
     CertificateAPI, MockPrimaryToPrimary, PreSubscribedBroadcastSender, PrimaryToPrimaryServer,
     RequestVoteResponse, SignatureVerificationState,
+};
+
+use super::*;
+use crate::{
+    common::create_db_stores, consensus::ConsensusRound, PrimaryChannelMetrics,
+    NUM_SHUTDOWN_RECEIVERS,
 };
 
 // TODO: Remove after network has moved to CertificateV2
@@ -106,7 +108,8 @@ async fn propose_header_and_form_certificate_v1() {
         fixture.committee(),
         cert_v1_protocol_config.clone(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -131,8 +134,8 @@ async fn propose_header_and_form_certificate_v1() {
         network,
     );
 
-    // Propose header and ensure that a certificate is formed by pulling it out of the
-    // consensus channel.
+    // Propose header and ensure that a certificate is formed by pulling it out of
+    // the consensus channel.
     let proposed_digest = proposed_header.digest();
     tx_headers.send(proposed_header).await.unwrap();
     let certificate = rx_new_certificates.recv().await.unwrap();
@@ -224,7 +227,8 @@ async fn propose_header_and_form_certificate_v2() {
         fixture.committee(),
         cert_v2_config.clone(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -249,8 +253,8 @@ async fn propose_header_and_form_certificate_v2() {
         network,
     );
 
-    // Propose header and ensure that a certificate is formed by pulling it out of the
-    // consensus channel.
+    // Propose header and ensure that a certificate is formed by pulling it out of
+    // the consensus channel.
     let proposed_digest = proposed_header.digest();
     tx_headers.send(proposed_header).await.unwrap();
     let certificate = rx_new_certificates.recv().await.unwrap();
@@ -328,7 +332,8 @@ async fn propose_header_failure() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -461,7 +466,8 @@ async fn run_vote_aggregator_with_param(
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),
@@ -532,7 +538,8 @@ async fn shutdown_core() {
         fixture.committee(),
         latest_protocol_version(),
         worker_cache.clone(),
-        /* gc_depth */ 50,
+        // gc_depth
+        50,
         client,
         certificate_store.clone(),
         payload_store.clone(),

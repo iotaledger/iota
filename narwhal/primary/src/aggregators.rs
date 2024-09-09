@@ -1,23 +1,25 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::PrimaryMetrics;
+use std::{collections::HashSet, sync::Arc};
+
 use config::{AuthorityIdentifier, Committee, Stake};
 use crypto::{
     to_intent_message, AggregateSignature, NarwhalAuthorityAggregateSignature,
     NarwhalAuthoritySignature, Signature,
 };
 use fastcrypto::hash::{Digest, Hash};
-use std::collections::HashSet;
-use std::sync::Arc;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tracing::warn;
 use types::{
     ensure,
     error::{DagError, DagResult},
     Certificate, CertificateAPI, Header, SignatureVerificationState, Vote, VoteAPI,
 };
+
+use crate::metrics::PrimaryMetrics;
 
 /// Aggregates votes for a particular header into a certificate.
 pub struct VotesAggregator {
@@ -99,7 +101,8 @@ impl VotesAggregator {
                     return Ok(None);
                 }
                 Ok(_) => {
-                    // TODO: Move this block and the AggregateSignature verification into Certificate
+                    // TODO: Move this block and the AggregateSignature verification into
+                    // Certificate
                     if self.protocol_config.narwhal_certificate_v2() {
                         cert.set_signature_verification_state(
                             SignatureVerificationState::VerifiedDirectly(
@@ -148,9 +151,10 @@ impl CertificatesAggregator {
         self.certificates.push(certificate);
         self.weight += committee.stake_by_id(origin);
         if self.weight >= committee.quorum_threshold() {
-            // Note that we do not reset the weight here. If this function is called again and
-            // the proposer didn't yet advance round, we can add extra certificates as parents.
-            // This is required when running Bullshark as consensus.
+            // Note that we do not reset the weight here. If this function is called again
+            // and the proposer didn't yet advance round, we can add extra
+            // certificates as parents. This is required when running Bullshark
+            // as consensus.
             return Some(self.certificates.drain(..).collect());
         }
         None

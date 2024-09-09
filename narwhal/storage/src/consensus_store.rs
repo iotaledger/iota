@@ -1,13 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{NodeStorage, StoreResult};
-use config::AuthorityIdentifier;
 use std::collections::HashMap;
-use store::rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions};
-use store::{reopen, Map, TypedStoreError};
+
+use config::AuthorityIdentifier;
+use store::{
+    reopen,
+    rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
+    Map, TypedStoreError,
+};
 use tracing::debug;
 use types::{CommittedSubDag, ConsensusCommit, ConsensusCommitV2, Round, SequenceNumber};
+
+use crate::{NodeStorage, StoreResult};
 
 /// The persistent storage of the sequencer.
 pub struct ConsensusStore {
@@ -114,8 +120,9 @@ impl ConsensusStore {
         self.committed_sub_dags_by_index_v2.get(seq)
     }
 
-    /// Reads from storage the latest commit sub dag where its ReputationScores are marked as "final".
-    /// If none exists yet then this method will return None.
+    /// Reads from storage the latest commit sub dag where its ReputationScores
+    /// are marked as "final". If none exists yet then this method will
+    /// return None.
     pub fn read_latest_commit_with_final_reputation_scores(&self) -> Option<ConsensusCommit> {
         for commit in self
             .committed_sub_dags_by_index_v2
@@ -141,10 +148,12 @@ impl ConsensusStore {
 
 #[cfg(test)]
 mod test {
-    use crate::ConsensusStore;
     use std::collections::HashMap;
+
     use test_utils::{latest_protocol_version, CommitteeFixture};
     use types::{Certificate, CommittedSubDag, ReputationScores};
+
+    use crate::ConsensusStore;
 
     #[tokio::test]
     async fn test_read_latest_final_reputation_scores() {
@@ -168,7 +177,8 @@ mod test {
                 .unwrap();
         }
 
-        // WHEN we try to read the final schedule. The one of sub dag sequence 12 should be returned
+        // WHEN we try to read the final schedule. The one of sub dag sequence 12 should
+        // be returned
         let commit = store.read_latest_commit_with_final_reputation_scores();
 
         // THEN no commit is returned
@@ -196,7 +206,8 @@ mod test {
                 .unwrap();
         }
 
-        // WHEN we try to read the final schedule. The one of sub dag sequence 20 should be returned
+        // WHEN we try to read the final schedule. The one of sub dag sequence 20 should
+        // be returned
         let commit = store
             .read_latest_commit_with_final_reputation_scores()
             .unwrap();

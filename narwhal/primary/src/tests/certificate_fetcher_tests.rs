@@ -1,10 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    certificate_fetcher::CertificateFetcher, consensus::ConsensusRound, metrics::PrimaryMetrics,
-    primary::NUM_SHUTDOWN_RECEIVERS, synchronizer::Synchronizer, PrimaryChannelMetrics,
-};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
+
 use anemo::async_trait;
 use anyhow::Result;
 use config::{AuthorityIdentifier, Epoch, WorkerId};
@@ -15,9 +14,7 @@ use itertools::Itertools;
 use network::client::NetworkClient;
 use once_cell::sync::OnceCell;
 use prometheus::Registry;
-use std::{collections::BTreeSet, sync::Arc, time::Duration};
-use storage::CertificateStore;
-use storage::NodeStorage;
+use storage::{CertificateStore, NodeStorage};
 use test_utils::{get_protocol_config, latest_protocol_version, temp_dir, CommitteeFixture};
 use tokio::{
     sync::{
@@ -26,13 +23,17 @@ use tokio::{
     },
     time::sleep,
 };
-use types::HeaderV1;
-use types::TimestampMs;
 use types::{
     BatchDigest, Certificate, CertificateAPI, CertificateDigest, FetchCertificatesRequest,
-    FetchCertificatesResponse, Header, HeaderAPI, HeaderDigest, PreSubscribedBroadcastSender,
-    PrimaryToPrimary, PrimaryToPrimaryServer, RequestVoteRequest, RequestVoteResponse, Round,
-    SendCertificateRequest, SendCertificateResponse, SignatureVerificationState,
+    FetchCertificatesResponse, Header, HeaderAPI, HeaderDigest, HeaderV1,
+    PreSubscribedBroadcastSender, PrimaryToPrimary, PrimaryToPrimaryServer, RequestVoteRequest,
+    RequestVoteResponse, Round, SendCertificateRequest, SendCertificateResponse,
+    SignatureVerificationState, TimestampMs,
+};
+
+use crate::{
+    certificate_fetcher::CertificateFetcher, consensus::ConsensusRound, metrics::PrimaryMetrics,
+    primary::NUM_SHUTDOWN_RECEIVERS, synchronizer::Synchronizer, PrimaryChannelMetrics,
 };
 
 pub struct NetworkProxy {
@@ -170,7 +171,8 @@ fn verify_certificates_not_in_store(
 }
 
 // Used below to construct malformed Headers
-// Note: this should always mimic the Header struct, only changing the visibility of the id field to public
+// Note: this should always mimic the Header struct, only changing the
+// visibility of the id field to public
 #[allow(dead_code)]
 struct BadHeader {
     pub author: AuthorityIdentifier,
@@ -314,13 +316,16 @@ async fn fetch_certificates_v1_basic() {
     }
     let mut num_written = 4;
 
-    // Send a primary message for a certificate with parents that do not exist locally, to trigger fetching.
+    // Send a primary message for a certificate with parents that do not exist
+    // locally, to trigger fetching.
     let target_index = 123;
-    assert!(!synchronizer
-        .get_missing_parents(&certificates[target_index].clone())
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        !synchronizer
+            .get_missing_parents(&certificates[target_index].clone())
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Verify the fetch request.
     let mut req = rx_fetch_req.recv().await.unwrap();
@@ -343,7 +348,8 @@ async fn fetch_certificates_v1_basic() {
     };
     tx_fetch_resp.try_send(first_batch_resp.clone()).unwrap();
 
-    // The certificates up to index 4 + 62 = 66 should be written to store eventually by core.
+    // The certificates up to index 4 + 62 = 66 should be written to store
+    // eventually by core.
     verify_certificates_v1_in_store(
         &certificate_store,
         &certificates[0..(num_written + first_batch_len)],
@@ -351,13 +357,15 @@ async fn fetch_certificates_v1_basic() {
     .await;
     num_written += first_batch_len;
 
-    // The certificate fetcher should send out another fetch request, because it has not received certificate 123.
+    // The certificate fetcher should send out another fetch request, because it has
+    // not received certificate 123.
     loop {
         match rx_fetch_req.recv().await {
             Some(r) => {
                 let (_, skip_rounds) = r.get_bounds();
                 if skip_rounds.values().next().unwrap().len() == 1 {
-                    // Drain the fetch requests sent out before the last reply, when only 1 round in skip_rounds.
+                    // Drain the fetch requests sent out before the last reply, when only 1 round in
+                    // skip_rounds.
                     tx_fetch_resp.try_send(first_batch_resp.clone()).unwrap();
                     continue;
                 }
@@ -414,11 +422,13 @@ async fn fetch_certificates_v1_basic() {
     }
 
     let target_index = num_written + 8;
-    assert!(!synchronizer
-        .get_missing_parents(&certificates[target_index].clone())
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        !synchronizer
+            .get_missing_parents(&certificates[target_index].clone())
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Verify the fetch request.
     let req = rx_fetch_req.recv().await.unwrap();
@@ -458,7 +468,7 @@ async fn fetch_certificates_v1_basic() {
 
     // Send out a batch of certificate V2s.
     let mut cert_v2_config = latest_protocol_version();
-    cert_v2_config.set_narwhal_certificate_v2(true);
+    cert_v2_config.set_narwhal_certificate_v2_for_testing(true);
     let mut certs = Vec::new();
     for cert in certificates.iter().skip(num_written).take(8) {
         certs.push(fixture.certificate(&cert_v2_config, cert.header()));
@@ -606,13 +616,16 @@ async fn fetch_certificates_v2_basic() {
     }
     let mut num_written = 4;
 
-    // Send a primary message for a certificate with parents that do not exist locally, to trigger fetching.
+    // Send a primary message for a certificate with parents that do not exist
+    // locally, to trigger fetching.
     let target_index = 123;
-    assert!(!synchronizer
-        .get_missing_parents(&certificates[target_index].clone())
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        !synchronizer
+            .get_missing_parents(&certificates[target_index].clone())
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Verify the fetch request.
     let mut req = rx_fetch_req.recv().await.unwrap();
@@ -635,7 +648,8 @@ async fn fetch_certificates_v2_basic() {
     };
     tx_fetch_resp.try_send(first_batch_resp.clone()).unwrap();
 
-    // The certificates up to index 66 (4 + 62) should be written to store eventually by core.
+    // The certificates up to index 66 (4 + 62) should be written to store
+    // eventually by core.
     verify_certificates_v2_in_store(
         &certificate_store,
         &certificates[0..(num_written + first_batch_len)],
@@ -645,13 +659,15 @@ async fn fetch_certificates_v2_basic() {
     .await;
     num_written += first_batch_len;
 
-    // The certificate fetcher should send out another fetch request, because it has not received certificate 123.
+    // The certificate fetcher should send out another fetch request, because it has
+    // not received certificate 123.
     loop {
         match rx_fetch_req.recv().await {
             Some(r) => {
                 let (_, skip_rounds) = r.get_bounds();
                 if skip_rounds.values().next().unwrap().len() == 1 {
-                    // Drain the fetch requests sent out before the last reply, when only 1 round in skip_rounds.
+                    // Drain the fetch requests sent out before the last reply, when only 1 round in
+                    // skip_rounds.
                     tx_fetch_resp.try_send(first_batch_resp.clone()).unwrap();
                     continue;
                 }
@@ -680,7 +696,8 @@ async fn fetch_certificates_v2_basic() {
     };
     tx_fetch_resp.try_send(second_batch_resp.clone()).unwrap();
 
-    // The certificates up to index 124 (4 + 62 + 58) should become available in store eventually.
+    // The certificates up to index 124 (4 + 62 + 58) should become available in
+    // store eventually.
     verify_certificates_v2_in_store(
         &certificate_store,
         &certificates[0..(num_written + second_batch_len)],
@@ -710,11 +727,13 @@ async fn fetch_certificates_v2_basic() {
     }
 
     let target_index = num_written + 204;
-    assert!(!synchronizer
-        .get_missing_parents(&certificates[target_index].clone())
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        !synchronizer
+            .get_missing_parents(&certificates[target_index].clone())
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Verify the fetch request.
     let req = rx_fetch_req.recv().await.unwrap();
@@ -785,7 +804,8 @@ async fn fetch_certificates_v2_basic() {
     verify_certificates_not_in_store(&certificate_store, &certificates[num_written..target_index]);
 
     // Send out a batch of certificates with good signatures.
-    // The certificates 4 + 62 + 58 + 204 = 328 should become available in store eventually.let mut certs = Vec::new();
+    // The certificates 4 + 62 + 58 + 204 = 328 should become available in store
+    // eventually.let mut certs = Vec::new();
     let mut certs = Vec::new();
     for cert in certificates.iter().skip(num_written).take(204) {
         certs.push(cert.clone());
@@ -804,7 +824,7 @@ async fn fetch_certificates_v2_basic() {
     )
     .await;
 
-    // Additional testcases cannot be added, because it seems impossible now to receive from
-    // the tx_fetch_resp channel after a certain number of messages.
-    // TODO: find the root cause of this issue.
+    // Additional testcases cannot be added, because it seems impossible now to
+    // receive from the tx_fetch_resp channel after a certain number of
+    // messages. TODO: find the root cause of this issue.
 }

@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use config::WorkerId;
 use executor::SubscriberError;
-use futures::future::try_join_all;
-use futures::stream::FuturesUnordered;
+use futures::{future::try_join_all, stream::FuturesUnordered};
 pub use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use thiserror::Error;
 

@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{num::NonZeroUsize, sync::Arc};
+
 use config::AuthorityIdentifier;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 use storage::{CertificateStore, CertificateStoreCache, ConsensusStore};
-use store::rocks::MetricConf;
-use store::{reopen, rocks, rocks::DBMap, rocks::ReadWriteOptions};
+use store::{
+    reopen, rocks,
+    rocks::{DBMap, MetricConf, ReadWriteOptions},
+};
 use types::{Certificate, CertificateDigest, ConsensusCommit, Round, SequenceNumber};
 
 #[allow(unused)]

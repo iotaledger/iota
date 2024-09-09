@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use mysten_network::metrics::MetricsCallbackProvider;
+use std::time::Duration;
+
+use iota_network_stack::metrics::MetricsCallbackProvider;
 use network::metrics::{NetworkConnectionMetrics, NetworkMetrics};
 use prometheus::{
     default_registry, register_histogram_vec_with_registry, register_histogram_with_registry,
@@ -8,7 +11,6 @@ use prometheus::{
     register_int_gauge_with_registry, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge,
     Registry,
 };
-use std::time::Duration;
 use tonic::Code;
 
 const LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -161,13 +163,17 @@ impl Default for WorkerMetrics {
 
 #[derive(Clone)]
 pub struct WorkerChannelMetrics {
-    /// occupancy of the channel from the `worker::TxReceiverhandler` to the `worker::BatchMaker`
+    /// occupancy of the channel from the `worker::TxReceiverhandler` to the
+    /// `worker::BatchMaker`
     pub tx_batch_maker: IntGauge,
-    /// occupancy of the channel from the `worker::BatchMaker` to the `worker::QuorumWaiter`
+    /// occupancy of the channel from the `worker::BatchMaker` to the
+    /// `worker::QuorumWaiter`
     pub tx_quorum_waiter: IntGauge,
-    /// total received from the channel from the `worker::TxReceiverhandler` to the `worker::BatchMaker`
+    /// total received from the channel from the `worker::TxReceiverhandler` to
+    /// the `worker::BatchMaker`
     pub tx_batch_maker_total: IntCounter,
-    /// total received from the channel from the `worker::BatchMaker` to the `worker::QuorumWaiter`
+    /// total received from the channel from the `worker::BatchMaker` to the
+    /// `worker::QuorumWaiter`
     pub tx_quorum_waiter_total: IntCounter,
 }
 

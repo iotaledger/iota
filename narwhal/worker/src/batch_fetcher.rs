@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -13,12 +14,12 @@ use async_trait::async_trait;
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
+use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use network::WorkerRpc;
 use prometheus::IntGauge;
 use rand::{rngs::ThreadRng, seq::SliceRandom};
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
 use tokio::{
     select,
     time::{sleep, sleep_until, Instant},
@@ -60,7 +61,8 @@ impl BatchFetcher {
     }
 
     /// Bulk fetches payload from local storage and remote workers.
-    /// This function performs infinite retries and blocks until all batches are available.
+    /// This function performs infinite retries and blocks until all batches are
+    /// available.
     pub async fn fetch(
         &self,
         digests: HashSet<BatchDigest>,
@@ -74,7 +76,8 @@ impl BatchFetcher {
 
         let mut remaining_digests = digests;
         let mut fetched_batches = HashMap::new();
-        // TODO: verify known_workers meets quorum threshold, or just use all other workers.
+        // TODO: verify known_workers meets quorum threshold, or just use all other
+        // workers.
         let known_workers = known_workers
             .into_iter()
             .filter(|worker| worker != &self.name)
@@ -144,8 +147,8 @@ impl BatchFetcher {
                 }
             }
 
-            // After all known remote workers have been tried, restart the outer loop to fetch
-            // from local storage then remote workers again.
+            // After all known remote workers have been tried, restart the outer loop to
+            // fetch from local storage then remote workers again.
             sleep(WORKER_RETRY_INTERVAL).await;
         }
     }
@@ -221,13 +224,17 @@ impl BatchFetcher {
                             .worker_batch_fetch
                             .with_label_values(&["remote", "timeout"])
                             .inc();
-                        debug!("Timed out retrieving payloads {digests:?} from {worker} attempt {attempt}: {err}");
+                        debug!(
+                            "Timed out retrieving payloads {digests:?} from {worker} attempt {attempt}: {err}"
+                        );
                     } else if err.to_string().contains("[Protocol violation]") {
                         self.metrics
                             .worker_batch_fetch
                             .with_label_values(&["remote", "fail"])
                             .inc();
-                        debug!("Failed retrieving payloads {digests:?} from possibly byzantine {worker} attempt {attempt}: {err}");
+                        debug!(
+                            "Failed retrieving payloads {digests:?} from possibly byzantine {worker} attempt {attempt}: {err}"
+                        );
                         // Do not bother retrying if the remote worker is byzantine.
                         return HashMap::new();
                     } else {
@@ -235,13 +242,16 @@ impl BatchFetcher {
                             .worker_batch_fetch
                             .with_label_values(&["remote", "fail"])
                             .inc();
-                        debug!("Error retrieving payloads {digests:?} from {worker} attempt {attempt}: {err}");
+                        debug!(
+                            "Error retrieving payloads {digests:?} from {worker} attempt {attempt}: {err}"
+                        );
                     }
                 }
             }
             timeout += timeout / 2;
             timeout = std::cmp::min(max_timeout, timeout);
-            // Since the call might have returned before timeout, we wait until originally planned deadline
+            // Since the call might have returned before timeout, we wait until originally
+            // planned deadline
             sleep_until(deadline).await;
         }
     }
@@ -339,19 +349,21 @@ impl RequestBatchesNetwork for RequestBatchesNetworkImpl {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
+
     use crypto::NetworkKeyPair;
-    use fastcrypto::hash::Hash;
-    use fastcrypto::traits::KeyPair;
+    use fastcrypto::{hash::Hash, traits::KeyPair};
     use itertools::Itertools;
     use rand::rngs::StdRng;
-    use std::collections::HashMap;
     use test_utils::latest_protocol_version;
     use tokio::time::timeout;
     use types::BatchV1;
 
+    use super::*;
+
     // TODO: Remove once we have removed BatchV1 from the codebase.
-    // Case #1: Receive BatchV1 but network is upgraded past v11 so we fail because we expect BatchV2
+    // Case #1: Receive BatchV1 but network is upgraded past v11 so we fail because
+    // we expect BatchV2
     #[tokio::test]
     pub async fn test_fetcher_with_batch_v1_and_network_v12() {
         telemetry_subscribers::init_for_testing();

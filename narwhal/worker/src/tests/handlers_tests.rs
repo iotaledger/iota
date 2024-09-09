@@ -1,9 +1,11 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::hash::Hash;
 use std::vec;
+
+use fastcrypto::hash::Hash;
 use test_utils::{get_protocol_config, latest_protocol_version, CommitteeFixture};
 use types::{MockWorkerToWorker, WorkerToWorkerServer};
 
@@ -173,7 +175,8 @@ async fn synchronize_versioned_batches() {
         validator: TrivialTransactionValidator,
     };
 
-    // Case #1: Receive BatchV1 but network is upgraded past v11 so we fail because we expect BatchV2
+    // Case #1: Receive BatchV1 but network is upgraded past v11 so we fail because
+    // we expect BatchV2
     let request = anemo::Request::new(message_v1);
     let response = handler_latest_version.synchronize(request).await;
     assert!(response.is_err());

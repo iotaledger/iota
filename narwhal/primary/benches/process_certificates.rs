@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::{
     criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
@@ -9,7 +12,6 @@ use narwhal_primary::consensus::{
     Bullshark, ConsensusMetrics, ConsensusState, LeaderSchedule, LeaderSwapTable,
 };
 use prometheus::Registry;
-use std::{collections::BTreeSet, sync::Arc};
 use storage::NodeStorage;
 use test_utils::{latest_protocol_version, make_optimal_certificates, temp_dir, CommitteeFixture};
 use tokio::time::Instant;

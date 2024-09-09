@@ -1,35 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{errors::SubscriberResult, metrics::ExecutorMetrics, ExecutionState};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+    vec,
+};
 
 use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use crypto::NetworkPublicKey;
-
-use futures::stream::FuturesOrdered;
-use futures::StreamExt;
-
-use network::PrimaryToWorkerClient;
-
-use network::client::NetworkClient;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::{sync::Arc, time::Duration, vec};
-use types::FetchBatchesRequest;
-
 use fastcrypto::hash::Hash;
-use mysten_metrics::metered_channel;
-use mysten_metrics::spawn_logged_monitored_task;
-use sui_protocol_config::ProtocolConfig;
+use futures::{stream::FuturesOrdered, StreamExt};
+use iota_metrics::{metered_channel, spawn_logged_monitored_task};
+use iota_protocol_config::ProtocolConfig;
+use network::{client::NetworkClient, PrimaryToWorkerClient};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use types::{
-    Batch, BatchAPI, BatchDigest, Certificate, CertificateAPI, CommittedSubDag,
-    ConditionalBroadcastReceiver, ConsensusOutput, HeaderAPI, MetadataAPI, Timestamp,
+    error::LocalClientError, Batch, BatchAPI, BatchDigest, Certificate, CertificateAPI,
+    CommittedSubDag, ConditionalBroadcastReceiver, ConsensusOutput, FetchBatchesRequest, HeaderAPI,
+    MetadataAPI, Timestamp,
 };
 
-/// The `Subscriber` receives certificates sequenced by the consensus and waits until the
-/// downloaded all the transactions references by the certificates; it then
-/// forward the certificates to the Executor.
+use crate::{errors::SubscriberResult, metrics::ExecutorMetrics, ExecutionState};
+
+/// The `Subscriber` receives certificates sequenced by the consensus and waits
+/// until the downloaded all the transactions references by the certificates; it
+/// then forward the certificates to the Executor.
 pub struct Subscriber {
     /// Receiver for shutdown
     rx_shutdown: ConditionalBroadcastReceiver,
@@ -62,8 +60,8 @@ pub fn spawn_subscriber<State: ExecutionState + Send + Sync + 'static>(
 ) -> Vec<JoinHandle<()>> {
     // This is ugly but has to be done this way for now
     // Currently network incorporate both server and client side of RPC interface
-    // To construct server side we need to set up routes first, which requires starting Primary
-    // Some cleanup is needed
+    // To construct server side we need to set up routes first, which requires
+    // starting Primary Some cleanup is needed
 
     let (tx_notifier, rx_notifier) =
         metered_channel::channel(primary::CHANNEL_CAPACITY, &metrics.tx_notifier);
@@ -112,7 +110,6 @@ async fn run_notify<State: ExecutionState + Send + Sync + 'static>(
             _ = rx_shutdown.receiver.recv() => {
                 return
             }
-
         }
     }
 }
@@ -166,8 +163,9 @@ impl Subscriber {
         // fetched, no later certificate will be delivered.
         let mut waiting = FuturesOrdered::new();
 
-        // First handle any consensus output messages that were restored due to a restart.
-        // This needs to happen before we start listening on rx_sequence and receive messages sequenced after these.
+        // First handle any consensus output messages that were restored due to a
+        // restart. This needs to happen before we start listening on
+        // rx_sequence and receive messages sequenced after these.
         for message in restored_consensus_output {
             let future = Self::fetch_batches(self.inner.clone(), message);
             waiting.push_back(future);
@@ -210,9 +208,9 @@ impl Subscriber {
         }
     }
 
-    /// Returns ordered vector of futures for downloading batches for certificates
-    /// Order of futures returned follows order of batches in the certificates.
-    /// See BatchFetcher for more details.
+    /// Returns ordered vector of futures for downloading batches for
+    /// certificates Order of futures returned follows order of batches in
+    /// the certificates. See BatchFetcher for more details.
     async fn fetch_batches(inner: Arc<Inner>, deliver: CommittedSubDag) -> ConsensusOutput {
         let num_batches = deliver.num_batches();
         let num_certs = deliver.len();
@@ -315,8 +313,8 @@ impl Subscriber {
         certificate: &Certificate,
         worker_id: &WorkerId,
     ) -> Vec<NetworkPublicKey> {
-        // Can include own authority and worker, but worker will always check local storage when
-        // fetching paylods.
+        // Can include own authority and worker, but worker will always check local
+        // storage when fetching paylods.
         let authorities = certificate.signed_authorities(&inner.committee);
         authorities
             .into_iter()
@@ -351,8 +349,8 @@ impl Subscriber {
                 digests.len(),
                 known_workers.len()
             );
-            // TODO: Can further parallelize this by worker if necessary. Maybe move the logic
-            // to NetworkClient.
+            // TODO: Can further parallelize this by worker if necessary. Maybe move the
+            // logic to NetworkClient.
             // Only have one worker for now so will leave this for a future
             // optimization.
             let request = FetchBatchesRequest {
@@ -367,7 +365,9 @@ impl Subscriber {
                 {
                     Ok(resp) => break resp.batches,
                     Err(e) => {
-                        error!("Failed to fetch batches from worker {worker_name}: {e:?}");
+                        if !matches!(e, LocalClientError::ShuttingDown) {
+                            warn!("Failed to fetch batches from worker {worker_name}: {e:?}");
+                        }
                         // Loop forever on failure. During shutdown, this should get cancelled.
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         continue;
@@ -424,8 +424,7 @@ impl Subscriber {
             .observe(batch_fetch_duration);
         debug!(
             "Batch {:?} took {} seconds since it has been created to when it has been fetched for execution",
-            digest,
-            batch_fetch_duration,
+            digest, batch_fetch_duration,
         );
     }
 }

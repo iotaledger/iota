@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::worker::batch_serde::Token::NewtypeVariant;
-use crate::{Batch, BatchV1, Metadata};
 use serde_test::{assert_tokens, Token};
+
+use crate::{worker::batch_serde::Token::NewtypeVariant, Batch, BatchV1, Metadata};
 #[test]
 fn test_serde_batch() {
     let tx = || vec![1; 5];

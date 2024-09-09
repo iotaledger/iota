@@ -1,22 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{NodeStorage, PayloadToken};
-use config::WorkerId;
-use mysten_common::sync::notify_read::NotifyRead;
 use std::sync::Arc;
-use store::reopen;
-use store::rocks::{open_cf, MetricConf, ReadWriteOptions};
-use store::{rocks::DBMap, Map, TypedStoreError};
-use sui_macros::fail_point;
+
+use config::WorkerId;
+use iota_common::sync::notify_read::NotifyRead;
+use iota_macros::fail_point;
+use store::{
+    reopen,
+    rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
+    Map, TypedStoreError,
+};
 use types::BatchDigest;
+
+use crate::{NodeStorage, PayloadToken};
 
 /// Store of the batch digests for the primary node for the own created batches.
 #[derive(Clone)]
 pub struct PayloadStore {
     store: DBMap<(BatchDigest, WorkerId), PayloadToken>,
 
-    /// Senders to notify for a write that happened for the specified batch digest and worker id
+    /// Senders to notify for a write that happened for the specified batch
+    /// digest and worker id
     notify_subscribers: Arc<NotifyRead<(BatchDigest, WorkerId), ()>>,
 }
 
@@ -51,8 +57,8 @@ impl PayloadStore {
         Ok(())
     }
 
-    /// Writes all the provided values atomically in store - either all will succeed or nothing will
-    /// be stored.
+    /// Writes all the provided values atomically in store - either all will
+    /// succeed or nothing will be stored.
     pub fn write_all(
         &self,
         keys: impl IntoIterator<Item = (BatchDigest, WorkerId)> + Clone,
@@ -70,8 +76,8 @@ impl PayloadStore {
         Ok(())
     }
 
-    /// Queries the store whether the batch with provided `digest` and `worker_id` exists. It returns
-    /// `true` if exists, `false` otherwise.
+    /// Queries the store whether the batch with provided `digest` and
+    /// `worker_id` exists. It returns `true` if exists, `false` otherwise.
     pub fn contains(
         &self,
         digest: BatchDigest,
@@ -82,8 +88,8 @@ impl PayloadStore {
             .map(|result| result.is_some())
     }
 
-    /// When called the method will wait until the entry of batch with `digest` and `worker_id`
-    /// becomes available.
+    /// When called the method will wait until the entry of batch with `digest`
+    /// and `worker_id` becomes available.
     pub async fn notify_contains(
         &self,
         digest: BatchDigest,
@@ -130,11 +136,12 @@ impl PayloadStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::PayloadStore;
     use fastcrypto::hash::Hash;
     use futures::future::join_all;
     use test_utils::latest_protocol_version;
     use types::Batch;
+
+    use crate::PayloadStore;
 
     #[tokio::test]
     async fn test_notify_read() {
