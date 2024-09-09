@@ -1,0 +1,111 @@
+[package]
+name = "iota-types"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anemo.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+bcs.workspace = true
+bincode.workspace = true
+byteorder.workspace = true
+chrono.workspace = true
+consensus-config.workspace = true
+derivative.workspace = true
+enum_dispatch.workspace = true
+eyre.workspace = true
+im.workspace = true
+indexmap.workspace = true
+itertools.workspace = true
+jsonrpsee.workspace = true
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-command-line-common.workspace = true
+move-core-types.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true
+move-vm-profiler.workspace = true
+move-vm-test-utils.workspace = true
+move-vm-types.workspace = true
+nonempty.workspace = true
+num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
+num-traits = "0.2.18"
+num_enum.workspace = true
+once_cell.workspace = true
+prometheus.workspace = true
+rand.workspace = true
+roaring.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde-name.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+signature.workspace = true
+static_assertions.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tap.workspace = true
+thiserror.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+
+iota-enum-compat-util.workspace = true
+iota-macros.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
+narwhal-config.workspace = true
+narwhal-crypto.workspace = true
+parking_lot.workspace = true
+shared-crypto.workspace = true
+
+fastcrypto = { workspace = true, features = ["copy_key"] }
+fastcrypto-tbls.workspace = true
+fastcrypto-zkp.workspace = true
+passkey-types.workspace = true
+
+better_any.workspace = true
+derive_more.workspace = true
+lru.workspace = true
+proptest.workspace = true
+proptest-derive.workspace = true
+typed-store-error.workspace = true
+
+iota-sdk2.workspace = true
+
+[dev-dependencies]
+bincode.workspace = true
+criterion.workspace = true
+expect-test.workspace = true
+proptest.workspace = true
+proptest-derive.workspace = true
+serde_yaml.workspace = true
+
+async-trait.workspace = true
+coset.workspace = true
+p256.workspace = true
+passkey-authenticator.workspace = true
+passkey-client.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[[bench]]
+name = "accumulator_bench"
+harness = false
+
+[features]
+default = []
+test-utils = []
+gas-profiler = [
+  "move-vm-profiler/gas-profiler",
+  "move-vm-types/gas-profiler",
+  "move-vm-test-utils/gas-profiler",
+]
+fuzzing = ["move-core-types/fuzzing"]
