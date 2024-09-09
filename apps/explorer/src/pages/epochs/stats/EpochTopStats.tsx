@@ -15,7 +15,7 @@ interface EpochProgressProps {
     start: number;
     end?: number;
     inProgress?: boolean;
-    endOfEpochInfo: EndOfEpochInfo | null;
+    endOfEpochInfo?: EndOfEpochInfo | null;
 }
 
 export function EpochTopStats({
