@@ -1,33 +1,45 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::Node;
-use anyhow::Result;
-use futures::future::try_join_all;
-use rand::rngs::OsRng;
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::num::NonZeroUsize;
-use std::time::Duration;
 use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    num::NonZeroUsize,
     ops,
     path::{Path, PathBuf},
+    time::Duration,
 };
-use sui_config::node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange};
-use sui_config::NodeConfig;
-use sui_macros::nondeterministic;
-use sui_node::SuiNodeHandle;
-use sui_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
-use sui_swarm_config::genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig};
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_swarm_config::network_config_builder::{
-    CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, SupportedProtocolVersionsCallback,
+
+use anyhow::Result;
+use futures::future::try_join_all;
+use iota_config::{
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    NodeConfig,
 };
-use sui_swarm_config::node_config_builder::FullnodeConfigBuilder;
-use sui_types::base_types::AuthorityName;
-use sui_types::object::Object;
+use iota_macros::nondeterministic;
+use iota_node::IotaNodeHandle;
+use iota_protocol_config::ProtocolVersion;
+use iota_swarm_config::{
+    genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
+    network_config::NetworkConfig,
+    network_config_builder::{
+        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV2EnabledConfig,
+        SupportedProtocolVersionsCallback,
+    },
+    node_config_builder::FullnodeConfigBuilder,
+};
+use iota_types::{
+    base_types::AuthorityName,
+    object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+};
+use rand::rngs::OsRng;
 use tempfile::TempDir;
 use tracing::info;
+
+use super::Node;
 
 pub struct SwarmBuilder<R = OsRng> {
     rng: R,
@@ -49,6 +61,11 @@ pub struct SwarmBuilder<R = OsRng> {
     authority_overload_config: Option<AuthorityOverloadConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    fullnode_policy_config: Option<PolicyConfig>,
+    fullnode_fw_config: Option<RemoteFirewallConfig>,
+    max_submit_position: Option<usize>,
+    submit_delay_step_override_millis: Option<u64>,
+    state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig,
 }
 
 impl SwarmBuilder {
@@ -72,6 +89,11 @@ impl SwarmBuilder {
             authority_overload_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            fullnode_policy_config: None,
+            fullnode_fw_config: None,
+            max_submit_position: None,
+            submit_delay_step_override_millis: None,
+            state_accumulator_v2_enabled_config: StateAccumulatorV2EnabledConfig::Global(true),
         }
     }
 }
@@ -97,14 +119,21 @@ impl<R> SwarmBuilder<R> {
             authority_overload_config: self.authority_overload_config,
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
+            fullnode_policy_config: self.fullnode_policy_config,
+            fullnode_fw_config: self.fullnode_fw_config,
+            max_submit_position: self.max_submit_position,
+            submit_delay_step_override_millis: self.submit_delay_step_override_millis,
+            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
         }
     }
 
     /// Set the directory that should be used by the Swarm for any on-disk data.
     ///
-    /// If a directory is provided, it will not be cleaned up when the Swarm is dropped.
+    /// If a directory is provided, it will not be cleaned up when the Swarm is
+    /// dropped.
     ///
-    /// Defaults to using a temporary directory that will be cleaned up when the Swarm is dropped.
+    /// Defaults to using a temporary directory that will be cleaned up when the
+    /// Swarm is dropped.
     pub fn dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
         self.dir = Some(dir.into());
         self
@@ -205,6 +234,14 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_state_accumulator_v2_enabled_config(
+        mut self,
+        c: StateAccumulatorV2EnabledConfig,
+    ) -> Self {
+        self.state_accumulator_v2_enabled_config = c;
+        self
+    }
+
     pub fn with_fullnode_supported_protocol_versions_config(
         mut self,
         c: ProtocolVersionsConfig,
@@ -239,12 +276,35 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_fullnode_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
+        self.fullnode_policy_config = config;
+        self
+    }
+
+    pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
+        self.fullnode_fw_config = config;
+        self
+    }
+
     fn get_or_init_genesis_config(&mut self) -> &mut GenesisConfig {
         if self.genesis_config.is_none() {
             assert!(self.network_config.is_none());
             self.genesis_config = Some(GenesisConfig::for_local_testing());
         }
         self.genesis_config.as_mut().unwrap()
+    }
+
+    pub fn with_max_submit_position(mut self, max_submit_position: usize) -> Self {
+        self.max_submit_position = Some(max_submit_position);
+        self
+    }
+
+    pub fn with_submit_delay_step_override_millis(
+        mut self,
+        submit_delay_step_override_millis: u64,
+    ) -> Self {
+        self.submit_delay_step_override_millis = Some(submit_delay_step_override_millis);
+        self
     }
 }
 
@@ -256,6 +316,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         } else {
             SwarmDirectory::new_temporary()
         };
+
+        let ingest_data = self.data_ingestion_dir.clone();
 
         let network_config = self.network_config.unwrap_or_else(|| {
             let mut config_builder = ConfigBuilder::new(dir.as_ref());
@@ -282,12 +344,25 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 config_builder = config_builder.with_data_ingestion_dir(path);
             }
 
+            if let Some(max_submit_position) = self.max_submit_position {
+                config_builder = config_builder.with_max_submit_position(max_submit_position);
+            }
+
+            if let Some(submit_delay_step_override_millis) = self.submit_delay_step_override_millis
+            {
+                config_builder = config_builder
+                    .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
+            }
+
             config_builder
                 .committee(self.committee)
                 .rng(self.rng)
                 .with_objects(self.additional_objects)
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
+                )
+                .with_state_accumulator_v2_enabled_config(
+                    self.state_accumulator_v2_enabled_config.clone(),
                 )
                 .build()
         });
@@ -307,7 +382,11 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         let mut fullnode_config_builder = FullnodeConfigBuilder::new()
             .with_config_directory(dir.as_ref().into())
             .with_db_checkpoint_config(self.db_checkpoint_config.clone())
-            .with_run_with_range(self.fullnode_run_with_range);
+            .with_run_with_range(self.fullnode_run_with_range)
+            .with_policy_config(self.fullnode_policy_config)
+            .with_data_ingestion_dir(ingest_data)
+            .with_fw_config(self.fullnode_fw_config);
+
         if let Some(spvc) = &self.fullnode_supported_protocol_versions_config {
             let supported_versions = match spvc {
                 ProtocolVersionsConfig::Default => SupportedProtocolVersions::SYSTEM_DEFAULT,
@@ -348,7 +427,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     }
 }
 
-/// A handle to an in-memory Sui Network.
+/// A handle to an in-memory Iota Network.
 #[derive(Debug)]
 pub struct Swarm {
     dir: SwarmDirectory,
@@ -381,7 +460,8 @@ impl Swarm {
         Ok(())
     }
 
-    /// Return the path to the directory where this Swarm's on-disk data is kept.
+    /// Return the path to the directory where this Swarm's on-disk data is
+    /// kept.
     pub fn dir(&self) -> &Path {
         self.dir.as_ref()
     }
@@ -392,7 +472,8 @@ impl Swarm {
     }
 
     /// Return a mutable reference to this Swarm's `NetworkConfig`.
-    // TODO: It's not ideal to mutate network config. We should consider removing this.
+    // TODO: It's not ideal to mutate network config. We should consider removing
+    // this.
     pub fn config_mut(&mut self) -> &mut NetworkConfig {
         &mut self.network_config
     }
@@ -409,16 +490,17 @@ impl Swarm {
         self.nodes.get_mut(name)
     }
 
-    /// Return an iterator over shared references of all nodes that are set up as validators.
-    /// This means that they have a consensus config. This however doesn't mean this validator is
-    /// currently active (i.e. it's not necessarily in the validator set at the moment).
+    /// Return an iterator over shared references of all nodes that are set up
+    /// as validators. This means that they have a consensus config. This
+    /// however doesn't mean this validator is currently active (i.e. it's
+    /// not necessarily in the validator set at the moment).
     pub fn validator_nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes
             .values()
-            .filter(|node| node.config.consensus_config.is_some())
+            .filter(|node| node.config().consensus_config.is_some())
     }
 
-    pub fn validator_node_handles(&self) -> Vec<SuiNodeHandle> {
+    pub fn validator_node_handles(&self) -> Vec<IotaNodeHandle> {
         self.validator_nodes()
             .map(|node| node.get_node_handle().unwrap())
             .collect()
@@ -438,10 +520,10 @@ impl Swarm {
     pub fn fullnodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes
             .values()
-            .filter(|node| node.config.consensus_config.is_none())
+            .filter(|node| node.config().consensus_config.is_none())
     }
 
-    pub async fn spawn_new_node(&mut self, config: NodeConfig) -> SuiNodeHandle {
+    pub async fn spawn_new_node(&mut self, config: NodeConfig) -> IotaNodeHandle {
         let name = config.protocol_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();
@@ -489,8 +571,9 @@ impl AsRef<Path> for SwarmDirectory {
 
 #[cfg(test)]
 mod test {
-    use super::Swarm;
     use std::num::NonZeroUsize;
+
+    use super::Swarm;
 
     #[tokio::test]
     async fn launch() {
@@ -509,5 +592,7 @@ mod test {
         for fullnode in swarm.fullnodes() {
             fullnode.health_check(false).await.unwrap();
         }
+
+        println!("hello");
     }
 }

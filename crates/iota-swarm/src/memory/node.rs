@@ -1,60 +1,65 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use anyhow::Result;
-use std::sync::Mutex;
-use sui_config::NodeConfig;
-use sui_node::SuiNodeHandle;
-use sui_types::base_types::AuthorityName;
-use sui_types::base_types::ConciseableName;
+use std::sync::{Mutex, MutexGuard};
+
+use anyhow::{anyhow, Result};
+use iota_config::NodeConfig;
+use iota_node::IotaNodeHandle;
+use iota_types::base_types::{AuthorityName, ConciseableName};
 use tap::TapFallible;
 use tracing::{error, info};
 
 use super::container::Container;
 
-/// A handle to an in-memory Sui Node.
+/// A handle to an in-memory Iota Node.
 ///
-/// Each Node is attempted to run in isolation from each other by running them in their own tokio
-/// runtime in a separate thread. By doing this we can ensure that all asynchronous tasks
-/// associated with a Node are able to be stopped when desired (either when a Node is dropped or
-/// explicitly stopped by calling [`Node::stop`]) by simply dropping that Node's runtime.
+/// Each Node is attempted to run in isolation from each other by running them
+/// in their own tokio runtime in a separate thread. By doing this we can ensure
+/// that all asynchronous tasks associated with a Node are able to be stopped
+/// when desired (either when a Node is dropped or explicitly stopped by calling
+/// [`Node::stop`]) by simply dropping that Node's runtime.
 #[derive(Debug)]
 pub struct Node {
     container: Mutex<Option<Container>>,
-    pub config: NodeConfig,
+    config: Mutex<NodeConfig>,
     runtime_type: RuntimeType,
 }
 
 impl Node {
     /// Create a new Node from the provided `NodeConfig`.
     ///
-    /// The Node is returned without being started. See [`Node::spawn`] or [`Node::start`] for how to
-    /// start the node.
+    /// The Node is returned without being started. See [`Node::spawn`] or
+    /// [`Node::start`] for how to start the node.
     ///
-    /// [`NodeConfig`]: sui_config::NodeConfig
+    /// [`NodeConfig`]: iota_config::NodeConfig
     pub fn new(config: NodeConfig) -> Self {
         Self {
             container: Default::default(),
-            config,
+            config: config.into(),
             runtime_type: RuntimeType::SingleThreaded,
         }
     }
 
     /// Return the `name` of this Node
     pub fn name(&self) -> AuthorityName {
-        self.config.protocol_public_key()
+        self.config().protocol_public_key()
+    }
+
+    pub fn config(&self) -> MutexGuard<'_, NodeConfig> {
+        self.config.lock().unwrap()
     }
 
     pub fn json_rpc_address(&self) -> std::net::SocketAddr {
-        self.config.json_rpc_address
+        self.config().json_rpc_address
     }
 
     /// Start this Node
     pub async fn spawn(&self) -> Result<()> {
         info!(name =% self.name().concise(), "starting in-memory node");
-        *self.container.lock().unwrap() =
-            Some(Container::spawn(self.config.clone(), self.runtime_type).await);
+        let config = self.config().clone();
+        *self.container.lock().unwrap() = Some(Container::spawn(config, self.runtime_type).await);
         Ok(())
     }
 
@@ -67,6 +72,7 @@ impl Node {
     pub fn stop(&self) {
         info!(name =% self.name().concise(), "stopping in-memory node");
         *self.container.lock().unwrap() = None;
+        info!(name =% self.name().concise(), "node stopped");
     }
 
     /// If this Node is currently running
@@ -78,7 +84,7 @@ impl Node {
             .map_or(false, |c| c.is_alive())
     }
 
-    pub fn get_node_handle(&self) -> Option<SuiNodeHandle> {
+    pub fn get_node_handle(&self) -> Option<IotaNodeHandle> {
         self.container
             .lock()
             .unwrap()
@@ -99,7 +105,8 @@ impl Node {
         }
 
         if is_validator {
-            let channel = mysten_network::client::connect(self.config.network_address())
+            let network_address = self.config().network_address().clone();
+            let channel = iota_network_stack::client::connect(&network_address)
                 .await
                 .map_err(|err| anyhow!(err.to_string()))
                 .map_err(HealthCheckError::Failure)
