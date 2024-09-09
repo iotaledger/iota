@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use bincode::Options;
-
-use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
+
+use bincode::Options;
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
 
@@ -60,7 +61,6 @@ impl<'a, K: Serialize> Keys<'a, K> {
     }
 
     /// Seeks to the last key in the database (at this column family).
-    ///
     pub fn skip_to_last(mut self) -> Self {
         self.db_iter.seek_to_last();
         self

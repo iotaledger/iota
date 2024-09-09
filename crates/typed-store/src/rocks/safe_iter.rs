@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{marker::PhantomData, sync::Arc};
 
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::Direction;
-
-use crate::metrics::{DBMetrics, RocksDBPerfContext};
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
-use serde::{de::DeserializeOwned, Serialize};
+use crate::metrics::{DBMetrics, RocksDBPerfContext};
 
 /// An iterator over all key-value pairs in a data map.
 pub struct SafeIter<'a, K, V> {
@@ -58,8 +58,8 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeIter<'a, K, 
     type Item = Result<(K, V), TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Implicitly set iterator to the first entry in the column family if it hasn't been initialized
-        // used for backward compatibility
+        // Implicitly set iterator to the first entry in the column family if it hasn't
+        // been initialized used for backward compatibility
         if !self.is_initialized {
             self.db_iter.seek_to_first();
             self.is_initialized = true;

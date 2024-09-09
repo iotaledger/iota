@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::TypedStoreError;
+use std::{borrow::Borrow, collections::BTreeMap, error::Error, ops::RangeBounds};
+
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
-use std::ops::RangeBounds;
-use std::{borrow::Borrow, collections::BTreeMap, error::Error};
+
+use crate::TypedStoreError;
 
 pub trait Map<'a, K, V>
 where
@@ -36,7 +38,8 @@ where
     /// Returns the value for the given key from the map, if it exists.
     fn get(&self, key: &K) -> Result<Option<V>, Self::Error>;
 
-    /// Returns the raw value (serialized bytes) for the given key from the map, if it exists.
+    /// Returns the raw value (serialized bytes) for the given key from the map,
+    /// if it exists.
     fn get_raw_bytes(&self, key: &K) -> Result<Option<Vec<u8>>, Self::Error>;
 
     /// Inserts the given key-value pair into the map.
@@ -58,12 +61,13 @@ where
     /// This is potentially unsafe as it can perform a full table scan
     fn unbounded_iter(&'a self) -> Self::Iterator;
 
-    /// Returns an iterator visiting each key-value pair within the specified bounds in the map.
+    /// Returns an iterator visiting each key-value pair within the specified
+    /// bounds in the map.
     fn iter_with_bounds(&'a self, lower_bound: Option<K>, upper_bound: Option<K>)
-        -> Self::Iterator;
+    -> Self::Iterator;
 
-    /// Similar to `iter_with_bounds` but allows specifying inclusivity/exclusivity of ranges explicitly.
-    /// TODO: find better name
+    /// Similar to `iter_with_bounds` but allows specifying
+    /// inclusivity/exclusivity of ranges explicitly. TODO: find better name
     fn range_iter(&'a self, range: impl RangeBounds<K>) -> Self::Iterator;
 
     /// Same as `iter` but performs status check.
@@ -85,7 +89,8 @@ where
     /// Returns an iterator over each value in the map.
     fn values(&'a self) -> Self::Values;
 
-    /// Returns a vector of values corresponding to the keys provided, non-atomically.
+    /// Returns a vector of values corresponding to the keys provided,
+    /// non-atomically.
     fn multi_get<J>(&self, keys: impl IntoIterator<Item = J>) -> Result<Vec<Option<V>>, Self::Error>
     where
         J: Borrow<K>,
@@ -93,7 +98,8 @@ where
         keys.into_iter().map(|key| self.get(key.borrow())).collect()
     }
 
-    /// Returns a vector of raw values corresponding to the keys provided, non-atomically.
+    /// Returns a vector of raw values corresponding to the keys provided,
+    /// non-atomically.
     fn multi_get_raw_bytes<J>(
         &self,
         keys: impl IntoIterator<Item = J>,
@@ -106,7 +112,8 @@ where
             .collect()
     }
 
-    /// Returns a vector of values corresponding to the keys provided, non-atomically.
+    /// Returns a vector of values corresponding to the keys provided,
+    /// non-atomically.
     fn chunked_multi_get<J>(
         &self,
         keys: impl IntoIterator<Item = J>,
@@ -162,7 +169,8 @@ where
     /// Returns the value for the given key from the map, if it exists.
     async fn get(&self, key: &K) -> Result<Option<V>, Self::Error>;
 
-    /// Returns the raw value (serialized bytes) for the given key from the map, if it exists.
+    /// Returns the raw value (serialized bytes) for the given key from the map,
+    /// if it exists.
     async fn get_raw_bytes(&self, key: &K) -> Result<Option<Vec<u8>>, Self::Error>;
 
     /// Returns true if the map is empty, otherwise false.
@@ -177,7 +185,8 @@ where
     /// Returns an iterator over each value in the map.
     async fn values(&'a self) -> Self::Values;
 
-    /// Returns a vector of values corresponding to the keys provided, non-atomically.
+    /// Returns a vector of values corresponding to the keys provided,
+    /// non-atomically.
     async fn multi_get<J>(
         &self,
         keys: impl IntoIterator<Item = J> + std::marker::Send,

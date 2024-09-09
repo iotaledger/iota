@@ -1,22 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::marker::PhantomData;
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::Direction;
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
-use crate::metrics::RocksDBPerfContext;
-use crate::DBMetrics;
-use serde::{de::DeserializeOwned, Serialize};
+use crate::{metrics::RocksDBPerfContext, DBMetrics};
 
 /// An iterator over all key-value pairs in a data map.
 pub struct Iter<'a, K, V> {
     cf_name: String,
     db_iter: RocksDBRawIter<'a>,
-    // *const here is an equivalent to `impl !Send for Iter` (which is not a stable feature at the moment)
+    // *const here is an equivalent to `impl !Send for Iter` (which is not a stable feature at the
+    // moment)
     _phantom: PhantomData<*const (K, V)>,
     direction: Direction,
     is_initialized: bool,
@@ -60,8 +60,8 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for Iter<'a, K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // implicitly set iterator to the first entry in the column family if it hasn't been initialized
-        // used for backward compatibility
+        // implicitly set iterator to the first entry in the column family if it hasn't
+        // been initialized used for backward compatibility
         if !self.is_initialized {
             self.db_iter.seek_to_first();
             self.is_initialized = true;
