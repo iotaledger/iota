@@ -13,8 +13,8 @@ use tracing::info;
 use crate::{
     db::{new_pg_connection_pool_with_config, reset_database, PgConnectionPoolConfig},
     errors::IndexerError,
-    handlers::objects_snapshot_processor::SnapshotLagConfig,
     indexer::Indexer,
+    processors::objects_snapshot_processor::SnapshotLagConfig,
     store::PgIndexerStore,
     IndexerConfig, IndexerMetrics,
 };
@@ -52,11 +52,6 @@ pub async fn start_test_indexer_impl(
     reader_writer_config: ReaderWriterConfig,
     new_database: Option<String>,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
-    // Reduce the connection pool size to 10 for testing
-    // to prevent maxing out
-    info!("Setting DB_POOL_SIZE to 10");
-    std::env::set_var("DB_POOL_SIZE", "10");
-
     let db_url = db_url.unwrap_or_else(|| {
         let pg_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".into());
         let pg_port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "32770".into());
@@ -64,6 +59,7 @@ pub async fn start_test_indexer_impl(
         format!("postgres://postgres:{pw}@{pg_host}:{pg_port}")
     });
 
+    let store = create_pg_store(db_url.clone(), new_database);
     // dynamically set ports instead of all to 9000
     let base_port = rpc_url
         .chars()
@@ -75,10 +71,6 @@ pub async fn start_test_indexer_impl(
         .collect::<String>()
         .parse::<u16>()
         .unwrap();
-
-    // Set connection timeout for tests to 1 second
-    let mut pool_config = PgConnectionPoolConfig::default();
-    pool_config.set_connection_timeout(Duration::from_secs(1));
 
     // Default writer mode
     let mut config = IndexerConfig {
@@ -97,8 +89,57 @@ pub async fn start_test_indexer_impl(
 
     let indexer_metrics = IndexerMetrics::new(&registry);
 
-    let mut parsed_url = config.get_db_url().unwrap();
+    let handle = match reader_writer_config {
+        ReaderWriterConfig::Reader {
+            reader_mode_rpc_url,
+        } => {
+            let reader_mode_rpc_url = reader_mode_rpc_url
+                .parse::<SocketAddr>()
+                .expect("Unable to parse fullnode address");
+            config.fullnode_sync_worker = false;
+            config.rpc_server_worker = true;
+            config.rpc_server_url = reader_mode_rpc_url.ip().to_string();
+            config.rpc_server_port = reader_mode_rpc_url.port();
+            tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
+        }
+        ReaderWriterConfig::Writer { snapshot_config } => {
+            if config.reset_db {
+                reset_database(&mut store.blocking_cp().get().unwrap(), true).unwrap();
+            }
+            let store_clone = store.clone();
 
+            tokio::spawn(async move {
+                Indexer::start_writer_with_config(
+                    &config,
+                    store_clone,
+                    indexer_metrics,
+                    snapshot_config,
+                )
+                .await
+            })
+        }
+    };
+
+    (store, handle)
+}
+
+pub fn create_pg_store(db_url: String, new_database: Option<String>) -> PgIndexerStore {
+    // Reduce the connection pool size to 10 for testing
+    // to prevent maxing out
+    info!("Setting DB_POOL_SIZE to 10");
+    std::env::set_var("DB_POOL_SIZE", "10");
+
+    // Set connection timeout for tests to 1 second
+    let mut pool_config = PgConnectionPoolConfig::default();
+    pool_config.set_connection_timeout(Duration::from_secs(1));
+
+    let registry = prometheus::Registry::default();
+
+    init_metrics(&registry);
+
+    let indexer_metrics = IndexerMetrics::new(&registry);
+
+    let mut parsed_url = db_url.clone();
     if let Some(new_database) = new_database {
         // Switch to default to create a new database
         let (default_db_url, _) = replace_db_name(&parsed_url, "postgres");
@@ -122,40 +163,7 @@ pub async fn start_test_indexer_impl(
 
     let blocking_pool =
         new_pg_connection_pool_with_config(&parsed_url, Some(5), pool_config).unwrap();
-    let store = PgIndexerStore::new(blocking_pool.clone(), indexer_metrics.clone());
-
-    let handle = match reader_writer_config {
-        ReaderWriterConfig::Reader {
-            reader_mode_rpc_url,
-        } => {
-            let reader_mode_rpc_url = reader_mode_rpc_url
-                .parse::<SocketAddr>()
-                .expect("Unable to parse fullnode address");
-            config.fullnode_sync_worker = false;
-            config.rpc_server_worker = true;
-            config.rpc_server_url = reader_mode_rpc_url.ip().to_string();
-            config.rpc_server_port = reader_mode_rpc_url.port();
-            tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
-        }
-        ReaderWriterConfig::Writer { snapshot_config } => {
-            if config.reset_db {
-                reset_database(&mut blocking_pool.get().unwrap(), true).unwrap();
-            }
-            let store_clone = store.clone();
-
-            tokio::spawn(async move {
-                Indexer::start_writer_with_config(
-                    &config,
-                    store_clone,
-                    indexer_metrics,
-                    snapshot_config,
-                )
-                .await
-            })
-        }
-    };
-
-    (store, handle)
+    PgIndexerStore::new(blocking_pool, indexer_metrics.clone())
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {

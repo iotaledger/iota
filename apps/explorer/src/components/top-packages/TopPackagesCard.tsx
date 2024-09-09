@@ -9,6 +9,7 @@ import { FilterList, TabHeader } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { TopPackagesTable } from './TopPackagesTable';
+import { Panel } from '@iota/apps-ui-kit';
 
 type DateFilter = '3D' | '7D' | '30D';
 type ApiDateFilter = 'rank3Days' | 'rank7Days' | 'rank30Days';
@@ -30,23 +31,25 @@ export function TopPackagesCard(): JSX.Element {
     const filteredData = data ? data[FILTER_TO_API_FILTER[selectedFilter]] : [];
 
     return (
-        <div className="relative">
-            <div className="absolute right-0 mt-1">
-                <FilterList
-                    lessSpacing
-                    options={['3D', '7D', '30D']}
-                    value={selectedFilter}
-                    onChange={(val) => setSelectedFilter(val)}
-                />
+        <Panel>
+            <div className="relative">
+                <div className="absolute right-0 mt-1">
+                    <FilterList
+                        lessSpacing
+                        options={['3D', '7D', '30D']}
+                        value={selectedFilter}
+                        onChange={(val) => setSelectedFilter(val)}
+                    />
+                </div>
+                <TabHeader
+                    title="Popular Packages"
+                    tooltip="Popular packages is recomputed on epoch changes."
+                >
+                    <ErrorBoundary>
+                        <TopPackagesTable data={filteredData} isLoading={isPending} />
+                    </ErrorBoundary>
+                </TabHeader>
             </div>
-            <TabHeader
-                title="Popular Packages"
-                tooltip="Popular packages is recomputed on epoch changes."
-            >
-                <ErrorBoundary>
-                    <TopPackagesTable data={filteredData} isLoading={isPending} />
-                </ErrorBoundary>
-            </TabHeader>
-        </div>
+        </Panel>
     );
 }

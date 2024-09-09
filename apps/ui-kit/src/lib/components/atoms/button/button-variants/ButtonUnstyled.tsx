@@ -1,16 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type ButtonProps } from './Button';
-import { ButtonHtmlType } from './button.enums';
+import { ButtonHtmlType } from '../button.enums';
+import { ButtonVariantProps } from './button-variants.types';
 import cx from 'classnames';
-
-type ButtonPickedProps = Pick<ButtonProps, 'htmlType'>;
-type PropsFromButtonElement = Omit<React.HTMLProps<HTMLButtonElement>, 'type'>;
-
-interface ButtonUnstyledProps extends ButtonPickedProps, PropsFromButtonElement {
-    children: React.ReactNode;
-}
 
 export function ButtonUnstyled({
     htmlType = ButtonHtmlType.Button,
@@ -18,7 +11,7 @@ export function ButtonUnstyled({
     className,
     tabIndex = 0,
     ...buttonProps
-}: ButtonUnstyledProps): React.JSX.Element {
+}: ButtonVariantProps): React.JSX.Element {
     return (
         <button
             type={htmlType}

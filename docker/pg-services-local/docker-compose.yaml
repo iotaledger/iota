@@ -84,6 +84,30 @@ services:
       - postgres
       - indexer-sync
 
+  indexer-analytics:
+    image: iota-indexer
+    container_name: indexer-analytics
+    hostname: indexer-analytics
+    restart: on-failure
+    networks:
+      iota-network:
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+      - RPC_WORKER_THREAD=12
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --rpc-client-url=http://local-network:9000
+      - --client-metric-port=9181
+      - --analytical-worker
+    ports:
+      - "127.0.0.1:9184:9181/tcp"
+    depends_on:
+      - local-network
+      - postgres
+      - indexer-sync
+
   graphql-server:
     image: iota-graphql-rpc
     build:
