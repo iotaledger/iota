@@ -1,8 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{HashMap, HashSet};
-use sui_open_rpc::MethodRouting;
+
+use iota_open_rpc::MethodRouting;
 
 #[derive(Debug, Clone)]
 pub struct RpcRouter {

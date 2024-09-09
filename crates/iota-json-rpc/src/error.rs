@@ -1,28 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
 
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
+use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
+use iota_types::{
+    error::{IotaError, IotaObjectResponseError, UserInputError},
+    quorum_driver_types::QuorumDriverError,
+};
 use itertools::Itertools;
-use jsonrpsee::core::Error as RpcError;
-use jsonrpsee::types::error::{CallError, INTERNAL_ERROR_CODE};
-use jsonrpsee::types::ErrorObject;
-use std::collections::BTreeMap;
-use sui_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
-use sui_types::error::{SuiError, SuiObjectResponseError, UserInputError};
-use sui_types::quorum_driver_types::QuorumDriverError;
+use jsonrpsee::{
+    core::Error as RpcError,
+    types::{
+        error::{CallError, INTERNAL_ERROR_CODE},
+        ErrorObject,
+    },
+};
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::authority_state::StateReadError;
-use crate::name_service::NameServiceError;
+use crate::{authority_state::StateReadError, name_service::NameServiceError};
 
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    SuiError(SuiError),
+    IotaError(IotaError),
 
     #[error(transparent)]
     InternalError(#[from] anyhow::Error),
@@ -54,10 +61,10 @@ pub enum Error {
     FastCryptoError(#[from] FastCryptoError),
 
     #[error(transparent)]
-    SuiObjectResponseError(#[from] SuiObjectResponseError),
+    IotaObjectResponseError(#[from] IotaObjectResponseError),
 
     #[error(transparent)]
-    SuiRpcInputError(#[from] SuiRpcInputError),
+    IotaRpcInputError(#[from] IotaRpcInputError),
 
     // TODO(wlmyng): convert StateReadError::Internal message to generic internal error message.
     #[error(transparent)]
@@ -70,16 +77,16 @@ pub enum Error {
     NameServiceError(#[from] NameServiceError),
 }
 
-impl From<SuiError> for Error {
-    fn from(e: SuiError) -> Self {
+impl From<IotaError> for Error {
+    fn from(e: IotaError) -> Self {
         match e {
-            SuiError::UserInputError { error } => Self::UserInputError(error),
-            SuiError::SuiObjectResponseError { error } => Self::SuiObjectResponseError(error),
-            SuiError::UnsupportedFeatureError { error } => Self::UnsupportedFeature(error),
-            SuiError::IndexStoreNotAvailable => Self::UnsupportedFeature(
+            IotaError::UserInputError { error } => Self::UserInputError(error),
+            IotaError::IotaObjectResponseError { error } => Self::IotaObjectResponseError(error),
+            IotaError::UnsupportedFeatureError { error } => Self::UnsupportedFeature(error),
+            IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),
             ),
-            other => Self::SuiError(other),
+            other => Self::IotaError(other),
         }
     }
 }
@@ -90,11 +97,11 @@ impl From<Error> for RpcError {
         match e {
             Error::UserInputError(_) => RpcError::Call(CallError::InvalidParams(e.into())),
             Error::UnsupportedFeature(_) => RpcError::Call(CallError::InvalidParams(e.into())),
-            Error::SuiObjectResponseError(err) => match err {
-                SuiObjectResponseError::NotExists { .. }
-                | SuiObjectResponseError::DynamicFieldNotFound { .. }
-                | SuiObjectResponseError::Deleted { .. }
-                | SuiObjectResponseError::DisplayError { .. } => {
+            Error::IotaObjectResponseError(err) => match err {
+                IotaObjectResponseError::NotExists { .. }
+                | IotaObjectResponseError::DynamicFieldNotFound { .. }
+                | IotaObjectResponseError::Deleted { .. }
+                | IotaObjectResponseError::DisplayError { .. } => {
                     RpcError::Call(CallError::InvalidParams(err.into()))
                 }
                 _ => RpcError::Call(CallError::Failed(err.into())),
@@ -110,14 +117,14 @@ impl From<Error> for RpcError {
                 }
                 _ => RpcError::Call(CallError::Failed(err.into())),
             },
-            Error::SuiRpcInputError(err) => RpcError::Call(CallError::InvalidParams(err.into())),
-            Error::SuiError(sui_error) => match sui_error {
-                SuiError::TransactionNotFound { .. }
-                | SuiError::TransactionsNotFound { .. }
-                | SuiError::TransactionEventsNotFound { .. } => {
-                    RpcError::Call(CallError::InvalidParams(sui_error.into()))
+            Error::IotaRpcInputError(err) => RpcError::Call(CallError::InvalidParams(err.into())),
+            Error::IotaError(iota_error) => match iota_error {
+                IotaError::TransactionNotFound { .. }
+                | IotaError::TransactionsNotFound { .. }
+                | IotaError::TransactionEventsNotFound { .. } => {
+                    RpcError::Call(CallError::InvalidParams(iota_error.into()))
                 }
-                _ => RpcError::Call(CallError::Failed(sui_error.into())),
+                _ => RpcError::Call(CallError::Failed(iota_error.into())),
             },
             Error::StateReadError(err) => match err {
                 StateReadError::Client(_) => RpcError::Call(CallError::InvalidParams(err.into())),
@@ -134,8 +141,9 @@ impl From<Error> for RpcError {
                 match err {
                     QuorumDriverError::InvalidUserSignature(err) => {
                         let inner_error_str = match err {
-                            // TODO(wlmyng): update SuiError display trait to render UserInputError with display
-                            SuiError::UserInputError { error } => error.to_string(),
+                            // TODO(wlmyng): update IotaError display trait to render UserInputError
+                            // with display
+                            IotaError::UserInputError { error } => error.to_string(),
                             _ => err.to_string(),
                         };
 
@@ -168,10 +176,9 @@ impl From<Error> for RpcError {
                         retried_tx_success,
                     } => {
                         let error_message = format!(
-                        "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}",
-                        retried_tx,
-                        retried_tx_success
-                    );
+                            "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}",
+                            retried_tx, retried_tx_success
+                        );
 
                         let new_map = conflicting_txes
                             .into_iter()
@@ -193,7 +200,8 @@ impl From<Error> for RpcError {
                     QuorumDriverError::NonRecoverableTransactionError { errors } => {
                         let new_errors: Vec<String> = errors
                             .into_iter()
-                            // sort by total stake, descending, so users see the most prominent one first
+                            // sort by total stake, descending, so users see the most prominent one
+                            // first
                             .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                             .filter_map(|(err, _, _)| {
                                 match &err {
@@ -207,7 +215,7 @@ impl From<Error> for RpcError {
                                     // So, we take an easier route and consider them non-retryable
                                     // at all. Combining this with the sorting above, clients will
                                     // see the dominant error first.
-                                    SuiError::UserInputError { error } => Some(error.to_string()),
+                                    IotaError::UserInputError { error } => Some(error.to_string()),
                                     _ => {
                                         if err.is_retryable().0 {
                                             None
@@ -225,7 +233,10 @@ impl From<Error> for RpcError {
                         );
 
                         let error_list = new_errors.join(", ");
-                        let error_msg = format!("Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.", error_list);
+                        let error_msg = format!(
+                            "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.",
+                            error_list
+                        );
 
                         let error_object = ErrorObject::owned(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
@@ -256,7 +267,7 @@ impl From<Error> for RpcError {
 }
 
 #[derive(Debug, Error)]
-pub enum SuiRpcInputError {
+pub enum IotaRpcInputError {
     #[error("Input contains duplicates")]
     ContainsDuplicates,
 
@@ -269,14 +280,16 @@ pub enum SuiRpcInputError {
     #[error("{0}")]
     GenericInvalid(String),
 
-    #[error("request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response")]
+    #[error(
+        "request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response"
+    )]
     InvalidExecuteTransactionRequestType,
 
     #[error("Unsupported protocol version requested. Min supported: {0}, max supported: {1}")]
     ProtocolVersionUnsupported(u64, u64),
 
     #[error("{0}")]
-    CannotParseSuiStructTag(String),
+    CannotParseIotaStructTag(String),
 
     #[error(transparent)]
     Base64(#[from] eyre::Report),
@@ -294,26 +307,24 @@ pub enum SuiRpcInputError {
     UserInputError(#[from] UserInputError),
 }
 
-impl From<SuiRpcInputError> for RpcError {
-    fn from(e: SuiRpcInputError) -> Self {
+impl From<IotaRpcInputError> for RpcError {
+    fn from(e: IotaRpcInputError) -> Self {
         RpcError::Call(CallError::InvalidParams(e.into()))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
+    use iota_types::{
+        base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
+        committee::StakeUnit,
+        crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
+        digests::{ObjectDigest, TransactionDigest},
+    };
     use jsonrpsee::types::ErrorObjectOwned;
-    use sui_types::base_types::AuthorityName;
-    use sui_types::base_types::ObjectID;
-    use sui_types::base_types::ObjectRef;
-    use sui_types::base_types::SequenceNumber;
-    use sui_types::committee::StakeUnit;
-    use sui_types::crypto::AuthorityPublicKey;
-    use sui_types::crypto::AuthorityPublicKeyBytes;
-    use sui_types::digests::ObjectDigest;
-    use sui_types::digests::TransactionDigest;
+
+    use super::*;
 
     fn test_object_ref() -> ObjectRef {
         (
@@ -329,7 +340,7 @@ mod tests {
         #[test]
         fn test_invalid_user_signature() {
             let quorum_driver_error =
-                QuorumDriverError::InvalidUserSignature(SuiError::InvalidSignature {
+                QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature {
                     error: "Test inner invalid signature".to_string(),
                 });
 
@@ -377,7 +388,7 @@ mod tests {
 
         #[test]
         fn test_objects_double_used() {
-            use sui_types::crypto::VerifyingKey;
+            use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
                 (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
@@ -399,7 +410,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction Some(TransactionDigest(11111111111111111111111111111111)), success: Some(true)"];
+            let expected_message = expect![
+                "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction Some(TransactionDigest(11111111111111111111111111111111)), success: Some(true)"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
                 r#"{"11111111111111111111111111111111":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
@@ -413,7 +426,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        SuiError::UserInputError {
+                        IotaError::UserInputError {
                             error: UserInputError::GasBalanceTooLow {
                                 gas_balance: 10,
                                 needed_gas_amount: 100,
@@ -423,7 +436,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        SuiError::UserInputError {
+                        IotaError::UserInputError {
                             error: UserInputError::ObjectVersionUnavailableForConsumption {
                                 provided_obj_ref: test_object_ref(),
                                 current_version: 10.into(),
@@ -440,8 +453,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message =
-                expect!["Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Balance of gas object 10 is lower than the needed amount: 100., Object (0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(0), o#11111111111111111111111111111111) is not available for consumption, its current version: SequenceNumber(10).."];
+            let expected_message = expect![
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Balance of gas object 10 is lower than the needed amount: 100, Object (0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(0), o#11111111111111111111111111111111) is not available for consumption, its current version: SequenceNumber(10)."
+            ];
             expected_message.assert_eq(error_object.message());
         }
 
@@ -450,7 +464,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        SuiError::UserInputError {
+                        IotaError::UserInputError {
                             error: UserInputError::ObjectNotFound {
                                 object_id: test_object_ref().0,
                                 version: None,
@@ -460,7 +474,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        SuiError::RpcError("Hello".to_string(), "Testing".to_string()),
+                        IotaError::RpcError("Hello".to_string(), "Testing".to_string()),
                         0,
                         vec![],
                     ),
@@ -472,15 +486,16 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message =
-                expect!["Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None.."];
+            let expected_message = expect![
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None."
+            ];
             expected_message.assert_eq(error_object.message());
         }
 
         #[test]
         fn test_quorum_driver_internal_error() {
             let quorum_driver_error =
-                QuorumDriverError::QuorumDriverInternalError(SuiError::UnexpectedMessage);
+                QuorumDriverError::QuorumDriverInternalError(IotaError::UnexpectedMessage);
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
@@ -495,7 +510,7 @@ mod tests {
         fn test_system_overload() {
             let quorum_driver_error = QuorumDriverError::SystemOverload {
                 overloaded_stake: 10,
-                errors: vec![(SuiError::UnexpectedMessage, 0, vec![])],
+                errors: vec![(IotaError::UnexpectedMessage, 0, vec![])],
             };
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
@@ -503,7 +518,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."];
+            let expected_message = expect![
+                "Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."
+            ];
             expected_message.assert_eq(error_object.message());
         }
     }

@@ -1,36 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::{env, net::SocketAddr, str::FromStr};
 
-use hyper::header::HeaderName;
-use hyper::header::HeaderValue;
-use hyper::Body;
-use hyper::Method;
-use hyper::Request;
-use jsonrpsee::RpcModule;
-use prometheus::Registry;
-use tokio::runtime::Handle;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::trace::TraceLayer;
-use tracing::info;
-
+use axum::body::Body;
 pub use balance_changes::*;
-pub use object_changes::*;
-use sui_json_rpc_api::{
+use hyper::{
+    header::{HeaderName, HeaderValue},
+    Method, Request,
+};
+pub use iota_config::node::ServerType;
+use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
+use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
-use sui_open_rpc::{Module, Project};
+use iota_open_rpc::{Module, Project};
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use jsonrpsee::RpcModule;
+pub use object_changes::*;
+use prometheus::Registry;
+use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
+use tracing::info;
 
-use crate::error::Error;
-use crate::metrics::MetricsLogger;
-use crate::routing_layer::RpcRouter;
+use crate::{error::Error, metrics::MetricsLogger, routing_layer::RpcRouter};
 
 pub mod authority_state;
 pub mod axum_router;
 mod balance_changes;
+pub mod bridge_api;
 pub mod coin_api;
 pub mod error;
 pub mod governance_api;
@@ -53,36 +56,40 @@ pub struct JsonRpcServerBuilder {
     module: RpcModule<()>,
     rpc_doc: Project,
     registry: Registry,
+    policy_config: Option<PolicyConfig>,
+    firewall_config: Option<RemoteFirewallConfig>,
 }
 
-pub fn sui_rpc_doc(version: &str) -> Project {
+pub fn iota_rpc_doc(version: &str) -> Project {
     Project::new(
         version,
-        "Sui JSON-RPC",
-        "Sui JSON-RPC API for interaction with Sui Full node. Make RPC calls using https://fullnode.NETWORK.sui.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
-        "Mysten Labs",
-        "https://mystenlabs.com",
-        "build@mystenlabs.com",
+        "Iota JSON-RPC",
+        "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
+        "IOTA Foundation",
+        "https://iota.org",
+        "build@iota.org",
         "Apache-2.0",
-        "https://raw.githubusercontent.com/MystenLabs/sui/main/LICENSE",
+        "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )
 }
 
-pub enum ServerType {
-    WebSocket,
-    Http,
-}
-
 impl JsonRpcServerBuilder {
-    pub fn new(version: &str, prometheus_registry: &Registry) -> Self {
+    pub fn new(
+        version: &str,
+        prometheus_registry: &Registry,
+        policy_config: Option<PolicyConfig>,
+        firewall_config: Option<RemoteFirewallConfig>,
+    ) -> Self {
         Self {
             module: RpcModule::new(()),
-            rpc_doc: sui_rpc_doc(version),
+            rpc_doc: iota_rpc_doc(version),
             registry: prometheus_registry.clone(),
+            policy_config,
+            firewall_config,
         }
     }
 
-    pub fn register_module<T: SuiRpcModule>(&mut self, module: T) -> Result<(), Error> {
+    pub fn register_module<T: IotaRpcModule>(&mut self, module: T) -> Result<(), Error> {
         self.rpc_doc.add_module(T::rpc_doc_module());
         Ok(self.module.merge(module.rpc())?)
     }
@@ -117,7 +124,7 @@ impl JsonRpcServerBuilder {
 
     fn trace_layer() -> TraceLayer<
         tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
-        impl tower_http::trace::MakeSpan<hyper::Body> + Clone,
+        impl tower_http::trace::MakeSpan<Body> + Clone,
         (),
         (),
         (),
@@ -141,7 +148,7 @@ impl JsonRpcServerBuilder {
             .on_failure(())
     }
 
-    pub fn to_router(&self, server_type: Option<ServerType>) -> Result<axum::Router, Error> {
+    pub async fn to_router(&self, server_type: ServerType) -> Result<axum::Router, Error> {
         let routing = self.rpc_doc.method_routing.clone();
 
         let disable_routing = env::var("DISABLE_BACKWARD_COMPATIBILITY")
@@ -164,18 +171,25 @@ impl JsonRpcServerBuilder {
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
+        let traffic_controller_metrics = TrafficControllerMetrics::new(&self.registry);
 
         let middleware = tower::ServiceBuilder::new()
             .layer(Self::trace_layer())
             .layer(Self::cors()?);
 
-        let service =
-            crate::axum_router::JsonRpcService::new(module.into(), rpc_router, metrics_logger);
+        let service = crate::axum_router::JsonRpcService::new(
+            module.into(),
+            rpc_router,
+            metrics_logger,
+            self.firewall_config.clone(),
+            self.policy_config.clone(),
+            traffic_controller_metrics,
+        );
 
         let mut router = axum::Router::new();
 
         match server_type {
-            Some(ServerType::WebSocket) => {
+            ServerType::WebSocket => {
                 router = router
                     .route(
                         "/",
@@ -186,7 +200,7 @@ impl JsonRpcServerBuilder {
                         axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
                     );
             }
-            Some(ServerType::Http) => {
+            ServerType::Http => {
                 router = router
                     .route(
                         "/",
@@ -201,7 +215,7 @@ impl JsonRpcServerBuilder {
                         axum::routing::post(crate::axum_router::json_rpc_handler),
                     );
             }
-            None => {
+            ServerType::Both => {
                 router = router
                     .route(
                         "/",
@@ -237,19 +251,33 @@ impl JsonRpcServerBuilder {
         self,
         listen_address: SocketAddr,
         _custom_runtime: Option<Handle>,
-        server_type: Option<ServerType>,
+        server_type: ServerType,
+        cancel: Option<CancellationToken>,
     ) -> Result<ServerHandle, Error> {
-        let app = self.to_router(server_type)?;
+        let app = self.to_router(server_type).await?;
 
-        let server = axum::Server::bind(&listen_address).serve(app.into_make_service());
+        let listener = tokio::net::TcpListener::bind(&listen_address)
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
 
-        let addr = server.local_addr();
-        let handle = tokio::spawn(async move { server.await.unwrap() });
+        let handle = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .unwrap();
+            if let Some(cancel) = cancel {
+                // Signal that the server is shutting down, so other tasks can clean-up.
+                cancel.cancel();
+            }
+        });
 
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),
         };
-        info!(local_addr =? addr, "Sui JSON-RPC server listening on {addr}");
+        info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
         Ok(handle)
     }
 }
@@ -270,7 +298,7 @@ enum ServerHandleInner {
     Axum(tokio::task::JoinHandle<()>),
 }
 
-pub trait SuiRpcModule
+pub trait IotaRpcModule
 where
     Self: Sized,
 {

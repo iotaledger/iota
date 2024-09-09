@@ -1,47 +1,45 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::proc_macro::cached;
-use cached::SizedCache;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
+use cached::{proc_macro::cached, SizedCache};
+use iota_core::authority::AuthorityState;
+use iota_json_rpc_api::{cap_page_limit, CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
+use iota_metrics::spawn_monitored_task;
+use iota_open_rpc::Module;
+use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
+use iota_types::{
+    balance::Supply,
+    base_types::{IotaAddress, ObjectID},
+    coin::{CoinMetadata, TreasuryCap},
+    effects::TransactionEffectsAPI,
+    gas_coin::{GAS, TOTAL_SUPPLY_NANOS},
+    object::Object,
+    parse_iota_struct_tag,
+};
+use jsonrpsee::{core::RpcResult, RpcModule};
+#[cfg(test)]
+use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
-use sui_storage::indexes::TotalBalance;
 use tap::TapFallible;
 use tracing::{debug, info, instrument};
 
-use mysten_metrics::spawn_monitored_task;
-use sui_core::authority::AuthorityState;
-use sui_json_rpc_api::{cap_page_limit, CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics};
-use sui_json_rpc_types::Balance;
-use sui_json_rpc_types::{CoinPage, SuiCoinMetadata};
-use sui_open_rpc::Module;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_types::balance::Supply;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::coin::{CoinMetadata, TreasuryCap};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::gas_coin::{GAS, TOTAL_SUPPLY_MIST};
-use sui_types::object::Object;
-use sui_types::parse_sui_struct_tag;
+use crate::{
+    authority_state::StateRead,
+    error::{Error, IotaRpcInputError, RpcInterimResult},
+    with_tracing, IotaRpcModule,
+};
 
-#[cfg(test)]
-use mockall::automock;
-
-use crate::authority_state::StateRead;
-use crate::error::{Error, RpcInterimResult, SuiRpcInputError};
-use crate::{with_tracing, SuiRpcModule};
-
-pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, SuiRpcInputError> {
-    parse_sui_struct_tag(coin_type)
-        .map_err(|e| SuiRpcInputError::CannotParseSuiStructTag(format!("{e}")))
+pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
+    parse_iota_struct_tag(coin_type)
+        .map_err(|e| IotaRpcInputError::CannotParseIotaStructTag(format!("{e}")))
 }
 
-pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, SuiRpcInputError> {
+pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcInputError> {
     Ok(TypeTag::Struct(Box::new(match coin_type {
         Some(c) => parse_to_struct_tag(&c)?,
         None => GAS::type_(),
@@ -69,7 +67,7 @@ impl CoinReadApi {
     }
 }
 
-impl SuiRpcModule for CoinReadApi {
+impl IotaRpcModule for CoinReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
@@ -84,7 +82,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self))]
     async fn get_coins(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         coin_type: Option<String>,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<ObjectID>,
@@ -95,7 +93,8 @@ impl CoinReadApiServer for CoinReadApi {
 
             let cursor = match cursor {
                 Some(c) => (coin_type_tag.to_string(), c),
-                // If cursor is not specified, we need to start from the beginning of the coin type, which is the minimal possible ObjectID.
+                // If cursor is not specified, we need to start from the beginning of the coin type,
+                // which is the minimal possible ObjectID.
                 None => (coin_type_tag.to_string(), ObjectID::ZERO),
             };
 
@@ -110,7 +109,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self))]
     async fn get_all_coins(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<ObjectID>,
         limit: Option<usize>,
@@ -123,14 +122,14 @@ impl CoinReadApiServer for CoinReadApi {
                         Some(obj) => {
                             let coin_type = obj.coin_type_maybe();
                             if coin_type.is_none() {
-                                Err(SuiRpcInputError::GenericInvalid(
+                                Err(IotaRpcInputError::GenericInvalid(
                                     "cursor is not a coin".to_string(),
                                 ))
                             } else {
                                 Ok((coin_type.unwrap().to_string(), object_id))
                             }
                         }
-                        None => Err(SuiRpcInputError::GenericInvalid(
+                        None => Err(IotaRpcInputError::GenericInvalid(
                             "cursor not found".to_string(),
                         )),
                     }
@@ -155,7 +154,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self))]
     async fn get_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         coin_type: Option<String>,
     ) -> RpcResult<Balance> {
         with_tracing!(async move {
@@ -178,7 +177,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_all_balances(&self, owner: SuiAddress) -> RpcResult<Vec<Balance>> {
+    async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
         with_tracing!(async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
                 debug!(?owner, "Failed to get all balance with error: {:?}", e);
@@ -199,7 +198,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_coin_metadata(&self, coin_type: String) -> RpcResult<Option<SuiCoinMetadata>> {
+    async fn get_coin_metadata(&self, coin_type: String) -> RpcResult<Option<IotaCoinMetadata>> {
         with_tracing!(async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             let metadata_object = self
@@ -220,7 +219,7 @@ impl CoinReadApiServer for CoinReadApi {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             Ok(if GAS::is_gas(&coin_struct) {
                 Supply {
-                    value: TOTAL_SUPPLY_MIST,
+                    value: TOTAL_SUPPLY_NANOS,
                 }
             } else {
                 let treasury_cap_object = self
@@ -268,7 +267,7 @@ async fn find_package_object_id(
                 }
             }
         }
-        Err(SuiRpcInputError::GenericNotFound(format!(
+        Err(IotaRpcInputError::GenericNotFound(format!(
             "Cannot find object [{}] from [{}] package event.",
             object_struct_tag, package_id,
         ))
@@ -277,8 +276,8 @@ async fn find_package_object_id(
     .await?
 }
 
-/// CoinReadInternal trait to capture logic of interactions with AuthorityState and metrics
-/// This allows us to also mock internal implementation for testing
+/// CoinReadInternal trait to capture logic of interactions with AuthorityState
+/// and metrics This allows us to also mock internal implementation for testing
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait CoinReadInternal {
@@ -286,12 +285,12 @@ pub trait CoinReadInternal {
     async fn get_object(&self, object_id: &ObjectID) -> RpcInterimResult<Option<Object>>;
     async fn get_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         coin_type: TypeTag,
     ) -> RpcInterimResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>>;
     async fn find_package_object(
         &self,
@@ -300,7 +299,7 @@ pub trait CoinReadInternal {
     ) -> RpcInterimResult<Object>;
     async fn get_coins_iterator(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: (String, ObjectID),
         limit: Option<usize>,
         one_coin_type_only: bool,
@@ -340,7 +339,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         coin_type: TypeTag,
     ) -> RpcInterimResult<TotalBalance> {
         Ok(self.state.get_balance(owner, coin_type).await?)
@@ -348,7 +347,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_all_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         Ok(self.state.get_all_balance(owner).await?)
     }
@@ -367,7 +366,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_coins_iterator(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: (String, ObjectID),
         limit: Option<usize>,
         one_coin_type_only: bool,
@@ -398,33 +397,37 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
 #[cfg(test)]
 mod tests {
+    use expect_test::expect;
+    use iota_json_rpc_types::Coin;
+    use iota_storage::{
+        key_value_store::{
+            KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+        },
+        key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::{
+        balance::Supply,
+        base_types::{IotaAddress, ObjectID, SequenceNumber},
+        coin::TreasuryCap,
+        digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+        effects::TransactionEffects,
+        error::{IotaError, IotaResult},
+        gas_coin::GAS,
+        id::UID,
+        messages_checkpoint::{
+            CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+        },
+        object::Object,
+        parse_iota_struct_tag,
+        utils::create_fake_transaction,
+        TypeTag,
+    };
+    use jsonrpsee::types::ErrorObjectOwned;
+    use mockall::{mock, predicate};
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};
-    use expect_test::expect;
-    use jsonrpsee::types::ErrorObjectOwned;
-    use mockall::mock;
-    use mockall::predicate;
-    use move_core_types::account_address::AccountAddress;
-    use move_core_types::language_storage::StructTag;
-    use sui_json_rpc_types::Coin;
-    use sui_storage::key_value_store::{
-        KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
-    };
-    use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-    use sui_types::balance::Supply;
-    use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress};
-    use sui_types::coin::TreasuryCap;
-    use sui_types::digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest};
-    use sui_types::effects::TransactionEffects;
-    use sui_types::error::{SuiError, SuiResult};
-    use sui_types::gas_coin::GAS;
-    use sui_types::id::UID;
-    use sui_types::messages_checkpoint::{
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-    };
-    use sui_types::object::Object;
-    use sui_types::utils::create_fake_transaction;
-    use sui_types::{parse_sui_struct_tag, TypeTag};
 
     mock! {
         pub KeyValueStore {}
@@ -435,7 +438,7 @@ mod tests {
                 transactions: &[TransactionDigest],
                 effects: &[TransactionDigest],
                 events: &[TransactionEventsDigest],
-            ) -> SuiResult<KVStoreTransactionData>;
+            ) -> IotaResult<KVStoreTransactionData>;
 
             async fn multi_get_checkpoints(
                 &self,
@@ -443,19 +446,19 @@ mod tests {
                 checkpoint_contents: &[CheckpointSequenceNumber],
                 checkpoint_summaries_by_digest: &[CheckpointDigest],
                 checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-            ) -> SuiResult<KVStoreCheckpointData>;
+            ) -> IotaResult<KVStoreCheckpointData>;
 
             async fn deprecated_get_transaction_checkpoint(
                 &self,
                 digest: TransactionDigest,
-            ) -> SuiResult<Option<CheckpointSequenceNumber>>;
+            ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
-            async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> SuiResult<Option<Object>>;
+            async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
 
             async fn multi_get_transaction_checkpoint(
                 &self,
                 digests: &[TransactionDigest],
-            ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>>;
+            ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
         }
     }
 
@@ -488,7 +491,7 @@ mod tests {
         }
     }
 
-    fn get_test_owner() -> SuiAddress {
+    fn get_test_owner() -> IotaAddress {
         AccountAddress::ONE.into()
     }
 
@@ -501,7 +504,7 @@ mod tests {
     }
 
     fn get_test_coin_type_tag(coin_type: String) -> TypeTag {
-        TypeTag::Struct(Box::new(parse_sui_struct_tag(&coin_type).unwrap()))
+        TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).unwrap()))
     }
 
     enum CoinType {
@@ -540,7 +543,7 @@ mod tests {
         package_id: ObjectID,
     ) -> (String, StructTag, StructTag, TreasuryCap, Object) {
         let coin_name = get_test_coin_type(package_id);
-        let input_coin_struct = parse_sui_struct_tag(&coin_name).expect("should not fail");
+        let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
         let treasury_cap_struct = TreasuryCap::type_(input_coin_struct.clone());
         let treasury_cap = TreasuryCap {
             id: UID::new(get_test_package_id()),
@@ -558,9 +561,9 @@ mod tests {
     }
 
     mod get_coins_tests {
-        use super::super::*;
-        use super::*;
         use jsonrpsee::types::ErrorObjectOwned;
+
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -639,7 +642,7 @@ mod tests {
             let coin_type = coin.coin_type.clone();
 
             let coin_type_tag =
-                TypeTag::Struct(Box::new(parse_sui_struct_tag(&coin.coin_type).unwrap()));
+                TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin.coin_type).unwrap()));
             let mut mock_state = MockStateRead::new();
             mock_state
                 .expect_get_owned_coins()
@@ -682,8 +685,9 @@ mod tests {
             let cursor = coins[0].coin_object_id;
             let limit = 2;
 
-            let coin_type_tag =
-                TypeTag::Struct(Box::new(parse_sui_struct_tag(&coins[0].coin_type).unwrap()));
+            let coin_type_tag = TypeTag::Struct(Box::new(
+                parse_iota_struct_tag(&coins[0].coin_type).unwrap(),
+            ));
             let mut mock_state = MockStateRead::new();
             mock_state
                 .expect_get_owned_coins()
@@ -728,14 +732,16 @@ mod tests {
             let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
-            let expected = expect!["Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"];
+            let expected = expect![
+                "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
+            ];
             expected.assert_eq(error_object.message());
         }
 
         #[tokio::test]
         async fn test_unrecognized_token() {
             let owner = get_test_owner();
-            let coin_type = "0x2::sui:🤵";
+            let coin_type = "0x2::iota:🤵";
             let mock_state = MockStateRead::new();
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -748,7 +754,7 @@ mod tests {
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
             let expected =
-                expect!["Invalid struct type: 0x2::sui:🤵. Got error: unrecognized token: :🤵"];
+                expect!["Invalid struct type: 0x2::iota:🤵. Got error: unrecognized token: :🤵"];
             expected.assert_eq(error_object.message());
         }
 
@@ -762,7 +768,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .returning(move |_, _, _, _| {
                     Err(StateReadError::Client(
-                        SuiError::IndexStoreNotAvailable.into(),
+                        IotaError::IndexStoreNotAvailable.into(),
                     ))
                 });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -789,7 +795,7 @@ mod tests {
             mock_state
                 .expect_get_owned_coins()
                 .returning(move |_, _, _, _| {
-                    Err(SuiError::Storage("mock rocksdb error".to_string()).into())
+                    Err(IotaError::Storage("mock rocksdb error".to_string()).into())
                 });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -809,10 +815,9 @@ mod tests {
     }
 
     mod get_all_coins_tests {
-        use sui_types::object::{MoveObject, Owner};
+        use iota_types::object::{MoveObject, Owner};
 
-        use super::super::*;
-        use super::*;
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -933,9 +938,9 @@ mod tests {
     }
 
     mod get_balance_tests {
-        use super::super::*;
-        use super::*;
         use jsonrpsee::types::ErrorObjectOwned;
+
+        use super::{super::*, *};
         // Success scenarios
         #[tokio::test]
         async fn test_gas_coin() {
@@ -1023,7 +1028,9 @@ mod tests {
             let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
-            let expected = expect!["Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"];
+            let expected = expect![
+                "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
+            ];
             expected.assert_eq(error_object.message());
         }
 
@@ -1035,7 +1042,7 @@ mod tests {
             let mut mock_state = MockStateRead::new();
             mock_state.expect_get_balance().returning(move |_, _| {
                 Err(StateReadError::Client(
-                    SuiError::IndexStoreNotAvailable.into(),
+                    IotaError::IndexStoreNotAvailable.into(),
                 ))
             });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1056,12 +1063,13 @@ mod tests {
 
         #[tokio::test]
         async fn test_get_balance_execution_error() {
-            // Validate that we handle and return an error message when we encounter an unexpected error
+            // Validate that we handle and return an error message when we encounter an
+            // unexpected error
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
             mock_state.expect_get_balance().returning(move |_, _| {
-                Err(SuiError::ExecutionError("mock db error".to_string()).into())
+                Err(IotaError::ExecutionError("mock db error".to_string()).into())
             });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -1082,9 +1090,9 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-        use super::super::*;
-        use super::*;
         use jsonrpsee::types::ErrorObjectOwned;
+
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -1134,7 +1142,8 @@ mod tests {
                     locked_balance: Default::default(),
                 },
             ];
-            // This is because the underlying result is a hashmap, so order is not guaranteed
+            // This is because the underlying result is a hashmap, so order is not
+            // guaranteed
             let mut result = response.unwrap();
             for item in expected_result {
                 if let Some(pos) = result.iter().position(|i| *i == item) {
@@ -1153,7 +1162,7 @@ mod tests {
             let mut mock_state = MockStateRead::new();
             mock_state.expect_get_all_balance().returning(move |_| {
                 Err(StateReadError::Client(
-                    SuiError::IndexStoreNotAvailable.into(),
+                    IotaError::IndexStoreNotAvailable.into(),
                 ))
             });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1172,17 +1181,17 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use super::super::*;
-        use super::*;
+        use iota_types::id::UID;
         use mockall::predicate;
-        use sui_types::id::UID;
+
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
         async fn test_valid_coin_metadata_object() {
             let package_id = get_test_package_id();
             let coin_name = get_test_coin_type(package_id);
-            let input_coin_struct = parse_sui_struct_tag(&coin_name).expect("should not fail");
+            let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
             let coin_metadata_struct = CoinMetadata::type_(input_coin_struct.clone());
             let coin_metadata = CoinMetadata {
                 id: UID::new(get_test_package_id()),
@@ -1194,7 +1203,7 @@ mod tests {
             };
             let coin_metadata_object =
                 Object::coin_metadata_for_testing(input_coin_struct.clone(), coin_metadata);
-            let metadata = SuiCoinMetadata::try_from(coin_metadata_object.clone()).unwrap();
+            let metadata = IotaCoinMetadata::try_from(coin_metadata_object.clone()).unwrap();
             let mut mock_internal = MockCoinReadInternal::new();
             // return TreasuryCap instead of CoinMetadata to set up test
             mock_internal
@@ -1233,7 +1242,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
-                .get_coin_metadata("0x2::sui::SUI".to_string())
+                .get_coin_metadata("0x2::iota::IOTA".to_string())
                 .await;
 
             assert!(response.is_ok());
@@ -1242,10 +1251,10 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_find_package_object_not_sui_coin_metadata() {
+        async fn test_find_package_object_not_iota_coin_metadata() {
             let package_id = get_test_package_id();
             let coin_name = get_test_coin_type(package_id);
-            let input_coin_struct = parse_sui_struct_tag(&coin_name).expect("should not fail");
+            let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
             let coin_metadata_struct = CoinMetadata::type_(input_coin_struct.clone());
             let treasury_cap = TreasuryCap {
                 id: UID::new(get_test_package_id()),
@@ -1278,14 +1287,14 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use super::super::*;
-        use super::*;
+        use iota_types::id::UID;
         use mockall::predicate;
-        use sui_types::id::UID;
+
+        use super::{super::*, *};
 
         #[tokio::test]
         async fn test_success_response_for_gas_coin() {
-            let coin_type = "0x2::sui::SUI";
+            let coin_type = "0x2::iota::IOTA";
             let mock_internal = MockCoinReadInternal::new();
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
@@ -1349,7 +1358,9 @@ mod tests {
             let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
-            let expected = expect!["Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."];
+            let expected = expect![
+                "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."
+            ];
             expected.assert_eq(error_object.message());
         }
 
@@ -1391,7 +1402,9 @@ mod tests {
                 error_object.code(),
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
-            let expected = expect!["Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""];
+            let expected = expect![
+                "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
+            ];
             expected.assert_eq(error_object.message());
         }
     }

@@ -1,18 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use hyper::body::HttpBody;
-use std::collections::HashSet;
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr};
 
-use jsonrpsee::server::logger::{HttpRequest, Logger, MethodKind, TransportProtocol};
-use jsonrpsee::types::Params;
+use http_body::Body;
+use iota_json_rpc_api::{
+    CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
+};
+use jsonrpsee::{
+    server::logger::{HttpRequest, Logger, MethodKind, TransportProtocol},
+    types::Params,
+};
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec,
 };
-use sui_json_rpc_api::TRANSIENT_ERROR_CODE;
-use sui_json_rpc_api::{CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER};
 use tokio::time::Instant;
 
 const SPAM_LABEL: &str = "SPAM";
@@ -24,7 +27,8 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[
 pub struct Metrics {
     /// Counter of requests, route is a label (ie separate timeseries per route)
     requests_by_route: IntCounterVec,
-    /// Gauge of inflight requests, route is a label (ie separate timeseries per route)
+    /// Gauge of inflight requests, route is a label (ie separate timeseries per
+    /// route)
     inflight_requests_by_route: IntGaugeVec,
     /// Request latency, route is a label
     req_latency_by_route: HistogramVec,

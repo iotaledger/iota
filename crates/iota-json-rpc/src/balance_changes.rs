@@ -1,23 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::ops::Neg;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    ops::Neg,
+};
 
 use async_trait::async_trait;
+use iota_json_rpc_types::BalanceChange;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    coin::Coin,
+    digests::ObjectDigest,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    execution_status::ExecutionStatus,
+    gas_coin::GAS,
+    object::{Object, Owner},
+    storage::WriteKind,
+    transaction::InputObjectKind,
+};
 use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
-
-use sui_json_rpc_types::BalanceChange;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber};
-use sui_types::coin::Coin;
-use sui_types::digests::ObjectDigest;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::execution_status::ExecutionStatus;
-use sui_types::gas_coin::GAS;
-use sui_types::object::{Object, Owner};
-use sui_types::storage::WriteKind;
-use sui_types::transaction::InputObjectKind;
 
 pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
@@ -201,6 +205,36 @@ impl<P> ObjectProviderCache<P> {
                 }
                 None => {
                     last_version_cache.insert(key, object_ref.1);
+                }
+            }
+        }
+
+        Self {
+            object_cache: RwLock::new(object_cache),
+            last_version_cache: RwLock::new(last_version_cache),
+            provider,
+        }
+    }
+
+    pub fn new_with_output_objects(provider: P, output_objects: Vec<Object>) -> Self {
+        let mut object_cache = BTreeMap::new();
+        let mut last_version_cache = BTreeMap::new();
+
+        for object in output_objects {
+            let object_id = object.id();
+            let version = object.version();
+
+            let key = (object_id, version);
+            object_cache.insert(key, object.clone());
+
+            match last_version_cache.get_mut(&key) {
+                Some(existing_seq_number) => {
+                    if version > *existing_seq_number {
+                        *existing_seq_number = version
+                    }
+                }
+                None => {
+                    last_version_cache.insert(key, version);
                 }
             }
         }
