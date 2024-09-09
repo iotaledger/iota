@@ -45,6 +45,9 @@ jobs:
   rust-tests:
     if: |
       !cancelled() && success('rust-lints', 'external-lints') && github.event.pull_request.draft == false
+    needs:
+      - rust-lints
+      - external-lints
     uses: ./.github/workflows/_rust_tests.yml
 
   external-tests:
