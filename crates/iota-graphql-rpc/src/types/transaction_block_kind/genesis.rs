@@ -13,9 +13,10 @@ use iota_types::{
 };
 
 use crate::{
-    consistency::ConsistentIndexCursor,
+    consistency::{CheckpointViewedAt, ConsistentIndexCursor},
     types::{
         cursor::{JsonCursor, Page},
+        event::Event,
         iota_address::IotaAddress,
         object::Object,
     },
@@ -29,6 +30,7 @@ pub(crate) struct GenesisTransaction {
 }
 
 pub(crate) type CObject = JsonCursor<ConsistentIndexCursor>;
+pub(crate) type CEvent = JsonCursor<ConsistentIndexCursor>;
 
 /// System transaction that initializes the network and writes the initial set
 /// of objects on-chain.
@@ -62,6 +64,44 @@ impl GenesisTransaction {
 
             let object = Object::from_native(IotaAddress::from(native.id()), native, Some(c.c));
             connection.edges.push(Edge::new(c.encode_cursor(), object));
+        }
+
+        Ok(connection)
+    }
+
+    /// Events emitted during genesis.
+    async fn events(
+        &self,
+        ctx: &Context<'_>,
+        first: Option<u64>,
+        after: Option<CEvent>,
+        last: Option<u64>,
+        before: Option<CEvent>,
+    ) -> Result<Connection<String, Event>> {
+        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
+
+        let mut connection = Connection::new(false, false);
+        let Some((prev, next, _, cs)) =
+            page.paginate_consistent_indices(self.native.events.len(), self.checkpoint_viewed_at)?
+        else {
+            return Ok(connection);
+        };
+
+        connection.has_previous_page = prev;
+        connection.has_next_page = next;
+
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
+
+        for c in cs {
+            let native_event = self.native.events[c.ix].clone();
+
+            let event = Event {
+                stored: None,
+                native: native_event,
+                checkpoint_viewed_at,
+            };
+
+            connection.edges.push(Edge::new(c.encode_cursor(), event));
         }
 
         Ok(connection)
