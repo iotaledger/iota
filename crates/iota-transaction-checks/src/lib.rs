@@ -1,37 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod deny;
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
-    use std::collections::{BTreeMap, HashSet};
-    use std::sync::Arc;
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::base_types::{ObjectID, ObjectRef};
-    use sui_types::error::{UserInputError, UserInputResult};
-    use sui_types::executable_transaction::VerifiedExecutableTransaction;
-    use sui_types::metrics::BytecodeVerifierMetrics;
-    use sui_types::transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        ReceivingObjectReadResult, ReceivingObjects, TransactionData, TransactionDataAPI,
-        TransactionKind, VersionedProtocolMessage as _,
+    use std::{
+        collections::{BTreeMap, HashSet},
+        sync::Arc,
     };
-    use sui_types::{
-        base_types::{SequenceNumber, SuiAddress},
-        error::{SuiError, SuiResult},
+
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        error::{IotaError, IotaResult, UserInputError, UserInputResult},
+        executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
-        gas::SuiGasStatus,
+        gas::IotaGasStatus,
+        metrics::BytecodeVerifierMetrics,
         object::{Object, Owner},
+        transaction::{
+            CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
+            ObjectReadResultKind, ReceivingObjectReadResult, ReceivingObjects, TransactionData,
+            TransactionDataAPI, TransactionKind,
+        },
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID,
     };
-    use sui_types::{
-        SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID, SUI_CLOCK_OBJECT_SHARED_VERSION,
-        SUI_RANDOMNESS_STATE_OBJECT_ID,
-    };
-    use tracing::error;
-    use tracing::instrument;
+    use tracing::{error, instrument};
 
     trait IntoChecked {
         fn into_checked(self) -> CheckedInputObjects;
@@ -53,7 +52,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
-    ) -> SuiResult<SuiGasStatus> {
+    ) -> IotaResult<IotaGasStatus> {
         check_gas(
             objects,
             protocol_config,
@@ -73,7 +72,7 @@ mod checked {
         input_objects: InputObjects,
         receiving_objects: &ReceivingObjects,
         metrics: &Arc<BytecodeVerifierMetrics>,
-    ) -> SuiResult<(SuiGasStatus, CheckedInputObjects)> {
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -96,7 +95,7 @@ mod checked {
         receiving_objects: ReceivingObjects,
         gas_object: Object,
         metrics: &Arc<BytecodeVerifierMetrics>,
-    ) -> SuiResult<(SuiGasStatus, CheckedInputObjects)> {
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_object_ref = gas_object.compute_object_reference();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
 
@@ -115,16 +114,17 @@ mod checked {
     }
 
     // Since the purpose of this function is to audit certified transactions,
-    // the checks here should be a strict subset of the checks in check_transaction_input().
-    // For checks not performed in this function but in check_transaction_input(),
-    // we should add a comment calling out the difference.
+    // the checks here should be a strict subset of the checks in
+    // check_transaction_input(). For checks not performed in this function but
+    // in check_transaction_input(), we should add a comment calling out the
+    // difference.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_input(
         cert: &VerifiedExecutableTransaction,
         input_objects: InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-    ) -> SuiResult<(SuiGasStatus, CheckedInputObjects)> {
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let transaction = cert.data().transaction_data();
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -133,21 +133,22 @@ mod checked {
             &input_objects,
             &[],
         )?;
-        // NB: We do not check receiving objects when executing. Only at signing time do we check.
-        // NB: move verifier is only checked at signing time, not at execution.
+        // NB: We do not check receiving objects when executing. Only at signing time do
+        // we check. NB: move verifier is only checked at signing time, not at
+        // execution.
 
         Ok((gas_status, input_objects.into_checked()))
     }
 
-    /// WARNING! This should only be used for the dev-inspect transaction. This transaction type
-    /// bypasses many of the normal object checks
+    /// WARNING! This should only be used for the dev-inspect transaction. This
+    /// transaction type bypasses many of the normal object checks
     pub fn check_dev_inspect_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,
         input_objects: InputObjects,
         // TODO: check ReceivingObjects for dev inspect?
         _receiving_objects: ReceivingObjects,
-    ) -> SuiResult<CheckedInputObjects> {
+    ) -> IotaResult<CheckedInputObjects> {
         kind.validity_check(config)?;
         if kind.is_system_tx() {
             return Err(UserInputError::Unsupported(format!(
@@ -156,7 +157,7 @@ mod checked {
             ))
             .into());
         }
-        let mut used_objects: HashSet<SuiAddress> = HashSet::new();
+        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
         for input_object in input_objects.iter() {
             let Some(object) = input_object.as_object() else {
                 // object was deleted
@@ -185,14 +186,10 @@ mod checked {
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
         gas_override: &[ObjectRef],
-    ) -> SuiResult<SuiGasStatus> {
-        // Cheap validity checks that is ok to run multiple times during processing.
-        transaction.check_version_supported(protocol_config)?;
+    ) -> IotaResult<IotaGasStatus> {
         let gas = if gas_override.is_empty() {
-            transaction.validity_check(protocol_config)?;
             transaction.gas()
         } else {
-            transaction.validity_check_no_gas_check(protocol_config)?;
             gas_override
         };
 
@@ -211,19 +208,20 @@ mod checked {
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
-    ) -> Result<(), SuiError> {
+    ) -> Result<(), IotaError> {
         let mut objects_in_txn: HashSet<_> = input_objects
             .object_kinds()
             .map(|x| x.object_id())
             .collect();
 
-        // Since we're at signing we check that every object reference that we are receiving is the
-        // most recent version of that object. If it's been received at the version specified we
-        // let it through to allow the transaction to run and fail to unlock any other objects in
+        // Since we're at signing we check that every object reference that we are
+        // receiving is the most recent version of that object. If it's been
+        // received at the version specified we let it through to allow the
+        // transaction to run and fail to unlock any other objects in
         // the transaction. Otherwise, we return an error.
         //
-        // If there are any object IDs in common (either between receiving objects and input
-        // objects) we return an error.
+        // If there are any object IDs in common (either between receiving objects and
+        // input objects) we return an error.
         for ReceivingObjectReadResult {
             object_ref: (object_id, version, object_digest),
             object,
@@ -275,34 +273,43 @@ mod checked {
 
                 match object.owner {
                     Owner::AddressOwner(_) => {
-                        debug_assert!(false,
+                        debug_assert!(
+                            false,
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            (*object_id, *version, *object_id), object
+                            (*object_id, *version, *object_id),
+                            object
                         );
                         error!(
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            (*object_id, *version, *object_id), object
+                            (*object_id, *version, *object_id),
+                            object
                         );
                         // We should never get here, but if for some reason we do just default to
                         // object not found and reject signing the transaction.
-                        fp_bail!(UserInputError::ObjectNotFound {
-                            object_id: *object_id,
-                            version: Some(*version),
-                        }
-                        .into())
+                        fp_bail!(
+                            UserInputError::ObjectNotFound {
+                                object_id: *object_id,
+                                version: Some(*version),
+                            }
+                            .into()
+                        )
                     }
                     Owner::ObjectOwner(owner) => {
-                        fp_bail!(UserInputError::InvalidChildObjectArgument {
-                            child_id: object.id(),
-                            parent_id: owner.into(),
-                        }
-                        .into())
+                        fp_bail!(
+                            UserInputError::InvalidChildObjectArgument {
+                                child_id: object.id(),
+                                parent_id: owner.into(),
+                            }
+                            .into()
+                        )
                     }
                     Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObjectError.into()),
-                    Owner::Immutable => fp_bail!(UserInputError::MutableParameterExpected {
-                        object_id: *object_id
-                    }
-                    .into()),
+                    Owner::Immutable => fp_bail!(
+                        UserInputError::MutableParameterExpected {
+                            object_id: *object_id
+                        }
+                        .into()
+                    ),
                 };
             }
 
@@ -327,12 +334,12 @@ mod checked {
         gas_budget: u64,
         gas_price: u64,
         tx_kind: &TransactionKind,
-    ) -> SuiResult<SuiGasStatus> {
+    ) -> IotaResult<IotaGasStatus> {
         if tx_kind.is_system_tx() {
-            Ok(SuiGasStatus::new_unmetered())
+            Ok(IotaGasStatus::new_unmetered())
         } else {
             let gas_status =
-                SuiGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+                IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
 
             // check balance and coins consistency
             // load all gas coins
@@ -351,12 +358,12 @@ mod checked {
         }
     }
 
-    /// Check all the objects used in the transaction against the database, and ensure
-    /// that they are all the correct version and number.
+    /// Check all the objects used in the transaction against the database, and
+    /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
     fn check_objects(transaction: &TransactionData, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
-        let mut used_objects: HashSet<SuiAddress> = HashSet::new();
+        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
         for object in objects.iter() {
             if object.is_mutable() {
                 fp_ensure!(
@@ -397,6 +404,9 @@ mod checked {
                 }
                 // We skip checking a deleted shared object because it no longer exists
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
+                // We skip checking shared objects from cancelled transactions since we are not
+                // reading it.
+                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
             }
         }
 
@@ -405,7 +415,7 @@ mod checked {
 
     /// Check one object against a reference
     fn check_one_object(
-        owner: &SuiAddress,
+        owner: &IotaAddress,
         object_kind: InputObjectKind,
         object: &Object,
         system_transaction: bool,
@@ -456,11 +466,14 @@ mod checked {
                     Owner::AddressOwner(actual_owner) => {
                         // Check the owner is correct.
                         fp_ensure!(
-                        owner == &actual_owner,
-                        UserInputError::IncorrectUserSignature {
-                            error: format!("Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}", object_id, actual_owner, owner),
-                        }
-                    );
+                            owner == &actual_owner,
+                            UserInputError::IncorrectUserSignature {
+                                error: format!(
+                                    "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
+                                    object_id, actual_owner, owner
+                                ),
+                            }
+                        );
                     }
                     Owner::ObjectOwner(owner) => {
                         return Err(UserInputError::InvalidChildObjectArgument {
@@ -476,8 +489,8 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: SUI_CLOCK_OBJECT_ID,
-                initial_shared_version: SUI_CLOCK_OBJECT_SHARED_VERSION,
+                id: IOTA_CLOCK_OBJECT_ID,
+                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: true,
             } => {
                 // Only system transactions can accept the Clock
@@ -486,24 +499,24 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpectedError {
-                        object_id: SUI_CLOCK_OBJECT_ID,
+                        object_id: IOTA_CLOCK_OBJECT_ID,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: SUI_AUTHENTICATOR_STATE_OBJECT_ID,
+                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                 ..
             } => {
                 if system_transaction {
                     return Ok(());
                 } else {
                     return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: SUI_AUTHENTICATOR_STATE_OBJECT_ID,
+                        object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: SUI_RANDOMNESS_STATE_OBJECT_ID,
+                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                 mutable: true,
                 ..
             } => {
@@ -513,7 +526,7 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpectedError {
-                        object_id: SUI_RANDOMNESS_STATE_OBJECT_ID,
+                        object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                     });
                 }
             }
@@ -561,10 +574,11 @@ mod checked {
             return Ok(());
         };
 
-        // We use a custom config with metering enabled
-        let is_metered = true;
-        // Use the same verifier and meter for all packages
-        let mut verifier = sui_execution::verifier(protocol_config, is_metered, metrics);
+        // Use the same verifier and meter for all packages, custom configured for
+        // signing.
+        let for_signing = true;
+        let mut verifier = iota_execution::verifier(protocol_config, for_signing, metrics);
+        let mut meter = verifier.meter(protocol_config.meter_config_for_signing());
 
         // Measure time for verifying all packages in the PTB
         let shared_meter_verifier_timer = metrics
@@ -573,7 +587,9 @@ mod checked {
 
         let verifier_status = pt
             .non_system_packages_to_be_published()
-            .try_for_each(|module_bytes| verifier.meter_module_bytes(protocol_config, module_bytes))
+            .try_for_each(|module_bytes| {
+                verifier.meter_module_bytes(protocol_config, module_bytes, meter.as_mut())
+            })
             .map_err(|e| UserInputError::PackageVerificationTimedout { err: e.to_string() });
 
         match verifier_status {

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
-use sui_config::transaction_deny_config::TransactionDenyConfig;
-use sui_types::{
+use iota_config::transaction_deny_config::TransactionDenyConfig;
+use iota_types::{
     base_types::ObjectRef,
-    error::{SuiError, SuiResult, UserInputError},
+    error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
     transaction::{Command, InputObjectKind, TransactionData, TransactionDataAPI},
@@ -13,7 +14,7 @@ use sui_types::{
 macro_rules! deny_if_true {
     ($cond:expr, $msg:expr) => {
         if ($cond) {
-            return Err(SuiError::UserInputError {
+            return Err(IotaError::UserInputError {
                 error: UserInputError::TransactionDenied {
                     error: $msg.to_string(),
                 },
@@ -31,7 +32,7 @@ pub fn check_transaction_for_signing(
     receiving_objects: &[ObjectRef],
     filter_config: &TransactionDenyConfig,
     package_store: &dyn BackingPackageStore,
-) -> SuiResult {
+) -> IotaResult {
     check_disabled_features(filter_config, tx_data, tx_signatures)?;
 
     check_signers(filter_config, tx_data)?;
@@ -48,7 +49,7 @@ pub fn check_transaction_for_signing(
 fn check_receiving_objects(
     filter_config: &TransactionDenyConfig,
     receiving_objects: &[ObjectRef],
-) -> SuiResult {
+) -> IotaResult {
     deny_if_true!(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
         "Receiving objects is temporarily disabled".to_string()
@@ -66,7 +67,7 @@ fn check_disabled_features(
     filter_config: &TransactionDenyConfig,
     tx_data: &TransactionData,
     tx_signatures: &[GenericSignature],
-) -> SuiResult {
+) -> IotaResult {
     deny_if_true!(
         filter_config.user_transaction_disabled(),
         "Transaction signing is temporarily disabled"
@@ -81,7 +82,7 @@ fn check_disabled_features(
             deny_if_true!(
                 filter_config.zklogin_disabled_providers().contains(
                     &OIDCProvider::from_iss(z.get_iss())
-                        .map_err(|_| SuiError::UnexpectedMessage)?
+                        .map_err(|_| IotaError::UnexpectedMessage)?
                         .to_string()
                 ),
                 "zkLogin OAuth provider is temporarily disabled"
@@ -107,7 +108,7 @@ fn check_disabled_features(
     Ok(())
 }
 
-fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionData) -> SuiResult {
+fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionData) -> IotaResult {
     let deny_map = filter_config.get_address_deny_set();
     if deny_map.is_empty() {
         return Ok(());
@@ -127,7 +128,7 @@ fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionDat
 fn check_input_objects(
     filter_config: &TransactionDenyConfig,
     input_object_kinds: &[InputObjectKind],
-) -> SuiResult {
+) -> IotaResult {
     let deny_map = filter_config.get_object_deny_set();
     let shared_object_disabled = filter_config.shared_object_disabled();
     if deny_map.is_empty() && !shared_object_disabled {
@@ -152,7 +153,7 @@ fn check_package_dependencies(
     filter_config: &TransactionDenyConfig,
     tx_data: &TransactionData,
     package_store: &dyn BackingPackageStore,
-) -> SuiResult {
+) -> IotaResult {
     let deny_map = filter_config.get_package_deny_set();
     if deny_map.is_empty() {
         return Ok(());
@@ -174,7 +175,7 @@ fn check_package_dependencies(
             }
             Command::MoveCall(call) => {
                 let package = package_store.get_package_object(&call.package)?.ok_or(
-                    SuiError::UserInputError {
+                    IotaError::UserInputError {
                         error: UserInputError::ObjectNotFound {
                             object_id: call.package,
                             version: None,
