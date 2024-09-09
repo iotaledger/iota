@@ -7,9 +7,9 @@ import React from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import styles from "./index.module.css";
-import heroCardBg from "@site/src/static/img/index/heroCardBg.png";
-import heroCardBg1 from "@site/src/static/img/index/heroCardBg1.png";
-import heroCardBg2 from "@site/src/static/img/index/heroCardBg2.png";
+import heroCardBg from "@site/static/img/index/heroCardBg.png";
+import heroCardBg1 from "@site/static/img/index/heroCardBg1.png";
+import heroCardBg2 from "@site/static/img/index/heroCardBg2.png";
 export default function Home() {
   const HomeCard = (props) => {
     const { title, children, heroCardBg } = props;
@@ -119,7 +119,7 @@ export default function Home() {
               to="./operator/iota-full-node"
             >
               Run a IOTA Full node
-              <span className="block bg-auto bg-[url(../static/img/index/right-arrow.svg)]"></span>
+              <span className="block bg-auto bg-[url(/img/index/right-arrow.svg)]"></span>
             </Link>
           </HomeCard>
           <HomeCard title="References" aux heroCardBg={heroCardBg1}>
