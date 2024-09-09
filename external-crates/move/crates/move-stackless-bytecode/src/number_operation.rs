@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This file defines types, data structures and corresponding functions to
@@ -8,7 +9,7 @@
 
 use move_model::{
     ast::TempIndex,
-    model::{FieldId, FunId, FunctionEnv, ModuleId, NodeId, StructEnv, StructId},
+    model::{DatatypeId, FieldId, FunId, FunctionEnv, ModuleId, NodeId, StructEnv},
     ty::Type,
 };
 use std::collections::BTreeMap;
@@ -48,7 +49,7 @@ pub type OperationVec = Vec<NumOperation>;
 // NumOperation of a field
 pub type StructFieldOperationMap = BTreeMap<FieldId, NumOperation>;
 pub type FuncOperationMap = BTreeMap<(ModuleId, FunId), OperationMap>;
-pub type StructOperationMap = BTreeMap<(ModuleId, StructId), StructFieldOperationMap>;
+pub type StructOperationMap = BTreeMap<(ModuleId, DatatypeId), StructFieldOperationMap>;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd)]
 pub struct GlobalNumberOperationState {

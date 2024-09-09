@@ -1,16 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
     file_format::{
         empty_module, AbilitySet, AddressIdentifierIndex,
         Bytecode::{self, *},
-        CodeUnit, Constant, FieldDefinition, FunctionDefinition, FunctionHandle,
-        FunctionHandleIndex, IdentifierIndex, ModuleHandle, ModuleHandleIndex, Signature,
-        SignatureIndex,
+        CodeUnit, Constant, DatatypeHandle, DatatypeHandleIndex, FieldDefinition,
+        FunctionDefinition, FunctionHandle, FunctionHandleIndex, IdentifierIndex, ModuleHandle,
+        ModuleHandleIndex, Signature, SignatureIndex,
         SignatureToken::{self, *},
-        StructDefinition, StructDefinitionIndex, StructFieldInformation, StructHandle,
-        StructHandleIndex, TypeSignature, Visibility,
+        StructDefinition, StructDefinitionIndex, StructFieldInformation, TypeSignature, Visibility,
         Visibility::*,
     },
     CompiledModule,
@@ -26,7 +26,7 @@ fn unbalanced_stack_crash() {
     let mut module = empty_module();
     module.version = 5;
 
-    module.struct_handles.push(StructHandle {
+    module.datatype_handles.push(DatatypeHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(1),
         abilities: AbilitySet::ALL,
@@ -52,16 +52,13 @@ fn unbalanced_stack_crash() {
         .signatures
         .push(Signature(vec![Address, Bool, Address]));
 
-    module.identifiers.extend(
-        vec![
-            Identifier::from_str("zf_hello_world").unwrap(),
-            Identifier::from_str("awldFnU18mlDKQfh6qNfBGx8X").unwrap(),
-            Identifier::from_str("aQPwJNHyAHpvJ").unwrap(),
-            Identifier::from_str("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").unwrap(),
-            Identifier::from_str("arYpsFa2fvrpPJ").unwrap(),
-        ]
-        .into_iter(),
-    );
+    module.identifiers.extend(vec![
+        Identifier::from_str("zf_hello_world").unwrap(),
+        Identifier::from_str("awldFnU18mlDKQfh6qNfBGx8X").unwrap(),
+        Identifier::from_str("aQPwJNHyAHpvJ").unwrap(),
+        Identifier::from_str("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").unwrap(),
+        Identifier::from_str("arYpsFa2fvrpPJ").unwrap(),
+    ]);
     module.address_identifiers.push(AccountAddress::random());
 
     module.constant_pool.push(Constant {
@@ -70,7 +67,7 @@ fn unbalanced_stack_crash() {
     });
 
     module.struct_defs.push(StructDefinition {
-        struct_handle: StructHandleIndex(0),
+        struct_handle: DatatypeHandleIndex(0),
         field_information: StructFieldInformation::Declared(vec![FieldDefinition {
             name: IdentifierIndex::new(3),
             signature: TypeSignature(Address),
@@ -95,6 +92,7 @@ fn unbalanced_stack_crash() {
             Ret,
         ],
         locals: SignatureIndex::new(2),
+        jump_tables: vec![],
     };
     let fun_def = FunctionDefinition {
         code: Some(code_unit),
@@ -128,7 +126,7 @@ fn too_many_locals() {
             address: AddressIdentifierIndex(0),
             name: IdentifierIndex(0),
         }],
-        struct_handles: vec![],
+        datatype_handles: vec![],
         function_handles: vec![FunctionHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(0),
@@ -155,8 +153,13 @@ fn too_many_locals() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(0),
                 code: vec![CopyLoc(2), StLoc(33), Branch(0)],
+                jump_tables: vec![],
             }),
         }],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
 
     let res = crate::verify_module_unmetered(&module);
@@ -176,7 +179,7 @@ fn borrow_graph() {
             address: AddressIdentifierIndex(0),
             name: IdentifierIndex(0),
         }],
-        struct_handles: vec![],
+        datatype_handles: vec![],
         function_handles: vec![FunctionHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(0),
@@ -206,8 +209,13 @@ fn borrow_graph() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(0),
                 code: vec![MoveLoc(0), MoveLoc(1), StLoc(0), StLoc(1), Branch(0)],
+                jump_tables: vec![],
             }),
         }],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
 
     let res = crate::verify_module_unmetered(&module);
@@ -272,7 +280,7 @@ fn indirect_code() {
             address: AddressIdentifierIndex(0),
             name: IdentifierIndex(0),
         }],
-        struct_handles: vec![],
+        datatype_handles: vec![],
         function_handles: vec![FunctionHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(0),
@@ -310,11 +318,16 @@ fn indirect_code() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(1),
                 code,
+                jump_tables: vec![],
             }),
         }],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
 
-    let res = crate::verify_module_with_config_unmetered(&VerifierConfig::unbounded(), &module)
+    let res = crate::verify_module_with_config_unmetered(&VerifierConfig::default(), &module)
         .unwrap_err();
     assert_eq!(
         res.major_status(),

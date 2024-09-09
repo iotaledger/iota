@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::views::{TypeView, ValueView};
@@ -116,6 +117,8 @@ pub trait GasMeter {
         is_generic: bool,
         args: impl ExactSizeIterator<Item = impl ValueView>,
     ) -> PartialVMResult<()>;
+
+    fn charge_variant_switch(&mut self, val: impl ValueView) -> PartialVMResult<()>;
 
     fn charge_read_ref(&mut self, val: impl ValueView) -> PartialVMResult<()>;
 
@@ -262,6 +265,10 @@ impl GasMeter for UnmeteredGasMeter {
         _is_generic: bool,
         _args: impl ExactSizeIterator<Item = impl ValueView>,
     ) -> PartialVMResult<()> {
+        Ok(())
+    }
+
+    fn charge_variant_switch(&mut self, _val: impl ValueView) -> PartialVMResult<()> {
         Ok(())
     }
 

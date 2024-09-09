@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{file_format::Bytecode, file_format_common::*};
@@ -30,7 +31,7 @@ fn test_max_number_of_bytecode() {
     }
     nops.push(Bytecode::Branch(0));
 
-    let result = Bytecode::get_successors(u16::MAX - 1, &nops);
+    let result = Bytecode::get_successors(u16::MAX - 1, &nops, &[]);
     assert_eq!(result, vec![0]);
 }
 
@@ -61,5 +62,24 @@ proptest! {
         for (index, item) in vec.iter().enumerate() {
             assert_eq!(*item, binary_data.as_inner()[index]);
         }
+    }
+}
+
+#[test]
+fn test_flavor() {
+    for i in 1..=6 {
+        let encoded = BinaryFlavor::encode_version(i);
+        assert_eq!(encoded, i);
+        assert_eq!(BinaryFlavor::decode_version(encoded), i);
+        assert_eq!(BinaryFlavor::decode_flavor(encoded), None);
+    }
+
+    for i in 7..1024 {
+        let flavored = BinaryFlavor::encode_version(i);
+        assert_eq!(BinaryFlavor::decode_version(flavored), i);
+        assert_eq!(
+            BinaryFlavor::decode_flavor(flavored),
+            Some(BinaryFlavor::IOTA_FLAVOR)
+        );
     }
 }

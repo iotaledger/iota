@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module defines traits and representations of domains used in dataflow analysis.
@@ -268,7 +269,7 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone + PartialEq> MapDomain<K, V> {
     /// but this is not available in OrdMap for obvious reasons (because entries are shared),
     /// so we need to use this pattern here instead.
     pub fn update_values(&mut self, mut f: impl FnMut(&mut V)) {
-        // Commpute the key-values which actually changed. If the change is small, we preserve
+        // Compute the key-values which actually changed. If the change is small, we preserve
         // structure sharing.
         let new_values = self
             .iter()

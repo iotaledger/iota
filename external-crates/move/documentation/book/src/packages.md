@@ -24,13 +24,13 @@ a_move_package
 └── tests          (optional, test mode)
 ```
 
- The directories and files labeled "required" must be present for a directory to be
- considered a Move package and built. Optional directories may be present,
- and if so, they will be included in the compilation process depending on the
- mode used to build the package. For instance, when built in "dev" or "test"
- modes, the `tests` and `examples` directories will also be included.
+The directories and files labeled "required" must be present for a directory to be
+considered a Move package and built. Optional directories may be present,
+and if so, they will be included in the compilation process depending on the
+mode used to build the package. For instance, when built in "dev" or "test"
+modes, the `tests` and `examples` directories will also be included.
 
- Going through each of these in turn:
+Going through each of these in turn:
 
 1. The `Move.toml` file is the package manifest and is required for a directory
    to be considered a Move package. This file contains metadata about the
@@ -64,7 +64,7 @@ edition* = <string>      # e.g., "2024.alpha" to use the Move 2024 edition,
 license* = <string>              # e.g., "MIT", "GPL", "Apache 2.0"
 authors* = [<string>,+]  # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
-# Additional fields may be added to this section by external tools. E.g., on Sui the following sections are added:
+# Additional fields may be added to this section by external tools. E.g., on Iota the following sections are added:
 published-at* = "<hex-address>" # The address that the package is published at. Should be set after the first publication.
 
 [dependencies] # (Optional section) Paths to dependencies 
@@ -151,7 +151,7 @@ specified_address = "0xB0B"
 # Local dependency
 LocalDep = { local = "projects/move-awesomeness", addr_subst = { "std" = "0x1" } }
 # Git dependency
-MoveStdlib = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "framework/mainnet" }
+MoveStdlib = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/move-stdlib", rev = "framework/mainnet" }
 
 [dev-addresses] # For use when developing this module
 address_to_be_filled_in = "0x101010101"
@@ -159,17 +159,16 @@ address_to_be_filled_in = "0x101010101"
 
 Most of the sections in the package manifest are self explanatory, but named
 addresses can be a bit difficult to understand so we examine them in more
-detail in [Named Addresses During
-Compilation](#named-addresses-during-compilation), but before that we'll first
+detail in [Named Addresses During Compilation](#named-addresses-during-compilation), but before that we'll first
 take a look at the `Move.lock` file and what it contains.
 
 ## Move.lock
 
-The `Move.lock` file is generated at the root of the Move pacakge when the
+The `Move.lock` file is generated at the root of the Move package when the
 package is built. The `Move.lock` file contains information about your package
 and its build configuration, and acts as a communication layer between the Move
 compiler and other tools, like chain-specific command line interfaces and
-third-party package managers. 
+third-party package managers.
 
 Like the `Move.toml` file, the `Move.lock` file is a text-based TOML file.
 Unlike the package manifest however, the `Move.lock` file is not intended for
@@ -185,7 +184,7 @@ of the original, and that changes to the build will be apparent as changes to
 the `Move.lock` file.
 
 The `Move.lock` file is a TOML file that currently contains the following
-fields. 
+fields.
 
 **Note**: other fields may be added to the lock file either in the future, or
 by third-party package package managers as well.
@@ -193,12 +192,13 @@ by third-party package package managers as well.
 ### The `[move]` Section
 
 This section contains the core information needed in the lockfile:
-* The version of the lockfile (needed for backwards compatibility checking, and
+
+- The version of the lockfile (needed for backwards compatibility checking, and
   versioning lockfile changes in the future).
-* The hash of the `Move.toml` file that was used to generate this lock file.
-* The hash of the `Move.lock` file of all dependencies. If no depencies are
+- The hash of the `Move.toml` file that was used to generate this lock file.
+- The hash of the `Move.lock` file of all dependencies. If no depencies are
   present, this will be an empty string.
-* The list of dependencies.
+- The list of dependencies.
 
 ```
 [move]
@@ -232,7 +232,7 @@ source = { local = "../local-dep" }
 ### The `[move.toolchain-version]` Section
 
 As mentioned above, additional fields may be added to the lock file by external
-tools. For example, the Sui package manager adds toolchain version information
+tools. For example, the Iota package manager adds toolchain version information
 to the lock file that can then be used for on-chain source verification:
 
 ```
@@ -241,7 +241,7 @@ to the lock file that can then be used for on-chain source verification:
 [move.toolchain-version]
 compiler-version = <string> # The version of the Move compiler used to build the package, e.g. "1.21.0"
 edition = <string> # The edition of the Move language used to build the package, e.g. "2024.alpha"
-flavor = <string> # The flavor of the Move compiler used to build the package, e.g. "sui"
+flavor = <string> # The flavor of the Move compiler used to build the package, e.g. "iota"
 ```
 
 With that, let's now turn to the compilation process and how named addresses are
@@ -253,7 +253,7 @@ Recall that Move has [named addresses](./primitive-types/address.md) and that na
 cannot be declared in Move. Instead they are declared at the package level: in
 the manifest file (`Move.toml`) for a Move package you declare named addresses
 in the package, instantiate other named addresses, and rename named addresses
-from other packages within the Move package system. 
+from other packages within the Move package system.
 
 Let's go through each of these actions, and how they are performed in the
 package's manifest one-by-one:
@@ -382,15 +382,15 @@ named_addr = "0xC0FFEE"
 ## Usage and Artifacts
 
 The Move package system comes with a command line option as part of the CLI:
-`sui move <command> <command_flags>`. Unless a particular path is provided, all
+`iota move <command> <command_flags>`. Unless a particular path is provided, all
 package commands will run in the current working directory. The full list of
-commands and flags for the Move CLI can be found by running `sui move --help`.
+commands and flags for the Move CLI can be found by running `iota move --help`.
 
 ### Artifacts
 
-A package can be compiled using CLI commands. 
+A package can be compiled using CLI commands.
 This will create a `build`
-directory containing build-related artifacts (such as bytecode, source maps, and 
+directory containing build-related artifacts (such as bytecode, source maps, and
 documentation). The general layout of the `build` directory is as follows:
 
 ```

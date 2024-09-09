@@ -1,1 +1,1 @@
-See [Sui's Coding Conventions for Move](https://docs.sui.io/concepts/sui-move-concepts/conventions)
+See [Iota's Coding Conventions for Move](https://wiki.iota.org/concepts/iota-move-concepts/conventions)

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
@@ -91,7 +92,7 @@ impl<'a> Instrumenter<'a> {
         use Type::*;
         let env = self.builder.global_env();
         match ty.skip_reference() {
-            Struct(mid, sid, inst) => {
+            Datatype(mid, sid, inst) => {
                 self.is_pack_ref_struct(&env.get_struct_qid(mid.qualified(*sid)))
                     || inst.iter().any(|t| self.is_pack_ref_ty(t))
             }

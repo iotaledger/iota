@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A global, uniqued cache of strings that is never purged. Inspired by
@@ -47,17 +48,18 @@ static_symbols!(
     "_",
     "init",
     "unit_test",
+    "unit_test_poison",
     "legacy",
     "2024",
     "alpha",
-    "sui",
+    "iota",
     "object",
     "new",
     "new_uid_from_hash",
     "test_scenario",
     "new_object",
     "UID",
-    "sui_system",
+    "iota_system",
     "create",
     "clock",
     "option",
@@ -69,7 +71,7 @@ static_symbols!(
     "tx_context",
     "TxContext",
     "ID",
-    "SUI",
+    "IOTA",
     "authenticator_state",
     "AuthenticatorState",
     "random",

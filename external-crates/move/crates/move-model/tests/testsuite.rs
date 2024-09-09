@@ -1,12 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use codespan_reporting::{diagnostic::Severity, term::termcolor::Buffer};
-use move_binary_format::{
-    access::ModuleAccess,
-    file_format::{FunctionDefinitionIndex, StructDefinitionIndex},
-};
+use move_binary_format::file_format::{FunctionDefinitionIndex, StructDefinitionIndex};
 use move_command_line_common::testing::EXP_EXT;
 use move_compiler::{diagnostics::WarningFilters, shared::PackagePaths};
 use move_model::{run_bytecode_model_builder, run_model_builder};

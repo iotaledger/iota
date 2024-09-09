@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -7,9 +8,10 @@
 use crate::coverage_map::{
     ExecCoverageMap, ExecCoverageMapWithModules, ModuleCoverageMap, TraceMap,
 };
+use move_abstract_interpreter::control_flow_graph::{
+    BlockId, ControlFlowGraph, VMControlFlowGraph,
+};
 use move_binary_format::{
-    access::ModuleAccess,
-    control_flow_graph::{BlockId, ControlFlowGraph, VMControlFlowGraph},
     file_format::{Bytecode, CodeOffset},
     CompiledModule,
 };
@@ -136,7 +138,7 @@ pub fn summarize_inst_cov_by_module(
             let fn_handle = module.function_handle_at(function_def.function);
             let fn_name = module.identifier_at(fn_handle.name).to_owned();
 
-            let fn_summmary = match &function_def.code {
+            let fn_summary = match &function_def.code {
                 None => FunctionSummary {
                     fn_is_native: true,
                     total: 0,
@@ -160,7 +162,7 @@ pub fn summarize_inst_cov_by_module(
                 }
             };
 
-            (fn_name, fn_summmary)
+            (fn_name, fn_summary)
         })
         .collect();
 
@@ -193,7 +195,8 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                 None => None,
                 Some(code_unit) => {
                     // build control-flow graph
-                    let fn_cfg = VMControlFlowGraph::new(code_unit.code.as_slice());
+                    let fn_cfg =
+                        VMControlFlowGraph::new(code_unit.code.as_slice(), &code_unit.jump_tables);
 
                     // get function entry and return points
                     let fn_entry = fn_cfg.block_start(fn_cfg.entry_block_id());
@@ -248,9 +251,12 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                         for node_idx in scc.iter() {
                             let block_id = *fn_dgraph.node_weight(*node_idx).unwrap();
                             let term_inst_id = fn_cfg.block_end(block_id);
-                            for dest in
-                                Bytecode::get_successors(term_inst_id, code_unit.code.as_slice())
-                                    .into_iter()
+                            for dest in Bytecode::get_successors(
+                                term_inst_id,
+                                code_unit.code.as_slice(),
+                                &code_unit.jump_tables,
+                            )
+                            .into_iter()
                             {
                                 if *inst_locs.get(&dest).unwrap() != scc_idx {
                                     assert!(exits.insert((term_inst_id, dest)));
@@ -416,7 +422,7 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
             let fn_handle = module.function_handle_at(function_def.function);
             let fn_name = module.identifier_at(fn_handle.name).to_owned();
 
-            let fn_summmary = match &function_def.code {
+            let fn_summary = match &function_def.code {
                 None => FunctionSummary {
                     fn_is_native: true,
                     total: 0,
@@ -432,7 +438,7 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                 },
             };
 
-            (fn_name, fn_summmary)
+            (fn_name, fn_summary)
         })
         .collect();
 

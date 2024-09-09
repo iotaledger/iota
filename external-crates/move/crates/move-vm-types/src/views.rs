@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
@@ -64,6 +65,11 @@ pub trait ValueView {
             }
 
             fn visit_struct(&mut self, _depth: usize, _len: usize) -> bool {
+                self.0 += LEGACY_STRUCT_SIZE;
+                true
+            }
+
+            fn visit_variant(&mut self, _depth: usize, _len: usize) -> bool {
                 self.0 += LEGACY_STRUCT_SIZE;
                 true
             }
@@ -161,6 +167,11 @@ pub trait ValueView {
                 true
             }
 
+            fn visit_variant(&mut self, _depth: usize, _len: usize) -> bool {
+                self.0 += LEGACY_STRUCT_SIZE;
+                true
+            }
+
             fn visit_vec(&mut self, _depth: usize, _len: usize) -> bool {
                 self.0 += LEGACY_STRUCT_SIZE;
                 true
@@ -231,6 +242,7 @@ pub trait ValueVisitor {
     fn visit_address(&mut self, depth: usize, val: AccountAddress);
 
     fn visit_struct(&mut self, depth: usize, len: usize) -> bool;
+    fn visit_variant(&mut self, depth: usize, len: usize) -> bool;
     fn visit_vec(&mut self, depth: usize, len: usize) -> bool;
 
     fn visit_ref(&mut self, depth: usize, is_global: bool) -> bool;

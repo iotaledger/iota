@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::cfg::CFG;
@@ -65,7 +66,7 @@ pub trait TransferFunctions {
     /// Should return an AnalysisError if executing the instruction is unsuccessful, and () if
     /// the effects of successfully executing local@instr have been reflected by mutatating
     /// local@pre.
-    /// Auxilary data from the analysis that is not part of the abstract state can be collected by
+    /// Auxiliary data from the analysis that is not part of the abstract state can be collected by
     /// mutating local@self.
     /// The last instruction index in the current block is local@last_index. Knowing this
     /// information allows clients to detect the end of a basic block and special-case appropriately
@@ -80,7 +81,7 @@ pub trait TransferFunctions {
 }
 
 pub trait AbstractInterpreter: TransferFunctions {
-    /// Analyze procedure local@function_view starting from pre-state local@initial_state.
+    /// Analyze procedure local@function_context starting from pre-state local@initial_state.
     fn analyze_function(
         &mut self,
         cfg: &dyn CFG,

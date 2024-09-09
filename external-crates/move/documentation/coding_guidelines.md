@@ -7,7 +7,7 @@ This document describes the coding guidelines for the Move Rust codebase.
 
 ## Code formatting
 
-All code formatting is enforced with [rustfmt](https://github.com/rust-lang/rustfmt) with a project-specific configuration.  Below is an example command to adhere to the Move project conventions.
+All code formatting is enforced with [rustfmt](https://github.com/rust-lang/rustfmt) with a project-specific configuration. Below is an example command to adhere to the Move project conventions.
 
 ```
 $ cargo xfmt
@@ -15,27 +15,27 @@ $ cargo xfmt
 
 ## Code analysis
 
-[Clippy](https://github.com/rust-lang/rust-clippy) is used to catch common mistakes and is run as a part of continuous integration.  Before submitting your code for review, you can run clippy with our configuration:
+[Clippy](https://github.com/rust-lang/rust-clippy) is used to catch common mistakes and is run as a part of continuous integration. Before submitting your code for review, you can run clippy with our configuration:
 
 ```
 $ cargo xclippy --all-targets
 ```
 
-In general, we follow the recommendations from [rust-lang-nursery](https://rust-lang.github.io/api-guidelines/) and [The Rust Programming Language](https://doc.rust-lang.org/book/).  The remainder of this guide provides detailed guidelines on specific topics in order to achieve uniformity of the codebase.
+In general, we follow the recommendations from [rust-lang-nursery](https://rust-lang.github.io/api-guidelines/) and [The Rust Programming Language](https://doc.rust-lang.org/book/). The remainder of this guide provides detailed guidelines on specific topics in order to achieve uniformity of the codebase.
 
 ## Code documentation
 
 Any public fields, functions, and methods should be documented with [Rustdoc](https://doc.rust-lang.org/book/ch14-02-publishing-to-crates-io.html#making-useful-documentation-comments).
 
- Please follow the conventions as detailed below for modules, structs, enums, and functions.  The *single line* is used as a preview when navigating Rustdoc.  As an example, see the 'Structs' and 'Enums' sections in the [collections](https://doc.rust-lang.org/std/collections/index.html) Rustdoc.
+Please follow the conventions as detailed below for modules, structs, enums, and functions. The _single line_ is used as a preview when navigating Rustdoc. As an example, see the 'Structs' and 'Enums' sections in the [collections](https://doc.rust-lang.org/std/collections/index.html) Rustdoc.
 
- ```
- /// [Single line] One line summary description
- ///
- /// [Longer description] Multiple lines, inline code
- /// examples, invariants, purpose, usage, etc.
- [Attributes] If attributes exist, add after Rustdoc
- ```
+```
+/// [Single line] One line summary description
+///
+/// [Longer description] Multiple lines, inline code
+/// examples, invariants, purpose, usage, etc.
+[Attributes] If attributes exist, add after Rustdoc
+```
 
 Example below:
 
@@ -53,11 +53,12 @@ struct Point {
 
 ### Terminology
 
-The Move codebase uses inclusive terminology (similar to other projects such as [the Linux kernel](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb)).  The terms below are recommended when appropriate.
-* allowlist - a set of entities allowed access
-* blocklist - a set of entities that are blocked from access
-* primary/leader/main - a primary entity
-* secondary/replica/follower - a secondary entity
+The Move codebase uses inclusive terminology (similar to other projects such as [the Linux kernel](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb)). The terms below are recommended when appropriate.
+
+- allowlist - a set of entities allowed access
+- blocklist - a set of entities that are blocked from access
+- primary/leader/main - a primary entity
+- secondary/replica/follower - a secondary entity
 
 ### Constants and fields
 
@@ -67,12 +68,12 @@ Describe the purpose and definition of this data. If the unit is a measurement o
 
 Document the following for each function:
 
-* The action the method performs - “This method *adds* a new transaction to the mempool.” Use *active voice* and *present tense* (i.e. adds/creates/checks/updates/deletes).
-* Describe how and why to use this method.
-* Any condition that must be met _before_ calling the method.
-* State conditions under which the function will `panic!()` or returns an `Error`
-* Brief description of return values.
-* Any special behavior that is not obvious
+- The action the method performs - “This method _adds_ a new transaction to the mempool.” Use _active voice_ and _present tense_ (i.e. adds/creates/checks/updates/deletes).
+- Describe how and why to use this method.
+- Any condition that must be met _before_ calling the method.
+- State conditions under which the function will `panic!()` or returns an `Error`
+- Brief description of return values.
+- Any special behavior that is not obvious
 
 ### README.md for top-level directories and other major components
 
@@ -80,10 +81,10 @@ Each major component of Move needs to have a `README.md` file.
 
 This file should contain:
 
- * The *conceptual* *documentation* of the component.
- * A link to the external API documentation for the component.
- * A link to the main license of the project.
- * A link to the main contributing guide for the project.
+- The _conceptual_ _documentation_ of the component.
+- A link to the external API documentation for the component.
+- A link to the main license of the project.
+- A link to the main contributing guide for the project.
 
 A template for readmes:
 
@@ -94,25 +95,24 @@ A template for readmes:
 
 ## Overview
 
-* Describe the purpose of this component and how the code in
-this directory works.
-* Describe the interaction of the code in this directory with
-the other components.
-* Describe the security model and assumptions about the crates
-in this directory. Examples of how to describe the security
-assumptions will be added in the future.
+- Describe the purpose of this component and how the code in
+  this directory works.
+- Describe the interaction of the code in this directory with
+  the other components.
+- Describe the security model and assumptions about the crates
+  in this directory. Examples of how to describe the security
+  assumptions will be added in the future.
 
 ## Implementation Details
 
-* Describe how the component is modeled. For example, why is the
+- Describe how the component is modeled. For example, why is the
   code organized the way it is?
-* Other relevant implementation details.
+- Other relevant implementation details.
 
 ## Binary, Argument, and Crate Naming
 
 Most tools that we use everyday (rustc, cargo, git, rg, etc.) use dashes `-` as
-a separator for binary names and arguments and the [GNU software
-manual](https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html)
+a separator for binary names and arguments and the [GNU software manual](https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html)
 dictates that long options should "consist of `--` followed by a name made of
 alphanumeric characters and dashes". As such dashes `-` should be used as
 separators in both binary names and command line arguments.
@@ -127,15 +127,15 @@ In the following sections, we have suggested some best practices for a uniform c
 ### Attributes
 
 Make sure to use the appropriate attributes for handling dead code:
-
 ```
+
 // For code that is intended for production usage in the future
 #[allow(dead_code)]
 // For code that is only intended for testing and
 // has no intended production use
 #[cfg(test)]
-```
 
+````
 ### Avoid Deref polymorphism
 
 Don't abuse the Deref trait to emulate inheritance between structs, and thus reuse methods.  For more information, read [here](https://github.com/rust-unofficial/patterns/blob/master/anti_patterns/deref.md).
@@ -201,7 +201,7 @@ impl Foo {
         self.key_to_value.get(&key)
     }
 }
-```
+````
 
 ### Integer Arithmetic
 
@@ -210,26 +210,26 @@ we use checked arithmetic instead of directly using math symbols.
 It forces us to think of edge-cases, and handle them explicitely.
 This is a brief and simplified mini guide of the different functions that exist to handle integer arithmetic:
 
-* [checked_](https://doc.rust-lang.org/std/primitive.u32.html#method.checked_add): use this function if you want to handle overflows and underflows as a special edge-case. It returns `None` if an underflow or overflow has happened, and `Some(operation_result)` otherwise.
-* [overflowing_](https://doc.rust-lang.org/std/primitive.u32.html#method.overflowing_add): use this function if you want the result of an overflow to potentially wrap around (e.g. `u64::MAX.overflow_add(10) == (9, true)`). It returns the underflowed or overflowed result as well as a flag indicating if an overflow has occured or not.
-* [wrapping_](https://doc.rust-lang.org/std/primitive.u32.html#method.wrapping_add): this is similar to overflowing operations, except that it returns the result directly. Use this function if you are sure that you want to handle underflows and overflows by wrapping around.
-* [saturating_](https://doc.rust-lang.org/std/primitive.u32.html#method.saturating_add): if an overflow occurs, the result is kept within the boundary of the type (e.g. `u64::MAX.saturating_add(1) == u64::MAX`).
+- [checked_](https://doc.rust-lang.org/std/primitive.u32.html#method.checked_add): use this function if you want to handle overflows and underflows as a special edge-case. It returns `None` if an underflow or overflow has happened, and `Some(operation_result)` otherwise.
+- [overflowing_](https://doc.rust-lang.org/std/primitive.u32.html#method.overflowing_add): use this function if you want the result of an overflow to potentially wrap around (e.g. `u64::MAX.overflow_add(10) == (9, true)`). It returns the underflowed or overflowed result as well as a flag indicating if an overflow has occurred or not.
+- [wrapping_](https://doc.rust-lang.org/std/primitive.u32.html#method.wrapping_add): this is similar to overflowing operations, except that it returns the result directly. Use this function if you are sure that you want to handle underflows and overflows by wrapping around.
+- [saturating_](https://doc.rust-lang.org/std/primitive.u32.html#method.saturating_add): if an overflow occurs, the result is kept within the boundary of the type (e.g. `u64::MAX.saturating_add(1) == u64::MAX`).
 
 ### Logging
 
 We currently use [log](https://docs.rs/log/) for logging.
 
-* [error!](https://docs.rs/log/0.4.14/log/macro.error.html) - Error-level messages have the highest urgency in [log](https://docs.rs/log/).  An unexpected error has occurred (e.g. exceeded the maximum number of retries to complete an RPC or inability to store data to local storage).
-* [warn!](https://docs.rs/log/0.4.14/log/macro.warn.html) - Warn-level messages help notify admins about automatically handled issues (e.g. retrying a failed network connection or receiving the same message multiple times, etc.).
-* [info!](https://docs.rs/log/0.4.14/log/macro.info.html) - Info-level messages are well suited for "one-time" events (such as logging state on one-time startup and shutdown) or periodic events that are not frequently occurring - e.g. changing the validator set every day.
-* [debug!](https://docs.rs/log/0.4.14/log/macro.debug.html) - Debug-level messages can occur frequently (i.e. potentially > 1 message per second) and are not typically expected to be enabled in production.
-* [trace!](https://docs.rs/log/0.4.14/log/macro.trace.html) - Trace-level logging is typically only used for function entry/exit.
+- [error!](https://docs.rs/log/0.4.14/log/macro.error.html) - Error-level messages have the highest urgency in [log](https://docs.rs/log/). An unexpected error has occurred (e.g. exceeded the maximum number of retries to complete an RPC or inability to store data to local storage).
+- [warn!](https://docs.rs/log/0.4.14/log/macro.warn.html) - Warn-level messages help notify admins about automatically handled issues (e.g. retrying a failed network connection or receiving the same message multiple times, etc.).
+- [info!](https://docs.rs/log/0.4.14/log/macro.info.html) - Info-level messages are well suited for "one-time" events (such as logging state on one-time startup and shutdown) or periodic events that are not frequently occurring - e.g. changing the validator set every day.
+- [debug!](https://docs.rs/log/0.4.14/log/macro.debug.html) - Debug-level messages can occur frequently (i.e. potentially > 1 message per second) and are not typically expected to be enabled in production.
+- [trace!](https://docs.rs/log/0.4.14/log/macro.trace.html) - Trace-level logging is typically only used for function entry/exit.
 
 ### Testing
 
-*Unit tests*
+_Unit tests_
 
-We follow the general guidance provided [here](https://doc.rust-lang.org/book/ch11-03-test-organization.html). Ideally, all code should be unit tested.  Unit tests should be in the same file as the code it is testing though in a distinct module, using the following syntax:
+We follow the general guidance provided [here](https://doc.rust-lang.org/book/ch11-03-test-organization.html). Ideally, all code should be unit tested. Unit tests should be in the same file as the code it is testing though in a distinct module, using the following syntax:
 
 ```rust
 struct Foo {
@@ -250,39 +250,39 @@ mod tests {
 }
 ```
 
-*Property-based tests*
+_Property-based tests_
 
-Move contains [property-based tests](https://blog.jessitron.com/2013/04/25/property-based-testing-what-is-it/) written in Rust using the [`proptest` framework](https://github.com/AltSysrq/proptest). Property-based tests generate random test cases and assert that invariants, also called *properties*, hold for the code under test.
+Move contains [property-based tests](https://blog.jessitron.com/2013/04/25/property-based-testing-what-is-it/) written in Rust using the [`proptest` framework](https://github.com/AltSysrq/proptest). Property-based tests generate random test cases and assert that invariants, also called _properties_, hold for the code under test.
 
 Some examples of properties tested in Move:
 
-* Every serializer and deserializer pair is tested for correctness with random inputs to the serializer. Any pair of functions that are inverses of each other can be tested this way.
-* The results of executing common transactions through the VM are tested using randomly generated scenarios and verified with an *Oracle*.
+- Every serializer and deserializer pair is tested for correctness with random inputs to the serializer. Any pair of functions that are inverses of each other can be tested this way.
+- The results of executing common transactions through the VM are tested using randomly generated scenarios and verified with an _Oracle_.
 
 A tutorial for `proptest` can be found in the [`proptest` book](https://altsysrq.github.io/proptest-book/proptest/getting-started.html).
 
 References:
 
-* [What is Property Based Testing?](https://hypothesis.works/articles/what-is-property-based-testing/) (includes a comparison with fuzzing)
-* [An introduction to property-based testing](https://fsharpforfunandprofit.com/posts/property-based-testing/)
-* [Choosing properties for property-based testing](https://fsharpforfunandprofit.com/posts/property-based-testing-2/)
+- [What is Property Based Testing?](https://hypothesis.works/articles/what-is-property-based-testing/) (includes a comparison with fuzzing)
+- [An introduction to property-based testing](https://fsharpforfunandprofit.com/posts/property-based-testing/)
+- [Choosing properties for property-based testing](https://fsharpforfunandprofit.com/posts/property-based-testing-2/)
 
 ### Conditional compilation of tests
 
-Move [conditionally
-compiles](https://doc.rust-lang.org/stable/reference/conditional-compilation.html)
-code that is *only relevant for tests, but does not consist of tests* (unitary
+Move [conditionally compiles](https://doc.rust-lang.org/stable/reference/conditional-compilation.html)
+code that is _only relevant for tests, but does not consist of tests_ (unitary
 or otherwise). Examples of this include proptest strategies, implementations
 and derivations of specific traits (e.g. the occasional `Clone`), helper
 functions, etc. Since Cargo is [currently not equipped for automatically activating features
 in tests/benchmarks](https://github.com/rust-lang/cargo/issues/2911), we rely on two
 conditions to perform this conditional compilation:
+
 - the test flag, which is activated by dependent test code in the same crate
   as the conditional test-only code.
 - the `fuzzing` custom feature, which is used to enable fuzzing and testing
-related code in downstream crates. Note that this must be passed explicitly to
-`cargo xtest` and `cargo x bench`. Never use this in `[dependencies]` unless
-the crate is only for testing.
+  related code in downstream crates. Note that this must be passed explicitly to
+  `cargo xtest` and `cargo x bench`. Never use this in `[dependencies]` unless
+  the crate is only for testing.
 
 As a consequence, it is recommended that you set up your test-only code in the following fashion.
 
@@ -293,28 +293,28 @@ Production crates are defined as the set of crates that create externally publis
 For the sake of example, we'll consider you are defining a test-only helper function `foo` in `foo_crate`:
 
 1. Define the `fuzzing` flag in `foo_crate/Cargo.toml` and make it non-default:
-    ```toml
-    [features]
-    default = []
-    fuzzing = []
-    ```
+   ```toml
+   [features]
+   default = []
+   fuzzing = []
+   ```
 2. Annotate your test-only helper `foo` with both the `test` flag (for in-crate callers) and the `"fuzzing"` custom feature (for out-of-crate callers):
-    ```rust
-    #[cfg(any(test, feature = "fuzzing"))]
-    fn foo() { ... }
-    ```
+   ```rust
+   #[cfg(any(test, feature = "fuzzing"))]
+   fn foo() { ... }
+   ```
 3. (optional) Use `cfg_attr` to make test-only trait derivations conditional:
-    ```rust
-    #[cfg_attr(any(test, feature = "testing"), derive(FooTrait))]
-    #[derive(Debug, Display, ...)] // inconditional derivations
-    struct Foo { ... }
-    ```
+   ```rust
+   #[cfg_attr(any(test, feature = "testing"), derive(FooTrait))]
+   #[derive(Debug, Display, ...)] // inconditional derivations
+   struct Foo { ... }
+   ```
 4. (optional) Set up feature transitivity for crates that call crates that have test-only members. Let's say it's the case of `bar_crate`, which, through its test helpers, calls into `foo_crate` to use your test-only `foo`. Here's how you would set up `bar_crate/Cargo.toml`:
-    ```toml
-    [features]
-    default = []
-    fuzzing = ["foo_crate/fuzzing"]
-    ```
+   ```toml
+   [features]
+   default = []
+   fuzzing = ["foo_crate/fuzzing"]
+   ```
 
 **For test-only crates:**
 
@@ -330,14 +330,13 @@ directly.
 foo_crate = { path = "...", features = ["fuzzing"] }
 ```
 
-*A final note on integration tests*: All tests that use conditional test-only
+_A final note on integration tests_: All tests that use conditional test-only
 elements in another crate need to activate the "fuzzing" feature through the
-`[features]` section in their `Cargo.toml`. [Integration
-tests](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html)
+`[features]` section in their `Cargo.toml`. [Integration tests](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html)
 can neither rely on the `test` flag nor do they have a proper `Cargo.toml` for
 feature activation. In the Move codebase, we therefore recommend that
-*integration tests which depend on test-only code in their tested crate* be
+_integration tests which depend on test-only code in their tested crate_ be
 extracted to their own test-only crate. See `language/move-binary-format/serializer_tests`
 for an example of such an extracted integration test.
 
-*Note for developers*: The reason we use a feature re-export (in the `[features]` section of the `Cargo.toml` is that a profile is not enough to activate the `"fuzzing"` feature flag. See [cargo-issue #291](https://github.com/rust-lang/cargo/issues/2911) for details).
+_Note for developers_: The reason we use a feature re-export (in the `[features]` section of the `Cargo.toml` is that a profile is not enough to activate the `"fuzzing"` feature flag. See [cargo-issue #291](https://github.com/rust-lang/cargo/issues/2911) for details).

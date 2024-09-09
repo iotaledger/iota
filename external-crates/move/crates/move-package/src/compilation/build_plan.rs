@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -14,11 +15,9 @@ use crate::{
 use anyhow::Result;
 use move_compiler::{
     compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{
-        report_diagnostics_to_buffer_with_env_color, report_warnings, FilesSourceText, Migration,
-    },
+    diagnostics::{report_diagnostics_to_buffer_with_env_color, report_warnings, Migration},
     editions::Edition,
-    shared::PackagePaths,
+    shared::{files::MappedFiles, PackagePaths},
     Compiler,
 };
 use move_symbol_pool::Symbol;
@@ -27,8 +26,8 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-
 use toml_edit::{value, Document};
+use vfs::VfsPath;
 
 use super::{
     compiled_package::{DependencyInfo, ModuleFormat},
@@ -40,6 +39,7 @@ pub struct BuildPlan {
     root: PackageName,
     sorted_deps: Vec<PackageName>,
     resolution_graph: ResolvedGraph,
+    compiler_vfs_root: Option<VfsPath>,
 }
 
 pub struct CompilationDependencies<'a> {
@@ -68,7 +68,14 @@ impl BuildPlan {
             root: resolution_graph.root_package(),
             sorted_deps,
             resolution_graph,
+            compiler_vfs_root: None,
         })
+    }
+
+    pub fn set_compiler_vfs_root(mut self, vfs_root: VfsPath) -> Self {
+        assert!(self.compiler_vfs_root.is_none());
+        self.compiler_vfs_root = Some(vfs_root);
+        self
     }
 
     pub fn root_crate_edition_defined(&self) -> bool {
@@ -94,6 +101,7 @@ impl BuildPlan {
 
         let (files, res) = CompiledPackage::build_for_result(
             writer,
+            self.compiler_vfs_root.clone(),
             root_package,
             transitive_dependencies,
             &self.resolution_graph,
@@ -203,7 +211,7 @@ impl BuildPlan {
         compiler_driver: impl FnMut(
             Compiler,
         )
-            -> anyhow::Result<(FilesSourceText, Vec<AnnotatedCompiledUnit>)>,
+            -> anyhow::Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
     ) -> Result<CompiledPackage> {
         let dependencies = self.compute_dependencies();
         self.compile_with_driver_and_deps(dependencies, writer, compiler_driver)
@@ -216,7 +224,7 @@ impl BuildPlan {
         mut compiler_driver: impl FnMut(
             Compiler,
         )
-            -> anyhow::Result<(FilesSourceText, Vec<AnnotatedCompiledUnit>)>,
+            -> anyhow::Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
     ) -> Result<CompiledPackage> {
         let CompilationDependencies {
             root_package,
@@ -226,6 +234,7 @@ impl BuildPlan {
 
         let compiled = CompiledPackage::build_all(
             writer,
+            self.compiler_vfs_root.clone(),
             &project_root,
             root_package,
             transitive_dependencies,

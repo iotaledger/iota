@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Adapted from control_flow_graph for Bytecode, this module defines the control-flow graph on
@@ -259,7 +260,7 @@ impl StacklessControlFlowGraph {
         self.blocks.len() as u16
     }
 
-    pub fn is_dummmy(&self, block_id: BlockId) -> bool {
+    pub fn is_dummy(&self, block_id: BlockId) -> bool {
         matches!(self.blocks[&block_id].content, BlockContent::Dummy)
     }
 

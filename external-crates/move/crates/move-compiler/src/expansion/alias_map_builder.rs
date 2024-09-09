@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -147,9 +148,9 @@ impl AliasMapBuilder {
                 ModuleMemberKind::Constant | ModuleMemberKind::Function => {
                     remove_dup(module_members, alias)
                 }
-                // structs are in the leading access namespace in addition to the module members
-                // namespace
-                ModuleMemberKind::Struct => {
+                // structs and enums are in the leading access namespace in addition to the module
+                // members namespace
+                ModuleMemberKind::Struct | ModuleMemberKind::Enum => {
                     let r1 = remove_dup(module_members, alias);
                     let r2 = remove_dup(leading_access, alias);
                     r1.and(r2)
@@ -207,9 +208,9 @@ impl AliasMapBuilder {
                     let entry = (MemberEntry::Member(ident, member), is_implicit);
                     module_members.add(alias, entry).unwrap();
                 }
-                // structs are in the leading access namespace in addition to the module members
-                // namespace
-                ModuleMemberKind::Struct => {
+                // structs and enums are in the leading access namespace in addition to the module
+                // members namespace
+                ModuleMemberKind::Struct | ModuleMemberKind::Enum => {
                     let member_entry = (MemberEntry::Member(ident, member), is_implicit);
                     module_members.add(alias, member_entry).unwrap();
                     let leading_access_entry =
@@ -237,6 +238,9 @@ impl AliasMapBuilder {
         }
         result
     }
+
+    // TODO: the functions below should take a flag indicating if they are from a `use` or local
+    // definition for better error reporting.
 
     /// Adds a module alias to the map.
     /// Errors if one already bound for that alias

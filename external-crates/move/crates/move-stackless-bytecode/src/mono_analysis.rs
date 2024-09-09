@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Analysis which computes information needed in backends for monomorphization. This
@@ -14,7 +15,7 @@ use std::{
 use itertools::Itertools;
 
 use move_model::{
-    model::{FunId, GlobalEnv, ModuleId, QualifiedId, StructEnv, StructId},
+    model::{DatatypeId, FunId, GlobalEnv, ModuleId, QualifiedId, StructEnv},
     ty::{Type, TypeDisplayContext},
     well_known::{TYPE_INFO_MOVE, TYPE_NAME_GET_MOVE, TYPE_NAME_MOVE},
 };
@@ -28,11 +29,11 @@ use crate::{
 /// The environment extension computed by this analysis.
 #[derive(Clone, Default, Debug)]
 pub struct MonoInfo {
-    pub structs: BTreeMap<QualifiedId<StructId>, BTreeSet<Vec<Type>>>,
+    pub structs: BTreeMap<QualifiedId<DatatypeId>, BTreeSet<Vec<Type>>>,
     pub funs: BTreeMap<(QualifiedId<FunId>, FunctionVariant), BTreeSet<Vec<Type>>>,
     pub type_params: BTreeSet<u16>,
     pub vec_inst: BTreeSet<Type>,
-    pub table_inst: BTreeMap<QualifiedId<StructId>, BTreeSet<(Type, Type)>>,
+    pub table_inst: BTreeMap<QualifiedId<DatatypeId>, BTreeSet<(Type, Type)>>,
     pub native_inst: BTreeMap<ModuleId, BTreeSet<Vec<Type>>>,
     pub all_types: BTreeSet<Type>,
 }
@@ -288,7 +289,7 @@ impl<'a> Analyzer<'a> {
             Type::Vector(et) => {
                 self.info.vec_inst.insert(et.as_ref().clone());
             }
-            Type::Struct(mid, sid, targs) => {
+            Type::Datatype(mid, sid, targs) => {
                 self.add_struct(self.env.get_module(*mid).into_struct(*sid), targs)
             }
             Type::TypeParameter(idx) => {

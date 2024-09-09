@@ -52,7 +52,7 @@ To add new versions of the move-analyzer Visual Studio Code extension, you will 
 
 ### 1: Become a member of the `move` publisher team
 
-As [Visual Studio Code's documentation](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) explains, the Visual Studio Marketplace  uses [Azure DevOps](https://azure.microsoft.com/services/devops/) to authenticate users who are allowed to manage extensions. To register with Azure DevOps, you need a Microsoft account.
+As [Visual Studio Code's documentation](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) explains, the Visual Studio Marketplace uses [Azure DevOps](https://azure.microsoft.com/services/devops/) to authenticate users who are allowed to manage extensions. To register with Azure DevOps, you need a Microsoft account.
 
 > **NOTE:** If you work for a company that uses Microsoft Outlook to serve your corporate email, then you already have a Microsoft account associated with that email address.
 

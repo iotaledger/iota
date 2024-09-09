@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -8,7 +9,6 @@ use crate::coverage_map::CoverageMap;
 use codespan::{Files, Span};
 use colored::*;
 use move_binary_format::{
-    access::ModuleAccess,
     file_format::{CodeOffset, FunctionDefinitionIndex},
     CompiledModule,
 };

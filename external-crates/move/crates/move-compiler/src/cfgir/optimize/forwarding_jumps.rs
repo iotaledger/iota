@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //**************************************************************************************************
@@ -17,7 +18,7 @@
 // Label 3:
 //     ...
 //
-// This optimization instead fowards these jumps, eliminating the other blocks:
+// This optimization instead forwards these jumps, eliminating the other blocks:
 // Label 0:
 //     JumpIf(<exp>, 2, 1)
 // Label 1:

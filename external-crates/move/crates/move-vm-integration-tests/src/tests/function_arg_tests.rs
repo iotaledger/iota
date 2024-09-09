@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::compiler::{as_module, compile_units};
@@ -39,8 +40,8 @@ fn run(
     let code = format!(
         r#"
         module 0x{}::M {{
-            struct Foo has copy, drop {{ x: u64 }}
-            struct Bar<T> has copy, drop {{ x: T }}
+            public struct Foo has copy, drop {{ x: u64 }}
+            public struct Bar<T> has copy, drop {{ x: T }}
 
             fun foo<{}>({}) {{ }}
         }}

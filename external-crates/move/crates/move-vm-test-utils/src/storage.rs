@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{bail, Result};
@@ -164,7 +165,7 @@ where
 
 impl InMemoryAccountStorage {
     fn apply(&mut self, account_changeset: AccountChangeSet) -> Result<()> {
-        let (modules, _resources) = account_changeset.into_inner();
+        let modules = account_changeset.into_inner();
         apply_changes(&mut self.modules, modules)?;
         Ok(())
     }

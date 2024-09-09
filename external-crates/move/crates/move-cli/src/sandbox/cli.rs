@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -12,8 +13,7 @@ use crate::{
 use anyhow::Result;
 use clap::Parser;
 use move_core_types::{
-    errmap::ErrorMapping, language_storage::TypeTag, parser,
-    transaction_argument::TransactionArgument,
+    language_storage::TypeTag, parser, transaction_argument::TransactionArgument,
 };
 use move_package::compilation::package_layout::CompiledPackageLayout;
 use move_vm_test_utils::gas_schedule::CostTable;
@@ -91,7 +91,7 @@ pub enum SandboxCommand {
         )]
         type_args: Vec<TypeTag>,
         /// Maximum number of gas units to be consumed by execution.
-        /// When the budget is exhaused, execution will abort.
+        /// When the budget is exhausted, execution will abort.
         /// By default, no `gas-budget` is specified and gas metering is disabled.
         #[clap(long = "gas-budget", short = 'g')]
         gas_budget: Option<u64>,
@@ -188,7 +188,6 @@ impl SandboxCommand {
         &self,
         natives: Vec<NativeFunctionRecord>,
         cost_table: &CostTable,
-        error_descriptions: &ErrorMapping,
         move_args: &Move,
         storage_dir: &Path,
     ) -> Result<()> {
@@ -229,7 +228,6 @@ impl SandboxCommand {
                 sandbox::commands::run(
                     natives,
                     cost_table,
-                    error_descriptions,
                     &state,
                     context.package(),
                     module_file,

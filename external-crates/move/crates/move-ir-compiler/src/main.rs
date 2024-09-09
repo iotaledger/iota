@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -127,7 +128,7 @@ fn main() {
 
     let mut module = vec![];
     compiled_module
-        .serialize(&mut module)
+        .serialize_with_version(compiled_module.version, &mut module)
         .expect("Unable to serialize module");
     write_output(&source_path.with_extension(mv_extension), &module);
 }

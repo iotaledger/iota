@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -8,7 +9,7 @@ use crate::{
 use anyhow::bail;
 use move_core_types::{
     account_address::AccountAddress,
-    identifier::{self},
+    identifier,
     runtime_value::{MoveStruct, MoveValue},
 };
 use std::fmt::{self, Display};

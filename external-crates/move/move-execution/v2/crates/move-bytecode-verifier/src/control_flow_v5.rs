@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements a checker to verify control flow in bytecode version 5 and below. The
@@ -37,7 +38,7 @@ pub fn verify(
 
 fn verify_fallthrough(
     current_function: FunctionDefinitionIndex,
-    code: &Vec<Bytecode>,
+    code: &[Bytecode],
 ) -> PartialVMResult<()> {
     // Check to make sure that the bytecode vector ends with a branching instruction.
     match code.last() {

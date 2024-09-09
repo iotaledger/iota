@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(dead_code)]
@@ -9,12 +10,12 @@ use move_binary_format::{
     errors::VMResult,
     file_format::{
         AbilitySet, AddressIdentifierIndex, Bytecode, Bytecode::*, CodeUnit, CompiledModule,
-        Constant, ConstantPoolIndex, FieldDefinition, FunctionDefinition, FunctionHandle,
-        FunctionHandleIndex, FunctionInstantiation, FunctionInstantiationIndex, IdentifierIndex,
-        ModuleHandle, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
-        SignatureToken::*, StructDefInstantiation, StructDefInstantiationIndex, StructDefinition,
-        StructDefinitionIndex, StructFieldInformation, StructHandle, StructHandleIndex,
-        StructTypeParameter, TypeSignature,
+        Constant, ConstantPoolIndex, DatatypeHandle, DatatypeHandleIndex, DatatypeTyParameter,
+        FieldDefinition, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
+        FunctionInstantiation, FunctionInstantiationIndex, IdentifierIndex, ModuleHandle,
+        ModuleHandleIndex, Signature, SignatureIndex, SignatureToken, SignatureToken::*,
+        StructDefInstantiation, StructDefInstantiationIndex, StructDefinition,
+        StructDefinitionIndex, StructFieldInformation, TypeSignature,
     },
 };
 use move_core_types::{
@@ -160,7 +161,7 @@ fn test_instantiation_no_instantiation() {
 // Common runner for all tests.
 // Run a control test (load_pop) and an instantiation test which is then
 // compared against the control.
-// Ensure that tests complete with "out of gas" and withing a given time range.
+// Ensure that tests complete with "out of gas" and within a given time range.
 fn test_runner(
     gas_val: u64,
     test_name: &str,
@@ -346,7 +347,7 @@ fn make_module(
         func_type_params.clone()
     };
     let struct_type_parameters = vec![
-        StructTypeParameter {
+        DatatypeTyParameter {
             constraints: AbilitySet::EMPTY,
             is_phantom: false,
         };
@@ -391,14 +392,14 @@ fn make_module(
             name: IdentifierIndex(0),
         }],
         // struct definition
-        struct_handles: vec![StructHandle {
+        datatype_handles: vec![DatatypeHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(1),
             abilities: AbilitySet::ALL,
             type_parameters: struct_type_parameters,
         }],
         struct_defs: vec![StructDefinition {
-            struct_handle: StructHandleIndex(0),
+            struct_handle: DatatypeHandleIndex(0),
             field_information: StructFieldInformation::Declared(vec![FieldDefinition {
                 name: IdentifierIndex(2),
                 signature: TypeSignature(U8),
@@ -436,6 +437,7 @@ fn make_module(
                 acquires_global_resources: vec![],
                 code: Some(CodeUnit {
                     locals: SignatureIndex(locals_idx as u16),
+                    jump_tables: vec![],
                     code,
                 }),
             },
@@ -446,6 +448,7 @@ fn make_module(
                 acquires_global_resources: vec![],
                 code: Some(CodeUnit {
                     locals: SignatureIndex(locals_idx as u16),
+                    jump_tables: vec![],
                     code: vec![
                         CopyLoc(0),
                         LdU64(1),
@@ -468,6 +471,7 @@ fn make_module(
                 acquires_global_resources: vec![],
                 code: Some(CodeUnit {
                     locals: SignatureIndex(locals_idx as u16),
+                    jump_tables: vec![],
                     code: vec![Ret],
                 }),
             },
@@ -505,6 +509,10 @@ fn make_module(
         friend_decls: vec![],
         field_instantiations: vec![],
         metadata: vec![],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
     // uncomment to see the module generated
     // println!("Module: {:#?}", module);
@@ -512,7 +520,7 @@ fn make_module(
 
     let mut mod_bytes = vec![];
     module
-        .serialize(&mut mod_bytes)
+        .serialize_with_version(module.version, &mut mod_bytes)
         .expect("Module must serialize");
     session
         .publish_module(mod_bytes, addr, &mut GasStatus::new_unmetered())
@@ -719,7 +727,7 @@ fn vec_pack_gen_deep_it(
         for _ in 0..STRUCT_TY_PARAMS {
             ty_args.push(big_ty.clone());
         }
-        big_ty = StructInstantiation(Box::new((StructHandleIndex(0), ty_args)));
+        big_ty = DatatypeInstantiation(Box::new((DatatypeHandleIndex(0), ty_args)));
     }
 
     //
@@ -876,7 +884,7 @@ fn deep_gen_call_it(
         for _ in 0..STRUCT_TY_PARAMS {
             ty_args.push(big_ty.clone());
         }
-        big_ty = StructInstantiation(Box::new((StructHandleIndex(0), ty_args)));
+        big_ty = DatatypeInstantiation(Box::new((DatatypeHandleIndex(0), ty_args)));
     }
 
     //
@@ -1011,7 +1019,7 @@ fn deep_rec_gen_call(
         for _ in 0..STRUCT_TY_PARAMS {
             ty_args.push(big_ty.clone());
         }
-        big_ty = StructInstantiation(Box::new((StructHandleIndex(0), ty_args)));
+        big_ty = DatatypeInstantiation(Box::new((DatatypeHandleIndex(0), ty_args)));
     }
 
     //

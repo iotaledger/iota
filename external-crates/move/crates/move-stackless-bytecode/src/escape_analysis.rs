@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This escape analysis flags procedures that return a reference pointing inside of a struct type
@@ -232,7 +233,7 @@ impl<'a> TransferFunctions for EscapeAnalysis<'a> {
                     }
                 }
             }
-            Abort(..) | Branch(..) | Jump(..) | Label(..) | Nop(..) => {
+            Abort(..) | Branch(..) | Jump(..) | Label(..) | Nop(..) | VariantSwitch(..) => {
                 // these operations do not assign any locals
             }
         }

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -78,10 +79,7 @@ impl MoveVM {
     ) -> VMResult<Arc<CompiledModule>> {
         self.runtime
             .loader()
-            .load_module(
-                module_id,
-                &TransactionDataCache::new(remote, self.runtime.loader()),
-            )
+            .load_module(module_id, &TransactionDataCache::new(remote))
             .map(|(compiled, _)| compiled)
     }
 

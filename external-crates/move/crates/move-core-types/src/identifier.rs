@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! An identifier is the name of an entity (module, resource, function, etc) in Move.
@@ -231,6 +232,12 @@ impl IdentStr {
 impl Borrow<IdentStr> for Identifier {
     fn borrow(&self) -> &IdentStr {
         self
+    }
+}
+
+impl Borrow<str> for Identifier {
+    fn borrow(&self) -> &str {
+        &self.0
     }
 }
 

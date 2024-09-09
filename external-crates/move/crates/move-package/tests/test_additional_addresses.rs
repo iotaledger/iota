@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::account_address::AccountAddress;
@@ -55,6 +56,7 @@ fn test_additonal_addresses() {
             ..Default::default()
         },
         &mut dependency_cache,
+        None,
         &mut progress_output,
     )
     .is_ok());
@@ -66,6 +68,7 @@ fn test_additonal_addresses() {
             ..Default::default()
         },
         &mut dependency_cache,
+        None,
         &mut progress_output,
     )
     .is_err());
@@ -111,6 +114,7 @@ fn test_additonal_addresses_already_assigned_same_value() {
             ..Default::default()
         },
         &mut dependency_cache,
+        None,
         &mut progress_output,
     )
     .is_ok());
@@ -156,6 +160,7 @@ fn test_additonal_addresses_already_assigned_different_value() {
             ..Default::default()
         },
         &mut dependency_cache,
+        None,
         &mut progress_output,
     )
     .is_err());

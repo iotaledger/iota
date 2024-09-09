@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Adapted from AbstractInterpreter for Bytecode, this module defines the data-flow analysis
@@ -36,7 +37,7 @@ pub trait TransferFunctions {
         instrs: &[Bytecode],
         cfg: &StacklessControlFlowGraph,
     ) -> Self::State {
-        if cfg.is_dummmy(block_id) {
+        if cfg.is_dummy(block_id) {
             return state;
         }
         let instr_inds = cfg.instr_indexes(block_id).unwrap();
@@ -132,7 +133,7 @@ pub trait DataflowAnalysis: TransferFunctions {
         let mut result = BTreeMap::new();
         for (block_id, block_state) in state_map {
             let mut state = block_state.pre;
-            if !cfg.is_dummmy(block_id) {
+            if !cfg.is_dummy(block_id) {
                 let instr_inds = cfg.instr_indexes(block_id).unwrap();
                 if Self::BACKWARD {
                     for offset in instr_inds.rev() {

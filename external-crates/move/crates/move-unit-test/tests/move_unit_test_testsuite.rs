@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_command_line_common::testing::{
@@ -46,6 +47,7 @@ fn run_test_impl(path: &Path) -> anyhow::Result<()> {
             .into_iter()
             .collect(),
         report_stacktrace_on_abort: true,
+        deterministic_generation: true,
 
         ..UnitTestingConfig::default_with_bound(None)
     };
