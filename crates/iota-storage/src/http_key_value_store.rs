@@ -1,41 +1,42 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use hyper::client::HttpConnector;
-use hyper::header::{HeaderValue, CONTENT_LENGTH};
-use hyper::Client;
-use hyper::Uri;
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use std::sync::Arc;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
-use sui_types::{
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
     digests::{
         CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
     },
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
+    object::Object,
+    storage::ObjectKey,
     transaction::Transaction,
 };
+use reqwest::{
+    header::{HeaderValue, CONTENT_LENGTH},
+    Client, Url,
+};
+use serde::{Deserialize, Serialize};
 use tap::TapFallible;
 use tracing::{error, info, instrument, trace, warn};
-use url::Url;
 
-use crate::key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait};
-use crate::key_value_store_metrics::KeyValueStoreMetrics;
+use crate::{
+    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store_metrics::KeyValueStoreMetrics,
+};
 
 pub struct HttpKVStore {
     base_url: Url,
-    client: Arc<Client<HttpsConnector<HttpConnector>>>,
+    client: Client,
 }
 
 pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
@@ -59,16 +60,16 @@ pub fn encode_object_key(object_id: &ObjectID, version: &VersionNumber) -> Strin
     base64_url::encode(&bytes)
 }
 
-trait IntoSuiResult<T> {
-    fn into_sui_result(self) -> SuiResult<T>;
+trait IntoIotaResult<T> {
+    fn into_iota_result(self) -> IotaResult<T>;
 }
 
-impl<T, E> IntoSuiResult<T> for Result<T, E>
+impl<T, E> IntoIotaResult<T> for Result<T, E>
 where
     E: std::error::Error,
 {
-    fn into_sui_result(self) -> SuiResult<T> {
-        self.map_err(|e| SuiError::Storage(e.to_string()))
+    fn into_iota_result(self) -> IotaResult<T> {
+        self.map_err(|e| IotaError::Storage(e.to_string()))
     }
 }
 
@@ -95,7 +96,7 @@ enum Value {
     TxToCheckpoint(CheckpointSequenceNumber),
 }
 
-fn key_to_path_elements(key: &Key) -> SuiResult<(String, &'static str)> {
+fn key_to_path_elements(key: &Key) -> IotaResult<(String, &'static str)> {
     match key {
         Key::Tx(digest) => Ok((encode_digest(digest), "tx")),
         Key::Fx(digest) => Ok((encode_digest(digest), "fx")),
@@ -119,22 +120,15 @@ impl HttpKVStore {
     pub fn new_kv(
         base_url: &str,
         metrics: Arc<KeyValueStoreMetrics>,
-    ) -> SuiResult<TransactionKeyValueStore> {
+    ) -> IotaResult<TransactionKeyValueStore> {
         let inner = Arc::new(Self::new(base_url)?);
         Ok(TransactionKeyValueStore::new("http", metrics, inner))
     }
 
-    pub fn new(base_url: &str) -> SuiResult<Self> {
+    pub fn new(base_url: &str) -> IotaResult<Self> {
         info!("creating HttpKVStore with base_url: {}", base_url);
-        let http = HttpsConnectorBuilder::new()
-            .with_webpki_roots()
-            .https_or_http()
-            .enable_http2()
-            .build();
 
-        let client = Client::builder()
-            .http2_only(true)
-            .build::<_, hyper::Body>(http);
+        let client = Client::builder().http2_prior_knowledge().build().unwrap();
 
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
@@ -142,41 +136,38 @@ impl HttpKVStore {
             format!("{}/", base_url)
         };
 
-        let base_url = Url::parse(&base_url).into_sui_result()?;
+        let base_url = Url::parse(&base_url).into_iota_result()?;
 
-        Ok(Self {
-            base_url,
-            client: Arc::new(client),
-        })
+        Ok(Self { base_url, client })
     }
 
-    fn get_url(&self, key: &Key) -> SuiResult<Uri> {
+    fn get_url(&self, key: &Key) -> IotaResult<Url> {
         let (digest, item_type) = key_to_path_elements(key)?;
         let joined = self
             .base_url
             .join(&format!("{}/{}", digest, item_type))
-            .into_sui_result()?;
-        Uri::from_str(joined.as_str()).into_sui_result()
+            .into_iota_result()?;
+        Url::from_str(joined.as_str()).into_iota_result()
     }
 
-    async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<SuiResult<Option<Bytes>>> {
+    async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IotaResult<Option<Bytes>>> {
         let uris_vec = uris.to_vec();
-        let fetches = stream::iter(
-            uris_vec
-                .into_iter()
-                .enumerate()
-                .map(|(_i, uri)| self.fetch(uri)),
-        );
+        let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
         fetches.buffered(uris.len()).collect::<Vec<_>>().await
     }
 
-    async fn fetch(&self, key: Key) -> SuiResult<Option<Bytes>> {
-        let uri = self.get_url(&key)?;
-        trace!("fetching uri: {}", uri);
-        let resp = self.client.get(uri.clone()).await.into_sui_result()?;
+    async fn fetch(&self, key: Key) -> IotaResult<Option<Bytes>> {
+        let url = self.get_url(&key)?;
+        trace!("fetching url: {}", url);
+        let resp = self
+            .client
+            .get(url.clone())
+            .send()
+            .await
+            .into_iota_result()?;
         trace!(
-            "got response {} for uri: {}, len: {:?}",
-            uri,
+            "got response {} for url: {}, len: {:?}",
+            url,
             resp.status(),
             resp.headers()
                 .get(CONTENT_LENGTH)
@@ -184,10 +175,7 @@ impl HttpKVStore {
         );
         // return None if 400
         if resp.status().is_success() {
-            hyper::body::to_bytes(resp.into_body())
-                .await
-                .map(Some)
-                .into_sui_result()
+            resp.bytes().await.map(Some).into_iota_result()
         } else {
             Ok(None)
         }
@@ -204,7 +192,7 @@ where
         .ok()
 }
 
-fn map_fetch<'a, K>(fetch: (&'a SuiResult<Option<Bytes>>, &'a K)) -> Option<(&'a Bytes, &'a K)>
+fn map_fetch<'a, K>(fetch: (&'a IotaResult<Option<Bytes>>, &'a K)) -> Option<(&'a Bytes, &'a K)>
 where
     K: std::fmt::Debug,
 {
@@ -232,7 +220,7 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
         .collect()
 }
 
-fn deser_check_digest<T, D: std::fmt::Debug>(
+fn deser_check_digest<T, D>(
     digest: &D,
     bytes: &Bytes,
     get_expected_digest: impl FnOnce(&T) -> D,
@@ -263,7 +251,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         transactions: &[TransactionDigest],
         effects: &[TransactionDigest],
         events: &[TransactionEventsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<Transaction>>,
         Vec<Option<TransactionEffects>>,
         Vec<Option<TransactionEvents>>,
@@ -332,7 +320,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
         checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -427,7 +415,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         let key = Key::TxToCheckpoint(digest);
         self.fetch(key).await.map(|maybe| {
             maybe.and_then(|bytes| deser::<_, CheckpointSequenceNumber>(&key, bytes.as_ref()))
@@ -439,7 +427,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         let key = Key::ObjectKey(object_id, version);
         self.fetch(key)
             .await
@@ -450,7 +438,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     async fn multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let keys = digests
             .iter()
             .map(|digest| Key::TxToCheckpoint(*digest))

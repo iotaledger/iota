@@ -1,33 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use futures::FutureExt;
-use std::collections::HashMap;
-use std::sync::Arc;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber};
-use sui_types::committee::Committee;
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
-use sui_types::digests::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+use iota_protocol_config::ProtocolConfig;
+use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber},
+    committee::Committee,
+    crypto::{get_key_pair, AccountKeyPair, KeypairTraits},
+    digests::{
+        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+    },
+    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::IotaResult,
+    event::Event,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummary, SignedCheckpointSummary,
+    },
+    object::Object,
+    storage::ObjectKey,
+    transaction::Transaction,
 };
-use sui_types::effects::{
-    TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents,
-};
-use sui_types::error::SuiResult;
-use sui_types::event::Event;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-    SignedCheckpointSummary,
-};
-use sui_types::transaction::Transaction;
-
-use sui_storage::key_value_store::*;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
 
 fn random_tx() -> Transaction {
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
@@ -106,6 +105,7 @@ impl MockTxStore {
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
         let summary = CheckpointSummary::new(
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,
             1,
@@ -114,6 +114,7 @@ impl MockTxStore {
             Default::default(),
             None,
             0,
+            Vec::new(),
         );
 
         let signed = SignedCheckpointSummary::new(
@@ -156,7 +157,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         transactions: &[TransactionDigest],
         effects: &[TransactionDigest],
         events: &[TransactionEventsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<Transaction>>,
         Vec<Option<TransactionEffects>>,
         Vec<Option<TransactionEvents>>,
@@ -185,7 +186,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
         checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -217,7 +218,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         Ok(self.tx_to_checkpoint.get(&digest).cloned())
     }
 
@@ -225,14 +226,14 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         &self,
         object_id: ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
     }
 
     async fn multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         Ok(digests
             .iter()
             .map(|digest| self.tx_to_checkpoint.get(digest).cloned())
@@ -425,23 +426,44 @@ async fn test_get_tx_from_fallback() {
 
 #[cfg(msim)]
 mod simtests {
-
-    use super::*;
-    use hyper::{
-        service::{make_service_fn, service_fn},
-        Body, Request, Response, Server,
+    use std::{
+        net::SocketAddr,
+        sync::Mutex,
+        time::{Duration, Instant},
     };
-    use std::convert::Infallible;
-    use std::net::SocketAddr;
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
-    use sui_macros::sim_test;
-    use sui_simulator::configs::constant_latency_ms;
-    use sui_storage::http_key_value_store::*;
+
+    use axum::{
+        body::Body,
+        extract::{Request, State},
+        response::Response,
+        routing::get,
+    };
+    use iota_macros::sim_test;
+    use iota_simulator::configs::constant_latency_ms;
+    use iota_storage::http_key_value_store::*;
     use tracing::info;
 
+    use super::*;
+
+    async fn svc(
+        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
+        request: Request<Body>,
+    ) -> Response {
+        let path = request.uri().path().to_string();
+        let key = path.trim_start_matches('/');
+        let value = state.lock().unwrap().get(key).cloned();
+        info!("Got request for key: {:?}, value: {:?}", key, value);
+        match value {
+            Some(v) => Response::new(Body::from(v)),
+            None => Response::builder()
+                .status(hyper::StatusCode::NOT_FOUND)
+                .body(Body::empty())
+                .unwrap(),
+        }
+    }
+
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
-        let handle = sui_simulator::runtime::Handle::current();
+        let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
         let startup_sender = Arc::new(startup_sender);
@@ -453,41 +475,12 @@ mod simtests {
                 let data = data.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let make_svc = make_service_fn(move |_| {
-                        let data = data.clone();
-                        async {
-                            Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
-                                let data = data.clone();
-                                async move {
-                                    let path = req.uri().path().to_string();
-                                    let key = path.trim_start_matches('/');
-                                    let value = data.lock().unwrap().get(key).cloned();
-                                    info!("Got request for key: {:?}, value: {:?}", key, value);
-                                    match value {
-                                        Some(v) => {
-                                            Ok::<_, Infallible>(Response::new(Body::from(v)))
-                                        }
-                                        None => Ok::<_, Infallible>(
-                                            Response::builder()
-                                                .status(hyper::StatusCode::NOT_FOUND)
-                                                .body(Body::empty())
-                                                .unwrap(),
-                                        ),
-                                    }
-                                }
-                            }))
-                        }
-                    });
-
+                    let router = get(svc).with_state(data);
                     let addr = SocketAddr::from(([10, 10, 10, 10], 8080));
-                    let server = Server::bind(&addr).serve(make_svc);
-
-                    let graceful = server.with_graceful_shutdown(async {
-                        tokio::time::sleep(Duration::from_secs(86400)).await;
-                    });
+                    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
                     tokio::spawn(async {
-                        let _ = graceful.await;
+                        axum::serve(listener, router).await.unwrap();
                     });
 
                     startup_sender.send(true).ok();
@@ -557,8 +550,8 @@ mod simtests {
             .await
             .unwrap();
 
-        // verify that the request took approximately one round trip despite fetching 4 items,
-        // i.e. test that pipelining or multiplexing is working.
+        // verify that the request took approximately one round trip despite fetching 4
+        // items, i.e. test that pipelining or multiplexing is working.
         assert!(start_time.elapsed() < Duration::from_millis(600));
 
         assert_eq!(

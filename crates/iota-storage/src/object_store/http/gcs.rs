@@ -1,18 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::object_store::http::{get, DEFAULT_USER_AGENT};
-use crate::object_store::ObjectStoreGetExt;
+use std::{fmt, sync::Arc};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::GetResult;
+use object_store::{path::Path, GetResult};
 use percent_encoding::{percent_encode, utf8_percent_encode, NON_ALPHANUMERIC};
-use reqwest::Client;
-use reqwest::ClientBuilder;
-use std::fmt;
-use std::sync::Arc;
+use reqwest::{Client, ClientBuilder};
+
+use crate::object_store::{
+    http::{get, DEFAULT_USER_AGENT},
+    ObjectStoreGetExt,
+};
 
 #[derive(Debug)]
 struct GoogleCloudStorageClient {

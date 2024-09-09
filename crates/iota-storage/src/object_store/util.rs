@@ -1,28 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::BTreeMap, num::NonZeroUsize, ops::Range, path::PathBuf, sync::Arc, time::Duration,
+};
+
+use anyhow::{anyhow, Context, Result};
+use backoff::future::retry;
+use bytes::Bytes;
+use futures::{StreamExt, TryStreamExt};
+use indicatif::ProgressBar;
+use itertools::Itertools;
+use object_store::{path::Path, DynObjectStore, Error, ObjectStore};
+use serde::{Deserialize, Serialize};
+use tokio::time::Instant;
+use tracing::{error, warn};
+use url::Url;
 
 use crate::object_store::{
     ObjectStoreDeleteExt, ObjectStoreGetExt, ObjectStoreListExt, ObjectStorePutExt,
 };
-use anyhow::{anyhow, Context, Result};
-use backoff::future::retry;
-use bytes::Bytes;
-use futures::StreamExt;
-use futures::TryStreamExt;
-use indicatif::ProgressBar;
-use itertools::Itertools;
-use object_store::path::Path;
-use object_store::{DynObjectStore, Error, ObjectStore};
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::num::NonZeroUsize;
-use std::ops::Range;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::Instant;
-use tracing::{error, warn};
-use url::Url;
 
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
 
@@ -160,7 +158,7 @@ pub async fn copy_recursively<S: ObjectStoreGetExt + ObjectStoreListExt, D: Obje
 ) -> Result<Vec<()>> {
     let mut input_paths = vec![];
     let mut output_paths = vec![];
-    let mut paths = src_store.list_objects(Some(dir)).await?;
+    let mut paths = src_store.list_objects(Some(dir)).await;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             input_paths.push(object_metadata.location.clone());
@@ -207,7 +205,7 @@ pub async fn delete_recursively<S: ObjectStoreDeleteExt + ObjectStoreListExt>(
     concurrency: NonZeroUsize,
 ) -> Result<Vec<()>> {
     let mut paths_to_delete = vec![];
-    let mut paths = store.list_objects(Some(path)).await?;
+    let mut paths = store.list_objects(Some(path)).await;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             paths_to_delete.push(object_metadata.location);
@@ -233,8 +231,9 @@ pub fn path_to_filesystem(local_dir_path: PathBuf, location: &Path) -> anyhow::R
     Ok(new_path)
 }
 
-/// This function will find all child directories in the input store which are of the form "epoch_num"
-/// and return a map of epoch number to the directory path
+/// This function will find all child directories in the input store which are
+/// of the form "epoch_num" and return a map of epoch number to the directory
+/// path
 pub async fn find_all_dirs_with_epoch_prefix(
     store: &Arc<DynObjectStore>,
     prefix: Option<&Path>,
@@ -243,7 +242,7 @@ pub async fn find_all_dirs_with_epoch_prefix(
     let entries = store.list_with_delimiter(prefix).await?;
     for entry in entries.common_prefixes {
         if let Some(filename) = entry.filename() {
-            if !filename.starts_with("epoch_") {
+            if !filename.starts_with("epoch_") || filename.ends_with(".tmp") {
                 continue;
             }
             let epoch = filename
@@ -299,8 +298,9 @@ pub async fn run_manifest_update_loop(
     Ok(())
 }
 
-/// This function will find all child directories in the input store which are of the form "epoch_num"
-/// and return a map of epoch number to the directory path
+/// This function will find all child directories in the input store which are
+/// of the form "epoch_num" and return a map of epoch number to the directory
+/// path
 pub async fn find_all_files_with_epoch_prefix(
     store: &Arc<DynObjectStore>,
     prefix: Option<&Path>,
@@ -327,11 +327,12 @@ pub async fn find_all_files_with_epoch_prefix(
     Ok(ranges)
 }
 
-/// This function will find missing epoch directories in the input store and return a list of such
-/// epoch numbers. If the highest epoch directory in the store is `epoch_N` then it is expected that the
-/// store will have all epoch directories from `epoch_0` to `epoch_N`. Additionally, any epoch directory
-/// should have the passed in marker file present or else that epoch number is already considered as
-/// missing
+/// This function will find missing epoch directories in the input store and
+/// return a list of such epoch numbers. If the highest epoch directory in the
+/// store is `epoch_N` then it is expected that the store will have all epoch
+/// directories from `epoch_0` to `epoch_N`. Additionally, any epoch directory
+/// should have the passed in marker file present or else that epoch number is
+/// already considered as missing
 pub async fn find_missing_epochs_dirs(
     store: &Arc<DynObjectStore>,
     success_marker: &str,
@@ -357,7 +358,9 @@ pub async fn find_missing_epochs_dirs(
             }
             Err(_) => {
                 // Probably a transient error
-                warn!("Failed while trying to read success marker in db checkpoint for epoch: {epoch_num}");
+                warn!(
+                    "Failed while trying to read success marker in db checkpoint for epoch: {epoch_num}"
+                );
             }
             Ok(_) => {
                 // Nothing to do
@@ -373,15 +376,16 @@ pub fn get_path(prefix: &str) -> Path {
     Path::from(prefix)
 }
 
-// Snapshot MANIFEST file is very simple. Just a newline delimited list of all paths in the snapshot directory
-// this simplicty enables easy parsing for scripts to download snapshots
+// Snapshot MANIFEST file is very simple. Just a newline delimited list of all
+// paths in the snapshot directory this simplicty enables easy parsing for
+// scripts to download snapshots
 pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
     dir: &Path,
     store: &S,
     epoch_prefix: String,
 ) -> Result<()> {
     let mut file_names = vec![];
-    let mut paths = store.list_objects(Some(dir)).await?;
+    let mut paths = store.list_objects(Some(dir)).await;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             // trim the "epoch_XX/" dir prefix here
@@ -411,14 +415,15 @@ pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
 
 #[cfg(test)]
 mod tests {
+    use std::{fs, num::NonZeroUsize};
+
+    use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+    use object_store::path::Path;
+    use tempfile::TempDir;
+
     use crate::object_store::util::{
         copy_recursively, delete_recursively, write_snapshot_manifest, MANIFEST_FILENAME,
     };
-    use object_store::path::Path;
-    use std::fs;
-    use std::num::NonZeroUsize;
-    use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-    use tempfile::TempDir;
 
     #[tokio::test]
     pub async fn test_copy_recursively() -> anyhow::Result<()> {
@@ -461,11 +466,13 @@ mod tests {
         assert!(output_path.join("child").exists());
         assert!(output_path.join("child").join("file1").exists());
         assert!(output_path.join("child").join("grand_child").exists());
-        assert!(output_path
-            .join("child")
-            .join("grand_child")
-            .join("file2")
-            .exists());
+        assert!(
+            output_path
+                .join("child")
+                .join("grand_child")
+                .join("file2")
+                .exists()
+        );
         let content = fs::read_to_string(output_path.join("child").join("file1"))?;
         assert_eq!(content, "Lorem ipsum");
         let content =
@@ -539,11 +546,13 @@ mod tests {
         .await?;
 
         assert!(!input_path.join("child").join("file1").exists());
-        assert!(!input_path
-            .join("child")
-            .join("grand_child")
-            .join("file2")
-            .exists());
+        assert!(
+            !input_path
+                .join("child")
+                .join("grand_child")
+                .join("file2")
+                .exists()
+        );
         Ok(())
     }
 }

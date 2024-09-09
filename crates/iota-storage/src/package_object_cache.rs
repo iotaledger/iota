@@ -1,13 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{num::NonZeroUsize, sync::Arc};
+
+use iota_types::{
+    base_types::ObjectID,
+    error::{IotaError, IotaResult, UserInputError},
+    storage::{ObjectStore, PackageObject},
+};
 use lru::LruCache;
 use parking_lot::RwLock;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use sui_types::base_types::ObjectID;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::storage::{ObjectStore, PackageObject};
 
 pub struct PackageObjectCache {
     cache: RwLock<LruCache<ObjectID, PackageObject>>,
@@ -26,7 +29,7 @@ impl PackageObjectCache {
         &self,
         package_id: &ObjectID,
         store: &impl ObjectStore,
-    ) -> SuiResult<Option<PackageObject>> {
+    ) -> IotaResult<Option<PackageObject>> {
         // TODO: Here the use of `peek` doesn't update the internal use record,
         // and hence the LRU is really used as a capped map here.
         // This is OK because we won't typically have too many entries.
@@ -50,7 +53,7 @@ impl PackageObjectCache {
                 self.cache.write().push(*package_id, p.clone());
                 Ok(Some(p))
             } else {
-                Err(SuiError::UserInputError {
+                Err(IotaError::UserInputError {
                     error: UserInputError::MoveObjectAsPackage {
                         object_id: *package_id,
                     },
@@ -74,8 +77,9 @@ impl PackageObjectCache {
                 assert!(p.is_package());
                 self.cache.write().push(package_id, PackageObject::new(p));
             }
-            // It's possible that a package is not found if it's newly added system package ID
-            // that hasn't got created yet. This should be very very rare though.
+            // It's possible that a package is not found if it's newly added
+            // system package ID that hasn't got created yet. This
+            // should be very very rare though.
         }
     }
 }

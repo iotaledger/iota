@@ -1,16 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::hash_map::RandomState,
+    collections::{hash_map::RandomState, HashMap},
+    fmt::Debug,
+    future::Future,
     hash::{BuildHasher, Hash},
+    num::NonZeroUsize,
 };
 
 use lru::LruCache;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::future::Future;
-use std::num::NonZeroUsize;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub struct ShardedLruCache<K, V, S = RandomState> {

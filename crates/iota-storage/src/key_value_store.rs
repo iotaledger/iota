@@ -1,25 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Immutable key/value store trait for storing/retrieving transactions, effects, and events
-//! to/from a scalable.
+//! Immutable key/value store trait for storing/retrieving transactions,
+//! effects, and events to/from a scalable.
+
+use std::{sync::Arc, time::Instant};
+
+use async_trait::async_trait;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    digests::{
+        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+    },
+    effects::{TransactionEffects, TransactionEvents},
+    error::{IotaError, IotaResult, UserInputError},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+    },
+    object::Object,
+    transaction::Transaction,
+};
+use tracing::instrument;
 
 use crate::key_value_store_metrics::KeyValueStoreMetrics;
-use async_trait::async_trait;
-use std::sync::Arc;
-use std::time::Instant;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use sui_types::digests::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-};
-use sui_types::object::Object;
-use sui_types::transaction::Transaction;
-use tracing::instrument;
 
 pub type KVStoreTransactionData = (
     Vec<Option<Transaction>>,
@@ -53,13 +57,14 @@ impl TransactionKeyValueStore {
         }
     }
 
-    /// Generic multi_get, allows implementors to get heterogenous values with a single round trip.
+    /// Generic multi_get, allows implementors to get heterogenous values with a
+    /// single round trip.
     pub async fn multi_get(
         &self,
         transactions: &[TransactionDigest],
         effects: &[TransactionDigest],
         events: &[TransactionEventsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<Transaction>>,
         Vec<Option<TransactionEffects>>,
         Vec<Option<TransactionEvents>>,
@@ -148,7 +153,7 @@ impl TransactionKeyValueStore {
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
         checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -232,7 +237,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_checkpoints_summaries(
         &self,
         keys: &[CheckpointSequenceNumber],
-    ) -> SuiResult<Vec<Option<CertifiedCheckpointSummary>>> {
+    ) -> IotaResult<Vec<Option<CertifiedCheckpointSummary>>> {
         self.multi_get_checkpoints(keys, &[], &[], &[])
             .await
             .map(|(summaries, _, _, _)| summaries)
@@ -241,7 +246,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_checkpoints_contents(
         &self,
         keys: &[CheckpointSequenceNumber],
-    ) -> SuiResult<Vec<Option<CheckpointContents>>> {
+    ) -> IotaResult<Vec<Option<CheckpointContents>>> {
         self.multi_get_checkpoints(&[], keys, &[], &[])
             .await
             .map(|(_, contents, _, _)| contents)
@@ -250,7 +255,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_checkpoints_summaries_by_digest(
         &self,
         keys: &[CheckpointDigest],
-    ) -> SuiResult<Vec<Option<CertifiedCheckpointSummary>>> {
+    ) -> IotaResult<Vec<Option<CertifiedCheckpointSummary>>> {
         self.multi_get_checkpoints(&[], &[], keys, &[])
             .await
             .map(|(_, _, summaries, _)| summaries)
@@ -259,7 +264,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_checkpoints_contents_by_digest(
         &self,
         keys: &[CheckpointContentsDigest],
-    ) -> SuiResult<Vec<Option<CheckpointContents>>> {
+    ) -> IotaResult<Vec<Option<CheckpointContents>>> {
         self.multi_get_checkpoints(&[], &[], &[], keys)
             .await
             .map(|(_, _, _, contents)| contents)
@@ -268,7 +273,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_tx(
         &self,
         keys: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<Transaction>>> {
+    ) -> IotaResult<Vec<Option<Transaction>>> {
         self.multi_get(keys, &[], &[])
             .await
             .map(|(txns, _, _)| txns)
@@ -277,118 +282,123 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_fx_by_tx_digest(
         &self,
         keys: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         self.multi_get(&[], keys, &[]).await.map(|(_, fx, _)| fx)
     }
 
     pub async fn multi_get_events(
         &self,
         keys: &[TransactionEventsDigest],
-    ) -> SuiResult<Vec<Option<TransactionEvents>>> {
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         self.multi_get(&[], &[], keys)
             .await
             .map(|(_, _, events)| events)
     }
 
-    /// Convenience method for fetching single digest, and returning an error if it's not found.
-    /// Prefer using multi_get_tx whenever possible.
-    pub async fn get_tx(&self, digest: TransactionDigest) -> SuiResult<Transaction> {
+    /// Convenience method for fetching single digest, and returning an error if
+    /// it's not found. Prefer using multi_get_tx whenever possible.
+    pub async fn get_tx(&self, digest: TransactionDigest) -> IotaResult<Transaction> {
         self.multi_get_tx(&[digest])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::TransactionNotFound { digest })
+            .ok_or(IotaError::TransactionNotFound { digest })
     }
 
-    /// Convenience method for fetching single digest, and returning an error if it's not found.
-    /// Prefer using multi_get_fx_by_tx_digest whenever possible.
+    /// Convenience method for fetching single digest, and returning an error if
+    /// it's not found. Prefer using multi_get_fx_by_tx_digest whenever
+    /// possible.
     pub async fn get_fx_by_tx_digest(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<TransactionEffects> {
+    ) -> IotaResult<TransactionEffects> {
         self.multi_get_fx_by_tx_digest(&[digest])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::TransactionNotFound { digest })
+            .ok_or(IotaError::TransactionNotFound { digest })
     }
 
-    /// Convenience method for fetching single digest, and returning an error if it's not found.
-    /// Prefer using multi_get_events whenever possible.
+    /// Convenience method for fetching single digest, and returning an error if
+    /// it's not found. Prefer using multi_get_events whenever possible.
     pub async fn get_events(
         &self,
         digest: TransactionEventsDigest,
-    ) -> SuiResult<TransactionEvents> {
+    ) -> IotaResult<TransactionEvents> {
         self.multi_get_events(&[digest])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::TransactionEventsNotFound { digest })
+            .ok_or(IotaError::TransactionEventsNotFound { digest })
     }
 
-    /// Convenience method for fetching single checkpoint, and returning an error if it's not found.
-    /// Prefer using multi_get_checkpoints_summaries whenever possible.
+    /// Convenience method for fetching single checkpoint, and returning an
+    /// error if it's not found. Prefer using
+    /// multi_get_checkpoints_summaries whenever possible.
     pub async fn get_checkpoint_summary(
         &self,
         checkpoint: CheckpointSequenceNumber,
-    ) -> SuiResult<CertifiedCheckpointSummary> {
+    ) -> IotaResult<CertifiedCheckpointSummary> {
         self.multi_get_checkpoints_summaries(&[checkpoint])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::UserInputError {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointNotFound(checkpoint),
             })
     }
 
-    /// Convenience method for fetching single checkpoint, and returning an error if it's not found.
-    /// Prefer using multi_get_checkpoints_contents whenever possible.
+    /// Convenience method for fetching single checkpoint, and returning an
+    /// error if it's not found. Prefer using multi_get_checkpoints_contents
+    /// whenever possible.
     pub async fn get_checkpoint_contents(
         &self,
         checkpoint: CheckpointSequenceNumber,
-    ) -> SuiResult<CheckpointContents> {
+    ) -> IotaResult<CheckpointContents> {
         self.multi_get_checkpoints_contents(&[checkpoint])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::UserInputError {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointNotFound(checkpoint),
             })
     }
 
-    /// Convenience method for fetching single checkpoint, and returning an error if it's not found.
-    /// Prefer using multi_get_checkpoints_summaries_by_digest whenever possible.
+    /// Convenience method for fetching single checkpoint, and returning an
+    /// error if it's not found. Prefer using
+    /// multi_get_checkpoints_summaries_by_digest whenever possible.
     pub async fn get_checkpoint_summary_by_digest(
         &self,
         digest: CheckpointDigest,
-    ) -> SuiResult<CertifiedCheckpointSummary> {
+    ) -> IotaResult<CertifiedCheckpointSummary> {
         self.multi_get_checkpoints_summaries_by_digest(&[digest])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::UserInputError {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{:?}", digest)),
             })
     }
 
-    /// Convenience method for fetching single checkpoint, and returning an error if it's not found.
-    /// Prefer using multi_get_checkpoints_contents_by_digest whenever possible.
+    /// Convenience method for fetching single checkpoint, and returning an
+    /// error if it's not found. Prefer using
+    /// multi_get_checkpoints_contents_by_digest whenever possible.
     pub async fn get_checkpoint_contents_by_digest(
         &self,
         digest: CheckpointContentsDigest,
-    ) -> SuiResult<CheckpointContents> {
+    ) -> IotaResult<CheckpointContents> {
         self.multi_get_checkpoints_contents_by_digest(&[digest])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .ok_or(SuiError::UserInputError {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{:?}", digest)),
             })
     }
@@ -396,7 +406,7 @@ impl TransactionKeyValueStore {
     pub async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         self.inner
             .deprecated_get_transaction_checkpoint(digest)
             .await
@@ -406,60 +416,64 @@ impl TransactionKeyValueStore {
         &self,
         object_id: ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         self.inner.get_object(object_id, version).await
     }
 
     pub async fn multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         self.inner.multi_get_transaction_checkpoint(digests).await
     }
 }
 
-/// Immutable key/value store trait for storing/retrieving transactions, effects, and events.
-/// Only defines multi_get/multi_put methods to discourage single key/value operations.
+/// Immutable key/value store trait for storing/retrieving transactions,
+/// effects, and events. Only defines multi_get/multi_put methods to discourage
+/// single key/value operations.
 #[async_trait]
 pub trait TransactionKeyValueStoreTrait {
-    /// Generic multi_get, allows implementors to get heterogenous values with a single round trip.
+    /// Generic multi_get, allows implementors to get heterogenous values with a
+    /// single round trip.
     async fn multi_get(
         &self,
         transactions: &[TransactionDigest],
         effects: &[TransactionDigest],
         events: &[TransactionEventsDigest],
-    ) -> SuiResult<KVStoreTransactionData>;
+    ) -> IotaResult<KVStoreTransactionData>;
 
-    /// Generic multi_get to allow implementors to get heterogenous values with a single round trip.
+    /// Generic multi_get to allow implementors to get heterogenous values with
+    /// a single round trip.
     async fn multi_get_checkpoints(
         &self,
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
         checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> SuiResult<KVStoreCheckpointData>;
+    ) -> IotaResult<KVStoreCheckpointData>;
 
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<Option<CheckpointSequenceNumber>>;
+    ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
     async fn get_object(
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Object>>;
+    ) -> IotaResult<Option<Object>>;
 
     async fn multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>>;
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
 }
 
-/// A TransactionKeyValueStoreTrait that falls back to a secondary store for any key for which the
-/// primary store returns None.
+/// A TransactionKeyValueStoreTrait that falls back to a secondary store for any
+/// key for which the primary store returns None.
 ///
-/// Will be used to check the local rocksdb store, before falling back to a remote scalable store.
+/// Will be used to check the local rocksdb store, before falling back to a
+/// remote scalable store.
 pub struct FallbackTransactionKVStore {
     primary: TransactionKeyValueStore,
     fallback: TransactionKeyValueStore,
@@ -485,7 +499,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         transactions: &[TransactionDigest],
         effects: &[TransactionDigest],
         events: &[TransactionEventsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<Transaction>>,
         Vec<Option<TransactionEffects>>,
         Vec<Option<TransactionEvents>>,
@@ -525,7 +539,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
         checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -578,7 +592,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         let mut res = self
             .primary
             .deprecated_get_transaction_checkpoint(digest)
@@ -597,7 +611,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         let mut res = self.primary.get_object(object_id, version).await?;
         if res.is_none() {
             res = self.fallback.get_object(object_id, version).await?;
@@ -609,7 +623,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     async fn multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let mut res = self
             .primary
             .multi_get_transaction_checkpoint(digests)

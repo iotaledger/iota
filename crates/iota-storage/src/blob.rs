@@ -1,14 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    io::{Read, Write},
+    marker::PhantomData,
+};
 
 use anyhow::{anyhow, Result};
 use byteorder::ReadBytesExt;
 use integer_encoding::{VarInt, VarIntReader};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::io::{Read, Write};
-use std::marker::PhantomData;
+use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAX_VARINT_LENGTH: usize = 10;
 pub const BLOB_ENCODING_BYTES: usize = 1;

@@ -1,24 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::hash_map::{DefaultHasher, RandomState};
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
-use std::hash::{BuildHasher, Hash, Hasher};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::{
+        hash_map::{DefaultHasher, RandomState},
+        HashMap,
+    },
+    error::Error,
+    fmt,
+    hash::{BuildHasher, Hash, Hasher},
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
-use tokio::sync::{
-    Mutex, OwnedMutexGuard, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock, TryLockError,
+use iota_metrics::spawn_monitored_task;
+use tokio::{
+    sync::{
+        Mutex, OwnedMutexGuard, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock, TryLockError,
+    },
+    task::JoinHandle,
+    time::Instant,
 };
-use tokio::task::JoinHandle;
-use tokio::time::Instant;
 use tracing::info;
-
-use mysten_metrics::spawn_monitored_task;
 
 #[async_trait]
 pub trait Lock: Send + Sync + Default {
@@ -66,7 +74,8 @@ impl Lock for RwLock<()> {
 }
 
 type InnerLockTable<K, L> = HashMap<K, Arc<L>>;
-// MutexTable supports mutual exclusion on keys such as TransactionDigest or ObjectDigest
+// MutexTable supports mutual exclusion on keys such as TransactionDigest or
+// ObjectDigest
 pub struct LockTable<K: Hash, L: Lock> {
     random_state: RandomState,
     lock_table: Arc<Vec<RwLock<InnerLockTable<K, L>>>>,
@@ -159,9 +168,11 @@ impl<K: Hash + Eq + Send + Sync + 'static, L: Lock + 'static> LockTable<K, L> {
                 continue;
             }
             map.unwrap().retain(|_k, v| {
-                // MutexMap::(try_|)acquire_locks will lock the map and call Arc::clone on the entry
-                // This check ensures that we only drop entry from the map if this is the only mutex copy
-                // This check is also likely sufficient e.g. you don't even need try_lock below, but keeping it just in case
+                // MutexMap::(try_|)acquire_locks will lock the map and call Arc::clone on the
+                // entry This check ensures that we only drop entry from the map
+                // if this is the only mutex copy This check is also likely
+                // sufficient e.g. you don't even need try_lock below, but keeping it just in
+                // case
                 if Arc::strong_count(v) == 1 {
                     num_removed += 1;
                     false
@@ -281,7 +292,8 @@ impl<K: Hash, L: Lock> Drop for LockTable<K, L> {
 
 #[tokio::test]
 // Tests that mutex table provides parallelism on the individual mutex level,
-// e.g. that locks for different entries do not block entire bucket if it needs to wait on individual lock
+// e.g. that locks for different entries do not block entire bucket if it needs
+// to wait on individual lock
 async fn test_mutex_table_concurrent_in_same_bucket() {
     use tokio::time::{sleep, timeout};
     let mutex_table = Arc::new(MutexTable::<String>::new(1));
@@ -407,7 +419,8 @@ async fn test_mutex_table_bg_cleanup() {
     assert!(lock5.is_ok());
     // Trigger cleanup
     MutexTable::cleanup(mutex_table.lock_table.clone());
-    // Try acquiring locks again, these should still fail because locks have not been released
+    // Try acquiring locks again, these should still fail because locks have not
+    // been released
     let lock11 = mutex_table.try_acquire_lock("lock1".to_string());
     let lock22 = mutex_table.try_acquire_lock("lock2".to_string());
     let lock33 = mutex_table.try_acquire_lock("lock3".to_string());
@@ -434,7 +447,8 @@ async fn test_mutex_table_bg_cleanup() {
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_mutex_table_bg_cleanup_with_size_threshold() {
-    // set up the table to never trigger cleanup because of time period but only size threshold
+    // set up the table to never trigger cleanup because of time period but only
+    // size threshold
     let mutex_table =
         MutexTable::<String>::new_with_cleanup(1, Duration::MAX, Duration::from_secs(1), 5);
     let lock1 = mutex_table.try_acquire_lock("lock1".to_string());
@@ -449,7 +463,8 @@ async fn test_mutex_table_bg_cleanup_with_size_threshold() {
     assert!(lock5.is_ok());
     // Trigger cleanup
     MutexTable::cleanup(mutex_table.lock_table.clone());
-    // Try acquiring locks again, these should still fail because locks have not been released
+    // Try acquiring locks again, these should still fail because locks have not
+    // been released
     let lock11 = mutex_table.try_acquire_lock("lock1".to_string());
     let lock22 = mutex_table.try_acquire_lock("lock2".to_string());
     let lock33 = mutex_table.try_acquire_lock("lock3".to_string());
