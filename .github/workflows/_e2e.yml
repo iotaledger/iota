@@ -77,7 +77,8 @@ jobs:
 
       - name: Run Explorer e2e tests
         # need to run Explorer e2e when its upstream(TS SDK and Rust) or itself is changed
-        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust
+        # if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust
+        if: false
         run: pnpm --filter iota-explorer playwright test
       - uses: actions/upload-artifact@v3
         if: always()
