@@ -16,6 +16,7 @@ import {
     Panel,
     SegmentedButton,
     SegmentedButtonType,
+    Title,
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
@@ -31,16 +32,11 @@ enum DetailsTabs {
 enum NestedTabs {
     Aggregated = 'aggregated',
 }
-enum CheckpointTransactionBlocksTabs {
-    TransactionBlocks = 'transaction-blocks',
-}
 
 export default function CheckpointDetail(): JSX.Element {
     const [activeFeesTabId, setActiveFeesTabId] = useState(FeesTabs.GasAndStorageFees);
     const [activeDetailsTabId, setActiveDetailsTabId] = useState(DetailsTabs.Details);
     const [activeNestedTabId, setActiveNestedTabId] = useState(NestedTabs.Aggregated);
-    const [activeCheckpointTransactionBlocksTabId, setActiveCheckpointTransactionBlocksTabId] =
-        useState(CheckpointTransactionBlocksTabs.TransactionBlocks);
 
     const { id } = useParams<{ id: string }>();
     const digestOrSequenceNumber = /^\d+$/.test(id!) ? parseInt(id!, 10) : id;
@@ -98,7 +94,7 @@ export default function CheckpointDetail(): JSX.Element {
                                     />
                                 </SegmentedButton>
                                 {activeDetailsTabId === DetailsTabs.Details ? (
-                                    <div className="flex flex-col gap-lg p-md">
+                                    <div className="flex flex-col gap-lg p-md--rs">
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Checkpoint Sequence No."
@@ -136,7 +132,7 @@ export default function CheckpointDetail(): JSX.Element {
                                     </div>
                                 ) : null}
                                 {activeDetailsTabId === DetailsTabs.Signatures ? (
-                                    <div className="flex flex-col gap-lg p-md">
+                                    <div className="flex flex-col gap-lg p-md--rs">
                                         <div className="inline-flex">
                                             <SegmentedButton
                                                 type={SegmentedButtonType.Transparent}
@@ -180,7 +176,7 @@ export default function CheckpointDetail(): JSX.Element {
                                     />
                                 </SegmentedButton>
                                 {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
-                                    <div className="flex flex-col gap-lg p-md">
+                                    <div className="flex flex-col gap-lg p-md--rs">
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Computation Fee"
@@ -207,30 +203,10 @@ export default function CheckpointDetail(): JSX.Element {
                             </Panel>
                         </div>
                         <Panel>
-                            <SegmentedButton
-                                type={SegmentedButtonType.Transparent}
-                                shape={ButtonSegmentType.Underlined}
-                            >
-                                <ButtonSegment
-                                    type={ButtonSegmentType.Underlined}
-                                    label="Checkpoint Transaction Blocks"
-                                    selected={
-                                        activeCheckpointTransactionBlocksTabId ===
-                                        CheckpointTransactionBlocksTabs.TransactionBlocks
-                                    }
-                                    onClick={() =>
-                                        setActiveCheckpointTransactionBlocksTabId(
-                                            CheckpointTransactionBlocksTabs.TransactionBlocks,
-                                        )
-                                    }
-                                />
-                            </SegmentedButton>
-                            {activeCheckpointTransactionBlocksTabId ===
-                            CheckpointTransactionBlocksTabs.TransactionBlocks ? (
-                                <div className="p-md">
-                                    <CheckpointTransactionBlocks id={data.sequenceNumber} />
-                                </div>
-                            ) : null}
+                            <Title title="Checkpoint Transaction Blocks" />
+                            <div className="p-md--rs">
+                                <CheckpointTransactionBlocks id={data.sequenceNumber} />
+                            </div>
                         </Panel>
                     </div>
                 )
