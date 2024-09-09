@@ -1,5 +1,5 @@
 ---
-source: crates/sui-cost/tests/empirical_transaction_cost.rs
+source: crates/iota-cost/tests/empirical_transaction_cost.rs
 expression: common_costs_actual
 ---
 {
@@ -39,7 +39,7 @@ expression: common_costs_actual
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
-  "TransferPortionSuiCoin": {
+  "TransferPortionIotaCoin": {
     "computationCost": "1000000",
     "storageCost": "1976000",
     "storageRebate": "0",
@@ -51,7 +51,7 @@ expression: common_costs_actual
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
-  "TransferWholeSuiCoin": {
+  "TransferWholeIotaCoin": {
     "computationCost": "1000000",
     "storageCost": "988000",
     "storageRebate": "0",
