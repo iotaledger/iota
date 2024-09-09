@@ -23,6 +23,6 @@ name = "MoveStdlib"
 source = { local = "../move-stdlib" }
 
 [move.toolchain-version]
-compiler-version = "0.1.6"
+compiler-version = "0.2.0"
 edition = "legacy"
 flavor = "iota"

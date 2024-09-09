@@ -9,6 +9,7 @@ pub mod epoch;
 pub mod events;
 pub mod move_call_metrics;
 pub mod network_metrics;
+pub(crate) mod large_objects;
 pub mod objects;
 pub mod packages;
 pub mod transactions;
