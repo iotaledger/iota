@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
-use crate::{ParquetSchema, ParquetValue};
+use iota_analytics_indexer_derive::SerializeParquet;
+use iota_types::dynamic_field::DynamicFieldType;
 use serde::Serialize;
 use strum_macros::Display;
-use sui_analytics_indexer_derive::SerializeParquet;
-use sui_types::dynamic_field::DynamicFieldType;
 
-//
+use crate::{ParquetSchema, ParquetValue};
+
 // Table entries for the analytics database.
 // Each entry is a row in the database.
 //
@@ -132,8 +133,8 @@ pub enum InputObjectKind {
     GasCoin,
 }
 
-// Used in the object table to identify the status of object, its result in the last transaction
-// effect.
+// Used in the object table to identify the status of object, its result in the
+// last transaction effect.
 #[derive(Serialize, Clone, Display)]
 pub enum ObjectStatus {
     Created,
@@ -186,7 +187,7 @@ pub(crate) struct ObjectEntry {
 
 // Objects used and manipulated in a transaction.
 // Both input object and objects in effects are reported here with the proper
-// input kind (for input objects) and status (for objets in effects).
+// input kind (for input objects) and status (for objects in effects).
 // An object may appear twice as an input and output object. In that case, the
 // version will be different.
 #[derive(Serialize, Clone, SerializeParquet)]

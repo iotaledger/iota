@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
-use std::fs::{create_dir_all, remove_file};
-use std::ops::Range;
-use std::path::Path;
-use std::{fs, fs::File, path::PathBuf};
+use std::{
+    fs,
+    fs::{create_dir_all, remove_file, File},
+    ops::Range,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{anyhow, Result};
 use csv::{Writer, WriterBuilder};
+use iota_storage::object_store::util::path_to_filesystem;
+use iota_types::base_types::EpochId;
 use serde::Serialize;
 
-use sui_storage::object_store::util::path_to_filesystem;
-use sui_types::base_types::EpochId;
-
-use crate::writers::AnalyticsWriter;
-use crate::{FileFormat, FileType, ParquetSchema};
+use crate::{writers::AnalyticsWriter, FileFormat, FileType, ParquetSchema};
 
 // Save table entries to csv files.
 pub(crate) struct CSVWriter {

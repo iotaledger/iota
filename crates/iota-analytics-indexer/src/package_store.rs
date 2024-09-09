@@ -1,23 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
-use move_core_types::account_address::AccountAddress;
-use sui_package_resolver::{
+use async_trait::async_trait;
+use iota_package_resolver::{
     error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
 };
-use sui_rest_api::Client;
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::object::Object;
+use iota_rest_api::Client;
+use iota_types::{base_types::ObjectID, object::Object};
+use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::{Map, TypedStoreError};
-use typed_store_derive::DBMapUtils;
+use typed_store::{
+    rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+    DBMapUtils, Map, TypedStoreError,
+};
 
 const STORE: &str = "RocksDB";
 
@@ -32,7 +31,7 @@ impl From<Error> for PackageResolverError {
         match source {
             Error::TypedStore(store_error) => Self::Store {
                 store: STORE,
-                source: Box::new(store_error),
+                source: Arc::new(store_error),
             },
         }
     }
@@ -62,10 +61,10 @@ impl PackageStoreTables {
     }
 }
 
-/// Store which keeps package objects in a local rocksdb store. It is expected that this store is
-/// kept updated with latest version of package objects while iterating over checkpoints. If the
-/// local db is missing (or gets deleted), packages are fetched from a full node and local store is
-/// updated
+/// Store which keeps package objects in a local rocksdb store. It is expected
+/// that this store is kept updated with latest version of package objects while
+/// iterating over checkpoints. If the local db is missing (or gets deleted),
+/// packages are fetched from a full node and local store is updated
 #[derive(Clone)]
 pub struct LocalDBPackageStore {
     package_store_tables: Arc<PackageStoreTables>,
@@ -74,10 +73,9 @@ pub struct LocalDBPackageStore {
 
 impl LocalDBPackageStore {
     pub fn new(path: &Path, rest_url: &str) -> Self {
-        let rest_api_url = format!("{}/rest", rest_url);
         Self {
             package_store_tables: PackageStoreTables::new(path),
-            fallback_client: Client::new(rest_api_url),
+            fallback_client: Client::new(rest_url),
         }
     }
 
@@ -112,14 +110,9 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn version(&self, id: AccountAddress) -> Result<SequenceNumber> {
-        let object = self.get(id).await?;
-        Ok(object.version())
-    }
-
     async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
         let object = self.get(id).await?;
-        Ok(Arc::new(Package::read(&object)?))
+        Ok(Arc::new(Package::read_from_object(&object)?))
     }
 }
 
