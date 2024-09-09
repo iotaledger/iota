@@ -57,7 +57,7 @@ export function Overlay({
                         titleCentered={titleCentered}
                     />
                 )}
-                <div className="flex w-full flex-1 overflow-hidden bg-neutral-100 p-md">
+                <div className="flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md">
                     {children}
                 </div>
             </div>

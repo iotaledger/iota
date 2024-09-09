@@ -3,16 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
+import {
+    useTransactionSummary,
+    STAKING_REQUEST_EVENT,
+    UNSTAKING_REQUEST_EVENT,
+    formatDate,
+} from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
 import { StakeTxn } from './StakeTxn';
-import { StatusIcon } from './StatusIcon';
 import { UnStakeTxn } from './UnstakeTxn';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { Button, ButtonType, Card, CardBody, CardType } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
+import { CheckmarkFilled } from '@iota/ui-icons';
+import cl from 'clsx';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -20,14 +25,17 @@ interface TransactionStatusProps {
 }
 
 function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
+    const txnDate = formatDate(Number(timestamp) ?? '');
     return (
-        <div className="mb-4 flex flex-col items-center justify-center gap-3">
-            <StatusIcon status={success} />
-            <span data-testid="transaction-status" className="sr-only">
-                {success ? 'Transaction Success' : 'Transaction Failed'}
-            </span>
-            {timestamp && <DateCard timestamp={Number(timestamp)} size="md" />}
-        </div>
+        <Card type={CardType.Filled}>
+            <CheckmarkFilled
+                className={cl('h-5 w-5', success ? 'text-primary-30' : 'text-neutral-10')}
+            />
+            <CardBody
+                title={success ? 'Successfully sent' : 'Transaction Failed'}
+                subtitle={timestamp ? txnDate : ''}
+            />
+        </Card>
     );
 }
 
@@ -67,7 +75,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         );
 
     return (
-        <div className="relative block h-full w-full">
+        <div className="h-full w-full overflow-y-auto overflow-x-hidden">
             <TransactionStatus
                 success={summary.status === 'success'}
                 timestamp={txn.timestampMs ?? undefined}
