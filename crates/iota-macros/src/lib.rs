@@ -1,15 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, future::Future, sync::Arc};
+
 use futures::future::BoxFuture;
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::Arc;
+pub use iota_proc_macros::*;
 
-pub use sui_proc_macros::*;
-
-/// Evaluates an expression in a new thread which will not be subject to interception of
-/// getrandom(), clock_gettime(), etc.
+/// Evaluates an expression in a new thread which will not be subject to
+/// interception of getrandom(), clock_gettime(), etc.
 #[cfg(msim)]
 #[macro_export]
 macro_rules! nondeterministic {
@@ -41,8 +40,9 @@ fn with_fp_map<T>(func: impl FnOnce(&mut FpMap) -> T) -> T {
 
 #[cfg(not(msim))]
 fn with_fp_map<T>(func: impl FnOnce(&mut FpMap) -> T) -> T {
-    use once_cell::sync::Lazy;
     use std::sync::Mutex;
+
+    use once_cell::sync::Lazy;
 
     static MAP: Lazy<Mutex<FpMap>> = Lazy::new(Default::default);
     let mut map = MAP.lock().unwrap();
@@ -147,8 +147,8 @@ pub fn register_fail_point(identifier: &'static str, callback: impl Fn() + Sync 
     );
 }
 
-/// Register an asynchronous fail point. Because it is async it can yield execution of the calling
-/// task, e.g. by sleeping.
+/// Register an asynchronous fail point. Because it is async it can yield
+/// execution of the calling task, e.g. by sleeping.
 pub fn register_fail_point_async<F>(
     identifier: &'static str,
     callback: impl Fn() -> F + Sync + Send + 'static,
@@ -170,7 +170,7 @@ pub fn register_fail_point_async<F>(
 ///
 /// ```ignore
 ///     register_fail_point_if("foo", || {
-///         sui_simulator::current_simnode_id() == 2
+///         iota_simulator::current_simnode_id() == 2
 ///     });
 /// ```
 ///
@@ -233,7 +233,8 @@ pub fn clear_fail_point(identifier: &'static str) {
     clear_fail_point_impl(identifier);
 }
 
-/// Trigger a fail point. Tests can trigger various behavior when the fail point is hit.
+/// Trigger a fail point. Tests can trigger various behavior when the fail point
+/// is hit.
 #[cfg(any(msim, fail_points))]
 #[macro_export]
 macro_rules! fail_point {
@@ -242,8 +243,8 @@ macro_rules! fail_point {
     };
 }
 
-/// Trigger an async fail point. Tests can trigger various async behavior when the fail point is
-/// hit.
+/// Trigger an async fail point. Tests can trigger various async behavior when
+/// the fail point is hit.
 #[cfg(any(msim, fail_points))]
 #[macro_export]
 macro_rules! fail_point_async {
@@ -253,7 +254,8 @@ macro_rules! fail_point_async {
 }
 
 /// Trigger a failpoint that runs a callback at the callsite if it is enabled.
-/// (whether it is enabled is controlled by whether the registration callback returns true/false).
+/// (whether it is enabled is controlled by whether the registration callback
+/// returns true/false).
 #[cfg(any(msim, fail_points))]
 #[macro_export]
 macro_rules! fail_point_if {
@@ -265,8 +267,8 @@ macro_rules! fail_point_if {
 }
 
 /// Trigger a failpoint that runs a callback at the callsite if it is enabled.
-/// If the registration callback returns Some(v), then the `v` is passed to the callback in the test.
-/// Otherwise the failpoint is skipped
+/// If the registration callback returns Some(v), then the `v` is passed to the
+/// callback in the test. Otherwise the failpoint is skipped
 #[cfg(any(msim, fail_points))]
 #[macro_export]
 macro_rules! fail_point_arg {
@@ -316,7 +318,8 @@ macro_rules! replay_log {
     };
 }
 
-// These tests need to be run in release mode, since debug mode does overflow checks by default!
+// These tests need to be run in release mode, since debug mode does overflow
+// checks by default!
 #[cfg(test)]
 mod test {
     use super::*;
@@ -342,8 +345,9 @@ mod test {
             }
         }
 
-        // this will not panic even if we pass in (i32::MAX, 1), because we skipped processing
-        // the item macro, so we also need to make sure it doesn't panic in debug mode.
+        // this will not panic even if we pass in (i32::MAX, 1), because we skipped
+        // processing the item macro, so we also need to make sure it doesn't
+        // panic in debug mode.
         unchecked_add(1, 2);
     }
 
@@ -528,7 +532,7 @@ mod test {
         assert_eq!(Foo::new(1, 2).b, 2);
         assert_eq!(new_foo(1).a, 1);
 
-        let v = vec![Foo::new(1, 2), Foo::new(3, 2)];
+        let v = [Foo::new(1, 2), Foo::new(3, 2)];
 
         assert_eq!(v[0].a, 1);
         assert_eq!(v[1].b, 2);
@@ -720,7 +724,7 @@ mod test {
             assert_eq!(Foo::new(1, 2).b, 2);
             assert_eq!(new_foo(1).a, 1);
 
-            let v = vec![Foo::new(1, 2), Foo::new(3, 2)];
+            let v = [Foo::new(1, 2), Foo::new(3, 2)];
 
             assert_eq!(v[0].a, 1);
             assert_eq!(v[1].b, 2);
