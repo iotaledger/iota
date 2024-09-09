@@ -10,6 +10,7 @@ use config::{Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{NetworkKeyPair, PublicKey};
 use fastcrypto::traits::KeyPair;
 use iota_metrics::{RegistryID, RegistryService};
+use iota_protocol_config::ProtocolConfig;
 use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::NodeStorage;
@@ -26,6 +27,7 @@ use crate::{metrics::new_registry, try_join_all, FuturesUnordered, NodeError};
 pub struct WorkerNodeInner {
     // The worker's id
     id: WorkerId,
+    protocol_config: ProtocolConfig,
     // The configuration parameters.
     parameters: Parameters,
     // A prometheus RegistryService to use for the metrics
@@ -97,6 +99,7 @@ impl WorkerNodeInner {
             self.id,
             committee.clone(),
             worker_cache.clone(),
+            self.protocol_config.clone(),
             self.parameters.clone(),
             tx_validator.clone(),
             client.clone(),
@@ -184,11 +187,13 @@ pub struct WorkerNode {
 impl WorkerNode {
     pub fn new(
         id: WorkerId,
+        protocol_config: ProtocolConfig,
         parameters: Parameters,
         registry_service: RegistryService,
     ) -> WorkerNode {
         let inner = WorkerNodeInner {
             id,
+            protocol_config,
             parameters,
             registry_service,
             registry: None,
@@ -281,6 +286,7 @@ impl WorkerNodes {
         ids_and_keypairs: Vec<(WorkerId, NetworkKeyPair)>,
         // The committee information.
         committee: Committee,
+        protocol_config: ProtocolConfig,
         // The worker information cache.
         worker_cache: WorkerCache,
         // Client for communications.
@@ -312,6 +318,7 @@ impl WorkerNodes {
         for (worker_id, key_pair) in ids_and_keypairs {
             let worker = WorkerNode::new(
                 worker_id,
+                protocol_config.clone(),
                 self.parameters.clone(),
                 self.registry_service.clone(),
             );

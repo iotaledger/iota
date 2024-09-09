@@ -508,10 +508,8 @@ fn setup_telemetry(
 //     let filter = EnvFilter::builder()
 //         .with_default_directive(LevelFilter::INFO.into())
 //         .parse(format!(
-//
-// "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},
-// hyper={network_tracing_level},tonic::transport={network_tracing_level},
-// {custom_directive}"         ))?;
+//             "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},{custom_directive}"
+//         ))?;
 
 //     let env_filter = EnvFilter::try_from_default_env().unwrap_or(filter);
 
@@ -565,7 +563,7 @@ async fn run(
 
     // Make the data store.
     let certificate_store_cache_metrics =
-        CertificateStoreCacheMetrics::new(&registry_service.default_registry());
+        Arc::new(CertificateStoreCacheMetrics::new(registry_service.clone()));
     let store = NodeStorage::reopen(store_path, Some(certificate_store_cache_metrics.clone()));
 
     let client = NetworkClient::new_from_keypair(&primary_network_keypair);
@@ -594,7 +592,12 @@ async fn run(
             (Some(primary), None, None)
         }
         NodeType::Worker { id } => {
-            let worker = WorkerNode::new(*id, parameters.clone(), registry_service.clone());
+            let worker = WorkerNode::new(
+                *id,
+                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
+                parameters.clone(),
+                registry_service.clone(),
+            );
 
             worker
                 .start(
@@ -634,7 +637,12 @@ async fn run(
                 )
                 .await?;
 
-            let worker = WorkerNode::new(*worker_id, parameters.clone(), registry_service.clone());
+            let worker = WorkerNode::new(
+                *worker_id,
+                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
+                parameters.clone(),
+                registry_service.clone(),
+            );
 
             let mut worker_store_path = PathBuf::new();
             if let Some(parent) = store_path.parent() {
