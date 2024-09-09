@@ -3,7 +3,7 @@
 
 import { LabelText, LabelTextSize } from '@iota/apps-ui-kit';
 import { CoinFormat, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/src/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function TokenStats({
     amount,
