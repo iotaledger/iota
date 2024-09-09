@@ -1,32 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use fastcrypto::encoding::{Encoding, Hex};
-use move_core_types::annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout};
-use move_core_types::language_storage::StructTag;
-use move_core_types::u256::U256;
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
+use iota_framework::BuiltInFramework;
+use iota_move_build::BuildConfig;
+use iota_types::{
+    base_types::{
+        IotaAddress, ObjectID, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+    },
+    dynamic_field::derive_dynamic_field_id,
+    gas_coin::GasCoin,
+    object::Object,
+    parse_iota_type_tag, MOVE_STDLIB_ADDRESS,
+};
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    ident_str,
+    identifier::Identifier,
+    language_storage::StructTag,
+    u256::U256,
+};
+use serde::Serialize;
 use serde_json::{json, Value};
 use test_fuzz::runtime::num_traits::ToPrimitive;
 
-use sui_framework::BuiltInFramework;
-use sui_move_build::BuildConfig;
-use sui_types::base_types::{
-    ObjectID, SuiAddress, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-    STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
-};
-use sui_types::dynamic_field::derive_dynamic_field_id;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::Object;
-use sui_types::{parse_sui_type_tag, MOVE_STDLIB_ADDRESS};
-
+use super::{check_valid_homogeneous, resolve_move_function_args, IotaJsonValue, HEX_PREFIX};
 use crate::ResolvedCallArg;
-
-use super::{check_valid_homogeneous, HEX_PREFIX};
-use super::{resolve_move_function_args, SuiJsonValue};
 
 // Negative test cases
 #[test]
@@ -86,14 +90,14 @@ fn test_json_is_homogeneous() {
 #[test]
 fn test_json_struct_homogeneous() {
     let positive = json!({"inner_vec":[1, 2, 3, 4, 5, 6, 7]});
-    assert!(SuiJsonValue::new(positive).is_ok());
+    assert!(IotaJsonValue::new(positive).is_ok());
 
     let negative = json!({"inner_vec":[1, 2, 3, true, 5, 6, 7]});
-    assert!(SuiJsonValue::new(negative).is_err());
+    assert!(IotaJsonValue::new(negative).is_err());
 }
 
 #[test]
-fn test_json_is_not_valid_sui_json() {
+fn test_json_is_not_valid_iota_json() {
     let checks = vec![
         // Not homogeneous
         (json!([1, 2, 3, true, 5, 6, 7])),
@@ -109,12 +113,12 @@ fn test_json_is_not_valid_sui_json() {
 
     // Driver
     for arg in checks {
-        assert!(SuiJsonValue::new(arg).is_err());
+        assert!(IotaJsonValue::new(arg).is_err());
     }
 }
 
 #[test]
-fn test_json_is_valid_sui_json() {
+fn test_json_is_valid_iota_json() {
     let checks = vec![
         // Homogeneous
         (json!([1, 2, 3, 4, 5, 6, 7])),
@@ -131,7 +135,7 @@ fn test_json_is_valid_sui_json() {
 
     // Driver
     for arg in checks {
-        assert!(SuiJsonValue::new(arg).is_ok());
+        assert!(IotaJsonValue::new(arg).is_ok());
     }
 }
 
@@ -140,51 +144,58 @@ fn test_basic_args_linter_pure_args_bad() {
     let bad_hex_val = "0x1234AB  CD";
 
     let checks = vec![
-            // Although U256 value can be encoded as num, we enforce it must be a string
-            (
-                Value::from(123),
-                MoveTypeLayout::U256,
+        // Although U256 value can be encoded as num, we enforce it must be a string
+        (Value::from(123), MoveTypeLayout::U256),
+        // Space not allowed
+        (Value::from(" 9"), MoveTypeLayout::U8),
+        // Hex must start with 0x
+        (Value::from("AB"), MoveTypeLayout::U8),
+        // Too large
+        (Value::from("123456789"), MoveTypeLayout::U8),
+        // Too large
+        (
+            Value::from("123456789123456789123456789123456789"),
+            MoveTypeLayout::U64,
+        ),
+        // Too large
+        (
+            Value::from(
+                "123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789",
             ),
-             // Space not allowed
-             (Value::from(" 9"), MoveTypeLayout::U8),
-             // Hex must start with 0x
-             (Value::from("AB"), MoveTypeLayout::U8),
-             // Too large
-             (Value::from("123456789"), MoveTypeLayout::U8),
-             // Too large
-             (Value::from("123456789123456789123456789123456789"), MoveTypeLayout::U64),
-             // Too large
-             (Value::from("123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789"), MoveTypeLayout::U128),
-             // U64 value greater than 255 cannot be used as U8
-             (Value::from(900u64), MoveTypeLayout::U8),
-             // floats cannot be used as U8
-             (Value::from(0.4f32), MoveTypeLayout::U8),
-             // floats cannot be used as U64
-             (Value::from(3.4f32), MoveTypeLayout::U64),
-             // Negative cannot be used as U64
-             (Value::from(-19), MoveTypeLayout::U64),
-             // Negative cannot be used as Unsigned
-             (Value::from(-1), MoveTypeLayout::U8),
-              // u8 vector from bad hex repr
-            (
-                Value::from(bad_hex_val),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            ),
-            // u8 vector from heterogeneous array
-            (
-                json!([1, 2, 3, true, 5, 6, 7]),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            ),
-            // U64 deep nest, bad because heterogeneous array
-            (
-                json!([[[9, 53, 434], [0], [300]], [], [300, 4, 5, 6, 7]]),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U64)))),
-            ),
+            MoveTypeLayout::U128,
+        ),
+        // U64 value greater than 255 cannot be used as U8
+        (Value::from(900u64), MoveTypeLayout::U8),
+        // floats cannot be used as U8
+        (Value::from(0.4f32), MoveTypeLayout::U8),
+        // floats cannot be used as U64
+        (Value::from(3.4f32), MoveTypeLayout::U64),
+        // Negative cannot be used as U64
+        (Value::from(-19), MoveTypeLayout::U64),
+        // Negative cannot be used as Unsigned
+        (Value::from(-1), MoveTypeLayout::U8),
+        // u8 vector from bad hex repr
+        (
+            Value::from(bad_hex_val),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+        ),
+        // u8 vector from heterogeneous array
+        (
+            json!([1, 2, 3, true, 5, 6, 7]),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+        ),
+        // U64 deep nest, bad because heterogeneous array
+        (
+            json!([[[9, 53, 434], [0], [300]], [], [300, 4, 5, 6, 7]]),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
+                MoveTypeLayout::U64,
+            )))),
+        ),
     ];
 
     // Driver
     for (arg, expected_type) in checks {
-        let r = SuiJsonValue::new(arg);
+        let r = IotaJsonValue::new(arg);
         assert!(r.is_err() || r.unwrap().to_bcs_bytes(&expected_type).is_err());
     }
 }
@@ -405,7 +416,7 @@ fn test_basic_args_linter_pure_args_good() {
 
     // Driver
     for (arg, expected_type, expected_val) in checks {
-        let r = SuiJsonValue::new(arg);
+        let r = IotaJsonValue::new(arg);
         // Must conform
         assert!(r.is_ok());
         // Must be serializable
@@ -417,10 +428,9 @@ fn test_basic_args_linter_pure_args_good() {
 
 #[test]
 fn test_basic_args_linter_top_level() {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sui_programmability/examples/nfts");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
     let compiled_modules = BuildConfig::new_for_testing()
-        .build(path)
+        .build(&path)
         .unwrap()
         .into_modules();
     let example_package = Object::new_package_for_testing(
@@ -429,236 +439,81 @@ fn test_basic_args_linter_top_level() {
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
-    let example_package = example_package.data.try_as_package().unwrap();
+    let package = example_package.data.try_as_package().unwrap();
 
-    let module = Identifier::new("geniteam").unwrap();
-    let function = Identifier::new("create_monster").unwrap();
+    let module = Identifier::new("resolve_args").unwrap();
+    let function = Identifier::new("foo").unwrap();
 
-    /*
-    Function signature:
-            public fun create_monster(
-                _player: &mut Player,
-                farm: &mut Farm,
-                pet_monsters: &mut Collection,
-                monster_name: vector<u8>,
-                monster_img_index: u64,
-                breed: u8,
-                monster_affinity: u8,
-                monster_description: vector<u8>,
-                display: vector<u8>,
-                ctx: &mut TxContext
-            )
-    */
+    // Function signature:
+    // foo(
+    //     _foo: &mut Foo,
+    //     _bar: vector<Foo>,
+    //     _name: vector<u8>,
+    //     _index: u64,
+    //     _flag: u8,
+    //     _recipient: address,
+    //     _ctx: &mut TxContext,
+    // )
 
-    let monster_name_raw = "MonsterName";
-    let monster_img_id_raw = "12345678";
-    let breed_raw = 89;
-    let monster_affinity_raw = 200;
-    let monster_description_raw = "MonsterDescription";
-    let display_raw = "DisplayUrl";
+    let foo_id = ObjectID::random();
+    let bar_id = ObjectID::random();
+    let baz_id = ObjectID::random();
+    let recipient_addr = IotaAddress::random_for_testing_only();
 
-    let player_id = json!(format!("0x{}", ObjectID::random()));
-    // This is okay since not starting with 0x
-    let monster_name = json!(monster_name_raw);
-    // Well within U64 bounds
-    let monster_img_id = json!(monster_img_id_raw);
-    // Well within U8 bounds
-    let breed = json!(breed_raw);
-    // Well within U8 bounds
-    let monster_affinity = json!(monster_affinity_raw);
-    // This is okay since not starting with 0x
-    let monster_description = json!(monster_description_raw);
-    // This is okay since not starting with 0x
-    let display = json!(display_raw);
+    let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
+    let bar = json!([
+        bar_id.to_canonical_string(/* with_prefix */ true),
+        baz_id.to_canonical_string(/* with_prefix */ true),
+    ]);
 
-    // They have to be ordered
-    let args = vec![
-        player_id,
-        monster_name.clone(),
-        monster_img_id.clone(),
-        breed,
-        monster_affinity.clone(),
-        monster_description.clone(),
-        display.clone(),
+    let name = json!("Name");
+    let index = json!("12345678");
+    let flag = json!(89);
+    let recipient = json!(recipient_addr.to_string());
+
+    let args: Vec<_> = [
+        foo.clone(),
+        bar.clone(),
+        name.clone(),
+        index.clone(),
+        flag,
+        recipient.clone(),
     ]
-    .iter()
-    .map(|q| SuiJsonValue::new(q.clone()).unwrap())
+    .into_iter()
+    .map(|q| IotaJsonValue::new(q.clone()).unwrap())
     .collect();
 
-    let json_args =
-        resolve_move_function_args(example_package, module.clone(), function.clone(), &[], args)
-            .unwrap();
+    let json_args: Vec<_> =
+        resolve_move_function_args(package, module.clone(), function.clone(), &[], args)
+            .unwrap()
+            .into_iter()
+            .map(|(arg, _)| arg)
+            .collect();
 
-    assert!(!json_args.is_empty());
-
-    assert_eq!(
-        json_args[1].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&monster_name_raw.as_bytes().to_vec()).unwrap())
-    );
-    assert_eq!(
-        json_args[2].0,
-        ResolvedCallArg::Pure(
-            bcs::to_bytes(&(monster_img_id_raw.parse::<u64>().unwrap())).unwrap()
-        ),
-    );
-    assert_eq!(
-        json_args[3].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&(breed_raw as u8)).unwrap())
-    );
-    assert_eq!(
-        json_args[4].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&(monster_affinity_raw as u8)).unwrap()),
-    );
-    assert_eq!(
-        json_args[5].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&monster_description_raw.as_bytes().to_vec()).unwrap()),
-    );
-
-    // Breed is u8 so too large
-    let args = vec![
-        monster_name,
-        monster_img_id,
-        json!(10000u64),
-        monster_affinity,
-        monster_description,
-        display,
-    ]
-    .iter()
-    .map(|q| SuiJsonValue::new(q.clone()).unwrap())
-    .collect();
-    assert!(resolve_move_function_args(example_package, module, function, &[], args,).is_err());
-
-    // Test with vecu8 as address
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sui_programmability/examples/basics");
-    let compiled_modules = BuildConfig::new_for_testing()
-        .build(path)
-        .unwrap()
-        .into_modules();
-    let example_package = Object::new_package_for_testing(
-        &compiled_modules,
-        TransactionDigest::genesis_marker(),
-        BuiltInFramework::genesis_move_packages(),
-    )
-    .unwrap();
-    let framework_pkg = example_package.data.try_as_package().unwrap();
-
-    let module = Identifier::new("object_basics").unwrap();
-    let function = Identifier::new("create").unwrap();
-
-    /*
-    Function signature:
-            public fun create(value: u64, recipient: vector<u8>, ctx: &mut TxContext)
-    */
-    let value_raw = "29897";
-    let address = SuiAddress::random_for_testing_only();
-
-    let value = json!(value_raw);
-    // Encode as hex string
-    let addr = json!(format!("{address}"));
-
-    // They have to be ordered
-    let args = [value, addr]
-        .iter()
-        .map(|q| SuiJsonValue::new(q.clone()).unwrap())
-        .collect();
-
-    let args = resolve_move_function_args(framework_pkg, module, function, &[], args).unwrap();
-
-    assert_eq!(
-        args[0].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&(value_raw.parse::<u64>().unwrap())).unwrap())
-    );
-
-    // Need to verify this specially
-    // BCS serialzes addresses like vectors so there's a length prefix, which makes the vec longer by 1
-    assert_eq!(
-        args[1].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&AccountAddress::from(address)).unwrap()),
-    );
-
-    // Test with object args
-
-    let module = Identifier::new("object_basics").unwrap();
-    let function = Identifier::new("transfer").unwrap();
-
-    /*
-    Function signature:
-            public fun transfer(o: Object, recipient: vector<u8>, _ctx: &mut TxContext)
-    */
-    let object_id_raw = ObjectID::random();
-    let address = SuiAddress::random_for_testing_only();
-
-    let object_id = json!(format!("{object_id_raw}"));
-    // Encode as hex string
-    let addr = json!(format!("{address}"));
-
-    // They have to be ordered
-    let args = [object_id, addr]
-        .iter()
-        .map(|q| SuiJsonValue::new(q.clone()).unwrap())
-        .collect();
-
-    let args = resolve_move_function_args(framework_pkg, module, function, &[], args).unwrap();
-
-    assert_eq!(
-        args[0].0,
-        ResolvedCallArg::Object(
-            ObjectID::from_hex_literal(&format!("0x{}", object_id_raw)).unwrap()
-        )
-    );
-
-    // Need to verify this specially
-    // BCS serialzes addresses like vectors so there's a length prefix, which makes the vec longer by 1
-    assert_eq!(
-        args[1].0,
-        ResolvedCallArg::Pure(bcs::to_bytes(&AccountAddress::from(address)).unwrap())
-    );
-
-    // Test with object vector  args
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../sui-core/src/unit_tests/data/entry_point_vector");
-    let compiled_modules = BuildConfig::new_for_testing()
-        .build(path)
-        .unwrap()
-        .into_modules();
-    let example_package = Object::new_package_for_testing(
-        &compiled_modules,
-        TransactionDigest::genesis_marker(),
-        BuiltInFramework::genesis_move_packages(),
-    )
-    .unwrap();
-    let example_package = example_package.data.try_as_package().unwrap();
-
-    let module = Identifier::new("entry_point_vector").unwrap();
-    let function = Identifier::new("two_obj_vec_destroy").unwrap();
-
-    /*
-    Function signature:
-            public entry fun two_obj_vec_destroy(v: vector<Obj>, _: &mut TxContext)
-     */
-    let object_id_raw1 = ObjectID::random();
-    let object_id_raw2 = ObjectID::random();
-    let object_id1 = json!(format!("0x{}", object_id_raw1));
-    let object_id2 = json!(format!("0x{}", object_id_raw2));
-
-    let args = vec![SuiJsonValue::new(Value::Array(vec![object_id1, object_id2])).unwrap()];
-
-    let args = resolve_move_function_args(example_package, module, function, &[], args).unwrap();
-
-    assert!(matches!(args[0].0, ResolvedCallArg::ObjVec { .. }));
-
-    if let ResolvedCallArg::ObjVec(vec) = &args[0].0 {
-        assert_eq!(vec.len(), 2);
-        assert_eq!(
-            vec[0],
-            ObjectID::from_hex_literal(&format!("0x{}", object_id_raw1)).unwrap()
-        );
-        assert_eq!(
-            vec[1],
-            ObjectID::from_hex_literal(&format!("0x{}", object_id_raw2)).unwrap()
-        );
+    use ResolvedCallArg as RCA;
+    fn pure<T: Serialize>(t: &T) -> RCA {
+        RCA::Pure(bcs::to_bytes(t).unwrap())
     }
+
+    assert_eq!(
+        json_args,
+        vec![
+            RCA::Object(foo_id),
+            RCA::ObjVec(vec![bar_id, baz_id]),
+            pure(&"Name"),
+            pure(&12345678u64),
+            pure(&89u8),
+            pure(&recipient_addr),
+        ],
+    );
+
+    // Flag is u8 so too large
+    let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]
+        .into_iter()
+        .map(|q| IotaJsonValue::new(q.clone()).unwrap())
+        .collect();
+
+    assert!(resolve_move_function_args(package, module, function, &[], args,).is_err());
 }
 
 #[test]
@@ -668,7 +523,7 @@ fn test_convert_address_from_bcs() {
         245, 70, 122, 191, 100, 24, 123, 62, 239, 165, 85,
     ];
 
-    let value = SuiJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::Signer), &bcs_bytes).unwrap();
+    let value = IotaJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::Signer), &bcs_bytes).unwrap();
 
     assert_eq!(
         "0x32866f0109fa1ba911392dcd2d4260f1d824313316f5467abf64187b3eefa555",
@@ -679,7 +534,7 @@ fn test_convert_address_from_bcs() {
 #[test]
 fn test_convert_number_from_bcs() {
     let bcs_bytes = [160u8, 134, 1, 0];
-    let value = SuiJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::U32), &bcs_bytes).unwrap();
+    let value = IotaJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::U32), &bcs_bytes).unwrap();
     assert_eq!(100000, value.0.as_u64().unwrap());
 }
 
@@ -692,7 +547,7 @@ fn test_no_address_zero_trimming() {
         .unwrap(),
     )
     .unwrap();
-    let value = SuiJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::Address), &bcs_bytes).unwrap();
+    let value = IotaJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::Address), &bcs_bytes).unwrap();
     assert_eq!(
         "0x0000000000000000000000000000011111111111111111111111111111111111",
         value.0.as_str().unwrap()
@@ -705,7 +560,7 @@ fn test_convert_number_array_from_bcs() {
         5, 80, 195, 0, 0, 80, 195, 0, 0, 80, 195, 0, 0, 80, 195, 0, 0, 80, 195, 0, 0,
     ];
 
-    let value = SuiJsonValue::from_bcs_bytes(
+    let value = IotaJsonValue::from_bcs_bytes(
         Some(&MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U32))),
         &bcs_bytes,
     )
@@ -719,10 +574,10 @@ fn test_convert_number_array_from_bcs() {
 #[test]
 fn test_from_str() {
     // test number
-    let test = SuiJsonValue::from_str("10000").unwrap();
+    let test = IotaJsonValue::from_str("10000").unwrap();
     assert!(test.0.is_number());
     // Test array
-    let test = SuiJsonValue::from_str("[10,10,10,10]").unwrap();
+    let test = IotaJsonValue::from_str("[10,10,10,10]").unwrap();
     assert!(test.0.is_array());
     assert_eq!(
         vec![10, 10, 10, 10],
@@ -734,31 +589,31 @@ fn test_from_str() {
             .collect::<Vec<_>>()
     );
     // test bool
-    let test = SuiJsonValue::from_str("true").unwrap();
+    let test = IotaJsonValue::from_str("true").unwrap();
     assert!(test.0.is_boolean());
 
     // test id without quotes
     let object_id = ObjectID::random().to_hex_uncompressed();
-    let test = SuiJsonValue::from_str(&object_id).unwrap();
+    let test = IotaJsonValue::from_str(&object_id).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
 
     // test id with quotes
-    let test = SuiJsonValue::from_str(&format!("\"{}\"", &object_id)).unwrap();
+    let test = IotaJsonValue::from_str(&format!("\"{}\"", &object_id)).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
 
     // test string without quotes
-    let test = SuiJsonValue::from_str("Some string").unwrap();
+    let test = IotaJsonValue::from_str("Some string").unwrap();
     assert!(test.0.is_string());
     assert_eq!("Some string", test.0.as_str().unwrap());
 
     // test string with quotes
-    let test = SuiJsonValue::from_str("\"Some string\"").unwrap();
+    let test = IotaJsonValue::from_str("\"Some string\"").unwrap();
     assert!(test.0.is_string());
     assert_eq!("Some string", test.0.as_str().unwrap());
 
-    let test = SuiJsonValue::from_object_id(
+    let test = IotaJsonValue::from_object_id(
         ObjectID::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap(),
     );
@@ -770,7 +625,7 @@ fn test_from_str() {
 }
 
 #[test]
-fn test_sui_call_arg_string_type() {
+fn test_iota_call_arg_string_type() {
     let arg1 = bcs::to_bytes("Some String").unwrap();
 
     let string_layout = Some(MoveTypeLayout::Struct(MoveStructLayout {
@@ -785,13 +640,13 @@ fn test_sui_call_arg_string_type() {
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
         }],
     }));
-    let v = SuiJsonValue::from_bcs_bytes(string_layout.as_ref(), &arg1).unwrap();
+    let v = IotaJsonValue::from_bcs_bytes(string_layout.as_ref(), &arg1).unwrap();
 
     assert_eq!(json! {"Some String"}, v.to_json_value());
 }
 
 #[test]
-fn test_sui_call_arg_option_type() {
+fn test_iota_call_arg_option_type() {
     let arg1 = bcs::to_bytes(&Some("Some String")).unwrap();
 
     let string_layout = MoveTypeLayout::Struct(MoveStructLayout {
@@ -820,7 +675,7 @@ fn test_sui_call_arg_option_type() {
         }],
     });
 
-    let v = SuiJsonValue::from_bcs_bytes(Some(option_layout).as_ref(), &arg1).unwrap();
+    let v = IotaJsonValue::from_bcs_bytes(Some(option_layout).as_ref(), &arg1).unwrap();
 
     let bytes = v
         .to_bcs_bytes(&MoveTypeLayout::Vector(Box::new(string_layout)))
@@ -829,7 +684,7 @@ fn test_sui_call_arg_option_type() {
     assert_eq!(json! {["Some String"]}, v.to_json_value());
     assert_eq!(arg1, bytes);
 
-    let s = SuiJsonValue::from_str("[test, test2]").unwrap();
+    let s = IotaJsonValue::from_str("[test, test2]").unwrap();
     println!("{s:?}");
 }
 
@@ -838,11 +693,11 @@ fn test_convert_struct() {
     let layout = MoveTypeLayout::Struct(GasCoin::layout());
 
     let value = json!({"id":"0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a", "balance": "1000000"});
-    let sui_json = SuiJsonValue::new(value).unwrap();
+    let iota_json = IotaJsonValue::new(value).unwrap();
 
-    println!("JS: {:#?}", sui_json);
+    println!("JS: {:#?}", iota_json);
 
-    let bcs = sui_json.to_bcs_bytes(&layout).unwrap();
+    let bcs = iota_json.to_bcs_bytes(&layout).unwrap();
 
     let coin: GasCoin = bcs::from_bytes(&bcs).unwrap();
     assert_eq!(
@@ -873,9 +728,9 @@ fn test_convert_string_vec() {
     let layout = MoveTypeLayout::Vector(Box::new(string_layout));
 
     let value = json!(test_vec);
-    let sui_json = SuiJsonValue::new(value).unwrap();
+    let iota_json = IotaJsonValue::new(value).unwrap();
 
-    let bcs2 = sui_json.to_bcs_bytes(&layout).unwrap();
+    let bcs2 = iota_json.to_bcs_bytes(&layout).unwrap();
 
     assert_eq!(bcs, bcs2);
 }
@@ -888,7 +743,7 @@ fn test_string_vec_df_name_child_id_eq() {
     let name = json!({
         "labels": [
             "0x0001",
-            "sui"
+            "iota"
         ]
     });
 
@@ -918,12 +773,12 @@ fn test_string_vec_df_name_child_id_eq() {
         )],
     });
 
-    let sui_json = SuiJsonValue::new(name).unwrap();
-    let bcs2 = sui_json.to_bcs_bytes(&layout).unwrap();
+    let iota_json = IotaJsonValue::new(name).unwrap();
+    let bcs2 = iota_json.to_bcs_bytes(&layout).unwrap();
 
     let child_id = derive_dynamic_field_id(
         parent_id,
-        &parse_sui_type_tag(
+        &parse_iota_type_tag(
             "0x3278d6445c6403c96abe9e25cc1213a85de2bd627026ee57906691f9bbf2bf8a::domain::Domain",
         )
         .unwrap(),

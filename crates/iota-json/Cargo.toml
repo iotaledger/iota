@@ -1,27 +1,27 @@
 [package]
-name = "sui-json"
+name = "iota-json"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
+schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-schemars.workspace = true
 
-sui-framework.workspace = true
-sui-types.workspace = true
+iota-types.workspace = true
 
+fastcrypto = { workspace = true }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-fastcrypto = { workspace = true }
 
 [dev-dependencies]
+iota-framework.workspace = true
+iota-move-build.workspace = true
+iota-types = { workspace = true, features = ["test-utils"] }
 test-fuzz.workspace = true
-sui-types = { workspace = true, features = ["test-utils"] }
-sui-move-build.workspace = true
