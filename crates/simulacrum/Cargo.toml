@@ -1,34 +1,34 @@
 [package]
 name = "simulacrum"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
-async-trait.workspace = true   
 anyhow.workspace = true
+async-trait.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
+futures.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 once_cell.workspace = true
+prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 tracing.workspace = true
-prometheus.workspace = true
-futures.workspace = true
 
+iota-config.workspace = true
+iota-execution.workspace = true
+iota-framework.workspace = true
+iota-genesis-builder.workspace = true
+iota-keys.workspace = true
+iota-protocol-config.workspace = true
+iota-storage.workspace = true
+iota-swarm-config.workspace = true
+iota-transaction-checks.workspace = true
+iota-types.workspace = true
 move-bytecode-utils.workspace = true
 shared-crypto.workspace = true
-sui-config.workspace = true
-sui-framework.workspace = true
-sui-keys.workspace = true
-sui-protocol-config.workspace = true
-sui-storage.workspace = true
-sui-types.workspace = true
-sui-genesis-builder.workspace = true
-sui-execution.workspace = true
-sui-swarm-config.workspace = true
-sui-transaction-checks.workspace = true

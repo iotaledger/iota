@@ -1,63 +1,65 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A `Simulacrum` of Sui.
+//! A `Simulacrum` of Iota.
 //!
-//! The word simulacrum is latin for "likeness, semblance", it is also a spell in D&D which creates
-//! a copy of a creature which then follows the player's commands and wishes. As such this crate
-//! provides the [`Simulacrum`] type which is a implementation or instantiation of a sui
-//! blockchain, one which doesn't do anything unless acted upon.
+//! The word simulacrum is latin for "likeness, semblance", it is also a spell
+//! in D&D which creates a copy of a creature which then follows the player's
+//! commands and wishes. As such this crate provides the [`Simulacrum`] type
+//! which is a implementation or instantiation of a iota blockchain, one which
+//! doesn't do anything unless acted upon.
 //!
 //! [`Simulacrum`]: crate::Simulacrum
 
-use std::num::NonZeroUsize;
-use std::sync::Arc;
+use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use fastcrypto::traits::Signer;
-use rand::rngs::OsRng;
-use sui_config::{genesis, transaction_deny_config::TransactionDenyConfig};
-use sui_protocol_config::ProtocolVersion;
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_swarm_config::network_config_builder::ConfigBuilder;
-use sui_types::base_types::{AuthorityName, ObjectID, VersionNumber};
-use sui_types::crypto::AuthoritySignature;
-use sui_types::digests::ConsensusCommitDigest;
-use sui_types::object::Object;
-use sui_types::storage::{ObjectStore, ReadStore};
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
-use sui_types::transaction::EndOfEpochTransactionKind;
-use sui_types::{
-    base_types::SuiAddress,
+use iota_config::{genesis, transaction_deny_config::TransactionDenyConfig};
+use iota_protocol_config::ProtocolVersion;
+use iota_storage::blob::{Blob, BlobEncoding};
+use iota_swarm_config::{
+    genesis_config::AccountConfig, network_config::NetworkConfig,
+    network_config_builder::ConfigBuilder,
+};
+use iota_types::{
+    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
     committee::Committee,
+    crypto::AuthoritySignature,
+    digests::ConsensusCommitDigest,
     effects::TransactionEffects,
     error::ExecutionError,
-    gas_coin::MIST_PER_SUI,
+    gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
-    messages_checkpoint::{EndOfEpochData, VerifiedCheckpoint},
-    signature::VerifyParams,
-    transaction::{Transaction, VerifiedTransaction},
-};
-
-use self::epoch_state::EpochState;
-pub use self::store::in_mem_store::InMemoryStore;
-use self::store::in_mem_store::KeyStore;
-pub use self::store::SimulatorStore;
-use sui_types::mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider};
-use sui_types::{
-    gas_coin::GasCoin,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, EndOfEpochData, VerifiedCheckpoint,
+    },
+    mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{GasData, TransactionData, TransactionKind},
+    signature::VerifyParams,
+    storage::{ObjectStore, ReadStore, RestStateReader},
+    transaction::{
+        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
+        VerifiedTransaction,
+    },
 };
+use move_core_types::language_storage::StructTag;
+use rand::rngs::OsRng;
+
+pub use self::store::{in_mem_store::InMemoryStore, SimulatorStore};
+use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
+
 mod epoch_state;
 pub mod store;
 
-/// A `Simulacrum` of Sui.
+/// A `Simulacrum` of Iota.
 ///
-/// This type represents a simulated instantiation of a Sui blockchain that needs to be driven
-/// manually, that is time doesn't advance and checkpoints are not formed unless explicitly
-/// requested.
+/// This type represents a simulated instantiation of a Iota blockchain that
+/// needs to be driven manually, that is time doesn't advance and checkpoints
+/// are not formed unless explicitly requested.
 ///
 /// See [module level][mod] documentation for more details.
 ///
@@ -75,10 +77,12 @@ pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
 
     // Other
     deny_config: TransactionDenyConfig,
+    data_ingestion_path: Option<PathBuf>,
 }
 
 impl Simulacrum {
-    /// Create a new, random Simulacrum instance using an `OsRng` as the source of randomness.
+    /// Create a new, random Simulacrum instance using an `OsRng` as the source
+    /// of randomness.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self::new_with_rng(OsRng)
@@ -91,12 +95,12 @@ where
 {
     /// Create a new Simulacrum instance using the provided `rng`.
     ///
-    /// This allows you to create a fully deterministic initial chainstate when a seeded rng is
-    /// used.
+    /// This allows you to create a fully deterministic initial chainstate when
+    /// a seeded rng is used.
     ///
     /// ```
+    /// use rand::{rngs::StdRng, SeedableRng};
     /// use simulacrum::Simulacrum;
-    /// use rand::{SeedableRng, rngs::StdRng};
     ///
     /// # fn main() {
     /// let mut rng = StdRng::seed_from_u64(1);
@@ -140,7 +144,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let checkpoint_builder = MockCheckpointBuilder::new(config.genesis.checkpoint());
 
         let genesis = &config.genesis;
-        let epoch_state = EpochState::new(genesis.sui_system_object());
+        let epoch_state = EpochState::new(genesis.iota_system_object());
 
         Self {
             rng,
@@ -150,25 +154,29 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             checkpoint_builder,
             epoch_state,
             deny_config: TransactionDenyConfig::default(),
+            data_ingestion_path: None,
         }
     }
 
     /// Attempts to execute the provided Transaction.
     ///
-    /// The provided Transaction undergoes the same types of checks that a Validator does prior to
-    /// signing and executing in the production system. Some of these checks are as follows:
+    /// The provided Transaction undergoes the same types of checks that a
+    /// Validator does prior to signing and executing in the production
+    /// system. Some of these checks are as follows:
     /// - User signature is valid
     /// - Sender owns all OwnedObject inputs
     /// - etc
     ///
-    /// If the above checks are successful then the transaction is immediately executed, enqueued
-    /// to be included in the next checkpoint (the next time `create_checkpoint` is called) and the
-    /// corresponding TransactionEffects are returned.
+    /// If the above checks are successful then the transaction is immediately
+    /// executed, enqueued to be included in the next checkpoint (the next
+    /// time `create_checkpoint` is called) and the corresponding
+    /// TransactionEffects are returned.
     pub fn execute_transaction(
         &mut self,
         transaction: Transaction,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
-        let transaction = transaction.verify(&VerifyParams::default())?;
+        let transaction = transaction
+            .try_into_verified_for_testing(self.epoch_state.epoch(), &VerifyParams::default())?;
 
         let (inner_temporary_store, _, effects, execution_error_opt) = self
             .epoch_state
@@ -191,32 +199,36 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         Ok((effects, execution_error_opt.err()))
     }
 
-    /// Creates the next Checkpoint using the Transactions enqueued since the last checkpoint was
-    /// created.
+    /// Creates the next Checkpoint using the Transactions enqueued since the
+    /// last checkpoint was created.
     pub fn create_checkpoint(&mut self) -> VerifiedCheckpoint {
         let committee = CommitteeWithKeys::new(&self.keystore, self.epoch_state.committee());
         let (checkpoint, contents, _) = self
             .checkpoint_builder
             .build(&committee, self.store.get_clock().timestamp_ms());
         self.store.insert_checkpoint(checkpoint.clone());
-        self.store.insert_checkpoint_contents(contents);
+        self.store.insert_checkpoint_contents(contents.clone());
+        self.process_data_ingestion(checkpoint.clone(), contents)
+            .unwrap();
         checkpoint
     }
 
     /// Advances the clock by `duration`.
     ///
-    /// This creates and executes a ConsensusCommitPrologue transaction which advances the chain
-    /// Clock by the provided duration.
+    /// This creates and executes a ConsensusCommitPrologue transaction which
+    /// advances the chain Clock by the provided duration.
     pub fn advance_clock(&mut self, duration: std::time::Duration) -> TransactionEffects {
         let epoch = self.epoch_state.epoch();
         let round = self.epoch_state.next_consensus_round();
         let timestamp_ms = self.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
+
         let consensus_commit_prologue_transaction =
-            VerifiedTransaction::new_consensus_commit_prologue_v2(
+            VerifiedTransaction::new_consensus_commit_prologue_v3(
                 epoch,
                 round,
                 timestamp_ms,
                 ConsensusCommitDigest::default(),
+                Vec::new(),
             );
 
         self.execute_transaction(consensus_commit_prologue_transaction.into())
@@ -226,16 +238,17 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
     /// Advances the epoch.
     ///
-    /// This creates and executes an EndOfEpoch transaction which advances the chain into the next
-    /// epoch. Since it is required to be the final transaction in an epoch, the final checkpoint in
-    /// the epoch is also created.
+    /// This creates and executes an EndOfEpoch transaction which advances the
+    /// chain into the next epoch. Since it is required to be the final
+    /// transaction in an epoch, the final checkpoint in the epoch is also
+    /// created.
     ///
-    /// create_random_state controls whether a `RandomStateCreate` end of epoch transaction is
-    /// included as part of this epoch change (to initialise on-chain randomness for the first
-    /// time).
+    /// create_random_state controls whether a `RandomStateCreate` end of epoch
+    /// transaction is included as part of this epoch change (to initialise
+    /// on-chain randomness for the first time).
     ///
-    /// NOTE: This function does not currently support updating the protocol version or the system
-    /// packages
+    /// NOTE: This function does not currently support updating the protocol
+    /// version or the system packages
     pub fn advance_epoch(&mut self, create_random_state: bool) {
         let next_epoch = self.epoch_state.epoch() + 1;
         let next_epoch_protocol_version = self.epoch_state.protocol_version();
@@ -278,8 +291,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             end_of_epoch_data,
         );
 
-        self.store.insert_checkpoint(checkpoint);
-        self.store.insert_checkpoint_contents(contents);
+        self.store.insert_checkpoint(checkpoint.clone());
+        self.store.insert_checkpoint_contents(contents.clone());
+        self.process_data_ingestion(checkpoint, contents).unwrap();
         self.epoch_state = new_epoch_state;
     }
 
@@ -297,9 +311,10 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
     /// Return a handle to the internally held RNG.
     ///
-    /// Returns a handle to the RNG used to create this Simulacrum for use as a source of
-    /// randomness. Using a seeded RNG to build a Simulacrum and then utilizing the stored RNG as a
-    /// source of randomness can lead to a fully deterministic chain evolution.
+    /// Returns a handle to the RNG used to create this Simulacrum for use as a
+    /// source of randomness. Using a seeded RNG to build a Simulacrum and
+    /// then utilizing the stored RNG as a source of randomness can lead to
+    /// a fully deterministic chain evolution.
     pub fn rng(&mut self) -> &mut R {
         &mut self.rng
     }
@@ -309,56 +324,81 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         self.epoch_state.reference_gas_price()
     }
 
-    /// Request that `amount` Mist be sent to `address` from a faucet account.
+    /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
+    /// use iota_types::{base_types::IotaAddress, gas_coin::NANOS_PER_IOTA};
     /// use simulacrum::Simulacrum;
-    /// use sui_types::base_types::SuiAddress;
-    /// use sui_types::gas_coin::MIST_PER_SUI;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
-    /// let address = SuiAddress::generate(simulacrum.rng());
-    /// simulacrum.request_gas(address, MIST_PER_SUI).unwrap();
+    /// let address = IotaAddress::generate(simulacrum.rng());
+    /// simulacrum.request_gas(address, NANOS_PER_IOTA).unwrap();
     ///
-    /// // `account` now has a Coin<SUI> object with single SUI in it.
+    /// // `account` now has a Coin<IOTA> object with single IOTA in it.
     /// // ...
     /// # }
     /// ```
-    pub fn request_gas(&mut self, address: SuiAddress, amount: u64) -> Result<TransactionEffects> {
-        // For right now we'll just use the first account as the `faucet` account. We may want to
-        // explicitly cordon off the faucet account from the rest of the accounts though.
+    pub fn request_gas(&mut self, address: IotaAddress, amount: u64) -> Result<TransactionEffects> {
+        // For right now we'll just use the first account as the `faucet` account. We
+        // may want to explicitly cordon off the faucet account from the rest of
+        // the accounts though.
         let (sender, key) = self.keystore().accounts().next().unwrap();
         let object = self
             .store()
             .owned_objects(*sender)
             .find(|object| {
-                object.is_gas_coin() && object.get_coin_value_unsafe() > amount + MIST_PER_SUI
+                object.is_gas_coin() && object.get_coin_value_unsafe() > amount + NANOS_PER_IOTA
             })
             .ok_or_else(|| {
-                anyhow!("unable to find a coin with enough to satisfy request for {amount} Mist")
+                anyhow!("unable to find a coin with enough to satisfy request for {amount} Nanos")
             })?;
 
-        let gas_data = sui_types::transaction::GasData {
+        let gas_data = iota_types::transaction::GasData {
             payment: vec![object.compute_object_reference()],
             owner: *sender,
             price: self.reference_gas_price(),
-            budget: MIST_PER_SUI,
+            budget: NANOS_PER_IOTA,
         };
 
         let pt = {
             let mut builder =
-                sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder::new();
-            builder.transfer_sui(address, Some(amount));
+                iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder::new();
+            builder.transfer_iota(address, Some(amount));
             builder.finish()
         };
 
-        let kind = sui_types::transaction::TransactionKind::ProgrammableTransaction(pt);
+        let kind = iota_types::transaction::TransactionKind::ProgrammableTransaction(pt);
         let tx_data =
-            sui_types::transaction::TransactionData::new_with_gas_data(kind, *sender, gas_data);
+            iota_types::transaction::TransactionData::new_with_gas_data(kind, *sender, gas_data);
         let tx = Transaction::from_data_and_signer(tx_data, vec![key]);
 
         self.execute_transaction(tx).map(|x| x.0)
+    }
+
+    pub fn set_data_ingestion_path(&mut self, data_ingestion_path: PathBuf) {
+        self.data_ingestion_path = Some(data_ingestion_path);
+        let checkpoint = self.store.get_checkpoint_by_sequence_number(0).unwrap();
+        let contents = self
+            .store
+            .get_checkpoint_contents(&checkpoint.content_digest);
+        self.process_data_ingestion(checkpoint, contents.unwrap())
+            .unwrap();
+    }
+
+    fn process_data_ingestion(
+        &self,
+        checkpoint: VerifiedCheckpoint,
+        checkpoint_contents: CheckpointContents,
+    ) -> anyhow::Result<()> {
+        if let Some(path) = &self.data_ingestion_path {
+            let file_name = format!("{}.chk", checkpoint.sequence_number);
+            let checkpoint_data = self.get_checkpoint_data(checkpoint, checkpoint_contents)?;
+            std::fs::create_dir_all(path)?;
+            let blob = Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?;
+            std::fs::write(path.join(file_name), blob.to_bytes())?;
+        }
+        Ok(())
     }
 }
 
@@ -394,7 +434,7 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
     fn get_object(
         &self,
         object_id: &ObjectID,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(store::SimulatorStore::get_object(&self.store, object_id))
     }
 
@@ -402,7 +442,7 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.store.get_object_by_key(object_id, version)
     }
 }
@@ -410,47 +450,47 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
 impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn get_committee(
         &self,
-        _epoch: sui_types::committee::EpochId,
-    ) -> sui_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+        _epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
         todo!()
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         Ok(self.store().get_highest_checkpint().unwrap())
     }
 
     fn get_highest_verified_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_highest_synced_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_lowest_available_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<sui_types::messages_checkpoint::CheckpointSequenceNumber>
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
     {
-        // TODO wire this up to the underlying sim store, for now this will work since we never
-        // prune the sim store
+        // TODO wire this up to the underlying sim store, for now this will work since
+        // we never prune the sim store
         Ok(0)
     }
 
     fn get_checkpoint_by_digest(
         &self,
-        digest: &sui_types::messages_checkpoint::CheckpointDigest,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.store().get_checkpoint_by_digest(digest))
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self
             .store()
             .get_checkpoint_by_sequence_number(sequence_number))
@@ -458,66 +498,133 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn get_checkpoint_contents_by_digest(
         &self,
-        digest: &sui_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<Option<sui_types::messages_checkpoint::CheckpointContents>>
-    {
+        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         Ok(self.store().get_checkpoint_contents(digest))
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<sui_types::messages_checkpoint::CheckpointContents>>
-    {
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         todo!()
     }
 
     fn get_transaction(
         &self,
-        tx_digest: &sui_types::digests::TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.store().get_transaction(tx_digest).map(Arc::new))
     }
 
     fn get_transaction_effects(
         &self,
-        tx_digest: &sui_types::digests::TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEffects>> {
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.store().get_transaction_effects(tx_digest))
     }
 
     fn get_events(
         &self,
-        event_digest: &sui_types::digests::TransactionEventsDigest,
-    ) -> sui_types::storage::error::Result<Option<sui_types::effects::TransactionEvents>> {
+        event_digest: &iota_types::digests::TransactionEventsDigest,
+    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.store().get_transaction_events(event_digest))
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
     }
 
     fn get_full_checkpoint_contents(
         &self,
-        _digest: &sui_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
+        todo!()
+    }
+}
+
+impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for Simulacrum<T, V> {
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointSequenceNumber>,
+    > {
+        todo!()
+    }
+
+    fn get_lowest_available_checkpoint_objects(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        Ok(0)
+    }
+
+    fn get_chain_identifier(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
+        Ok(self
+            .store()
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .digest()
+            .to_owned()
+            .into())
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: IotaAddress,
+        _cursor: Option<ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::AccountOwnedObjectInfo> + '_>,
+    > {
+        todo!()
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<
+            dyn Iterator<
+                    Item = (
+                        iota_types::storage::DynamicFieldKey,
+                        iota_types::storage::DynamicFieldIndexInfo,
+                    ),
+                > + '_,
+        >,
+    > {
+        todo!()
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         todo!()
     }
 }
 
 impl Simulacrum {
     /// Generate a random transfer transaction.
-    /// TODO: This is here today to make it easier to write tests. But we should utilize all the
-    /// existing code for generating transactions in sui-test-transaction-builder by defining a trait
-    /// that both WalletContext and Simulacrum implement. Then we can remove this function.
-    pub fn transfer_txn(&mut self, recipient: SuiAddress) -> (Transaction, u64) {
+    /// TODO: This is here today to make it easier to write tests. But we should
+    /// utilize all the existing code for generating transactions in
+    /// iota-test-transaction-builder by defining a trait
+    /// that both WalletContext and Simulacrum implement. Then we can remove
+    /// this function.
+    pub fn transfer_txn(&mut self, recipient: IotaAddress) -> (Transaction, u64) {
         let (sender, key) = self.keystore().accounts().next().unwrap();
         let sender = *sender;
 
@@ -531,7 +638,7 @@ impl Simulacrum {
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            builder.transfer_sui(recipient, Some(transfer_amount));
+            builder.transfer_iota(recipient, Some(transfer_amount));
             builder.finish()
         };
 
@@ -552,11 +659,11 @@ impl Simulacrum {
 mod tests {
     use std::time::Duration;
 
-    use rand::{rngs::StdRng, SeedableRng};
-    use sui_types::{
-        base_types::SuiAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
+    use iota_types::{
+        base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
         transaction::TransactionDataAPI,
     };
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::*;
 
@@ -629,7 +736,7 @@ mod tests {
     #[test]
     fn transfer() {
         let mut sim = Simulacrum::new();
-        let recipient = SuiAddress::random_for_testing_only();
+        let recipient = IotaAddress::random_for_testing_only();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
         let gas_id = tx.data().transaction_data().gas_data().payment[0].0;
