@@ -1,15 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::health::HealthResponse;
-use crate::DEFAULT_PORT;
 use anyhow::Result;
-use axum::routing::get;
-use axum::Json;
-use axum::Router;
+use axum::{routing::get, Json, Router};
 use tracing::debug;
 
-pub fn get_mysten_service<S>(app_name: &str, app_version: &str) -> Router<S>
+use crate::{health::HealthResponse, DEFAULT_PORT};
+
+pub fn get_iota_service<S>(app_name: &str, app_version: &str) -> Router<S>
 where
     S: Send + Clone + Sync + 'static,
 {
@@ -23,8 +22,10 @@ where
 pub async fn serve(app: Router) -> Result<()> {
     // run it with hyper on localhost:3000
     debug!("listening on http://localhost:{}", DEFAULT_PORT);
-    axum::Server::bind(&format!("0.0.0.0:{}", DEFAULT_PORT).parse()?)
-        .serve(app.into_make_service())
-        .await?;
+
+    let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", DEFAULT_PORT))
+        .await
+        .unwrap();
+    axum::serve(listener, app).await?;
     Ok(())
 }

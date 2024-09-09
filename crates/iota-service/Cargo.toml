@@ -1,21 +1,22 @@
 [package]
-name = "mysten-service"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
-license = "Apache-2.0"
+name = "iota-service"
 version = "0.0.1"
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
-tokio.workspace = true
-serde.workspace = true
+iota-metrics.workspace = true
 prometheus.workspace = true
-mysten-metrics.workspace = true
+serde.workspace = true
+simple-server-timing-header.workspace = true
 telemetry-subscribers.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-tower.workspace = true
 serde_json.workspace = true
+tower.workspace = true
