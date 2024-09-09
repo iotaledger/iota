@@ -1,28 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::test_adapter::{FakeID, SuiTestAdapter};
 use anyhow::{bail, ensure};
-use clap;
-use clap::{Args, Parser};
-use move_command_line_common::parser::{parse_u256, parse_u64};
-use move_command_line_common::values::{ParsableValue, ParsedValue};
-use move_command_line_common::{parser::Parser as MoveCLParser, values::ValueToken};
+use clap::{self, Args, Parser};
+use iota_types::{
+    base_types::{IotaAddress, SequenceNumber},
+    move_package::UpgradePolicy,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CallArg, ObjectArg},
+};
+use move_command_line_common::{
+    parser::{parse_u256, parse_u64, Parser as MoveCLParser},
+    values::{ParsableValue, ParsedValue, ValueToken},
+};
 use move_compiler::editions::Flavor;
-use move_core_types::runtime_value::{MoveStruct, MoveValue};
-use move_core_types::u256::U256;
+use move_core_types::{
+    runtime_value::{MoveStruct, MoveValue},
+    u256::U256,
+};
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::tasks::{RunCommand, SyntaxChoice};
-use sui_types::base_types::{SequenceNumber, SuiAddress};
-use sui_types::move_package::UpgradePolicy;
-use sui_types::object::{Object, Owner};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, CallArg, ObjectArg};
 
-pub const SUI_ARGS_LONG: &str = "sui-args";
+use crate::test_adapter::{FakeID, IotaTestAdapter};
+
+pub const IOTA_ARGS_LONG: &str = "iota-args";
 
 #[derive(Clone, Debug, clap::Parser)]
-pub struct SuiRunArgs {
+pub struct IotaRunArgs {
     #[clap(long = "sender")]
     pub sender: Option<String>,
     #[clap(long = "gas-price")]
@@ -32,7 +38,7 @@ pub struct SuiRunArgs {
 }
 
 #[derive(Debug, clap::Parser, Default)]
-pub struct SuiPublishArgs {
+pub struct IotaPublishArgs {
     #[clap(long = "sender")]
     pub sender: Option<String>,
     #[clap(long = "upgradeable", action = clap::ArgAction::SetTrue)]
@@ -44,7 +50,7 @@ pub struct SuiPublishArgs {
 }
 
 #[derive(Debug, clap::Parser)]
-pub struct SuiInitArgs {
+pub struct IotaInitArgs {
     #[clap(long = "accounts", num_args(1..))]
     pub accounts: Option<Vec<String>>,
     #[clap(long = "protocol-version")]
@@ -107,11 +113,11 @@ pub struct ProgrammableTransactionCommand {
     pub dev_inspect: bool,
     #[clap(
         long = "inputs",
-        value_parser = ParsedValue::<SuiExtraValueArgs>::parse,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
         num_args(1..),
         action = clap::ArgAction::Append,
     )]
-    pub inputs: Vec<ParsedValue<SuiExtraValueArgs>>,
+    pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -145,8 +151,8 @@ pub struct StagePackageCommand {
 #[derive(Debug, clap::Parser)]
 pub struct SetAddressCommand {
     pub address: String,
-    #[clap(value_parser = ParsedValue::<SuiExtraValueArgs>::parse)]
-    pub input: ParsedValue<SuiExtraValueArgs>,
+    #[clap(value_parser = ParsedValue::<IotaExtraValueArgs>::parse)]
+    pub input: ParsedValue<IotaExtraValueArgs>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -198,7 +204,7 @@ pub struct SetRandomStateCommand {
 }
 
 #[derive(Debug)]
-pub enum SuiSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
+pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     ViewObject(ViewObjectCommand),
     TransferObject(TransferObjectCommand),
     ConsensusCommitPrologue(ConsensusCommitPrologueCommand),
@@ -217,53 +223,55 @@ pub enum SuiSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
-    for SuiSubcommand<ExtraValueArgs, ExtraRunArgs>
+    for IotaSubcommand<ExtraValueArgs, ExtraRunArgs>
 {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
         Ok(match matches.subcommand() {
             Some(("view-object", matches)) => {
-                SuiSubcommand::ViewObject(ViewObjectCommand::from_arg_matches(matches)?)
+                IotaSubcommand::ViewObject(ViewObjectCommand::from_arg_matches(matches)?)
             }
             Some(("transfer-object", matches)) => {
-                SuiSubcommand::TransferObject(TransferObjectCommand::from_arg_matches(matches)?)
+                IotaSubcommand::TransferObject(TransferObjectCommand::from_arg_matches(matches)?)
             }
-            Some(("consensus-commit-prologue", matches)) => SuiSubcommand::ConsensusCommitPrologue(
-                ConsensusCommitPrologueCommand::from_arg_matches(matches)?,
-            ),
-            Some(("programmable", matches)) => SuiSubcommand::ProgrammableTransaction(
+            Some(("consensus-commit-prologue", matches)) => {
+                IotaSubcommand::ConsensusCommitPrologue(
+                    ConsensusCommitPrologueCommand::from_arg_matches(matches)?,
+                )
+            }
+            Some(("programmable", matches)) => IotaSubcommand::ProgrammableTransaction(
                 ProgrammableTransactionCommand::from_arg_matches(matches)?,
             ),
             Some(("upgrade", matches)) => {
-                SuiSubcommand::UpgradePackage(UpgradePackageCommand::from_arg_matches(matches)?)
+                IotaSubcommand::UpgradePackage(UpgradePackageCommand::from_arg_matches(matches)?)
             }
             Some(("stage-package", matches)) => {
-                SuiSubcommand::StagePackage(StagePackageCommand::from_arg_matches(matches)?)
+                IotaSubcommand::StagePackage(StagePackageCommand::from_arg_matches(matches)?)
             }
             Some(("set-address", matches)) => {
-                SuiSubcommand::SetAddress(SetAddressCommand::from_arg_matches(matches)?)
+                IotaSubcommand::SetAddress(SetAddressCommand::from_arg_matches(matches)?)
             }
-            Some(("create-checkpoint", matches)) => {
-                SuiSubcommand::CreateCheckpoint(CreateCheckpointCommand::from_arg_matches(matches)?)
-            }
+            Some(("create-checkpoint", matches)) => IotaSubcommand::CreateCheckpoint(
+                CreateCheckpointCommand::from_arg_matches(matches)?,
+            ),
             Some(("advance-epoch", matches)) => {
-                SuiSubcommand::AdvanceEpoch(AdvanceEpochCommand::from_arg_matches(matches)?)
+                IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand::from_arg_matches(matches)?)
             }
             Some(("advance-clock", matches)) => {
-                SuiSubcommand::AdvanceClock(AdvanceClockCommand::from_arg_matches(matches)?)
+                IotaSubcommand::AdvanceClock(AdvanceClockCommand::from_arg_matches(matches)?)
             }
             Some(("set-random-state", matches)) => {
-                SuiSubcommand::SetRandomState(SetRandomStateCommand::from_arg_matches(matches)?)
+                IotaSubcommand::SetRandomState(SetRandomStateCommand::from_arg_matches(matches)?)
             }
-            Some(("view-checkpoint", _)) => SuiSubcommand::ViewCheckpoint,
+            Some(("view-checkpoint", _)) => IotaSubcommand::ViewCheckpoint,
             Some(("run-graphql", matches)) => {
-                SuiSubcommand::RunGraphql(RunGraphqlCommand::from_arg_matches(matches)?)
+                IotaSubcommand::RunGraphql(RunGraphqlCommand::from_arg_matches(matches)?)
             }
             Some(("force-object-snapshot-catchup", matches)) => {
-                SuiSubcommand::ForceObjectSnapshotCatchup(
+                IotaSubcommand::ForceObjectSnapshotCatchup(
                     ForceObjectSnapshotCatchup::from_arg_matches(matches)?,
                 )
             }
-            Some(("bench", matches)) => SuiSubcommand::Bench(
+            Some(("bench", matches)) => IotaSubcommand::Bench(
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
             ),
@@ -283,10 +291,10 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
-    for SuiSubcommand<ExtraValueArgs, ExtraRunArgs>
+    for IotaSubcommand<ExtraValueArgs, ExtraRunArgs>
 {
     fn command() -> clap::Command {
-        clap::Command::new("sui_sub_command")
+        clap::Command::new("iota_sub_command")
             .subcommand(ViewObjectCommand::command().name("view-object"))
             .subcommand(TransferObjectCommand::command().name("transfer-object"))
             .subcommand(ConsensusCommitPrologueCommand::command().name("consensus-commit-prologue"))
@@ -312,12 +320,12 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::Parser
-    for SuiSubcommand<ExtraValueArgs, ExtraRunArgs>
+    for IotaSubcommand<ExtraValueArgs, ExtraRunArgs>
 {
 }
 
 #[derive(Clone, Debug)]
-pub enum SuiExtraValueArgs {
+pub enum IotaExtraValueArgs {
     Object(FakeID, Option<SequenceNumber>),
     Digest(String),
     Receiving(FakeID, Option<SequenceNumber>),
@@ -325,7 +333,7 @@ pub enum SuiExtraValueArgs {
 }
 
 #[derive(Clone)]
-pub enum SuiValue {
+pub enum IotaValue {
     MoveValue(MoveValue),
     Object(FakeID, Option<SequenceNumber>),
     ObjVec(Vec<(FakeID, Option<SequenceNumber>)>),
@@ -334,26 +342,26 @@ pub enum SuiValue {
     ImmShared(FakeID, Option<SequenceNumber>),
 }
 
-impl SuiExtraValueArgs {
+impl IotaExtraValueArgs {
     fn parse_object_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
     ) -> anyhow::Result<Self> {
         let (fake_id, version) = Self::parse_receiving_or_object_value(parser, "object")?;
-        Ok(SuiExtraValueArgs::Object(fake_id, version))
+        Ok(IotaExtraValueArgs::Object(fake_id, version))
     }
 
     fn parse_receiving_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
     ) -> anyhow::Result<Self> {
         let (fake_id, version) = Self::parse_receiving_or_object_value(parser, "receiving")?;
-        Ok(SuiExtraValueArgs::Receiving(fake_id, version))
+        Ok(IotaExtraValueArgs::Receiving(fake_id, version))
     }
 
     fn parse_read_shared_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
     ) -> anyhow::Result<Self> {
         let (fake_id, version) = Self::parse_receiving_or_object_value(parser, "immshared")?;
-        Ok(SuiExtraValueArgs::ImmShared(fake_id, version))
+        Ok(IotaExtraValueArgs::ImmShared(fake_id, version))
     }
 
     fn parse_digest_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
@@ -364,7 +372,7 @@ impl SuiExtraValueArgs {
         parser.advance(ValueToken::LParen)?;
         let package = parser.advance(ValueToken::Ident)?;
         parser.advance(ValueToken::RParen)?;
-        Ok(SuiExtraValueArgs::Digest(package.to_owned()))
+        Ok(IotaExtraValueArgs::Digest(package.to_owned()))
     }
 
     fn parse_receiving_or_object_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
@@ -387,7 +395,7 @@ impl SuiExtraValueArgs {
         } else {
             let mut u256_bytes = i.to_le_bytes().to_vec();
             u256_bytes.reverse();
-            let address: SuiAddress = SuiAddress::from_bytes(&u256_bytes).unwrap();
+            let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
             FakeID::Known(address.into())
         };
         parser.advance(ValueToken::RParen)?;
@@ -403,42 +411,42 @@ impl SuiExtraValueArgs {
     }
 }
 
-impl SuiValue {
+impl IotaValue {
     fn assert_move_value(self) -> MoveValue {
         match self {
-            SuiValue::MoveValue(v) => v,
-            SuiValue::Object(_, _) => panic!("unexpected nested Sui object in args"),
-            SuiValue::ObjVec(_) => panic!("unexpected nested Sui object vector in args"),
-            SuiValue::Digest(_) => panic!("unexpected nested Sui package digest in args"),
-            SuiValue::Receiving(_, _) => panic!("unexpected nested Sui receiving object in args"),
-            SuiValue::ImmShared(_, _) => panic!("unexpected nested Sui shared object in args"),
+            IotaValue::MoveValue(v) => v,
+            IotaValue::Object(_, _) => panic!("unexpected nested Iota object in args"),
+            IotaValue::ObjVec(_) => panic!("unexpected nested Iota object vector in args"),
+            IotaValue::Digest(_) => panic!("unexpected nested Iota package digest in args"),
+            IotaValue::Receiving(_, _) => panic!("unexpected nested Iota receiving object in args"),
+            IotaValue::ImmShared(_, _) => panic!("unexpected nested Iota shared object in args"),
         }
     }
 
     fn assert_object(self) -> (FakeID, Option<SequenceNumber>) {
         match self {
-            SuiValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
-            SuiValue::Object(id, version) => (id, version),
-            SuiValue::ObjVec(_) => panic!("unexpected nested Sui object vector in args"),
-            SuiValue::Digest(_) => panic!("unexpected nested Sui package digest in args"),
-            SuiValue::Receiving(_, _) => panic!("unexpected nested Sui receiving object in args"),
-            SuiValue::ImmShared(_, _) => panic!("unexpected nested Sui shared object in args"),
+            IotaValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
+            IotaValue::Object(id, version) => (id, version),
+            IotaValue::ObjVec(_) => panic!("unexpected nested Iota object vector in args"),
+            IotaValue::Digest(_) => panic!("unexpected nested Iota package digest in args"),
+            IotaValue::Receiving(_, _) => panic!("unexpected nested Iota receiving object in args"),
+            IotaValue::ImmShared(_, _) => panic!("unexpected nested Iota shared object in args"),
         }
     }
 
     fn resolve_object(
         fake_id: FakeID,
         version: Option<SequenceNumber>,
-        test_adapter: &SuiTestAdapter,
+        test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<Object> {
         let id = match test_adapter.fake_to_real_object_id(fake_id) {
             Some(id) => id,
             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
         };
         let obj_res = if let Some(v) = version {
-            sui_types::storage::ObjectStore::get_object_by_key(&*test_adapter.executor, &id, v)
+            iota_types::storage::ObjectStore::get_object_by_key(&*test_adapter.executor, &id, v)
         } else {
-            sui_types::storage::ObjectStore::get_object(&*test_adapter.executor, &id)
+            iota_types::storage::ObjectStore::get_object(&*test_adapter.executor, &id)
         };
         let obj = match obj_res {
             Ok(Some(obj)) => obj,
@@ -450,7 +458,7 @@ impl SuiValue {
     fn receiving_arg(
         fake_id: FakeID,
         version: Option<SequenceNumber>,
-        test_adapter: &SuiTestAdapter,
+        test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         Ok(ObjectArg::Receiving(obj.compute_object_reference()))
@@ -459,7 +467,7 @@ impl SuiValue {
     fn read_shared_arg(
         fake_id: FakeID,
         version: Option<SequenceNumber>,
-        test_adapter: &SuiTestAdapter,
+        test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
@@ -480,7 +488,7 @@ impl SuiValue {
     fn object_arg(
         fake_id: FakeID,
         version: Option<SequenceNumber>,
-        test_adapter: &SuiTestAdapter,
+        test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
@@ -499,20 +507,20 @@ impl SuiValue {
         }
     }
 
-    pub(crate) fn into_call_arg(self, test_adapter: &SuiTestAdapter) -> anyhow::Result<CallArg> {
+    pub(crate) fn into_call_arg(self, test_adapter: &IotaTestAdapter) -> anyhow::Result<CallArg> {
         Ok(match self {
-            SuiValue::Object(fake_id, version) => {
+            IotaValue::Object(fake_id, version) => {
                 CallArg::Object(Self::object_arg(fake_id, version, test_adapter)?)
             }
-            SuiValue::MoveValue(v) => CallArg::Pure(v.simple_serialize().unwrap()),
-            SuiValue::Receiving(fake_id, version) => {
+            IotaValue::MoveValue(v) => CallArg::Pure(v.simple_serialize().unwrap()),
+            IotaValue::Receiving(fake_id, version) => {
                 CallArg::Object(Self::receiving_arg(fake_id, version, test_adapter)?)
             }
-            SuiValue::ImmShared(fake_id, version) => {
+            IotaValue::ImmShared(fake_id, version) => {
                 CallArg::Object(Self::read_shared_arg(fake_id, version, test_adapter)?)
             }
-            SuiValue::ObjVec(_) => bail!("obj vec is not supported as an input"),
-            SuiValue::Digest(pkg) => {
+            IotaValue::ObjVec(_) => bail!("obj vec is not supported as an input"),
+            IotaValue::Digest(pkg) => {
                 let pkg = Symbol::from(pkg);
                 let Some(staged) = test_adapter.staged_modules.get(&pkg) else {
                     bail!("Unbound staged package '{pkg}'")
@@ -525,10 +533,10 @@ impl SuiValue {
     pub(crate) fn into_argument(
         self,
         builder: &mut ProgrammableTransactionBuilder,
-        test_adapter: &SuiTestAdapter,
+        test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<Argument> {
         match self {
-            SuiValue::ObjVec(vec) => builder.make_obj_vec(
+            IotaValue::ObjVec(vec) => builder.make_obj_vec(
                 vec.iter()
                     .map(|(fake_id, version)| Self::object_arg(*fake_id, *version, test_adapter))
                     .collect::<Result<Vec<ObjectArg>, _>>()?,
@@ -541,8 +549,8 @@ impl SuiValue {
     }
 }
 
-impl ParsableValue for SuiExtraValueArgs {
-    type ConcreteValue = SuiValue;
+impl ParsableValue for IotaExtraValueArgs {
+    type ConcreteValue = IotaValue;
 
     fn parse_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
@@ -557,23 +565,26 @@ impl ParsableValue for SuiExtraValueArgs {
     }
 
     fn move_value_into_concrete(v: MoveValue) -> anyhow::Result<Self::ConcreteValue> {
-        Ok(SuiValue::MoveValue(v))
+        Ok(IotaValue::MoveValue(v))
     }
 
     fn concrete_vector(elems: Vec<Self::ConcreteValue>) -> anyhow::Result<Self::ConcreteValue> {
-        if !elems.is_empty() && matches!(elems[0], SuiValue::Object(_, _)) {
-            Ok(SuiValue::ObjVec(
-                elems.into_iter().map(SuiValue::assert_object).collect(),
+        if !elems.is_empty() && matches!(elems[0], IotaValue::Object(_, _)) {
+            Ok(IotaValue::ObjVec(
+                elems.into_iter().map(IotaValue::assert_object).collect(),
             ))
         } else {
-            Ok(SuiValue::MoveValue(MoveValue::Vector(
-                elems.into_iter().map(SuiValue::assert_move_value).collect(),
+            Ok(IotaValue::MoveValue(MoveValue::Vector(
+                elems
+                    .into_iter()
+                    .map(IotaValue::assert_move_value)
+                    .collect(),
             )))
         }
     }
 
     fn concrete_struct(values: Vec<Self::ConcreteValue>) -> anyhow::Result<Self::ConcreteValue> {
-        Ok(SuiValue::MoveValue(MoveValue::Struct(MoveStruct(
+        Ok(IotaValue::MoveValue(MoveValue::Struct(MoveStruct(
             values.into_iter().map(|v| v.assert_move_value()).collect(),
         ))))
     }
@@ -583,10 +594,10 @@ impl ParsableValue for SuiExtraValueArgs {
         _mapping: &impl Fn(&str) -> Option<move_core_types::account_address::AccountAddress>,
     ) -> anyhow::Result<Self::ConcreteValue> {
         match self {
-            SuiExtraValueArgs::Object(id, version) => Ok(SuiValue::Object(id, version)),
-            SuiExtraValueArgs::Digest(pkg) => Ok(SuiValue::Digest(pkg)),
-            SuiExtraValueArgs::Receiving(id, version) => Ok(SuiValue::Receiving(id, version)),
-            SuiExtraValueArgs::ImmShared(id, version) => Ok(SuiValue::ImmShared(id, version)),
+            IotaExtraValueArgs::Object(id, version) => Ok(IotaValue::Object(id, version)),
+            IotaExtraValueArgs::Digest(pkg) => Ok(IotaValue::Digest(pkg)),
+            IotaExtraValueArgs::Receiving(id, version) => Ok(IotaValue::Receiving(id, version)),
+            IotaExtraValueArgs::ImmShared(id, version) => Ok(IotaValue::ImmShared(id, version)),
         }
     }
 }
@@ -600,16 +611,18 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
         let (i, _) = parse_u256(s)?;
         let mut u256_bytes = i.to_le_bytes().to_vec();
         u256_bytes.reverse();
-        let address: SuiAddress = SuiAddress::from_bytes(&u256_bytes).unwrap();
+        let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
         FakeID::Known(address.into())
     })
 }
 
 fn parse_policy(x: &str) -> anyhow::Result<u8> {
     Ok(match x {
-            "compatible" => UpgradePolicy::COMPATIBLE,
-            "additive" => UpgradePolicy::ADDITIVE,
-            "dep_only" => UpgradePolicy::DEP_ONLY,
-        _ => bail!("Invalid upgrade policy {x}. Policy must be one of 'compatible', 'additive', or 'dep_only'")
+        "compatible" => UpgradePolicy::COMPATIBLE,
+        "additive" => UpgradePolicy::ADDITIVE,
+        "dep_only" => UpgradePolicy::DEP_ONLY,
+        _ => bail!(
+            "Invalid upgrade policy {x}. Policy must be one of 'compatible', 'additive', or 'dep_only'"
+        ),
     })
 }

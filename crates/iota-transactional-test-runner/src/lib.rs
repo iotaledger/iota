@@ -1,50 +1,44 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the transactional test runner instantiation for the Sui adapter
+//! This module contains the transactional test runner instantiation for the
+//! Iota adapter
 
 pub mod args;
 pub mod programmable_transaction_test_parser;
 mod simulator_persisted_store;
 pub mod test_adapter;
 
+use std::{path::Path, sync::Arc};
+
+use iota_core::authority::{
+    authority_test_utils::send_and_confirm_transaction_with_execution_error, AuthorityState,
+};
+use iota_json_rpc::authority_state::StateRead;
+use iota_json_rpc_types::{DevInspectResults, EventFilter};
+use iota_storage::key_value_store::TransactionKeyValueStore;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, VersionNumber},
+    committee::EpochId,
+    digests::{TransactionDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    error::{ExecutionError, IotaError, IotaResult},
+    event::Event,
+    executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
+    },
+    messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
+    object::Object,
+    storage::{ObjectStore, ReadStore},
+    transaction::{InputObjects, Transaction, TransactionDataAPI, TransactionKind},
+};
 pub use move_transactional_test_runner::framework::run_test_impl;
 use rand::rngs::StdRng;
-use simulacrum::Simulacrum;
-use simulacrum::SimulatorStore;
+use simulacrum::{Simulacrum, SimulatorStore};
 use simulator_persisted_store::PersistedStore;
-use std::path::Path;
-use std::sync::Arc;
-use sui_core::authority::authority_test_utils::send_and_confirm_transaction_with_execution_error;
-use sui_core::authority::AuthorityState;
-use sui_json_rpc::authority_state::StateRead;
-use sui_json_rpc_types::DevInspectResults;
-use sui_json_rpc_types::EventFilter;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SuiAddress;
-use sui_types::base_types::VersionNumber;
-use sui_types::digests::TransactionDigest;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEvents;
-use sui_types::error::ExecutionError;
-use sui_types::error::SuiError;
-use sui_types::error::SuiResult;
-use sui_types::event::Event;
-use sui_types::executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction};
-use sui_types::messages_checkpoint::CheckpointContentsDigest;
-use sui_types::messages_checkpoint::VerifiedCheckpoint;
-use sui_types::object::Object;
-use sui_types::storage::ObjectStore;
-use sui_types::storage::ReadStore;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::transaction::InputObjects;
-use sui_types::transaction::Transaction;
-use sui_types::transaction::TransactionDataAPI;
-use sui_types::transaction::TransactionKind;
-use test_adapter::{SuiTestAdapter, PRE_COMPILED};
+use test_adapter::{IotaTestAdapter, PRE_COMPILED};
 
 #[cfg_attr(not(msim), tokio::main)]
 #[cfg_attr(msim, msim::main)]
@@ -52,7 +46,7 @@ pub async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let (_guard, _filter_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .init();
-    run_test_impl::<SuiTestAdapter>(path, Some(std::sync::Arc::new(PRE_COMPILED.clone()))).await?;
+    run_test_impl::<IotaTestAdapter>(path, Some(std::sync::Arc::new(PRE_COMPILED.clone()))).await?;
     Ok(())
 }
 
@@ -71,7 +65,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         transaction: Transaction,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)>;
 
-    async fn read_input_objects(&self, transaction: Transaction) -> SuiResult<InputObjects>;
+    async fn read_input_objects(&self, transaction: Transaction) -> IotaResult<InputObjects>;
 
     fn prepare_txn(
         &self,
@@ -90,24 +84,24 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn request_gas(
         &mut self,
-        address: SuiAddress,
+        address: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects>;
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
-    ) -> SuiResult<DevInspectResults>;
+    ) -> IotaResult<DevInspectResults>;
 
     async fn query_tx_events_asc(
         &self,
         tx_digest: &TransactionDigest,
         limit: usize,
-    ) -> SuiResult<Vec<Event>>;
+    ) -> IotaResult<Vec<Event>>;
 
-    async fn get_active_validator_addresses(&self) -> SuiResult<Vec<SuiAddress>>;
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>>;
 }
 
 #[async_trait::async_trait]
@@ -126,23 +120,22 @@ impl TransactionalAdapter for ValidatorWithFullnode {
             Some(&self.fullnode),
             transaction,
             with_shared,
+            false,
         )
         .await?;
         Ok((effects.into_data(), execution_error))
     }
 
-    async fn read_input_objects(&self, transaction: Transaction) -> SuiResult<InputObjects> {
+    async fn read_input_objects(&self, transaction: Transaction) -> IotaResult<InputObjects> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
             ExecutableTransaction::new_from_data_and_sig(
                 transaction.data().clone(),
-                sui_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
+                iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
             ),
         );
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
-        self.validator
-            .read_objects_for_benchmarking(&tx, &epoch_store)
-            .await
+        self.validator.read_objects_for_execution(&tx, &epoch_store)
     }
 
     fn prepare_txn(
@@ -153,7 +146,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let tx = VerifiedExecutableTransaction::new_unchecked(
             ExecutableTransaction::new_from_data_and_sig(
                 transaction.data().clone(),
-                sui_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
+                iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
             ),
         );
 
@@ -166,10 +159,10 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
-    ) -> SuiResult<DevInspectResults> {
+    ) -> IotaResult<DevInspectResults> {
         self.fullnode
             .dev_inspect_transaction_block(
                 sender,
@@ -188,7 +181,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         &self,
         tx_digest: &TransactionDigest,
         limit: usize,
-    ) -> SuiResult<Vec<Event>> {
+    ) -> IotaResult<Vec<Event>> {
         Ok(self
             .validator
             .query_events(
@@ -201,7 +194,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
             .await
             .unwrap_or_default()
             .into_iter()
-            .map(|sui_event| sui_event.into())
+            .map(|iota_event| iota_event.into())
             .collect())
     }
 
@@ -217,31 +210,33 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     }
 
     async fn advance_epoch(&mut self, _create_random_state: bool) -> anyhow::Result<()> {
-        unimplemented!("advance_epoch not supported")
+        self.validator.reconfigure_for_testing().await;
+        self.fullnode.reconfigure_for_testing().await;
+        Ok(())
     }
 
     async fn request_gas(
         &mut self,
-        _address: SuiAddress,
+        _address: IotaAddress,
         _amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
         unimplemented!("request_gas not supported")
     }
 
-    async fn get_active_validator_addresses(&self) -> SuiResult<Vec<SuiAddress>> {
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
         Ok(self
             .fullnode
             .get_system_state()
             .map_err(|e| {
-                SuiError::SuiSystemStateReadError(format!(
+                IotaError::IotaSystemStateReadError(format!(
                     "Failed to get system state from fullnode: {}",
                     e
                 ))
             })?
-            .into_sui_system_state_summary()
+            .into_iota_system_state_summary()
             .active_validators
             .iter()
-            .map(|x| x.sui_address)
+            .map(|x| x.iota_address)
             .collect::<Vec<_>>())
     }
 }
@@ -249,12 +244,16 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 impl ReadStore for ValidatorWithFullnode {
     fn get_committee(
         &self,
-        _epoch: sui_types::committee::EpochId,
-    ) -> sui_types::storage::error::Result<Option<Arc<sui_types::committee::Committee>>> {
+        _epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<Arc<iota_types::committee::Committee>>> {
         todo!()
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        Ok(self.validator.epoch_store_for_testing().epoch())
+    }
+
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         let sequence_number = self
             .validator
             .get_latest_checkpoint_sequence_number()
@@ -265,95 +264,97 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn get_highest_verified_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_highest_synced_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_lowest_available_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<sui_types::messages_checkpoint::CheckpointSequenceNumber>
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
     {
         todo!()
     }
 
     fn get_checkpoint_by_digest(
         &self,
-        _digest: &sui_types::messages_checkpoint::CheckpointDigest,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        _digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.validator
             .get_checkpoint_store()
             .get_checkpoint_by_sequence_number(sequence_number)
-            .map_err(sui_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<Option<sui_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         self.validator
             .get_checkpoint_store()
             .get_checkpoint_contents(digest)
-            .map_err(sui_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<sui_types::messages_checkpoint::CheckpointContents>>
-    {
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         todo!()
     }
 
     fn get_transaction(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<Arc<sui_types::transaction::VerifiedTransaction>>>
+    ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
     {
         self.validator
-            .get_cache_reader()
+            .get_transaction_cache_reader()
             .get_transaction_block(tx_digest)
-            .map_err(sui_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEffects>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.validator
-            .get_cache_reader()
+            .get_transaction_cache_reader()
             .get_executed_effects(tx_digest)
-            .map_err(sui_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn get_events(
         &self,
         event_digest: &TransactionEventsDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEvents>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.validator
-            .get_cache_reader()
+            .get_transaction_cache_reader()
             .get_events(event_digest)
-            .map_err(sui_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
     }
@@ -361,8 +362,8 @@ impl ReadStore for ValidatorWithFullnode {
     fn get_full_checkpoint_contents(
         &self,
         _digest: &CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
     }
@@ -372,7 +373,7 @@ impl ObjectStore for ValidatorWithFullnode {
     fn get_object(
         &self,
         object_id: &ObjectID,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator.get_object_store().get_object(object_id)
     }
 
@@ -380,7 +381,7 @@ impl ObjectStore for ValidatorWithFullnode {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator
             .get_object_store()
             .get_object_by_key(object_id, version)
@@ -396,7 +397,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         Ok(self.execute_transaction(transaction)?)
     }
 
-    async fn read_input_objects(&self, _transaction: Transaction) -> SuiResult<InputObjects> {
+    async fn read_input_objects(&self, _transaction: Transaction) -> IotaResult<InputObjects> {
         unimplemented!("read_input_objects not supported in simulator mode")
     }
 
@@ -410,10 +411,10 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn dev_inspect_transaction_block(
         &self,
-        _sender: SuiAddress,
+        _sender: IotaAddress,
         _transaction_kind: TransactionKind,
         _gas_price: Option<u64>,
-    ) -> SuiResult<DevInspectResults> {
+    ) -> IotaResult<DevInspectResults> {
         unimplemented!("dev_inspect_transaction_block not supported in simulator mode")
     }
 
@@ -421,7 +422,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         &self,
         tx_digest: &TransactionDigest,
         _limit: usize,
-    ) -> SuiResult<Vec<Event>> {
+    ) -> IotaResult<Vec<Event>> {
         Ok(self
             .store()
             .get_transaction_events_by_tx_digest(tx_digest)
@@ -447,15 +448,16 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn request_gas(
         &mut self,
-        address: SuiAddress,
+        address: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
         self.request_gas(address, amount)
     }
 
-    async fn get_active_validator_addresses(&self) -> SuiResult<Vec<SuiAddress>> {
-        // TODO: this is a hack to get the validator addresses. Currently using start state
-        //       but we should have a better way to get this information after reconfig
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
+        // TODO: this is a hack to get the validator addresses. Currently using start
+        // state       but we should have a better way to get this information
+        // after reconfig
         Ok(self.epoch_start_state().get_validator_addresses())
     }
 }

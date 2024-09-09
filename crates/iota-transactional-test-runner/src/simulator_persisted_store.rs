@@ -1,25 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
-use move_binary_format::CompiledModule;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
-use simulacrum::Simulacrum;
-use std::num::NonZeroUsize;
-use sui_config::genesis;
-use sui_protocol_config::ProtocolVersion;
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_swarm_config::network_config_builder::ConfigBuilder;
-use sui_types::storage::ReadStore;
-use sui_types::{
-    base_types::{ObjectID, SequenceNumber, SuiAddress, VersionNumber},
+use iota_config::genesis;
+use iota_protocol_config::ProtocolVersion;
+use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{SuiError, UserInputError},
+    error::{IotaError, UserInputError},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
@@ -27,19 +21,24 @@ use sui_types::{
     object::{Object, Owner},
     storage::{
         load_package_object_from_object_store, BackingPackageStore, ChildObjectResolver,
-        ObjectStore, PackageObject, ParentSync,
+        ObjectStore, PackageObject, ParentSync, ReadStore, RestStateReader,
     },
     transaction::VerifiedTransaction,
 };
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::{
+    language_storage::{ModuleId, StructTag},
+    resolver::ModuleResolver,
+};
+use simulacrum::Simulacrum;
 use tempfile::tempdir;
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::Map;
 use typed_store::{
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+    DBMapUtils, Map,
 };
-use typed_store_derive::DBMapUtils;
 
 use super::SimulatorStore;
 
@@ -56,12 +55,13 @@ pub struct PersistedStoreInnerReadOnlyWrapper {
 #[derive(Debug, DBMapUtils)]
 pub struct PersistedStoreInner {
     // Checkpoint data
-    checkpoints: DBMap<CheckpointSequenceNumber, sui_types::messages_checkpoint::TrustedCheckpoint>,
+    checkpoints:
+        DBMap<CheckpointSequenceNumber, iota_types::messages_checkpoint::TrustedCheckpoint>,
     checkpoint_digest_to_sequence_number: DBMap<CheckpointDigest, CheckpointSequenceNumber>,
     checkpoint_contents: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     // Transaction data
-    transactions: DBMap<TransactionDigest, sui_types::transaction::TrustedTransaction>,
+    transactions: DBMap<TransactionDigest, iota_types::transaction::TrustedTransaction>,
     effects: DBMap<TransactionDigest, TransactionEffects>,
     events: DBMap<TransactionEventsDigest, TransactionEvents>,
     events_tx_digest_index: DBMap<TransactionDigest, TransactionEventsDigest>,
@@ -271,18 +271,18 @@ impl SimulatorStore for PersistedStore {
             .and_then(|versions| versions.get(&version).cloned())
     }
 
-    fn get_system_state(&self) -> sui_types::sui_system_state::SuiSystemState {
-        sui_types::sui_system_state::get_sui_system_state(self).expect("system state must exist")
+    fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState {
+        iota_types::iota_system_state::get_iota_system_state(self).expect("system state must exist")
     }
 
-    fn get_clock(&self) -> sui_types::clock::Clock {
-        SimulatorStore::get_object(self, &sui_types::SUI_CLOCK_OBJECT_ID)
+    fn get_clock(&self) -> iota_types::clock::Clock {
+        SimulatorStore::get_object(self, &iota_types::IOTA_CLOCK_OBJECT_ID)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
     }
 
-    fn owned_objects(&self, owner: SuiAddress) -> Box<dyn Iterator<Item = Object> + '_> {
+    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(self.read_write.live_objects
             .unbounded_iter()
             .flat_map(|(id, version)| self.get_object_at_version(&id, version))
@@ -312,16 +312,12 @@ impl SimulatorStore for PersistedStore {
     fn insert_committee(&mut self, committee: Committee) {
         let epoch = committee.epoch as usize;
 
-        let mut committees = if let Some(c) = self
+        let mut committees = self
             .read_write
             .epoch_to_committee
             .get(&())
             .expect("Fatal: DB read failed")
-        {
-            c
-        } else {
-            vec![]
-        };
+            .unwrap_or_default();
 
         if committees.get(epoch).is_some() {
             return;
@@ -396,16 +392,12 @@ impl SimulatorStore for PersistedStore {
                 .live_objects
                 .insert(&object_id, &version)
                 .expect("Fatal: DB write failed");
-            let mut q = if let Some(x) = self
+            let mut q = self
                 .read_write
                 .objects
                 .get(&object_id)
                 .expect("Fatal: DB read failed")
-            {
-                x
-            } else {
-                BTreeMap::new()
-            };
+                .unwrap_or_default();
             q.insert(version, object);
             self.read_write
                 .objects
@@ -414,7 +406,7 @@ impl SimulatorStore for PersistedStore {
         }
     }
 
-    fn backing_store(&self) -> &dyn sui_types::storage::BackingStore {
+    fn backing_store(&self) -> &dyn iota_types::storage::BackingStore {
         self
     }
 }
@@ -423,7 +415,7 @@ impl BackingPackageStore for PersistedStore {
     fn get_package_object(
         &self,
         package_id: &ObjectID,
-    ) -> sui_types::error::SuiResult<Option<PackageObject>> {
+    ) -> iota_types::error::IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
 }
@@ -434,7 +426,7 @@ impl ChildObjectResolver for PersistedStore {
         parent: &ObjectID,
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
-    ) -> sui_types::error::SuiResult<Option<Object>> {
+    ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match SimulatorStore::get_object(self, child) {
             None => return Ok(None),
             Some(obj) => obj,
@@ -442,7 +434,7 @@ impl ChildObjectResolver for PersistedStore {
 
         let parent = *parent;
         if child_object.owner != Owner::ObjectOwner(parent.into()) {
-            return Err(SuiError::InvalidChildObjectAccess {
+            return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
                 actual_owner: child_object.owner,
@@ -450,7 +442,7 @@ impl ChildObjectResolver for PersistedStore {
         }
 
         if child_object.version() > child_version_upper_bound {
-            return Err(SuiError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeatureError {
                 error: "TODO InMemoryStorage::read_child_object does not yet support bounded reads"
                     .to_owned(),
             });
@@ -465,7 +457,7 @@ impl ChildObjectResolver for PersistedStore {
         receiving_object_id: &ObjectID,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
-    ) -> sui_types::error::SuiResult<Option<Object>> {
+    ) -> iota_types::error::IotaResult<Option<Object>> {
         let recv_object = match SimulatorStore::get_object(self, receiving_object_id) {
             None => return Ok(None),
             Some(obj) => obj,
@@ -482,7 +474,7 @@ impl ChildObjectResolver for PersistedStore {
 }
 
 impl GetModule for PersistedStore {
-    type Error = SuiError;
+    type Error = IotaError;
     type Item = CompiledModule;
 
     fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
@@ -493,7 +485,7 @@ impl GetModule for PersistedStore {
 }
 
 impl ModuleResolver for PersistedStore {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
@@ -512,15 +504,15 @@ impl ObjectStore for PersistedStore {
     fn get_object(
         &self,
         object_id: &ObjectID,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(SimulatorStore::get_object(self, object_id))
     }
 
     fn get_object_by_key(
         &self,
         object_id: &ObjectID,
-        version: sui_types::base_types::VersionNumber,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+        version: iota_types::base_types::VersionNumber,
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version))
     }
 }
@@ -529,7 +521,7 @@ impl ParentSync for PersistedStore {
     fn get_latest_parent_entry_ref_deprecated(
         &self,
         _object_id: ObjectID,
-    ) -> sui_types::error::SuiResult<Option<sui_types::base_types::ObjectRef>> {
+    ) -> iota_types::error::IotaResult<Option<iota_types::base_types::ObjectRef>> {
         panic!("Never called in newer protocol versions")
     }
 }
@@ -538,7 +530,7 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_object(
         &self,
         object_id: &ObjectID,
-    ) -> sui_types::storage::error::Result<Option<Object>> {
+    ) -> iota_types::storage::error::Result<Option<Object>> {
         self.sync();
 
         self.inner
@@ -554,7 +546,7 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> sui_types::storage::error::Result<Option<Object>> {
+    ) -> iota_types::storage::error::Result<Option<Object>> {
         self.sync();
 
         Ok(self
@@ -570,11 +562,11 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_committee(
         &self,
         _epoch: EpochId,
-    ) -> sui_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
         todo!()
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.sync();
         self.inner
             .checkpoints
@@ -582,41 +574,41 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .skip_to_last()
             .next()
             .map(|(_, checkpoint)| checkpoint.into())
-            .ok_or(SuiError::UserInputError {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::LatestCheckpointSequenceNumberNotFound,
             })
-            .map_err(sui_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn get_highest_verified_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_highest_synced_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_lowest_available_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
         Ok(0)
     }
 
     fn get_checkpoint_by_digest(
         &self,
         _digest: &CheckpointDigest,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.sync();
         Ok(self
             .inner
@@ -629,7 +621,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<Option<CheckpointContents>> {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.sync();
 
         Ok(self
@@ -642,14 +634,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<CheckpointContents>> {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         todo!()
     }
 
     fn get_transaction(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         self.sync();
 
         Ok(self
@@ -663,7 +655,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEffects>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.sync();
 
         Ok(self
@@ -676,7 +668,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_events(
         &self,
         event_digest: &TransactionEventsDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEvents>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.sync();
 
         Ok(self
@@ -689,8 +681,8 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
     }
@@ -698,9 +690,69 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn get_full_checkpoint_contents(
         &self,
         _digest: &CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
+        todo!()
+    }
+}
+
+impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        todo!()
+    }
+
+    fn get_lowest_available_checkpoint_objects(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        Ok(0)
+    }
+
+    fn get_chain_identifier(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
+        Ok((*self
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap()
+            .digest())
+        .into())
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: IotaAddress,
+        _cursor: Option<ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::AccountOwnedObjectInfo> + '_>,
+    > {
+        todo!()
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<
+            dyn Iterator<
+                    Item = (
+                        iota_types::storage::DynamicFieldKey,
+                        iota_types::storage::DynamicFieldIndexInfo,
+                    ),
+                > + '_,
+        >,
+    > {
+        todo!()
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         todo!()
     }
 }
@@ -730,8 +782,9 @@ impl Clone for PersistedStoreInnerReadOnlyWrapper {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::{rngs::StdRng, SeedableRng};
+
+    use super::*;
 
     #[tokio::test]
     async fn deterministic_genesis() {

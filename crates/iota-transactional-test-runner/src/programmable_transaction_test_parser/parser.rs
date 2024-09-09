@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
+use anyhow::{bail, Context, Result};
+use iota_types::{
+    base_types::ObjectID,
+    transaction::{Argument, Command, ProgrammableMoveCall},
+};
 use move_command_line_common::{
     parser::{Parser, Token},
     types::{ParsedType, TypeToken},
 };
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
-use sui_types::{
-    base_types::ObjectID,
-    transaction::{Argument, Command, ProgrammableMoveCall},
-};
 
+use super::token::CommandToken;
 use crate::programmable_transaction_test_parser::token::{
     GAS_COIN, INPUT, MAKE_MOVE_VEC, MERGE_COINS, NESTED_RESULT, PUBLISH, RESULT, SPLIT_COINS,
     TRANSFER_OBJECTS, UPGRADE,
 };
 
-use super::token::CommandToken;
-use anyhow::{bail, Context, Result};
-
-/// A small parser used for parsing programmable transaction commands for transactional tests
+/// A small parser used for parsing programmable transaction commands for
+/// transactional tests
 pub struct CommandParser<
     'a,
     I: Iterator<Item = (CommandToken, &'a str)>,
@@ -77,8 +78,10 @@ where
         let commands = self.inner().parse_list(
             |p| CommandParser::from_parser(p).parse_command_start(),
             CommandToken::Semi,
-            /* not checked */ CommandToken::Void,
-            /* allow_trailing_delim */ true,
+            // not checked
+            CommandToken::Void,
+            // allow_trailing_delim
+            true,
         )?;
         let commands = commands
             .into_iter()
@@ -159,7 +162,8 @@ where
                     |p| Ok(p.advance(Tok::Ident)?.to_owned()),
                     CommandToken::Comma,
                     Tok::RBracket,
-                    /* allow_trailing_delim */ true,
+                    // allow_trailing_delim
+                    true,
                 )?;
                 self.inner().advance(Tok::RBracket)?;
                 self.maybe_trailing_comma()?;
@@ -175,7 +179,8 @@ where
                     |p| Ok(p.advance(Tok::Ident)?.to_owned()),
                     CommandToken::Comma,
                     Tok::RBracket,
-                    /* allow_trailing_delim */ true,
+                    // allow_trailing_delim
+                    true,
                 )?;
                 self.inner().advance(Tok::RBracket)?;
                 self.inner().advance(Tok::Comma)?;
@@ -230,7 +235,8 @@ where
             |p| CommandParser::from_parser(p).parse_command_arg(),
             CommandToken::Comma,
             end,
-            /* allow_trailing_delim */ true,
+            // allow_trailing_delim
+            true,
         )?;
         self.inner().advance(end)?;
         Ok(args)

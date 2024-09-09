@@ -1,18 +1,69 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the transactional test runner instantiation for the Sui adapter
+//! This module contains the transactional test runner instantiation for the
+//! Iota adapter
 
-use crate::simulator_persisted_store::PersistedStore;
-use crate::{args::*, programmable_transaction_test_parser::parser::ParsedCommand};
-use crate::{TransactionalAdapter, ValidatorWithFullnode};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::{self, Write},
+    hash::{Hash, Hasher},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
+
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::traits::ToFromBytes;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    encoding::{Base64, Encoding},
+    traits::ToFromBytes,
+};
+use iota_core::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
+use iota_framework::DEFAULT_FRAMEWORK_PATH;
+use iota_graphql_rpc::{
+    config::ConnectionConfig,
+    test_infra::cluster::{serve_executor, ExecutorCluster, SnapshotLagConfig},
+};
+use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
+use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_storage::{
+    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
+};
+use iota_swarm_config::genesis_config::AccountConfig;
+use iota_types::{
+    base_types::{
+        IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber, IOTA_ADDRESS_LENGTH,
+    },
+    committee::EpochId,
+    crypto::{get_authority_key_pair, get_key_pair_from_rng, AccountKeyPair, RandomnessRound},
+    digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    event::Event,
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
+    },
+    move_package::MovePackage,
+    object::{self, bounded_visitor::BoundedVisitor, Object, GAS_VALUE_FOR_TESTING},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    storage::{ObjectStore, ReadStore},
+    transaction::{
+        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, VerifiedTransaction,
+    },
+    utils::to_sender_signed_transaction,
+    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID,
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
+};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_command_line_common::{
@@ -23,79 +74,28 @@ use move_compiler::{
     shared::{NumberFormat, NumericalAddress, PackageConfig, PackagePaths},
     Flags, FullyCompiledProgram,
 };
-use move_core_types::ident_str;
 use move_core_types::{
     account_address::AccountAddress,
-    annotated_value::MoveStruct,
+    ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
 };
 use move_symbol_pool::Symbol;
-use move_transactional_test_runner::framework::MaybeNamedCompiledModule;
 use move_transactional_test_runner::{
-    framework::{compile_any, store_modules, CompiledState, MoveTestAdapter},
-    tasks::{InitCommand, RunCommand, SyntaxChoice, TaskInput},
+    framework::{
+        compile_any, store_modules, CompiledState, MaybeNamedCompiledModule, MoveTestAdapter,
+    },
+    tasks::{InitCommand, RunCommand, SyntaxChoice, TaskCommand, TaskInput},
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use std::fmt::{self, Write};
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::path::PathBuf;
-use std::time::Duration;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-    sync::Arc,
+use tempfile::{tempdir, NamedTempFile};
+
+use crate::{
+    args::*, programmable_transaction_test_parser::parser::ParsedCommand,
+    simulator_persisted_store::PersistedStore, TransactionalAdapter, ValidatorWithFullnode,
 };
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::authority::AuthorityState;
-use sui_framework::DEFAULT_FRAMEWORK_PATH;
-use sui_graphql_rpc::config::ConnectionConfig;
-use sui_graphql_rpc::test_infra::cluster::ExecutorCluster;
-use sui_graphql_rpc::test_infra::cluster::{serve_executor, SnapshotLagConfig};
-use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use sui_json_rpc_types::{DevInspectResults, SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_protocol_config::{Chain, ProtocolConfig};
-use sui_storage::{
-    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
-};
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_types::base_types::{SequenceNumber, VersionNumber};
-use sui_types::crypto::{get_authority_key_pair, RandomnessRound};
-use sui_types::digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use sui_types::messages_checkpoint::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
-};
-use sui_types::storage::ObjectStore;
-use sui_types::storage::ReadStore;
-use sui_types::transaction::Command;
-use sui_types::transaction::ProgrammableTransaction;
-use sui_types::MOVE_STDLIB_PACKAGE_ID;
-use sui_types::SUI_SYSTEM_ADDRESS;
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress, SUI_ADDRESS_LENGTH},
-    crypto::{get_key_pair_from_rng, AccountKeyPair},
-    event::Event,
-    object::{self, Object},
-    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
-    MOVE_STDLIB_ADDRESS, SUI_CLOCK_OBJECT_ID, SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_STATE_OBJECT_ID,
-};
-use sui_types::{execution_status::ExecutionStatus, transaction::TransactionKind};
-use sui_types::{gas::GasCostSummary, object::GAS_VALUE_FOR_TESTING};
-use sui_types::{
-    move_package::MovePackage,
-    transaction::{Argument, CallArg},
-};
-use sui_types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder, SUI_FRAMEWORK_PACKAGE_ID,
-};
-use sui_types::{utils::to_sender_signed_transaction, SUI_SYSTEM_PACKAGE_ID};
-use sui_types::{DEEPBOOK_ADDRESS, SUI_DENY_LIST_OBJECT_ID};
-use sui_types::{DEEPBOOK_PACKAGE_ID, SUI_RANDOMNESS_STATE_OBJECT_ID};
-use tempfile::NamedTempFile;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum FakeID {
@@ -108,12 +108,12 @@ const DEFAULT_GAS_PRICE: u64 = 1_000;
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
     DEEPBOOK_PACKAGE_ID,
-    SUI_FRAMEWORK_PACKAGE_ID,
-    SUI_SYSTEM_PACKAGE_ID,
-    SUI_SYSTEM_STATE_OBJECT_ID,
-    SUI_CLOCK_OBJECT_ID,
-    SUI_DENY_LIST_OBJECT_ID,
-    SUI_RANDOMNESS_STATE_OBJECT_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_CLOCK_OBJECT_ID,
+    IOTA_DENY_LIST_OBJECT_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 ];
 // TODO use the file name as a seed
 const RNG_SEED: [u8; 32] = [
@@ -126,9 +126,10 @@ const GAS_FOR_TESTING: u64 = GAS_VALUE_FOR_TESTING;
 
 const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
-pub struct SuiTestAdapter {
+pub struct IotaTestAdapter {
     pub(crate) compiled_state: CompiledState,
-    /// For upgrades: maps an upgraded package name to the original package name.
+    /// For upgrades: maps an upgraded package name to the original package
+    /// name.
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
     default_account: TestAccount,
@@ -151,7 +152,7 @@ pub(crate) struct StagedPackage {
 
 #[derive(Debug)]
 struct TestAccount {
-    address: SuiAddress,
+    address: IotaAddress,
     key_pair: AccountKeyPair,
     gas: ObjectID,
 }
@@ -164,17 +165,46 @@ struct TxnSummary {
     deleted: Vec<ObjectID>,
     unwrapped_then_deleted: Vec<ObjectID>,
     wrapped: Vec<ObjectID>,
+    unchanged_shared: Vec<ObjectID>,
     events: Vec<Event>,
     gas_summary: GasCostSummary,
 }
 
 #[async_trait]
-impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
-    type ExtraPublishArgs = SuiPublishArgs;
-    type ExtraRunArgs = SuiRunArgs;
-    type ExtraInitArgs = SuiInitArgs;
-    type ExtraValueArgs = SuiExtraValueArgs;
-    type Subcommand = SuiSubcommand<Self::ExtraValueArgs, Self::ExtraRunArgs>;
+impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
+    type ExtraPublishArgs = IotaPublishArgs;
+    type ExtraRunArgs = IotaRunArgs;
+    type ExtraInitArgs = IotaInitArgs;
+    type ExtraValueArgs = IotaExtraValueArgs;
+    type Subcommand = IotaSubcommand<Self::ExtraValueArgs, Self::ExtraRunArgs>;
+
+    fn render_command_input(
+        &self,
+        task: &TaskInput<
+            TaskCommand<
+                Self::ExtraInitArgs,
+                Self::ExtraPublishArgs,
+                Self::ExtraValueArgs,
+                Self::ExtraRunArgs,
+                Self::Subcommand,
+            >,
+        >,
+    ) -> Option<String> {
+        match &task.command {
+            TaskCommand::Subcommand(IotaSubcommand::ProgrammableTransaction(..)) => {
+                let data_str = std::fs::read_to_string(task.data.as_ref()?)
+                    .ok()?
+                    .trim()
+                    .to_string();
+                Some(format!("{}\n{}", task.task_text, data_str))
+            }
+            TaskCommand::Init(_, _)
+            | TaskCommand::PrintBytecode(_)
+            | TaskCommand::Publish(_, _)
+            | TaskCommand::Run(_, _)
+            | TaskCommand::Subcommand(..) => None,
+        }
+    }
 
     fn compiled_state(&mut self) -> &mut CompiledState {
         &mut self.compiled_state
@@ -203,7 +233,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
         let rng = StdRng::from_seed(RNG_SEED);
         assert!(
             pre_compiled_deps.is_some(),
-            "Must populate 'pre_compiled_deps' with Sui framework"
+            "Must populate 'pre_compiled_deps' with Iota framework"
         );
 
         // Unpack the init arguments
@@ -221,7 +251,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
         ) = match task_opt.map(|t| t.command) {
             Some((
                 InitCommand { named_addresses },
-                SuiInitArgs {
+                IotaInitArgs {
                     accounts,
                     protocol_version,
                     max_gas,
@@ -246,7 +276,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     ProtocolConfig::get_for_max_version_UNSAFE()
                 };
                 if let Some(enable) = shared_object_deletion {
-                    protocol_config.set_shared_object_deletion(enable);
+                    protocol_config.set_shared_object_deletion_for_testing(enable);
                 }
                 if let Some(mx_tx_gas_override) = max_gas {
                     if simulator {
@@ -332,8 +362,8 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     AccountAddress::ZERO.into_bytes(),
                     NumberFormat::Hex,
                 )),
-                Some(Edition::E2024_ALPHA),
-                flavor.or(Some(Flavor::Sui)),
+                Some(Edition::DEVELOPMENT),
+                flavor.or(Some(Flavor::Iota)),
             ),
             package_upgrade_mapping: BTreeMap::new(),
             accounts,
@@ -377,7 +407,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
         extra: Self::ExtraPublishArgs,
     ) -> anyhow::Result<(Option<String>, Vec<MaybeNamedCompiledModule>)> {
         self.next_task();
-        let SuiPublishArgs {
+        let IotaPublishArgs {
             sender,
             upgradeable,
             dependencies,
@@ -389,7 +419,9 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
             .iter()
             .map(|m| {
                 let mut module_bytes = vec![];
-                m.module.serialize(&mut module_bytes).unwrap();
+                m.module
+                    .serialize_with_version(m.module.version, &mut module_bytes)
+                    .unwrap();
                 Ok(module_bytes)
             })
             .collect::<anyhow::Result<_>>()?;
@@ -406,9 +438,9 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
             })
             .collect::<Result<_, _>>()?;
         let gas_price = gas_price.unwrap_or(self.gas_price);
-        // we are assuming that all packages depend on Move Stdlib and Sui Framework, so these
-        // don't have to be provided explicitly as parameters
-        dependencies.extend([MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]);
+        // we are assuming that all packages depend on Move Stdlib and Iota Framework,
+        // so these don't have to be provided explicitly as parameters
+        dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
             if upgradeable {
@@ -478,12 +510,12 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
         function: &IdentStr,
         type_args: Vec<TypeTag>,
         signers: Vec<ParsedAddress>,
-        args: Vec<SuiValue>,
+        args: Vec<IotaValue>,
         gas_budget: Option<u64>,
         extra: Self::ExtraRunArgs,
     ) -> anyhow::Result<(Option<String>, SerializedReturnValues)> {
         self.next_task();
-        let SuiRunArgs { summarize, .. } = extra;
+        let IotaRunArgs { summarize, .. } = extra;
         let transaction = self.build_function_call_tx(
             module_id, function, type_args, signers, args, gas_budget, extra,
         )?;
@@ -509,15 +541,17 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         } = task;
         macro_rules! get_obj {
             ($fake_id:ident, $version:expr) => {{
                 let id = match self.fake_to_real_object_id($fake_id) {
                     None => bail!(
-                        "task {}, lines {}-{}. Unbound fake id {}",
+                        "task {}, lines {}-{}\n{}\n. Unbound fake id {}",
                         number,
                         start_line,
                         command_lines_stop,
+                        task_text,
                         $fake_id
                     ),
                     Some(res) => res,
@@ -527,12 +561,10 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     Ok(obj) => obj,
                 }
             }};
-            ($fake_id:ident) => {{
-                get_obj!($fake_id, None)
-            }};
+            ($fake_id:ident) => {{ get_obj!($fake_id, None) }};
         }
         match command {
-            SuiSubcommand::ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup {
+            IotaSubcommand::ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup {
                 start_cp,
                 end_cp,
             }) => {
@@ -556,7 +588,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     start_cp, end_cp
                 )))
             }
-            SuiSubcommand::RunGraphql(RunGraphqlCommand {
+            IotaSubcommand::RunGraphql(RunGraphqlCommand {
                 show_usage,
                 show_headers,
                 show_service_version,
@@ -592,7 +624,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
 
                 Ok(Some(output.join("\n")))
             }
-            SuiSubcommand::ViewCheckpoint => {
+            IotaSubcommand::ViewCheckpoint => {
                 let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
                 let chk = self
                     .executor
@@ -600,14 +632,14 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     .unwrap();
                 Ok(Some(format!("{}", chk.data())))
             }
-            SuiSubcommand::CreateCheckpoint(CreateCheckpointCommand { count }) => {
+            IotaSubcommand::CreateCheckpoint(CreateCheckpointCommand { count }) => {
                 for _ in 0..count.unwrap_or(1) {
                     self.executor.create_checkpoint().await?;
                 }
                 let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
                 Ok(Some(format!("Checkpoint created: {}", latest_chk)))
             }
-            SuiSubcommand::AdvanceEpoch(AdvanceEpochCommand {
+            IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand {
                 count,
                 create_random_state,
             }) => {
@@ -617,13 +649,13 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 let epoch = self.get_latest_epoch_id()?;
                 Ok(Some(format!("Epoch advanced: {epoch}")))
             }
-            SuiSubcommand::AdvanceClock(AdvanceClockCommand { duration_ns }) => {
+            IotaSubcommand::AdvanceClock(AdvanceClockCommand { duration_ns }) => {
                 self.executor
                     .advance_clock(Duration::from_nanos(duration_ns))
                     .await?;
                 Ok(None)
             }
-            SuiSubcommand::SetRandomState(SetRandomStateCommand {
+            IotaSubcommand::SetRandomState(SetRandomStateCommand {
                 randomness_round,
                 random_bytes,
                 randomness_initial_version,
@@ -642,16 +674,17 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 self.execute_txn(tx.into()).await?;
                 Ok(None)
             }
-            SuiSubcommand::ViewObject(ViewObjectCommand { id: fake_id }) => {
+            IotaSubcommand::ViewObject(ViewObjectCommand { id: fake_id }) => {
                 let obj = get_obj!(fake_id);
                 Ok(Some(match &obj.data {
                     object::Data::Move(move_obj) => {
                         let layout = move_obj.get_layout(&&*self).unwrap();
                         let move_struct =
-                            MoveStruct::simple_deserialize(move_obj.contents(), &layout).unwrap();
+                            BoundedVisitor::deserialize_struct(move_obj.contents(), &layout)
+                                .unwrap();
 
                         self.stabilize_str(format!(
-                            "Owner: {}\nVersion: {}\nContents: {}",
+                            "Owner: {}\nVersion: {}\nContents: {:#}",
                             &obj.owner,
                             obj.version().value(),
                             move_struct
@@ -674,7 +707,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     }
                 }))
             }
-            SuiSubcommand::TransferObject(TransferObjectCommand {
+            IotaSubcommand::TransferObject(TransferObjectCommand {
                 id: fake_id,
                 recipient,
                 sender,
@@ -682,7 +715,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 gas_price,
             }) => {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let obj_arg = SuiValue::Object(fake_id, None).into_argument(&mut builder, self)?;
+                let obj_arg = IotaValue::Object(fake_id, None).into_argument(&mut builder, self)?;
                 let recipient = match self.accounts.get(&recipient) {
                     Some(test_account) => test_account.address,
                     None => panic!("Unbound account {}", recipient),
@@ -691,7 +724,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
                 let transaction = self.sign_txn(sender, |sender, gas| {
                     let rec_arg = builder.pure(recipient).unwrap();
-                    builder.command(sui_types::transaction::Command::TransferObjects(
+                    builder.command(iota_types::transaction::Command::TransferObjects(
                         vec![obj_arg],
                         rec_arg,
                     ));
@@ -702,20 +735,21 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
             }
-            SuiSubcommand::ConsensusCommitPrologue(ConsensusCommitPrologueCommand {
+            IotaSubcommand::ConsensusCommitPrologue(ConsensusCommitPrologueCommand {
                 timestamp_ms,
             }) => {
-                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
+                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
                     0,
                     0,
                     timestamp_ms,
                     ConsensusCommitDigest::default(),
+                    Vec::new(),
                 );
                 let summary = self.execute_txn(transaction.into()).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
             }
-            SuiSubcommand::ProgrammableTransaction(ProgrammableTransactionCommand {
+            IotaSubcommand::ProgrammableTransaction(ProgrammableTransactionCommand {
                 sender,
                 gas_budget,
                 gas_price,
@@ -749,7 +783,9 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                                     .iter()
                                     .map(|m| {
                                         let mut buf = vec![];
-                                        m.module.serialize(&mut buf).unwrap();
+                                        m.module
+                                            .serialize_with_version(m.module.version, &mut buf)
+                                            .unwrap();
                                         buf
                                     })
                                     .collect();
@@ -789,7 +825,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
             }
-            SuiSubcommand::UpgradePackage(UpgradePackageCommand {
+            IotaSubcommand::UpgradePackage(UpgradePackageCommand {
                 package,
                 upgrade_capability,
                 dependencies,
@@ -812,11 +848,13 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     before
                 };
 
-                // Override address mappings for compilation when upgrading. Each dependency is set to its
-                // original address (if that dependency had been upgraded previously). This ensures upgraded
-                // dependencies are resolved during compilation--without this workaround, the compiler will
-                // find multiple definitions of the same module). We persist the original package name and
-                // addresses, which we restore before performing an upgrade transaction below.
+                // Override address mappings for compilation when upgrading. Each dependency is
+                // set to its original address (if that dependency had been
+                // upgraded previously). This ensures upgraded dependencies are
+                // resolved during compilation--without this workaround, the compiler will
+                // find multiple definitions of the same module). We persist the original
+                // package name and addresses, which we restore before
+                // performing an upgrade transaction below.
                 let mut original_package_addrs = vec![];
                 for dep in dependencies.iter() {
                     let named_address_mapping = &mut self.compiled_state.named_address_mapping;
@@ -902,7 +940,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 store_modules(self, syntax, data, modules);
                 Ok(merge_output(warnings_opt, output))
             }
-            SuiSubcommand::StagePackage(StagePackageCommand {
+            IotaSubcommand::StagePackage(StagePackageCommand {
                 syntax,
                 dependencies,
             }) => {
@@ -941,14 +979,17 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     .iter()
                     .map(|m| {
                         let mut buf = vec![];
-                        m.module.serialize(&mut buf).unwrap();
+                        m.module
+                            .serialize_with_version(m.module.version, &mut buf)
+                            .unwrap();
                         buf
                     })
                     .collect::<Vec<_>>();
                 let digest = MovePackage::compute_digest_for_modules_and_deps(
                     module_bytes.iter(),
                     &dependencies,
-                    /* hash_modules */ true,
+                    // hash_modules
+                    true,
                 )
                 .to_vec();
                 let staged = StagedPackage {
@@ -963,12 +1004,12 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 }
                 Ok(merge_output(warnings_opt, output))
             }
-            SuiSubcommand::SetAddress(SetAddressCommand { address, input }) => {
+            IotaSubcommand::SetAddress(SetAddressCommand { address, input }) => {
                 let address_sym = &Symbol::from(address.as_str());
                 let state = self.compiled_state();
                 let input = input.into_concrete_value(&|s| Some(state.resolve_named_address(s)))?;
                 let (value, package) = match input {
-                    SuiValue::Object(fake_id, version) => {
+                    IotaValue::Object(fake_id, version) => {
                         let id = match self.fake_to_real_object_id(fake_id) {
                             Some(id) => id,
                             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
@@ -994,15 +1035,15 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                         let value: AccountAddress = id.into();
                         (value, package)
                     }
-                    SuiValue::MoveValue(v) => {
+                    IotaValue::MoveValue(v) => {
                         let bytes = v.simple_serialize().unwrap();
                         let value: AccountAddress = bcs::from_bytes(&bytes)?;
                         (value, None)
                     }
-                    SuiValue::Digest(_) => bail!("digest is not supported as an input"),
-                    SuiValue::ObjVec(_) => bail!("obj vec is not supported as an input"),
-                    SuiValue::Receiving(_, _) => bail!("receiving is not supported as an input"),
-                    SuiValue::ImmShared(_, _) => {
+                    IotaValue::Digest(_) => bail!("digest is not supported as an input"),
+                    IotaValue::ObjVec(_) => bail!("obj vec is not supported as an input"),
+                    IotaValue::Receiving(_, _) => bail!("receiving is not supported as an input"),
+                    IotaValue::ImmShared(_, _) => {
                         bail!("read-only shared object is not supported as an input")
                     }
                 };
@@ -1024,7 +1065,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
 
                 Ok(None)
             }
-            SuiSubcommand::Bench(
+            IotaSubcommand::Bench(
                 RunCommand {
                     signers,
                     args,
@@ -1076,8 +1117,8 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     });
                 }
 
-                // Run the tx for real after the benchmark, so that its effects are persisted and
-                // available to subsequent commands
+                // Run the tx for real after the benchmark, so that its effects are persisted
+                // and available to subsequent commands
                 self.call_function(
                     &module_id,
                     name.as_ident_str(),
@@ -1093,23 +1134,26 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
         }
     }
 
-    /// Process the error string such that it's less dependent on specific addresses or object IDs. Instead, they are
-    /// replaced by the account names or fake IDs as much as possible. This reduces the effort of updating tests
-    /// when something changed.
+    /// Process the error string such that it's less dependent on specific
+    /// addresses or object IDs. Instead, they are replaced by the account
+    /// names or fake IDs as much as possible. This reduces the effort of
+    /// updating tests when something changed.
     async fn process_error(&self, error: anyhow::Error) -> anyhow::Error {
         let mut err = error.to_string();
         for (name, account) in &self.accounts {
             let addr = account.address.to_string();
             let replace = format!("@{}", name);
             err = err.replace(&addr, &replace);
-            // Also match without 0x since different error messages may use different format.
+            // Also match without 0x since different error messages may use different
+            // format.
             err = err.replace(&addr[2..], &replace);
         }
         for (id, fake_id) in &self.object_enumeration {
             let id = id.to_string();
             let replace = format!("object({})", fake_id);
             err = err.replace(&id, &replace);
-            // Also match without 0x since different error messages may use different format.
+            // Also match without 0x since different error messages may use different
+            // format.
             err = err.replace(&id[2..], &replace);
         }
         anyhow!(err)
@@ -1127,7 +1171,7 @@ fn merge_output(left: Option<String>, right: Option<String>) -> Option<String> {
     }
 }
 
-impl<'a> SuiTestAdapter {
+impl<'a> IotaTestAdapter {
     pub fn is_simulator(&self) -> bool {
         self.is_simulator
     }
@@ -1255,7 +1299,8 @@ impl<'a> SuiTestAdapter {
             .iter()
             .map(|m| {
                 let mut module_bytes = vec![];
-                m.module.serialize(&mut module_bytes)?;
+                m.module
+                    .serialize_with_version(m.module.version, &mut module_bytes)?;
                 Ok(module_bytes)
             })
             .collect::<anyhow::Result<Vec<Vec<u8>>>>()?;
@@ -1266,18 +1311,19 @@ impl<'a> SuiTestAdapter {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         // Argument::Input(0)
-        SuiValue::Object(upgrade_capability, None).into_argument(&mut builder, self)?;
+        IotaValue::Object(upgrade_capability, None).into_argument(&mut builder, self)?;
         let upgrade_arg = builder.pure(policy).unwrap();
         let digest: Vec<u8> = MovePackage::compute_digest_for_modules_and_deps(
             &modules_bytes,
             &dependencies,
-            /* hash_modules */ true,
+            // hash_modules
+            true,
         )
         .into();
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("package").to_owned(),
             ident_str!("authorize_upgrade").to_owned(),
             vec![],
@@ -1289,7 +1335,7 @@ impl<'a> SuiTestAdapter {
             builder.upgrade(package_id, upgrade_ticket, dependencies, modules_bytes);
 
         builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("package").to_owned(),
             ident_str!("commit_upgrade").to_owned(),
             vec![],
@@ -1335,7 +1381,12 @@ impl<'a> SuiTestAdapter {
     fn sign_txn(
         &self,
         sender: Option<String>,
-        txn_data: impl FnOnce(/* sender */ SuiAddress, /* gas */ ObjectRef) -> TransactionData,
+        txn_data: impl FnOnce(
+            // sender
+            IotaAddress,
+            // gas
+            ObjectRef,
+        ) -> TransactionData,
     ) -> Transaction {
         let test_account = self.get_sender(sender);
         let gas_payment = self
@@ -1362,12 +1413,12 @@ impl<'a> SuiTestAdapter {
         function: &IdentStr,
         type_args: Vec<TypeTag>,
         signers: Vec<ParsedAddress>,
-        args: Vec<SuiValue>,
+        args: Vec<IotaValue>,
         gas_budget: Option<u64>,
-        extra: SuiRunArgs,
+        extra: IotaRunArgs,
     ) -> anyhow::Result<Transaction> {
         assert!(signers.is_empty(), "signers are not used");
-        let SuiRunArgs {
+        let IotaRunArgs {
             sender, gas_price, ..
         } = extra;
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1425,7 +1476,8 @@ impl<'a> SuiTestAdapter {
         let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|(id, _, _)| *id).collect();
         let gas_summary = effects.gas_cost_summary();
 
-        // make sure objects that have previously not been in storage get assigned a fake id.
+        // make sure objects that have previously not been in storage get assigned a
+        // fake id.
         let mut might_need_fake_id: Vec<_> = created_ids
             .iter()
             .chain(unwrapped_ids.iter())
@@ -1438,8 +1490,14 @@ impl<'a> SuiTestAdapter {
             self.enumerate_fake(id);
         }
 
-        // Treat unwrapped objects as writes (even though sometimes this is the first time we can
-        // refer to them at their id in storage).
+        let mut unchanged_shared_ids = effects
+            .unchanged_shared_objects()
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+
+        // Treat unwrapped objects as writes (even though sometimes this is the first
+        // time we can refer to them at their id in storage).
 
         // sort by fake id
         created_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
@@ -1448,6 +1506,7 @@ impl<'a> SuiTestAdapter {
         deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
+        unchanged_shared_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
             ExecutionStatus::Success { .. } => {
@@ -1464,6 +1523,7 @@ impl<'a> SuiTestAdapter {
                     deleted: deleted_ids,
                     unwrapped_then_deleted: unwrapped_then_deleted_ids,
                     wrapped: wrapped_ids,
+                    unchanged_shared: unchanged_shared_ids,
                 })
             }
             ExecutionStatus::Failure { error, command } => {
@@ -1481,7 +1541,7 @@ impl<'a> SuiTestAdapter {
 
     async fn dev_inspect(
         &mut self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
@@ -1504,7 +1564,8 @@ impl<'a> SuiTestAdapter {
         let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.object_id).collect();
         let gas_summary = effects.gas_cost_summary();
 
-        // make sure objects that have previously not been in storage get assigned a fake id.
+        // make sure objects that have previously not been in storage get assigned a
+        // fake id.
         let mut might_need_fake_id: Vec<_> = created_ids
             .iter()
             .chain(unwrapped_ids.iter())
@@ -1517,8 +1578,8 @@ impl<'a> SuiTestAdapter {
             self.enumerate_fake(id);
         }
 
-        // Treat unwrapped objects as writes (even though sometimes this is the first time we can
-        // refer to them at their id in storage).
+        // Treat unwrapped objects as writes (even though sometimes this is the first
+        // time we can refer to them at their id in storage).
 
         // sort by fake id
         created_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
@@ -1529,11 +1590,11 @@ impl<'a> SuiTestAdapter {
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
-            SuiExecutionStatus::Success { .. } => {
+            IotaExecutionStatus::Success { .. } => {
                 let events = events
                     .data
                     .into_iter()
-                    .map(|sui_event| sui_event.into())
+                    .map(|iota_event| iota_event.into())
                     .collect();
                 Ok(TxnSummary {
                     events,
@@ -1544,9 +1605,11 @@ impl<'a> SuiTestAdapter {
                     deleted: deleted_ids,
                     unwrapped_then_deleted: unwrapped_then_deleted_ids,
                     wrapped: wrapped_ids,
+                    // TODO: Properly propagate unchanged shared objects in dev_inspect.
+                    unchanged_shared: vec![],
                 })
             }
-            SuiExecutionStatus::Failure { error } => Err(anyhow::anyhow!(self.stabilize_str(
+            IotaExecutionStatus::Failure { error } => Err(anyhow::anyhow!(self.stabilize_str(
                 format!("Transaction Effects Status: {error}\nExecution Error: {error}",)
             ))),
         }
@@ -1564,8 +1627,8 @@ impl<'a> SuiTestAdapter {
         }
     }
 
-    // stable way of sorting objects by type. Does not however, produce a stable sorting
-    // between objects of the same type
+    // stable way of sorting objects by type. Does not however, produce a stable
+    // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectID) -> String {
         match &self.get_object(id, None).unwrap().data {
             object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.type_())),
@@ -1609,6 +1672,7 @@ impl<'a> SuiTestAdapter {
             deleted,
             unwrapped_then_deleted,
             wrapped,
+            unchanged_shared,
         }: &TxnSummary,
         summarize: bool,
     ) -> Option<String> {
@@ -1657,14 +1721,21 @@ impl<'a> SuiTestAdapter {
             }
             write!(out, "wrapped: {}", self.list_objs(wrapped, summarize)).unwrap();
         }
+        if !unchanged_shared.is_empty() {
+            if !out.is_empty() {
+                out.push('\n')
+            }
+            write!(
+                out,
+                "unchanged_shared: {}",
+                self.list_objs(unchanged_shared, summarize)
+            )
+            .unwrap();
+        }
         out.push('\n');
         write!(out, "gas summary: {}", gas_summary).unwrap();
 
-        if out.is_empty() {
-            None
-        } else {
-            Some(out)
-        }
+        if out.is_empty() { None } else { Some(out) }
     }
 
     fn list_events(&self, events: &[Event], summarize: bool) -> String {
@@ -1697,7 +1768,7 @@ impl<'a> SuiTestAdapter {
 
     fn stabilize_str(&self, input: impl AsRef<str>) -> String {
         fn candidate_is_hex(s: &str) -> bool {
-            const HEX_STR_LENGTH: usize = SUI_ADDRESS_LENGTH * 2;
+            const HEX_STR_LENGTH: usize = IOTA_ADDRESS_LENGTH * 2;
             let n = s.len();
             (s.starts_with("0x") && n >= 3) || n == HEX_STR_LENGTH
         }
@@ -1780,16 +1851,16 @@ impl<'a> SuiTestAdapter {
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
-        // we are assuming that all packages depend on Move Stdlib and Sui Framework, so these
-        // don't have to be provided explicitly as parameters
+        // we are assuming that all packages depend on Move Stdlib and Iota Framework,
+        // so these don't have to be provided explicitly as parameters
         if include_std {
-            dependencies.extend([MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]);
+            dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
         }
         Ok(dependencies)
     }
 }
 
-impl<'a> GetModule for &'a SuiTestAdapter {
+impl<'a> GetModule for &'a IotaTestAdapter {
     type Error = anyhow::Error;
 
     type Item = &'a CompiledModule;
@@ -1819,18 +1890,18 @@ impl fmt::Display for FakeID {
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
     assert!(map.get("std").unwrap().into_inner() == MOVE_STDLIB_ADDRESS);
-    // TODO fix Sui framework constants
+    // TODO fix Iota framework constants
     map.insert(
-        "sui".to_string(),
+        "iota".to_string(),
         NumericalAddress::new(
-            SUI_FRAMEWORK_ADDRESS.into_bytes(),
+            IOTA_FRAMEWORK_ADDRESS.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
-        "sui_system".to_string(),
+        "iota_system".to_string(),
         NumericalAddress::new(
-            SUI_SYSTEM_ADDRESS.into_bytes(),
+            IOTA_SYSTEM_ADDRESS.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
@@ -1841,51 +1912,71 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
+    map.insert(
+        "bridge".to_string(),
+        NumericalAddress::new(
+            BRIDGE_ADDRESS.into_bytes(),
+            move_compiler::shared::NumberFormat::Hex,
+        ),
+    );
     map
 });
 
 pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
-    // TODO invoke package system? Or otherwise pull the versions for these packages as per their
-    // actual Move.toml files. They way they are treated here is odd, too, though.
-    let sui_files: &Path = Path::new(DEFAULT_FRAMEWORK_PATH);
-    let sui_system_sources = {
-        let mut buf = sui_files.to_path_buf();
-        buf.extend(["packages", "sui-system", "sources"]);
+    // TODO invoke package system? Or otherwise pull the versions for these packages
+    // as per their actual Move.toml files. They way they are treated here is
+    // odd, too, though.
+    let iota_files: &Path = Path::new(DEFAULT_FRAMEWORK_PATH);
+    let iota_system_sources = {
+        let mut buf = iota_files.to_path_buf();
+        buf.extend(["packages", "iota-system", "sources"]);
         buf.to_string_lossy().to_string()
     };
-    let sui_sources = {
-        let mut buf = sui_files.to_path_buf();
-        buf.extend(["packages", "sui-framework", "sources"]);
+    let iota_sources = {
+        let mut buf = iota_files.to_path_buf();
+        buf.extend(["packages", "iota-framework", "sources"]);
         buf.to_string_lossy().to_string()
     };
-    let sui_deps = {
-        let mut buf = sui_files.to_path_buf();
+    let iota_deps = {
+        let mut buf = iota_files.to_path_buf();
         buf.extend(["packages", "move-stdlib", "sources"]);
         buf.to_string_lossy().to_string()
     };
     let deepbook_sources = {
-        let mut buf = sui_files.to_path_buf();
+        let mut buf = iota_files.to_path_buf();
         buf.extend(["packages", "deepbook", "sources"]);
         buf.to_string_lossy().to_string()
     };
     let config = PackageConfig {
         edition: Edition::E2024_BETA,
-        flavor: Flavor::Sui,
+        flavor: Flavor::Iota,
         ..Default::default()
+    };
+    let bridge_sources = {
+        let mut buf = iota_files.to_path_buf();
+        buf.extend(["packages", "bridge", "sources"]);
+        buf.to_string_lossy().to_string()
     };
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
-            name: Some(("sui-framework".into(), config)),
-            paths: vec![sui_system_sources, sui_sources, sui_deps, deepbook_sources],
+            name: Some(("iota-framework".into(), config)),
+            paths: vec![
+                iota_system_sources,
+                iota_sources,
+                iota_deps,
+                deepbook_sources,
+                bridge_sources,
+            ],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,
         Flags::empty(),
+        None,
     )
     .unwrap();
     match fully_compiled_res {
         Err((files, diags)) => {
-            eprintln!("!!!Sui framework failed to compile!!!");
+            eprintln!("!!!Iota framework failed to compile!!!");
             move_compiler::diagnostics::report_diagnostics(&files, diags)
         }
         Ok(res) => res,
@@ -1968,8 +2059,8 @@ async fn init_val_fullnode_executor(
         test_account
     };
 
-    // For each named Sui account without an address value, create an account with an address
-    // and a gas object
+    // For each named Iota account without an address value, create an account with
+    // an address and a gas object
     for n in account_names {
         let test_account = mk_account();
         account_objects.insert(n.clone(), test_account.gas);
@@ -2024,7 +2115,7 @@ async fn init_sim_executor(
     let mut accounts = BTreeMap::new();
     let mut objects = vec![];
 
-    // For each named Sui account without an address value, create a key pair
+    // For each named Iota account without an address value, create a key pair
     for n in account_names {
         let test_account = get_key_pair_from_rng(&mut rng);
         account_kps.insert(n, test_account);
@@ -2036,7 +2127,7 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (SuiAddress, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (IotaAddress, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
 
         key_copy = Some(
             Ed25519KeyPair::from_bytes(b.as_bytes())
@@ -2065,23 +2156,27 @@ async fn init_sim_executor(
         });
     }
 
-    // Create the simulator with the specific account configs, which also crates objects
+    // Create the simulator with the specific account configs, which also crates
+    // objects
 
-    let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
-        rng,
-        DEFAULT_CHAIN_START_TIMESTAMP,
-        protocol_config.version,
-        acc_cfgs,
-        key_copy.map(|q| vec![q]),
-        reference_gas_price,
-        None,
-    );
+    let (mut sim, read_replica) =
+        PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
+            rng,
+            DEFAULT_CHAIN_START_TIMESTAMP,
+            protocol_config.version,
+            acc_cfgs,
+            key_copy.map(|q| vec![q]),
+            reference_gas_price,
+            None,
+        );
+    let data_ingestion_path = tempdir().unwrap().into_path();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Hash the file path to create custom unique DB name
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     test_file_path.hash(&mut hasher);
     let hash = hasher.finish();
-    let db_name = format!("sui_graphql_test_{}", hash);
+    let db_name = format!("iota_graphql_test_{}", hash);
 
     // Use the hash as a seed to generate a random port number
     let base_port = hash as u16 % 8192;
@@ -2102,6 +2197,7 @@ async fn init_sim_executor(
             object_snapshot_max_checkpoint_lag,
             Some(1),
         )),
+        data_ingestion_path,
     )
     .await;
 
@@ -2181,7 +2277,8 @@ async fn update_named_address_mapping(
         .map(|(idx, addr)| (format!("validator_{idx}"), *addr))
         .collect();
 
-    // For mappings where the address is specified, populate the named address mapping
+    // For mappings where the address is specified, populate the named address
+    // mapping
     let additional_mapping = additional_mapping
         .into_iter()
         .chain(accounts.iter().map(|(n, test_account)| {
@@ -2196,7 +2293,7 @@ async fn update_named_address_mapping(
     for (name, addr) in additional_mapping {
         if (named_address_mapping.contains_key(&name)
             && (named_address_mapping.get(&name) != Some(&addr)))
-            || name == "sui"
+            || name == "iota"
         {
             panic!(
                 "Invalid init. The named address '{}' is reserved or duplicated",
@@ -2207,11 +2304,11 @@ async fn update_named_address_mapping(
     }
 }
 
-impl ObjectStore for SuiTestAdapter {
+impl ObjectStore for IotaTestAdapter {
     fn get_object(
         &self,
         object_id: &ObjectID,
-    ) -> sui_types::storage::error::Result<Option<Object>> {
+    ) -> iota_types::storage::error::Result<Option<Object>> {
         ObjectStore::get_object(&*self.executor, object_id)
     }
 
@@ -2219,52 +2316,56 @@ impl ObjectStore for SuiTestAdapter {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> sui_types::storage::error::Result<Option<Object>> {
+    ) -> iota_types::storage::error::Result<Option<Object>> {
         ObjectStore::get_object_by_key(&*self.executor, object_id, version)
     }
 }
 
-impl ReadStore for SuiTestAdapter {
+impl ReadStore for IotaTestAdapter {
+    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        self.executor.get_latest_epoch_id()
+    }
+
     fn get_committee(
         &self,
-        epoch: sui_types::committee::EpochId,
-    ) -> sui_types::storage::error::Result<Option<Arc<sui_types::committee::Committee>>> {
+        epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<Arc<iota_types::committee::Committee>>> {
         self.executor.get_committee(epoch)
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         ReadStore::get_latest_checkpoint(&self.executor)
     }
 
     fn get_highest_verified_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.executor.get_highest_verified_checkpoint()
     }
 
     fn get_highest_synced_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.executor.get_highest_synced_checkpoint()
     }
 
     fn get_lowest_available_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
         self.executor.get_lowest_available_checkpoint()
     }
 
     fn get_checkpoint_by_digest(
         &self,
-        digest: &sui_types::messages_checkpoint::CheckpointDigest,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor.get_checkpoint_by_digest(digest)
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor
             .get_checkpoint_by_sequence_number(sequence_number)
     }
@@ -2272,14 +2373,14 @@ impl ReadStore for SuiTestAdapter {
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<Option<CheckpointContents>> {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.executor.get_checkpoint_contents_by_digest(digest)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<CheckpointContents>> {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.executor
             .get_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -2287,29 +2388,29 @@ impl ReadStore for SuiTestAdapter {
     fn get_transaction(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         self.executor.get_transaction(tx_digest)
     }
 
     fn get_transaction_effects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEffects>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.executor.get_transaction_effects(tx_digest)
     }
 
     fn get_events(
         &self,
         event_digest: &TransactionEventsDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEvents>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.executor.get_events(event_digest)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.executor
             .get_full_checkpoint_contents_by_sequence_number(sequence_number)
@@ -2318,8 +2419,8 @@ impl ReadStore for SuiTestAdapter {
     fn get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.executor.get_full_checkpoint_contents(digest)
     }
