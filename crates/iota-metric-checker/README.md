@@ -1,11 +1,11 @@
-The `sui-metric-checker` crate is used for querying prometheus metrics and validating the results. It will primarily be used to check for performance regressions in nightly deployments. Requires `api_key`, `api_user` & prometheus `url` which can be found in `sui-ops` repo or by asking the PE team.
+The `iota-metric-checker` crate is used for querying prometheus metrics and validating the results. It will primarily be used to check for performance regressions in nightly deployments. Requires `api_key`, `api_user` & prometheus `url` which can be found in `iota-ops` repo or by asking the PE team.
 
 ## Guide
 
 ### Example Usage
 
 ```
-RUST_LOG=debug cargo run --package sui-metric-checker --bin sui-metric-checker  -- --api-key xxxxxxxx --api-user xxxx_metrics --config checks.yaml --url https://xxxx.sui.io/prometheus
+RUST_LOG=debug cargo run --package iota-metric-checker --bin iota-metric-checker  -- --api-key xxxxxxxx --api-user xxxx_metrics --config checks.yaml --url https://xxxx.iota.io/prometheus
 ```
 
 ### Example Config

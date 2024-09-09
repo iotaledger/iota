@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{fs::File, io::Read, time::Duration};
+
 use anyhow::anyhow;
 use backoff::{future::retry, ExponentialBackoff};
 use chrono::{DateTime, Utc};
 use clap::*;
+use iota_metric_checker::{
+    fails_threshold_condition,
+    query::{instant_query, range_query},
+    timestamp_string_to_unix_seconds, Config, NowProvider, QueryType,
+};
 use once_cell::sync::Lazy;
 use prometheus_http_query::Client;
-use std::fs::File;
-use std::io::Read;
-use std::time::Duration;
-use sui_metric_checker::query::{instant_query, range_query};
-use sui_metric_checker::{
-    fails_threshold_condition, timestamp_string_to_unix_seconds, Config, NowProvider, QueryType,
-};
 
 #[derive(Parser)]
 pub struct Opts {
@@ -78,7 +79,12 @@ async fn main() -> Result<(), anyhow::Error> {
                 })
                 .await
             }
-            QueryType::Range { start, end, step } => {
+            QueryType::Range {
+                start,
+                end,
+                step,
+                percentile,
+            } => {
                 retry(backoff.clone(), || async {
                     range_query(
                         &auth_header,
@@ -87,6 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         timestamp_string_to_unix_seconds::<UtcNowOnceProvider>(&start)?,
                         timestamp_string_to_unix_seconds::<UtcNowOnceProvider>(&end)?,
                         step,
+                        percentile,
                     )
                     .await
                     .map_err(backoff::Error::transient)

@@ -1,10 +1,10 @@
 [package]
-name = "sui-metric-checker"
-version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+name = "iota-metric-checker"
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
