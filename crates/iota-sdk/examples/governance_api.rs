@@ -17,8 +17,6 @@ use utils::setup_for_read;
 async fn main() -> Result<(), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
 
-    // ************ GOVERNANCE API ************ //
-
     // Stakes
     let stakes = client.governance_api().get_stakes(active_address).await?;
 
@@ -64,6 +62,5 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", reference_gas_price);
     println!(" *** Reference Gas Price ***\n");
 
-    // ************ END OF GOVERNANCE API ************ //
     Ok(())
 }

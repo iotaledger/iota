@@ -3,13 +3,18 @@ title: Shared Objects
 description: Anyone can access shared objects on the IOTA network, so care must be taken to secure access, if needed.
 ---
 
-A shared object is an object that is shared using the `iota::transfer::share_object` function and is accessible to everyone. Unlike owned objects, anyone can access shared ones on the network. Extended functionality and accessibility of this kind of objects requires additional effort by securing access, if needed.
+A shared object is an object that is made accessible to everyone on the IOTA network using the 
+[`iota::transfer::share_object`](../../../../references/framework/iota-framework/transfer.mdx#function-share_object) function.
+Unlike owned objects, which are restricted to a specific address, shared objects can be accessed by anyone.
+This extended accessibility can be advantageous for certain applications,
+but it also requires careful consideration of security, especially when sensitive operations are involved.
 
-Shared objects require the `key` ability.
+Shared objects require the `key` ability, which enables them to be identified and manipulated within the network.
 
-## Example
+## Example: Digital Donut Shop
 
-The following example creates a shop to sell digital donuts. Everyone needs access to the shop to purchase donuts from it, so the example creates the shop as a shared object using `iota::transfer::share_object`.
+The following example demonstrates how to create a shared object for a digital donut shop.
+In this scenario, the shop needs to be accessible to all users on the network so they can purchase donuts.The shop is created as a shared object using the `iota::transfer::share_object` function.
 
 ```move
 module examples::donuts {

@@ -2028,9 +2028,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let state = TestAuthorityBuilder::new().build().await;
 
-        let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![]);
-        let dummy_tx_with_data =
-            VerifiedTransaction::new_genesis_transaction(vec![GenesisObject::RawObject {
+        let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
+            vec![GenesisObject::RawObject {
                 data: object::Data::Package(
                     MovePackage::new(
                         ObjectID::random(),
@@ -2047,7 +2047,9 @@ mod tests {
                     .unwrap(),
                 ),
                 owner: object::Owner::Immutable,
-            }]);
+            }],
+            vec![],
+        );
         for i in 0..15 {
             state
                 .database_for_testing()

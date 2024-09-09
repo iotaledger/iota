@@ -50,3 +50,22 @@ export const AddressLink = createInternalLink('address', 'address', (addressOrNs
 export const ObjectLink = createInternalLink('object', 'objectId', formatAddress);
 export const TransactionLink = createInternalLink('txblock', 'digest', formatDigest);
 export const ValidatorLink = createInternalLink('validator', 'address', formatAddress);
+
+// This will ultimately replace createInternalLink.
+export function createLinkTo<T extends string>(
+    base: string,
+    propName: T,
+): (args: { queryStrings?: Record<string, string> } & Record<T, string>) => string {
+    return ({ [propName]: id, queryStrings = {} }) => {
+        const queryString = new URLSearchParams(queryStrings).toString();
+        const queryStringPrefix = queryString ? `?${queryString}` : '';
+
+        return `/${base}/${encodeURI(id)}${queryStringPrefix}`;
+    };
+}
+
+export const transactionToLink = createLinkTo('txblock', 'digest');
+export const checkpointToLink = createLinkTo('checkpoint', 'digest');
+export const epochToLink = createLinkTo('epoch', 'epoch');
+export const addressToLink = createLinkTo('address', 'address');
+export const checkpointSequenceToLink = createLinkTo('checkpoint', 'sequence');

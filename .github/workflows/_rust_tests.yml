@@ -139,7 +139,7 @@ jobs:
           echo "filters=$result" >> "$GITHUB_ENV"
       - name: cargo simtest
         run: |
-          command="scripts/simtest/cargo-simtest simtest $filters"
+          command="scripts/simtest/cargo-simtest simtest --profile ci $filters"
 
           echo "$command"
 
@@ -197,7 +197,7 @@ jobs:
       POSTGRES_PORT: 5432
     services:
       postgres:
-        image: postgres
+        image: postgres:15
         env:
           POSTGRES_PASSWORD: postgrespw
         options: >-
