@@ -7,9 +7,9 @@ import React from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import styles from "./index.module.css";
-import heroCardBg from "@site/static/img/heroCardBg.png";
-import heroCardBg1 from "@site/static/img/heroCardBg1.png";
-import heroCardBg2 from "@site/static/img/heroCardBg2.png";
+import heroCardBg from "@site/src/static/img/index/heroCardBg.png";
+import heroCardBg1 from "@site/src/static/img/index/heroCardBg1.png";
+import heroCardBg2 from "@site/src/static/img/index/heroCardBg2.png";
 export default function Home() {
   const HomeCard = (props) => {
     const { title, children, heroCardBg } = props;
@@ -192,7 +192,7 @@ export default function Home() {
         </div>
         <div className={styles.why}>
           <div className={styles.whyImgCard}>
-            <img height={"90%"} src="/img/blocks.png" alt="Decorative visual" />
+            <img height={"90%"} src="/img/index/blocks.png" alt="Decorative visual" />
           </div>
           <div className={styles.cardsB}>
             <div className={styles.cardB}>

@@ -19,7 +19,7 @@
   width: 400px;
 }
 .backgroundImage {
-  background: black url(../../static/img/heroTextBg.svg);
+  background: black url(../static/img/index/heroTextBg.svg);
   height: 27rem;
   margin-top: -10rem;
   background-position: right;
