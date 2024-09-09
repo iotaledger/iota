@@ -1,16 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use parking_lot::Mutex;
 use std::sync::Arc;
-use tokio::sync::futures::Notified;
-use tokio::sync::Notify;
 
-/// Notify once allows waiter to register for certain conditions and unblocks waiter
-/// when condition is signalled with `notify` method.
+use parking_lot::Mutex;
+use tokio::sync::{futures::Notified, Notify};
+
+/// Notify once allows waiter to register for certain conditions and unblocks
+/// waiter when condition is signalled with `notify` method.
 ///
-/// The functionality is somewhat similar to a tokio watch channel with subscribe method,
-/// however it is much less error prone to use NotifyOnce rather then tokio watch.
+/// The functionality is somewhat similar to a tokio watch channel with
+/// subscribe method, however it is much less error prone to use NotifyOnce
+/// rather then tokio watch.
 ///
 /// Specifically with tokio watch you may miss notification,
 /// if you subscribe to it after the value was changed
@@ -49,11 +51,12 @@ impl NotifyOnce {
     /// This future is cancellation safe.
     pub async fn wait(&self) {
         // Note that we only hold lock briefly when registering for notification
-        // There is a bit of a trickery here with lock - we take a lock and if it is not empty,
-        // we register .notified() first and then release lock
+        // There is a bit of a trickery here with lock - we take a lock and if it is not
+        // empty, we register .notified() first and then release lock
         //
-        // This is to make sure no notification is lost because Notify::notify_waiters do not
-        // notify waiters that register **after** notify_waiters was called
+        // This is to make sure no notification is lost because Notify::notify_waiters
+        // do not notify waiters that register **after** notify_waiters was
+        // called
         let mut notify = None;
         let notified = self.make_notified(&mut notify);
 
@@ -83,18 +86,23 @@ impl Default for NotifyOnce {
 async fn notify_once_test() {
     let notify_once = NotifyOnce::new();
     // Before notify() is called .wait() is not ready
-    assert!(futures::future::poll_immediate(notify_once.wait())
-        .await
-        .is_none());
+    assert!(
+        futures::future::poll_immediate(notify_once.wait())
+            .await
+            .is_none()
+    );
     let wait = notify_once.wait();
     notify_once.notify().unwrap();
     // Pending wait() call is ready now
     assert!(futures::future::poll_immediate(wait).await.is_some());
     // Take wait future and don't resolve it.
-    // This makes sure lock is dropped properly and wait futures resolve independently of each other
+    // This makes sure lock is dropped properly and wait futures resolve
+    // independently of each other
     let _dangle_wait = notify_once.wait();
     // Any new wait() is immediately ready
-    assert!(futures::future::poll_immediate(notify_once.wait())
-        .await
-        .is_some());
+    assert!(
+        futures::future::poll_immediate(notify_once.wait())
+            .await
+            .is_some()
+    );
 }

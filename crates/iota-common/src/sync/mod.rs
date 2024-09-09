@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/// Low level utilities shared across Iota.
 pub mod async_once_cell;
-/// Low level ultilities shared between Sui and Narwhal.
 pub mod notify_once;
 pub mod notify_read;

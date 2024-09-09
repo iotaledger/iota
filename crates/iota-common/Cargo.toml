@@ -1,12 +1,12 @@
 [package]
-name = "mysten-common"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
-license = "Apache-2.0"
+name = "iota-common"
 version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
-tokio.workspace = true
 futures.workspace = true
 parking_lot.workspace = true
+tokio.workspace = true
