@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::histogram::Histogram;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use std::sync::Arc;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+
+use iota_metrics::histogram::Histogram;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tap::Pipe;
 
 #[derive(Clone)]

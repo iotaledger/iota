@@ -1,14 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{PeerHeights, StateSync, StateSyncMessage};
+use std::{
+    sync::{Arc, RwLock},
+    task::{Context, Poll},
+};
+
 use anemo::{rpc::Status, types::response::StatusCode, Request, Response, Result};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
-use std::task::{Context, Poll};
-use sui_types::{
+use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, FullCheckpointContents,
@@ -16,7 +18,10 @@ use sui_types::{
     },
     storage::WriteStore,
 };
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+
+use super::{PeerHeights, StateSync, StateSyncMessage};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum GetCheckpointSummaryRequest {
@@ -131,8 +136,8 @@ where
     }
 }
 
-/// [`Layer`] for adding a per-checkpoint limit to the number of inflight GetCheckpointContent
-/// requests.
+/// [`Layer`] for adding a per-checkpoint limit to the number of inflight
+/// GetCheckpointContent requests.
 #[derive(Clone)]
 pub(super) struct CheckpointContentsDownloadLimitLayer {
     inflight_per_checkpoint: Arc<DashMap<CheckpointContentsDigest, Arc<Semaphore>>>,
@@ -169,8 +174,8 @@ impl<S> tower::layer::Layer<S> for CheckpointContentsDownloadLimitLayer {
     }
 }
 
-/// Middleware for adding a per-checkpoint limit to the number of inflight GetCheckpointContent
-/// requests.
+/// Middleware for adding a per-checkpoint limit to the number of inflight
+/// GetCheckpointContent requests.
 #[derive(Clone)]
 pub(super) struct CheckpointContentsDownloadLimit<S> {
     inner: S,
@@ -221,10 +226,12 @@ where
                 }
             })?;
 
-            struct SemaphoreExtension(OwnedSemaphorePermit);
+            struct SemaphoreExtension(#[allow(unused)] OwnedSemaphorePermit);
             inner.call(req).await.map(move |mut response| {
                 // Insert permit as extension so it's not dropped until the response is sent.
-                response.extensions_mut().insert(SemaphoreExtension(permit));
+                response
+                    .extensions_mut()
+                    .insert(Arc::new(SemaphoreExtension(permit)));
                 response
             })
         };

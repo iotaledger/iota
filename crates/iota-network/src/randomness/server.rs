@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Randomness, RandomnessMessage, SendSignaturesRequest};
 use anemo::{Request, Response};
 use tokio::sync::mpsc;
+
+use super::{Randomness, RandomnessMessage, SendSignaturesRequest};
 
 pub(super) struct Server {
     pub(super) sender: mpsc::WeakSender<RandomnessMessage>,
@@ -26,14 +28,15 @@ impl Randomness for Server {
             epoch,
             round,
             partial_sigs,
-            sig: _,
+            sig,
         } = request.into_inner();
         let _ = sender // throw away error, caller will retry
-            .send(RandomnessMessage::ReceivePartialSignatures(
+            .send(RandomnessMessage::ReceiveSignatures(
                 peer_id,
                 epoch,
                 round,
                 partial_sigs,
+                sig,
             ))
             .await;
         Ok(anemo::Response::new(()))

@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Discovery, NodeInfo, State};
+use std::sync::{Arc, RwLock};
+
 use anemo::{Request, Response};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
+
+use super::{Discovery, NodeInfo, State};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GetKnownPeersResponse {

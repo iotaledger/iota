@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anemo::codegen::InboundRequestLayer;
-use anemo_tower::{inflight_limit, rate_limit};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
 };
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_config::p2p::StateSyncConfig;
-use sui_types::messages_checkpoint::VerifiedCheckpoint;
+
+use anemo::codegen::InboundRequestLayer;
+use anemo_tower::{inflight_limit, rate_limit};
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_config::p2p::StateSyncConfig;
+use iota_types::{messages_checkpoint::VerifiedCheckpoint, storage::WriteStore};
 use tap::Pipe;
 use tokio::{
     sync::{broadcast, mpsc},
@@ -22,7 +23,6 @@ use super::{
     server::{CheckpointContentsDownloadLimitLayer, Server},
     Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
 };
-use sui_types::storage::WriteStore;
 
 pub struct Builder<S> {
     store: Option<S>,
@@ -145,7 +145,8 @@ where
             peers: HashMap::new(),
             unprocessed_checkpoints: HashMap::new(),
             sequence_number_to_digest: HashMap::new(),
-            wait_interval_when_no_peer_to_sync_content: Duration::from_secs(10),
+            wait_interval_when_no_peer_to_sync_content: config
+                .wait_interval_when_no_peer_to_sync_content(),
         }
         .pipe(RwLock::new)
         .pipe(Arc::new);
