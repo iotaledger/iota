@@ -2,10 +2,10 @@ error[E04032]: unable to expand macro function
    ┌─ tests/move_2024/typing/recursive_macros_invalid.move:4:13
    │
  4 │         1 + self_cycle!()
-   │             ^^^^^^^^^^^^^ Recursive macro expansion. 'a::m::self_cycle' cannot recursively expand itself
+   │             ^^^^^^^^^^^^ Recursive macro expansion. 'a::m::self_cycle' cannot recursively expand itself
    ·
 39 │         self_cycle!();
-   │         ------------- 'a::m::self_cycle' previously expanded here
+   │         ------------ 'a::m::self_cycle' previously expanded here
 
 error[E04032]: unable to expand macro function
    ┌─ tests/move_2024/typing/recursive_macros_invalid.move:17:9
