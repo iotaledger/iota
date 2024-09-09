@@ -1,19 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, path::PathBuf};
+
 use anyhow::Result;
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::path::PathBuf;
-use sui_data_ingestion::{
+use iota_data_ingestion::{
     ArchivalConfig, ArchivalWorker, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
     KVStoreTaskConfig, KVStoreWorker,
 };
-use sui_data_ingestion_core::{DataIngestionMetrics, ReaderOptions};
-use sui_data_ingestion_core::{IndexerExecutor, WorkerPool};
-use tokio::signal;
-use tokio::sync::oneshot;
+use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
+use prometheus::Registry;
+use serde::{Deserialize, Serialize};
+use tokio::{signal, sync::oneshot};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -100,11 +99,11 @@ async fn main() -> Result<()> {
     let _guard = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .init();
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!("{}:{}", config.metrics_host, config.metrics_port).parse()?,
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let metrics = DataIngestionMetrics::new(&registry);
 
     let progress_store = DynamoDBProgressStore::new(

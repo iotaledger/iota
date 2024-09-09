@@ -1,27 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{io::Cursor, ops::Range};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use byteorder::BigEndian;
-use byteorder::ByteOrder;
+use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::ObjectStore;
-use serde::{Deserialize, Serialize};
-use std::io::Cursor;
-use std::ops::Range;
-use std::time::{Duration, Instant};
-use sui_archival::{
+use iota_archival::{
     create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes, FileType,
     Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
 };
-use sui_data_ingestion_core::{create_remote_store_client, Worker, MAX_CHECKPOINTS_IN_PROGRESS};
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_storage::{compress, FileCompression, StorageFormat};
-use sui_types::base_types::{EpochId, ExecutionData};
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents};
+use iota_data_ingestion_core::{create_remote_store_client, Worker};
+use iota_storage::{
+    blob::{Blob, BlobEncoding},
+    compress, FileCompression, StorageFormat,
+};
+use iota_types::{
+    base_types::{EpochId, ExecutionData},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents},
+};
+use object_store::{path::Path, ObjectStore};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -37,7 +39,7 @@ struct AccumulatedState {
     checkpoint_range: Range<u64>,
     buffer: Vec<u8>,
     summary_buffer: Vec<u8>,
-    last_commit_instant: Instant,
+    last_commit_ms: u64,
     should_update_progress: bool,
 }
 
@@ -45,7 +47,7 @@ pub struct ArchivalWorker {
     remote_store: Box<dyn ObjectStore>,
     state: Mutex<AccumulatedState>,
     commit_file_size: usize,
-    commit_duration: Duration,
+    commit_duration_ms: u64,
 }
 
 impl ArchivalWorker {
@@ -59,14 +61,14 @@ impl ArchivalWorker {
                 ..manifest.next_checkpoint_seq_num(),
             buffer: vec![],
             summary_buffer: vec![],
-            last_commit_instant: Instant::now(),
+            last_commit_ms: 0,
             should_update_progress: false,
         };
         Ok(Self {
             remote_store,
             state: Mutex::new(state),
             commit_file_size: config.commit_file_size,
-            commit_duration: Duration::from_secs(config.commit_duration_seconds),
+            commit_duration_ms: config.commit_duration_seconds * 1000,
         })
     }
 
@@ -119,7 +121,7 @@ impl ArchivalWorker {
 
         let bytes = finalize_manifest(manifest)?;
         self.remote_store
-            .put(&Path::from("MANIFEST"), bytes)
+            .put(&Path::from("MANIFEST"), bytes.into())
             .await?;
         Ok(())
     }
@@ -134,9 +136,13 @@ impl ArchivalWorker {
         let mut cursor = Cursor::new(buffer);
         compress(&mut cursor, &mut compressed_buffer)?;
         self.remote_store
-            .put(&location, Bytes::from(compressed_buffer.clone()))
+            .put(&location, Bytes::from(compressed_buffer.clone()).into())
             .await?;
         Ok(Bytes::from(compressed_buffer))
+    }
+
+    pub async fn initial_checkpoint_number(&self) -> CheckpointSequenceNumber {
+        self.state.lock().await.checkpoint_range.start
     }
 }
 
@@ -152,6 +158,7 @@ impl Worker for ArchivalWorker {
         if state.buffer.is_empty() {
             assert!(epoch == state.epoch || epoch == state.epoch + 1);
             state.epoch = epoch;
+            state.last_commit_ms = checkpoint.checkpoint_summary.timestamp_ms;
         }
         let full_checkpoint_contents = FullCheckpointContents::from_contents_and_execution_data(
             checkpoint.checkpoint_contents,
@@ -167,16 +174,15 @@ impl Worker for ArchivalWorker {
         if !state.buffer.is_empty()
             && (((state.buffer.len() + blob_size) > self.commit_file_size)
                 || state.epoch != epoch
-                || (state.checkpoint_range.end - state.checkpoint_range.start)
-                    > (MAX_CHECKPOINTS_IN_PROGRESS / 2).try_into()?
-                || state.last_commit_instant.elapsed() > self.commit_duration)
+                || checkpoint.checkpoint_summary.timestamp_ms
+                    > (self.commit_duration_ms + state.last_commit_ms))
         {
             self.upload(&state).await?;
             state.epoch = epoch;
             state.checkpoint_range = sequence_number..sequence_number;
             state.buffer = vec![];
             state.summary_buffer = vec![];
-            state.last_commit_instant = Instant::now();
+            state.last_commit_ms = checkpoint.checkpoint_summary.timestamp_ms;
             state.should_update_progress = true;
         }
         contents_blob.write(&mut state.buffer)?;

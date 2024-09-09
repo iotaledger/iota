@@ -1,25 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    borrow::Borrow,
+    collections::{HashMap, HashSet, VecDeque},
+    iter::repeat,
+    time::{Duration, Instant},
+};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use aws_config::timeout::TimeoutConfig;
-use aws_sdk_dynamodb::primitives::Blob;
-use aws_sdk_dynamodb::types::{AttributeValue, PutRequest, WriteRequest};
-use aws_sdk_dynamodb::Client;
+use aws_sdk_dynamodb::{
+    primitives::Blob,
+    types::{AttributeValue, PutRequest, WriteRequest},
+    Client,
+};
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::config::{Credentials, Region};
-use backoff::backoff::Backoff;
-use backoff::ExponentialBackoff;
+use backoff::{backoff::Backoff, ExponentialBackoff};
+use iota_data_ingestion_core::Worker;
+use iota_storage::http_key_value_store::TaggedKey;
+use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::iter::repeat;
-use std::time::{Duration, Instant};
-use sui_data_ingestion_core::Worker;
-use sui_storage::http_key_value_store::TaggedKey;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::storage::ObjectKey;
 
 const TIMEOUT: Duration = Duration::from_secs(60);
 

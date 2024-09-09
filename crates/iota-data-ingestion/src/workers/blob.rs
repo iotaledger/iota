@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::ObjectStore;
+use iota_data_ingestion_core::{create_remote_store_client, Worker};
+use iota_storage::blob::{Blob, BlobEncoding};
+use iota_types::full_checkpoint_content::CheckpointData;
+use object_store::{path::Path, ObjectStore};
 use serde::{Deserialize, Serialize};
-use sui_data_ingestion_core::{create_remote_store_client, Worker};
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_types::full_checkpoint_content::CheckpointData;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlobTaskConfig {
@@ -38,7 +38,9 @@ impl Worker for BlobWorker {
             "{}.chk",
             checkpoint.checkpoint_summary.sequence_number
         ));
-        self.remote_store.put(&location, Bytes::from(bytes)).await?;
+        self.remote_store
+            .put(&location, Bytes::from(bytes).into())
+            .await?;
         Ok(())
     }
 }
