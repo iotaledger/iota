@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Context;
-use anyhow::Result;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use anyhow::{Context, Result};
+use serde::{de::DeserializeOwned, Serialize};
 use tracing::trace;
 
 pub mod certificate_deny_config;
@@ -18,29 +20,29 @@ pub mod object_storage_config;
 pub mod p2p;
 pub mod transaction_deny_config;
 
-pub use node::{ConsensusConfig, NodeConfig};
-use sui_types::multiaddr::Multiaddr;
+use iota_types::multiaddr::Multiaddr;
+pub use node::{ConsensusConfig, ExecutionCacheConfig, NodeConfig};
 
-const SUI_DIR: &str = ".sui";
-pub const SUI_CONFIG_DIR: &str = "sui_config";
-pub const SUI_NETWORK_CONFIG: &str = "network.yaml";
-pub const SUI_FULLNODE_CONFIG: &str = "fullnode.yaml";
-pub const SUI_CLIENT_CONFIG: &str = "client.yaml";
-pub const SUI_KEYSTORE_FILENAME: &str = "sui.keystore";
-pub const SUI_KEYSTORE_ALIASES_FILENAME: &str = "sui.aliases";
-pub const SUI_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
-pub const SUI_GENESIS_FILENAME: &str = "genesis.blob";
-pub const SUI_DEV_NET_URL: &str = "https://fullnode.devnet.sui.io:443";
+const IOTA_DIR: &str = ".iota";
+pub const IOTA_CONFIG_DIR: &str = "iota_config";
+pub const IOTA_NETWORK_CONFIG: &str = "network.yaml";
+pub const IOTA_FULLNODE_CONFIG: &str = "fullnode.yaml";
+pub const IOTA_CLIENT_CONFIG: &str = "client.yaml";
+pub const IOTA_KEYSTORE_FILENAME: &str = "iota.keystore";
+pub const IOTA_KEYSTORE_ALIASES_FILENAME: &str = "iota.aliases";
+pub const IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
+pub const IOTA_GENESIS_FILENAME: &str = "genesis.blob";
+pub const IOTA_DEV_NET_URL: &str = "https://fullnode.devnet.iota.io:443";
 
 pub const AUTHORITIES_DB_NAME: &str = "authorities_db";
 pub const CONSENSUS_DB_NAME: &str = "consensus_db";
 pub const FULL_NODE_DB_PATH: &str = "full_node_db";
 
-pub fn sui_config_dir() -> Result<PathBuf, anyhow::Error> {
-    match std::env::var_os("SUI_CONFIG_DIR") {
+pub fn iota_config_dir() -> Result<PathBuf, anyhow::Error> {
+    match std::env::var_os("IOTA_CONFIG_DIR") {
         Some(config_env) => Ok(config_env.into()),
         None => match dirs::home_dir() {
-            Some(v) => Ok(v.join(SUI_DIR).join(SUI_CONFIG_DIR)),
+            Some(v) => Ok(v.join(IOTA_DIR).join(IOTA_CONFIG_DIR)),
             None => anyhow::bail!("Cannot obtain home directory path"),
         },
     }
@@ -50,6 +52,23 @@ pub fn sui_config_dir() -> Result<PathBuf, anyhow::Error> {
         }
         Ok(dir)
     })
+}
+
+/// Check if the genesis blob exists in the given directory or the default
+/// directory.
+pub fn genesis_blob_exists(config_dir: Option<PathBuf>) -> bool {
+    if let Some(dir) = config_dir {
+        dir.join(IOTA_GENESIS_FILENAME).exists()
+    } else if let Some(config_env) = std::env::var_os("IOTA_CONFIG_DIR") {
+        Path::new(&config_env).join(IOTA_GENESIS_FILENAME).exists()
+    } else if let Some(home) = dirs::home_dir() {
+        let mut config = PathBuf::new();
+        config.push(&home);
+        config.extend([IOTA_DIR, IOTA_CONFIG_DIR, IOTA_GENESIS_FILENAME]);
+        config.exists()
+    } else {
+        false
+    }
 }
 
 pub fn validator_config_file(address: Multiaddr, i: usize) -> String {

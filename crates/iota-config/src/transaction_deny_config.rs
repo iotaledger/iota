@@ -1,37 +1,42 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashSet;
 
+use iota_types::base_types::{IotaAddress, ObjectID};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use sui_types::base_types::{ObjectID, SuiAddress};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TransactionDenyConfig {
-    /// A list of object IDs that are not allowed to be accessed/used in transactions.
-    /// Note that since this is checked during transaction signing, only root object ids
-    /// are supported here (i.e. no child-objects).
-    /// Similarly this does not apply to wrapped objects as they are not directly accessible.
+    /// A list of object IDs that are not allowed to be accessed/used in
+    /// transactions. Note that since this is checked during transaction
+    /// signing, only root object ids are supported here (i.e. no
+    /// child-objects). Similarly this does not apply to wrapped objects as
+    /// they are not directly accessible.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     object_deny_list: Vec<ObjectID>,
 
-    /// A list of package object IDs that are not allowed to be called into in transactions,
-    /// either directly or indirectly through transitive dependencies.
-    /// Note that this does not apply to type arguments.
-    /// Also since we only compare the deny list against the upgraded package ID of each dependency
-    /// in the used package, when a package ID is denied, newer versions of that package are
-    /// still allowed. If we want to deny the entire upgrade family of a package, we need to
-    /// explicitly specify all the package IDs in the deny list.
-    /// TODO: We could consider making this more flexible, e.g. whether to check in type args,
-    /// whether to block entire upgrade family, whether to allow upgrade and etc.
+    /// A list of package object IDs that are not allowed to be called into in
+    /// transactions, either directly or indirectly through transitive
+    /// dependencies. Note that this does not apply to type arguments.
+    /// Also since we only compare the deny list against the upgraded package ID
+    /// of each dependency in the used package, when a package ID is denied,
+    /// newer versions of that package are still allowed. If we want to deny
+    /// the entire upgrade family of a package, we need to explicitly
+    /// specify all the package IDs in the deny list. TODO: We could
+    /// consider making this more flexible, e.g. whether to check in type args,
+    /// whether to block entire upgrade family, whether to allow upgrade and
+    /// etc.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     package_deny_list: Vec<ObjectID>,
 
-    /// A list of sui addresses that are not allowed to be used as the sender or sponsor.
+    /// A list of iota addresses that are not allowed to be used as the sender
+    /// or sponsor.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    address_deny_list: Vec<SuiAddress>,
+    address_deny_list: Vec<IotaAddress>,
 
     /// Whether publishing new packages is disabled.
     #[serde(default)]
@@ -45,8 +50,9 @@ pub struct TransactionDenyConfig {
     #[serde(default)]
     shared_object_disabled: bool,
 
-    /// Whether user transactions are disabled (i.e. only system transactions are allowed).
-    /// This is essentially a kill switch for transactions processing to a degree.
+    /// Whether user transactions are disabled (i.e. only system transactions
+    /// are allowed). This is essentially a kill switch for transactions
+    /// processing to a degree.
     #[serde(default)]
     user_transaction_disabled: bool,
 
@@ -58,7 +64,7 @@ pub struct TransactionDenyConfig {
     package_deny_set: OnceCell<HashSet<ObjectID>>,
 
     #[serde(skip)]
-    address_deny_set: OnceCell<HashSet<SuiAddress>>,
+    address_deny_set: OnceCell<HashSet<IotaAddress>>,
 
     /// Whether receiving objects transferred to other objects is allowed
     #[serde(default)]
@@ -72,7 +78,8 @@ pub struct TransactionDenyConfig {
     #[serde(default)]
     zklogin_disabled_providers: HashSet<String>,
     // TODO: We could consider add a deny list for types that we want to disable public transfer.
-    // TODO: We could also consider disable more types of commands, such as transfer, split and etc.
+    // TODO: We could also consider disable more types of commands, such as transfer, split and
+    // etc.
 }
 
 impl TransactionDenyConfig {
@@ -86,7 +93,7 @@ impl TransactionDenyConfig {
             .get_or_init(|| self.package_deny_list.iter().cloned().collect())
     }
 
-    pub fn get_address_deny_set(&self) -> &HashSet<SuiAddress> {
+    pub fn get_address_deny_set(&self) -> &HashSet<IotaAddress> {
         self.address_deny_set
             .get_or_init(|| self.address_deny_list.iter().cloned().collect())
     }
@@ -164,7 +171,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_address(mut self, address: SuiAddress) -> Self {
+    pub fn add_denied_address(mut self, address: IotaAddress) -> Self {
         self.config.address_deny_list.push(address);
         self
     }

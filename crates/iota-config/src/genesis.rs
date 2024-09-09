@@ -1,34 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Context, Result};
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::hash::HashFunction;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fs, path::Path};
-use sui_types::authenticator_state::{get_authenticator_state, AuthenticatorStateInner};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::clock::Clock;
-use sui_types::committee::CommitteeWithNetworkMetadata;
-use sui_types::crypto::DefaultHash;
-use sui_types::deny_list::{get_coin_deny_list, PerTypeDenyList};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::gas_coin::TOTAL_SUPPLY_MIST;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+
+use anyhow::{Context, Result};
+use fastcrypto::{
+    encoding::{Base64, Encoding},
+    hash::HashFunction,
 };
-use sui_types::storage::ObjectStore;
-use sui_types::sui_system_state::{
-    get_sui_system_state, get_sui_system_state_wrapper, SuiSystemState, SuiSystemStateTrait,
-    SuiSystemStateWrapper, SuiValidatorGenesis,
-};
-use sui_types::transaction::Transaction;
-use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
-use sui_types::{
-    committee::{Committee, EpochId, ProtocolVersion},
-    error::SuiResult,
+use iota_types::{
+    authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
+    base_types::{IotaAddress, ObjectID},
+    clock::Clock,
+    committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
+    crypto::DefaultHash,
+    deny_list_v1::{get_coin_deny_list, PerTypeDenyList},
+    effects::{TransactionEffects, TransactionEvents},
+    error::IotaResult,
+    gas_coin::TOTAL_SUPPLY_NANOS,
+    iota_system_state::{
+        get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
+        IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+    },
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+    },
     object::Object,
+    storage::ObjectStore,
+    transaction::Transaction,
+    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
 
 #[derive(Clone, Debug)]
@@ -51,7 +54,8 @@ pub struct UnsignedGenesis {
     pub objects: Vec<Object>,
 }
 
-// Hand implement PartialEq in order to get around the fact that AuthSigs don't impl Eq
+// Hand implement PartialEq in order to get around the fact that AuthSigs don't
+// impl Eq
 impl PartialEq for Genesis {
     fn eq(&self, other: &Self) -> bool {
         self.checkpoint.data() == other.checkpoint.data()
@@ -113,7 +117,7 @@ impl Genesis {
     pub fn checkpoint(&self) -> VerifiedCheckpoint {
         self.checkpoint
             .clone()
-            .verify(&self.committee().unwrap())
+            .try_into_verified(&self.committee().unwrap())
             .unwrap()
     }
 
@@ -125,40 +129,40 @@ impl Genesis {
         0
     }
 
-    pub fn validator_set_for_tooling(&self) -> Vec<SuiValidatorGenesis> {
-        self.sui_system_object()
+    pub fn validator_set_for_tooling(&self) -> Vec<IotaValidatorGenesis> {
+        self.iota_system_object()
             .into_genesis_version_for_tooling()
             .validators
             .active_validators
     }
 
     pub fn committee_with_network(&self) -> CommitteeWithNetworkMetadata {
-        self.sui_system_object().get_current_epoch_committee()
+        self.iota_system_object().get_current_epoch_committee()
     }
 
     pub fn reference_gas_price(&self) -> u64 {
-        self.sui_system_object().reference_gas_price()
+        self.iota_system_object().reference_gas_price()
     }
 
-    // TODO: No need to return SuiResult.
-    pub fn committee(&self) -> SuiResult<Committee> {
-        Ok(self.committee_with_network().committee)
+    // TODO: No need to return IotaResult. Also consider return &.
+    pub fn committee(&self) -> IotaResult<Committee> {
+        Ok(self.committee_with_network().committee().clone())
     }
 
-    pub fn sui_system_wrapper_object(&self) -> SuiSystemStateWrapper {
-        get_sui_system_state_wrapper(&self.objects())
-            .expect("Sui System State Wrapper object must always exist")
+    pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {
+        get_iota_system_state_wrapper(&self.objects())
+            .expect("Iota System State Wrapper object must always exist")
     }
 
-    pub fn sui_system_object(&self) -> SuiSystemState {
-        get_sui_system_state(&self.objects()).expect("Sui System State object must always exist")
+    pub fn iota_system_object(&self) -> IotaSystemState {
+        get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
     }
 
     pub fn clock(&self) -> Clock {
         let clock = self
             .objects()
             .iter()
-            .find(|o| o.id() == sui_types::SUI_CLOCK_OBJECT_ID)
+            .find(|o| o.id() == iota_types::IOTA_CLOCK_OBJECT_ID)
             .expect("Clock must always exist")
             .data
             .try_as_move()
@@ -313,22 +317,29 @@ impl UnsignedGenesis {
         0
     }
 
-    pub fn sui_system_wrapper_object(&self) -> SuiSystemStateWrapper {
-        get_sui_system_state_wrapper(&self.objects())
-            .expect("Sui System State Wrapper object must always exist")
+    pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {
+        get_iota_system_state_wrapper(&self.objects())
+            .expect("Iota System State Wrapper object must always exist")
     }
 
-    pub fn sui_system_object(&self) -> SuiSystemState {
-        get_sui_system_state(&self.objects()).expect("Sui System State object must always exist")
+    pub fn iota_system_object(&self) -> IotaSystemState {
+        get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
     }
 
     pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {
-        get_authenticator_state(&self.objects()).expect("read from genesis cannot fail")
+        get_authenticator_state(self.objects()).expect("read from genesis cannot fail")
     }
 
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
-            .get_object(&SUI_RANDOMNESS_STATE_OBJECT_ID)
+            .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .expect("read from genesis cannot fail")
+            .is_some()
+    }
+
+    pub fn has_bridge_object(&self) -> bool {
+        self.objects()
+            .get_object(&IOTA_BRIDGE_OBJECT_ID)
             .expect("read from genesis cannot fail")
             .is_some()
     }
@@ -430,8 +441,8 @@ impl GenesisCeremonyParameters {
     }
 
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
-        // 1M Sui
-        1_000_000 * sui_types::gas_coin::MIST_PER_SUI
+        // 1M Iota
+        1_000_000 * iota_types::gas_coin::NANOS_PER_IOTA
     }
 
     fn default_stake_subsidy_period_length() -> u64 {
@@ -454,14 +465,14 @@ impl GenesisCeremonyParameters {
                 .stake_subsidy_initial_distribution_amount,
             stake_subsidy_period_length: self.stake_subsidy_period_length,
             stake_subsidy_decrease_rate: self.stake_subsidy_decrease_rate,
-            max_validator_count: sui_types::governance::MAX_VALIDATOR_COUNT,
-            min_validator_joining_stake: sui_types::governance::MIN_VALIDATOR_JOINING_STAKE_MIST,
+            max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
+            min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
             validator_low_stake_threshold:
-                sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST,
+                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             validator_very_low_stake_threshold:
-                sui_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_MIST,
+                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
             validator_low_stake_grace_period:
-                sui_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+                iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
         }
     }
 }
@@ -475,60 +486,64 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_mist: u64,
+    pub stake_subsidy_fund_nanos: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_mist = self.stake_subsidy_fund_mist;
+        let mut total_nanos = self.stake_subsidy_fund_nanos;
 
         for allocation in &self.allocations {
-            total_mist += allocation.amount_mist;
+            total_nanos += allocation.amount_nanos;
         }
 
-        if total_mist != TOTAL_SUPPLY_MIST {
-            panic!("TokenDistributionSchedule adds up to {total_mist} and not expected {TOTAL_SUPPLY_MIST}");
+        if total_nanos != TOTAL_SUPPLY_NANOS {
+            panic!(
+                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}"
+            );
         }
     }
 
     pub fn check_all_stake_operations_are_for_valid_validators<
-        I: IntoIterator<Item = SuiAddress>,
+        I: IntoIterator<Item = IotaAddress>,
     >(
         &self,
         validators: I,
     ) {
         use std::collections::HashMap;
 
-        let mut validators: HashMap<SuiAddress, u64> =
+        let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
-        // Check that all allocations are for valid validators, while summing up all allocations
-        // for each validator
+        // Check that all allocations are for valid validators, while summing up all
+        // allocations for each validator
         for allocation in &self.allocations {
             if let Some(staked_with_validator) = &allocation.staked_with_validator {
                 *validators
                     .get_mut(staked_with_validator)
                     .expect("allocation must be staked with valid validator") +=
-                    allocation.amount_mist;
+                    allocation.amount_nanos;
             }
         }
 
-        // Check that all validators have sufficient stake allocated to ensure they meet the
-        // minimum stake threshold
-        let minimum_required_stake = sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST;
+        // Check that all validators have sufficient stake allocated to ensure they meet
+        // the minimum stake threshold
+        let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                panic!("validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'");
+                panic!(
+                    "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
+                );
             }
         }
     }
 
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = SuiAddress>>(
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
-        let mut supply = TOTAL_SUPPLY_MIST;
-        let default_allocation = sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST;
+        let mut supply = TOTAL_SUPPLY_NANOS;
+        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
 
         let allocations = validators
             .into_iter()
@@ -536,14 +551,14 @@ impl TokenDistributionSchedule {
                 supply -= default_allocation;
                 TokenAllocation {
                     recipient_address: a,
-                    amount_mist: default_allocation,
+                    amount_nanos: default_allocation,
                     staked_with_validator: Some(a),
                 }
             })
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_mist: supply,
+            stake_subsidy_fund_nanos: supply,
             allocations,
         };
 
@@ -553,23 +568,25 @@ impl TokenDistributionSchedule {
 
     /// Helper to read a TokenDistributionSchedule from a csv file.
     ///
-    /// The file is encoded such that the final entry in the CSV file is used to denote the
-    /// allocation to the stake subsidy fund. It must be in the following format:
-    /// `0x0000000000000000000000000000000000000000000000000000000000000000,<amount to stake subsidy fund>,`
+    /// The file is encoded such that the final entry in the CSV file is used to
+    /// denote the allocation to the stake subsidy fund. It must be in the
+    /// following format:
+    /// `0x0000000000000000000000000000000000000000000000000000000000000000,
+    /// <amount to stake subsidy fund>,`
     ///
-    /// All entries in a token distribution schedule must add up to 10B Sui.
+    /// All entries in a token distribution schedule must add up to 10B Iota.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::Reader::from_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
         assert_eq!(
-            TOTAL_SUPPLY_MIST,
-            allocations.iter().map(|a| a.amount_mist).sum::<u64>(),
-            "Token Distribution Schedule must add up to 10B Sui",
+            TOTAL_SUPPLY_NANOS,
+            allocations.iter().map(|a| a.amount_nanos).sum::<u64>(),
+            "Token Distribution Schedule must add up to 10B Iota",
         );
         let stake_subsidy_fund_allocation = allocations.pop().unwrap();
         assert_eq!(
-            SuiAddress::default(),
+            IotaAddress::default(),
             stake_subsidy_fund_allocation.recipient_address,
             "Final allocation must be for stake subsidy fund",
         );
@@ -581,7 +598,7 @@ impl TokenDistributionSchedule {
         );
 
         let schedule = Self {
-            stake_subsidy_fund_mist: stake_subsidy_fund_allocation.amount_mist,
+            stake_subsidy_fund_nanos: stake_subsidy_fund_allocation.amount_nanos,
             allocations,
         };
 
@@ -597,8 +614,8 @@ impl TokenDistributionSchedule {
         }
 
         writer.serialize(TokenAllocation {
-            recipient_address: SuiAddress::default(),
-            amount_mist: self.stake_subsidy_fund_mist,
+            recipient_address: IotaAddress::default(),
+            amount_nanos: self.stake_subsidy_fund_nanos,
             staked_with_validator: None,
         })?;
 
@@ -609,11 +626,12 @@ impl TokenDistributionSchedule {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenAllocation {
-    pub recipient_address: SuiAddress,
-    pub amount_mist: u64,
+    pub recipient_address: IotaAddress,
+    pub amount_nanos: u64,
 
-    /// Indicates if this allocation should be staked at genesis and with which validator
-    pub staked_with_validator: Option<SuiAddress>,
+    /// Indicates if this allocation should be staked at genesis and with which
+    /// validator
+    pub staked_with_validator: Option<IotaAddress>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -626,34 +644,34 @@ impl TokenDistributionScheduleBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            pool: TOTAL_SUPPLY_MIST,
+            pool: TOTAL_SUPPLY_NANOS,
             allocations: vec![],
         }
     }
 
-    pub fn default_allocation_for_validators<I: IntoIterator<Item = SuiAddress>>(
+    pub fn default_allocation_for_validators<I: IntoIterator<Item = IotaAddress>>(
         &mut self,
         validators: I,
     ) {
-        let default_allocation = sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST;
+        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
 
         for validator in validators {
             self.add_allocation(TokenAllocation {
                 recipient_address: validator,
-                amount_mist: default_allocation,
+                amount_nanos: default_allocation,
                 staked_with_validator: Some(validator),
             });
         }
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
-        self.pool = self.pool.checked_sub(allocation.amount_mist).unwrap();
+        self.pool = self.pool.checked_sub(allocation.amount_nanos).unwrap();
         self.allocations.push(allocation);
     }
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_mist: self.pool,
+            stake_subsidy_fund_nanos: self.pool,
             allocations: self.allocations.clone(),
         };
 

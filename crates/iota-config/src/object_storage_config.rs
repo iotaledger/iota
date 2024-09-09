@@ -1,16 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context, Result};
+use std::{env, fs, path::PathBuf, sync::Arc};
 
+use anyhow::{anyhow, Context, Result};
 use clap::*;
-use object_store::aws::AmazonS3Builder;
-use object_store::{ClientOptions, DynObjectStore};
+use object_store::{aws::AmazonS3Builder, ClientOptions, DynObjectStore};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
 use tracing::info;
 
 /// Object-store type.
@@ -29,7 +27,8 @@ pub enum ObjectStoreType {
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Args)]
 #[serde(rename_all = "kebab-case")]
 pub struct ObjectStoreConfig {
-    /// Which object storage to use. If not specified, defaults to local file system.
+    /// Which object storage to use. If not specified, defaults to local file
+    /// system.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[arg(value_enum)]
     pub object_store: Option<ObjectStoreType>,
@@ -139,26 +138,37 @@ impl ObjectStoreConfig {
         if let Some(bucket) = &self.bucket {
             builder = builder.with_bucket_name(bucket);
         }
+
         if let Some(key_id) = &self.aws_access_key_id {
             builder = builder.with_access_key_id(key_id);
+        } else if let Ok(secret) = env::var("ARCHIVE_READ_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
+        } else if let Ok(secret) = env::var("FORMAL_SNAPSHOT_WRITE_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
+        } else if let Ok(secret) = env::var("DB_SNAPSHOT_READ_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
         }
+
         if let Some(secret) = &self.aws_secret_access_key {
             builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("ARCHIVE_READ_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("FORMAL_SNAPSHOT_WRITE_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("DB_SNAPSHOT_READ_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
         }
+
         if let Some(endpoint) = &self.aws_endpoint {
             builder = builder.with_endpoint(endpoint);
         }
-        // if let Some(profile) = &self.aws_profile {
-        //     builder = builder.with_profile(profile);
-        // }
         Ok(Arc::new(LimitStore::new(
             builder.build().context("Invalid s3 config")?,
             self.object_store_connection_limit,
         )))
     }
     fn new_gcs(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
-        use object_store::gcp::GoogleCloudStorageBuilder;
-        use object_store::limit::LimitStore;
+        use object_store::{gcp::GoogleCloudStorageBuilder, limit::LimitStore};
 
         info!(bucket=?self.bucket, object_store_type="GCS", "Object Store");
 
@@ -188,8 +198,7 @@ impl ObjectStoreConfig {
         )))
     }
     fn new_azure(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
-        use object_store::azure::MicrosoftAzureBuilder;
-        use object_store::limit::LimitStore;
+        use object_store::{azure::MicrosoftAzureBuilder, limit::LimitStore};
 
         info!(bucket=?self.bucket, account=?self.azure_storage_account,
           object_store_type="Azure", "Object Store");

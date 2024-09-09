@@ -1,35 +1,39 @@
 [package]
-name = "sui-config"
+name = "iota-config"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+
+[lints]
+workspace = true
 
 [dependencies]
 anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
 bcs.workspace = true
+clap.workspace = true
 csv.workspace = true
 dirs.workspace = true
 fastcrypto.workspace = true
+object_store.workspace = true
 once_cell.workspace = true
+prometheus.workspace = true
 rand.workspace = true
+reqwest.workspace = true
 serde = { workspace = true, features = ["derive", "rc"] }
 serde_with.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
-prometheus.workspace = true
-clap.workspace = true
-object_store.workspace = true
-reqwest.workspace = true
 
+consensus-config.workspace = true
+iota-keys.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 narwhal-config.workspace = true
-sui-keys.workspace = true
-sui-protocol-config.workspace = true
-sui-types.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
-sui-types = { workspace = true, features = ["test-utils"] }
