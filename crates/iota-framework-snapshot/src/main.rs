@@ -1,28 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-use sui_framework::{BuiltInFramework, SystemPackage};
-use sui_framework_snapshot::update_bytecode_snapshot_manifest;
-use sui_protocol_config::ProtocolVersion;
+use std::{env, fs, path::PathBuf};
 
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
+use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_framework_snapshot::update_bytecode_snapshot_manifest;
+use iota_protocol_config::ProtocolVersion;
 
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
+// Define the `GIT_REVISION` const
+bin_version::git_revision!();
 
 fn main() {
     // Always generate snapshot for the latest version.

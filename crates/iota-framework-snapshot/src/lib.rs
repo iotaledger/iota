@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::{fs, io::Read, path::PathBuf};
-use sui_framework::SystemPackage;
-use sui_types::base_types::ObjectID;
-use sui_types::{
-    DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
+use std::{collections::BTreeMap, fs, io::Read, path::PathBuf};
+
+use iota_framework::SystemPackage;
+use iota_types::{
+    base_types::ObjectID, BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
 };
+use serde::{Deserialize, Serialize};
 
 pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
 
@@ -16,7 +17,8 @@ pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
 pub struct SingleSnapshot {
     /// Git revision that this snapshot is taken on.
     git_revision: String,
-    /// List of file names (also identical to object ID) of the bytecode package files.
+    /// List of file names (also identical to object ID) of the bytecode package
+    /// files.
     package_ids: Vec<ObjectID>,
 }
 
@@ -31,9 +33,10 @@ impl SingleSnapshot {
 
 const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
-    SUI_FRAMEWORK_PACKAGE_ID,
-    SUI_SYSTEM_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID,
     DEEPBOOK_PACKAGE_ID,
+    BRIDGE_PACKAGE_ID,
 ];
 
 pub fn load_bytecode_snapshot_manifest() -> SnapshotManifest {
