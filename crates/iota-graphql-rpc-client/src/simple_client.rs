@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ClientError;
-use axum::http::HeaderValue;
-use hyper::header;
-use reqwest::Response;
-use serde_json::Value;
 use std::collections::BTreeMap;
-use sui_graphql_rpc_headers::LIMITS_HEADER;
+
+use iota_graphql_rpc_headers::LIMITS_HEADER;
+use reqwest::{header, header::HeaderValue, Response};
+use serde_json::Value;
 
 use super::response::GraphqlResponse;
+use crate::ClientError;
 
 #[derive(Clone, Debug)]
 pub struct GraphqlQueryVariable {
@@ -52,7 +52,10 @@ impl SimpleClient {
         mut headers: Vec<(header::HeaderName, header::HeaderValue)>,
     ) -> Result<GraphqlResponse, ClientError> {
         if get_usage {
-            headers.push((LIMITS_HEADER.clone(), HeaderValue::from_static("true")));
+            headers.push((
+                LIMITS_HEADER.clone().as_str().try_into().unwrap(),
+                HeaderValue::from_static("true"),
+            ));
         }
         GraphqlResponse::from_resp(self.execute_impl(query, variables, headers, false).await?).await
     }
