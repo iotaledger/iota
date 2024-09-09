@@ -56,7 +56,7 @@ ResolvedGraph {
             "MoveStdlib",
             "NestedDeps",
         },
-        manifest_digest: "F45479F592B1338CBDD902E019A40FA7A1D802E49E9BE96FFECA91B3B5AA178D",
+        manifest_digest: "E8A0B8E5BE21A2E2341236BF8B787FA329C7956F8E33E3E5E7D97A5504A7E2FA",
         deps_digest: "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082",
     },
     build_options: BuildConfig {

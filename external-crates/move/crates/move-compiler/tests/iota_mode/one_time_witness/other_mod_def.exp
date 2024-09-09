@@ -2,7 +2,7 @@ error[Iota E02003]: invalid 'init' function
   ┌─ tests/iota_mode/one_time_witness/other_mod_def.move:7:9
   │
 7 │     fun init(_otw: iota::IOTA, _ctx: &mut tx_context::TxContext) {
-  │         ^^^^       -------- Invalid parameter '_otw' of type 'iota::iota::IOTA'. Expected a one-time witness type, 'a::n::N
+  │         ^^^^       ---------- Invalid parameter '_otw' of type 'iota::iota::IOTA'. Expected a one-time witness type, 'a::n::N
   │         │           
   │         Invalid 'init' function declaration
   │

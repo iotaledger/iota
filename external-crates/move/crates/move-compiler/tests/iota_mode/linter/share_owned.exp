@@ -1,5 +1,5 @@
 warning[Lint W99000]: possible owned object share
-   ┌─ tests/iota_mode/linter/share_owned.move:14:9
+   ┌─ tests/iota_mode/linter/share_owned.move:15:9
    │
 13 │     public entry fun arg_object(o: Obj) {
    │                                 - A potentially owned object coming from here
@@ -13,7 +13,7 @@ warning[Lint W99000]: possible owned object share
    = This warning can be suppressed with '#[allow(lint(share_owned))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99000]: possible owned object share
-   ┌─ tests/iota_mode/linter/share_owned.move:34:9
+   ┌─ tests/iota_mode/linter/share_owned.move:35:9
    │
 34 │         let Wrapper { id, i: _, o } = w;
    │                                 - A potentially owned object coming from here
