@@ -1,10 +1,13 @@
 [package]
-name = "sui-genesis-builder"
+name = "iota-genesis-builder"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+
+[lints]
+workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -13,25 +16,25 @@ camino.workspace = true
 fastcrypto.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
+prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 tracing.workspace = true
-prometheus.workspace = true
 
+iota-config.workspace = true
+iota-execution.workspace = true
+iota-framework.workspace = true
+iota-framework-snapshot.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 shared-crypto.workspace = true
-sui-config.workspace = true
-sui-execution.workspace = true
-sui-framework.workspace = true
-sui-framework-snapshot.workspace = true
-sui-protocol-config.workspace = true
-sui-types.workspace = true
 [target.'cfg(msim)'.dependencies]
-sui-simulator.workspace = true
+iota-simulator.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
-sui-types = { workspace = true, features = ["test-utils"] }
