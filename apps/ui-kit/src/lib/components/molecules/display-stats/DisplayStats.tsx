@@ -44,6 +44,10 @@ interface DisplayStatsProps {
      * The size of the stats.
      */
     size?: DisplayStatsSize;
+    /**
+     * Add icon to the right of the label.
+     */
+    icon?: React.ReactNode;
 }
 
 export function DisplayStats({
@@ -54,6 +58,7 @@ export function DisplayStats({
     supportingLabel,
     type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
+    icon,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
@@ -70,13 +75,20 @@ export function DisplayStats({
                 textClass,
             )}
         >
-            <div className="flex flex-row items-center gap-xxs">
-                <span className={cx(labelTextClass)}>{label}</span>
-                {tooltipText && (
-                    <Tooltip text={tooltipText} position={tooltipPosition}>
-                        <Info className="opacity-40" />
-                    </Tooltip>
-                )}
+            <div
+                className={cx('flex flex-row items-center', {
+                    'w-full justify-between': icon,
+                })}
+            >
+                <div className="flex flex-row items-center gap-xxs">
+                    <span className={cx(labelTextClass)}>{label}</span>
+                    {tooltipText && (
+                        <Tooltip text={tooltipText} position={tooltipPosition}>
+                            <Info className="opacity-40" />
+                        </Tooltip>
+                    )}
+                </div>
+                {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
             <div className="flex flex-row items-baseline gap-xxs">
                 <span className={cx(valueTextClass)}>{value}</span>
