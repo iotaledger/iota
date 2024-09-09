@@ -1,34 +1,40 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 #[cfg(not(msim))]
 use std::str::FromStr;
-use std::time::Duration;
-use sui_json::{call_args, type_args};
-use sui_json_rpc_api::{
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
+use iota_json::{call_args, type_args};
+use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
     TransactionBuilderClient, WriteApiClient,
 };
-use sui_json_rpc_types::ObjectChange;
-use sui_json_rpc_types::ObjectsPage;
-use sui_json_rpc_types::{
-    Balance, CoinPage, DelegatedStake, StakeStatus, SuiCoinMetadata, SuiExecutionStatus,
-    SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions, TransactionBlockBytes,
+use iota_json_rpc_types::{
+    Balance, CoinPage, DelegatedStake, IotaCoinMetadata, IotaExecutionStatus,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, ObjectsPage, StakeStatus,
+    TransactionBlockBytes,
 };
-use sui_macros::sim_test;
-use sui_move_build::BuildConfig;
-use sui_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
-use sui_types::balance::Supply;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SequenceNumber;
-use sui_types::coin::{TreasuryCap, COIN_MODULE_NAME};
-use sui_types::digests::ObjectDigest;
-use sui_types::gas_coin::GAS;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::{parse_sui_struct_tag, SUI_FRAMEWORK_ADDRESS};
+use iota_macros::sim_test;
+use iota_move_build::BuildConfig;
+use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
+use iota_types::{
+    balance::Supply,
+    base_types::{ObjectID, SequenceNumber},
+    coin::{TreasuryCap, COIN_MODULE_NAME},
+    digests::ObjectDigest,
+    gas_coin::GAS,
+    parse_iota_struct_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    IOTA_FRAMEWORK_ADDRESS,
+};
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
@@ -42,8 +48,8 @@ async fn test_get_objects() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new(),
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new(),
             )),
             None,
             None,
@@ -69,19 +75,21 @@ async fn test_get_package_with_display_should_not_fail() -> Result<(), anyhow::E
     let http_client = cluster.rpc_client();
     let response = http_client
         .get_object(
-            ObjectID::from(SUI_FRAMEWORK_ADDRESS),
-            Some(SuiObjectDataOptions::new().with_display()),
+            ObjectID::from(IOTA_FRAMEWORK_ADDRESS),
+            Some(IotaObjectDataOptions::new().with_display()),
         )
         .await;
     assert!(response.is_ok());
-    let response: SuiObjectResponse = response?;
-    assert!(response
-        .into_object()
-        .unwrap()
-        .display
-        .unwrap()
-        .data
-        .is_none());
+    let response: IotaObjectResponse = response?;
+    assert!(
+        response
+            .into_object()
+            .unwrap()
+            .display
+            .unwrap()
+            .data
+            .is_none()
+    );
     Ok(())
 }
 
@@ -94,8 +102,8 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -120,12 +128,12 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
     let tx_bytes1 = tx_bytes.clone();
     let dryrun_response = http_client.dry_run_transaction_block(tx_bytes).await?;
 
-    let tx_response: SuiTransactionBlockResponse = http_client
+    let tx_response: IotaTransactionBlockResponse = http_client
         .execute_transaction_block(
             tx_bytes1,
             signatures,
             Some(
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_effects()
                     .with_object_changes(),
             ),
@@ -176,8 +184,8 @@ async fn test_publish() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -188,11 +196,11 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         .await?;
     let gas = objects.data.first().unwrap().object().unwrap();
 
-    let compiled_package = BuildConfig::new_for_testing()
-        .build(Path::new("../../sui_programmability/examples/fungible_tokens").to_path_buf())?;
+    let compiled_package =
+        BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .publish(
@@ -213,11 +221,11 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(SuiTransactionBlockResponseOptions::new().with_effects()),
+            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
-    matches!(tx_response, SuiTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
+    matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
     Ok(())
 }
 
@@ -230,8 +238,8 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -246,7 +254,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::new(SUI_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
     let module = "pay".to_string();
     let function = "split".to_string();
 
@@ -274,11 +282,11 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(SuiTransactionBlockResponseOptions::new().with_effects()),
+            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
-    matches!(tx_response, SuiTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 1);
+    matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 1);
     Ok(())
 }
 
@@ -290,8 +298,8 @@ async fn test_get_object_info() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -307,11 +315,11 @@ async fn test_get_object_info() -> Result<(), anyhow::Error> {
         let result = http_client
             .get_object(
                 oref.object_id,
-                Some(SuiObjectDataOptions::new().with_owner()),
+                Some(IotaObjectDataOptions::new().with_owner()),
             )
             .await?;
         assert!(
-            matches!(result, SuiObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.unwrap().get_owner_address()? == address)
+            matches!(result, IotaObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.unwrap().get_owner_address()? == address)
         );
     }
     Ok(())
@@ -325,8 +333,8 @@ async fn test_get_object_data_with_content() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new().with_content().with_owner(),
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new().with_content().with_owner(),
             )),
             None,
             None,
@@ -339,11 +347,11 @@ async fn test_get_object_data_with_content() -> Result<(), anyhow::Error> {
         let result = http_client
             .get_object(
                 oref.object_id,
-                Some(SuiObjectDataOptions::new().with_content().with_owner()),
+                Some(IotaObjectDataOptions::new().with_content().with_owner()),
             )
             .await?;
         assert!(
-            matches!(result, SuiObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.unwrap().get_owner_address()? == address)
+            matches!(result, IotaObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.unwrap().get_owner_address()? == address)
         );
     }
     Ok(())
@@ -360,19 +368,19 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
     assert!(!result.has_next_page);
 
     let result: CoinPage = http_client
-        .get_coins(address, Some("0x2::sui::TestCoin".into()), None, None)
+        .get_coins(address, Some("0x2::iota::TestCoin".into()), None, None)
         .await?;
     assert_eq!(0, result.data.len());
 
     let result: CoinPage = http_client
-        .get_coins(address, Some("0x2::sui::SUI".into()), None, None)
+        .get_coins(address, Some("0x2::iota::IOTA".into()), None, None)
         .await?;
     assert_eq!(5, result.data.len());
     assert!(!result.has_next_page);
 
     // Test paging
     let result: CoinPage = http_client
-        .get_coins(address, Some("0x2::sui::SUI".into()), None, Some(3))
+        .get_coins(address, Some("0x2::iota::IOTA".into()), None, Some(3))
         .await?;
     assert_eq!(3, result.data.len());
     assert!(result.has_next_page);
@@ -380,7 +388,7 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
     let result: CoinPage = http_client
         .get_coins(
             address,
-            Some("0x2::sui::SUI".into()),
+            Some("0x2::iota::IOTA".into()),
             result.next_cursor,
             Some(3),
         )
@@ -391,7 +399,7 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
     let result: CoinPage = http_client
         .get_coins(
             address,
-            Some("0x2::sui::SUI".into()),
+            Some("0x2::iota::IOTA".into()),
             result.next_cursor,
             None,
         )
@@ -409,7 +417,7 @@ async fn test_get_balance() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
 
     let result: Balance = http_client.get_balance(address, None).await?;
-    assert_eq!("0x2::sui::SUI", result.coin_type);
+    assert_eq!("0x2::iota::IOTA", result.coin_type);
     assert_eq!(
         (DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT as u64 * DEFAULT_GAS_AMOUNT) as u128,
         result.total_balance
@@ -433,8 +441,8 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -450,10 +458,10 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::new_for_testing().build(path)?;
+    let compiled_package = BuildConfig::new_for_testing().build(&path)?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .publish(
@@ -475,7 +483,7 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_object_changes()
                     .with_events(),
             ),
@@ -495,7 +503,7 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
         })
         .unwrap();
 
-    let result: SuiCoinMetadata = http_client
+    let result: IotaCoinMetadata = http_client
         .get_coin_metadata(format!("{package_id}::trusted_coin::TRUSTED_COIN"))
         .await?
         .unwrap();
@@ -518,8 +526,8 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -534,10 +542,10 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::default().build(path)?;
+    let compiled_package = BuildConfig::default().build(&path)?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .publish(
@@ -554,12 +562,12 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
         .sign_transaction(&transaction_bytes.to_data()?);
     let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
-    let tx_response: SuiTransactionBlockResponse = http_client
+    let tx_response: IotaTransactionBlockResponse = http_client
         .execute_transaction_block(
             tx_bytes,
             signatures,
             Some(
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_object_changes()
                     .with_events(),
             ),
@@ -594,7 +602,7 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
                 ..
             } = e
             {
-                if &TreasuryCap::type_(parse_sui_struct_tag(&coin_name).unwrap()) == object_type {
+                if &TreasuryCap::type_(parse_iota_struct_tag(&coin_name).unwrap()) == object_type {
                     Some(object_id)
                 } else {
                     None
@@ -610,7 +618,7 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .move_call(
             address,
-            SUI_FRAMEWORK_ADDRESS.into(),
+            IOTA_FRAMEWORK_ADDRESS.into(),
             COIN_MODULE_NAME.to_string(),
             "mint_and_transfer".into(),
             type_args![coin_name]?,
@@ -630,14 +638,14 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(SuiTransactionBlockResponseOptions::new().with_effects()),
+            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
 
-    let SuiTransactionBlockResponse { effects, .. } = tx_response;
+    let IotaTransactionBlockResponse { effects, .. } = tx_response;
 
-    assert_eq!(SuiExecutionStatus::Success, *effects.unwrap().status());
+    assert_eq!(IotaExecutionStatus::Success, *effects.unwrap().status());
 
     let result: Supply = http_client.get_total_supply(coin_name.clone()).await?;
     assert_eq!(100000, result.value);
@@ -655,8 +663,8 @@ async fn test_staking() -> Result<(), anyhow::Error> {
     let objects: ObjectsPage = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -667,18 +675,18 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(5, objects.data.len());
 
-    // Check StakedSui object before test
-    let staked_sui: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert!(staked_sui.is_empty());
+    // Check StakedIota object before test
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert!(staked_iota.is_empty());
 
     let validator = http_client
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?
         .active_validators[0]
-        .sui_address;
+        .iota_address;
 
     let coin = objects.data[0].object()?.object_id;
-    // Delegate some SUI
+    // Delegate some IOTA
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_stake(
             address,
@@ -699,25 +707,25 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(SuiTransactionBlockResponseOptions::new()),
+            Some(IotaTransactionBlockResponseOptions::new()),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
 
     // Check DelegatedStake object
-    let staked_sui: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert_eq!(1, staked_sui.len());
-    assert_eq!(1000000000, staked_sui[0].stakes[0].principal);
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert_eq!(1, staked_iota.len());
+    assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
     assert!(matches!(
-        staked_sui[0].stakes[0].status,
+        staked_iota[0].stakes[0].status,
         StakeStatus::Pending
     ));
-    let staked_sui_copy = http_client
-        .get_stakes_by_ids(vec![staked_sui[0].stakes[0].staked_sui_id])
+    let staked_iota_copy = http_client
+        .get_stakes_by_ids(vec![staked_iota[0].stakes[0].staked_iota_id])
         .await?;
     assert_eq!(
-        staked_sui[0].stakes[0].staked_sui_id,
-        staked_sui_copy[0].stakes[0].staked_sui_id
+        staked_iota[0].stakes[0].staked_iota_id,
+        staked_iota_copy[0].stakes[0].staked_iota_id
     );
     Ok(())
 }
@@ -736,17 +744,17 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let coins: CoinPage = http_client.get_coins(address, None, None, None).await?;
     assert_eq!(5, coins.data.len());
 
-    // Check StakedSui object before test
-    let staked_sui: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert!(staked_sui.is_empty());
+    // Check StakedIota object before test
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert!(staked_iota.is_empty());
 
     let validator = http_client
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?
         .active_validators[0]
-        .sui_address;
+        .iota_address;
 
-    // Delegate some SUI
+    // Delegate some IOTA
     for i in 0..3 {
         let transaction_bytes: TransactionBlockBytes = http_client
             .request_add_stake(
@@ -768,40 +776,40 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
             .execute_transaction_block(
                 tx_bytes,
                 signatures,
-                Some(SuiTransactionBlockResponseOptions::new()),
+                Some(IotaTransactionBlockResponseOptions::new()),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await?;
     }
     // Check DelegatedStake object
-    let staked_sui: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert_eq!(1, staked_sui.len());
-    assert_eq!(1000000000, staked_sui[0].stakes[0].principal);
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert_eq!(1, staked_iota.len());
+    assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
 
     sleep(Duration::from_millis(10000)).await;
 
-    let staked_sui_copy = http_client
+    let staked_iota_copy = http_client
         .get_stakes_by_ids(vec![
-            staked_sui[0].stakes[0].staked_sui_id,
-            staked_sui[0].stakes[1].staked_sui_id,
-            staked_sui[0].stakes[2].staked_sui_id,
+            staked_iota[0].stakes[0].staked_iota_id,
+            staked_iota[0].stakes[1].staked_iota_id,
+            staked_iota[0].stakes[2].staked_iota_id,
         ])
         .await?;
 
     assert!(matches!(
-        &staked_sui_copy[0].stakes[0].status,
+        &staked_iota_copy[0].stakes[0].status,
         StakeStatus::Active {
             estimated_reward: _
         }
     ));
     assert!(matches!(
-        &staked_sui_copy[0].stakes[1].status,
+        &staked_iota_copy[0].stakes[1].status,
         StakeStatus::Active {
             estimated_reward: _
         }
     ));
     assert!(matches!(
-        &staked_sui_copy[0].stakes[2].status,
+        &staked_iota_copy[0].stakes[2].status,
         StakeStatus::Active {
             estimated_reward: _
         }
@@ -810,7 +818,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_withdraw_stake(
             address,
-            staked_sui_copy[0].stakes[2].staked_sui_id,
+            staked_iota_copy[0].stakes[2].staked_iota_id,
             None,
             1_000_000.into(),
         )
@@ -825,35 +833,35 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(SuiTransactionBlockResponseOptions::new()),
+            Some(IotaTransactionBlockResponseOptions::new()),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
 
     sleep(Duration::from_millis(20000)).await;
 
-    let staked_sui_copy = http_client
+    let staked_iota_copy = http_client
         .get_stakes_by_ids(vec![
-            staked_sui[0].stakes[0].staked_sui_id,
-            staked_sui[0].stakes[1].staked_sui_id,
-            staked_sui[0].stakes[2].staked_sui_id,
+            staked_iota[0].stakes[0].staked_iota_id,
+            staked_iota[0].stakes[1].staked_iota_id,
+            staked_iota[0].stakes[2].staked_iota_id,
         ])
         .await?;
 
     assert!(matches!(
-        &staked_sui_copy[0].stakes[0].status,
+        &staked_iota_copy[0].stakes[0].status,
         StakeStatus::Active {
             estimated_reward: _
         }
     ));
     assert!(matches!(
-        &staked_sui_copy[0].stakes[1].status,
+        &staked_iota_copy[0].stakes[1].status,
         StakeStatus::Active {
             estimated_reward: _
         }
     ));
     assert!(matches!(
-        &staked_sui_copy[0].stakes[2].status,
+        &staked_iota_copy[0].stakes[2].status,
         StakeStatus::Unstaked
     ));
     Ok(())
@@ -871,16 +879,16 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
 
     let genesis_coin_amount = coins.data[0].balance;
 
-    // Check StakedSui object before test
-    let staked_sui: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert!(staked_sui.is_empty());
+    // Check StakedIota object before test
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert!(staked_iota.is_empty());
 
     let validator = http_client
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?
         .active_validators[0]
-        .sui_address;
-    // Delegate some SUI
+        .iota_address;
+    // Delegate some IOTA
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_stake(
             address,
@@ -910,7 +918,7 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_balance_changes()
                     .with_input(),
             ),
@@ -931,11 +939,11 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
     );
 
     // Check DelegatedStake object
-    let staked_sui: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
-    assert_eq!(1, staked_sui.len());
-    assert_eq!(1000000000, staked_sui[0].stakes[0].principal);
+    let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
+    assert_eq!(1, staked_iota.len());
+    assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
     assert!(matches!(
-        staked_sui[0].stakes[0].status,
+        staked_iota[0].stakes[0].status,
         StakeStatus::Pending
     ));
 

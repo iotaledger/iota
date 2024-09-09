@@ -1,30 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use hyper::header::HeaderValue;
-use hyper::HeaderMap;
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::http_client::HttpClientBuilder;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::rpc_params;
-use jsonrpsee::RpcModule;
-use prometheus::Registry;
 use std::env;
-use sui_config::local_ip_utils;
-use sui_json_rpc::{JsonRpcServerBuilder, SuiRpcModule};
-use sui_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
-use sui_open_rpc::Module;
-use sui_open_rpc_macros::open_rpc;
+
+use async_trait::async_trait;
+use iota_config::local_ip_utils;
+use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder, ServerType};
+use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
+use iota_open_rpc::Module;
+use iota_open_rpc_macros::open_rpc;
+use jsonrpsee::{
+    core::{client::ClientT, RpcResult},
+    http_client::{HeaderMap, HeaderValue, HttpClientBuilder},
+    proc_macros::rpc,
+    rpc_params, RpcModule,
+};
+use prometheus::Registry;
 
 #[tokio::test]
 async fn test_rpc_backward_compatibility() {
-    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new());
+    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);
     builder.register_module(TestApiModule).unwrap();
 
     let address = local_ip_utils::new_local_tcp_socket_for_testing();
-    let _handle = builder.start(address, None, None).await.unwrap();
+    let _handle = builder
+        .start(address, None, ServerType::Http, None)
+        .await
+        .unwrap();
     let url = format!("http://0.0.0.0:{}", address.port());
 
     // Test with un-versioned client
@@ -99,11 +102,14 @@ async fn test_rpc_backward_compatibility() {
 async fn test_disable_routing() {
     env::set_var("DISABLE_BACKWARD_COMPATIBILITY", "true");
 
-    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new());
+    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);
     builder.register_module(TestApiModule).unwrap();
 
     let address = local_ip_utils::new_local_tcp_socket_for_testing();
-    let _handle = builder.start(address, None, None).await.unwrap();
+    let _handle = builder
+        .start(address, None, ServerType::Http, None)
+        .await
+        .unwrap();
     let url = format!("http://0.0.0.0:{}", address.port());
 
     // try to access old method directly should fail
@@ -111,7 +117,8 @@ async fn test_disable_routing() {
     let response: RpcResult<String> = client.request("test_foo_1_5", rpc_params!("string")).await;
     assert!(response.is_err());
 
-    // Test with versioned client, version = backward compatible method version, should fail because routing is disabled.
+    // Test with versioned client, version = backward compatible method version,
+    // should fail because routing is disabled.
     let mut versioned_header = HeaderMap::new();
     versioned_header.insert(
         CLIENT_TARGET_API_VERSION_HEADER,
@@ -134,7 +141,12 @@ async fn test_disable_routing() {
 // TODO(chris): clean up this after March 27th, 2023
 // #[tokio::test]
 // async fn test_rpc_backward_compatibility_batched_request() {
-//     let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new());
+//     let mut builder = JsonRpcServerBuilder::new(
+//          "1.5", &Registry::new(), None, None,
+//     );
+//     let mut builder = JsonRpcServerBuilder::new(
+//          "1.5", &Registry::new(), None, None,
+//     );
 //     builder.register_module(TestApiModule).unwrap();
 
 //     let port = get_available_port("0.0.0.0");
@@ -173,8 +185,8 @@ async fn test_disable_routing() {
 //                 jsonrpc: Default::default(),
 //                 id: Id::Number(1),
 //                 method: "test_foo".into(),
-//                 params: Some(&JsonRawValue::from_string("[true]".into()).unwrap()),
-//             }),
+//                 params:
+// Some(&JsonRawValue::from_string("[true]".into()).unwrap()),             }),
 //             json!("Bad json input"),
 //         ])
 //         .send()
@@ -182,18 +194,21 @@ async fn test_disable_routing() {
 //         .unwrap();
 
 //     let responses = response.text().await.unwrap();
-//     let responses: Vec<&JsonRawValue> = serde_json::from_str(&responses).unwrap();
+//     let responses: Vec<&JsonRawValue> =
+// serde_json::from_str(&responses).unwrap();
 
 //     // Should have 2 results
 //     assert_eq!(2, responses.len());
 
 //     // First response should success
-//     let response = serde_json::from_str::<Response<String>>(responses[0].get());
-//     assert!(matches!(response, Ok(result) if result.result == "Some string"));
+//     let response =
+// serde_json::from_str::<Response<String>>(responses[0].get());     assert!
+// (matches!(response, Ok(result) if result.result == "Some string"));
 
 //     // Second response should fail
 //     let response = serde_json::from_str::<ErrorResponse>(responses[1].get());
-//     assert!(matches!(response, Ok(result) if result.error_object().message() == "Invalid request"));
+//     assert!(matches!(response, Ok(result) if result.error_object().message()
+// == "Invalid request"));
 
 //     handle.stop().unwrap()
 // }
@@ -221,7 +236,7 @@ impl TestApiServer for TestApiModule {
     }
 }
 
-impl SuiRpcModule for TestApiModule {
+impl IotaRpcModule for TestApiModule {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

@@ -1,18 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_json_rpc_types::SuiTransactionBlockResponseQuery;
-use sui_json_rpc_types::TransactionFilter;
-use sui_json_rpc_types::{
-    SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions, TransactionBlockBytes,
-};
-use sui_macros::sim_test;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::SenderSignedData;
-use test_cluster::TestClusterBuilder;
+#[cfg(not(msim))]
+use std::str::FromStr;
 
-use sui_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json::{call_args, type_args};
+use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json_rpc_types::{
+    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, TransactionBlockBytes,
+    TransactionFilter,
+};
+use iota_macros::sim_test;
+use iota_types::{
+    base_types::ObjectID,
+    gas_coin::GAS,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Command, SenderSignedData, TransactionData},
+    IOTA_FRAMEWORK_ADDRESS,
+};
+use move_core_types::identifier::Identifier;
+use test_cluster::TestClusterBuilder;
 
 #[sim_test]
 async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
@@ -23,8 +33,8 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -37,7 +47,7 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
     let gas_id = objects.last().unwrap().object().unwrap().object_id;
 
     // Make some transactions
-    let mut tx_responses: Vec<SuiTransactionBlockResponse> = Vec::new();
+    let mut tx_responses: Vec<IotaTransactionBlockResponse> = Vec::new();
     for obj in &objects[..objects.len() - 1] {
         let oref = obj.object().unwrap();
         let transaction_bytes: TransactionBlockBytes = http_client
@@ -59,7 +69,7 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
             .execute_transaction_block(
                 tx_bytes,
                 signatures,
-                Some(SuiTransactionBlockResponseOptions::new()),
+                Some(IotaTransactionBlockResponseOptions::new()),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await?;
@@ -67,30 +77,31 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
         tx_responses.push(response);
     }
 
-    // TODO(chris): re-enable after rewriting get_transactions_in_range_deprecated with query_transactions
-    // test get_transaction_batch
-    // let batch_responses: Vec<SuiTransactionBlockResponse> = http_client
-    //     .multi_get_transaction_blocks(tx, Some(SuiTransactionBlockResponseOptions::new()))
-    //     .await?;
+    // TODO(chris): re-enable after rewriting get_transactions_in_range_deprecated
+    // with query_transactions test get_transaction_batch
+    // let batch_responses: Vec<IotaTransactionBlockResponse> = http_client
+    //     .multi_get_transaction_blocks(tx,
+    // Some(IotaTransactionBlockResponseOptions::new()))     .await?;
 
     // assert_eq!(5, batch_responses.len());
 
     // for r in batch_responses.iter().skip(1) {
     //     assert!(tx_responses
     //         .iter()
-    //         .any(|resp| matches!(resp, SuiTransactionBlockResponse {digest, ..} if *digest == r.digest)))
-    // }
+    //         .any(|resp| matches!(resp, IotaTransactionBlockResponse {digest, ..}
+    // if *digest == r.digest))) }
 
     // // test get_transaction
     // for tx_digest in tx {
-    //     let response: SuiTransactionBlockResponse = http_client
+    //     let response: IotaTransactionBlockResponse = http_client
     //         .get_transaction_block(
     //             tx_digest,
-    //             Some(SuiTransactionBlockResponseOptions::new().with_raw_input()),
+    //             
+    // Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
     //         )
     //         .await?;
     //     assert!(tx_responses.iter().any(
-    //         |resp| matches!(resp, SuiTransactionBlockResponse {digest, ..} if *digest == response.digest)
+    //         |resp| matches!(resp, IotaTransactionBlockResponse {digest, ..} if *digest == response.digest)
     //     ));
     //     let sender_signed_data: SenderSignedData =
     //         bcs::from_bytes(&response.raw_transaction).unwrap();
@@ -109,8 +120,8 @@ async fn test_get_raw_transaction() -> Result<(), anyhow::Error> {
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new(),
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new(),
             )),
             None,
             None,
@@ -134,7 +145,7 @@ async fn test_get_raw_transaction() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(SuiTransactionBlockResponseOptions::new().with_raw_input()),
+            Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
@@ -154,7 +165,7 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
 
     let context = &cluster.wallet;
 
-    let mut tx_responses: Vec<SuiTransactionBlockResponse> = Vec::new();
+    let mut tx_responses: Vec<IotaTransactionBlockResponse> = Vec::new();
 
     let client = context.get_client().await.unwrap();
 
@@ -163,8 +174,8 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
             .read_api()
             .get_owned_objects(
                 address,
-                Some(SuiObjectResponseQuery::new_with_options(
-                    SuiObjectDataOptions::new()
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::new()
                         .with_type()
                         .with_owner()
                         .with_previous_transaction(),
@@ -189,7 +200,7 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
                 .quorum_driver_api()
                 .execute_transaction_block(
                     tx,
-                    SuiTransactionBlockResponseOptions::new(),
+                    IotaTransactionBlockResponseOptions::new(),
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await
@@ -200,8 +211,8 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     }
 
     // test get_recent_transactions with smaller range
-    let query = SuiTransactionBlockResponseQuery {
-        options: Some(SuiTransactionBlockResponseOptions {
+    let query = IotaTransactionBlockResponseQuery {
+        options: Some(IotaTransactionBlockResponseOptions {
             show_input: true,
             show_effects: true,
             show_events: true,
@@ -225,7 +236,7 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     let first_page = client
         .read_api()
         .query_transaction_blocks(
-            SuiTransactionBlockResponseQuery::default(),
+            IotaTransactionBlockResponseQuery::default(),
             None,
             Some(5),
             false,
@@ -238,7 +249,7 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     let second_page = client
         .read_api()
         .query_transaction_blocks(
-            SuiTransactionBlockResponseQuery::default(),
+            IotaTransactionBlockResponseQuery::default(),
             first_page.next_cursor,
             None,
             false,
@@ -248,31 +259,30 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     assert!(second_page.data.len() > 5);
     assert!(!second_page.has_next_page);
 
-    let mut all_txs_rev = first_page.data.clone();
-    all_txs_rev.extend(second_page.data);
-    all_txs_rev.reverse();
+    let mut all_txs = first_page.data.clone();
+    all_txs.extend(second_page.data);
 
-    // test get 10 latest transactions paged
+    // test get 10 transactions paged
     let latest = client
         .read_api()
         .query_transaction_blocks(
-            SuiTransactionBlockResponseQuery::default(),
+            IotaTransactionBlockResponseQuery::default(),
             None,
             Some(10),
-            true,
+            false,
         )
         .await
         .unwrap();
     assert_eq!(10, latest.data.len());
-    assert_eq!(Some(all_txs_rev[9].digest), latest.next_cursor);
-    assert_eq!(all_txs_rev[0..10], latest.data);
+    assert_eq!(Some(all_txs[9].digest), latest.next_cursor);
+    assert_eq!(all_txs[0..10], latest.data);
     assert!(latest.has_next_page);
 
     // test get from address txs in ascending order
     let address_txs_asc = client
         .read_api()
         .query_transaction_blocks(
-            SuiTransactionBlockResponseQuery::new_with_filter(TransactionFilter::FromAddress(
+            IotaTransactionBlockResponseQuery::new_with_filter(TransactionFilter::FromAddress(
                 cluster.get_address_0(),
             )),
             None,
@@ -287,7 +297,7 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     let address_txs_desc = client
         .read_api()
         .query_transaction_blocks(
-            SuiTransactionBlockResponseQuery::new_with_filter(TransactionFilter::FromAddress(
+            IotaTransactionBlockResponseQuery::new_with_filter(TransactionFilter::FromAddress(
                 cluster.get_address_0(),
             )),
             None,
@@ -307,7 +317,7 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     let tx = client
         .read_api()
         .query_transaction_blocks(
-            SuiTransactionBlockResponseQuery::default(),
+            IotaTransactionBlockResponseQuery::default(),
             None,
             Some(20),
             true,
@@ -318,13 +328,124 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
 
     // test get_transaction
     for tx_resp in tx.data {
-        let response: SuiTransactionBlockResponse = client
+        let response: IotaTransactionBlockResponse = client
             .read_api()
-            .get_transaction_with_options(tx_resp.digest, SuiTransactionBlockResponseOptions::new())
+            .get_transaction_with_options(
+                tx_resp.digest,
+                IotaTransactionBlockResponseOptions::new(),
+            )
             .await
             .unwrap();
         assert_eq!(tx_resp.digest, response.digest);
     }
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
+    let mut cluster = TestClusterBuilder::new().build().await;
+    let context = &cluster.wallet;
+    let client = context.get_client().await.unwrap();
+
+    let address = cluster.get_address_0();
+    let objects = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // make 2 move calls of same package & module, but different functions
+    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let coin = objects.first().unwrap();
+    let coin_2 = &objects[1];
+    let signer = cluster.wallet.active_address().unwrap();
+
+    let tx_builder = client.transaction_builder().clone();
+    let mut pt_builder = ProgrammableTransactionBuilder::new();
+    let gas = objects.last().unwrap().object().unwrap().object_ref();
+
+    let module = Identifier::from_str("pay")?;
+    let function_1 = Identifier::from_str("split")?;
+    let function_2 = Identifier::from_str("divide_and_keep")?;
+
+    let iota_type_args = type_args![GAS::type_tag()]?;
+    let type_args = iota_type_args
+        .into_iter()
+        .map(|ty| ty.try_into())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let iota_call_args_1 = call_args!(coin.data.clone().unwrap().object_id, 10)?;
+    let call_args_1 = tx_builder
+        .resolve_and_checks_json_args(
+            &mut pt_builder,
+            package_id,
+            &module,
+            &function_1,
+            &type_args,
+            iota_call_args_1,
+        )
+        .await?;
+    let cmd_1 = Command::move_call(
+        package_id,
+        module.clone(),
+        function_1,
+        type_args.clone(),
+        call_args_1.clone(),
+    );
+
+    let iota_call_args_2 = call_args!(coin_2.data.clone().unwrap().object_id, 10)?;
+    let call_args_2 = tx_builder
+        .resolve_and_checks_json_args(
+            &mut pt_builder,
+            package_id,
+            &module,
+            &function_2,
+            &type_args,
+            iota_call_args_2,
+        )
+        .await?;
+    let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
+    pt_builder.command(cmd_1);
+    pt_builder.command(cmd_2);
+    let pt = pt_builder.finish();
+
+    let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+    let signed_data = cluster.wallet.sign_transaction(&tx_data);
+    let _response = client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            signed_data,
+            IotaTransactionBlockResponseOptions::new(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    // match with None function, the DB should have 2 records, but both points to
+    // the same tx
+    let filter = TransactionFilter::MoveFunction {
+        package: package_id,
+        module: Some("pay".to_string()),
+        function: None,
+    };
+    let move_call_query = IotaTransactionBlockResponseQuery::new_with_filter(filter);
+    let tx = client
+        .read_api()
+        .query_transaction_blocks(move_call_query, None, Some(20), true)
+        .await
+        .unwrap();
+    // verify that only 1 tx is returned and no
+    // IotaRpcInputError::ContainsDuplicates error
+    assert_eq!(1, tx.data.len());
     Ok(())
 }

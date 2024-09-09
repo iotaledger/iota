@@ -1,11 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
-use sui_move_build::{BuildConfig, SuiPackageHooks};
-use sui_sdk::SuiClient;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{TransactionData, TransactionKind};
+
+use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_sdk::IotaClient;
+use iota_types::{
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{TransactionData, TransactionKind},
+};
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
@@ -14,19 +18,19 @@ async fn test_dry_run_publish_with_mocked_coin() -> Result<(), anyhow::Error> {
     let context = &cluster.wallet;
 
     let address = cluster.get_address_0();
-    let client: SuiClient = context.get_client().await.unwrap();
+    let client: IotaClient = context.get_client().await.unwrap();
 
     // Publish test coin package
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::default().build(path)?;
+    let compiled_package = BuildConfig::default().build(&path)?;
     let compiled_modules_bytes = compiled_package
         .get_package_base64(false)
         .into_iter()
         .map(|b| b.to_vec().unwrap())
         .collect::<Vec<_>>();
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(compiled_modules_bytes, dependencies);
