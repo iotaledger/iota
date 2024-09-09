@@ -1,11 +1,11 @@
 [package]
-name = "sui-tls"
+name = "iota-tls"
 version = "0.0.0"
-license = "Apache-2.0"
-authors = ["Brandon Williams <brandon@mystenlabs.com>"]
-description = "tools for rustls-based certificate generation and verification"
+authors = ["Brandon Williams <brandon@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
+description = "tools for rustls-based certificate generation and verification"
 
 [dependencies]
 anyhow.workspace = true
@@ -24,9 +24,9 @@ reqwest.workspace = true
 # Axum support
 axum.workspace = true
 axum-server.workspace = true
+tokio.workspace = true
 tokio-rustls.workspace = true
 tower-layer.workspace = true
-tokio.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

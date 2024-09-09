@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{io, sync::Arc};
 
 use axum::{middleware::AddExtension, Extension};
 use axum_server::{
@@ -7,7 +10,7 @@ use axum_server::{
     tls_rustls::{RustlsAcceptor, RustlsConfig},
 };
 use fastcrypto::ed25519::Ed25519PublicKey;
-use std::{io, sync::Arc};
+use rustls::pki_types::CertificateDer;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::server::TlsStream;
 use tower_layer::Layer;
@@ -15,7 +18,7 @@ use tower_layer::Layer;
 #[derive(Debug, Clone)]
 pub struct TlsConnectionInfo {
     sni_hostname: Option<Arc<str>>,
-    peer_certificates: Option<Arc<[rustls::Certificate]>>,
+    peer_certificates: Option<Arc<[CertificateDer<'static>]>>,
     public_key: Option<Ed25519PublicKey>,
 }
 
@@ -24,7 +27,7 @@ impl TlsConnectionInfo {
         self.sni_hostname.as_deref()
     }
 
-    pub fn peer_certificates(&self) -> Option<&[rustls::Certificate]> {
+    pub fn peer_certificates(&self) -> Option<&[CertificateDer<'static>]> {
         self.peer_certificates.as_deref()
     }
 
@@ -33,7 +36,8 @@ impl TlsConnectionInfo {
     }
 }
 
-/// An `Acceptor` that will provide `TlsConnectionInfo` as an axum `Extension` for use in handlers.
+/// An `Acceptor` that will provide `TlsConnectionInfo` as an axum `Extension`
+/// for use in handlers.
 #[derive(Debug, Clone)]
 pub struct TlsAcceptor {
     inner: RustlsAcceptor,
