@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fmt, fmt::Display};
+
 use futures::future::join_all;
-use std::fmt;
-use std::fmt::Display;
-use sui_sdk::SuiClient;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_sdk::IotaClient;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 pub(crate) struct CheckpointStats {
     pub latest_checkpoints: Vec<CheckpointSequenceNumber>,
@@ -47,7 +48,7 @@ impl Display for CheckpointStats {
 }
 
 pub(crate) async fn get_latest_checkpoint_stats(
-    clients: &[SuiClient],
+    clients: &[IotaClient],
     end_checkpoint: Option<CheckpointSequenceNumber>,
 ) -> CheckpointStats {
     let latest_checkpoints: Vec<CheckpointSequenceNumber> =

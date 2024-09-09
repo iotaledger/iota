@@ -1,42 +1,46 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    fmt,
+    fs::{self, File},
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use dashmap::{DashMap, DashSet};
 use futures::future::join_all;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage};
-use std::fmt;
-use std::fs::{self, File};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use sui_json_rpc_types::{
-    SuiExecutionStatus, SuiObjectDataOptions, SuiTransactionBlockDataAPI,
-    SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
-use sui_types::digests::TransactionDigest;
-use tokio::sync::RwLock;
-use tokio::time::sleep;
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    crypto::{get_key_pair, AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature},
+    digests::TransactionDigest,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Transaction, TransactionData},
+};
+use serde::{de::DeserializeOwned, Serialize};
+use shared_crypto::intent::{Intent, IntentMessage};
+use tokio::{sync::RwLock, time::sleep};
 use tracing::{debug, info};
 
-use crate::load_test::LoadTestConfig;
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::crypto::{get_key_pair, AccountKeyPair, EncodeDecodeBase64, Signature, SuiKeyPair};
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::{Transaction, TransactionData};
-
-use crate::payload::checkpoint_utils::get_latest_checkpoint_stats;
-use crate::payload::validation::chunk_entities;
-use crate::payload::{
-    Command, CommandData, DryRun, GetAllBalances, GetCheckpoints, GetObject, MultiGetObjects,
-    Payload, ProcessPayload, Processor, QueryTransactionBlocks, SignerInfo,
-};
-
 use super::MultiGetTransactionBlocks;
+use crate::{
+    load_test::LoadTestConfig,
+    payload::{
+        checkpoint_utils::get_latest_checkpoint_stats, validation::chunk_entities, Command,
+        CommandData, DryRun, GetAllBalances, GetCheckpoints, GetObject, MultiGetObjects, Payload,
+        ProcessPayload, Processor, QueryTransactionBlocks, SignerInfo,
+    },
+};
 
 pub(crate) const DEFAULT_GAS_BUDGET: u64 = 500_000_000;
 pub(crate) const DEFAULT_LARGE_GAS_BUDGET: u64 = 50_000_000_000;
@@ -44,18 +48,18 @@ pub(crate) const MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION: usize = 120;
 
 #[derive(Clone)]
 pub struct RpcCommandProcessor {
-    clients: Arc<RwLock<Vec<SuiClient>>>,
+    clients: Arc<RwLock<Vec<IotaClient>>>,
     // for equivocation prevention in `WaitForEffectsCert` mode
     object_ref_cache: Arc<DashMap<ObjectID, ObjectRef>>,
     transaction_digests: Arc<DashSet<TransactionDigest>>,
-    addresses: Arc<DashSet<SuiAddress>>,
+    addresses: Arc<DashSet<IotaAddress>>,
     data_dir: String,
 }
 
 impl RpcCommandProcessor {
     pub async fn new(urls: &[String], data_dir: String) -> Self {
         let clients = join_all(urls.iter().map(|url| async {
-            SuiClientBuilder::default()
+            IotaClientBuilder::default()
                 .max_concurrent_requests(usize::MAX)
                 .request_timeout(Duration::from_secs(60))
                 .build(url.clone())
@@ -81,7 +85,7 @@ impl RpcCommandProcessor {
         match command {
             CommandData::DryRun(ref v) => self.process(v, signer_info).await,
             CommandData::GetCheckpoints(ref v) => self.process(v, signer_info).await,
-            CommandData::PaySui(ref v) => self.process(v, signer_info).await,
+            CommandData::PayIota(ref v) => self.process(v, signer_info).await,
             CommandData::QueryTransactionBlocks(ref v) => self.process(v, signer_info).await,
             CommandData::MultiGetTransactionBlocks(ref v) => self.process(v, signer_info).await,
             CommandData::MultiGetObjects(ref v) => self.process(v, signer_info).await,
@@ -91,7 +95,7 @@ impl RpcCommandProcessor {
         }
     }
 
-    pub(crate) async fn get_clients(&self) -> Result<Vec<SuiClient>> {
+    pub(crate) async fn get_clients(&self) -> Result<Vec<IotaClient>> {
         let read = self.clients.read().await;
         Ok(read.clone())
     }
@@ -99,11 +103,11 @@ impl RpcCommandProcessor {
     /// sign_and_execute transaction and update `object_ref_cache`
     pub(crate) async fn sign_and_execute(
         &self,
-        client: &SuiClient,
-        keypair: &SuiKeyPair,
+        client: &IotaClient,
+        keypair: &IotaKeyPair,
         txn_data: TransactionData,
         request_type: ExecuteTransactionRequestType,
-    ) -> SuiTransactionBlockResponse {
+    ) -> IotaTransactionBlockResponse {
         let resp = sign_and_execute(client, keypair, txn_data, request_type).await;
         let effects = resp.effects.as_ref().unwrap();
         let object_ref_cache = self.object_ref_cache.clone();
@@ -125,10 +129,11 @@ impl RpcCommandProcessor {
         resp
     }
 
-    /// get the latest object ref from local cache, and if not exist, fetch from fullnode
+    /// get the latest object ref from local cache, and if not exist, fetch from
+    /// fullnode
     pub(crate) async fn get_object_ref(
         &self,
-        client: &SuiClient,
+        client: &IotaClient,
         object_id: &ObjectID,
     ) -> ObjectRef {
         let object_ref_cache = self.object_ref_cache.clone();
@@ -138,7 +143,7 @@ impl RpcCommandProcessor {
             None => {
                 let resp = client
                     .read_api()
-                    .get_object_with_options(*object_id, SuiObjectDataOptions::new())
+                    .get_object_with_options(*object_id, IotaObjectDataOptions::new())
                     .await
                     .unwrap_or_else(|_| panic!("Unable to fetch object reference {object_id}"));
                 let object_ref = resp.object_ref_if_exists().unwrap_or_else(|| {
@@ -151,13 +156,14 @@ impl RpcCommandProcessor {
     }
 
     pub(crate) fn add_transaction_digests(&self, digests: Vec<TransactionDigest>) {
-        // extend method requires mutable access to the underlying DashSet, which is not allowed by the Arc
+        // extend method requires mutable access to the underlying DashSet, which is not
+        // allowed by the Arc
         for digest in digests {
             self.transaction_digests.insert(digest);
         }
     }
 
-    pub(crate) fn add_addresses_from_response(&self, responses: &[SuiTransactionBlockResponse]) {
+    pub(crate) fn add_addresses_from_response(&self, responses: &[IotaTransactionBlockResponse]) {
         for response in responses {
             let transaction = &response.transaction;
             if let Some(transaction) = transaction {
@@ -167,7 +173,7 @@ impl RpcCommandProcessor {
         }
     }
 
-    pub(crate) fn add_object_ids_from_response(&self, responses: &[SuiTransactionBlockResponse]) {
+    pub(crate) fn add_object_ids_from_response(&self, responses: &[IotaTransactionBlockResponse]) {
         for response in responses {
             let effects = &response.effects;
             if let Some(effects) = effects {
@@ -192,12 +198,12 @@ impl RpcCommandProcessor {
             .unwrap();
         }
 
-        let addresses: Vec<SuiAddress> = self.addresses.iter().map(|x| *x).collect();
+        let addresses: Vec<IotaAddress> = self.addresses.iter().map(|x| *x).collect();
         if !addresses.is_empty() {
             debug!("dumping addresses to file {:?}", addresses.len());
             write_data_to_file(
                 &addresses,
-                &format!("{}/{}", &self.data_dir, CacheType::SuiAddress),
+                &format!("{}/{}", &self.data_dir, CacheType::IotaAddress),
             )
             .unwrap();
         }
@@ -241,7 +247,10 @@ impl Processor for RpcCommandProcessor {
                 }
                 let clients = self.get_clients().await?;
                 let checkpoint_stats = get_latest_checkpoint_stats(&clients, None).await;
-                info!("Repeat {i}: Checkpoint stats {checkpoint_stats}, elapse {:.4} since last repeat", elapsed_time.as_secs_f64());
+                info!(
+                    "Repeat {i}: Checkpoint stats {checkpoint_stats}, elapse {:.4} since last repeat",
+                    elapsed_time.as_secs_f64()
+                );
             }
         }
         Ok(())
@@ -367,7 +376,7 @@ fn write_data_to_file<T: Serialize>(data: &T, file_path: &str) -> Result<(), any
 }
 
 pub enum CacheType {
-    SuiAddress,
+    IotaAddress,
     TransactionDigest,
     ObjectID,
 }
@@ -375,17 +384,18 @@ pub enum CacheType {
 impl fmt::Display for CacheType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CacheType::SuiAddress => write!(f, "SuiAddress"),
+            CacheType::IotaAddress => write!(f, "IotaAddress"),
             CacheType::TransactionDigest => write!(f, "TransactionDigest"),
             CacheType::ObjectID => write!(f, "ObjectID"),
         }
     }
 }
 
-// TODO(Will): Consider using enums for input and output? Would mean we need to do checks any time we use generic load_cache_from_file
-pub fn load_addresses_from_file(filepath: String) -> Vec<SuiAddress> {
-    let path = format!("{}/{}", filepath, CacheType::SuiAddress);
-    let addresses: Vec<SuiAddress> = read_data_from_file(&path).expect("Failed to read addresses");
+// TODO(Will): Consider using enums for input and output? Would mean we need to
+// do checks any time we use generic load_cache_from_file
+pub fn load_addresses_from_file(filepath: String) -> Vec<IotaAddress> {
+    let path = format!("{}/{}", filepath, CacheType::IotaAddress);
+    let addresses: Vec<IotaAddress> = read_data_from_file(&path).expect("Failed to read addresses");
     addresses
 }
 
@@ -424,7 +434,7 @@ fn read_data_from_file<T: DeserializeOwned>(file_path: &str) -> Result<T, anyhow
 }
 
 async fn divide_checkpoint_tasks(
-    clients: &[SuiClient],
+    clients: &[IotaClient],
     data: &GetCheckpoints,
     num_chunks: usize,
 ) -> Vec<Command> {
@@ -538,7 +548,7 @@ async fn divide_get_object_tasks(data: &GetObject, num_threads: usize) -> Vec<Co
 }
 
 async fn prepare_new_signer_and_coins(
-    client: &SuiClient,
+    client: &IotaClient,
     signer_info: &SignerInfo,
     num_coins: usize,
     num_transactions_per_coin: u64,
@@ -548,25 +558,27 @@ async fn prepare_new_signer_and_coins(
     let pay_amount = amount_per_coin * num_coins as u64;
     let num_split_txns =
         num_transactions_needed(num_coins, MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION);
-    let (gas_fee_for_split, gas_fee_for_pay_sui) = (
+    let (gas_fee_for_split, gas_fee_for_pay_iota) = (
         DEFAULT_LARGE_GAS_BUDGET * num_split_txns as u64,
         DEFAULT_GAS_BUDGET,
     );
 
-    let primary_keypair = SuiKeyPair::decode_base64(&signer_info.encoded_keypair)
+    let primary_keypair = IotaKeyPair::decode_base64(&signer_info.encoded_keypair)
         .expect("Decoding keypair should not fail");
-    let sender = SuiAddress::from(&primary_keypair.public());
+    let sender = IotaAddress::from(&primary_keypair.public());
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
     // The balance needs to cover `pay_amount` plus
-    // 1. gas fee for pay_sui from the primary address to the burner address
+    // 1. gas fee for pay_iota from the primary address to the burner address
     // 2. gas fee for splitting the primary coin into `num_coins`
-    let required_balance = pay_amount + gas_fee_for_split + gas_fee_for_pay_sui;
+    let required_balance = pay_amount + gas_fee_for_split + gas_fee_for_pay_iota;
     if required_balance > balance {
-        panic!("Current balance {balance} is smaller than require amount of MIST to fund the operation {required_balance}");
+        panic!(
+            "Current balance {balance} is smaller than require amount of NANOS to fund the operation {required_balance}"
+        );
     }
 
-    // There is a limit for the number of new objects in a transactions, therefore we need
-    // multiple split transactions if the `num_coins` is large
+    // There is a limit for the number of new objects in a transactions, therefore
+    // we need multiple split transactions if the `num_coins` is large
     let split_amounts = calculate_split_amounts(
         num_coins,
         amount_per_coin,
@@ -575,11 +587,12 @@ async fn prepare_new_signer_and_coins(
 
     debug!("split_amounts {split_amounts:?}");
 
-    // We don't want to split coins in our primary address because we want to avoid having
-    // a million coin objects in our address. We can also fetch directly from the faucet, but in
-    // some environment that might not be possible when faucet resource is scarce
+    // We don't want to split coins in our primary address because we want to avoid
+    // having a million coin objects in our address. We can also fetch directly
+    // from the faucet, but in some environment that might not be possible when
+    // faucet resource is scarce
     let (burner_address, burner_keypair): (_, AccountKeyPair) = get_key_pair();
-    let burner_keypair = SuiKeyPair::Ed25519(burner_keypair);
+    let burner_keypair = IotaKeyPair::Ed25519(burner_keypair);
     let pay_amounts = split_amounts
         .iter()
         .map(|(amount, _)| *amount)
@@ -588,7 +601,7 @@ async fn prepare_new_signer_and_coins(
 
     debug!("pay_amounts {pay_amounts:?}");
 
-    pay_sui(
+    pay_iota(
         client,
         &primary_keypair,
         vec![coin],
@@ -598,7 +611,7 @@ async fn prepare_new_signer_and_coins(
     )
     .await;
 
-    let coins = get_sui_coin_ids(client, burner_address).await;
+    let coins = get_iota_coin_ids(client, burner_address).await;
     let gas_coin_id = get_coin_with_balance(&coins, gas_fee_for_split);
     let primary_coin = get_coin_with_balance(&coins, split_amounts[0].0);
     assert!(!coins.is_empty());
@@ -642,8 +655,8 @@ async fn prepare_new_signer_and_coins(
     (results, burner_keypair.encode_base64())
 }
 
-/// Calculate the number of transactions needed to split the given number of coins.
-/// new_coins_per_txn must be greater than 0
+/// Calculate the number of transactions needed to split the given number of
+/// coins. new_coins_per_txn must be greater than 0
 fn num_transactions_needed(num_coins: usize, new_coins_per_txn: usize) -> usize {
     assert!(new_coins_per_txn > 0);
     if num_coins == 1 {
@@ -652,8 +665,9 @@ fn num_transactions_needed(num_coins: usize, new_coins_per_txn: usize) -> usize 
     (num_coins + new_coins_per_txn - 1) / new_coins_per_txn
 }
 
-/// Calculate the split amounts for a given number of coins, amount per coin, and maximum number of coins per transaction.
-/// Returns a Vec of (primary_coin_amount, split_into_n_coins)
+/// Calculate the split amounts for a given number of coins, amount per coin,
+/// and maximum number of coins per transaction. Returns a Vec of
+/// (primary_coin_amount, split_into_n_coins)
 fn calculate_split_amounts(
     num_coins: usize,
     amount_per_coin: u64,
@@ -677,8 +691,8 @@ fn calculate_split_amounts(
     split_amounts
 }
 
-async fn get_coin_with_max_balance(client: &SuiClient, address: SuiAddress) -> (ObjectID, u64) {
-    let coins = get_sui_coin_ids(client, address).await;
+async fn get_coin_with_max_balance(client: &IotaClient, address: IotaAddress) -> (ObjectID, u64) {
+    let coins = get_iota_coin_ids(client, address).await;
     assert!(!coins.is_empty());
     coins.into_iter().max_by(|a, b| a.1.cmp(&b.1)).unwrap()
 }
@@ -688,7 +702,7 @@ fn get_coin_with_balance(coins: &[(ObjectID, u64)], target: u64) -> ObjectID {
 }
 
 // TODO: move this to the Rust SDK
-async fn get_sui_coin_ids(client: &SuiClient, address: SuiAddress) -> Vec<(ObjectID, u64)> {
+async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(ObjectID, u64)> {
     match client
         .coin_read_api()
         .get_coins(address, None, None, None)
@@ -700,26 +714,26 @@ async fn get_sui_coin_ids(client: &SuiClient, address: SuiAddress) -> Vec<(Objec
             .map(|c| (c.coin_object_id, c.balance))
             .collect::<Vec<_>>(),
         Err(e) => {
-            panic!("get_sui_coin_ids error for address {address} {e}")
+            panic!("get_iota_coin_ids error for address {address} {e}")
         }
     }
     // TODO: implement iteration over next page
 }
 
-async fn pay_sui(
-    client: &SuiClient,
-    keypair: &SuiKeyPair,
+async fn pay_iota(
+    client: &IotaClient,
+    keypair: &IotaKeyPair,
     input_coins: Vec<ObjectID>,
     gas_budget: u64,
-    recipients: Vec<SuiAddress>,
+    recipients: Vec<IotaAddress>,
     amounts: Vec<u64>,
-) -> SuiTransactionBlockResponse {
-    let sender = SuiAddress::from(&keypair.public());
+) -> IotaTransactionBlockResponse {
+    let sender = IotaAddress::from(&keypair.public());
     let tx = client
         .transaction_builder()
         .pay(sender, input_coins, recipients, amounts, None, gas_budget)
         .await
-        .expect("Failed to construct pay sui transaction");
+        .expect("Failed to construct pay iota transaction");
     sign_and_execute(
         client,
         keypair,
@@ -730,13 +744,13 @@ async fn pay_sui(
 }
 
 async fn split_coins(
-    client: &SuiClient,
-    keypair: &SuiKeyPair,
+    client: &IotaClient,
+    keypair: &IotaKeyPair,
     coin_to_split: ObjectID,
     gas_payment: ObjectID,
     num_coins: u64,
 ) -> Vec<ObjectID> {
-    let sender = SuiAddress::from(&keypair.public());
+    let sender = IotaAddress::from(&keypair.public());
     let split_coin_tx = client
         .transaction_builder()
         .split_coin_equal(
@@ -765,13 +779,13 @@ async fn split_coins(
 }
 
 pub(crate) async fn sign_and_execute(
-    client: &SuiClient,
-    keypair: &SuiKeyPair,
+    client: &IotaClient,
+    keypair: &IotaKeyPair,
     txn_data: TransactionData,
     request_type: ExecuteTransactionRequestType,
-) -> SuiTransactionBlockResponse {
+) -> IotaTransactionBlockResponse {
     let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::sui_transaction(), &txn_data),
+        &IntentMessage::new(Intent::iota_transaction(), &txn_data),
         keypair,
     );
 
@@ -779,7 +793,7 @@ pub(crate) async fn sign_and_execute(
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(txn_data, vec![signature]),
-            SuiTransactionBlockResponseOptions::new().with_effects(),
+            IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )
         .await
@@ -792,7 +806,7 @@ pub(crate) async fn sign_and_execute(
 
     match &transaction_response.effects {
         Some(effects) => {
-            if let SuiExecutionStatus::Failure { error } = effects.status() {
+            if let IotaExecutionStatus::Failure { error } = effects.status() {
                 panic!(
                     "Transaction {} failed with error: {}. Transaction Response: {:?}",
                     transaction_response.digest, error, &transaction_response
@@ -811,8 +825,9 @@ pub(crate) async fn sign_and_execute(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::{assert_eq, vec};
+
+    use super::*;
 
     #[test]
     fn test_calculate_split_amounts_no_split_needed() {

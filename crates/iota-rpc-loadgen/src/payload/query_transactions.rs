@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-
-use crate::payload::validation::cross_validate_entities;
-use crate::payload::{
-    AddressQueryType, ProcessPayload, QueryTransactionBlocks, RpcCommandProcessor, SignerInfo,
-};
 use async_trait::async_trait;
 use futures::future::join_all;
-use sui_json_rpc_types::{
-    Page, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
-    SuiTransactionBlockResponseQuery, TransactionBlocksPage, TransactionFilter,
+use iota_json_rpc_types::{
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, Page, TransactionBlocksPage, TransactionFilter,
 };
-use sui_sdk::SuiClient;
-use sui_types::base_types::TransactionDigest;
+use iota_sdk::IotaClient;
+use iota_types::base_types::TransactionDigest;
 use tracing::log::warn;
+
+use crate::payload::{
+    validation::cross_validate_entities, AddressQueryType, ProcessPayload, QueryTransactionBlocks,
+    RpcCommandProcessor, SignerInfo,
+};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor {
@@ -50,11 +51,11 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
             }
         };
 
-        let queries: Vec<SuiTransactionBlockResponseQuery> = filters
+        let queries: Vec<IotaTransactionBlockResponseQuery> = filters
             .into_iter()
-            .map(|filter| SuiTransactionBlockResponseQuery {
+            .map(|filter| IotaTransactionBlockResponseQuery {
                 filter,
-                options: Some(SuiTransactionBlockResponseOptions::full_content()),
+                options: Some(IotaTransactionBlockResponseOptions::full_content()),
             })
             .collect();
 
@@ -73,7 +74,10 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
                     ) {
                         (Some(first_cursor), Some(second_cursor)) => {
                             if first_cursor != second_cursor {
-                                warn!("Cursors are not the same, received {} vs {}. Selecting the first cursor to continue", first_cursor, second_cursor);
+                                warn!(
+                                    "Cursors are not the same, received {} vs {}. Selecting the first cursor to continue",
+                                    first_cursor, second_cursor
+                                );
                             }
                             Some(first_cursor)
                         }
@@ -82,7 +86,7 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
                     }
                 };
 
-                results = join_all(clients.iter().enumerate().map(|(_i, client)| {
+                results = join_all(clients.iter().map(|client| {
                     let with_query = query.clone();
                     async move {
                         query_transaction_blocks(client, with_query, cursor, None)
@@ -92,7 +96,7 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
                 }))
                 .await;
 
-                let transactions: Vec<Vec<SuiTransactionBlockResponse>> =
+                let transactions: Vec<Vec<IotaTransactionBlockResponse>> =
                     results.iter().map(|page| page.data.clone()).collect();
                 cross_validate_entities(&transactions, "Transactions");
             }
@@ -102,11 +106,11 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
 }
 
 async fn query_transaction_blocks(
-    client: &SuiClient,
-    query: SuiTransactionBlockResponseQuery,
+    client: &IotaClient,
+    query: IotaTransactionBlockResponseQuery,
     cursor: Option<TransactionDigest>,
     limit: Option<usize>, // TODO: we should probably set a limit and paginate
-) -> Result<Page<SuiTransactionBlockResponse, TransactionDigest>> {
+) -> Result<Page<IotaTransactionBlockResponse, TransactionDigest>> {
     let transactions = client
         .read_api()
         .query_transaction_blocks(query, cursor, limit, true)

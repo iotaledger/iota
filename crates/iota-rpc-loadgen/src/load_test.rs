@@ -1,11 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::error::Error;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc::Sender;
+use std::{
+    error::Error,
+    time::{Duration, Instant},
+};
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, mpsc::Sender};
 use tracing::error;
 
 use crate::payload::{Command, Payload, Processor, SignerInfo};

@@ -1,16 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use futures::future::join_all;
-use sui_json_rpc_types::{SuiObjectDataOptions, SuiObjectResponse};
-use sui_sdk::SuiClient;
-use sui_types::base_types::ObjectID;
-
-use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo};
 use async_trait::async_trait;
+use futures::future::join_all;
+use iota_json_rpc_types::{IotaObjectDataOptions, IotaObjectResponse};
+use iota_sdk::IotaClient;
+use iota_types::base_types::ObjectID;
 
 use super::validation::chunk_entities;
+use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a GetObject> for RpcCommandProcessor {
@@ -39,12 +39,12 @@ impl<'a> ProcessPayload<'a, &'a GetObject> for RpcCommandProcessor {
 
 // TODO: should organize these into an api_calls.rs
 pub(crate) async fn get_object(
-    client: &SuiClient,
+    client: &IotaClient,
     object_id: ObjectID,
-) -> Result<SuiObjectResponse> {
+) -> Result<IotaObjectResponse> {
     let result = client
         .read_api()
-        .get_object_with_options(object_id, SuiObjectDataOptions::full_content())
+        .get_object_with_options(object_id, IotaObjectDataOptions::full_content())
         .await
         .unwrap();
     Ok(result)
