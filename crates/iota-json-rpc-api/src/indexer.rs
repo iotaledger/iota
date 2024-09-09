@@ -1,36 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
-use sui_json_rpc_types::SuiTransactionBlockEffects;
-use sui_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, SuiEvent, SuiObjectResponse,
-    SuiObjectResponseQuery, SuiTransactionBlockResponseQuery, TransactionBlocksPage,
-    TransactionFilter,
+use iota_json_rpc_types::{
+    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
+    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
-use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::digests::TransactionDigest;
-use sui_types::dynamic_field::DynamicFieldName;
-use sui_types::event::EventID;
+use iota_open_rpc_macros::open_rpc;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    digests::TransactionDigest,
+    dynamic_field::DynamicFieldName,
+    event::EventID,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-#[open_rpc(namespace = "suix", tag = "Extended API")]
-#[rpc(server, client, namespace = "suix")]
+#[open_rpc(namespace = "iotax", tag = "Extended API")]
+#[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {
     /// Return the list of objects owned by an address.
     /// Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects,
     /// the pagination is not accurate, because previous page may have been updated when
     /// the next page is fetched.
-    /// Please use suix_queryObjects if this is a concern.
+    /// Please use iotax_queryObjects if this is a concern.
+    #[rustfmt::skip]
     #[method(name = "getOwnedObjects")]
     async fn get_owned_objects(
         &self,
-        /// the owner's Sui address
-        address: SuiAddress,
+        /// the owner's Iota address
+        address: IotaAddress,
         /// the objects query criteria.
-        query: Option<SuiObjectResponseQuery>,
+        query: Option<IotaObjectResponseQuery>,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<ObjectID>,
         /// Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
@@ -38,11 +39,12 @@ pub trait IndexerApi {
     ) -> RpcResult<ObjectsPage>;
 
     /// Return list of transactions for a specified query criteria.
+    #[rustfmt::skip]
     #[method(name = "queryTransactionBlocks")]
     async fn query_transaction_blocks(
         &self,
         /// the transaction query criteria.
-        query: SuiTransactionBlockResponseQuery,
+        query: IotaTransactionBlockResponseQuery,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<TransactionDigest>,
         /// Maximum item returned per page, default to QUERY_MAX_RESULT_LIMIT if not specified.
@@ -52,10 +54,11 @@ pub trait IndexerApi {
     ) -> RpcResult<TransactionBlocksPage>;
 
     /// Return list of events for a specified query criteria.
+    #[rustfmt::skip]
     #[method(name = "queryEvents")]
     async fn query_events(
         &self,
-        /// The event query criteria. See [Event filter](https://docs.sui.io/build/event_api#event-filters) documentation for examples.
+        /// The event query criteria. See [Event filter](https://wiki.iota.org/build/event_api#event-filters) documentation for examples.
         query: EventFilter,
         /// optional paging cursor
         cursor: Option<EventID>,
@@ -65,19 +68,21 @@ pub trait IndexerApi {
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage>;
 
-    /// Subscribe to a stream of Sui event
-    #[subscription(name = "subscribeEvent", item = SuiEvent)]
+    /// Subscribe to a stream of Iota event
+    #[rustfmt::skip]
+    #[subscription(name = "subscribeEvent", item = IotaEvent)]
     fn subscribe_event(
         &self,
-        /// The filter criteria of the event stream. See [Event filter](https://docs.sui.io/build/event_api#event-filters) documentation for examples.
+        /// The filter criteria of the event stream. See [Event filter](https://wiki.iota.org/build/event_api#event-filters) documentation for examples.
         filter: EventFilter,
     );
 
-    /// Subscribe to a stream of Sui transaction effects
-    #[subscription(name = "subscribeTransaction", item = SuiTransactionBlockEffects)]
+    /// Subscribe to a stream of Iota transaction effects
+    #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
     fn subscribe_transaction(&self, filter: TransactionFilter);
 
     /// Return the list of dynamic field objects owned by an object.
+    #[rustfmt::skip]
     #[method(name = "getDynamicFields")]
     async fn get_dynamic_fields(
         &self,
@@ -97,7 +102,7 @@ pub trait IndexerApi {
         parent_object_id: ObjectID,
         /// The Name of the dynamic field
         name: DynamicFieldName,
-    ) -> RpcResult<SuiObjectResponse>;
+    ) -> RpcResult<IotaObjectResponse>;
 
     /// Return the resolved address given resolver and name
     #[method(name = "resolveNameServiceAddress")]
@@ -105,7 +110,7 @@ pub trait IndexerApi {
         &self,
         /// The name to resolve
         name: String,
-    ) -> RpcResult<Option<SuiAddress>>;
+    ) -> RpcResult<Option<IotaAddress>>;
 
     /// Return the resolved names given address,
     /// if multiple names are resolved, the first one is the primary name.
@@ -113,7 +118,7 @@ pub trait IndexerApi {
     async fn resolve_name_service_names(
         &self,
         /// The address to resolve
-        address: SuiAddress,
+        address: IotaAddress,
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<Page<String, ObjectID>>;

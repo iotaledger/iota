@@ -1,21 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
-use sui_json_rpc_types::{
-    Checkpoint, CheckpointId, CheckpointPage, SuiEvent, SuiGetPastObjectRequest,
-    SuiObjectDataOptions, SuiObjectResponse, SuiPastObjectResponse, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
-use sui_json_rpc_types::{ProtocolConfigResponse, SuiLoadedChildObjectsResponse};
-use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::{ObjectID, SequenceNumber, TransactionDigest};
-use sui_types::sui_serde::BigInt;
+use iota_open_rpc_macros::open_rpc;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    iota_serde::BigInt,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-#[open_rpc(namespace = "sui", tag = "Read API")]
-#[rpc(server, client, namespace = "sui")]
+#[open_rpc(namespace = "iota", tag = "Read API")]
+#[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {
     /// Return the transaction response object.
     #[method(name = "getTransactionBlock")]
@@ -24,8 +24,8 @@ pub trait ReadApi {
         /// the digest of the queried transaction
         digest: TransactionDigest,
         /// options for specifying the content to be returned
-        options: Option<SuiTransactionBlockResponseOptions>,
-    ) -> RpcResult<SuiTransactionBlockResponse>;
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> RpcResult<IotaTransactionBlockResponse>;
 
     /// Returns an ordered list of transaction responses
     /// The method will throw an error if the input contains any duplicate or
@@ -36,8 +36,8 @@ pub trait ReadApi {
         /// A list of transaction digests.
         digests: Vec<TransactionDigest>,
         /// config options to control which fields to fetch
-        options: Option<SuiTransactionBlockResponseOptions>,
-    ) -> RpcResult<Vec<SuiTransactionBlockResponse>>;
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> RpcResult<Vec<IotaTransactionBlockResponse>>;
 
     /// Return the object information for a specified object
     #[method(name = "getObject")]
@@ -46,8 +46,8 @@ pub trait ReadApi {
         /// the ID of the queried object
         object_id: ObjectID,
         /// options for specifying the content to be returned
-        options: Option<SuiObjectDataOptions>,
-    ) -> RpcResult<SuiObjectResponse>;
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse>;
 
     /// Return the object data for a list of objects
     #[method(name = "multiGetObjects")]
@@ -56,13 +56,14 @@ pub trait ReadApi {
         /// the IDs of the queried objects
         object_ids: Vec<ObjectID>,
         /// options for specifying the content to be returned
-        options: Option<SuiObjectDataOptions>,
-    ) -> RpcResult<Vec<SuiObjectResponse>>;
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<Vec<IotaObjectResponse>>;
 
     /// Note there is no software-level guarantee/SLA that objects with past versions
     /// can be retrieved by this API, even if the object and version exists/existed.
     /// The result may vary across nodes depending on their pruning policies.
     /// Return the object information for a specified version
+    #[rustfmt::skip]
     #[method(name = "tryGetPastObject")]
     async fn try_get_past_object(
         &self,
@@ -71,29 +72,39 @@ pub trait ReadApi {
         /// the version of the queried object. If None, default to the latest known version
         version: SequenceNumber,
         /// options for specifying the content to be returned
-        options: Option<SuiObjectDataOptions>,
-    ) -> RpcResult<SuiPastObjectResponse>;
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaPastObjectResponse>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past versions
-    /// can be retrieved by this API, even if the object and version exists/existed.
-    /// The result may vary across nodes depending on their pruning policies.
-    /// Return the object information for a specified version
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and
+    /// version exists/existed. The result may vary across nodes depending
+    /// on their pruning policies. Returns the latest object information
+    /// with a version less than or equal to the given version
+    #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
+    async fn try_get_object_before_version(
+        &self,
+        /// the ID of the queried object
+        object_id: ObjectID,
+        /// the version of the queried object
+        version: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse>;
+
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and
+    /// version exists/existed. The result may vary across nodes depending
+    /// on their pruning policies. Return the object information for a
+    /// specified version
     #[method(name = "tryMultiGetPastObjects")]
     async fn try_multi_get_past_objects(
         &self,
         /// a vector of object and versions to be queried
-        past_objects: Vec<SuiGetPastObjectRequest>,
+        past_objects: Vec<IotaGetPastObjectRequest>,
         /// options for specifying the content to be returned
-        options: Option<SuiObjectDataOptions>,
-    ) -> RpcResult<Vec<SuiPastObjectResponse>>;
-
-    #[method(name = "getLoadedChildObjects")]
-    async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> RpcResult<SuiLoadedChildObjectsResponse>;
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<Vec<IotaPastObjectResponse>>;
 
     /// Return a checkpoint
+    #[rustfmt::skip]
     #[method(name = "getCheckpoint")]
     async fn get_checkpoint(
         &self,
@@ -102,6 +113,7 @@ pub trait ReadApi {
     ) -> RpcResult<Checkpoint>;
 
     /// Return paginated list of checkpoints
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints")]
     async fn get_checkpoints(
         &self,
@@ -113,6 +125,7 @@ pub trait ReadApi {
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints", version <= "0.31")]
     async fn get_checkpoints_deprecated_limit(
         &self,
@@ -130,18 +143,20 @@ pub trait ReadApi {
         &self,
         /// the event query criteria.
         transaction_digest: TransactionDigest,
-    ) -> RpcResult<Vec<SuiEvent>>;
+    ) -> RpcResult<Vec<IotaEvent>>;
 
     /// Return the total number of transaction blocks known to the server.
     #[method(name = "getTotalTransactionBlocks")]
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>>;
 
-    /// Return the sequence number of the latest checkpoint that has been executed
+    /// Return the sequence number of the latest checkpoint that has been
+    /// executed
     #[method(name = "getLatestCheckpointSequenceNumber")]
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the protocol config table for the given version number.
     /// If the version number is not specified, If none is specified, the node uses the version of the latest epoch it has processed.
+    #[rustfmt::skip]
     #[method(name = "getProtocolConfig")]
     async fn get_protocol_config(
         &self,

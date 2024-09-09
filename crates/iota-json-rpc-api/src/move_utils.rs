@@ -1,20 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
-use sui_json_rpc_types::{
-    MoveFunctionArgType, SuiMoveNormalizedFunction, SuiMoveNormalizedModule,
-    SuiMoveNormalizedStruct,
+use iota_json_rpc_types::{
+    IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
+    MoveFunctionArgType,
 };
-use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::ObjectID;
+use iota_open_rpc_macros::open_rpc;
+use iota_types::base_types::ObjectID;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-#[open_rpc(namespace = "sui", tag = "Move Utils")]
-#[rpc(server, client, namespace = "sui")]
+#[open_rpc(namespace = "iota", tag = "Move Utils")]
+#[rpc(server, client, namespace = "iota")]
 pub trait MoveUtils {
     /// Return the argument types of a Move function,
     /// based on normalized Type.
@@ -31,7 +30,7 @@ pub trait MoveUtils {
     async fn get_normalized_move_modules_by_package(
         &self,
         package: ObjectID,
-    ) -> RpcResult<BTreeMap<String, SuiMoveNormalizedModule>>;
+    ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>>;
 
     /// Return a structured representation of Move module
     #[method(name = "getNormalizedMoveModule")]
@@ -39,7 +38,7 @@ pub trait MoveUtils {
         &self,
         package: ObjectID,
         module_name: String,
-    ) -> RpcResult<SuiMoveNormalizedModule>;
+    ) -> RpcResult<IotaMoveNormalizedModule>;
 
     /// Return a structured representation of Move struct
     #[method(name = "getNormalizedMoveStruct")]
@@ -48,7 +47,7 @@ pub trait MoveUtils {
         package: ObjectID,
         module_name: String,
         struct_name: String,
-    ) -> RpcResult<SuiMoveNormalizedStruct>;
+    ) -> RpcResult<IotaMoveNormalizedStruct>;
 
     /// Return a structured representation of Move function
     #[method(name = "getNormalizedMoveFunction")]
@@ -57,5 +56,5 @@ pub trait MoveUtils {
         package: ObjectID,
         module_name: String,
         function_name: String,
-    ) -> RpcResult<SuiMoveNormalizedFunction>;
+    ) -> RpcResult<IotaMoveNormalizedFunction>;
 }
