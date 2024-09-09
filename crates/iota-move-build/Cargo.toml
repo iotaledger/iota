@@ -1,23 +1,24 @@
 [package]
-name = "sui-move-build"
+name = "iota-move-build"
 version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Logic for building Sui Move Packages"
 license = "Apache-2.0"
 publish = false
+description = "Logic for building Iota Move Packages"
 
 [dependencies]
 anyhow.workspace = true
 fastcrypto.workspace = true
 tempfile.workspace = true
 
+iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
-sui-verifier = { path = "../../sui-execution/latest/sui-verifier", package = "sui-verifier-latest" }
 
+iota-package-management.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 serde-reflection.workspace = true
-sui-types.workspace = true
-sui-protocol-config.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true

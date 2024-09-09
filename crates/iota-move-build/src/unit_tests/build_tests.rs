@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
@@ -7,15 +8,16 @@ use crate::BuildConfig;
 
 #[test]
 fn generate_struct_layouts() {
-    // build the Sui framework and generate struct layouts to make sure nothing crashes
+    // build the Iota framework and generate struct layouts to make sure nothing
+    // crashes
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
         .to_path_buf()
-        .join("sui-framework")
+        .join("iota-framework")
         .join("packages")
-        .join("sui-framework");
-    let pkg = BuildConfig::new_for_testing().build(path).unwrap();
+        .join("iota-framework");
+    let pkg = BuildConfig::new_for_testing().build(&path).unwrap();
     let registry = pkg.generate_struct_layouts();
     // check for a couple of types that aren't likely to go away
     assert!(registry.contains_key(
@@ -37,5 +39,5 @@ fn development_mode_not_allowed() {
         .join("unit_tests")
         .join("data")
         .join("no_development_mode");
-    assert!(BuildConfig::new_for_testing().build(path).is_err());
+    assert!(BuildConfig::new_for_testing().build(&path).is_err());
 }
