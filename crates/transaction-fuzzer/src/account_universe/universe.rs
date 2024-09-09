@@ -1,8 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use proptest::{
+    collection::{vec, SizeRange},
+    prelude::*,
+};
+use proptest_derive::Arbitrary;
 
 use crate::{
     account_universe::{
@@ -13,12 +21,6 @@ use crate::{
     executor::Executor,
 };
 
-use proptest::{
-    collection::{vec, SizeRange},
-    prelude::*,
-};
-use proptest_derive::Arbitrary;
-
 const PICK_SIZE: usize = 3;
 
 /// A set of accounts which can be used to construct an initial state.
@@ -28,12 +30,14 @@ pub struct AccountUniverseGen {
     pick_style: AccountPickStyle,
 }
 
-/// A set of accounts that has been set up and can now be used to conduct transactions on.
+/// A set of accounts that has been set up and can now be used to conduct
+/// transactions on.
 #[derive(Clone, Debug)]
 pub struct AccountUniverse {
     accounts: Vec<AccountCurrent>,
     picker: AccountPicker,
-    /// Whether to ignore any new accounts that transactions add to the universe.
+    /// Whether to ignore any new accounts that transactions add to the
+    /// universe.
     ignore_new_accounts: bool,
 }
 
@@ -63,27 +67,29 @@ enum AccountPicker {
 }
 
 impl AccountUniverseGen {
-    /// Returns a [`Strategy`] that generates a universe of accounts with pre-populated initial
-    /// balances.
+    /// Returns a [`Strategy`] that generates a universe of accounts with
+    /// pre-populated initial balances.
     pub fn strategy(
         num_accounts: impl Into<SizeRange>,
         balance_strategy: impl Strategy<Value = u64>,
     ) -> impl Strategy<Value = Self> {
-        // Pick a sequence number in a smaller range so that valid transactions can be generated.
-        // XXX should we also test edge cases around large sequence numbers?
-        // Note that using a function as a strategy directly means that shrinking will not occur,
-        // but that should be fine because there's nothing to really shrink within accounts anyway.
+        // Pick a sequence number in a smaller range so that valid transactions can be
+        // generated. XXX should we also test edge cases around large sequence
+        // numbers? Note that using a function as a strategy directly means that
+        // shrinking will not occur, but that should be fine because there's
+        // nothing to really shrink within accounts anyway.
         vec(AccountData::strategy(balance_strategy), num_accounts).prop_map(|accounts| Self {
             accounts,
             pick_style: AccountPickStyle::Unlimited,
         })
     }
 
-    /// Returns a [`Strategy`] that generates a universe of accounts that's guaranteed to succeed,
-    /// assuming that any transfers out of accounts will be 100_000 or below.
+    /// Returns a [`Strategy`] that generates a universe of accounts that's
+    /// guaranteed to succeed, assuming that any transfers out of accounts
+    /// will be 100_000 or below.
     pub fn success_strategy(min_accounts: usize) -> impl Strategy<Value = Self> {
-        // Set the minimum balance to be 5x possible transfers out to handle potential gas cost
-        // issues.
+        // Set the minimum balance to be 5x possible transfers out to handle potential
+        // gas cost issues.
         let min_balance = (100_000 * (default_num_transactions()) * 5) as u64;
         let max_balance = min_balance * 10;
         Self::strategy(
@@ -103,7 +109,8 @@ impl AccountUniverseGen {
         self.accounts.len()
     }
 
-    /// Returns an [`AccountUniverse`] with the initial state generated in this universe.
+    /// Returns an [`AccountUniverse`] with the initial state generated in this
+    /// universe.
     pub fn setup(self, executor: &mut Executor) -> AccountUniverse {
         for account_data in &self.accounts {
             executor.add_objects(&account_data.coins);
@@ -131,23 +138,25 @@ impl AccountUniverse {
 
     /// Returns the number of accounts currently in this universe.
     ///
-    /// Some transactions might cause new accounts to be created. The return value of this method
-    /// will include those new accounts.
+    /// Some transactions might cause new accounts to be created. The return
+    /// value of this method will include those new accounts.
     pub fn num_accounts(&self) -> usize {
         self.accounts.len()
     }
 
     /// Returns the accounts currently in this universe.
     ///
-    /// Some transactions might cause new accounts to be created. The return value of this method
-    /// will include those new accounts.
+    /// Some transactions might cause new accounts to be created. The return
+    /// value of this method will include those new accounts.
     pub fn accounts(&self) -> &[AccountCurrent] {
         &self.accounts
     }
 
-    /// Adds an account to the universe so that future transactions can be made out of this account.
+    /// Adds an account to the universe so that future transactions can be made
+    /// out of this account.
     ///
-    /// This is ignored if the universe was configured to be in gas-cost-stability mode.
+    /// This is ignored if the universe was configured to be in
+    /// gas-cost-stability mode.
     pub fn add_account(&mut self, account_data: AccountData) {
         if !self.ignore_new_accounts {
             self.accounts.push(AccountCurrent::new(account_data));
@@ -224,12 +233,12 @@ impl AccountPicker {
 }
 
 impl AccountPairGen {
-    /// Picks two accounts randomly from this universe and returns mutable references to
-    /// them.
+    /// Picks two accounts randomly from this universe and returns mutable
+    /// references to them.
     pub fn pick<'a>(&self, universe: &'a mut AccountUniverse) -> AccountTriple<'a> {
         let [low_idx, mid_idx, high_idx] = universe.picker.pick_account_indices(&self.indices);
-        // Need to use `split_at_mut` because you can't have multiple mutable references to items
-        // from a single slice at any given time.
+        // Need to use `split_at_mut` because you can't have multiple mutable references
+        // to items from a single slice at any given time.
         let (head, tail) = universe.accounts.split_at_mut(low_idx + 1);
         let (mid, tail) = tail.split_at_mut(mid_idx - low_idx);
         let (low_account, mid_account, high_account) = (
@@ -260,7 +269,8 @@ impl AccountPairGen {
     }
 }
 
-/// Mutable references to a three-tuple of distinct accounts picked from a universe.
+/// Mutable references to a three-tuple of distinct accounts picked from a
+/// universe.
 pub struct AccountTriple<'a> {
     /// The index of the first account picked.
     pub idx_1: usize,

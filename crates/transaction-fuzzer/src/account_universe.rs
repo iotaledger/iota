@@ -1,14 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::executor::{ExecutionResult, Executor};
+use std::{fmt, sync::Arc};
+
+use iota_types::{storage::ObjectStore, transaction::Transaction};
 use once_cell::sync::Lazy;
 use proptest::{prelude::*, strategy::Union};
-use std::{fmt, sync::Arc};
-use sui_types::{storage::ObjectStore, transaction::Transaction};
+
+use crate::executor::{ExecutionResult, Executor};
 
 mod account;
 mod helpers;
@@ -48,15 +52,17 @@ pub fn default_num_transactions() -> usize {
 
 /// Represents any sort of transaction that can be done in an account universe.
 pub trait AUTransactionGen: fmt::Debug {
-    /// Applies this transaction onto the universe, updating balances within the universe as
-    /// necessary. Returns a signed transaction that can be run on the VM and the execution status.
+    /// Applies this transaction onto the universe, updating balances within the
+    /// universe as necessary. Returns a signed transaction that can be run
+    /// on the VM and the execution status.
     fn apply(
         &self,
         universe: &mut AccountUniverse,
         exec: &mut Executor,
     ) -> (Transaction, ExecutionResult);
 
-    /// Creates an arced version of this transaction, suitable for dynamic dispatch.
+    /// Creates an arced version of this transaction, suitable for dynamic
+    /// dispatch.
     fn arced(self) -> Arc<dyn AUTransactionGen>
     where
         Self: 'static + Sized,
@@ -75,14 +81,15 @@ impl AUTransactionGen for Arc<dyn AUTransactionGen> {
     }
 }
 
-/// Returns a [`Strategy`] that provides a variety of balances (or transfer amounts) over a roughly
-/// logarithmic distribution.
+/// Returns a [`Strategy`] that provides a variety of balances (or transfer
+/// amounts) over a roughly logarithmic distribution.
 pub fn log_balance_strategy(min_balance: u64, max_balance: u64) -> impl Strategy<Value = u64> {
-    // The logarithmic distribution is modeled by uniformly picking from ranges of powers of 2.
+    // The logarithmic distribution is modeled by uniformly picking from ranges of
+    // powers of 2.
     assert!(max_balance >= min_balance, "minimum to make sense");
     let mut strategies = vec![];
-    // Balances below and around the minimum are interesting but don't cover *every* power of 2,
-    // just those starting from the minimum.
+    // Balances below and around the minimum are interesting but don't cover *every*
+    // power of 2, just those starting from the minimum.
     let mut lower_bound: u64 = 0;
     let mut upper_bound: u64 = min_balance;
     loop {
@@ -136,15 +143,15 @@ pub fn assert_accounts_match(
     for (idx, account) in universe.accounts().iter().enumerate() {
         for (balance_idx, acc_object) in account.current_coins.iter().enumerate() {
             let object = object_store.get_object(&acc_object.id()).unwrap().unwrap();
-            let total_sui_value =
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+            let total_iota_value =
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
             let account_balance_i = account.current_balances[balance_idx];
             prop_assert_eq!(
                 account_balance_i,
-                total_sui_value,
+                total_iota_value,
                 "account {} should have correct balance {} for object {} but got {}",
                 idx,
-                total_sui_value,
+                total_iota_value,
                 acc_object.id(),
                 account_balance_i
             );
