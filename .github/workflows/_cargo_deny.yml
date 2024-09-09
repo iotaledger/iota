@@ -14,8 +14,6 @@ concurrency:
 
 jobs:
   rust-crates:
-    if: |
-      !cancelled()
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: [self-hosted]
     steps:
@@ -27,8 +25,6 @@ jobs:
           use-git-cli: true
 
   external-crates:
-    if: |
-      !cancelled()
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: [self-hosted]
     steps:
