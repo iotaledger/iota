@@ -11,8 +11,7 @@ import { TransactionSummary } from '../../shared/transaction-summary';
 import { StakeTxn } from './StakeTxn';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxn } from './UnstakeTxn';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
-import { useNavigate } from 'react-router-dom';
+import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -44,13 +43,8 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         currentAddress: activeAddress,
         recognizedPackagesList,
     });
-    const navigate = useNavigate();
 
     if (!summary) return null;
-
-    function handleCancel() {
-        navigate('/');
-    }
 
     const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
 
@@ -62,7 +56,10 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
             <div className="flex h-full flex-col justify-between">
                 {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
                 {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
-                <Button type={ButtonType.Primary} text="Finish" onClick={handleCancel} fullWidth />
+                <ExplorerLinkCard
+                    digest={summary?.digest}
+                    timestamp={summary?.timestamp ?? undefined}
+                />
             </div>
         );
 

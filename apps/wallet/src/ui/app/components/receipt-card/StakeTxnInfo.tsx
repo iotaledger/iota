@@ -38,7 +38,7 @@ export function StakeTxnInfo({ apy, startEpoch, gasSummary }: StakeTxnInfoProps)
         timeBeforeStakeRewardsStarts > 0
             ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
             : startEpoch
-              ? `Epoch #${Number(startEarningRewardsEpoch)}`
+              ? `Epoch ${Number(startEarningRewardsEpoch)}`
               : '--';
 
     const { data: timeBeforeStakeRewardsRedeemable } =
@@ -53,7 +53,7 @@ export function StakeTxnInfo({ apy, startEpoch, gasSummary }: StakeTxnInfoProps)
         timeBeforeStakeRewardsRedeemable > 0
             ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
             : startEpoch
-              ? `Epoch #${Number(redeemableRewardsEpoch)}`
+              ? `Epoch ${Number(redeemableRewardsEpoch)}`
               : '--';
     return (
         <Panel hasBorder>
