@@ -1,0 +1,18 @@
+[package]
+name = "iota-test-transaction-builder"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+bcs.workspace = true
+
+iota-genesis-builder.workspace = true
+iota-move-build.workspace = true
+iota-sdk.workspace = true
+iota-types.workspace = true
+shared-crypto.workspace = true
+
+move-core-types.workspace = true

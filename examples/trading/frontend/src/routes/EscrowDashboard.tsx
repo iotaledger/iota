@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from "react";
@@ -6,7 +7,7 @@ import { Tabs, Tooltip } from "@radix-ui/themes";
 import { LockedList } from "../components/locked/ApiLockedList";
 import { EscrowList } from "../components/escrows/EscrowList";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
-import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useCurrentAccount } from "@iota/dapp-kit";
 
 export function EscrowDashboard() {
   const account = useCurrentAccount();

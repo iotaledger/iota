@@ -1,16 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    cell::RefCell,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use once_cell::sync::OnceCell;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
-use rocksdb::perf::set_perf_stats;
-use rocksdb::{PerfContext, PerfMetric, PerfStatsLevel};
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use rocksdb::{perf::set_perf_stats, PerfContext, PerfMetric, PerfStatsLevel};
 use tap::TapFallible;
 use tracing::warn;
 

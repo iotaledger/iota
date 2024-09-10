@@ -1,0 +1,52 @@
+processed 11 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 9-52:
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 7493600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'programmable'. lines 54-58:
+created: object(2,0), object(2,1), object(2,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 6285200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3 'view-object'. lines 60-60:
+Owner: Object ID: ( fake(2,2) )
+Version: 2
+Contents: iota::dynamic_field::Field<u64, test::m::Obj> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, name: 0u64, value: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: _}}, value: 0u64}}
+
+task 4 'view-object'. lines 62-62:
+Owner: Object ID: ( _ )
+Version: 2
+Contents: iota::dynamic_field::Field<u64, test::m::Obj> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}, name: 0u64, value: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: _}}, value: 0u64}}
+
+task 5 'view-object'. lines 64-64:
+Owner: Account Address ( A )
+Version: 2
+Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,2)}}, value: 0u64}
+
+task 6 'programmable'. lines 66-69:
+mutated: object(0,0), object(2,1), object(2,2)
+gas summary: computation_cost: 1000000, storage_cost: 4278800,  storage_rebate: 4278800, non_refundable_storage_fee: 0
+
+task 7 'view-object'. lines 71-71:
+Owner: Object ID: ( fake(2,2) )
+Version: 2
+Contents: iota::dynamic_field::Field<u64, test::m::Obj> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, name: 0u64, value: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: _}}, value: 0u64}}
+
+task 8 'view-object'. lines 73-73:
+Owner: Object ID: ( _ )
+Version: 3
+Contents: iota::dynamic_field::Field<u64, test::m::Obj> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}, name: 0u64, value: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: _}}, value: 112u64}}
+
+task 9 'view-object'. lines 75-78:
+Owner: Account Address ( A )
+Version: 3
+Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,2)}}, value: 0u64}
+
+task 10 'programmable'. lines 80-81:
+mutated: object(0,0), object(2,2)
+gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2272400, non_refundable_storage_fee: 0

@@ -1,26 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(clippy::mutable_key_type)]
 
-use crate::{Batch, Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round, TimestampMs};
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    fmt,
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
+
 use config::{AuthorityIdentifier, Committee};
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, Hash, HashFunction};
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::warn;
+
+use crate::{Batch, Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round, TimestampMs};
 
 /// A global sequence number assigned to every CommittedSubDag.
 pub type SequenceNumber = u64;
 
 #[derive(Clone, Debug)]
-/// The output of Consensus, which includes all the batches for each certificate in the sub dag
-/// It is sent to the ExecutionState handle_consensus_transactions
+/// The output of Consensus, which includes all the batches for each certificate
+/// in the sub dag It is sent to the ExecutionState
+/// handle_consensus_transactions
 pub struct ConsensusOutput {
     pub sub_dag: Arc<CommittedSubDag>,
     /// Matches certificates in the `sub_dag` one-to-one.
@@ -63,11 +69,12 @@ pub struct CommittedSubDag {
     pub sub_dag_index: SequenceNumber,
     /// The so far calculated reputation score for nodes
     pub reputation_score: ReputationScores,
-    /// The timestamp that should identify this commit. This is guaranteed to be monotonically
-    /// incremented. This is not necessarily the leader's timestamp. We compare the leader's timestamp
-    /// with the previously committed sud dag timestamp and we always keep the max.
-    /// Property is explicitly private so the method commit_timestamp() should be used instead which
-    /// bears additional resolution logic.
+    /// The timestamp that should identify this commit. This is guaranteed to be
+    /// monotonically incremented. This is not necessarily the leader's
+    /// timestamp. We compare the leader's timestamp with the previously
+    /// committed sud dag timestamp and we always keep the max. Property is
+    /// explicitly private so the method commit_timestamp() should be used
+    /// instead which bears additional resolution logic.
     commit_timestamp: TimestampMs,
 }
 
@@ -79,7 +86,8 @@ impl CommittedSubDag {
         reputation_score: ReputationScores,
         previous_sub_dag: Option<&CommittedSubDag>,
     ) -> Self {
-        // Narwhal enforces some invariants on the header.created_at, so we can use it as a timestamp.
+        // Narwhal enforces some invariants on the header.created_at, so we can use it
+        // as a timestamp.
         let previous_sub_dag_ts = previous_sub_dag
             .map(|s| s.commit_timestamp)
             .unwrap_or_default();
@@ -140,9 +148,9 @@ impl CommittedSubDag {
     }
 
     pub fn commit_timestamp(&self) -> TimestampMs {
-        // If commit_timestamp is zero, then safely assume that this is an upgraded node that is
-        // replaying this commit and field is never initialised. It's safe to fallback on leader's
-        // timestamp.
+        // If commit_timestamp is zero, then safely assume that this is an upgraded node
+        // that is replaying this commit and field is never initialised. It's
+        // safe to fallback on leader's timestamp.
         if self.commit_timestamp == 0 {
             return *self.leader.header().created_at();
         }
@@ -155,8 +163,9 @@ impl Hash<{ crypto::DIGEST_LENGTH }> for CommittedSubDag {
 
     fn digest(&self) -> ConsensusOutputDigest {
         let mut hasher = crypto::DefaultHashFunction::new();
-        // Instead of hashing serialized CommittedSubDag, hash the certificate digests instead.
-        // Signatures in the certificates are not part of the commitment.
+        // Instead of hashing serialized CommittedSubDag, hash the certificate digests
+        // instead. Signatures in the certificates are not part of the
+        // commitment.
         for cert in &self.certificates {
             hasher.update(cert.digest());
         }
@@ -184,16 +193,17 @@ pub struct ReputationScores {
     /// Holds the score for every authority. If an authority is not amongst
     /// the records of the map then we assume that its score is zero.
     pub scores_per_authority: HashMap<AuthorityIdentifier, u64>,
-    /// When true it notifies us that those scores will be the last updated scores of the
-    /// current schedule before they get reset for the next schedule and start
-    /// scoring from the beginning. In practice we can leverage this information to
-    /// use the scores during the next schedule until the next final ones are calculated.
+    /// When true it notifies us that those scores will be the last updated
+    /// scores of the current schedule before they get reset for the next
+    /// schedule and start scoring from the beginning. In practice we can
+    /// leverage this information to use the scores during the next schedule
+    /// until the next final ones are calculated.
     pub final_of_schedule: bool,
 }
 
 impl ReputationScores {
-    /// Creating a new ReputationScores instance pre-populating the authorities entries with
-    /// zero score value.
+    /// Creating a new ReputationScores instance pre-populating the authorities
+    /// entries with zero score value.
     pub fn new(committee: &Committee) -> Self {
         let scores_per_authority = committee.authorities().map(|a| (a.id(), 0_u64)).collect();
 
@@ -202,7 +212,8 @@ impl ReputationScores {
             ..Default::default()
         }
     }
-    /// Adds the provided `score` to the existing score for the provided `authority`
+    /// Adds the provided `score` to the existing score for the provided
+    /// `authority`
     pub fn add_score(&mut self, authority: AuthorityIdentifier, score: u64) {
         self.scores_per_authority
             .entry(authority)
@@ -289,8 +300,8 @@ impl ConsensusCommitAPI for CommittedSubDagShell {
     }
 
     fn commit_timestamp(&self) -> TimestampMs {
-        // We explicitly return 0 as we don't have this information stored already. This will be
-        // handle accordingly to the CommittedSubdag struct.
+        // We explicitly return 0 as we don't have this information stored already. This
+        // will be handle accordingly to the CommittedSubdag struct.
         0
     }
 }
@@ -307,8 +318,8 @@ pub struct ConsensusCommitV2 {
     pub sub_dag_index: SequenceNumber,
     /// The so far calculated reputation score for nodes
     pub reputation_score: ReputationScores,
-    /// The timestamp that should identify this commit. This is guaranteed to be monotonically
-    /// incremented
+    /// The timestamp that should identify this commit. This is guaranteed to be
+    /// monotonically incremented
     pub commit_timestamp: TimestampMs,
 }
 
@@ -418,8 +429,8 @@ impl CommittedSubDagShell {
 pub type ShutdownToken = mpsc::Sender<()>;
 
 // Digest of ConsususOutput and CommittedSubDag.
-// In non-byzantine environment, ConsensusOutputDigest of each consensus output in different
-// validator must be the same.
+// In non-byzantine environment, ConsensusOutputDigest of each consensus output
+// in different validator must be the same.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ConsensusOutputDigest([u8; crypto::DIGEST_LENGTH]);
 
@@ -465,13 +476,13 @@ impl fmt::Display for ConsensusOutputDigest {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Certificate, Header, HeaderV1Builder};
-    use crate::{CommittedSubDag, ReputationScores};
+    use std::{collections::BTreeSet, num::NonZeroUsize};
+
     use config::AuthorityIdentifier;
     use indexmap::IndexMap;
-    use std::collections::BTreeSet;
-    use std::num::NonZeroUsize;
-    use test_utils::{latest_protocol_version, CommitteeFixture};
+    use test_utils::CommitteeFixture;
+
+    use crate::{Certificate, CommittedSubDag, Header, HeaderV1Builder, ReputationScores};
 
     #[test]
     fn test_zero_timestamp_in_sub_dag() {
@@ -489,13 +500,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let certificate = Certificate::new_unsigned(
-            &latest_protocol_version(),
-            &committee,
-            Header::V1(header),
-            Vec::new(),
-        )
-        .unwrap();
+        let certificate =
+            Certificate::new_unsigned(&committee, Header::V1(header), Vec::new()).unwrap();
 
         // AND we initialise the sub dag via the "restore" way
         let sub_dag_round = CommittedSubDag {
@@ -530,13 +536,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let certificate = Certificate::new_unsigned(
-            &latest_protocol_version(),
-            &committee,
-            Header::V1(header),
-            Vec::new(),
-        )
-        .unwrap();
+        let certificate =
+            Certificate::new_unsigned(&committee, Header::V1(header), Vec::new()).unwrap();
 
         // AND
         let sub_dag_round_2 = CommittedSubDag::new(
@@ -562,13 +563,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let certificate = Certificate::new_unsigned(
-            &latest_protocol_version(),
-            &committee,
-            Header::V1(header),
-            Vec::new(),
-        )
-        .unwrap();
+        let certificate =
+            Certificate::new_unsigned(&committee, Header::V1(header), Vec::new()).unwrap();
 
         // WHEN create the sub dag based on the "previously committed" sub dag.
         let sub_dag_round_4 = CommittedSubDag::new(
@@ -579,8 +575,8 @@ mod tests {
             Some(&sub_dag_round_2),
         );
 
-        // THEN the latest sub dag should have the highest committed timestamp - basically the
-        // same as the previous commit round
+        // THEN the latest sub dag should have the highest committed timestamp -
+        // basically the same as the previous commit round
         assert_eq!(
             sub_dag_round_4.commit_timestamp,
             sub_dag_round_2.commit_timestamp

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{path::PathBuf, time::Duration};
@@ -7,17 +8,21 @@ use serde::{Deserialize, Serialize};
 
 /// Operational configurations of a consensus authority.
 ///
-/// All fields should tolerate inconsistencies among authorities, without affecting safety of the
-/// protocol. Otherwise, they need to be part of Sui protocol config or epoch state on-chain.
+/// All fields should tolerate inconsistencies among authorities, without
+/// affecting safety of the protocol. Otherwise, they need to be part of Iota
+/// protocol config or epoch state on-chain.
 ///
-/// NOTE: fields with default values are specified in the serde default functions. Most operators
-/// should not need to specify any field, except db_path.
+/// NOTE: fields with default values are specified in the serde default
+/// functions. Most operators should not need to specify any field, except
+/// db_path.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Parameters {
-    /// The number of rounds of blocks to be kept in the Dag state cache per authority. The larger
-    /// the number the more the blocks that will be kept in memory allowing minimising any potential
-    /// disk access. Should be careful when tuning this parameter as it could be quite memory expensive.
-    /// Value should be at minimum 50 rounds to ensure node performance and protocol advance.
+    /// The number of rounds of blocks to be kept in the Dag state cache per
+    /// authority. The larger the number the more the blocks that will be
+    /// kept in memory allowing minimising any potential disk access. Should
+    /// be careful when tuning this parameter as it could be quite memory
+    /// expensive. Value should be at minimum 50 rounds to ensure node
+    /// performance and protocol advance.
     #[serde(default = "Parameters::default_dag_state_cached_rounds")]
     pub dag_state_cached_rounds: u32,
 
@@ -25,14 +30,16 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
-    /// Minimum delay between rounds, to avoid generating too many rounds when latency is low.
-    /// This is especially necessary for tests running locally.
-    /// If setting a non-default value, it should be set low enough to avoid reducing
-    /// round rate and increasing latency in realistic and distributed configurations.
+    /// Minimum delay between rounds, to avoid generating too many rounds when
+    /// latency is low. This is especially necessary for tests running
+    /// locally. If setting a non-default value, it should be set low enough
+    /// to avoid reducing round rate and increasing latency in realistic and
+    /// distributed configurations.
     #[serde(default = "Parameters::default_min_round_delay")]
     pub min_round_delay: Duration,
 
-    /// Maximum forward time drift (how far in future) allowed for received blocks.
+    /// Maximum forward time drift (how far in future) allowed for received
+    /// blocks.
     #[serde(default = "Parameters::default_max_forward_time_drift")]
     pub max_forward_time_drift: Duration,
 
@@ -88,8 +95,9 @@ impl Default for Parameters {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AnemoParameters {
-    /// Size in bytes above which network messages are considered excessively large. Excessively
-    /// large messages will still be handled, but logged and reported in metrics for debugging.
+    /// Size in bytes above which network messages are considered excessively
+    /// large. Excessively large messages will still be handled, but logged
+    /// and reported in metrics for debugging.
     ///
     /// If unspecified, this will default to 8 MiB.
     #[serde(default = "AnemoParameters::default_excessive_message_size")]

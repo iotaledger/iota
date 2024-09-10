@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 pub mod errors;
 pub(crate) mod iter;
@@ -7,46 +8,48 @@ pub(crate) mod safe_iter;
 pub mod util;
 pub(crate) mod values;
 
-use self::{iter::Iter, keys::Keys, values::Values};
-use crate::rocks::errors::typed_store_err_from_bcs_err;
-use crate::rocks::errors::typed_store_err_from_bincode_err;
-use crate::rocks::errors::typed_store_err_from_rocks_err;
-use crate::rocks::safe_iter::SafeIter;
-use crate::TypedStoreError;
-use crate::{
-    metrics::{DBMetrics, RocksDBPerfContext, SamplingInterval},
-    traits::{Map, TableSummary},
-};
-use bincode::Options;
-use collectable::TryExtend;
-use itertools::Itertools;
-use prometheus::{Histogram, HistogramTimer};
-use rocksdb::{
-    checkpoint::Checkpoint, BlockBasedOptions, BottommostLevelCompaction, Cache, CompactOptions,
-    DBPinnableSlice, LiveFile, OptimisticTransactionDB, SnapshotWithThreadMode,
-};
-use rocksdb::{
-    properties, AsColumnFamilyRef, CStrLike, ColumnFamilyDescriptor, DBWithThreadMode, Error,
-    ErrorKind, IteratorMode, MultiThreaded, OptimisticTransactionOptions, ReadOptions, Transaction,
-    WriteBatch, WriteBatchWithTransaction, WriteOptions,
-};
-use serde::{de::DeserializeOwned, Serialize};
-use std::ops::Bound;
 use std::{
     borrow::Borrow,
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     env,
+    ffi::CStr,
     marker::PhantomData,
-    ops::RangeBounds,
+    ops::{Bound, RangeBounds},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
-use std::{collections::HashSet, ffi::CStr};
-use sui_macros::{fail_point, nondeterministic};
+
+use bincode::Options;
+use collectable::TryExtend;
+use iota_macros::{fail_point, nondeterministic};
+use itertools::Itertools;
+use prometheus::{Histogram, HistogramTimer};
+use rocksdb::{
+    checkpoint::Checkpoint, properties, AsColumnFamilyRef, BlockBasedOptions,
+    BottommostLevelCompaction, CStrLike, Cache, ColumnFamilyDescriptor, CompactOptions,
+    DBPinnableSlice, DBWithThreadMode, Error, ErrorKind, IteratorMode, LiveFile, MultiThreaded,
+    OptimisticTransactionDB, OptimisticTransactionOptions, ReadOptions, SnapshotWithThreadMode,
+    Transaction, WriteBatch, WriteBatchWithTransaction, WriteOptions,
+};
+use serde::{de::DeserializeOwned, Serialize};
 use tap::TapFallible;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument, warn};
+
+use self::{iter::Iter, keys::Keys, values::Values};
+use crate::{
+    metrics::{DBMetrics, RocksDBPerfContext, SamplingInterval},
+    rocks::{
+        errors::{
+            typed_store_err_from_bcs_err, typed_store_err_from_bincode_err,
+            typed_store_err_from_rocks_err,
+        },
+        safe_iter::SafeIter,
+    },
+    traits::{Map, TableSummary},
+    TypedStoreError,
+};
 
 // Write buffer size per RocksDB instance can be set via the env var below.
 // If the env var is not set, use the default value in MiB.
@@ -58,7 +61,8 @@ const DEFAULT_DB_WRITE_BUFFER_SIZE: usize = 1024;
 const ENV_VAR_DB_WAL_SIZE: &str = "DB_WAL_SIZE_MB";
 const DEFAULT_DB_WAL_SIZE: usize = 1024;
 
-// Environment variable to control behavior of write throughput optimized tables.
+// Environment variable to control behavior of write throughput optimized
+// tables.
 const ENV_VAR_L0_NUM_FILES_COMPACTION_TRIGGER: &str = "L0_NUM_FILES_COMPACTION_TRIGGER";
 const DEFAULT_L0_NUM_FILES_COMPACTION_TRIGGER: usize = 6;
 const ENV_VAR_MAX_WRITE_BUFFER_SIZE_MB: &str = "MAX_WRITE_BUFFER_SIZE_MB";
@@ -73,8 +77,8 @@ const ENV_VAR_DISABLE_BLOB_STORAGE: &str = "DISABLE_BLOB_STORAGE";
 
 const ENV_VAR_MAX_BACKGROUND_JOBS: &str = "MAX_BACKGROUND_JOBS";
 
-// TODO: remove this after Rust rocksdb has the TOTAL_BLOB_FILES_SIZE property built-in.
-// From https://github.com/facebook/rocksdb/blob/bd80433c73691031ba7baa65c16c63a83aef201a/include/rocksdb/db.h#L1169
+// TODO: remove this after Rust rocksdb has the TOTAL_BLOB_FILES_SIZE property
+// built-in. From https://github.com/facebook/rocksdb/blob/bd80433c73691031ba7baa65c16c63a83aef201a/include/rocksdb/db.h#L1169
 const ROCKSDB_PROPERTY_TOTAL_BLOB_FILES_SIZE: &CStr =
     unsafe { CStr::from_bytes_with_nul_unchecked("rocksdb.total-blob-file-size\0".as_bytes()) };
 
@@ -89,8 +93,8 @@ mod tests;
 ///
 /// * `db` - a reference to a rocks DB object
 /// * `cf;<ty,ty>` - a comma separated list of column families to open. For each
-/// column family a concatenation of column family name (cf) and Key-Value <ty, ty>
-/// should be provided.
+/// column family a concatenation of column family name (cf) and Key-Value <ty,
+/// ty> should be provided.
 ///
 /// # Examples
 ///
@@ -118,7 +122,6 @@ mod tests;
 /// Ok(())
 /// }
 /// ```
-///
 #[macro_export]
 macro_rules! reopen {
     ( $db:expr, $($cf:expr;<$K:ty, $V:ty>),*) => {
@@ -131,8 +134,8 @@ macro_rules! reopen {
 }
 
 /// Repeatedly attempt an Optimistic Transaction until it succeeds.
-/// Since many callsites (e.g. the consensus handler) cannot proceed in the case of failed writes,
-/// this will loop forever until the transaction succeeds.
+/// Since many callsites (e.g. the consensus handler) cannot proceed in the case
+/// of failed writes, this will loop forever until the transaction succeeds.
 #[macro_export]
 macro_rules! retry_transaction {
     ($transaction:expr) => {
@@ -291,7 +294,7 @@ impl RocksDB {
         delegate_call!(self.multi_get_cf_opt(keys, readopts))
     }
 
-    pub fn batched_multi_get_cf_opt<I, K>(
+    pub fn batched_multi_get_cf_opt<'a, I, K>(
         &self,
         cf: &impl AsColumnFamilyRef,
         keys: I,
@@ -299,8 +302,8 @@ impl RocksDB {
         readopts: &ReadOptions,
     ) -> Vec<Result<Option<DBPinnableSlice<'_>>, Error>>
     where
-        I: IntoIterator<Item = K>,
-        K: AsRef<[u8]>,
+        I: IntoIterator<Item = &'a K>,
+        K: AsRef<[u8]> + 'a + ?Sized,
     {
         delegate_call!(self.batched_multi_get_cf_opt(cf, keys, sorted_input, readopts))
     }
@@ -767,10 +770,12 @@ impl<K, V> DBMap<K, V> {
         }
     }
 
-    /// Opens a database from a path, with specific options and an optional column family.
+    /// Opens a database from a path, with specific options and an optional
+    /// column family.
     ///
-    /// This database is used to perform operations on single column family, and parametrizes
-    /// all operations in `DBBatch` when writing across column families.
+    /// This database is used to perform operations on single column family, and
+    /// parametrizes all operations in `DBBatch` when writing across column
+    /// families.
     #[instrument(level="debug", skip_all, fields(path = ?path.as_ref(), cf = ?opt_cf), err)]
     pub fn open<P: AsRef<Path>>(
         path: P,
@@ -785,25 +790,36 @@ impl<K, V> DBMap<K, V> {
         Ok(DBMap::new(rocksdb, rw_options, cf_key))
     }
 
-    /// Reopens an open database as a typed map operating under a specific column family.
-    /// if no column family is passed, the default column family is used.
+    /// Reopens an open database as a typed map operating under a specific
+    /// column family. if no column family is passed, the default column
+    /// family is used.
     ///
     /// ```
-    ///    use typed_store::rocks::*;
-    ///    use typed_store::metrics::DBMetrics;
-    ///    use tempfile::tempdir;
-    ///    use prometheus::Registry;
-    ///    use std::sync::Arc;
-    ///    use core::fmt::Error;
-    ///    #[tokio::main]
-    ///    async fn main() -> Result<(), Error> {
-    ///    /// Open the DB with all needed column families first.
-    ///    let rocks = open_cf(tempdir().unwrap(), None, MetricConf::default(), &["First_CF", "Second_CF"]).unwrap();
-    ///    /// Attach the column families to specific maps.
-    ///    let db_cf_1 = DBMap::<u32,u32>::reopen(&rocks, Some("First_CF"), &ReadWriteOptions::default()).expect("Failed to open storage");
-    ///    let db_cf_2 = DBMap::<u32,u32>::reopen(&rocks, Some("Second_CF"), &ReadWriteOptions::default()).expect("Failed to open storage");
-    ///    Ok(())
-    ///    }
+    /// use core::fmt::Error;
+    /// use std::sync::Arc;
+    ///
+    /// use prometheus::Registry;
+    /// use tempfile::tempdir;
+    /// use typed_store::{metrics::DBMetrics, rocks::*};
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Error> {
+    ///     /// Open the DB with all needed column families first.
+    ///     let rocks = open_cf(
+    ///         tempdir().unwrap(),
+    ///         None,
+    ///         MetricConf::default(),
+    ///         &["First_CF", "Second_CF"],
+    ///     )
+    ///     .unwrap();
+    ///     /// Attach the column families to specific maps.
+    ///     let db_cf_1 =
+    ///         DBMap::<u32, u32>::reopen(&rocks, Some("First_CF"), &ReadWriteOptions::default())
+    ///             .expect("Failed to open storage");
+    ///     let db_cf_2 =
+    ///         DBMap::<u32, u32>::reopen(&rocks, Some("Second_CF"), &ReadWriteOptions::default())
+    ///             .expect("Failed to open storage");
+    ///     Ok(())
+    /// }
     /// ```
     #[instrument(level = "debug", skip(db), err)]
     pub fn reopen(
@@ -932,8 +948,9 @@ impl<K, V> DBMap<K, V> {
             .rocksdb
             .batched_multi_get_cf_opt(
                 &self.cf(),
-                keys_bytes?,
-                /*sorted_keys=*/ false,
+                &keys_bytes?,
+                // sorted_keys=
+                false,
                 &self.opts.readopts(),
             )
             .into_iter()
@@ -1205,7 +1222,8 @@ impl<K, V> DBMap<K, V> {
         readopts
     }
 
-    // Creates a RocksDB read option with lower and upper bounds set corresponding to `range`.
+    // Creates a RocksDB read option with lower and upper bounds set corresponding
+    // to `range`.
     fn create_read_options_with_range(&self, range: impl RangeBounds<K>) -> ReadOptions
     where
         K: Serialize,
@@ -1237,7 +1255,8 @@ impl<K, V> DBMap<K, V> {
                 let mut key_buf =
                     be_fix_int_ser(&upper_bound).expect("Serialization must not fail");
 
-                // If the key is already at the limit, there's nowhere else to go, so no upper bound
+                // If the key is already at the limit, there's nowhere else to go, so no upper
+                // bound
                 if !is_max(&key_buf) {
                     // Since we want exclusive, we need to increment the key to get the upper bound
                     big_endian_saturating_add_one(&mut key_buf);
@@ -1256,57 +1275,62 @@ impl<K, V> DBMap<K, V> {
     }
 }
 
-/// Provides a mutable struct to form a collection of database write operations, and execute them.
+/// Provides a mutable struct to form a collection of database write operations,
+/// and execute them.
 ///
-/// Batching write and delete operations is faster than performing them one by one and ensures their atomicity,
-///  ie. they are all written or none is.
+/// Batching write and delete operations is faster than performing them one by
+/// one and ensures their atomicity,  ie. they are all written or none is.
 /// This is also true of operations across column families in the same database.
 ///
-/// Serializations / Deserialization, and naming of column families is performed by passing a DBMap<K,V>
-/// with each operation.
+/// Serializations / Deserialization, and naming of column families is performed
+/// by passing a DBMap<K,V> with each operation.
 ///
 /// ```
-/// use typed_store::rocks::*;
-/// use tempfile::tempdir;
-/// use typed_store::Map;
-/// use typed_store::metrics::DBMetrics;
-/// use prometheus::Registry;
 /// use core::fmt::Error;
 /// use std::sync::Arc;
 ///
+/// use prometheus::Registry;
+/// use tempfile::tempdir;
+/// use typed_store::{metrics::DBMetrics, rocks::*, Map};
+///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
-/// let rocks = open_cf(tempfile::tempdir().unwrap(), None, MetricConf::default(), &["First_CF", "Second_CF"]).unwrap();
+///     let rocks = open_cf(
+///         tempfile::tempdir().unwrap(),
+///         None,
+///         MetricConf::default(),
+///         &["First_CF", "Second_CF"],
+///     )
+///     .unwrap();
 ///
-/// let db_cf_1 = DBMap::reopen(&rocks, Some("First_CF"), &ReadWriteOptions::default())
-///     .expect("Failed to open storage");
-/// let keys_vals_1 = (1..100).map(|i| (i, i.to_string()));
+///     let db_cf_1 = DBMap::reopen(&rocks, Some("First_CF"), &ReadWriteOptions::default())
+///         .expect("Failed to open storage");
+///     let keys_vals_1 = (1..100).map(|i| (i, i.to_string()));
 ///
-/// let db_cf_2 = DBMap::reopen(&rocks, Some("Second_CF"), &ReadWriteOptions::default())
-///     .expect("Failed to open storage");
-/// let keys_vals_2 = (1000..1100).map(|i| (i, i.to_string()));
+///     let db_cf_2 = DBMap::reopen(&rocks, Some("Second_CF"), &ReadWriteOptions::default())
+///         .expect("Failed to open storage");
+///     let keys_vals_2 = (1000..1100).map(|i| (i, i.to_string()));
 ///
-/// let mut batch = db_cf_1.batch();
-/// batch
-///     .insert_batch(&db_cf_1, keys_vals_1.clone())
-///     .expect("Failed to batch insert")
-///     .insert_batch(&db_cf_2, keys_vals_2.clone())
-///     .expect("Failed to batch insert");
+///     let mut batch = db_cf_1.batch();
+///     batch
+///         .insert_batch(&db_cf_1, keys_vals_1.clone())
+///         .expect("Failed to batch insert")
+///         .insert_batch(&db_cf_2, keys_vals_2.clone())
+///         .expect("Failed to batch insert");
 ///
-/// let _ = batch.write().expect("Failed to execute batch");
-/// for (k, v) in keys_vals_1 {
-///     let val = db_cf_1.get(&k).expect("Failed to get inserted key");
-///     assert_eq!(Some(v), val);
-/// }
+///     let _ = batch.write().expect("Failed to execute batch");
+///     for (k, v) in keys_vals_1 {
+///         let val = db_cf_1.get(&k).expect("Failed to get inserted key");
+///         assert_eq!(Some(v), val);
+///     }
 ///
-/// for (k, v) in keys_vals_2 {
-///     let val = db_cf_2.get(&k).expect("Failed to get inserted key");
-///     assert_eq!(Some(v), val);
-/// }
-/// Ok(())
+///     for (k, v) in keys_vals_2 {
+///         let val = db_cf_2.get(&k).expect("Failed to get inserted key");
+///         assert_eq!(Some(v), val);
+///     }
+///     Ok(())
 /// }
 /// ```
-///
 pub struct DBBatch {
     rocksdb: Arc<RocksDB>,
     batch: RocksDBBatch,
@@ -1390,15 +1414,15 @@ impl DBBatch {
         Ok(())
     }
 
-    /// Deletes a range of keys between `from` (inclusive) and `to` (non-inclusive)
-    /// by writing a range delete tombstone in the db map
+    /// Deletes a range of keys between `from` (inclusive) and `to`
+    /// (non-inclusive) by writing a range delete tombstone in the db map
     /// If the DBMap is configured with ignore_range_deletions set to false,
     /// the effect of this write will be visible immediately i.e. you won't
     /// see old values when you do a lookup or scan. But if it is configured
     /// with ignore_range_deletions set to true, the old value are visible until
     /// compaction actually deletes them which will happen sometime after. By
     /// default ignore_range_deletions is set to true on a DBMap (unless it is
-    /// overriden in the config), so please use this function with caution
+    /// overridden in the config), so please use this function with caution
     pub fn schedule_delete_range<K: Serialize, V>(
         &mut self,
         db: &DBMap<K, V>,
@@ -1910,10 +1934,10 @@ where
         Ok(())
     }
 
-    /// This method first drops the existing column family and then creates a new one
-    /// with the same name. The two operations are not atomic and hence it is possible
-    /// to get into a race condition where the column family has been dropped but new
-    /// one is not created yet
+    /// This method first drops the existing column family and then creates a
+    /// new one with the same name. The two operations are not atomic and
+    /// hence it is possible to get into a race condition where the column
+    /// family has been dropped but new one is not created yet
     #[instrument(level = "trace", skip_all, err)]
     fn unsafe_clear(&self) -> Result<(), TypedStoreError> {
         let _ = self.rocksdb.drop_cf(&self.cf);
@@ -1930,7 +1954,7 @@ where
     /// with ignore_range_deletions set to true, the old value are visible until
     /// compaction actually deletes them which will happen sometime after. By
     /// default ignore_range_deletions is set to true on a DBMap (unless it is
-    /// overriden in the config), so please use this function with caution
+    /// overridden in the config), so please use this function with caution
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let mut iter = self.unbounded_iter().seek_to_first();
@@ -1966,8 +1990,8 @@ where
         )
     }
 
-    /// Returns an iterator visiting each key-value pair in the map. By proving bounds of the
-    /// scan range, RocksDB scan avoid unnecessary scans.
+    /// Returns an iterator visiting each key-value pair in the map. By proving
+    /// bounds of the scan range, RocksDB scan avoid unnecessary scans.
     /// Lower bound is inclusive, while upper bound is exclusive.
     fn iter_with_bounds(
         &'a self,
@@ -1988,8 +2012,8 @@ where
         )
     }
 
-    /// Similar to `iter_with_bounds` but allows specifying inclusivity/exclusivity of ranges explicitly.
-    /// TODO: find better name
+    /// Similar to `iter_with_bounds` but allows specifying
+    /// inclusivity/exclusivity of ranges explicitly. TODO: find better name
     fn range_iter(&'a self, range: impl RangeBounds<K>) -> Self::Iterator {
         let readopts = self.create_read_options_with_range(range);
         let db_iter = self.rocksdb.raw_iterator_cf(&self.cf(), readopts);
@@ -2253,7 +2277,7 @@ impl Default for ReadWriteOptions {
     fn default() -> Self {
         Self {
             ignore_range_deletions: true,
-            sync_to_disk: std::env::var("SUI_DB_SYNC_TO_DISK").map_or(false, |v| v != "0"),
+            sync_to_disk: std::env::var("IOTA_DB_SYNC_TO_DISK").map_or(false, |v| v != "0"),
         }
     }
 }
@@ -2267,8 +2291,8 @@ pub struct DBOptions {
 
 impl DBOptions {
     // Optimize lookup perf for tables where no scans are performed.
-    // If non-trivial number of values can be > 512B in size, it is beneficial to also
-    // specify optimize_for_large_values_no_scan().
+    // If non-trivial number of values can be > 512B in size, it is beneficial to
+    // also specify optimize_for_large_values_no_scan().
     pub fn optimize_for_point_lookup(mut self, block_cache_size_mb: usize) -> DBOptions {
         // NOTE: this overwrites the block options.
         self.options
@@ -2276,8 +2300,8 @@ impl DBOptions {
         self
     }
 
-    // Optimize write and lookup perf for tables which are rarely scanned, and have large values.
-    // https://rocksdb.org/blog/2021/05/26/integrated-blob-db.html
+    // Optimize write and lookup perf for tables which are rarely scanned, and have
+    // large values. https://rocksdb.org/blog/2021/05/26/integrated-blob-db.html
     pub fn optimize_for_large_values_no_scan(mut self, min_blob_size: u64) -> DBOptions {
         if env::var(ENV_VAR_DISABLE_BLOB_STORAGE).is_ok() {
             info!("Large value blob storage optimization is disabled via env var.");
@@ -2289,8 +2313,9 @@ impl DBOptions {
         self.options
             .set_blob_compression_type(rocksdb::DBCompressionType::Lz4);
         self.options.set_enable_blob_gc(true);
-        // Since each blob can have non-trivial size overhead, and compression does not work across blobs,
-        // set a min blob size in bytes to so small transactions and effects are kept in sst files.
+        // Since each blob can have non-trivial size overhead, and compression does not
+        // work across blobs, set a min blob size in bytes to so small
+        // transactions and effects are kept in sst files.
         self.options.set_min_blob_size(min_blob_size);
 
         // Increase write buffer size to 256MiB.
@@ -2299,8 +2324,8 @@ impl DBOptions {
             * 1024
             * 1024;
         self.options.set_write_buffer_size(write_buffer_size);
-        // Since large blobs are not in sst files, reduce the target file size and base level
-        // target size.
+        // Since large blobs are not in sst files, reduce the target file size and base
+        // level target size.
         let target_file_size_base = 64 << 20;
         self.options
             .set_target_file_size_base(target_file_size_base);
@@ -2381,13 +2406,15 @@ impl DBOptions {
     }
 }
 
-/// Creates a default RocksDB option, to be used when RocksDB option is unspecified.
+/// Creates a default RocksDB option, to be used when RocksDB option is
+/// unspecified.
 pub fn default_db_options() -> DBOptions {
     let mut opt = rocksdb::Options::default();
 
-    // One common issue when running tests on Mac is that the default ulimit is too low,
-    // leading to I/O errors such as "Too many open files". Raising fdlimit to bypass it.
-    if let Some(limit) = fdlimit::raise_fd_limit() {
+    // One common issue when running tests on Mac is that the default ulimit is too
+    // low, leading to I/O errors such as "Too many open files". Raising fdlimit
+    // to bypass it.
+    if let Ok(fdlimit::Outcome::LimitRaised { to: limit, .. }) = fdlimit::raise_fd_limit() {
         // on windows raise_fd_limit return None
         opt.set_max_open_files((limit / 8) as i32);
     }
@@ -2409,16 +2436,17 @@ pub fn default_db_options() -> DBOptions {
             .unwrap(),
     );
 
-    // Sui uses multiple RocksDB in a node, so total sizes of write buffers and WAL can be higher
-    // than the limits below.
+    // Iota uses multiple RocksDB in a node, so total sizes of write buffers and WAL
+    // can be higher than the limits below.
     //
-    // RocksDB also exposes the option to configure total write buffer size across multiple instances
-    // via `write_buffer_manager`. But the write buffer flush policy (flushing the buffer receiving
-    // the next write) may not work well. So sticking to per-db write buffer size limit for now.
+    // RocksDB also exposes the option to configure total write buffer size across
+    // multiple instances via `write_buffer_manager`. But the write buffer flush
+    // policy (flushing the buffer receiving the next write) may not work well.
+    // So sticking to per-db write buffer size limit for now.
     //
-    // The environment variables are only meant to be emergency overrides. They may go away in future.
-    // If you need to modify an option, either update the default value, or override the option in
-    // Sui / Narwhal.
+    // The environment variables are only meant to be emergency overrides. They may
+    // go away in future. If you need to modify an option, either update the
+    // default value, or override the option in Iota / Narwhal.
     opt.set_db_write_buffer_size(
         read_size_from_env(ENV_VAR_DB_WRITE_BUFFER_SIZE).unwrap_or(DEFAULT_DB_WRITE_BUFFER_SIZE)
             * 1024
@@ -2444,9 +2472,9 @@ pub fn default_db_options() -> DBOptions {
 
 fn get_block_options(block_cache_size_mb: usize) -> BlockBasedOptions {
     // Set options mostly similar to those used in optimize_for_point_lookup(),
-    // except non-default binary and hash index, to hopefully reduce lookup latencies
-    // without causing any regression for scanning, with slightly more memory usages.
-    // https://github.com/facebook/rocksdb/blob/11cb6af6e5009c51794641905ca40ce5beec7fee/options/options.cc#L611-L621
+    // except non-default binary and hash index, to hopefully reduce lookup
+    // latencies without causing any regression for scanning, with slightly more
+    // memory usages. https://github.com/facebook/rocksdb/blob/11cb6af6e5009c51794641905ca40ce5beec7fee/options/options.cc#L611-L621
     let mut block_options = BlockBasedOptions::default();
     // Increase block size to 16KiB.
     // https://github.com/EighteenZi/rocksdb_wiki/blob/master/Memory-usage-in-RocksDB.md#indexes-and-filter-blocks
@@ -2460,7 +2488,8 @@ fn get_block_options(block_cache_size_mb: usize) -> BlockBasedOptions {
     block_options
 }
 
-/// Opens a database with options, and a number of column families that are created if they do not exist.
+/// Opens a database with options, and a number of column families that are
+/// created if they do not exist.
 #[instrument(level="debug", skip_all, fields(path = ?path.as_ref(), cf = ?opt_cfs), err)]
 pub fn open_cf<P: AsRef<Path>>(
     path: P,
@@ -2489,7 +2518,8 @@ fn prepare_db_options(db_options: Option<rocksdb::Options>) -> rocksdb::Options 
     options
 }
 
-/// Opens a database with options, and a number of column families with individual options that are created if they do not exist.
+/// Opens a database with options, and a number of column families with
+/// individual options that are created if they do not exist.
 #[instrument(level="debug", skip_all, fields(path = ?path.as_ref()), err)]
 pub fn open_cf_opts<P: AsRef<Path>>(
     path: P,
@@ -2498,10 +2528,11 @@ pub fn open_cf_opts<P: AsRef<Path>>(
     opt_cfs: &[(&str, rocksdb::Options)],
 ) -> Result<Arc<RocksDB>, TypedStoreError> {
     let path = path.as_ref();
-    // In the simulator, we intercept the wall clock in the test thread only. This causes problems
-    // because rocksdb uses the simulated clock when creating its background threads, but then
-    // those threads see the real wall clock (because they are not the test thread), which causes
-    // rocksdb to panic. The `nondeterministic` macro evaluates expressions in new threads, which
+    // In the simulator, we intercept the wall clock in the test thread only. This
+    // causes problems because rocksdb uses the simulated clock when creating
+    // its background threads, but then those threads see the real wall clock
+    // (because they are not the test thread), which causes rocksdb to panic.
+    // The `nondeterministic` macro evaluates expressions in new threads, which
     // resolves the issue.
     //
     // This is a no-op in non-simulator builds.
@@ -2524,7 +2555,8 @@ pub fn open_cf_opts<P: AsRef<Path>>(
     })
 }
 
-/// Opens a database with options, and a number of column families with individual options that are created if they do not exist.
+/// Opens a database with options, and a number of column families with
+/// individual options that are created if they do not exist.
 #[instrument(level="debug", skip_all, fields(path = ?path.as_ref()), err)]
 pub fn open_cf_opts_transactional<P: AsRef<Path>>(
     path: P,
@@ -2550,7 +2582,8 @@ pub fn open_cf_opts_transactional<P: AsRef<Path>>(
     })
 }
 
-/// Opens a database with options, and a number of column families with individual options that are created if they do not exist.
+/// Opens a database with options, and a number of column families with
+/// individual options that are created if they do not exist.
 pub fn open_cf_opts_secondary<P: AsRef<Path>>(
     primary_path: P,
     secondary_path: Option<P>,
@@ -2565,7 +2598,7 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
         // Customize database options
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
 
-        fdlimit::raise_fd_limit();
+        fdlimit::raise_fd_limit().expect("could not raise fd limit");
         // This is a requirement by RocksDB when opening as secondary
         options.set_max_open_files(-1);
 
@@ -2693,7 +2726,7 @@ fn populate_missing_cfs(
 /// Given a vec<u8>, find the value which is one more than the vector
 /// if the vector was a big endian number.
 /// If the vector is already minimum, don't change it.
-fn big_endian_saturating_add_one(v: &mut Vec<u8>) {
+fn big_endian_saturating_add_one(v: &mut [u8]) {
     if is_max(v) {
         return;
     }

@@ -1,8 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
+
+use std::{convert::TryInto, fmt::Debug, path::Path, str::FromStr};
 
 use anyhow::{anyhow, bail, Result};
 use clap::*;
@@ -14,7 +17,6 @@ use move_command_line_common::{
 };
 use move_compiler::shared::NumericalAddress;
 use move_core_types::identifier::Identifier;
-use std::{convert::TryInto, fmt::Debug, path::Path, str::FromStr};
 use tempfile::NamedTempFile;
 
 #[derive(Debug)]
@@ -26,14 +28,16 @@ pub struct TaskInput<Command> {
     pub command_lines_stop: usize,
     pub stop_line: usize,
     pub data: Option<NamedTempFile>,
+    pub task_text: String,
 }
 
 pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput<Command>>> {
-    use regex::Regex;
     use std::{
         fs::File,
         io::{self, BufRead, Write},
     };
+
+    use regex::Regex;
     // checks for lines that are entirely whitespace
     let re_whitespace = Regex::new(r"^\s*$").unwrap();
     // checks for lines that start with // comments
@@ -98,20 +102,19 @@ pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput
 
         let start_line = commands.first().unwrap().0;
         let command_lines_stop = commands.last().unwrap().0;
-        let mut command_text = "task ".to_string();
+        let mut command_text = "".to_string();
         for (line_number, text) in commands {
             assert!(!text.is_empty(), "{}: {}", line_number, text);
             command_text = format!("{} {}", command_text, text);
         }
-        let command_split = command_text.split_ascii_whitespace().collect::<Vec<_>>();
+        let mut command_split = command_text.split_ascii_whitespace().collect::<Vec<_>>();
+        command_split.insert(0, "task");
         let name_opt = command_split.get(1).map(|s| (*s).to_owned());
         let command = match Command::try_parse_from(command_split) {
             Ok(command) => command,
             Err(e) => {
-                let mut spit_iter = command_text.split_ascii_whitespace();
-                // skip 'task'
-                spit_iter.next();
-                let help_command = match spit_iter.next() {
+                let mut split_iter = command_text.split_ascii_whitespace();
+                let help_command = match split_iter.next() {
                     None => vec!["task", "--help"],
                     Some(c) => vec!["task", c, "--help"],
                 };
@@ -158,6 +161,8 @@ pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput
             Some(data)
         };
 
+        let task_text = "//#".to_owned() + command_text.replace('\n', "\n//#").as_str();
+
         tasks.push(TaskInput {
             command,
             name,
@@ -166,6 +171,7 @@ pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         })
     }
     Ok(tasks)
@@ -181,6 +187,7 @@ impl<T> TaskInput<T> {
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         } = self;
         TaskInput {
             command: f(command),
@@ -190,6 +197,7 @@ impl<T> TaskInput<T> {
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         }
     }
 }
@@ -270,12 +278,12 @@ pub enum TaskCommand<
 }
 
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > FromArgMatches
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> FromArgMatches
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
     fn from_arg_matches(matches: &ArgMatches) -> Result<Self, Error> {
@@ -306,12 +314,12 @@ impl<
 }
 
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > CommandFactory
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> CommandFactory
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
     fn command() -> Command {
@@ -329,19 +337,19 @@ impl<
         todo!()
     }
 }
-// Note: this needs to be manually implemented because clap cannot handle generic tuples
-// with more than 1 element currently.
+// Note: this needs to be manually implemented because clap cannot handle
+// generic tuples with more than 1 element currently.
 //
-// The code is a simplified version of what `#[derive(Parser)` would generate had it worked.
-// (`cargo expand` is useful in printing out the derived code.)
+// The code is a simplified version of what `#[derive(Parser)` would generate
+// had it worked. (`cargo expand` is useful in printing out the derived code.)
 //
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > Parser
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> Parser
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
 }

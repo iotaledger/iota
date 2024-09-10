@@ -1,7 +1,7 @@
 [package]
 name = "iota-network-stack"
 version = "0.2.0"
-authors = ["Brandon Williams <brandon@iota.org>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -14,7 +14,7 @@ bytes.workspace = true
 eyre.workspace = true
 futures.workspace = true
 http.workspace = true
-multiaddr.workspace = true
+multiaddr = "0.18"
 pin-project-lite = "0.2.13"
 serde.workspace = true
 snap.workspace = true

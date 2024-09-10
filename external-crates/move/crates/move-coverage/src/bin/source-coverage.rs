@@ -1,20 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
-use clap::Parser;
-use move_binary_format::file_format::CompiledModule;
-use move_bytecode_source_map::utils::source_map_from_file;
-use move_command_line_common::files::SOURCE_MAP_EXTENSION;
-use move_coverage::{coverage_map::CoverageMap, source_coverage::SourceCoverageBuilder};
 use std::{
     fs,
     fs::File,
     io::{self, Write},
     path::Path,
 };
+
+use clap::Parser;
+use move_binary_format::file_format::CompiledModule;
+use move_bytecode_source_map::utils::source_map_from_file;
+use move_command_line_common::files::SOURCE_MAP_EXTENSION;
+use move_coverage::{coverage_map::CoverageMap, source_coverage::SourceCoverageBuilder};
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -27,7 +29,8 @@ struct Args {
     /// The path to the coverage map or trace file
     #[clap(long = "input-trace-path", short = 't')]
     pub input_trace_path: String,
-    /// Whether the passed-in file is a raw trace file or a serialized coverage map
+    /// Whether the passed-in file is a raw trace file or a serialized coverage
+    /// map
     #[clap(long = "is-raw-trace", short = 'r')]
     pub is_raw_trace_file: bool,
     /// The path to the module binary

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /*
@@ -27,23 +28,23 @@ export * from './legacy-registry.js';
 
 // Re-export all encoding dependencies.
 export {
-	bcs,
-	BcsType,
-	type BcsTypeOptions,
-	SerializedBcs,
-	isSerializedBcs,
-	toB58,
-	fromB58,
-	toB64,
-	fromB64,
-	fromHEX,
-	toHEX,
-	encodeStr,
-	decodeStr,
-	splitGenericParameters,
-	BcsReader,
-	BcsWriter,
-	type BcsWriterOptions,
-	type InferBcsInput,
-	type InferBcsType,
+    bcs,
+    BcsType,
+    type BcsTypeOptions,
+    SerializedBcs,
+    isSerializedBcs,
+    toB58,
+    fromB58,
+    toB64,
+    fromB64,
+    fromHEX,
+    toHEX,
+    encodeStr,
+    decodeStr,
+    splitGenericParameters,
+    BcsReader,
+    BcsWriter,
+    type BcsWriterOptions,
+    type InferBcsInput,
+    type InferBcsType,
 };

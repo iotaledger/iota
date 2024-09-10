@@ -1,14 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{sandbox::utils::OnDiskStateView, DEFAULT_BUILD_DIR};
-use anyhow::Result;
-use move_command_line_common::env::get_bytecode_version_from_env;
-use move_package::{compilation::compiled_package::CompiledPackage, BuildConfig};
+
 use std::path::{Path, PathBuf};
 
-/// The PackageContext controls the package that the CLI is executing with respect to, and handles the
-/// creation of the `OnDiskStateView` with the package's dependencies.
+use anyhow::Result;
+use move_package::{compilation::compiled_package::CompiledPackage, BuildConfig};
+
+use crate::{sandbox::utils::OnDiskStateView, DEFAULT_BUILD_DIR};
+
+/// The PackageContext controls the package that the CLI is executing with
+/// respect to, and handles the creation of the `OnDiskStateView` with the
+/// package's dependencies.
 pub struct PackageContext {
     package: CompiledPackage,
     build_dir: PathBuf,
@@ -28,14 +32,13 @@ impl PackageContext {
         Ok(PackageContext { package, build_dir })
     }
 
-    /// Prepare an OnDiskStateView that is ready to use. Library modules will be preloaded into the
-    /// storage if `load_libraries` is true.
+    /// Prepare an OnDiskStateView that is ready to use. Library modules will be
+    /// preloaded into the storage if `load_libraries` is true.
     ///
-    /// NOTE: this is the only way to get a state view in Move CLI, and thus, this function needs
-    /// to be run before every command that needs a state view, i.e., `publish`, `run`,
-    /// `view`, and `doctor`.
+    /// NOTE: this is the only way to get a state view in Move CLI, and thus,
+    /// this function needs to be run before every command that needs a
+    /// state view, i.e., `publish`, `run`, `view`, and `doctor`.
     pub fn prepare_state(&self, storage_dir: &Path) -> Result<OnDiskStateView> {
-        let bytecode_version = get_bytecode_version_from_env();
         let state = OnDiskStateView::create(self.build_dir.as_path(), storage_dir)?;
 
         // preload the storage with library modules (if such modules do not exist yet)
@@ -50,7 +53,7 @@ impl PackageContext {
         for module in new_modules {
             let self_id = module.self_id();
             let mut module_bytes = vec![];
-            module.serialize_for_version(bytecode_version, &mut module_bytes)?;
+            module.serialize_with_version(module.version, &mut module_bytes)?;
             serialized_modules.push((self_id, module_bytes));
         }
         state.save_modules(&serialized_modules)?;

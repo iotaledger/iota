@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 mod errors;
 mod state;
@@ -6,24 +7,23 @@ mod subscriber;
 
 mod metrics;
 
-pub use errors::{SubscriberError, SubscriberResult};
-pub use state::ExecutionIndices;
-use sui_protocol_config::ProtocolConfig;
-
-use crate::metrics::ExecutorMetrics;
-use crate::subscriber::spawn_subscriber;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache};
+pub use errors::{SubscriberError, SubscriberResult};
+use iota_metrics::metered_channel;
+use iota_protocol_config::ProtocolConfig;
 use mockall::automock;
-use mysten_metrics::metered_channel;
 use network::client::NetworkClient;
 use prometheus::Registry;
-use std::sync::Arc;
+pub use state::ExecutionIndices;
 use storage::{CertificateStore, ConsensusStore};
 use tokio::task::JoinHandle;
 use tracing::info;
 use types::{CertificateDigest, CommittedSubDag, ConditionalBroadcastReceiver, ConsensusOutput};
+
+use crate::{metrics::ExecutorMetrics, subscriber::spawn_subscriber};
 
 /// Convenience type representing a serialized transaction.
 pub type SerializedTransaction = Vec<u8>;
@@ -44,7 +44,8 @@ pub trait ExecutionState {
     fn last_executed_sub_dag_index(&self) -> u64;
 }
 
-/// A client subscribing to the consensus output and executing every transaction.
+/// A client subscribing to the consensus output and executing every
+/// transaction.
 pub struct Executor;
 
 impl Executor {
@@ -95,9 +96,9 @@ pub async fn get_restored_consensus_output<State: ExecutionState>(
     certificate_store: CertificateStore,
     execution_state: &State,
 ) -> Result<Vec<CommittedSubDag>, SubscriberError> {
-    // We always want to recover at least the last committed sub-dag since we can't know
-    // whether the execution has been interrupted and there are still batches/transactions
-    // that need to be sent for execution.
+    // We always want to recover at least the last committed sub-dag since we can't
+    // know whether the execution has been interrupted and there are still
+    // batches/transactions that need to be sent for execution.
 
     let last_executed_sub_dag_index = execution_state.last_executed_sub_dag_index();
 

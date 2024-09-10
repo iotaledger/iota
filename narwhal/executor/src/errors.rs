@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use config::WorkerId;
+
 use std::fmt::Debug;
+
+use config::WorkerId;
 use store::StoreError;
 use thiserror::Error;
 use types::CertificateDigest;

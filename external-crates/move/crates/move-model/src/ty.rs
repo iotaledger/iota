@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Contains types and related functions.
@@ -15,7 +16,7 @@ use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     ast::QualifiedSymbol,
-    model::{GlobalEnv, ModuleId, QualifiedInstId, StructEnv, StructId},
+    model::{DatatypeId, GlobalEnv, ModuleId},
     symbol::{Symbol, SymbolPool},
 };
 
@@ -25,7 +26,7 @@ pub enum Type {
     Primitive(PrimitiveType),
     Tuple(Vec<Type>),
     Vector(Box<Type>),
-    Struct(ModuleId, StructId, Vec<Type>),
+    Datatype(ModuleId, DatatypeId, Vec<Type>),
     TypeParameter(u16),
 
     // Types only appearing in programs.
@@ -34,7 +35,7 @@ pub enum Type {
     // Types only appearing in specifications
     Fun(Vec<Type>, Box<Type>),
     TypeDomain(Box<Type>),
-    ResourceDomain(ModuleId, StructId, Option<Vec<Type>>),
+    ResourceDomain(ModuleId, DatatypeId, Option<Vec<Type>>),
 
     // Temporary types used during type checking
     Error,
@@ -130,7 +131,7 @@ impl Type {
 
     /// Determines whether this type is a struct.
     pub fn is_struct(&self) -> bool {
-        matches!(self, Type::Struct(..))
+        matches!(self, Type::Datatype(..))
     }
 
     /// Determines whether this type is a vector
@@ -138,18 +139,18 @@ impl Type {
         matches!(self, Type::Vector(..))
     }
 
-    /// Determines whether this is a struct, or a vector of structs, or a reference to any of
-    /// those.
+    /// Determines whether this is a struct, or a vector of structs, or a
+    /// reference to any of those.
     pub fn is_struct_or_vector_of_struct(&self) -> bool {
         match self.skip_reference() {
-            Type::Struct(..) => true,
+            Type::Datatype(..) => true,
             Type::Vector(ety) => ety.is_struct_or_vector_of_struct(),
             _ => false,
         }
     }
 
-    /// Returns true if this type is a specification language only type or contains specification
-    /// language only types
+    /// Returns true if this type is a specification language only type or
+    /// contains specification language only types
     pub fn is_spec(&self) -> bool {
         use Type::*;
         match self {
@@ -157,7 +158,7 @@ impl Type {
             Fun(..) | TypeDomain(..) | ResourceDomain(..) | Error => true,
             Var(..) | TypeParameter(..) => false,
             Tuple(ts) => ts.iter().any(|t| t.is_spec()),
-            Struct(_, _, ts) => ts.iter().any(|t| t.is_spec()),
+            Datatype(_, _, ts) => ts.iter().any(|t| t.is_spec()),
             Vector(et) => et.is_spec(),
             Reference(_, bt) => bt.is_spec(),
         }
@@ -173,19 +174,18 @@ impl Type {
 
     /// Returns true if this is any number type.
     pub fn is_number(&self) -> bool {
-        if let Type::Primitive(p) = self {
-            if let PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-            | PrimitiveType::U128
-            | PrimitiveType::U256
-            | PrimitiveType::Num = p
-            {
-                return true;
-            }
-        }
-        false
+        matches!(
+            self,
+            Type::Primitive(
+                PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::U128
+                    | PrimitiveType::U256
+                    | PrimitiveType::Num,
+            )
+        )
     }
     /// Returns true if this is an address or signer type.
     pub fn is_signer_or_address(&self) -> bool {
@@ -211,7 +211,7 @@ impl Type {
             Type::Primitive(p) => !p.is_spec(),
             Type::Tuple(..) => false,
             Type::Vector(e) => e.can_be_type_argument(),
-            Type::Struct(_, _, insts) => insts.iter().all(|e| e.can_be_type_argument()),
+            Type::Datatype(_, _, insts) => insts.iter().all(|e| e.can_be_type_argument()),
             Type::TypeParameter(..) => true,
             // references cannot be a type argument
             Type::Reference(..) => false,
@@ -233,39 +233,17 @@ impl Type {
         }
     }
 
-    /// If this is a struct type, replace the type instantiation.
-    pub fn replace_struct_instantiation(&self, inst: &[Type]) -> Type {
+    /// If this is a datatype, replace the type instantiation.
+    pub fn replace_datatype_instantiation(&self, inst: &[Type]) -> Type {
         match self {
-            Type::Struct(mid, sid, _) => Type::Struct(*mid, *sid, inst.to_vec()),
+            Type::Datatype(mid, sid, _) => Type::Datatype(*mid, *sid, inst.to_vec()),
             _ => self.clone(),
         }
     }
 
-    /// If this is a struct type, return the associated struct env and type parameters.
-    pub fn get_struct<'env>(
-        &'env self,
-        env: &'env GlobalEnv,
-    ) -> Option<(StructEnv<'env>, &'env [Type])> {
-        if let Type::Struct(module_idx, struct_idx, params) = self {
-            Some((env.get_module(*module_idx).into_struct(*struct_idx), params))
-        } else {
-            None
-        }
-    }
-
-    /// If this is a struct type, return the associated QualifiedInstId.
-    pub fn get_struct_id(&self, env: &GlobalEnv) -> Option<QualifiedInstId<StructId>> {
-        self.get_struct(env).map(|(se, inst)| {
-            se.module_env
-                .get_id()
-                .qualified(se.get_id())
-                .instantiate(inst.to_vec())
-        })
-    }
-
-    /// Require this to be a struct, if so extracts its content.
-    pub fn require_struct(&self) -> (ModuleId, StructId, &[Type]) {
-        if let Type::Struct(mid, sid, targs) = self {
+    /// Require this to be a datatype, if so extracts its content.
+    pub fn require_datatype(&self) -> (ModuleId, DatatypeId, &[Type]) {
+        if let Type::Datatype(mid, sid, targs) = self {
             (*mid, *sid, targs.as_slice())
         } else {
             panic!("expected `Type::Struct`, found: `{:?}`", self)
@@ -337,7 +315,7 @@ impl Type {
             Type::Reference(is_mut, bt) => {
                 Type::Reference(*is_mut, Box::new(bt.replace(params, subs)))
             }
-            Type::Struct(mid, sid, args) => Type::Struct(*mid, *sid, replace_vec(args)),
+            Type::Datatype(mid, sid, args) => Type::Datatype(*mid, *sid, replace_vec(args)),
             Type::Fun(args, result) => {
                 Type::Fun(replace_vec(args), Box::new(result.replace(params, subs)))
             }
@@ -351,7 +329,8 @@ impl Type {
         }
     }
 
-    /// Checks whether this type contains a type for which the predicate is true.
+    /// Checks whether this type contains a type for which the predicate is
+    /// true.
     pub fn contains<P>(&self, p: &P) -> bool
     where
         P: Fn(&Type) -> bool,
@@ -362,7 +341,7 @@ impl Type {
             let contains_vec = |ts: &[Type]| ts.iter().any(p);
             match self {
                 Type::Reference(_, bt) => bt.contains(p),
-                Type::Struct(_, _, args) => contains_vec(args),
+                Type::Datatype(_, _, args) => contains_vec(args),
                 Type::Fun(args, result) => contains_vec(args) || result.contains(p),
                 Type::Tuple(args) => contains_vec(args),
                 Type::Vector(et) => et.contains(p),
@@ -371,14 +350,15 @@ impl Type {
         }
     }
 
-    /// Returns true if this type is incomplete, i.e. contains any type variables.
+    /// Returns true if this type is incomplete, i.e. contains any type
+    /// variables.
     pub fn is_incomplete(&self) -> bool {
         use Type::*;
         match self {
             Var(_) => true,
             Tuple(ts) => ts.iter().any(|t| t.is_incomplete()),
             Fun(ts, r) => ts.iter().any(|t| t.is_incomplete()) || r.is_incomplete(),
-            Struct(_, _, ts) => ts.iter().any(|t| t.is_incomplete()),
+            Datatype(_, _, ts) => ts.iter().any(|t| t.is_incomplete()),
             Vector(et) => et.is_incomplete(),
             Reference(_, bt) => bt.is_incomplete(),
             TypeDomain(bt) => bt.is_incomplete(),
@@ -386,7 +366,8 @@ impl Type {
         }
     }
 
-    /// Return true if this type contains generic types (i.e., types that can be instantiated).
+    /// Return true if this type contains generic types (i.e., types that can be
+    /// instantiated).
     pub fn is_open(&self) -> bool {
         let mut has_var = false;
         self.visit(&mut |t| has_var = has_var || matches!(t, Type::TypeParameter(_)));
@@ -402,7 +383,7 @@ impl Type {
                 ts.iter().for_each(|t| t.module_usage(usage));
                 r.module_usage(usage);
             }
-            Struct(mid, _, ts) => {
+            Datatype(mid, _, ts) => {
                 usage.insert(*mid);
                 ts.iter().for_each(|t| t.module_usage(usage));
             }
@@ -414,10 +395,10 @@ impl Type {
     }
 
     /// Attempt to convert this type into a normalized::Type
-    pub fn into_struct_type(self, env: &GlobalEnv) -> Option<MType> {
+    pub fn into_datatype_ty(self, env: &GlobalEnv) -> Option<MType> {
         use Type::*;
         match self {
-            Struct(mid, sid, ts) => env.get_struct_type(mid, sid, &ts),
+            Datatype(mid, sid, ts) => env.get_datatype(mid, sid, &ts),
             _ => None,
         }
     }
@@ -427,8 +408,8 @@ impl Type {
         use Type::*;
         match self {
             Primitive(p) => Some(p.into_normalized_type().expect("Invariant violation: unexpected spec primitive")),
-            Struct(mid, sid, ts) =>
-                env.get_struct_type(mid, sid, &ts),
+            Datatype(mid, sid, ts) =>
+                env.get_datatype(mid, sid, &ts),
             Vector(et) => Some(MType::Vector(
                 Box::new(et.into_normalized_type(env)
                     .expect("Invariant violation: vector type argument contains incomplete, tuple, or spec type"))
@@ -447,7 +428,7 @@ impl Type {
 
     /// Attempt to convert this type into a language_storage::StructTag
     pub fn into_struct_tag(self, env: &GlobalEnv) -> Option<StructTag> {
-        self.into_struct_type(env)?.into_struct_tag()
+        self.into_datatype_ty(env)?.into_struct_tag()
     }
 
     /// Attempt to convert this type into a language_storage::TypeTag
@@ -469,15 +450,15 @@ impl Type {
             TypeTag::Address => Primitive(PrimitiveType::Address),
             TypeTag::Signer => Primitive(PrimitiveType::Signer),
             TypeTag::Struct(s) => {
-                let qid = env.find_struct_by_tag(s).unwrap_or_else(|| {
-                    panic!("Invariant violation: couldn't resolve struct {:?}", s)
+                let qid = env.find_datatype_by_tag(s).unwrap_or_else(|| {
+                    panic!("Invariant violation: couldn't resolve datatype {:?}", s)
                 });
                 let type_args = s
                     .type_params
                     .iter()
                     .map(|arg| Self::from_type_tag(arg, env))
                     .collect();
-                Struct(qid.module_id, qid.id, type_args)
+                Datatype(qid.module_id, qid.id, type_args)
             }
             TypeTag::Vector(type_param) => Vector(Box::new(Self::from_type_tag(type_param, env))),
         }
@@ -501,7 +482,7 @@ impl Type {
                 r.internal_get_vars(vars);
                 ts.iter().for_each(|t| t.internal_get_vars(vars));
             }
-            Struct(_, _, ts) => ts.iter().for_each(|t| t.internal_get_vars(vars)),
+            Datatype(_, _, ts) => ts.iter().for_each(|t| t.internal_get_vars(vars)),
             Vector(et) => et.internal_get_vars(vars),
             Reference(_, bt) => bt.internal_get_vars(vars),
             TypeDomain(bt) => bt.internal_get_vars(vars),
@@ -518,7 +499,7 @@ impl Type {
         match self {
             Type::Tuple(tys) => visit_slice(tys, visitor),
             Type::Vector(bt) => bt.visit(visitor),
-            Type::Struct(_, _, tys) => visit_slice(tys, visitor),
+            Type::Datatype(_, _, tys) => visit_slice(tys, visitor),
             Type::Reference(_, ty) => ty.visit(visitor),
             Type::Fun(tys, ty) => {
                 visit_slice(tys, visitor);
@@ -531,10 +512,12 @@ impl Type {
     }
 }
 
-/// A parameter for type unification that specifies the type compatibility rules to follow.
+/// A parameter for type unification that specifies the type compatibility rules
+/// to follow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Variance {
-    /// Co-variance is allowed in all depths of the recursive type unification process
+    /// Co-variance is allowed in all depths of the recursive type unification
+    /// process
     Allow,
     /// Co-variance is only allowed for the outermost type unification round
     Shallow,
@@ -555,14 +538,16 @@ impl Substitution {
         self.subs.insert(var, ty);
     }
 
-    /// Specializes the type, substituting all variables bound in this substitution.
+    /// Specializes the type, substituting all variables bound in this
+    /// substitution.
     pub fn specialize(&self, t: &Type) -> Type {
         t.replace(None, Some(self))
     }
 
     /// Return either a shallow or deep substitution of the type variable.
     ///
-    /// If deep substitution is requested, follow down the substitution chain until either
+    /// If deep substitution is requested, follow down the substitution chain
+    /// until either
     /// - `Some(ty)` when the final type is not a type variable or
     /// - `None` when the final type variable does not have a substitution
     pub fn get_substitution(&self, var: u16, shallow: bool) -> Option<Type> {
@@ -585,15 +570,17 @@ impl Substitution {
     ///
     /// - 1) References are dropped (i.e. &T and T are compatible)
     /// - 2) All integer types are compatible if co-variance is allowed.
-    /// - 3) With the joint effect of 1) and 2), if (P, Q) is compatible under co-variance,
-    ///      (&P, Q), (P, &Q), and (&P, &Q) are all compatible under co-variance.
-    /// - 4) If in two tuples (P1, P2, ..., Pn) and (Q1, Q2, ..., Qn), all (Pi, Qi) pairs are
-    ///      compatible under co-variance, then the two tuples are compatible under co-variance.
+    /// - 3) With the joint effect of 1) and 2), if (P, Q) is compatible under
+    ///   co-variance, (&P, Q), (P, &Q), and (&P, &Q) are all compatible under
+    ///   co-variance.
+    /// - 4) If in two tuples (P1, P2, ..., Pn) and (Q1, Q2, ..., Qn), all (Pi,
+    ///   Qi) pairs are compatible under co-variance, then the two tuples are
+    ///   compatible under co-variance.
     ///
-    /// The substitution will be refined by variable assignments as needed to perform
-    /// unification. If unification fails, the substitution will be in some intermediate state;
-    /// to implement transactional unification, the substitution must be cloned before calling
-    /// this.
+    /// The substitution will be refined by variable assignments as needed to
+    /// perform unification. If unification fails, the substitution will be
+    /// in some intermediate state; to implement transactional unification,
+    /// the substitution must be cloned before calling this.
     pub fn unify(
         &mut self,
         variance: Variance,
@@ -675,9 +662,9 @@ impl Substitution {
                     Box::new(self.unify(sub_variance, r1, r2)?),
                 ));
             }
-            (Type::Struct(m1, s1, ts1), Type::Struct(m2, s2, ts2)) => {
+            (Type::Datatype(m1, s1, ts1), Type::Datatype(m2, s2, ts2)) => {
                 if m1 == m2 && s1 == s2 {
-                    return Ok(Type::Struct(
+                    return Ok(Type::Datatype(
                         *m1,
                         *s1,
                         self.unify_vec(sub_variance, ts1, ts2, "structs")?,
@@ -724,8 +711,8 @@ impl Substitution {
         Ok(rs)
     }
 
-    /// Tries to substitute or assign a variable. Returned option is Some if unification
-    /// was performed, None if not.
+    /// Tries to substitute or assign a variable. Returned option is Some if
+    /// unification was performed, None if not.
     fn try_substitute_or_assign(
         &mut self,
         variance: Variance,
@@ -780,15 +767,15 @@ impl Default for Substitution {
 
 /// Helper to unify types which stem from different generic contexts.
 ///
-/// Both comparison side may have type parameters (equally named as #0, #1, ...).
-/// The helper converts the type parameter from or both sides into variables
-/// and then performs unification of the terms. The resulting substitution
-/// is converted back to parameter instantiations.
+/// Both comparison side may have type parameters (equally named as #0, #1,
+/// ...). The helper converts the type parameter from or both sides into
+/// variables and then performs unification of the terms. The resulting
+/// substitution is converted back to parameter instantiations.
 ///
-/// Example: consider a function f<X> which uses memory M<X, u64>, and invariant
-/// invariant<X> which uses memory M<bool, X>. Using this helper to unify both
-/// memories will result in instantiations which when applied create f<bool>
-/// and invariant<u64> respectively.
+/// Example: consider a function `f<X>` which uses memory M<X, u64>, and
+/// invariant `invariant<X>` which uses memory `M<bool, X>`. Using this helper
+/// to unify both memories will result in instantiations which when applied
+/// create `f<bool>` and `invariant<u64>` respectively.
 pub struct TypeUnificationAdapter {
     type_vars_map: BTreeMap<u16, (bool, TypeParameterIndex)>,
     types_adapted_lhs: Vec<Type>,
@@ -799,10 +786,13 @@ impl TypeUnificationAdapter {
     /// Initialize the context for the type unifier.
     ///
     /// If `treat_lhs_type_param_as_var_after_index` is set to P,
-    /// - any type parameter on the LHS with index < P will be treated as concrete types and
-    /// - only type parameters on the LHS with index >= P are treated as variables and thus,
-    ///   participate in the type unification process.
-    /// The same rule applies to the RHS parameters via `treat_rhs_type_param_as_var_after_index`.
+    /// - any type parameter on the LHS with index < P will be treated as
+    ///   concrete types and
+    /// - only type parameters on the LHS with index >= P are treated as
+    ///   variables and thus, participate in the type unification process.
+    ///
+    /// The same rule applies to the RHS parameters via
+    /// `treat_rhs_type_param_as_var_after_index`.
     fn new<'a, I>(
         lhs_types: I,
         rhs_types: I,
@@ -882,10 +872,12 @@ impl TypeUnificationAdapter {
         }
     }
 
-    /// Create a TypeUnificationAdapter with the goal of unifying a pair of types.
+    /// Create a TypeUnificationAdapter with the goal of unifying a pair of
+    /// types.
     ///
-    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on the LHS as variables.
-    /// If `treat_rhs_type_param_as_var` is True, treat all type parameters on the RHS as variables.
+    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on
+    /// the LHS as variables. If `treat_rhs_type_param_as_var` is True,
+    /// treat all type parameters on the RHS as variables.
     pub fn new_pair(
         lhs_type: &Type,
         rhs_type: &Type,
@@ -900,10 +892,12 @@ impl TypeUnificationAdapter {
         )
     }
 
-    /// Create a TypeUnificationAdapter with the goal of unifying a pair of type tuples.
+    /// Create a TypeUnificationAdapter with the goal of unifying a pair of type
+    /// tuples.
     ///
-    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on the LHS as variables.
-    /// If `treat_rhs_type_param_as_var` is True, treat all type parameters on the RHS as variables.
+    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on
+    /// the LHS as variables. If `treat_rhs_type_param_as_var` is True,
+    /// treat all type parameters on the RHS as variables.
     pub fn new_vec(
         lhs_types: &[Type],
         rhs_types: &[Type],
@@ -918,9 +912,10 @@ impl TypeUnificationAdapter {
         )
     }
 
-    /// Consume the TypeUnificationAdapter and produce the unification result. If type unification
-    /// is successful, return a pair of instantiations for type parameters on each side which
-    /// unify the LHS and RHS respectively. If the LHS and RHS cannot unify, None is returned.
+    /// Consume the TypeUnificationAdapter and produce the unification result.
+    /// If type unification is successful, return a pair of instantiations
+    /// for type parameters on each side which unify the LHS and RHS
+    /// respectively. If the LHS and RHS cannot unify, None is returned.
     pub fn unify(
         self,
         variance: Variance,
@@ -998,16 +993,22 @@ impl TypeUnificationError {
 pub struct TypeInstantiationDerivation {}
 
 impl TypeInstantiationDerivation {
-    /// Find what the instantiations should we have for the type parameter at `target_param_index`.
+    /// Find what the instantiations should we have for the type parameter at
+    /// `target_param_index`.
     ///
-    /// The invariant is, forall type parameters whose index < target_param_index, it should either
-    /// - be assigned with a concrete type already and hence, ceases to be a type parameter, or
-    /// - does not have any matching instantiation and hence, either remains a type parameter or is
-    ///   represented as a type error.
-    /// But in anyway, these type parameters no longer participate in type unification anymore.
+    /// The invariant is, forall type parameters whose index <
+    /// target_param_index, it should either
+    /// - be assigned with a concrete type already and hence, ceases to be a
+    ///   type parameter, or
+    /// - does not have any matching instantiation and hence, either remains a
+    ///   type parameter or is represented as a type error.
     ///
-    /// If `target_lhs` is True, derive instantiations for the type parameter with
-    /// `target_param_index` on the `lhs_types`. Otherwise, target the `rhs_types`.
+    /// But in anyway, these type parameters no longer participate in type
+    /// unification anymore.
+    ///
+    /// If `target_lhs` is True, derive instantiations for the type parameter
+    /// with `target_param_index` on the `lhs_types`. Otherwise, target the
+    /// `rhs_types`.
     fn derive_instantiations_for_target_parameter(
         lhs_types: &BTreeSet<Type>,
         rhs_types: &BTreeSet<Type>,
@@ -1053,28 +1054,36 @@ impl TypeInstantiationDerivation {
         target_param_insts
     }
 
-    /// Find the set of valid instantiation combinations for all the type parameters.
+    /// Find the set of valid instantiation combinations for all the type
+    /// parameters.
     ///
-    /// The algorithm is progressive. For a list of parameters with arity `params_arity = N`, it
-    /// - first finds all possible instantiation for parameter at index 0 (`inst_param_0`) and,'
+    /// The algorithm is progressive. For a list of parameters with arity
+    /// `params_arity = N`, it
+    /// - first finds all possible instantiation for parameter at index 0
+    ///   (`inst_param_0`) and,'
     /// - for each instantiation in `inst_param_0`,
     ///   - refines LHS or RHS types and
-    ///   - finds all possible instantiations for parameter at index 1 (`inst_param_1`)
+    ///   - finds all possible instantiations for parameter at index 1
+    ///     (`inst_param_1`)
     ///   - for each instantiation in `inst_param_1`,
     ///     - refines LHS or RHS types and
-    ///     - finds all possible instantiations for parameter at index 2 (`inst_param_2`)
+    ///     - finds all possible instantiations for parameter at index 2
+    ///       (`inst_param_2`)
     ///     - for each instantiation in `inst_param_2`,
     ///       - ......
-    /// The process continues until all type parameters are analyzed (i.e., reaching the type
-    /// parameter at index `N`).
     ///
-    /// If `refine_lhs` is True, refine the `lhs_types` after each round; same for `refine_rhs`.
+    /// The process continues until all type parameters are analyzed (i.e.,
+    /// reaching the type parameter at index `N`).
     ///
-    /// If `target_lhs` is True, find instantiations for the type parameters in the `lhs_types`,
-    /// otherwise, target the `rhs_types`.
+    /// If `refine_lhs` is True, refine the `lhs_types` after each round; same
+    /// for `refine_rhs`.
     ///
-    /// If `mark_irrelevant_param_as_error` is True, type parameters that do not have any valid
-    /// instantiation will be marked as `Type::Error`. Otherwise, leave the type parameter as it is.
+    /// If `target_lhs` is True, find instantiations for the type parameters in
+    /// the `lhs_types`, otherwise, target the `rhs_types`.
+    ///
+    /// If `mark_irrelevant_param_as_error` is True, type parameters that do not
+    /// have any valid instantiation will be marked as `Type::Error`.
+    /// Otherwise, leave the type parameter as it is.
     pub fn progressive_instantiation<'a, I>(
         lhs_types: I,
         rhs_types: I,
@@ -1159,7 +1168,7 @@ impl TypeInstantiationDerivation {
 pub enum TypeDisplayContext<'a> {
     WithoutEnv {
         symbol_pool: &'a SymbolPool,
-        reverse_struct_table: &'a BTreeMap<(ModuleId, StructId), QualifiedSymbol>,
+        reverse_datatype_table: &'a BTreeMap<(ModuleId, DatatypeId), QualifiedSymbol>,
     },
     WithEnv {
         env: &'a GlobalEnv,
@@ -1216,7 +1225,7 @@ impl<'a> fmt::Display for TypeDisplay<'a> {
             Vector(t) => write!(f, "vector<{}>", t.display(self.context)),
             TypeDomain(t) => write!(f, "domain<{}>", t.display(self.context)),
             ResourceDomain(mid, sid, inst_opt) => {
-                write!(f, "resources<{}", self.struct_str(*mid, *sid))?;
+                write!(f, "resources<{}", self.datatype_str(*mid, *sid))?;
                 if let Some(inst) = inst_opt {
                     f.write_str("<")?;
                     comma_list(f, inst)?;
@@ -1230,8 +1239,8 @@ impl<'a> fmt::Display for TypeDisplay<'a> {
                 f.write_str("|")?;
                 write!(f, "{}", t.display(self.context))
             }
-            Struct(mid, sid, ts) => {
-                write!(f, "{}", self.struct_str(*mid, *sid))?;
+            Datatype(mid, sid, ts) => {
+                write!(f, "{}", self.datatype_str(*mid, *sid))?;
                 if !ts.is_empty() {
                     f.write_str("<")?;
                     comma_list(f, ts)?;
@@ -1269,11 +1278,11 @@ impl<'a> fmt::Display for TypeDisplay<'a> {
 }
 
 impl<'a> TypeDisplay<'a> {
-    fn struct_str(&self, mid: ModuleId, sid: StructId) -> String {
+    fn datatype_str(&self, mid: ModuleId, sid: DatatypeId) -> String {
         match self.context {
             TypeDisplayContext::WithoutEnv {
                 symbol_pool,
-                reverse_struct_table,
+                reverse_datatype_table: reverse_struct_table,
             } => {
                 if let Some(sym) = reverse_struct_table.get(&(mid, sid)) {
                     sym.display(symbol_pool).to_string()
@@ -1282,12 +1291,25 @@ impl<'a> TypeDisplay<'a> {
                 }
             }
             TypeDisplayContext::WithEnv { env, .. } => {
-                let struct_env = env.get_module(mid).into_struct(sid);
-                format!(
-                    "{}::{}",
-                    struct_env.module_env.get_name().display(env.symbol_pool()),
-                    struct_env.get_name().display(env.symbol_pool())
-                )
+                let menv = env.get_module(mid);
+                menv.find_struct(sid.symbol())
+                    .map(|senv| {
+                        format!(
+                            "{}::{}",
+                            senv.module_env.get_name().display(env.symbol_pool()),
+                            senv.get_name().display(env.symbol_pool()),
+                        )
+                    })
+                    .or_else(|| {
+                        menv.find_enum(sid.symbol()).map(|eenv| {
+                            format!(
+                                "{}::{}",
+                                eenv.module_env.get_name().display(env.symbol_pool()),
+                                eenv.get_name().display(env.symbol_pool()),
+                            )
+                        })
+                    })
+                    .expect("Unknown struct or enum")
             }
         }
     }

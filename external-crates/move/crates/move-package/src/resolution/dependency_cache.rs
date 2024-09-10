@@ -1,8 +1,7 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use colored::Colorize;
 use std::{
     collections::BTreeSet,
     ffi::OsStr,
@@ -11,22 +10,24 @@ use std::{
     process::{Command, Stdio},
 };
 
+use anyhow::Result;
+use colored::Colorize;
+
+use super::repository_path;
 use crate::{
     package_hooks,
     source_package::parsed_manifest::{DependencyKind, GitInfo, PackageName},
 };
 
-use super::repository_path;
-
-/// Fetches remote dependencies and caches information about those already fetched when building a
-/// given package.
+/// Fetches remote dependencies and caches information about those already
+/// fetched when building a given package.
 #[derive(Debug, Clone)]
 pub struct DependencyCache {
     /// A set of paths for remote dependencies that have already been fetched
     fetched_deps: BTreeSet<PathBuf>,
 
-    /// Should a dependency fetched when building a different package be refreshed to the newest
-    /// version when building a new package
+    /// Should a dependency fetched when building a different package be
+    /// refreshed to the newest version when building a new package
     skip_fetch_latest_git_deps: bool,
 }
 
@@ -105,8 +106,8 @@ impl DependencyCache {
                         })?;
                 } else if !self.skip_fetch_latest_git_deps {
                     // Update the git dependency
-                    // Check first that it isn't a git rev (if it doesn't work, just continue with the
-                    // fetch)
+                    // Check first that it isn't a git rev (if it doesn't work, just continue with
+                    // the fetch)
                     if let Ok(rev) = Command::new("git")
                         .args([
                             OsStr::new("-C"),
@@ -137,8 +138,9 @@ impl DependencyCache {
 
                     if let Ok(tag) = tag {
                         if let Ok(parsable_version) = String::from_utf8(tag.stdout) {
-                            // If it's exactly the same, then it's a git tag, for now tags won't be updated
-                            // Tags don't easily update locally and you can't use reset --hard to cleanup
+                            // If it's exactly the same, then it's a git tag, for now tags won't be
+                            // updated Tags don't easily update locally
+                            // and you can't use reset --hard to cleanup
                             // any extra files
                             if parsable_version.trim().starts_with(git_rev.as_str()) {
                                 return Ok(());
@@ -165,6 +167,7 @@ impl DependencyCache {
                             OsStr::new("fetch"),
                             OsStr::new("origin"),
                         ])
+                        .stdin(Stdio::null())
                         .stdout(Stdio::null())
                         .stderr(Stdio::null())
                         .status()
@@ -193,6 +196,7 @@ impl DependencyCache {
                             OsStr::new("--hard"),
                             OsStr::new(&format!("origin/{}", git_rev)),
                         ])
+                        .stdin(Stdio::null())
                         .stdout(Stdio::null())
                         .stderr(Stdio::null())
                         .status()
@@ -207,12 +211,12 @@ impl DependencyCache {
 
                     if !status.success() {
                         return Err(anyhow::anyhow!(
-                        "Failed to reset to latest Git state '{}' for package '{}', to skip set \
+                            "Failed to reset to latest Git state '{}' for package '{}', to skip set \
                          --skip-fetch-latest-git-deps | Exit status: {}",
-                        git_rev,
-                        dep_name,
-                        status
-                    ));
+                            git_rev,
+                            dep_name,
+                            status
+                        ));
                     }
                 }
 

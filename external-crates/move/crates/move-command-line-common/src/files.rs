@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeMap, path::Path};
 
 use anyhow::{anyhow, bail, *};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use std::{collections::BTreeMap, path::Path};
 use vfs::{error::VfsErrorKind, VfsPath, VfsResult};
 
 /// Result of sha256 hash of a file's contents.
@@ -47,10 +49,10 @@ pub const MOVE_ERROR_DESC_EXTENSION: &str = "errmap";
 /// Extension for coverage maps
 pub const MOVE_COVERAGE_MAP_EXTENSION: &str = "mvcov";
 
-/// Determine if the path at `path` exists distinguishing between whether the path did not exist,
-/// or if there were other errors in determining if the path existed.
-/// TODO: Once `std::path::try_exists` stops being a nightly feature this function should be
-/// removed and we should use that function instead.
+/// Determine if the path at `path` exists distinguishing between whether the
+/// path did not exist, or if there were other errors in determining if the path
+/// existed. TODO: Once `std::path::try_exists` stops being a nightly feature
+/// this function should be removed and we should use that function instead.
 pub fn try_exists(path: impl AsRef<Path>) -> std::io::Result<bool> {
     use std::io::{ErrorKind, Result as R};
     match std::fs::metadata(path) {
@@ -60,9 +62,10 @@ pub fn try_exists(path: impl AsRef<Path>) -> std::io::Result<bool> {
     }
 }
 
-/// - For each directory in `paths`, it will return all files that satisfy the predicate
-/// - Any file explicitly passed in `paths`, it will include that file in the result, regardless
-///   of the file extension
+/// - For each directory in `paths`, it will return all files that satisfy the
+///   predicate
+/// - Any file explicitly passed in `paths`, it will include that file in the
+///   result, regardless of the file extension
 pub fn find_filenames<Predicate: FnMut(&Path) -> bool>(
     paths: &[impl AsRef<Path>],
     mut is_file_desired: Predicate,
@@ -97,10 +100,10 @@ pub fn find_filenames<Predicate: FnMut(&Path) -> bool>(
     Ok(result)
 }
 
-/// - For each directory in `paths`, it will return all files with the `MOVE_EXTENSION` found
-///   recursively in that directory
-/// - If `keep_specified_files` any file explicitly passed in `paths`, will be added to the result
-///   Otherwise, they will be discarded
+/// - For each directory in `paths`, it will return all files with the
+///   `MOVE_EXTENSION` found recursively in that directory
+/// - If `keep_specified_files` any file explicitly passed in `paths`, will be
+///   added to the result Otherwise, they will be discarded
 pub fn find_move_filenames(
     paths: &[impl AsRef<Path>],
     keep_specified_files: bool,
@@ -119,6 +122,22 @@ pub fn find_move_filenames(
     } else {
         find_filenames(paths, |path| extension_equals(path, MOVE_EXTENSION))
     }
+}
+
+/// Similar to find_filenames but it will keep any file explicitly passed in
+/// `paths`
+pub fn find_filenames_and_keep_specified<Predicate: FnMut(&Path) -> bool>(
+    paths: &[impl AsRef<Path>],
+    is_file_desired: Predicate,
+) -> anyhow::Result<Vec<String>> {
+    let (file_paths, other_paths): (Vec<&Path>, Vec<&Path>) =
+        paths.iter().map(|p| p.as_ref()).partition(|s| s.is_file());
+    let mut files = file_paths
+        .into_iter()
+        .map(path_to_string)
+        .collect::<anyhow::Result<Vec<String>>>()?;
+    files.extend(find_filenames(&other_paths, is_file_desired)?);
+    Ok(files)
 }
 
 pub fn path_to_string(path: &Path) -> anyhow::Result<String> {
@@ -182,9 +201,10 @@ pub fn verify_and_create_named_address_mapping<T: Copy + std::fmt::Display + Eq>
 // Virtual file system support
 //**************************************************************************************************
 
-/// Determine if the virtual path at `vfs_path` exists distinguishing between whether the path did
-/// not exist, or if there were other errors in determining if the path existed.
-/// It implements the same functionality as try_exists above but for the virtual file system
+/// Determine if the virtual path at `vfs_path` exists distinguishing between
+/// whether the path did not exist, or if there were other errors in determining
+/// if the path existed. It implements the same functionality as try_exists
+/// above but for the virtual file system
 pub fn try_exists_vfs(vfs_path: &VfsPath) -> VfsResult<bool> {
     use VfsResult as R;
     match vfs_path.metadata() {
@@ -194,10 +214,13 @@ pub fn try_exists_vfs(vfs_path: &VfsPath) -> VfsResult<bool> {
     }
 }
 
-/// - For each directory in `paths`, it will return all files that satisfy the predicate
-/// - Any file explicitly passed in `paths`, it will include that file in the result, regardless
-///   of the file extension
-/// It implements the same functionality as find_filenames above but for the virtual file system
+/// - For each directory in `paths`, it will return all files that satisfy the
+///   predicate
+/// - Any file explicitly passed in `paths`, it will include that file in the
+///   result, regardless of the file extension
+///
+/// It implements the same functionality as find_filenames above but for the
+/// virtual file system
 pub fn find_filenames_vfs<Predicate: FnMut(&VfsPath) -> bool>(
     paths: &[VfsPath],
     mut is_file_desired: Predicate,
@@ -226,12 +249,14 @@ pub fn find_filenames_vfs<Predicate: FnMut(&VfsPath) -> bool>(
     Ok(result)
 }
 
-/// - For each directory in `paths`, it will return all files with the `MOVE_EXTENSION` found
-///   recursively in that directory
-/// - If `keep_specified_files` any file explicitly passed in `paths`, will be added to the result
-///   Otherwise, they will be discarded
-/// It implements the same functionality as find_move_filenames above but for the virtual file
-/// system
+/// - For each directory in `paths`, it will return all files with the
+///   `MOVE_EXTENSION` found recursively in that directory
+/// - If `keep_specified_files` any file explicitly passed in `paths`, will be
+///   added to the result
+///
+/// Otherwise, they will be discarded
+/// It implements the same functionality as find_move_filenames above but for
+/// the virtual file system
 pub fn find_move_filenames_vfs(
     paths: &[VfsPath],
     keep_specified_files: bool,

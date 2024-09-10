@@ -1,19 +1,21 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{cmp::max, collections::BTreeMap, fmt::Debug};
 
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
-        AbilitySet, SignatureToken, StructDefinitionIndex, StructTypeParameter, TypeParameterIndex,
+        AbilitySet, DatatypeTyParameter, EnumDefinitionIndex, SignatureToken,
+        StructDefinitionIndex, TypeParameterIndex, VariantTag,
     },
 };
 use move_core_types::{
     gas_algebra::AbstractMemorySize, identifier::Identifier, language_storage::ModuleId,
     vm_status::StatusCode,
 };
-use std::fmt::Debug;
-use std::{cmp::max, collections::BTreeMap};
 
 pub const TYPE_DEPTH_MAX: usize = 256;
 
@@ -46,9 +48,9 @@ impl DepthFormula {
         }
     }
 
-    /// We `max` over a list of formulas, and we normalize it to deal with duplicate terms, e.g.
-    /// `max(max(t1 + 1, t2 + 2, 2), max(t1 + 3, t2 + 1, 4))` becomes
-    /// `max(t1 + 3, t2 + 2, 4)`
+    /// We `max` over a list of formulas, and we normalize it to deal with
+    /// duplicate terms, e.g. `max(max(t1 + 1, t2 + 2, 2), max(t1 + 3, t2 +
+    /// 1, 4))` becomes `max(t1 + 3, t2 + 2, 4)`
     pub fn normalize(formulas: Vec<Self>) -> Self {
         let mut var_map = BTreeMap::new();
         let mut constant_acc = None;
@@ -72,7 +74,8 @@ impl DepthFormula {
         }
     }
 
-    /// Substitute in formulas for each type parameter and normalize the final formula
+    /// Substitute in formulas for each type parameter and normalize the final
+    /// formula
     pub fn subst(
         &self,
         mut map: BTreeMap<TypeParameterIndex, DepthFormula>,
@@ -95,7 +98,8 @@ impl DepthFormula {
         Ok(DepthFormula::normalize(formulas))
     }
 
-    /// Given depths for each type parameter, solve the formula giving the max depth for the type
+    /// Given depths for each type parameter, solve the formula giving the max
+    /// depth for the type
     pub fn solve(&self, tparam_depths: &[u64]) -> PartialVMResult<u64> {
         let Self { terms, constant } = self;
         let mut depth = constant.as_ref().copied().unwrap_or(0);
@@ -105,7 +109,7 @@ impl DepthFormula {
                     return Err(
                         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                             .with_message(format!("{t_i:?} missing mapping")),
-                    )
+                    );
                 }
                 Some(ty_depth) => depth = max(depth, ty_depth.saturating_add(*c_i)),
             }
@@ -113,8 +117,9 @@ impl DepthFormula {
         Ok(depth)
     }
 
-    // `max(t_0 + c_0, ..., t_n + c_n, c_base) + c`. But our representation forces us to distribute
-    // the addition, so it becomes `max(t_0 + c_0 + c, ..., t_n + c_n + c, c_base + c)`
+    // `max(t_0 + c_0, ..., t_n + c_n, c_base) + c`. But our representation forces
+    // us to distribute the addition, so it becomes `max(t_0 + c_0 + c, ..., t_n
+    // + c_n + c, c_base + c)`
     pub fn add(&mut self, c: u64) {
         let Self { terms, constant } = self;
         for (_t_i, c_i) in terms {
@@ -127,26 +132,74 @@ impl DepthFormula {
 }
 
 #[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct StructType {
-    pub fields: Vec<Type>,
-    pub field_names: Vec<Identifier>,
+pub struct CachedDatatype {
     pub abilities: AbilitySet,
-    pub type_parameters: Vec<StructTypeParameter>,
+    pub type_parameters: Vec<DatatypeTyParameter>,
     pub name: Identifier,
     pub defining_id: ModuleId,
     pub runtime_id: ModuleId,
-    pub struct_def: StructDefinitionIndex,
     pub depth: Option<DepthFormula>,
+    pub datatype_info: Datatype,
 }
 
-impl StructType {
+#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Datatype {
+    Enum(EnumType),
+    Struct(StructType),
+}
+
+#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct EnumType {
+    pub variants: Vec<VariantType>,
+    pub enum_def: EnumDefinitionIndex,
+}
+
+#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct VariantType {
+    pub variant_name: Identifier,
+    pub fields: Vec<Type>,
+    pub field_names: Vec<Identifier>,
+    pub enum_def: EnumDefinitionIndex,
+    pub variant_tag: VariantTag,
+}
+
+#[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct StructType {
+    pub fields: Vec<Type>,
+    pub field_names: Vec<Identifier>,
+    pub struct_def: StructDefinitionIndex,
+}
+
+impl CachedDatatype {
+    pub fn get_struct(&self) -> PartialVMResult<&StructType> {
+        match &self.datatype_info {
+            Datatype::Struct(struct_type) => Ok(struct_type),
+            x @ Datatype::Enum(_) => Err(PartialVMError::new(
+                StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
+            )
+            .with_message(format!("Expected struct type but got {:?}", x))),
+        }
+    }
+
+    pub fn get_enum(&self) -> PartialVMResult<&EnumType> {
+        match &self.datatype_info {
+            Datatype::Enum(enum_type) => Ok(enum_type),
+            x @ Datatype::Struct(_) => Err(PartialVMError::new(
+                StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
+            )
+            .with_message(format!("Expected enum type but got {:?}", x))),
+        }
+    }
+}
+
+impl CachedDatatype {
     pub fn type_param_constraints(&self) -> impl ExactSizeIterator<Item = &AbilitySet> {
         self.type_parameters.iter().map(|param| &param.constraints)
     }
 }
 
 #[derive(Debug, Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct CachedStructIndex(pub usize);
+pub struct CachedTypeIndex(pub usize);
 
 #[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Type {
@@ -157,8 +210,8 @@ pub enum Type {
     Address,
     Signer,
     Vector(Box<Type>),
-    Struct(CachedStructIndex),
-    StructInstantiation(Box<(CachedStructIndex, Vec<Type>)>),
+    Datatype(CachedTypeIndex),
+    DatatypeInstantiation(Box<(CachedTypeIndex, Vec<Type>)>),
     Reference(Box<Type>),
     MutableReference(Box<Type>),
     TyParam(u16),
@@ -195,14 +248,14 @@ impl Type {
             Type::MutableReference(ty) => {
                 Type::MutableReference(Box::new(ty.apply_subst(subst, depth + 1)?))
             }
-            Type::Struct(def_idx) => Type::Struct(*def_idx),
-            Type::StructInstantiation(struct_inst) => {
-                let (def_idx, instantiation) = &**struct_inst;
+            Type::Datatype(def_idx) => Type::Datatype(*def_idx),
+            Type::DatatypeInstantiation(def_inst) => {
+                let (def_idx, instantiation) = &**def_inst;
                 let mut inst = vec![];
                 for ty in instantiation {
                     inst.push(ty.apply_subst(subst, depth + 1)?)
                 }
-                Type::StructInstantiation(Box::new((*def_idx, inst)))
+                Type::DatatypeInstantiation(Box::new((*def_idx, inst)))
             }
         };
         Ok(res)
@@ -242,13 +295,12 @@ impl Type {
             Vector(ty) | Reference(ty) | MutableReference(ty) => {
                 Self::LEGACY_BASE_MEMORY_SIZE + ty.size()
             }
-            Struct(_) => Self::LEGACY_BASE_MEMORY_SIZE,
-            StructInstantiation(struct_inst) => {
-                let (_, tys) = &**struct_inst;
-                tys
-                    .iter()
+            Datatype(_) => Self::LEGACY_BASE_MEMORY_SIZE,
+            DatatypeInstantiation(inst) => {
+                let (_, tys) = &**inst;
+                tys.iter()
                     .fold(Self::LEGACY_BASE_MEMORY_SIZE, |acc, ty| acc + ty.size())
-            },
+            }
         }
     }
 
@@ -267,18 +319,18 @@ impl Type {
             S::Address => L::Address,
             S::Vector(inner) => L::Vector(Box::new(Self::from_const_signature(inner)?)),
             // Not yet supported
-            S::Struct(_) | S::StructInstantiation(_) => {
+            S::Datatype(_) | S::DatatypeInstantiation(_) => {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Unable to load const type signature".to_string()),
-                )
+                );
             }
             // Not allowed/Not meaningful
             S::TypeParameter(_) | S::Reference(_) | S::MutableReference(_) | S::Signer => {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Unable to load const type signature".to_string()),
-                )
+                );
             }
         })
     }

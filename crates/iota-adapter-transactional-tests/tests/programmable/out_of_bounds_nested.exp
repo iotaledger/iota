@@ -1,0 +1,73 @@
+processed 18 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 9-17:
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 4864000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'programmable'. lines 19-21:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 3 'programmable'. lines 22-24:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+
+task 4 'programmable'. lines 26-28:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 5 'programmable'. lines 29-31:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+
+task 6 'programmable'. lines 33-35:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 7 'programmable'. lines 36-38:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+
+task 8 'programmable'. lines 40-42:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 9 'programmable'. lines 43-45:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+
+task 10 'programmable'. lines 47-49:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 11 'programmable'. lines 50-52:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 12 'programmable'. lines 54-56:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 13 'programmable'. lines 57-59:
+Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+
+task 14 'programmable'. lines 61-63:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 15 'programmable'. lines 64-66:
+Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+
+task 16 'programmable'. lines 68-70:
+Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: SecondaryIndexOutOfBounds { result_idx: 0, secondary_idx: 2 } }, source: None, command: Some(1) } }
+
+task 17 'programmable'. lines 71-73:
+Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }

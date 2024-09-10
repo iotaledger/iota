@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -28,12 +29,13 @@ fn direct_commit() {
     let voting_round_wave_2 = committer.committers[0].leader_round(2) + 1;
     build_dag(context, dag_state, None, voting_round_wave_2);
 
-    // Genesis cert will not be included in commit sequence, marking it as last decided
+    // Genesis cert will not be included in commit sequence, marking it as last
+    // decided
     let last_decided = Slot::new_for_test(0, 0);
 
-    // The universal committer should mark the potential leaders in leader round 6 as
-    // undecided because there is no way to get enough certificates for leaders of
-    // leader round 6 without completing wave 2.
+    // The universal committer should mark the potential leaders in leader round 6
+    // as undecided because there is no way to get enough certificates for
+    // leaders of leader round 6 without completing wave 2.
     let sequence = committer.try_commit(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -381,7 +383,8 @@ fn indirect_commit() {
         .take(context.committee.quorum_threshold() as usize)
         .collect();
 
-    // The validators not part of the f+1 above will not certify the leader of wave 1.
+    // The validators not part of the f+1 above will not certify the leader of wave
+    // 1.
     let connections_without_votes_for_leader_1 = context
         .committee
         .authorities()
@@ -446,9 +449,9 @@ fn indirect_skip() {
         .collect();
 
     // Only f+1 validators connect to the leader of wave 2. This is setting up the
-    // scenario where we have <2f+1 blame & <2f+1 certificates for the leader of wave 2
-    // which will mean we mark it as Undecided. Note there are not enough votes
-    // to form a certified link to the leader of wave 2 as well.
+    // scenario where we have <2f+1 blame & <2f+1 certificates for the leader of
+    // wave 2 which will mean we mark it as Undecided. Note there are not enough
+    // votes to form a certified link to the leader of wave 2 as well.
     let mut references = Vec::new();
 
     let connections_with_leader_wave_2 = context
@@ -500,10 +503,10 @@ fn indirect_skip() {
         panic!("Expected a committed leader")
     };
 
-    // Ensure we skip the leader of wave 2 after it had been marked undecided directly.
-    // This happens because we do not have enough votes in voting round of wave 2
-    // for the certificates of decision round wave 2 to form a certified link to
-    // the leader of wave 2.
+    // Ensure we skip the leader of wave 2 after it had been marked undecided
+    // directly. This happens because we do not have enough votes in voting
+    // round of wave 2 for the certificates of decision round wave 2 to form a
+    // certified link to the leader of wave 2.
     if let LeaderStatus::Skip(leader) = sequence[1] {
         assert_eq!(leader.authority, leader_wave_2);
         assert_eq!(leader.round, leader_round_wave_2);
@@ -571,8 +574,8 @@ fn undecided() {
         decision_round_wave_1,
     );
 
-    // Ensure outcome of direct & indirect rule is undecided. So not commit decisions
-    // should be returned.
+    // Ensure outcome of direct & indirect rule is undecided. So not commit
+    // decisions should be returned.
     let last_committed = Slot::new_for_test(0, 0);
     let sequence = committer.try_commit(last_committed);
     tracing::info!("Commit sequence: {sequence:#?}");
@@ -580,8 +583,9 @@ fn undecided() {
 }
 
 // This test scenario has one authority that is acting in a byzantine manner. It
-// will be sending multiple different blocks to different validators for a round.
-// The commit rule should handle this and correctly commit the expected blocks.
+// will be sending multiple different blocks to different validators for a
+// round. The commit rule should handle this and correctly commit the expected
+// blocks.
 #[test]
 fn test_byzantine_direct_commit() {
     let (context, dag_state, committer) = basic_test_setup();
@@ -598,7 +602,8 @@ fn test_byzantine_direct_commit() {
 
     // Add blocks to reach voting round of wave 4
     let voting_round_wave_4 = committer.committers[0].leader_round(4) + 1;
-    // This includes a "good vote" from validator C which is acting as a byzantine validator
+    // This includes a "good vote" from validator C which is acting as a byzantine
+    // validator
     let good_references_voting_round_wave_4 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -623,7 +628,8 @@ fn test_byzantine_direct_commit() {
         .filter(|x| x.author != leader_wave_4)
         .collect();
 
-    // Accept these references/blocks as ancestors from decision round blocks in dag state
+    // Accept these references/blocks as ancestors from decision round blocks in dag
+    // state
     let byzantine_block_c13_1 = VerifiedBlock::new_for_test(
         TestBlock::new(13, 2)
             .set_ancestors(references_without_leader_round_wave_4.clone())
@@ -654,22 +660,23 @@ fn test_byzantine_direct_commit() {
         .write()
         .accept_block(byzantine_block_c13_3.clone());
 
-    // Ancestors of decision blocks in round 14 should include multiple byzantine non-votes C13
-    // but there are enough good votes to prevent a skip. Additionally only one of the non-votes
-    // per authority should be counted so we should not skip leader A12.
-    let decison_block_a14 = VerifiedBlock::new_for_test(
+    // Ancestors of decision blocks in round 14 should include multiple byzantine
+    // non-votes C13 but there are enough good votes to prevent a skip.
+    // Additionally only one of the non-votes per authority should be counted so
+    // we should not skip leader A12.
+    let decision_block_a14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
-    dag_state.write().accept_block(decison_block_a14.clone());
+    dag_state.write().accept_block(decision_block_a14.clone());
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
         .filter(|r| r.author != AuthorityIndex::new_for_test(2))
         .collect::<Vec<_>>();
 
-    let decison_block_b14 = VerifiedBlock::new_for_test(
+    let decision_block_b14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 1)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -680,9 +687,9 @@ fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_b14.clone());
+    dag_state.write().accept_block(decision_block_b14.clone());
 
-    let decison_block_c14 = VerifiedBlock::new_for_test(
+    let decision_block_c14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 2)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -693,9 +700,9 @@ fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_c14.clone());
+    dag_state.write().accept_block(decision_block_c14.clone());
 
-    let decison_block_d14 = VerifiedBlock::new_for_test(
+    let decision_block_d14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 3)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -706,12 +713,12 @@ fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_d14.clone());
+    dag_state.write().accept_block(decision_block_d14.clone());
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
-    // - We have 3 byzantine C13 nonvotes that we received as ancestors from decision
-    //   round blocks from B, C, & D.
+    // - We have 3 byzantine C13 nonvotes that we received as ancestors from
+    //   decision round blocks from B, C, & D.
     // - We have B14, C14 & D14 that include this byzantine nonvote from C13 but
     // all of these blocks also have good votes for leader A12 through A, B, D.
 
@@ -731,7 +738,8 @@ fn test_byzantine_direct_commit() {
     };
 }
 
-// TODO: Add byzantine variant of tests for indirect/direct commit/skip/undecided decisions
+// TODO: Add byzantine variant of tests for indirect/direct
+// commit/skip/undecided decisions
 
 fn basic_test_setup() -> (
     Arc<Context>,
@@ -739,7 +747,7 @@ fn basic_test_setup() -> (
     super::UniversalCommitter,
 ) {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -749,7 +757,8 @@ fn basic_test_setup() -> (
     // Create committer without pipelining and only 1 leader per leader round
     let committer = UniversalCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    // note: without pipelining or multi-leader enabled there should only be one committer.
+    // note: without pipelining or multi-leader enabled there should only be one
+    // committer.
     assert!(committer.committers.len() == 1);
 
     (context, dag_state, committer)

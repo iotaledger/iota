@@ -1,39 +1,39 @@
 [package]
 name = "test-cluster"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
 version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
 futures.workspace = true
-tracing.workspace = true
 jsonrpsee.workspace = true
-tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
-rand.workspace = true
-sui-config.workspace = true
-sui-core = { workspace = true, features = ["test-utils"] }
-sui-framework.workspace = true
-sui-swarm-config.workspace = true
-sui-json-rpc.workspace = true
-sui-json-rpc-types.workspace = true
-sui-node.workspace = true
-sui-protocol-config.workspace = true
-sui-swarm.workspace = true
-sui-types = { workspace = true, features = ["test-utils"] }
 prometheus.workspace = true
-sui-keys.workspace = true
-sui-sdk.workspace = true
-sui-test-transaction-builder.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
+tracing.workspace = true
 
+iota-config.workspace = true
+iota-core = { workspace = true, features = ["test-utils"] }
+iota-framework.workspace = true
+iota-json-rpc.workspace = true
+iota-json-rpc-types.workspace = true
+iota-keys.workspace = true
+iota-node.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk.workspace = true
+iota-swarm.workspace = true
+iota-swarm-config.workspace = true
+iota-test-transaction-builder.workspace = true
+iota-types = { workspace = true, features = ["test-utils"] }
 move-binary-format.workspace = true
 
 [target.'cfg(msim)'.dependencies]
-sui-simulator.workspace = true
+iota-simulator.workspace = true
 fastcrypto-zkp.workspace = true
 
 [dev-dependencies]
-sui-json-rpc-api.workspace = true
-sui-macros.workspace = true
+iota-json-rpc-api.workspace = true
+iota-macros.workspace = true

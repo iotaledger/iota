@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as assert from 'assert';
@@ -8,7 +9,7 @@ import * as vscode from 'vscode';
 /** Information related to this extension itself, such as its identifier and version. */
 export class Extension {
     /** The string used to uniquely identify this particular extension to VS Code. */
-    readonly identifier = 'mysten.move';
+    readonly identifier = 'iota.move';
 
     private readonly extension: vscode.Extension<unknown>;
 

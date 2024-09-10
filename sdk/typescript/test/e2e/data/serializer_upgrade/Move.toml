@@ -3,7 +3,7 @@ name = "serializer"
 version = "0.0.2"
 
 [dependencies]
-Sui = { local = "../../../../../../crates/sui-framework/packages/sui-framework" }
+Iota = { local = "../../../../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
-serializer =  "0x0"
+serializer = "0x0"

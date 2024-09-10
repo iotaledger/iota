@@ -1,0 +1,220 @@
+---
+title: Immutable Objects
+description: Immutable objects on IOTA cannot be mutated, transferred, or deleted once frozen. These objects are ownerless and can be used by anyone on the network.
+---
+
+In IOTA, objects can be either mutable or immutable.
+Immutable objects are unique in that they cannot be altered, transferred, or deleted after they are created.
+Once an object is made immutable, it has no owner, making it accessible to anyone on the network.
+
+## Creating an Immutable Object
+
+### Using `public_freeze_object`
+
+To make an object immutable,
+use the [`transfer::public_freeze_object`](../../../../references/framework/iota-framework/transfer.mdx#function-public_freeze_object) function:
+
+```move
+public native fun public_freeze_object<T: key>(obj: T);
+```
+
+This function irreversibly freezes the specified object, rendering it immutable.
+Once frozen, the object can no longer be mutated.
+You should only freeze an object when you are sure it no longer requires any modifications.
+
+For example,
+the [color_object example module](https://github.com/iotaledger/iota/blob/main/examples/move/color_object/sources/example.move) includes a test
+that creates a new `ColorObject`,
+then calls `public_freeze_object` to make it immutable:
+
+```move
+{
+    ts::next_tx(&mut ts, alice);
+    // Create a new ColorObject
+    let c = new(255, 0, 255, ts::ctx(&mut ts));
+    // Make it immutable.
+    transfer::public_freeze_object(c);
+};
+```
+
+In this test, you must own the `ColorObject` to freeze it.
+Once frozen, the object is no longer owned by anyone and can never be altered.
+
+### Using `public_freeze_object`
+
+The [`public_freeze_object`](../../../../references/framework/iota-framework/transfer.mdx#function-public_freeze_object) function requires the object
+to be passed by value.
+This ensures that after the function is called, no one can mutate the object,
+which would contradict its immutable status.
+
+Alternatively, you can create an immutable object directly upon its creation using the [`transfer::public_freeze_object`](../../../../references/framework/iota-framework/transfer.mdx#function-public_freeze_object) function:
+
+```move
+public fun create_immutable(red: u8, green: u8, blue: u8, ctx: &mut TxContext) {
+    let color_object = new(red, green, blue, ctx);
+    transfer::public_freeze_object(color_object)
+}
+```
+
+This function creates a `ColorObject` and immediately makes it immutable before it is owned by anyone.
+
+## Using Immutable Objects
+
+Once an object is made immutable, anyone can use it in IOTA Move calls, but only as a read-only reference (`&T`).
+Because immutable objects cannot be mutated, they do not pose any risk of data races,
+even if multiple transactions use the same immutable object simultaneously.
+This characteristic means that immutable objects do not require sequencing through consensus,
+further simplifying their use in transactions.
+
+For example, consider a function that copies the value from one object to another:
+
+```move
+public fun copy_into(from: &ColorObject, into: &mut ColorObject);
+```
+
+In this function, anyone can pass an immutable object as the `from` argument,
+but not as the `into` argument because `into` requires a mutable reference.
+
+## Testing Immutable Objects
+
+In unit tests,
+you can interact with immutable objects using `test_scenario::take_immutable<T>` to retrieve an immutable object from global storage,
+and `test_scenario::return_immutable` to return it.
+
+The `test_scenario::take_immutable<T>` function is necessary because immutable objects can only be accessed through read-only references.
+The `test_scenario` runtime tracks the usage of this immutable object,
+and if the object is not returned before the next transaction begins, the test will halt.
+
+Here’s how it works in a test:
+
+```move
+let sender1 = @0x1;
+let mut scenario_val = test_scenario::begin(sender1);
+let scenario = &mut scenario_val;
+{
+    let ctx = test_scenario::ctx(scenario);
+    color_object::create_immutable(255, 0, 255, ctx);
+};
+test_scenario::next_tx(scenario, sender1);
+{
+    // has_most_recent_for_sender returns false for immutable objects.
+    assert!(!test_scenario::has_most_recent_for_sender<ColorObject>(scenario), 0);
+};
+```
+
+In this test,
+the `has_most_recent_for_sender<ColorObject>` function does not return `true` because the object is no longer owned.
+To access this object:
+
+```move
+// Any sender can work.
+let sender2 = @0x2;
+test_scenario::next_tx(scenario, sender2);
+{
+    let object = test_scenario::take_immutable<ColorObject>(scenario);
+    let (red, green, blue) = color_object::get_color(object);
+    assert!(red == 255 && green == 0 && blue == 255, 0);
+    test_scenario::return_immutable(object);
+};
+```
+
+This test demonstrates that any sender can access an immutable object using `take_immutable`.
+The object is then returned to global storage with `return_immutable`.
+
+To verify that the object is truly immutable, you can attempt to modify it:
+
+```move
+public fun update(
+    object: &mut ColorObject,
+    red: u8, green: u8, blue: u8,
+) {
+    object.red = red;
+    object.green = green;
+    object.blue = blue;
+}
+```
+
+This function will fail if the `ColorObject` is immutable, confirming its status.
+
+## On-Chain Interaction Example
+
+### Viewing Owned Objects
+
+First, identify the objects you own. Run the following commands to set your active address and view the objects associated with it:
+
+```shell
+export ADDR=`iota client active-address`
+
+iota client objects $ADDR
+```
+
+### Publishing the `ColorObject` Code
+
+To interact with objects, you need to publish the `ColorObject` code on-chain.
+Use the following command, replacing `<GAS-AMOUNT>` with your gas budget:
+
+```shell
+iota client publish $ROOT/examples/move/color_object --gas-budget <GAS-AMOUNT>
+```
+
+### Creating a New `ColorObject`
+
+Set the package object ID to the `$PACKAGE` environment variable.
+Then, create a new `ColorObject` by executing the following command:
+
+```shell
+iota client call --gas-budget <GAS-AMOUNT> --package $PACKAGE --module "color_object" --function "create" --args 0 255 0
+```
+
+After creation, set the newly created object ID to `$OBJECT`.
+
+### Viewing Objects in the Current Active Address
+
+To confirm the creation of your `ColorObject`, list the objects in the current active address:
+
+```shell
+iota client objects $ADDR
+```
+
+You should see an object with the ID stored in `$OBJECT`.
+
+### Freezing an Object
+
+To make the object immutable, use the following command:
+
+```shell
+iota client call --gas-budget <GAS-AMOUNT> --package $PACKAGE --module "color_object" --function "freeze_object" --args \"$OBJECT\"
+```
+
+### Verifying Object Immutability
+
+After freezing the object, it will no longer appear in your owned objects list.
+Verify this by listing your objects again:
+
+```shell
+iota client objects $ADDR
+```
+
+The object ID `$OBJECT` should no longer be listed.
+To confirm its immutability, query the object information:
+
+```shell
+iota client object $OBJECT
+```
+
+The response should include:
+
+```shell
+Owner: Immutable
+```
+
+### Attempting to Mutate an Immutable Object
+
+Finally, if you attempt to modify the immutable object, the CLI will prevent the mutation.
+Use the following command as an example:
+
+```shell
+iota client call --gas-budget <GAS-AMOUNT> --package $PACKAGE --module "color_object" --function "update" --args \"$OBJECT\" 0 0 0
+```
+
+The response will indicate that you cannot pass an immutable object to a mutable argument.

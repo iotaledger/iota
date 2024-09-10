@@ -1,5 +1,5 @@
 {
-  "name": "@mysten/template-react-client-app",
+  "name": "@iota/template-react-client-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,17 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mysten/dapp-kit": "workspace:*",
-    "@mysten/sui.js": "workspace:*",
+    "@iota/dapp-kit": "workspace:*",
+    "@iota/iota-sdk": "workspace:*",
     "@radix-ui/colors": "^3.0.0",
     "@radix-ui/react-icons": "^1.3.0",
     "@radix-ui/themes": "^2.0.0",
     "@tanstack/react-query": "^5.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/react": "^18.2.15",
+    "@types/react": "^18.3.3",
     "@types/react-dom": "^18.2.7",
     "@typescript-eslint/eslint-plugin": "^6.1.0",
     "@typescript-eslint/parser": "^6.1.0",

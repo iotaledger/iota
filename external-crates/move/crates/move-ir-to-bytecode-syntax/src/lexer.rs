@@ -1,10 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::syntax::ParseError;
 use move_command_line_common::files::FileHash;
+use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
+use std::collections::BTreeMap;
+
+use crate::syntax::ParseError;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tok {
@@ -88,6 +92,9 @@ pub enum Tok {
     RBrace,
     LSquare,
     RSquare,
+    Enum,
+    VariantSwitch,
+    At,
 }
 
 pub struct Lexer<'input> {
@@ -98,10 +105,15 @@ pub struct Lexer<'input> {
     cur_start: usize,
     cur_end: usize,
     token: Tok,
+    named_addresses: &'input BTreeMap<String, AccountAddress>,
 }
 
 impl<'input> Lexer<'input> {
-    pub fn new(file_hash: FileHash, s: &'input str) -> Lexer<'input> {
+    pub fn new(
+        file_hash: FileHash,
+        s: &'input str,
+        named_addresses: &'input BTreeMap<String, AccountAddress>,
+    ) -> Lexer<'input> {
         Lexer {
             spec_mode: false, // read tokens without trailing punctuation during specs.
             file_hash,
@@ -110,6 +122,7 @@ impl<'input> Lexer<'input> {
             cur_start: 0,
             cur_end: 0,
             token: Tok::EOF,
+            named_addresses,
         }
     }
 
@@ -131,6 +144,10 @@ impl<'input> Lexer<'input> {
 
     pub fn previous_end_loc(&self) -> usize {
         self.prev_end
+    }
+
+    pub fn resolve_named_address(&self, name: &str) -> Option<AccountAddress> {
+        self.named_addresses.get(name).cloned()
     }
 
     fn trim_whitespace_and_comments(&self) -> &'input str {
@@ -264,6 +281,7 @@ impl<'input> Lexer<'input> {
                     (get_name_token(name), len) // just return the name in spec_mode
                 }
             }
+            '@' => (Tok::At, 1),
             '&' => {
                 if text.starts_with("&mut ") {
                     (Tok::AmpMut, 5)
@@ -386,9 +404,9 @@ fn get_hex_digits_len(text: &str) -> usize {
         .unwrap_or(text.len())
 }
 
-// Check for an optional sequence of hex digits following by a double quote, and return
-// the length of that string if found. This is used to lex ByteArrayValue tokens after
-// seeing the 'h"' prefix.
+// Check for an optional sequence of hex digits following by a double quote, and
+// return the length of that string if found. This is used to lex ByteArrayValue
+// tokens after seeing the 'h"' prefix.
 fn get_byte_array_value_len(text: &str) -> usize {
     let hex_len = get_hex_digits_len(text);
     match &text[hex_len..].chars().next() {
@@ -425,6 +443,8 @@ fn get_name_token(name: &str) -> Tok {
         "script" => Tok::Script,
         "struct" => Tok::Struct,
         "true" => Tok::True,
+        "enum" => Tok::Enum,
+        "variant_switch" => Tok::VariantSwitch,
         _ => Tok::NameValue,
     }
 }

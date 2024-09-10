@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::rc::Rc;
 
 use codespan_reporting::diagnostic::Severity;
 use move_model::model::GlobalEnv;
 use serde::{Deserialize, Serialize};
-use std::rc::Rc;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum AutoTraceLevel {
@@ -40,23 +42,28 @@ pub struct ProverOptions {
     pub minimize_execution_trace: bool,
     /// Whether to omit debug information in generated model.
     pub omit_model_debug: bool,
-    /// Whether output for e.g. diagnosis shall be stable/redacted so it can be used in test
-    /// output.
+    /// Whether output for e.g. diagnosis shall be stable/redacted so it can be
+    /// used in test output.
     pub stable_test_output: bool,
-    /// [deprecated] Whether to emit global axiom that resources are well-formed.
+    /// \[deprecated\] Whether to emit global axiom that resources are
+    /// well-formed.
     pub resource_wellformed_axiom: bool,
-    /// Whether to assume wellformedness when elements are read from memory, instead of on
-    /// function entry.
+    /// Whether to assume wellformedness when elements are read from memory,
+    /// instead of on function entry.
     pub assume_wellformed_on_access: bool,
     /// Indicates that we should do any mutations
     pub mutation: bool,
-    /// Indicates that we should use the add-subtract mutation on the given block
+    /// Indicates that we should use the add-subtract mutation on the given
+    /// block
     pub mutation_add_sub: usize,
-    /// Indicates that we should use the subtract-add mutation on the given block
+    /// Indicates that we should use the subtract-add mutation on the given
+    /// block
     pub mutation_sub_add: usize,
-    /// Indicates that we should use the multiply-divide mutation on the given block
+    /// Indicates that we should use the multiply-divide mutation on the given
+    /// block
     pub mutation_mul_div: usize,
-    /// Indicates that we should use the divide-multiply mutation on the given block
+    /// Indicates that we should use the divide-multiply mutation on the given
+    /// block
     pub mutation_div_mul: usize,
     /// Whether to use the polymorphic boogie backend.
     pub boogie_poly: bool,
@@ -68,7 +75,8 @@ pub struct ProverOptions {
     pub report_severity: Severity,
     /// Whether to dump the transformed stackless bytecode to a file
     pub dump_bytecode: bool,
-    /// Whether to dump the control-flow graphs (in dot format) to files, one per each function
+    /// Whether to dump the control-flow graphs (in dot format) to files, one
+    /// per each function
     pub dump_cfg: bool,
     /// Number of Boogie instances to be run concurrently.
     pub num_instances: usize,
@@ -76,14 +84,16 @@ pub struct ProverOptions {
     pub sequential_task: bool,
     /// Whether to check the inconsistency
     pub check_inconsistency: bool,
-    /// Whether to consider a function that abort unconditionally as an inconsistency violation
+    /// Whether to consider a function that abort unconditionally as an
+    /// inconsistency violation
     pub unconditional_abort_as_inconsistency: bool,
-    /// Whether to run the transformation passes for concrete interpretation (instead of proving)
+    /// Whether to run the transformation passes for concrete interpretation
+    /// (instead of proving)
     pub for_interpretation: bool,
     /// Whether to skip loop analysis.
     pub skip_loop_analysis: bool,
-    /// Optional names of native methods (qualified with module name, e.g., m::foo) implementing
-    /// mutable borrow semantics
+    /// Optional names of native methods (qualified with module name, e.g.,
+    /// m::foo) implementing mutable borrow semantics
     pub borrow_natives: Vec<String>,
     /// Whether to ban convertion from int to bv at the boogie backend
     pub ban_int_2_bv: bool,

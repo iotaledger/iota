@@ -1,0 +1,41 @@
+processed 8 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 9-40:
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 6224400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 42-42:
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3 'view-object'. lines 44-44:
+Owner: Account Address ( A )
+Version: 2
+Contents: a::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}}
+
+task 4 'run'. lines 46-46:
+created: object(4,0)
+mutated: object(0,0)
+wrapped: object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+
+task 5 'view-object'. lines 48-48:
+Owner: Account Address ( A )
+Version: 3
+Contents: a::m::T {id: iota::object::UID {id: iota::object::ID {bytes: fake(4,0)}}, s: a::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}}}
+
+task 6 'run'. lines 50-50:
+mutated: object(0,0)
+unwrapped: object(2,0)
+deleted: object(4,0)
+gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
+
+task 7 'view-object'. lines 52-52:
+Owner: Account Address ( A )
+Version: 4
+Contents: a::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}}

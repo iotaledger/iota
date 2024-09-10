@@ -1,9 +1,12 @@
-import { TransactionBlock } from "@mysten/sui.js/transactions";
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { Button, Container } from "@radix-ui/themes";
 import {
   useSignAndExecuteTransactionBlock,
-  useSuiClient,
-} from "@mysten/dapp-kit";
+  useIotaClient,
+} from "@iota/dapp-kit";
 import { useNetworkVariable } from "./networkConfig";
 
 export function CreateCounter({
@@ -11,7 +14,7 @@ export function CreateCounter({
 }: {
   onCreated: (id: string) => void;
 }) {
-  const client = useSuiClient();
+  const client = useIotaClient();
   const counterPackageId = useNetworkVariable("counterPackageId");
   const { mutate: signAndExecute } = useSignAndExecuteTransactionBlock();
 

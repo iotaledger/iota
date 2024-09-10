@@ -1,0 +1,66 @@
+# IDE
+**/.history/
+**/.vscode/
+**/.idea/
+
+# OSX
+.DS_Store/
+
+# Rust build directory
+**/target/
+.pre-commit*
+
+# Move build directory
+build/
+!crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build/
+!crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build/
+
+# Move-related files
+.trace
+.coverage_map.mvcov
+
+# Thumbnails
+._*
+
+# Emacs
+\#*\#
+.\#*
+
+# Python
+.pyc
+
+# Node.js
+node_modules/
+.tsbuildinfo
+*.tsbuildinfo
+.turbo
+
+# App build directories
+dist/
+storybook-static/
+web-ext-artifacts/
+.next/
+next-env.d.ts
+
+# App test artifacts
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# logs
+wallet.log.*
+iota.log.*
+.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# misc
+*.key
+.env
+checkpoints_dir/*
+light_client.yaml
+
+lcov.info
+**/venv/
