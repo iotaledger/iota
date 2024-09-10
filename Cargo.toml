@@ -2,7 +2,6 @@
 resolver = "2"
 
 exclude = [
-  "examples/tic-tac-toe/cli",
   "external-crates/move/crates/bytecode-interpreter-crypto",
   "external-crates/move/crates/bytecode-verifier-libfuzzer",
   "external-crates/move/crates/bytecode-verifier-tests",
@@ -127,7 +126,6 @@ members = [
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
-  "crates/iota-security-watchdog",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
