@@ -43,6 +43,7 @@ fn build_system_packages() {
     let iota_system_path = packages_path.join("iota-system");
     let iota_framework_path = packages_path.join("iota-framework");
     let move_stdlib_path = packages_path.join("move-stdlib");
+    let stardust_path = packages_path.join("stardust");
 
     build_packages(
         &bridge_path,
@@ -50,6 +51,7 @@ fn build_system_packages() {
         &iota_system_path,
         &iota_framework_path,
         &move_stdlib_path,
+        &stardust_path,
         out_dir,
     );
 
@@ -67,8 +69,8 @@ fn check_diff(checked_in: &Path, built: &Path) {
             .unwrap();
         if !output.status.success() {
             let header = "Generated and checked-in iota-framework packages and/or docs do not match.\n\
-                 Re-run with `UPDATE=1` to update checked-in packages and docs. e.g.\n\n\
-                 UPDATE=1 cargo test -p iota-framework --test build-system-packages";
+                Re-run with `UPDATE=1` to update checked-in packages and docs. e.g.\n\n\
+                UPDATE=1 cargo test -p iota-framework --test build-system-packages";
 
             panic!(
                 "{header}\n\n{}\n\n{}",
@@ -85,6 +87,7 @@ fn build_packages(
     iota_system_path: &Path,
     iota_framework_path: &Path,
     stdlib_path: &Path,
+    stardust_path: &Path,
     out_dir: &Path,
 ) {
     let config = MoveBuildConfig {
@@ -102,12 +105,14 @@ fn build_packages(
         iota_system_path,
         iota_framework_path,
         stdlib_path,
+        stardust_path,
         out_dir,
         "bridge",
         "deepbook",
         "iota-system",
         "iota-framework",
         "move-stdlib",
+        "stardust",
         config,
     );
 }
@@ -118,12 +123,14 @@ fn build_packages_with_move_config(
     iota_system_path: &Path,
     iota_framework_path: &Path,
     stdlib_path: &Path,
+    stardust_path: &Path,
     out_dir: &Path,
     bridge_dir: &str,
     deepbook_dir: &str,
     system_dir: &str,
     framework_dir: &str,
     stdlib_dir: &str,
+    stardust_dir: &str,
     config: MoveBuildConfig,
 ) {
     let stdlib_pkg = BuildConfig {
@@ -166,12 +173,21 @@ fn build_packages_with_move_config(
     }
     .build(bridge_path)
     .unwrap();
+    let stardust_pkg = BuildConfig {
+        config,
+        run_bytecode_verifier: true,
+        print_diags_to_stderr: false,
+        chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+    }
+    .build(stardust_path)
+    .unwrap();
 
     let move_stdlib = stdlib_pkg.get_stdlib_modules();
     let iota_system = system_pkg.get_iota_system_modules();
     let iota_framework = framework_pkg.get_iota_framework_modules();
     let deepbook = deepbook_pkg.get_deepbook_modules();
     let bridge = bridge_pkg.get_bridge_modules();
+    let stardust = stardust_pkg.get_stardust_modules();
 
     let compiled_packages_dir = out_dir.join(COMPILED_PACKAGES_DIR);
 
@@ -186,6 +202,8 @@ fn build_packages_with_move_config(
         serialize_modules_to_file(bridge, &compiled_packages_dir.join(bridge_dir)).unwrap();
     let stdlib_members =
         serialize_modules_to_file(move_stdlib, &compiled_packages_dir.join(stdlib_dir)).unwrap();
+    let stardust_members =
+        serialize_modules_to_file(stardust, &compiled_packages_dir.join(stardust_dir)).unwrap();
 
     // write out generated docs
     let docs_dir = out_dir.join(DOCS_DIR);
@@ -210,6 +228,11 @@ fn build_packages_with_move_config(
         &bridge_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
+    relocate_docs(
+        stardust_dir,
+        &stardust_pkg.package.compiled_docs.unwrap(),
+        &mut files_to_write,
+    );
     for (fname, doc) in files_to_write {
         let dst_path = docs_dir.join(fname);
         fs::create_dir_all(dst_path.parent().unwrap()).unwrap();
@@ -222,6 +245,7 @@ fn build_packages_with_move_config(
         deepbook_members.join("\n"),
         bridge_members.join("\n"),
         stdlib_members.join("\n"),
+        stardust_members.join("\n"),
     ]
     .join("\n");
 
