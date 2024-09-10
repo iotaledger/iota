@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 use anyhow::{Context, Result};
 use fastcrypto::{
@@ -18,7 +23,6 @@ use iota_types::{
     deny_list_v1::{get_coin_deny_list, PerTypeDenyList},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::{
         get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
         IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,

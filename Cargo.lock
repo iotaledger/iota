@@ -5416,9 +5416,11 @@ dependencies = [
  "anyhow",
  "bcs",
  "clap",
+ "consensus-config",
  "csv",
  "dirs 5.0.1",
  "fastcrypto",
+ "insta",
  "iota-keys",
  "iota-protocol-config",
  "iota-types",
@@ -5431,6 +5433,7 @@ dependencies = [
  "serde",
  "serde_with",
  "serde_yaml",
+ "tempfile",
  "tracing",
 ]
 
