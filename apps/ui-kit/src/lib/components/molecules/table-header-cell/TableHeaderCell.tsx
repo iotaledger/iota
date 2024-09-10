@@ -105,7 +105,7 @@ export function TableHeaderCell({
                         onCheckedChange={onCheckboxChange}
                     />
                 ) : (
-                    <span>{label}</span>
+                    <span className={cx({ 'text-left': !isContentCentered })}>{label}</span>
                 )}
                 {hasSort && sortOrder === TableHeaderCellSortOrder.Asc && (
                     <SortByUp className="cursor-pointer" onClick={handleSort} />

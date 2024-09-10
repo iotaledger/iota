@@ -23,10 +23,10 @@ import {
 } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
-import { validatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
+import { generateValidatorsTableData } from '~/lib/ui';
 
 function IotaStats({
     amount,
@@ -71,15 +71,15 @@ export default function EpochDetail() {
     );
 
     const validatorsTable = useMemo(() => {
-        if (!epochData?.validators) return null;
+        if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData(
-            [...epochData.validators].sort(() => 0.5 - Math.random()),
-            [],
-            [],
-            null,
-        );
+        return generateValidatorsTableData({
+            validators: [...epochData.validators].sort(() => 0.5 - Math.random()),
+            atRiskValidators: [],
+            validatorEvents: [],
+            rollingAverageApys: null,
+        });
     }, [epochData]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;

@@ -4,234 +4,16 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import {
-    formatPercentageDisplay,
-    roundFloat,
-    useGetValidatorsApy,
-    useGetValidatorsEvents,
-    type ApyByValidator,
-} from '@iota/core';
+import { roundFloat, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { Heading, Text } from '@iota/ui';
+import { Heading } from '@iota/ui';
 import { lazy, Suspense, useMemo } from 'react';
+import { generateValidatorsTableData } from '~/lib/ui/utils';
 
-import { DelegationAmount, ErrorBoundary, PageLayout, StakeColumn } from '~/components';
-import {
-    Banner,
-    Card,
-    ImageIcon,
-    Link,
-    PlaceholderTable,
-    Stats,
-    TableCard,
-    TableHeader,
-    Tooltip,
-} from '~/components/ui';
-import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
-import { ampli, getValidatorMoveEvent } from '~/lib/utils';
+import { DelegationAmount, ErrorBoundary, PageLayout } from '~/components';
+import { Banner, Card, PlaceholderTable, Stats, TableCard, TableHeader } from '~/components/ui';
 
 const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
-
-export function validatorsTableData(
-    validators: IotaValidatorSummary[],
-    atRiskValidators: [string, string][],
-    validatorEvents: IotaEvent[],
-    rollingAverageApys: ApyByValidator | null,
-) {
-    return {
-        data: [...validators]
-            .sort(() => 0.5 - Math.random())
-            .map((validator) => {
-                const validatorName = validator.name;
-                const totalStake = validator.stakingPoolIotaBalance;
-                const img = validator.imageUrl;
-
-                const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
-                    pool_staking_reward?: string;
-                };
-
-                const atRiskValidator = atRiskValidators.find(
-                    ([address]) => address === validator.iotaAddress,
-                );
-                const isAtRisk = !!atRiskValidator;
-                const lastReward = event?.pool_staking_reward ?? null;
-                const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
-                    apy: null,
-                };
-
-                return {
-                    name: {
-                        name: validatorName,
-                        logo: validator.imageUrl,
-                    },
-                    stake: totalStake,
-                    apy: {
-                        apy,
-                        isApyApproxZero,
-                    },
-                    nextEpochGasPrice: validator.nextEpochGasPrice,
-                    commission: Number(validator.commissionRate) / 100,
-                    img: img,
-                    address: validator.iotaAddress,
-                    lastReward: lastReward ?? null,
-                    votingPower: Number(validator.votingPower) / 100,
-                    atRisk: isAtRisk
-                        ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
-                        : null,
-                };
-            }),
-        columns: [
-            {
-                header: '#',
-                accessorKey: 'number',
-                cell: (props: any) => (
-                    <Text variant="bodySmall/medium" color="steel-dark">
-                        {props.table.getSortedRowModel().flatRows.indexOf(props.row) + 1}
-                    </Text>
-                ),
-            },
-            {
-                header: 'Name',
-                accessorKey: 'name',
-                enableSorting: true,
-                sortingFn: (a: any, b: any, colId: string) =>
-                    a.getValue(colId).name.localeCompare(b.getValue(colId).name, 'en', {
-                        sensitivity: 'base',
-                        numeric: true,
-                    }),
-                cell: (props: any) => {
-                    const { name, logo } = props.getValue();
-                    return (
-                        <Link
-                            to={`/validator/${encodeURIComponent(props.row.original.address)}`}
-                            onClick={() =>
-                                ampli.clickedValidatorRow({
-                                    sourceFlow: 'Epoch details',
-                                    validatorAddress: props.row.original.address,
-                                    validatorName: name,
-                                })
-                            }
-                        >
-                            <div className="flex items-center gap-2.5">
-                                <ImageIcon
-                                    src={logo}
-                                    size="sm"
-                                    label={name}
-                                    fallback={name}
-                                    circle
-                                />
-                                <Text variant="bodySmall/medium" color="steel-darker">
-                                    {name}
-                                </Text>
-                            </div>
-                        </Link>
-                    );
-                },
-            },
-            {
-                header: 'Stake',
-                accessorKey: 'stake',
-                enableSorting: true,
-                cell: (props: any) => <StakeColumn stake={props.getValue()} />,
-            },
-            {
-                header: 'Proposed Next Epoch Gas Price',
-                accessorKey: 'nextEpochGasPrice',
-                enableSorting: true,
-                cell: (props: any) => <StakeColumn stake={props.getValue()} inNano />,
-            },
-            {
-                header: 'APY',
-                accessorKey: 'apy',
-                enableSorting: true,
-                sortingFn: (a: any, b: any, colId: string) =>
-                    a.getValue(colId)?.apy < b.getValue(colId)?.apy ? -1 : 1,
-                cell: (props: any) => {
-                    const { apy, isApyApproxZero } = props.getValue();
-                    return (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            {formatPercentageDisplay(apy, '--', isApyApproxZero)}
-                        </Text>
-                    );
-                },
-            },
-            {
-                header: 'Commission',
-                accessorKey: 'commission',
-                enableSorting: true,
-                cell: (props: any) => {
-                    const commissionRate = props.getValue();
-                    return (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            {commissionRate}%
-                        </Text>
-                    );
-                },
-            },
-            {
-                header: 'Last Epoch Rewards',
-                accessorKey: 'lastReward',
-                enableSorting: true,
-                cell: (props: any) => {
-                    const lastReward = props.getValue();
-                    return lastReward !== null ? (
-                        <StakeColumn stake={Number(lastReward)} />
-                    ) : (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            --
-                        </Text>
-                    );
-                },
-            },
-            {
-                header: 'Voting Power',
-                accessorKey: 'votingPower',
-                enableSorting: true,
-                cell: (props: any) => {
-                    const votingPower = props.getValue();
-                    return (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            {votingPower}%
-                        </Text>
-                    );
-                },
-            },
-            {
-                header: 'Status',
-                accessorKey: 'atRisk',
-                cell: (props: any) => {
-                    const atRisk = props.getValue();
-                    const label = 'At Risk';
-                    return atRisk !== null ? (
-                        <Tooltip
-                            tip="Staked IOTA is below the minimum IOTA stake threshold to remain a validator."
-                            onOpen={() =>
-                                ampli.activatedTooltip({
-                                    tooltipLabel: label,
-                                })
-                            }
-                        >
-                            <div className="flex cursor-pointer flex-nowrap items-center">
-                                <Text color="issue" variant="bodySmall/medium">
-                                    {label}
-                                </Text>
-                                &nbsp;
-                                <Text uppercase variant="bodySmall/medium" color="steel-dark">
-                                    {atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch'}
-                                </Text>
-                            </div>
-                        </Tooltip>
-                    ) : (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            Active
-                        </Text>
-                    );
-                },
-            },
-        ],
-    };
-}
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -286,12 +68,12 @@ function ValidatorPageResult(): JSX.Element {
 
     const validatorsTable = useMemo(() => {
         if (!data || !validatorEvents) return null;
-        return validatorsTableData(
-            data.activeValidators,
-            data.atRiskValidators,
+        return generateValidatorsTableData({
+            validators: data.activeValidators,
+            atRiskValidators: data.atRiskValidators,
             validatorEvents,
-            validatorsApy || null,
-        );
+            rollingAverageApys: validatorsApy || null,
+        });
     }, [data, validatorEvents, validatorsApy]);
 
     return (
@@ -384,7 +166,7 @@ function ValidatorPageResult(): JSX.Element {
                                     <TableCard
                                         data={validatorsTable.data}
                                         columns={validatorsTable.columns}
-                                        sortTable
+                                        areHeadersCentered={false}
                                     />
                                 )}
                             </ErrorBoundary>

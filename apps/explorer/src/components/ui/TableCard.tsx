@@ -28,6 +28,7 @@ export interface TableCardProps<DataType extends object> {
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
+    areHeadersCentered?: boolean;
 }
 
 export function TableCard<DataType extends object>({
@@ -36,6 +37,7 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    areHeadersCentered,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -90,6 +92,7 @@ export function TableCard<DataType extends object>({
                                             ? column.getToggleSortingHandler()
                                             : undefined
                                     }
+                                    isContentCentered={areHeadersCentered}
                                 />
                             ))}
                         </TableHeaderRow>

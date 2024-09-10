@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import React from 'react';
 import { BadgeType, Badge, Checkbox, ButtonUnstyled } from '../../atoms';
-import { TableCellType } from './table-cell.enums';
+import { TableCellTextColor, TableCellType } from './table-cell.enums';
 import { Copy } from '@iota/ui-icons';
 import cx from 'classnames';
+
 interface TableCellBaseProps {
     /**
      * The label of the cell.
@@ -18,6 +19,14 @@ interface TableCellBaseProps {
      * Whether the cell content should be centered.
      */
     isContentCentered?: boolean;
+    /**
+     * The color of the text.
+     */
+    textColor?: TableCellTextColor;
+    /**
+     * Whether to not wrap the text in the cell.
+     */
+    noWrap?: boolean;
 }
 
 type TableCellText = {
@@ -113,6 +122,17 @@ type TableCellLink = {
     isExternal?: boolean;
 };
 
+type TableCellCustom = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Custom;
+    /**
+     * The custom content of the cell.
+     */
+    renderCell: () => React.ReactNode;
+};
+
 export type TableCellProps = TableCellBaseProps &
     (
         | TableCellText
@@ -122,12 +142,18 @@ export type TableCellProps = TableCellBaseProps &
         | TableCellCheckbox
         | TableCellPlaceholder
         | TableCellLink
+        | TableCellCustom
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
-    const { type, label, hasLastBorderNoneClass, isContentCentered } = props;
+    const {
+        type,
+        label,
+        hasLastBorderNoneClass,
+        isContentCentered,
+        textColor: textColorClass = TableCellTextColor.Default,
+    } = props;
 
-    const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
 
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
@@ -145,10 +171,16 @@ export function TableCell(props: TableCellProps): JSX.Element {
     const Cell = () => {
         switch (type) {
             case TableCellType.Text:
-                const { supportingLabel } = props;
+                const { supportingLabel, noWrap } = props;
                 return (
                     <div className="flex flex-row items-baseline gap-1">
-                        <span className={cx(textColorClass, textSizeClass)}>{label}</span>
+                        <span
+                            className={cx(textColorClass, textSizeClass, {
+                                'whitespace-nowrap': noWrap,
+                            })}
+                        >
+                            {label}
+                        </span>
                         {supportingLabel && (
                             <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
                                 {supportingLabel}
@@ -221,7 +253,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 { 'flex items-center justify-center': isContentCentered },
             )}
         >
-            <Cell />
+            {type !== TableCellType.Custom ? <Cell /> : props.renderCell()}
         </td>
     );
 }
