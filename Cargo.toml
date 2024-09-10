@@ -65,7 +65,6 @@ exclude = [
 members = [
   "consensus/config",
   "consensus/core",
-  "crates/anemo-benchmark",
   "crates/bin-version",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
@@ -117,21 +116,18 @@ members = [
   "crates/iota-node",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
-  "crates/iota-oracle",
   "crates/iota-package-dump",
   "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
-  "crates/iota-proxy",
   "crates/iota-replay",
   "crates/iota-rest-api",
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
   "crates/iota-security-watchdog",
-  "crates/iota-service",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
@@ -141,7 +137,6 @@ members = [
   "crates/iota-surfer",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
-  "crates/iota-telemetry",
   "crates/iota-test-transaction-builder",
   "crates/iota-test-validator",
   "crates/iota-tls",
@@ -154,8 +149,6 @@ members = [
   "crates/iota-util-mem",
   "crates/iota-util-mem-derive",
   "crates/iota-verifier-transactional-tests",
-  "crates/iotans-indexer",
-  "crates/iotaop-cli",
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
   "crates/simulacrum",
@@ -592,7 +585,6 @@ iota-sdk2 = { package = "sui-sdk", git = "https://github.com/mystenlabs/sui-rust
 ] }
 
 ### Workspace Members ###
-anemo-benchmark = { path = "crates/anemo-benchmark" }
 bin-version = { path = "crates/bin-version" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
@@ -644,13 +636,11 @@ iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
-iota-proxy = { path = "crates/iota-proxy" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-service = { path = "crates/iota-service" }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -659,7 +649,6 @@ iota-storage = { path = "crates/iota-storage" }
 iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
-iota-telemetry = { path = "crates/iota-telemetry" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-test-validator = { path = "crates/iota-test-validator" }
 iota-tls = { path = "crates/iota-tls" }
