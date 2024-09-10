@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 move-core-types.workspace = true
+once_cell.workspace = true
 proptest.workspace = true
 proptest-derive.workspace = true
 rand.workspace = true
