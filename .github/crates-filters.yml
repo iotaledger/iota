@@ -140,6 +140,8 @@ iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
 iota-test-validator:
   - "crates/iota-test-validator/**"
+iota-tls:
+  - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
 iota-transaction-builder:
