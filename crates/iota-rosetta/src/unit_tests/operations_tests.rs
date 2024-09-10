@@ -4,7 +4,7 @@
 
 use iota_json_rpc_types::IotaCallArg;
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber, TransactionDigest},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
 };
@@ -38,7 +38,9 @@ async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    let ops: Operations = data.clone().try_into()?;
+    let ops: Operations = (data.clone(), TransactionDigest::default())
+        .clone()
+        .try_into()?;
     let metadata = ConstructionMetadata {
         sender,
         coins: vec![gas],

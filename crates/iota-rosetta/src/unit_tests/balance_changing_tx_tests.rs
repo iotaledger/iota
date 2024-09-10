@@ -24,6 +24,7 @@ use iota_sdk::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
+    digests::TransactionDigest,
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -635,7 +636,10 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
         budget: rgp * TEST_ONLY_GAS_UNIT_FOR_STAKING,
     };
     let parsed_data = ops.clone().into_internal()?.try_into_data(metadata)?;
-    assert_eq!(ops, Operations::try_from(parsed_data)?);
+    assert_eq!(
+        ops,
+        Operations::try_from((parsed_data, TransactionDigest::default()))?
+    );
 
     Ok(())
 }

@@ -467,7 +467,7 @@ impl ReadApi {
 
         let converted_tx_block_resps = temp_response
             .into_iter()
-            .map(|c| convert_to_response(c.1, &opts, epoch_store.module_cache(), c.0.clone()))
+            .map(|c| convert_to_response(c.1, &opts, epoch_store.module_cache(), *c.0))
             .collect::<Result<Vec<_>, _>>()?;
 
         self.metrics

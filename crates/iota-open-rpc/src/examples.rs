@@ -709,7 +709,7 @@ impl RpcExampleProvider {
             }
         }
         let result = IotaTransactionBlockResponse {
-            digest: tx_digest.clone(),
+            digest: *tx_digest,
             effects: Some(IotaTransactionBlockEffects::V1(
                 IotaTransactionBlockEffectsV1 {
                     status: IotaExecutionStatus::Success,

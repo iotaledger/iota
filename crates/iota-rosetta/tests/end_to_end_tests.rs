@@ -162,7 +162,7 @@ async fn test_stake() {
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest.clone(),
+            tx_digest,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -179,7 +179,7 @@ async fn test_stake() {
         tx.effects.as_ref().unwrap().status()
     );
 
-    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
+    let ops2 = Operations::try_from(tx).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -224,7 +224,7 @@ async fn test_stake_all() {
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest.clone(),
+            tx_digest,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -241,7 +241,7 @@ async fn test_stake_all() {
         tx.effects.as_ref().unwrap().status()
     );
 
-    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
+    let ops2 = Operations::try_from(tx).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -293,7 +293,7 @@ async fn test_withdraw_stake() {
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest.clone(),
+            tx_digest,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -345,7 +345,7 @@ async fn test_withdraw_stake() {
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest.clone(),
+            tx_digest,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -361,7 +361,7 @@ async fn test_withdraw_stake() {
     );
     println!("Iota TX: {tx:?}");
 
-    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
+    let ops2 = Operations::try_from(tx).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -416,7 +416,7 @@ async fn test_pay_iota() {
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            response.transaction_identifier.hash,
+            tx_digest,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -432,7 +432,7 @@ async fn test_pay_iota() {
     );
     println!("Iota TX: {tx:?}");
 
-    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
+    let ops2 = Operations::try_from(tx).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -478,7 +478,7 @@ async fn test_pay_iota_multiple_times() {
         let tx = client
             .read_api()
             .get_transaction_with_options(
-                tx_digest.clone(),
+                tx_digest,
                 IotaTransactionBlockResponseOptions::new()
                     .with_input()
                     .with_effects()
@@ -493,7 +493,7 @@ async fn test_pay_iota_multiple_times() {
             tx.effects.as_ref().unwrap().status()
         );
 
-        let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
+        let ops2 = Operations::try_from(tx).unwrap();
         assert!(
             ops2.contains(&ops),
             "Operation mismatch. expecting:{}, got:{}",
