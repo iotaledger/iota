@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module dynamic_fields::dynamic_fields_test {
-    use sui::dynamic_field as dfield;
-    use sui::dynamic_object_field as dof;
-    use sui::object::{Self, UID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
+    use iota::dynamic_field as dfield;
+    use iota::dynamic_object_field as dof;
+    use iota::object::{Self, UID};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer;
 
     struct Test has key {
         id: UID,

@@ -10,12 +10,11 @@ Move has a number of tools associated with it. This directory contains all,
 or almost all of them. The following crates in this directory are libraries
 that are used by the [`move-cli`](./move-cli) `package` subcommand:
 
-* `move-bytecode-viewer`
-* `move-disassembler`
-* `move-explain`
-* `move-unit-test`
-* `move-package`
-* `move-coverage`
+- `move-bytecode-viewer`
+- `move-disassembler`
+- `move-unit-test`
+- `move-package`
+- `move-coverage`
 
 In this sense each of these crates defines the core logic for a specific
 package command, e.g., how to run and report unit tests, or collect and
@@ -36,7 +35,7 @@ handled for the `move-bytecode-viewer` that's defined in the
 `move-bytecode-viewer` crate, and not the `move-cli` crate).
 
 Some of the crates mentioned above are also binaries at the moment, however
-they should all be able to be made libaries only, with the possible
+they should all be able to be made libraries only, with the possible
 exception of the `move-coverage` crate. The primary reason for this, is
 that this tool can collect and report test coverage statistics across
 multiple packages, and multiple runs over a package. This functionality is

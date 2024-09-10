@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -19,9 +20,12 @@ use fastcrypto::hash::{Digest, HashFunction};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
-use crate::error::ConsensusResult;
-use crate::{commit::CommitRef, context::Context};
-use crate::{ensure, error::ConsensusError};
+use crate::{
+    commit::CommitRef,
+    context::Context,
+    ensure,
+    error::{ConsensusError, ConsensusResult},
+};
 
 pub(crate) const GENESIS_ROUND: Round = 0;
 
@@ -39,7 +43,7 @@ pub fn timestamp_utc_ms() -> BlockTimestampMs {
     }
 }
 
-/// Sui transaction in serialised bytes
+/// Iota transaction in serialised bytes
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub struct Transaction {
     data: Bytes,
@@ -59,10 +63,10 @@ impl Transaction {
     }
 }
 
-/// A block includes references to previous round blocks and transactions that the authority
-/// considers valid.
-/// Well behaved authorities produce at most one block per round, but malicious authorities can
-/// equivocate.
+/// A block includes references to previous round blocks and transactions that
+/// the authority considers valid.
+/// Well behaved authorities produce at most one block per round, but malicious
+/// authorities can equivocate.
 #[derive(Clone, Deserialize, Serialize)]
 #[enum_dispatch(BlockAPI)]
 pub enum Block {
@@ -161,8 +165,9 @@ impl BlockAPI for BlockV1 {
     }
 }
 
-/// `BlockRef` uniquely identifies a `VerifiedBlock` via `digest`. It also contains the slot
-/// info (round and author) so it can be used in logic such as aggregating stakes for a round.
+/// `BlockRef` uniquely identifies a `VerifiedBlock` via `digest`. It also
+/// contains the slot info (round and author) so it can be used in logic such as
+/// aggregating stakes for a round.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlockRef {
     pub round: Round,
@@ -199,11 +204,12 @@ impl Hash for BlockRef {
     }
 }
 
-/// Digest of a `VerifiedBlock` or verified `SignedBlock`, which covers the `Block` and its
-/// signature.
+/// Digest of a `VerifiedBlock` or verified `SignedBlock`, which covers the
+/// `Block` and its signature.
 ///
-/// Note: the signature algorithm is assumed to be non-malleable, so it is impossible for another
-/// party to create an altered but valid signature, producing an equivocating `BlockDigest`.
+/// Note: the signature algorithm is assumed to be non-malleable, so it is
+/// impossible for another party to create an altered but valid signature,
+/// producing an equivocating `BlockDigest`.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlockDigest([u8; consensus_config::DIGEST_LENGTH]);
 
@@ -253,8 +259,8 @@ impl AsRef<[u8]> for BlockDigest {
     }
 }
 
-/// Slot is the position of blocks in the DAG. It can contain 0, 1 or multiple blocks
-/// from the same authority at the same round.
+/// Slot is the position of blocks in the DAG. It can contain 0, 1 or multiple
+/// blocks from the same authority at the same round.
 #[derive(Clone, Copy, PartialEq, PartialOrd, Default, Hash)]
 pub struct Slot {
     pub round: Round,
@@ -296,8 +302,9 @@ impl fmt::Debug for Slot {
 
 /// A Block with its signature, before they are verified.
 ///
-/// Note: `BlockDigest` is computed over this struct, so any added field (without `#[serde(skip)]`)
-/// will affect the values of `BlockDigest` and `BlockRef`.
+/// Note: `BlockDigest` is computed over this struct, so any added field
+/// (without `#[serde(skip)]`) will affect the values of `BlockDigest` and
+/// `BlockRef`.
 #[derive(Deserialize, Serialize)]
 pub(crate) struct SignedBlock {
     inner: Block,
@@ -325,8 +332,8 @@ impl SignedBlock {
         &self.signature
     }
 
-    /// This method only verifies this block's signature. Verification of the full block
-    /// should be done via BlockVerifier.
+    /// This method only verifies this block's signature. Verification of the
+    /// full block should be done via BlockVerifier.
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
         let block = &self.inner;
         let committee = &context.committee;
@@ -356,7 +363,8 @@ impl SignedBlock {
 
 /// Digest of a block, covering all `Block` fields without its signature.
 /// This is used during Block signing and signature verification.
-/// This should never be used outside of this file, to avoid confusion with `BlockDigest`.
+/// This should never be used outside of this file, to avoid confusion with
+/// `BlockDigest`.
 #[derive(Serialize, Deserialize)]
 struct InnerBlockDigest([u8; consensus_config::DIGEST_LENGTH]);
 
@@ -400,7 +408,8 @@ fn verify_block_signature(
         .map_err(ConsensusError::SignatureVerificationFailure)
 }
 
-/// Allow quick access on the underlying Block without having to always refer to the inner block ref.
+/// Allow quick access on the underlying Block without having to always refer to
+/// the inner block ref.
 impl Deref for SignedBlock {
     type Target = Block;
 
@@ -421,7 +430,8 @@ pub struct VerifiedBlock {
 }
 
 impl VerifiedBlock {
-    /// Creates VerifiedBlock from a verified SignedBlock and its serialized bytes.
+    /// Creates VerifiedBlock from a verified SignedBlock and its serialized
+    /// bytes.
     pub(crate) fn new_verified(signed_block: SignedBlock, serialized: Bytes) -> Self {
         let digest = Self::compute_digest(&serialized);
         VerifiedBlock {
@@ -475,7 +485,8 @@ impl VerifiedBlock {
     }
 }
 
-/// Allow quick access on the underlying Block without having to always refer to the inner block ref.
+/// Allow quick access on the underlying Block without having to always refer to
+/// the inner block ref.
 impl Deref for VerifiedBlock {
     type Target = Block;
 
@@ -593,9 +604,11 @@ mod tests {
 
     use fastcrypto::error::FastCryptoError;
 
-    use crate::block::{SignedBlock, TestBlock};
-    use crate::context::Context;
-    use crate::error::ConsensusError;
+    use crate::{
+        block::{SignedBlock, TestBlock},
+        context::Context,
+        error::ConsensusError,
+    };
 
     #[test]
     fn test_sign_and_verify() {

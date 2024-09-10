@@ -1,16 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::block::Round;
-use crate::context::Context;
-use crate::core::CoreSignalsReceivers;
-use crate::core_thread::CoreThreadDispatcher;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::oneshot::{Receiver, Sender};
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tokio::time::{sleep_until, Instant};
+
+use std::{sync::Arc, time::Duration};
+
+use tokio::{
+    sync::{
+        oneshot::{Receiver, Sender},
+        watch,
+    },
+    task::JoinHandle,
+    time::{sleep_until, Instant},
+};
 use tracing::{debug, warn};
+
+use crate::{
+    block::Round, context::Context, core::CoreSignalsReceivers, core_thread::CoreThreadDispatcher,
+};
 
 pub(crate) struct LeaderTimeoutTaskHandle {
     handle: JoinHandle<()>,
@@ -32,6 +38,8 @@ pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
 }
 
 impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
+    /// Starts the leader timeout task, which monitors and manages the leader
+    /// election timeout mechanism.
     pub fn start(
         dispatcher: Arc<D>,
         signals_receivers: &CoreSignalsReceivers,
@@ -52,6 +60,12 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
         }
     }
 
+    /// Runs the leader timeout task, managing the leader election timeout
+    /// mechanism in an asynchronous loop.
+    /// This mechanism ensures that if the current leader fails to produce a new
+    /// block within the specified timeout, the task forces the creation of a
+    /// new block, maintaining the continuity and robustness of the leader
+    /// election process.
     async fn run(&mut self) {
         let new_round = &mut self.new_round_receiver;
         let mut leader_round: Round = *new_round.borrow_and_update();
@@ -96,20 +110,20 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use consensus_config::Parameters;
     use parking_lot::Mutex;
     use tokio::time::{sleep, Instant};
 
-    use crate::block::{BlockRef, Round, VerifiedBlock};
-    use crate::context::Context;
-    use crate::core::CoreSignals;
-    use crate::core_thread::{CoreError, CoreThreadDispatcher};
-    use crate::leader_timeout::LeaderTimeoutTask;
+    use crate::{
+        block::{BlockRef, Round, VerifiedBlock},
+        context::Context,
+        core::CoreSignals,
+        core_thread::{CoreError, CoreThreadDispatcher},
+        leader_timeout::LeaderTimeoutTask,
+    };
 
     #[derive(Clone, Default)]
     struct MockCoreThreadDispatcher {
@@ -204,8 +218,8 @@ mod tests {
         // spawn the task
         let _handle = LeaderTimeoutTask::start(dispatcher.clone(), &signal_receivers, context);
 
-        // now send some signals with some small delay between them, but not enough so every round
-        // manages to timeout and call the force new block method.
+        // now send some signals with some small delay between them, but not enough so
+        // every round manages to timeout and call the force new block method.
         signals.new_round(13);
         sleep(leader_timeout / 2).await;
         signals.new_round(14);

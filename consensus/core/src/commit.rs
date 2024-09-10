@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -31,22 +32,23 @@ pub(crate) const DEFAULT_WAVE_LENGTH: Round = MINIMUM_WAVE_LENGTH;
 /// We need at least one leader round, one voting round, and one decision round.
 pub(crate) const MINIMUM_WAVE_LENGTH: Round = 3;
 
-/// The consensus protocol operates in 'waves'. Each wave is composed of a leader
-/// round, at least one voting round, and one decision round.
+/// The consensus protocol operates in 'waves'. Each wave is composed of a
+/// leader round, at least one voting round, and one decision round.
 pub(crate) type WaveNumber = u32;
 
 /// Versioned representation of a consensus commit.
 ///
-/// Commit is used to persist commit metadata for recovery. It is also exchanged over the network.
-/// To balance being functional and succinct, a field must meet these requirements to be added
-/// to the struct:
+/// Commit is used to persist commit metadata for recovery. It is also exchanged
+/// over the network. To balance being functional and succinct, a field must
+/// meet these requirements to be added to the struct:
 /// - helps with recoverying CommittedSubDag locally and for peers catching up.
 /// - cannot be derived from a sequence of Commits and other persisted values.
 ///
-/// For example, transactions in blocks should not be included in Commit, because they can be
-/// retrieved from blocks specified in Commit. Last committed round per authority also should not
-/// be included, because it can be derived from the latest value in storage and the additional
-/// sequence of Commits.
+/// For example, transactions in blocks should not be included in Commit,
+/// because they can be retrieved from blocks specified in Commit. Last
+/// committed round per authority also should not be included, because it can be
+/// derived from the latest value in storage and the additional sequence of
+/// Commits.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[enum_dispatch(CommitAPI)]
 pub(crate) enum Commit {
@@ -80,17 +82,20 @@ impl Commit {
 pub(crate) trait CommitAPI {
     fn round(&self) -> Round;
     fn index(&self) -> CommitIndex;
+    #[allow(dead_code)]
     fn previous_digest(&self) -> CommitDigest;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
 }
 
 /// Specifies one consensus commit.
-/// It is stored on disk, so it does not contain blocks which are stored individually.
+/// It is stored on disk, so it does not contain blocks which are stored
+/// individually.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub(crate) struct CommitV1 {
     /// Index of the commit.
-    /// First commit after genesis has an index of 1, then every next commit has an index incremented by 1.
+    /// First commit after genesis has an index of 1, then every next commit has
+    /// an index incremented by 1.
     index: CommitIndex,
     /// Digest of the previous commit.
     /// Set to CommitDigest::MIN for the first commit after genesis.
@@ -123,8 +128,8 @@ impl CommitAPI for CommitV1 {
     }
 }
 
-/// A commit is trusted when it is produced locally or certified by a quorum of authorities.
-/// Blocks referenced by TrustedCommit are assumed to be valid.
+/// A commit is trusted when it is produced locally or certified by a quorum of
+/// authorities. Blocks referenced by TrustedCommit are assumed to be valid.
 /// Only trusted Commit can be sent to execution.
 ///
 /// Note: clone() is relatively cheap with the underlying data refcounted.
@@ -241,19 +246,21 @@ pub struct CommitRef {
     pub digest: CommitDigest,
 }
 
-/// The output of consensus is an ordered list of [`CommittedSubDag`]. The application
-/// can arbitrarily sort the blocks within each sub-dag (but using a deterministic algorithm).
+/// The output of consensus is an ordered list of [`CommittedSubDag`]. The
+/// application can arbitrarily sort the blocks within each sub-dag (but using a
+/// deterministic algorithm).
 #[derive(Clone, PartialEq)]
 pub struct CommittedSubDag {
     /// A reference to the leader of the sub-dag
     pub leader: BlockRef,
     /// All the committed blocks that are part of this sub-dag
     pub blocks: Vec<VerifiedBlock>,
-    /// The timestamp of the commit, obtained from the timestamp of the leader block.
+    /// The timestamp of the commit, obtained from the timestamp of the leader
+    /// block.
     pub timestamp_ms: BlockTimestampMs,
     /// Index of the commit.
-    /// First commit after genesis has a index of 1, then every next commit has a
-    /// index incremented by 1.
+    /// First commit after genesis has a index of 1, then every next commit has
+    /// a index incremented by 1.
     pub commit_index: CommitIndex,
 }
 
@@ -370,9 +377,9 @@ pub(crate) enum Decision {
     Indirect,
 }
 
-/// The status of every leader output by the committers. While the core only cares
-/// about committed leaders, providing a richer status allows for easier debugging,
-/// testing, and composition with advanced commit strategies.
+/// The status of every leader output by the committers. While the core only
+/// cares about committed leaders, providing a richer status allows for easier
+/// debugging, testing, and composition with advanced commit strategies.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
     Commit(VerifiedBlock),

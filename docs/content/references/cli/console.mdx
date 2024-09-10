@@ -1,49 +1,50 @@
 ---
-title: Sui Console CLI
-description: The Sui Console CLI provides command-level access to interact with the Sui network by wrapping the Sui Client CLI command.
+title: IOTA Console CLI
+description: The IOTA Console CLI provides command-level access to interact with the IOTA network by wrapping the IOTA Client CLI command.
 ---
 
-The Sui CLI `console` command provides command-level access to interact with the Sui network by wrapping the Sui Client CLI command in a shell-like functionality. This command spins up a new process and provides the user an environment for running all the available Sui Client CLI commands. In addition, it also offers command history support.
+import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
-{@include: ../../snippets/cli-check-install.mdx}
+The IOTA CLI `console` command provides command-level access to interact with the IOTA network by wrapping the IOTA Client CLI command in a shell-like functionality. This command spins up a new process and provides the user an environment for running all the available IOTA Client CLI commands. In addition, it also offers command history support.
+
+<CliCheckInstall />
 
 ## Commands
 
-For all available commands, consult the [Sui Client CLI docs](./client.mdx). To start the Sui Console, type `sui console`, which displays some information similar to the following: 
+For all available commands, consult the [IOTA Client CLI docs](./client.mdx). To start the IOTA Console, type `iota console`, which displays some information similar to the following: 
 
 ```shell
-🚀 ~ % sui console
-   _____       _    ______                       __
-  / ___/__  __(_)  / ____/___  ____  _________  / /__
-  \__ \/ / / / /  / /   / __ \/ __ \/ ___/ __ \/ / _ \
- ___/ / /_/ / /  / /___/ /_/ / / / (__  ) /_/ / /  __/
-/____/\__,_/_/   \____/\____/_/ /_/____/\____/_/\___/
---- Sui Console 1.14.0 ---
+🚀 ~ % iota console
+    ____      __           ______                       __   
+   /  _/___  / /_____ _   / ____/___  ____  _________  / /__ 
+   / // __ \/ __/ __ `/  / /   / __ \/ __ \/ ___/ __ \/ / _ \
+ _/ // /_/ / /_/ /_/ /  / /___/ /_/ / / / (__  ) /_/ / /  __/
+/___/\____/\__/\__,_/   \____/\____/_/ /_/____/\____/_/\___/ 
+--- IOTA Console 0.1.3 ---
 
-Managed addresses : 2
+Managed addresses: 2
 Active address: 0x3...235
-Keystore Type : File
-Keystore Path : Some("/Users/user/.sui/sui_config/sui.keystore")
-Active environment : testnet
-RPC URL: https://fullnode.testnet.sui.io:443
-[warn] Client/Server api version mismatch, client api version : 1.14.0, server api version : 1.13.0
-Connecting to Sui full node. API version 1.13.0
+Keystore Type: File
+Keystore Path: Some("/Users/user/.iota/iota_config/iota.keystore")
+Active environment: testnet
+RPC URL: https://fullnode.testnet.iota.io:443
+Connecting to IOTA full node. API version 1.13.0
 
-Available RPC methods: ["sui_devInspectTransactionBlock", "sui_dryRunTransactionBlock", "sui_executeTransactionBlock", 
-"sui_getChainIdentifier", "sui_getCheckpoint", "sui_getCheckpoints", "sui_getEvents", "sui_getLatestCheckpointSequenceNumber", 
-"sui_getLoadedChildObjects", "sui_getMoveFunctionArgTypes", "sui_getNormalizedMoveFunction", "sui_getNormalizedMoveModule", 
-"sui_getNormalizedMoveModulesByPackage", "sui_getNormalizedMoveStruct", "sui_getObject", "sui_getProtocolConfig", 
-"sui_getTotalTransactionBlocks", "sui_getTransactionBlock", "sui_multiGetObjects", "sui_multiGetTransactionBlocks", 
-"sui_tryGetPastObject", "sui_tryMultiGetPastObjects", "suix_getAllBalances", "suix_getAllCoins", "suix_getBalance", 
-"suix_getCoinMetadata", "suix_getCoins", "suix_getCommitteeInfo", "suix_getDynamicFieldObject", "suix_getDynamicFields", 
-"suix_getLatestSuiSystemState", "suix_getOwnedObjects", "suix_getReferenceGasPrice", "suix_getStakes", "suix_getStakesByIds", 
-"suix_getTotalSupply", "suix_getValidatorsApy", "suix_queryEvents", "suix_queryTransactionBlocks", "suix_resolveNameServiceAddress", 
-"suix_resolveNameServiceNames", "suix_subscribeEvent", "suix_subscribeTransaction", "unsafe_batchTransaction", "unsafe_mergeCoins", 
-"unsafe_moveCall", "unsafe_pay", "unsafe_payAllSui", "unsafe_paySui", "unsafe_publish", "unsafe_requestAddStake", 
-"unsafe_requestWithdrawStake", "unsafe_splitCoin", "unsafe_splitCoinEqual", "unsafe_transferObject", "unsafe_transferSui"]
+Available RPC methods: ["iota_devInspectTransactionBlock", "iota_dryRunTransactionBlock", "iota_executeTransactionBlock", 
+"iota_getChainIdentifier", "iota_getCheckpoint", "iota_getCheckpoints", "iota_getEvents", "iota_getLatestCheckpointSequenceNumber", 
+"iota_getLoadedChildObjects", "iota_getMoveFunctionArgTypes", "iota_getNormalizedMoveFunction", "iota_getNormalizedMoveModule", 
+"iota_getNormalizedMoveModulesByPackage", "iota_getNormalizedMoveStruct", "iota_getObject", "iota_getProtocolConfig", 
+"iota_getTotalTransactionBlocks", "iota_getTransactionBlock", "iota_multiGetObjects", "iota_multiGetTransactionBlocks", 
+"iota_tryGetPastObject", "iota_tryMultiGetPastObjects", "iotax_getAllBalances", "iotax_getAllCoins", "iotax_getBalance", 
+"iotax_getCoinMetadata", "iotax_getCoins", "iotax_getCommitteeInfo", "iotax_getDynamicFieldObject", "iotax_getDynamicFields", 
+"iotax_getLatestIOTASystemState", "iotax_getOwnedObjects", "iotax_getReferenceGasPrice", "iotax_getStakes", "iotax_getStakesByIds", 
+"iotax_getTotalSupply", "iotax_getValidatorsApy", "iotax_queryEvents", "iotax_queryTransactionBlocks", "iotax_resolveNameServiceAddress", 
+"iotax_resolveNameServiceNames", "iotax_subscribeEvent", "iotax_subscribeTransaction", "unsafe_batchTransaction", "unsafe_mergeCoins", 
+"unsafe_moveCall", "unsafe_pay", "unsafe_payAllIOTA", "unsafe_payIOTA", "unsafe_publish", "unsafe_requestAddStake", 
+"unsafe_requestWithdrawStake", "unsafe_splitCoin", "unsafe_splitCoinEqual", "unsafe_transferIOTA", "unsafe_transferObject"]
 
-Welcome to the Sui interactive console.
+Welcome to the IOTA interactive console.
 
-sui>-$
+iota>-$
 
 ```

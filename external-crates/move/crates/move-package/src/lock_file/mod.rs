@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -15,18 +16,19 @@ pub mod schema;
 
 use crate::compilation::package_layout::CompiledPackageLayout;
 
-/// Representation of a machine-generated, human-readable text file that is generated as part of the
-/// build, with the following properties:
+/// Representation of a machine-generated, human-readable text file that is
+/// generated as part of the build, with the following properties:
 ///
 ///  - It is only updated by tooling, during the build.
 ///  - It will be re-generated on each build.
-///  - Its content is stable (running the same build multiple times should result in a lock file
-///    with the same content).
+///  - Its content is stable (running the same build multiple times should
+///    result in a lock file with the same content).
 ///  - It will only be updated if the operation touching it succeeds.
 ///
-/// To support this model, the contents of the lock file is stored in a temporary file in the
-/// compiled package output directory, and it must be explicitly committed to its place in the
-/// package root on success, consuming the lock file.
+/// To support this model, the contents of the lock file is stored in a
+/// temporary file in the compiled package output directory, and it must be
+/// explicitly committed to its place in the package root on success, consuming
+/// the lock file.
 ///
 /// Lock files wrap a `File` which can be accessed by dereferencing it.
 #[derive(Debug)]
@@ -35,8 +37,8 @@ pub struct LockFile {
 }
 
 impl LockFile {
-    /// Creates a new lock file in a sub-directory of `install_dir` (the compiled output directory
-    /// of a move package).
+    /// Creates a new lock file in a sub-directory of `install_dir` (the
+    /// compiled output directory of a move package).
     pub fn new(
         install_dir: PathBuf,
         manifest_digest: String,
@@ -60,7 +62,8 @@ impl LockFile {
         Ok(LockFile { file: lock })
     }
 
-    /// Creates a temporary copy of an existing lock file in a sub-directory of `install_dir` and returns the handle.
+    /// Creates a temporary copy of an existing lock file in a sub-directory of
+    /// `install_dir` and returns the handle.
     pub fn from(install_dir: PathBuf, lock_file: &PathBuf) -> Result<LockFile> {
         let mut locks_dir = install_dir;
         locks_dir.extend([
@@ -80,8 +83,9 @@ impl LockFile {
         Ok(LockFile { file: lock })
     }
 
-    /// Consume the lock file, moving it to its final position at `lock_path`.  NOTE: If this
-    /// function is not called, the contents of the lock file will be discarded.
+    /// Consume the lock file, moving it to its final position at `lock_path`.
+    /// NOTE: If this function is not called, the contents of the lock file
+    /// will be discarded.
     pub fn commit(self, lock_path: impl AsRef<Path>) -> Result<()> {
         self.file
             .persist(lock_path)

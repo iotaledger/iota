@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This file duplicates the code in the diem-crypto crate to support
@@ -12,6 +13,8 @@
 //! diem-framework) and be passed into the VM for execution. In this way we no
 //! longer need to worry about depending on diem-crypto.
 
+use std::cmp::Ordering;
+
 use anyhow::{bail, Result};
 use ed25519_dalek::{
     PublicKey as Ed25519PublicKey, Signature as Ed25519Signature,
@@ -19,7 +22,6 @@ use ed25519_dalek::{
 };
 use sha2::{Digest, Sha256};
 use sha3::Sha3_256;
-use std::cmp::Ordering;
 
 /// The order of ed25519 as defined in [RFC8032](https://tools.ietf.org/html/rfc8032).
 const L: [u8; 32] = [

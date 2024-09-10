@@ -7,24 +7,26 @@
 .DS_Store
 
 # Rust build directory
-**/target
+**/target/
 .pre-commit*
 
 # Move build directory
-build
-!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build
-!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build
-storage
-!consensus/core/src/storage
-!crates/sui-types/src/storage
-!narwhal/storage
+build/
+!crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build/
+!crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build/
+storage/
+!consensus/core/src/storage/
+!crates/iota-types/src/storage/
+!narwhal/storage/
 
 # Move-related files
 Move.lock
-!crates/sui-framework/packages/move-stdlib/Move.lock
-!crates/sui-framework/packages/sui-framework/Move.lock
-!crates/sui-framework/packages/sui-system/Move.lock
-!crates/sui-framework/packages/deepbook/Move.lock
+!crates/iota-framework/packages/move-stdlib/Move.lock
+!crates/iota-framework/packages/iota-framework/Move.lock
+!crates/iota-framework/packages/iota-system/Move.lock
+!crates/iota-framework/packages/deepbook/Move.lock
+!crates/iota-framework/packages/stardust/Move.lock
+!crates/iota-framework/packages/timelock/Move.lock
 .trace
 .coverage_map.mvcov
 
@@ -39,10 +41,11 @@ Move.lock
 .pyc
 
 # Node.js
-node_modules
+node_modules/
 .tsbuildinfo
 *.tsbuildinfo
 .turbo
+.pnpm-store
 
 # App build directories
 dist/
@@ -59,7 +62,7 @@ playwright/.cache/
 
 # logs
 wallet.log.*
-sui.log.*
+iota.log.*
 .vercel
 npm-debug.log*
 yarn-debug.log*
@@ -70,7 +73,16 @@ yarn-error.log*
 .env
 checkpoints_dir/*
 light_client.yaml
-docs/content/references/sui-api/sui-graphql/*
+docs/content/references/iota-api/iota-graphql/*
 docs/content/references/framework/**
+scripts/dependency_graphs/output/*
 
 lcov.info
+**/venv/
+
+*storybook.log
+
+# iota-private-network
+docker/iota-private-network/data
+docker/iota-private-network/configs/validators/validator*
+docker/iota-private-network/configs/genesis/genesis.blob

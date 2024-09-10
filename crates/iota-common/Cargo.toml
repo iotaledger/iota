@@ -1,0 +1,15 @@
+[package]
+name = "iota-common"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+futures.workspace = true
+parking_lot.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros"] }

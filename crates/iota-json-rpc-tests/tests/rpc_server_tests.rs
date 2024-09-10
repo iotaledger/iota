@@ -33,6 +33,28 @@ use iota_types::{
     gas_coin::GAS,
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
+use iota_protocol_config::ProtocolConfig;
+use iota_swarm_config::genesis_config::{
+    AccountConfig, DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT,
+};
+use iota_types::{
+    balance::Supply,
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    coin::{TreasuryCap, COIN_MODULE_NAME},
+    collection_types::VecMap,
+    crypto::deterministic_random_account_key,
+    digests::{ObjectDigest, TransactionDigest},
+    gas_coin::GAS,
+    id::UID,
+    object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    parse_iota_struct_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    stardust::output::{Irc27Metadata, Nft},
+    timelock::{
+        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
+        timelock::TimeLock,
+    },
+    utils::to_sender_signed_transaction,
     IOTA_FRAMEWORK_ADDRESS,
 };
 use test_cluster::TestClusterBuilder;
@@ -196,8 +218,8 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         .await?;
     let gas = objects.data.first().unwrap().object().unwrap();
 
-    let compiled_package =
-        BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
+    let compiled_package = BuildConfig::new_for_testing()
+        .build(Path::new("../../iota_programmability/examples/fungible_tokens").to_path_buf())?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
@@ -958,6 +980,462 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
         .find(|coin| coin.balance > genesis_coin_amount)
         .unwrap();
     assert_eq!((genesis_coin_amount * 3) - 1000000000, new_coin.balance);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
+    // Create a cluster
+    let (address, keypair) = deterministic_random_account_key();
+
+    let principal = 100_000_000_000;
+    let expiration_timestamp_ms = u64::MAX;
+    let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
+
+    let timelock_iota = unsafe {
+        MoveObject::new_from_execution(
+            MoveObjectType::timelocked_iota_balance(),
+            false,
+            OBJECT_START_VERSION,
+            TimeLock::<iota_types::balance::Balance>::new(
+                UID::new(ObjectID::random()),
+                iota_types::balance::Balance::new(principal),
+                expiration_timestamp_ms,
+                label.clone(),
+            )
+            .to_bcs_bytes(),
+            &ProtocolConfig::get_for_min_version(),
+        )
+        .unwrap()
+    };
+    let timelock_iota = ObjectInner {
+        owner: Owner::AddressOwner(address),
+        data: Data::Move(timelock_iota),
+        previous_transaction: TransactionDigest::genesis_marker(),
+        storage_rebate: 0,
+    };
+
+    let cluster = TestClusterBuilder::new()
+        .with_accounts(
+            [AccountConfig {
+                address: Some(address),
+                gas_amounts: [100_000_000].into(),
+            }]
+            .into(),
+        )
+        .with_objects([timelock_iota.into()])
+        .build()
+        .await;
+
+    // Check owned objects
+    let http_client = cluster.rpc_client();
+
+    let objects: ObjectsPage = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    assert_eq!(2, objects.data.len());
+
+    let (coin, timelock): (Vec<_>, Vec<_>) = objects
+        .data
+        .into_iter()
+        .partition(|o| o.data.as_ref().unwrap().is_gas_coin());
+    let coin = coin[0].object()?.object_id;
+    let timelocked_balance = timelock[0].object()?.object_id;
+
+    // Check TimelockedStakedIota object before test
+    let staked_iota: Vec<DelegatedTimelockedStake> =
+        http_client.get_timelocked_stakes(address).await?;
+    assert!(staked_iota.is_empty());
+
+    // Delegate some timelocked IOTA
+    let validator = http_client
+        .get_latest_iota_system_state()
+        .await?
+        .active_validators[0]
+        .iota_address;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .request_add_timelocked_stake(
+            address,
+            timelocked_balance,
+            validator,
+            coin,
+            100_000_000.into(),
+        )
+        .await?;
+
+    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::new()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+
+    // Check DelegatedTimelockedStake object
+    let staked_iota: Vec<DelegatedTimelockedStake> =
+        http_client.get_timelocked_stakes(address).await?;
+
+    assert_eq!(1, staked_iota.len());
+    let staked_iota = &staked_iota[0];
+    assert_eq!(1, staked_iota.stakes.len());
+    let stake = &staked_iota.stakes[0];
+
+    assert_eq!(validator, staked_iota.validator_address);
+    assert_eq!(principal, stake.principal);
+    assert!(matches!(stake.status, StakeStatus::Pending));
+    assert_eq!(expiration_timestamp_ms, stake.expiration_timestamp_ms);
+    assert_eq!(label, stake.label);
+
+    // Request the DelegatedTimelockedStake one more time
+    let staked_iota_copy = http_client
+        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
+        .await?;
+
+    assert_eq!(1, staked_iota_copy.len());
+    let staked_iota_copy = &staked_iota_copy[0];
+    assert_eq!(1, staked_iota_copy.stakes.len());
+    let stake_copy = &staked_iota_copy.stakes[0];
+
+    // Check both of objects
+    assert_eq!(
+        staked_iota.validator_address,
+        staked_iota_copy.validator_address
+    );
+    assert_eq!(staked_iota.staking_pool, staked_iota_copy.staking_pool);
+    assert_eq!(
+        stake.timelocked_staked_iota_id,
+        stake_copy.timelocked_staked_iota_id
+    );
+    assert_eq!(stake.stake_request_epoch, stake_copy.stake_request_epoch);
+    assert_eq!(stake.stake_active_epoch, stake_copy.stake_active_epoch);
+    assert_eq!(stake.principal, stake_copy.principal);
+    assert!(matches!(stake_copy.status, StakeStatus::Pending));
+    assert_eq!(
+        stake.expiration_timestamp_ms,
+        stake_copy.expiration_timestamp_ms
+    );
+    assert_eq!(stake.label, stake_copy.label);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
+    // Create a cluster
+    let (address, keypair) = deterministic_random_account_key();
+
+    let principal = 100_000_000_000;
+    let expiration_timestamp_ms = u64::MAX;
+    let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
+
+    let timelock_iota = unsafe {
+        MoveObject::new_from_execution(
+            MoveObjectType::timelocked_iota_balance(),
+            false,
+            OBJECT_START_VERSION,
+            TimeLock::<iota_types::balance::Balance>::new(
+                UID::new(ObjectID::random()),
+                iota_types::balance::Balance::new(principal),
+                expiration_timestamp_ms,
+                label.clone(),
+            )
+            .to_bcs_bytes(),
+            &ProtocolConfig::get_for_min_version(),
+        )
+        .unwrap()
+    };
+    let timelock_iota = ObjectInner {
+        owner: Owner::AddressOwner(address),
+        data: Data::Move(timelock_iota),
+        previous_transaction: TransactionDigest::genesis_marker(),
+        storage_rebate: 0,
+    };
+
+    let cluster = TestClusterBuilder::new()
+        .with_accounts(
+            [AccountConfig {
+                address: Some(address),
+                gas_amounts: [100_000_000].into(),
+            }]
+            .into(),
+        )
+        .with_objects([timelock_iota.into()])
+        .with_epoch_duration_ms(10000)
+        .build()
+        .await;
+
+    // Check owned objects
+    let http_client = cluster.rpc_client();
+
+    let objects: ObjectsPage = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    assert_eq!(2, objects.data.len());
+
+    let (coin, timelock): (Vec<_>, Vec<_>) = objects
+        .data
+        .into_iter()
+        .partition(|o| o.data.as_ref().unwrap().is_gas_coin());
+    let coin = coin[0].object()?.object_id;
+    let timelocked_balance = timelock[0].object()?.object_id;
+
+    // Check TimelockedStakedIota object before test
+    let staked_iota: Vec<DelegatedTimelockedStake> =
+        http_client.get_timelocked_stakes(address).await?;
+    assert!(staked_iota.is_empty());
+
+    // Delegate some timelocked IOTA
+    let validator = http_client
+        .get_latest_iota_system_state()
+        .await?
+        .active_validators[0]
+        .iota_address;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .request_add_timelocked_stake(
+            address,
+            timelocked_balance,
+            validator,
+            coin,
+            100_000_000.into(),
+        )
+        .await?;
+
+    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+
+    // Check DelegatedTimelockedStake object
+    let staked_iota: Vec<DelegatedTimelockedStake> =
+        http_client.get_timelocked_stakes(address).await?;
+
+    assert_eq!(1, staked_iota.len());
+    let staked_iota = &staked_iota[0];
+    assert_eq!(1, staked_iota.stakes.len());
+    let stake = &staked_iota.stakes[0];
+
+    assert_eq!(validator, staked_iota.validator_address);
+    assert_eq!(principal, stake.principal);
+    assert!(matches!(stake.status, StakeStatus::Pending));
+    assert_eq!(expiration_timestamp_ms, stake.expiration_timestamp_ms);
+    assert_eq!(label, stake.label);
+
+    // Sleep for 10 seconds
+    sleep(Duration::from_millis(10000)).await;
+
+    // Request the DelegatedTimelockedStake one more time
+    let staked_iota_copy = http_client
+        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
+        .await?;
+
+    assert_eq!(1, staked_iota_copy.len());
+    let staked_iota_copy = &staked_iota_copy[0];
+    assert_eq!(1, staked_iota_copy.stakes.len());
+    let stake_copy = &staked_iota_copy.stakes[0];
+
+    assert_eq!(principal, stake_copy.principal);
+    assert!(matches!(&stake_copy.status, StakeStatus::Active { .. }));
+
+    // Request withdraw timelocked stake
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .request_withdraw_timelocked_stake(
+            address,
+            stake_copy.timelocked_staked_iota_id,
+            coin,
+            10_000_000.into(),
+        )
+        .await?;
+    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::new()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+
+    // Sleep for 20 seconds
+    sleep(Duration::from_millis(20000)).await;
+
+    // Request the DelegatedTimelockedStake one more time
+    let staked_iota_copy = http_client
+        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
+        .await?;
+
+    assert_eq!(1, staked_iota_copy.len());
+    let staked_iota_copy = &staked_iota_copy[0];
+    assert_eq!(1, staked_iota_copy.stakes.len());
+    let stake_copy = &staked_iota_copy.stakes[0];
+
+    // Check the result
+    assert_eq!(
+        staked_iota.validator_address,
+        staked_iota_copy.validator_address
+    );
+    assert_eq!(staked_iota.staking_pool, staked_iota_copy.staking_pool);
+    assert_eq!(
+        stake.timelocked_staked_iota_id,
+        stake_copy.timelocked_staked_iota_id
+    );
+    assert_eq!(stake.stake_request_epoch, stake_copy.stake_request_epoch);
+    assert_eq!(stake.stake_active_epoch, stake_copy.stake_active_epoch);
+    assert_eq!(stake.principal, stake_copy.principal);
+    assert!(matches!(stake_copy.status, StakeStatus::Unstaked));
+    assert_eq!(
+        stake.expiration_timestamp_ms,
+        stake_copy.expiration_timestamp_ms
+    );
+    assert_eq!(stake.label, stake_copy.label);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_nft_display_object() -> Result<(), anyhow::Error> {
+    // Create a cluster
+    let (address, _) = deterministic_random_account_key();
+
+    let nft = Nft {
+        id: UID::new(ObjectID::random()),
+        legacy_sender: Some(IotaAddress::ZERO),
+        metadata: Some(String::from("metadata value").into_bytes()),
+        tag: Some(String::from("tag value").into_bytes()),
+        immutable_issuer: Some(
+            IotaAddress::from_str(
+                "0x1000000000000000002000000000000003000000000000040000000000000005",
+            )
+            .unwrap(),
+        ),
+        immutable_metadata: Irc27Metadata {
+            version: String::from("version value"),
+            media_type: String::from("media type value"),
+            uri: String::from("url value").try_into().unwrap(),
+            name: String::from("name value"),
+            collection_name: Some(String::from("collection name value")),
+            royalties: VecMap { contents: vec![] },
+            issuer_name: Some(String::from("issuer name value")),
+            description: Some(String::from("description value")),
+            attributes: VecMap { contents: vec![] },
+            non_standard_fields: VecMap { contents: vec![] },
+        },
+    };
+
+    let nft_move_object = unsafe {
+        MoveObject::new_from_execution(
+            MoveObjectType::stardust_nft(),
+            true,
+            OBJECT_START_VERSION,
+            bcs::to_bytes(&nft).unwrap(),
+            &ProtocolConfig::get_for_min_version(),
+        )
+        .unwrap()
+    };
+    let nft_object = ObjectInner {
+        owner: Owner::AddressOwner(address),
+        data: Data::Move(nft_move_object),
+        previous_transaction: TransactionDigest::genesis_marker(),
+        storage_rebate: 0,
+    };
+
+    let cluster = TestClusterBuilder::new()
+        .with_accounts(
+            [AccountConfig {
+                address: Some(address),
+                gas_amounts: [100_000_000].into(),
+            }]
+            .into(),
+        )
+        .with_objects([nft_object.into()])
+        .build()
+        .await;
+
+    // Check owned objects
+    let http_client = cluster.rpc_client();
+
+    let objects: ObjectsPage = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new(
+                Some(IotaObjectDataFilter::StructType(Nft::tag())),
+                Some(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction()
+                        .with_display(),
+                ),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    assert_eq!(1, objects.data.len());
+
+    // Check the Nft display
+    let nft_display = objects.data[0]
+        .data
+        .as_ref()
+        .unwrap()
+        .display
+        .as_ref()
+        .unwrap()
+        .data
+        .as_ref()
+        .unwrap();
+
+    assert_eq!(8, nft_display.len());
+
+    assert_eq!(nft_display["collection_name"], "collection name value");
+    assert_eq!(nft_display["creator"], "issuer name value");
+    assert_eq!(nft_display["description"], "description value");
+    assert_eq!(nft_display["image_url"], "url value");
+    assert_eq!(
+        nft_display["immutable_issuer"],
+        "0x1000000000000000002000000000000003000000000000040000000000000005"
+    );
+    assert_eq!(nft_display["media_type"], "media type value");
+    assert_eq!(nft_display["name"], "name value");
+    assert_eq!(nft_display["version"], "version value");
 
     Ok(())
 }

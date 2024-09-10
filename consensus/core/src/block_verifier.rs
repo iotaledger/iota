@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeSet, sync::Arc};
@@ -22,7 +23,8 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     /// This is called after a block has complete causal history locally,
     /// and is ready to be accepted into the DAG.
     ///
-    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1, in the same order.
+    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1,
+    /// in the same order.
     fn check_ancestors(
         &self,
         block: &VerifiedBlock,
@@ -32,9 +34,9 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
 
 /// `SignedBlockVerifier` checks the validity of a block.
 ///
-/// Blocks that fail verification at one honest authority will be rejected by all other honest
-/// authorities as well. The means invalid blocks, and blocks with an invalid ancestor, will never
-/// be accepted into the DAG.
+/// Blocks that fail verification at one honest authority will be rejected by
+/// all other honest authorities as well. The means invalid blocks, and blocks
+/// with an invalid ancestor, will never be accepted into the DAG.
 pub(crate) struct SignedBlockVerifier {
     context: Arc<Context>,
     genesis: BTreeSet<BlockRef>,
@@ -80,7 +82,7 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
 
-        // Verifiy the block's signature.
+        // Verify the block's signature.
         block.verify_signature(&self.context)?;
 
         // Verify the block's ancestor refs are consistent with the block's round,
@@ -145,7 +147,7 @@ impl BlockVerifier for SignedBlockVerifier {
         // TODO: check transaction size, total size and count.
         let batch: Vec<_> = block.transactions().iter().map(|t| t.data()).collect();
         self.transaction_verifier
-            .verify_batch(&self.context.protocol_config, &batch)
+            .verify_batch(&batch)
             .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
     }
 
@@ -202,15 +204,11 @@ mod test {
 
     impl TransactionVerifier for TxnSizeVerifier {
         // Fails verification if any transaction is < 4 bytes.
-        fn verify_batch(
-            &self,
-            _protocol_config: &sui_protocol_config::ProtocolConfig,
-            transactions: &[&[u8]],
-        ) -> Result<(), ValidationError> {
+        fn verify_batch(&self, transactions: &[&[u8]]) -> Result<(), ValidationError> {
             for txn in transactions {
                 if txn.len() < 4 {
                     return Err(ValidationError::InvalidTransaction(format!(
-                        "Lenght {} too short!",
+                        "Length {} too short!",
                         txn.len()
                     )));
                 }
@@ -473,9 +471,11 @@ mod test {
                 .set_timestamp_ms(1500)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
-            assert!(verifier
-                .check_ancestors(&verified_block, &ancestor_blocks)
-                .is_ok());
+            assert!(
+                verifier
+                    .check_ancestors(&verified_block, &ancestor_blocks)
+                    .is_ok()
+            );
         }
 
         // Block not respecting timestamp invariant.

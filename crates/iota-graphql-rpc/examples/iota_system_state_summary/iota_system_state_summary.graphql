@@ -1,0 +1,28 @@
+# Get the latest iota system state data
+{
+  epoch {
+    storageFund {
+      totalObjectStorageRebates
+      nonRefundableBalance
+    }
+    safeMode {
+      enabled
+      gasSummary {
+         computationCost
+         storageCost
+         storageRebate
+         nonRefundableStorageFee
+      }
+    }
+    systemStateVersion
+    systemParameters {
+      durationMs
+      minValidatorCount
+      maxValidatorCount
+      minValidatorJoiningStake
+      validatorLowStakeThreshold
+      validatorVeryLowStakeThreshold
+      validatorLowStakeGracePeriod
+    }
+  }
+}

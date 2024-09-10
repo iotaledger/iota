@@ -1,3 +1,3 @@
-# `@mysten/core`
+# `@iota/core`
 
-This JavaScript library contains helper utilities meant to be used across Mysten Lab's frontend applications.
+This JavaScript library contains helper utilities meant to be used across IOTA's frontend applications.

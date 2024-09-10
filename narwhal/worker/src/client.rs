@@ -1,14 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use arc_swap::{ArcSwap, ArcSwapOption};
-use mysten_metrics::metered_channel::Sender;
-use mysten_network::{multiaddr::Protocol, Multiaddr};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     net::Ipv4Addr,
     sync::{Arc, Mutex},
 };
+
+use arc_swap::{ArcSwap, ArcSwapOption};
+use iota_metrics::metered_channel::Sender;
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use thiserror::Error;
 use tokio::time::{sleep, timeout, Duration};
 use tracing::info;
@@ -36,7 +38,8 @@ mod static_client_cache {
 #[cfg(not(msim))]
 mod static_client_cache {
     use super::*;
-    /// Uses a map to allow running multiple Narwhal instances in the same process.
+    /// Uses a map to allow running multiple Narwhal instances in the same
+    /// process.
     static LOCAL_NARWHAL_CLIENTS: Mutex<BTreeMap<Multiaddr, Arc<ArcSwap<LocalNarwhalClient>>>> =
         Mutex::new(BTreeMap::new());
 
@@ -69,14 +72,15 @@ pub enum NarwhalError {
 
 /// A Narwhal client that instantiates LocalNarwhalClient lazily.
 pub struct LazyNarwhalClient {
-    /// Outer ArcSwapOption allows initialization after the first connection to Narwhal.
-    /// Inner ArcSwap allows Narwhal restarts across epoch changes.
+    /// Outer ArcSwapOption allows initialization after the first connection to
+    /// Narwhal. Inner ArcSwap allows Narwhal restarts across epoch changes.
     pub client: ArcSwapOption<ArcSwap<LocalNarwhalClient>>,
     pub addr: Multiaddr,
 }
 
 impl LazyNarwhalClient {
-    /// Lazily instantiates LocalNarwhalClient keyed by the address of the Narwhal worker.
+    /// Lazily instantiates LocalNarwhalClient keyed by the address of the
+    /// Narwhal worker.
     pub fn new(addr: Multiaddr) -> Self {
         Self {
             client: ArcSwapOption::empty(),
@@ -85,8 +89,8 @@ impl LazyNarwhalClient {
     }
 
     pub async fn get(&self) -> Arc<ArcSwap<LocalNarwhalClient>> {
-        // Narwhal may not have started and created LocalNarwhalClient, so retry in a loop.
-        // Retries should only happen on Sui process start.
+        // Narwhal may not have started and created LocalNarwhalClient, so retry in a
+        // loop. Retries should only happen on Iota process start.
         const NARWHAL_WORKER_START_TIMEOUT: Duration = Duration::from_secs(30);
         if let Ok(client) = timeout(NARWHAL_WORKER_START_TIMEOUT, async {
             loop {

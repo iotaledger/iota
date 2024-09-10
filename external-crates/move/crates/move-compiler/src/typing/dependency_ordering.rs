@@ -1,18 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use petgraph::{algo::toposort as petgraph_toposort, graphmap::DiGraphMap};
 
 use crate::{
     diagnostics::{codes::*, Diagnostic},
     expansion::ast::{Address, ModuleIdent, Value_},
+    ice,
     naming::ast::{self as N, Neighbor, Neighbor_},
     shared::{unique_map::UniqueMap, *},
     typing::ast as T,
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use petgraph::{algo::toposort as petgraph_toposort, graphmap::DiGraphMap};
-use std::collections::{BTreeMap, BTreeSet};
 
 //**************************************************************************************************
 // Entry
@@ -23,7 +27,7 @@ pub fn program(
     modules: &mut UniqueMap<ModuleIdent, T::ModuleDefinition>,
 ) {
     let imm_modules = &modules;
-    let mut context = Context::new(imm_modules);
+    let mut context = Context::new(compilation_env, imm_modules);
     module_defs(&mut context, modules);
 
     let Context {
@@ -61,7 +65,8 @@ enum DepType {
     Friend,
 }
 
-struct Context<'a> {
+struct Context<'a, 'env> {
+    env: &'env mut CompilationEnv,
     modules: &'a UniqueMap<ModuleIdent, T::ModuleDefinition>,
     // A union of uses and friends for modules (used for cyclyc dependency checking)
     // - if A uses B,    add edge A -> B
@@ -75,9 +80,13 @@ struct Context<'a> {
     current_node: Option<ModuleIdent>,
 }
 
-impl<'a> Context<'a> {
-    fn new(modules: &'a UniqueMap<ModuleIdent, T::ModuleDefinition>) -> Self {
+impl<'a, 'env> Context<'a, 'env> {
+    fn new(
+        env: &'env mut CompilationEnv,
+        modules: &'a UniqueMap<ModuleIdent, T::ModuleDefinition>,
+    ) -> Self {
         Context {
+            env,
             modules,
             module_neighbors: BTreeMap::new(),
             neighbors_by_node: BTreeMap::new(),
@@ -88,9 +97,9 @@ impl<'a> Context<'a> {
 
     fn add_neighbor(&mut self, mident: ModuleIdent, dep_type: DepType, loc: Loc) {
         if !self.modules.contains_key(&mident) {
-            // as the dependency checking happens before the naming phase, it is possible to refer
-            // to a module with a ModuleIdent outside of the compilation context. Do not add such
-            // modules as neighbors.
+            // as the dependency checking happens before the naming phase, it is possible to
+            // refer to a module with a ModuleIdent outside of the compilation
+            // context. Do not add such modules as neighbors.
             return;
         }
 
@@ -242,6 +251,9 @@ fn module(context: &mut Context, mident: ModuleIdent, mdef: &T::ModuleDefinition
     mdef.structs
         .iter()
         .for_each(|(_, _, sdef)| struct_def(context, sdef));
+    mdef.enums
+        .iter()
+        .for_each(|(_, _, edef)| enum_def(context, edef));
     mdef.functions
         .iter()
         .for_each(|(_, _, fdef)| function(context, fdef));
@@ -252,9 +264,14 @@ fn module(context: &mut Context, mident: ModuleIdent, mdef: &T::ModuleDefinition
 //**************************************************************************************************
 
 fn function(context: &mut Context, fdef: &T::Function) {
-    function_signature(context, &fdef.signature);
-    if let T::FunctionBody_::Defined(seq) = &fdef.body.value {
-        sequence(context, seq)
+    match &fdef.body.value {
+        T::FunctionBody_::Defined(seq) => {
+            function_signature(context, &fdef.signature);
+            sequence(context, seq)
+        }
+        T::FunctionBody_::Native => function_signature(context, &fdef.signature),
+        // macros do not add dependencies
+        T::FunctionBody_::Macro => (),
     }
 }
 
@@ -264,12 +281,20 @@ fn function_signature(context: &mut Context, sig: &N::FunctionSignature) {
 }
 
 //**************************************************************************************************
-// Struct
+// Data Types
 //**************************************************************************************************
 
 fn struct_def(context: &mut Context, sdef: &N::StructDefinition) {
-    if let N::StructFields::Defined(fields) = &sdef.fields {
+    if let N::StructFields::Defined(_, fields) = &sdef.fields {
         fields.iter().for_each(|(_, _, (_, bt))| type_(context, bt));
+    }
+}
+
+fn enum_def(context: &mut Context, edef: &N::EnumDefinition) {
+    for (_, _, variant) in &edef.variants {
+        if let N::VariantFields::Defined(_, fields) = &variant.fields {
+            fields.iter().for_each(|(_, _, (_, bt))| type_(context, bt));
+        }
     }
 }
 
@@ -349,6 +374,12 @@ fn lvalue(context: &mut Context, sp!(loc, lv_): &T::LValue) {
                 lvalue(context, field)
             }
         }
+        L::BorrowUnpackVariant(..) | L::UnpackVariant(..) => {
+            context.env.add_diag(ice!((
+                *loc,
+                "variant unpacking shouldn't occur before match expansion"
+            )));
+        }
     }
 }
 
@@ -378,6 +409,22 @@ fn exp(context: &mut Context, e: &T::Exp) {
             exp(context, e1);
             exp(context, e2);
             exp(context, e3);
+        }
+        E::Match(esubject, arms) => {
+            exp(context, esubject);
+            for sp!(_, arm) in &arms.value {
+                pat(context, &arm.pattern);
+                if let Some(guard) = arm.guard.as_ref() {
+                    exp(context, guard)
+                }
+                exp(context, &arm.rhs);
+            }
+        }
+        E::VariantMatch(..) => {
+            context.env.add_diag(ice!((
+                e.exp.loc,
+                "shouldn't find variant match before HLIR lowering"
+            )));
         }
         E::While(_, e1, e2) => {
             exp(context, e1);
@@ -413,6 +460,13 @@ fn exp(context: &mut Context, e: &T::Exp) {
                 exp(context, e)
             }
         }
+        E::PackVariant(m, _, _, tys, fields) => {
+            context.add_usage(*m, e.exp.loc);
+            types(context, tys);
+            for (_, _, (_, (_, e))) in fields {
+                exp(context, e)
+            }
+        }
         E::ExpList(list) => {
             for l in list {
                 match l {
@@ -439,7 +493,30 @@ fn exp(context: &mut Context, e: &T::Exp) {
         | E::Constant(..)
         | E::Continue(_)
         | E::BorrowLocal(..)
-        | E::ErrorConstant(_)
+        | E::ErrorConstant { .. }
         | E::UnresolvedError => (),
+    }
+}
+
+#[growing_stack]
+fn pat(context: &mut Context, p: &T::MatchPattern) {
+    use T::UnannotatedPat_ as P;
+    match &p.pat.value {
+        P::Variant(m, _, _, tys, fields)
+        | P::BorrowVariant(_, m, _, _, tys, fields)
+        | P::Struct(m, _, tys, fields)
+        | P::BorrowStruct(_, m, _, tys, fields) => {
+            context.add_usage(*m, p.pat.loc);
+            types(context, tys);
+            for (_, _, (_, (_, p))) in fields {
+                pat(context, p)
+            }
+        }
+        P::At(_, inner) => pat(context, inner),
+        P::Or(lhs, rhs) => {
+            pat(context, lhs);
+            pat(context, rhs);
+        }
+        P::Constant(_, _) | P::Wildcard | P::ErrorPat | P::Binder(_, _) | P::Literal(_) => (),
     }
 }

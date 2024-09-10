@@ -1,16 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::net::{TcpListener, TcpStream};
 
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use rand::{rngs::StdRng, SeedableRng as _};
 
 use crate::{
     Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,
 };
 
-/// Creates a committee for local testing, and the corresponding key pairs for the authorities.
+/// Creates a committee for local testing, and the corresponding key pairs for
+/// the authorities.
 pub fn local_committee_and_keys(
     epoch: Epoch,
     authorities_stake: Vec<Stake>,
@@ -44,9 +46,10 @@ fn get_available_local_address() -> Multiaddr {
     format!("/ip4/{}/udp/{}", host, port).parse().unwrap()
 }
 
-/// Returns an ephemeral, available port. On unix systems, the port returned will be in the
-/// TIME_WAIT state ensuring that the OS won't hand out this port for some grace period.
-/// Callers should be able to bind to this port given they use SO_REUSEADDR.
+/// Returns an ephemeral, available port. On unix systems, the port returned
+/// will be in the TIME_WAIT state ensuring that the OS won't hand out this port
+/// for some grace period. Callers should be able to bind to this port given
+/// they use SO_REUSEADDR.
 fn get_available_port(host: &str) -> u16 {
     const MAX_PORT_RETRIES: u32 = 1000;
 
@@ -64,9 +67,10 @@ fn get_ephemeral_port(host: &str) -> std::io::Result<u16> {
     let listener = TcpListener::bind((host, 0))?;
     let addr = listener.local_addr()?;
 
-    // Create and accept a connection (which we'll promptly drop) in order to force the port
-    // into the TIME_WAIT state, ensuring that the port will be reserved from some limited
-    // amount of time (roughly 60s on some Linux systems)
+    // Create and accept a connection (which we'll promptly drop) in order to force
+    // the port into the TIME_WAIT state, ensuring that the port will be
+    // reserved from some limited amount of time (roughly 60s on some Linux
+    // systems)
     let _sender = TcpStream::connect(addr)?;
     let _incoming = listener.accept()?;
 

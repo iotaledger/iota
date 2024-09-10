@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::io::Write;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 pub trait EnumOrderMap {
     fn order_to_variant_map() -> std::collections::BTreeMap<u64, String>;
@@ -31,11 +31,16 @@ pub fn check_enum_compat_order<T: EnumOrderMap>(snapshot_file: PathBuf) {
     for (pos, val) in existing_map {
         match new_map.get(&pos) {
             None => {
-                panic!("Enum variant {} has been removed. Not allowed: enum must be backward compatible.", val);
+                panic!(
+                    "Enum variant {} has been removed. Not allowed: enum must be backward compatible.",
+                    val
+                );
             }
             Some(new_val) if new_val == &val => continue,
             Some(new_val) => {
-                panic!("Enum variant {val} has been swapped with {new_val} at position {pos}. Not allowed: enum must be backward compatible.");
+                panic!(
+                    "Enum variant {val} has been swapped with {new_val} at position {pos}. Not allowed: enum must be backward compatible."
+                );
             }
         }
     }

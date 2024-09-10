@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -6,7 +7,7 @@ use std::sync::Arc;
 use consensus_config::{AuthorityIndex, Committee, Parameters};
 #[cfg(test)]
 use consensus_config::{NetworkKeyPair, ProtocolKeyPair};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 #[cfg(test)]
 use tempfile::TempDir;
 
@@ -14,8 +15,8 @@ use tempfile::TempDir;
 use crate::metrics::test_metrics;
 use crate::metrics::Metrics;
 
-/// Context contains per-epoch configuration and metrics shared by all components
-/// of this authority.
+/// Context contains per-epoch configuration and metrics shared by all
+/// components of this authority.
 #[derive(Clone)]
 pub(crate) struct Context {
     /// Index of this authority in the committee.

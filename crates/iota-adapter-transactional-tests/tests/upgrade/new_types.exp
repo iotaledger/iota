@@ -1,0 +1,66 @@
+processed 14 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 7-19:
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 7166800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'upgrade'. lines 22-34:
+created: object(2,0)
+mutated: object(0,0), object(1,1)
+gas summary: computation_cost: 1000000, storage_cost: 7166800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+
+task 3 'publish'. lines 37-48:
+created: object(3,0), object(3,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 6908400,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 4 'upgrade'. lines 50-61:
+created: object(4,0)
+mutated: object(0,0), object(3,1)
+gas summary: computation_cost: 1000000, storage_cost: 6908400,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+
+task 5 'upgrade'. lines 63-74:
+created: object(5,0)
+mutated: object(0,0), object(3,1)
+gas summary: computation_cost: 1000000, storage_cost: 6908400,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+
+task 6 'run'. lines 77-77:
+created: object(6,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 2325600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 7 'view-object'. lines 79-81:
+Owner: Shared
+Version: 2
+Contents: Test_DepV1::DepM1::DepObj {id: iota::object::UID {id: iota::object::ID {bytes: fake(6,0)}}, v: 42u64}
+
+task 8 'programmable'. lines 82-84:
+mutated: object(0,0), object(6,0)
+gas summary: computation_cost: 1000000, storage_cost: 2325600,  storage_rebate: 2325600, non_refundable_storage_fee: 0
+
+task 9 'view-object'. lines 86-89:
+Owner: Shared
+Version: 7
+Contents: Test_DepV1::DepM1::DepObj {id: iota::object::UID {id: iota::object::ID {bytes: fake(6,0)}}, v: 39u64}
+
+task 10 'programmable'. lines 90-92:
+mutated: object(0,0), object(6,0)
+gas summary: computation_cost: 1000000, storage_cost: 2325600,  storage_rebate: 2325600, non_refundable_storage_fee: 0
+
+task 11 'view-object'. lines 94-97:
+Owner: Shared
+Version: 8
+Contents: Test_DepV1::DepM1::DepObj {id: iota::object::UID {id: iota::object::ID {bytes: fake(6,0)}}, v: 37u64}
+
+task 12 'programmable'. lines 98-100:
+mutated: object(0,0), object(6,0)
+gas summary: computation_cost: 1000000, storage_cost: 2325600,  storage_rebate: 2325600, non_refundable_storage_fee: 0
+
+task 13 'view-object'. lines 102-102:
+Owner: Shared
+Version: 9
+Contents: Test_DepV1::DepM1::DepObj {id: iota::object::UID {id: iota::object::ID {bytes: fake(6,0)}}, v: 34u64}

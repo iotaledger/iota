@@ -1,31 +1,36 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module manages native extensions supported by the unit testing framework.
-//! Such extensions are enabled by cfg features and must be compiled into the test
-//! to be usable.
+//! This module manages native extensions supported by the unit testing
+//! framework. Such extensions are enabled by cfg features and must be compiled
+//! into the test to be usable.
+
+use std::sync::Mutex;
 
 use move_vm_runtime::native_extensions::NativeContextExtensions;
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
 
 static EXTENSION_HOOK: Lazy<
     Mutex<Option<Box<dyn Fn(&mut NativeContextExtensions<'_>) + Send + Sync>>>,
 > = Lazy::new(|| Mutex::new(None));
 
-/// Sets a hook which is called to populate additional native extensions. This can be used to
-/// get extensions living outside of the Move repo into the unit testing environment.
+/// Sets a hook which is called to populate additional native extensions. This
+/// can be used to get extensions living outside of the Move repo into the unit
+/// testing environment.
 ///
-/// This need to be called with the extensions of the custom Move environment at two places:
+/// This need to be called with the extensions of the custom Move environment at
+/// two places:
 ///
-/// (a) At start of a custom Move CLI, to enable unit testing with the additional
-/// extensions;
-/// (b) Before `cli::run_move_unit_tests` if unit tests are called programmatically from Rust.
-/// You may want to define a new function `my_cli::run_move_unit_tests` which does this.
+/// (a) At start of a custom Move CLI, to enable unit testing with the
+/// additional extensions;
+/// (b) Before `cli::run_move_unit_tests` if unit tests are called
+/// programmatically from Rust. You may want to define a new function
+/// `my_cli::run_move_unit_tests` which does this.
 ///
-/// Note that the table extension is handled already internally, and does not need to added via
-/// this hook.
+/// Note that the table extension is handled already internally, and does not
+/// need to added via this hook.
 pub fn set_extension_hook(p: Box<dyn Fn(&mut NativeContextExtensions<'_>) + Send + Sync>) {
     *EXTENSION_HOOK.lock().unwrap() = Some(p)
 }
@@ -42,9 +47,10 @@ pub(crate) fn new_extensions<'a>() -> NativeContextExtensions<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::extensions::{new_extensions, set_extension_hook};
     use better_any::{Tid, TidAble};
     use move_vm_runtime::native_extensions::NativeContextExtensions;
+
+    use crate::extensions::{new_extensions, set_extension_hook};
 
     /// A test that extension hooks work as expected.
     #[test]

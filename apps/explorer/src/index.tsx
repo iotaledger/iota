@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import '@fontsource-variable/inter';
@@ -9,13 +10,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
+import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
-import { initAmplitude } from './utils/analytics/amplitude';
-import { growthbook } from './utils/growthbook';
-import { queryClient } from './utils/queryClient';
-import './utils/sentry';
 
-import '@mysten/dapp-kit/dist/index.css';
+initSentry();
+
+import '@iota/dapp-kit/dist/index.css';
 import './index.css';
 
 // Load Amplitude as early as we can:
@@ -25,11 +25,11 @@ initAmplitude();
 growthbook.loadFeatures();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-	<React.StrictMode>
-		<GrowthBookProvider growthbook={growthbook}>
-			<QueryClientProvider client={queryClient}>
-				<RouterProvider router={router} />
-			</QueryClientProvider>
-		</GrowthBookProvider>
-	</React.StrictMode>,
+    <React.StrictMode>
+        <GrowthBookProvider growthbook={growthbook}>
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>
+        </GrowthBookProvider>
+    </React.StrictMode>,
 );

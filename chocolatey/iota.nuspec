@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Do not remove this test for UTF-8: if “Ω” doesn’t appear as greek uppercase omega letter
+enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+	<metadata>
+		<id>iota</id>
+		<version>$version$</version>
+		<owners>iota</owners>
+		<title>Main Iota Binary</title>
+		<authors>iota</authors>
+		<projectUrl>https://iota.org/</projectUrl>
+		<licenseUrl>https://github.com/iotaledger/iota/blob/main/LICENSE</licenseUrl>
+		<iconUrl>https://assets-global.website-files.com/6425f546844727ce5fb9e5ab/643775f4a15c9a9e10426daa_Iota_Favicon_256.png</iconUrl>
+		<projectSourceUrl>https://github.com/iotaledger/iota/</projectSourceUrl>
+		<bugTrackerUrl>https://github.com/iotaledger/iota/issues</bugTrackerUrl>
+		<tags>iota</tags>
+		<packageSourceUrl>https://community.chocolatey.org/packages/iota.portable</packageSourceUrl>
+		<summary>Run a local iota binary</summary>
+		<description>Iota is the first internet-scale programmable blockchain platform</description>
+		<releaseNotes>https://github.com/iotaledger/iota/releases/tag/mainnet-v$version$</releaseNotes>
+	</metadata>
+	<files>
+		<file src="../target/release/iota.exe" target="bin/iota.exe" />
+		<file src="../LICENSE" target="bin/LICENSE.txt" />
+		<file src="./VERIFICATION.txt" target="bin/VERIFICATION.txt" />
+	</files>
+</package>

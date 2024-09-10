@@ -96,7 +96,6 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
     //     let response: IotaTransactionBlockResponse = http_client
     //         .get_transaction_block(
     //             tx_digest,
-    //             
     // Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
     //         )
     //         .await?;

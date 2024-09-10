@@ -1,63 +1,65 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type LedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import type SuiLedgerClient from '@mysten/ledgerjs-hw-app-sui';
-import { Ed25519PublicKey } from '@mysten/sui.js/keypairs/ed25519';
+import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
-import { useSuiLedgerClient } from './SuiLedgerClientProvider';
+import { useIotaLedgerClient } from './IotaLedgerClientProvider';
+import { AccountType } from '_src/background/accounts/Account';
 
-export type DerivedLedgerAccount = Pick<
-	LedgerAccountSerializedUI,
-	'address' | 'publicKey' | 'type' | 'derivationPath'
->;
-type UseDeriveLedgerAccountOptions = {
-	numAccountsToDerive: number;
-} & Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'>;
+type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
+
+export type DerivedLedgerAccount = Pick<LedgerAccountSerializedUI, LedgerAccountKeys>;
+interface UseDeriveLedgerAccountOptions
+    extends Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'> {
+    numAccountsToDerive: number;
+}
 
 export function useDeriveLedgerAccounts(options: UseDeriveLedgerAccountOptions) {
-	const { numAccountsToDerive, ...useQueryOptions } = options;
-	const { suiLedgerClient } = useSuiLedgerClient();
+    const { numAccountsToDerive, ...useQueryOptions } = options;
+    const { iotaLedgerClient } = useIotaLedgerClient();
 
-	return useQuery({
-		// eslint-disable-next-line @tanstack/query/exhaustive-deps
-		queryKey: ['derive-ledger-accounts'],
-		queryFn: () => {
-			if (!suiLedgerClient) {
-				throw new Error("The Sui application isn't open on a connected Ledger device");
-			}
-			return deriveAccountsFromLedger(suiLedgerClient, numAccountsToDerive);
-		},
-		...useQueryOptions,
-		gcTime: 0,
-	});
+    return useQuery({
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
+        queryKey: ['derive-ledger-accounts'],
+        queryFn: () => {
+            if (!iotaLedgerClient) {
+                throw new Error("The IOTA application isn't open on a connected Ledger device");
+            }
+            return deriveAccountsFromLedger(iotaLedgerClient, numAccountsToDerive);
+        },
+        ...useQueryOptions,
+        gcTime: 0,
+    });
 }
 
 async function deriveAccountsFromLedger(
-	suiLedgerClient: SuiLedgerClient,
-	numAccountsToDerive: number,
+    iotaLedgerClient: IotaLedgerClient,
+    numAccountsToDerive: number,
 ) {
-	const ledgerAccounts: DerivedLedgerAccount[] = [];
-	const derivationPaths = getDerivationPathsForLedger(numAccountsToDerive);
+    const ledgerAccounts: DerivedLedgerAccount[] = [];
+    const derivationPaths = getDerivationPathsForLedger(numAccountsToDerive);
 
-	for (const derivationPath of derivationPaths) {
-		const publicKeyResult = await suiLedgerClient.getPublicKey(derivationPath);
-		const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-		const suiAddress = publicKey.toSuiAddress();
-		ledgerAccounts.push({
-			type: 'ledger',
-			address: suiAddress,
-			derivationPath,
-			publicKey: publicKey.toBase64(),
-		});
-	}
+    for (const derivationPath of derivationPaths) {
+        const publicKeyResult = await iotaLedgerClient.getPublicKey(derivationPath);
+        const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
+        const iotaAddress = publicKey.toIotaAddress();
+        ledgerAccounts.push({
+            type: AccountType.LedgerDerived,
+            address: iotaAddress,
+            derivationPath,
+            publicKey: publicKey.toBase64(),
+        });
+    }
 
-	return ledgerAccounts;
+    return ledgerAccounts;
 }
 
 function getDerivationPathsForLedger(numDerivations: number) {
-	return Array.from({
-		length: numDerivations,
-	}).map((_, index) => `m/44'/784'/${index}'/0'/0'`);
+    return Array.from({
+        length: numDerivations,
+    }).map((_, index) => `m/44'/4218'/${index}'/0'/0'`);
 }

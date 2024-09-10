@@ -5,14 +5,13 @@
 use std::env;
 
 use async_trait::async_trait;
-use iota_config::local_ip_utils;
 use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder, ServerType};
 use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 use iota_open_rpc::Module;
 use iota_open_rpc_macros::open_rpc;
 use jsonrpsee::{
     core::{client::ClientT, RpcResult},
-    http_client::{HeaderMap, HeaderValue, HttpClientBuilder},
+    http_client::HttpClientBuilder,
     proc_macros::rpc,
     rpc_params, RpcModule,
 };
@@ -137,81 +136,6 @@ async fn test_disable_routing() {
         .await;
     assert!(response.is_err());
 }
-
-// TODO(chris): clean up this after March 27th, 2023
-// #[tokio::test]
-// async fn test_rpc_backward_compatibility_batched_request() {
-//     let mut builder = JsonRpcServerBuilder::new(
-//          "1.5", &Registry::new(), None, None,
-//     );
-//     let mut builder = JsonRpcServerBuilder::new(
-//          "1.5", &Registry::new(), None, None,
-//     );
-//     builder.register_module(TestApiModule).unwrap();
-
-//     let port = get_available_port("0.0.0.0");
-//     let handle = builder
-//         .start(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))
-//         .await
-//         .unwrap();
-//     let url = format!("http://0.0.0.0:{}", port);
-
-//     // Test with un-versioned client
-//     let client = HttpClientBuilder::default().build(&url).unwrap();
-
-//     let mut builder = BatchRequestBuilder::default();
-//     builder.insert("test_foo", rpc_params!(true)).unwrap();
-//     builder.insert("test_foo", rpc_params!(true)).unwrap();
-//     builder.insert("test_foo", rpc_params!(true)).unwrap();
-
-//     let response = client.batch_request::<String>(builder).await.unwrap();
-//     assert_eq!(3, response.num_successful_calls());
-
-//     // try to access old method directly should fail
-//     let mut builder = BatchRequestBuilder::default();
-//     builder.insert("test_foo_1_5", rpc_params!(true)).unwrap();
-//     builder.insert("test_foo", rpc_params!(true)).unwrap();
-//     builder.insert("test_foo", rpc_params!(true)).unwrap();
-
-//     let response = client.batch_request::<String>(builder).await.unwrap();
-//     assert_eq!(2, response.num_successful_calls());
-
-//     // One malformed request shouldn't fail the whole batch
-//     let client = Client::new();
-//     let response = client
-//         .post(format!("http://127.0.0.1:{}/", port))
-//         .json(&vec![
-//             json!(&Request {
-//                 jsonrpc: Default::default(),
-//                 id: Id::Number(1),
-//                 method: "test_foo".into(),
-//                 params:
-// Some(&JsonRawValue::from_string("[true]".into()).unwrap()),             }),
-//             json!("Bad json input"),
-//         ])
-//         .send()
-//         .await
-//         .unwrap();
-
-//     let responses = response.text().await.unwrap();
-//     let responses: Vec<&JsonRawValue> =
-// serde_json::from_str(&responses).unwrap();
-
-//     // Should have 2 results
-//     assert_eq!(2, responses.len());
-
-//     // First response should success
-//     let response =
-// serde_json::from_str::<Response<String>>(responses[0].get());     assert!
-// (matches!(response, Ok(result) if result.result == "Some string"));
-
-//     // Second response should fail
-//     let response = serde_json::from_str::<ErrorResponse>(responses[1].get());
-//     assert!(matches!(response, Ok(result) if result.error_object().message()
-// == "Invalid request"));
-
-//     handle.stop().unwrap()
-// }
 
 #[open_rpc(namespace = "test")]
 #[rpc(server, client, namespace = "test")]

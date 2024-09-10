@@ -1,0 +1,73 @@
+processed 18 tasks
+
+task 1 'publish'. lines 7-40:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 9872400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 42-42:
+created: object(2,0), object(2,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 3 'view-object'. lines 44-44:
+Owner: Account Address ( _ )
+Version: 3
+Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}}
+
+task 4 'view-object'. lines 46-46:
+Owner: Account Address ( fake(2,0) )
+Version: 3
+Contents: tto::M1::B {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}}
+
+task 5 'run'. lines 48-48:
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
+
+task 6 'run'. lines 50-50:
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
+
+task 7 'run'. lines 52-52:
+Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 0 }, source: None, command: Some(0) } }
+
+task 8 'run'. lines 54-54:
+Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 0 }, source: None, command: Some(0) } }
+
+task 9 'programmable'. lines 56-57:
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 10 'programmable'. lines 59-60:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 11 'programmable'. lines 62-63:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 12 'programmable'. lines 65-66:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 13 'programmable'. lines 68-69:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 14 'programmable'. lines 71-72:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 15 'programmable'. lines 74-75:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 16 'programmable'. lines 77-78:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+
+task 17 'programmable'. lines 80-81:
+Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }

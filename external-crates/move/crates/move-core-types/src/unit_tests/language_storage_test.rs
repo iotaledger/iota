@@ -1,6 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use bcs::test_helpers::assert_canonical_encode_decode;
+use proptest::prelude::*;
 
 use crate::{
     account_address::AccountAddress,
@@ -8,8 +12,6 @@ use crate::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag, TYPETAG_ENUM_ABSTRACT_SIZE},
 };
-use bcs::test_helpers::assert_canonical_encode_decode;
-use proptest::prelude::*;
 
 proptest! {
     #[test]

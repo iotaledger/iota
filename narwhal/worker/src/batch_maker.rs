@@ -1,19 +1,23 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::WorkerMetrics;
+#[cfg(feature = "benchmark")]
+use std::convert::TryInto;
+use std::sync::Arc;
+
+#[cfg(feature = "trace_transaction")]
+use byteorder::{BigEndian, ReadBytesExt};
 use config::WorkerId;
 use fastcrypto::hash::Hash;
-use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use mysten_metrics::metered_channel::{Receiver, Sender};
-use mysten_metrics::{monitored_scope, spawn_logged_monitored_task};
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use iota_metrics::{
+    metered_channel::{Receiver, Sender},
+    monitored_scope, spawn_logged_monitored_task,
+};
 use network::{client::NetworkClient, WorkerToPrimaryClient};
-use std::sync::Arc;
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
 use tokio::{
     task::JoinHandle,
     time::{sleep, Duration, Instant},
@@ -24,10 +28,7 @@ use types::{
     Transaction, TxResponse, WorkerOwnBatchMessage,
 };
 
-#[cfg(feature = "trace_transaction")]
-use byteorder::{BigEndian, ReadBytesExt};
-#[cfg(feature = "benchmark")]
-use std::convert::TryInto;
+use crate::metrics::WorkerMetrics;
 
 // The number of batches to store / transmit in parallel.
 pub const MAX_PARALLEL_BATCH: usize = 100;
@@ -53,13 +54,13 @@ pub struct BatchMaker {
     /// Metrics handler
     node_metrics: Arc<WorkerMetrics>,
     /// The timestamp of the batch creation.
-    /// Average resident time in the batch would be ~ (batch seal time - creation time) / 2
+    /// Average resident time in the batch would be ~ (batch seal time -
+    /// creation time) / 2
     batch_start_timestamp: Instant,
     /// The network client to send our batches to the primary.
     client: NetworkClient,
     /// The batch store to store our own batches.
     store: DBMap<BatchDigest, Batch>,
-    protocol_config: ProtocolConfig,
 }
 
 impl BatchMaker {
@@ -74,7 +75,6 @@ impl BatchMaker {
         node_metrics: Arc<WorkerMetrics>,
         client: NetworkClient,
         store: DBMap<BatchDigest, Batch>,
-        protocol_config: ProtocolConfig,
     ) -> JoinHandle<()> {
         spawn_logged_monitored_task!(
             async move {
@@ -89,7 +89,6 @@ impl BatchMaker {
                     node_metrics,
                     client,
                     store,
-                    protocol_config,
                 }
                 .run()
                 .await;
@@ -103,7 +102,7 @@ impl BatchMaker {
         let timer = sleep(self.max_batch_delay);
         tokio::pin!(timer);
 
-        let mut current_batch = Batch::new(vec![], &self.protocol_config);
+        let mut current_batch = Batch::new(vec![]);
         let mut current_responses = Vec::new();
         let mut current_batch_size = 0;
 
@@ -126,7 +125,7 @@ impl BatchMaker {
                         }
                         self.node_metrics.parallel_worker_batches.set(batch_pipeline.len() as i64);
 
-                        current_batch = Batch::new(vec![], &self.protocol_config);
+                        current_batch = Batch::new(vec![]);
                         current_responses = Vec::new();
                         current_batch_size = 0;
 
@@ -147,7 +146,7 @@ impl BatchMaker {
                         }
                         self.node_metrics.parallel_worker_batches.set(batch_pipeline.len() as i64);
 
-                        current_batch = Batch::new(vec![], &self.protocol_config);
+                        current_batch = Batch::new(vec![]);
                         current_responses = Vec::new();
                         current_batch_size = 0;
                     }
@@ -182,7 +181,8 @@ impl BatchMaker {
         {
             let digest = batch.digest();
 
-            // Look for sample txs (they all start with 0) and gather their txs id (the next 8 bytes).
+            // Look for sample txs (they all start with 0) and gather their txs id (the next
+            // 8 bytes).
             let tx_ids: Vec<_> = batch
                 .transactions()
                 .iter()

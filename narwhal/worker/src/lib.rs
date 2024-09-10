@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -19,10 +20,12 @@ mod worker;
 
 pub mod metrics;
 
-pub use crate::client::LazyNarwhalClient;
-pub use crate::client::LocalNarwhalClient;
-pub use crate::tx_validator::{TransactionValidator, TrivialTransactionValidator};
-pub use crate::worker::Worker;
+pub use crate::{
+    client::{LazyNarwhalClient, LocalNarwhalClient},
+    tx_validator::{TransactionValidator, TrivialTransactionValidator},
+    worker::Worker,
+};
 
-/// The number of shutdown receivers to create on startup. We need one per component loop.
+/// The number of shutdown receivers to create on startup. We need one per
+/// component loop.
 pub const NUM_SHUTDOWN_RECEIVERS: u64 = 26;

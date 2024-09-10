@@ -1,112 +1,115 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-	getLedgerConnectionErrorMessage,
-	getSuiApplicationErrorMessage,
+    getLedgerConnectionErrorMessage,
+    getIotaApplicationErrorMessage,
 } from '_src/ui/app/helpers/errorMessages';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
-import { Check12, X12 } from '@mysten/icons';
-import { Ed25519PublicKey } from '@mysten/sui.js/keypairs/ed25519';
+import { Check12, X12 } from '@iota/icons';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { useSuiLedgerClient } from '../../ledger/SuiLedgerClientProvider';
-import LoadingIndicator from '../../loading/LoadingIndicator';
+import { useIotaLedgerClient, LoadingIndicator } from '_components';
 
-export type VerifyLedgerConnectionLinkProps = {
-	accountAddress: string;
-	derivationPath: string;
-};
-
-enum VerificationStatus {
-	UNKNOWN = 'UNKNOWN',
-	VERIFIED = 'VERIFIED',
-	NOT_VERIFIED = 'NOT_VERIFIED',
+export interface VerifyLedgerConnectionLinkProps {
+    accountAddress: string;
+    derivationPath: string;
 }
 
-const resetVerificationStatusDelay = 5000;
-const loadingStateDelay = 200;
+enum VerificationStatus {
+    Unknown = 'UNKNOWN',
+    Verified = 'VERIFIED',
+    NotVerified = 'NOT_VERIFIED',
+}
+
+const RESET_VERIFICATION_STATUS_DELAY = 5000;
+const LOADING_STATE_DELAY = 200;
 
 export function VerifyLedgerConnectionStatus({
-	accountAddress,
-	derivationPath,
+    accountAddress,
+    derivationPath,
 }: VerifyLedgerConnectionLinkProps) {
-	const { connectToLedger } = useSuiLedgerClient();
-	const [isPending, setLoading] = useState(false);
-	const [verificationStatus, setVerificationStatus] = useState(VerificationStatus.UNKNOWN);
+    const { connectToLedger } = useIotaLedgerClient();
+    const [isPending, setLoading] = useState(false);
+    const [verificationStatus, setVerificationStatus] = useState(VerificationStatus.Unknown);
 
-	switch (verificationStatus) {
-		case VerificationStatus.UNKNOWN:
-			if (isPending) {
-				return (
-					<div className="flex gap-1 text-hero-dark">
-						<LoadingIndicator color="inherit" />
-						<Text variant="bodySmall">Please confirm on your Ledger...</Text>
-					</div>
-				);
-			}
+    switch (verificationStatus) {
+        case VerificationStatus.Unknown:
+            if (isPending) {
+                return (
+                    <div className="text-hero-dark flex gap-1">
+                        <LoadingIndicator color="inherit" />
+                        <Text variant="bodySmall">Please confirm on your Ledger...</Text>
+                    </div>
+                );
+            }
 
-			return (
-				<Link
-					text="Verify Ledger connection"
-					onClick={async () => {
-						const loadingTimeoutId = setTimeout(() => {
-							setLoading(true);
-						}, loadingStateDelay);
+            return (
+                <Link
+                    text="Verify Ledger connection"
+                    onClick={async () => {
+                        const loadingTimeoutId = setTimeout(() => {
+                            setLoading(true);
+                        }, LOADING_STATE_DELAY);
 
-						try {
-							const suiLedgerClient = await connectToLedger();
-							const publicKeyResult = await suiLedgerClient.getPublicKey(derivationPath, true);
-							const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-							const suiAddress = publicKey.toSuiAddress();
+                        try {
+                            const iotaLedgerClient = await connectToLedger();
+                            const publicKeyResult = await iotaLedgerClient.getPublicKey(
+                                derivationPath,
+                                true,
+                            );
+                            const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
+                            const iotaAddress = publicKey.toIotaAddress();
 
-							setVerificationStatus(
-								accountAddress === suiAddress
-									? VerificationStatus.VERIFIED
-									: VerificationStatus.NOT_VERIFIED,
-							);
-						} catch (error) {
-							const errorMessage =
-								getLedgerConnectionErrorMessage(error) ||
-								getSuiApplicationErrorMessage(error) ||
-								'Something went wrong';
-							toast.error(errorMessage);
+                            setVerificationStatus(
+                                accountAddress === iotaAddress
+                                    ? VerificationStatus.Verified
+                                    : VerificationStatus.NotVerified,
+                            );
+                        } catch (error) {
+                            const errorMessage =
+                                getLedgerConnectionErrorMessage(error) ||
+                                getIotaApplicationErrorMessage(error) ||
+                                'Something went wrong';
+                            toast.error(errorMessage);
 
-							setVerificationStatus(VerificationStatus.NOT_VERIFIED);
-						} finally {
-							clearTimeout(loadingTimeoutId);
-							setLoading(false);
+                            setVerificationStatus(VerificationStatus.NotVerified);
+                        } finally {
+                            clearTimeout(loadingTimeoutId);
+                            setLoading(false);
 
-							window.setTimeout(() => {
-								setVerificationStatus(VerificationStatus.UNKNOWN);
-							}, resetVerificationStatusDelay);
-						}
-					}}
-					color="heroDark"
-					weight="medium"
-				/>
-			);
-		case VerificationStatus.NOT_VERIFIED:
-			return (
-				<div className="flex items-center gap-1">
-					<X12 className="text-issue-dark" />
-					<Text variant="bodySmall" color="issue-dark">
-						Ledger is not connected
-					</Text>
-				</div>
-			);
-		case VerificationStatus.VERIFIED:
-			return (
-				<div className="flex items-center gap-1">
-					<Check12 className="text-success-dark" />
-					<Text variant="bodySmall" color="success-dark">
-						Ledger is connected
-					</Text>
-				</div>
-			);
-		default:
-			throw new Error(`Encountered unknown verification status ${verificationStatus}`);
-	}
+                            window.setTimeout(() => {
+                                setVerificationStatus(VerificationStatus.Unknown);
+                            }, RESET_VERIFICATION_STATUS_DELAY);
+                        }
+                    }}
+                    color="heroDark"
+                    weight="medium"
+                />
+            );
+        case VerificationStatus.NotVerified:
+            return (
+                <div className="flex items-center gap-1">
+                    <X12 className="text-issue-dark" />
+                    <Text variant="bodySmall" color="issue-dark">
+                        Ledger is not connected
+                    </Text>
+                </div>
+            );
+        case VerificationStatus.Verified:
+            return (
+                <div className="flex items-center gap-1">
+                    <Check12 className="text-success-dark" />
+                    <Text variant="bodySmall" color="success-dark">
+                        Ledger is connected
+                    </Text>
+                </div>
+            );
+        default:
+            throw new Error(`Encountered unknown verification status ${verificationStatus}`);
+    }
 }

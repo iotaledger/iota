@@ -1,18 +1,19 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
-use move_binary_format::{access::ModuleAccess, errors::PartialVMError};
+use move_binary_format::errors::PartialVMError;
 use move_bytecode_utils::Modules;
 use move_core_types::vm_status::StatusCode;
 
 use anyhow::{bail, Result};
 
-/// Run sanity checks on storage and build dirs. This is primarily intended for testing the CLI;
-/// doctor should never fail unless `publish --ignore-breaking changes` is used or files under
-/// `storage` or `build` are modified manually. This runs the following checks:
-/// (1) all modules pass the bytecode verifier
+/// Run sanity checks on storage and build dirs. This is primarily intended for
+/// testing the CLI; doctor should never fail unless `publish --ignore-breaking
+/// changes` is used or files under `storage` or `build` are modified manually.
+/// This runs the following checks: (1) all modules pass the bytecode verifier
 /// (2) all modules pass the linker
 /// (3) build/mv_interfaces is consistent with the global storage (TODO?)
 pub fn doctor(state: &OnDiskStateView) -> Result<()> {

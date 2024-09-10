@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Provides pragmas and properties of the specification language.
@@ -32,17 +33,20 @@ pub const OPAQUE_PRAGMA: &str = "opaque";
 /// Pragma indicating whether emits specification should be considered partial.
 pub const EMITS_IS_PARTIAL_PRAGMA: &str = "emits_is_partial";
 
-/// Pragma indicating whether no emits specification should mean that no events are to be emitted.
+/// Pragma indicating whether no emits specification should mean that no events
+/// are to be emitted.
 pub const EMITS_IS_STRICT_PRAGMA: &str = "emits_is_strict";
 
-/// Pragma indicating whether aborts_if specification should be considered partial.
+/// Pragma indicating whether aborts_if specification should be considered
+/// partial.
 pub const ABORTS_IF_IS_PARTIAL_PRAGMA: &str = "aborts_if_is_partial";
 
-/// Pragma indicating whether no explicit aborts_if specification should be treated
-/// like `aborts_if` false.
+/// Pragma indicating whether no explicit aborts_if specification should be
+/// treated like `aborts_if` false.
 pub const ABORTS_IF_IS_STRICT_PRAGMA: &str = "aborts_if_is_strict";
 
-/// Pragma indicating that requires are also enforced if the aborts condition is true.
+/// Pragma indicating that requires are also enforced if the aborts condition is
+/// true.
 pub const REQUIRES_IF_ABORTS_PRAGMA: &str = "requires_if_aborts";
 
 /// Pragma indicating that the function will run smoke tests
@@ -55,21 +59,22 @@ pub const ADDITION_OVERFLOW_UNCHECKED_PRAGMA: &str = "addition_overflow_unchecke
 /// Pragma indicating that aborts from this function shall be ignored.
 pub const ASSUME_NO_ABORT_FROM_HERE_PRAGMA: &str = "assume_no_abort_from_here";
 
-/// Pragma which indicates that the function's abort and ensure conditions shall be exported
-/// to the verification context even if the implementation of the function is inlined.
+/// Pragma which indicates that the function's abort and ensure conditions shall
+/// be exported to the verification context even if the implementation of the
+/// function is inlined.
 pub const EXPORT_ENSURES_PRAGMA: &str = "export_ensures";
 
 /// Pragma indicating that the function can only be called from certain caller.
-/// Unlike other pragmas, this pragma expects a function name like `0x1::M::f` instead
-/// of a boolean or a number.
+/// Unlike other pragmas, this pragma expects a function name like `0x1::M::f`
+/// instead of a boolean or a number.
 pub const FRIEND_PRAGMA: &str = "friend";
 
-/// Pragma indicating that invariants are not to be checked between entry and exit
-/// to this function
+/// Pragma indicating that invariants are not to be checked between entry and
+/// exit to this function
 pub const DISABLE_INVARIANTS_IN_BODY_PRAGMA: &str = "disable_invariants_in_body";
 
-/// Pragma indicating that invariants are not to be checked between entry and exit
-/// to this function
+/// Pragma indicating that invariants are not to be checked between entry and
+/// exit to this function
 pub const DELEGATE_INVARIANTS_TO_CALLER_PRAGMA: &str = "delegate_invariants_to_caller";
 
 /// # Pragmas for intrinsic table declaration
@@ -176,62 +181,65 @@ pub static INTRINSIC_TYPE_MAP_ASSOC_FUNCTIONS: Lazy<BTreeMap<&'static str, bool>
         ])
     });
 
-/// Internal property attached to conditions if they are injected via an apply or a module
-/// invariant.
+/// Internal property attached to conditions if they are injected via an apply
+/// or a module invariant.
 pub const CONDITION_INJECTED_PROP: &str = "$injected";
 
-/// Property which can be attached to conditions to make them exported into the VC context
-/// even if they are injected.
+/// Property which can be attached to conditions to make them exported into the
+/// VC context even if they are injected.
 pub const CONDITION_EXPORT_PROP: &str = "export";
 
 /// Property which can be attached to a module invariant to make it global.
 pub const CONDITION_GLOBAL_PROP: &str = "global";
 
-/// Property which can be attached to a global invariant to mark it as not to be used as
-/// an assumption in other verification steps. This can be used for invariants which are
-/// nonoperational constraints on system behavior, i.e. the systems "works" whether the
-/// invariant holds or not. Invariant marked as such are not assumed when
-/// memory is accessed, but only in the pre-state of a memory update.
+/// Property which can be attached to a global invariant to mark it as not to be
+/// used as an assumption in other verification steps. This can be used for
+/// invariants which are nonoperational constraints on system behavior, i.e. the
+/// systems "works" whether the invariant holds or not. Invariant marked as such
+/// are not assumed when memory is accessed, but only in the pre-state of a
+/// memory update.
 pub const CONDITION_ISOLATED_PROP: &str = "isolated";
 
-/// Abstract property which can be used together with an opaque specification. An abstract
-/// property is not verified against the implementation, but will be used for the
-/// function's behavior in the application context. This allows to "override" the specification
-/// with a more abstract version. In general we would need to prove the abstraction is
-/// subsumed by the implementation, but this is currently not done.
+/// Abstract property which can be used together with an opaque specification.
+/// An abstract property is not verified against the implementation, but will be
+/// used for the function's behavior in the application context. This allows to
+/// "override" the specification with a more abstract version. In general we
+/// would need to prove the abstraction is subsumed by the implementation, but
+/// this is currently not done.
 pub const CONDITION_ABSTRACT_PROP: &str = "abstract";
 
 /// Opposite to the abstract property.
 pub const CONDITION_CONCRETE_PROP: &str = "concrete";
 
 /// Property which indicates that an aborts_if should be assumed.
-/// For callers of a function with such an aborts_if, the negation of the condition becomes
-/// an assumption.
+/// For callers of a function with such an aborts_if, the negation of the
+/// condition becomes an assumption.
 pub const CONDITION_ABORT_ASSUME_PROP: &str = "assume";
 
 /// Property which indicates that an aborts_if should be asserted.
-/// For callers of a function with such an aborts_if, the negation of the condition becomes
-/// an assertion.
+/// For callers of a function with such an aborts_if, the negation of the
+/// condition becomes an assertion.
 pub const CONDITION_ABORT_ASSERT_PROP: &str = "assert";
 
-/// A property which can be attached to any condition to exclude it from verification. The
-/// condition will still be type checked.
+/// A property which can be attached to any condition to exclude it from
+/// verification. The condition will still be type checked.
 pub const CONDITION_DEACTIVATED_PROP: &str = "deactivated";
 
-/// A property which can be attached to an aborts_with to indicate that it should act as check
-/// whether the function produces exactly the provided number of error codes.
+/// A property which can be attached to an aborts_with to indicate that it
+/// should act as check whether the function produces exactly the provided
+/// number of error codes.
 pub const CONDITION_CHECK_ABORT_CODES_PROP: &str = "check";
 
-/// A property that can be attached to a global invariant to indicate that it should be
-/// enabled disabled by the disable_invariant_in_body pragma
+/// A property that can be attached to a global invariant to indicate that it
+/// should be enabled disabled by the disable_invariant_in_body pragma
 pub const CONDITION_SUSPENDABLE_PROP: &str = "suspendable";
 
 /// A pragama defined in the spec block of a function or a struct
-/// to explicitly specify which argument or field will be translated into a bv type in the boogie file
-/// example: bv=b"0,1"
+/// to explicitly specify which argument or field will be translated into a bv
+/// type in the boogie file example: bv=b"0,1"
 pub const BV_PARAM_PROP: &str = "bv";
 
 /// A pragama defined in the spec block of a function
-/// to explicitly specify which return value will be translated into a bv type in the boogie file
-/// example: bv_ret=b"0,1"
+/// to explicitly specify which return value will be translated into a bv type
+/// in the boogie file example: bv_ret=b"0,1"
 pub const BV_RET_PROP: &str = "bv_ret";
