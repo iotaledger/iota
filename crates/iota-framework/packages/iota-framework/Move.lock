@@ -15,5 +15,5 @@ source = { local = "../move-stdlib" }
 
 [move.toolchain-version]
 compiler-version = "0.2.0"
-edition = "legacy"
+edition = "2024.beta"
 flavor = "iota"

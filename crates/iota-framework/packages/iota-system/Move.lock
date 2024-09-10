@@ -16,11 +16,20 @@ source = { local = "../iota-framework" }
 
 dependencies = [
   { name = "MoveStdlib" },
+  { name = "Iota" },
 ]
 
 [[move.package]]
 name = "MoveStdlib"
 source = { local = "../move-stdlib" }
+
+[[move.package]]
+name = "Iota"
+source = { local = "../iota-framework" }
+
+dependencies = [
+  { name = "MoveStdlib" },
+]
 
 [move.toolchain-version]
 compiler-version = "0.2.0"
