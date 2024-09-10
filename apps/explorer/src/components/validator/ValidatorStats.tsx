@@ -22,10 +22,10 @@ export function ValidatorStats({
     tallyingScore,
 }: StatsCardProps): JSX.Element {
     // TODO: add missing fields
-    // const numberOfDelegators = 0;
-    //  const networkStakingParticipation = 0;
-    //  const votedLastRound =  0;
-    //  const lastNarwhalRound = 0;
+    let numberOfDelegators;
+    let networkStakingParticipation;
+    let votedLastRound;
+    let lastNarwhalRound;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
     const commission = Number(validatorData.commissionRate) / 100;
@@ -78,9 +78,13 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Delegators"
-                            text="--"
+                            text={numberOfDelegators ?? '--'}
                             showSupportingLabel={false}
-                            tooltipText="Coming soon"
+                            tooltipText={
+                                !numberOfDelegators
+                                    ? 'Coming soon'
+                                    : 'The number of delegators who have staked on this validator.'
+                            }
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
@@ -126,22 +130,24 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Checkpoint Participation"
-                            text="--"
+                            text={networkStakingParticipation ?? '--'}
                             showSupportingLabel={false}
                             tooltipText={
-                                'Coming soon' ??
-                                'The proportion of checkpoints that this validator has certified to date.'
+                                !networkStakingParticipation
+                                    ? 'Coming soon'
+                                    : 'The proportion of checkpoints that this validator has certified to date.'
                             }
                             tooltipPosition={TooltipPosition.Right}
                         />
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Voted Last Round"
-                            text="--"
+                            text={votedLastRound ?? '--'}
                             showSupportingLabel={false}
                             tooltipText={
-                                'Coming soon' ??
-                                'This validator’s participation in the voting for the most recent round.'
+                                !votedLastRound
+                                    ? 'Coming soon'
+                                    : 'This validator’s participation in the voting for the most recent round.'
                             }
                             tooltipPosition={TooltipPosition.Right}
                         />
@@ -162,10 +168,12 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Last Narwhal round"
-                            text="--"
+                            text={lastNarwhalRound ?? '--'}
                             showSupportingLabel={false}
                             tooltipText={
-                                'Coming soon' ?? 'The most recent Narwhal round for this epoch.'
+                                !lastNarwhalRound
+                                    ? 'Coming soon'
+                                    : 'The most recent Narwhal round for this epoch.'
                             }
                             tooltipPosition={TooltipPosition.Right}
                         />
