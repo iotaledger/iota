@@ -1,0 +1,126 @@
+# Transaction Life Cycle
+
+## High-level Overview
+
+![Transaction life cycle](/img/about-iota/iota-architecture/txn-lifecycle.png)
+
+1. **Create a Transaction**: A user [submits](#submission) a transaction and signs it with a private key. The transaction can affect objects owned by the user, as well as [shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx).
+
+2. **Submit to Validators**: The IOTA protocol sends the transaction to every validator. The validators validate the transaction. If valid, the validators sign it and return the signed transaction to the client.
+
+3. **Form a Transaction Certificate**: After collecting responses from a supermajority of validators, the client can form a transaction certificate. Unlike consensus-based blockchains, IOTA validators are not burdened by needing to propagate signatures or aggregate certificates; this is the responsibility of the client or gateway.
+
+4. **Send the Certificate**: The client sends the assembled certificate back to all validators. The validators check its validity and acknowledge receipt. If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for consensus (**fast path consensus**). All certificates are forwarded to the IOTA DAG-based consensus protocol.
+
+5. **Consensus and Execution**: The IOTA DAG-based consensus protocol eventually produces a total order of certificates. Validators check and execute certificates that involve shared objects.
+
+6. **Effect Certificate**: Clients can gather responses from a supermajority of validators, assemble them into an effect certificate, and use it as proof that the transaction is settled.
+
+7. **Checkpoints and Reconfiguration**: IOTA forms checkpoints for every consensus commit, which are also used to drive the reconfiguration protocol.
+
+## Real-world Example
+
+Let's say you want to pay 10 IOTA to your local coffee shop for your morning coffee. How can the coffee shop be sure that the payment is complete and allow you to take your coffee?
+
+### Transaction Creation
+
+You open your wallet app and scan the coffee shop's QR code, which contains their payment address. The app creates a transaction to transfer 10 IOTA from your address to the coffee shop's address. You review the details and approve the transaction. The app signs the transaction with your private key, creating a signed transaction.
+
+### Transaction Broadcast
+
+Your wallet app sends the signed transaction to a full node, which then broadcasts it to all validators in the network.
+
+### Transaction Certification
+
+Validators receive the transaction from the full node. They check if it's valid and lock the involved objects to prevent double-spending. After validation, they send their signature back to the full node. When the full node collects enough validator signatures (a quorum), it creates a transaction certificate, which includes the transaction and the validator signatures.
+
+### Transaction Finalization
+
+The full node broadcasts this transaction certificate to all validators. Validators verify the certificate, execute the transaction, and unlock the previously locked objects. They then sign the transaction effects (a detailed list of changes) and return these signed effects to the full node. The full node verifies these effects and, once it has enough signatures, forms an effects certificate.
+
+Your wallet app receives this effects certificate, which you can show to the coffee shop to prove that the transaction is complete and irreversible.
+
+## Transaction Life Cycle
+
+### Submission
+
+If you want to transfer an NFT from your wallet to a friend's wallet, you would create a transaction using a wallet app. This transaction includes the gas payment and a command to transfer the NFT. Before sending this transaction to the network, the wallet app needs to sign it. Once signed, the wallet app **submits** the transaction to an IOTA full node.
+
+### Certification
+
+After submission to a full node, the certification process begins. The full node can't certify the transaction alone because it does not have the full view of the network's transactions. Therefore, it sends the transaction to a validator. The validator checks if the transaction is valid and signs it if it is. The checks include:
+
+* A valid user signature.
+* The transaction's initiator owns the input objects (e.g., the NFT being transferred).
+* All shared input objects in the transaction exist.
+* The gas payment is sufficient.
+
+If these checks pass, the validator locks the input objects to the transaction, preventing double-spending, and proceeds to sign the transaction and returns the signature to the node. The node needs signatures from a majority of validators to certify the transaction.
+
+The full node collects these signatures in parallel to speed up the process. Once it has enough signatures (a quorum), the transaction is certified, forming a **transaction certificate**.
+
+Even if some validators are dishonest, the principle of "quorum intersection" ensures that as long as most validators are honest, double-spending is prevented. An honest validator will not sign two transactions that try to use the same object at the same time.
+
+### Execution
+
+Certified transactions are then sent to validators for **execution**. Validators verify the certificate signatures to ensure the transaction is valid and not attempting to double-spend.
+
+Depending on whether the transaction uses shared input objects, the validators will either:
+
+* Execute it immediately if no shared objects are involved.
+* Submit it to IOTA's consensus layer to order the transaction with others if shared objects are involved, and then execute it.
+
+This ensures that transactions are processed in the correct order and prevent conflicts.
+
+### Effects Certificate
+
+After the transaction is executed, the validator signs off on the effects of the transaction and sends them back to the full node. The effects of a transaction are essentially a detailed record of what happened, including:
+
+* Any objects that were changed, created, wrapped, unwrapped, or deleted.
+* The amount of gas spent.
+* The transaction's execution status (either success or an error code).
+
+The full node then gathers these signed effects from a majority of validators, forming an **effects certificate**, which guarantees that the transaction is final.
+
+Once you or the full node sees an effects certificate, you can be sure that the transaction will be included in a [checkpoint](#checkpoints), meaning it can't be undone. This certificate can also serve as proof that you sent the NFT to your friend since it can't be faked due to the validator signatures.
+
+### Checkpoints
+
+The final stage in a transaction's life is its inclusion in a checkpoint. Validators send executed transactions to the consensus layer, which orders all transactions universally. This ordered list of transactions is used to create checkpoints. Checkpoints include:
+
+* Ordered transaction lists.
+* Transaction effects.
+
+Transactions are added to checkpoints once they are complete and causally ordered, meaning any related dependencies are included and ordered correctly. This ensures the transactions are processed in the right sequence. Forming checkpoints usually takes a few seconds. Once included in a checkpoint, the transaction is permanently recorded on the IOTA network.
+
+### Transaction Finality
+
+Transaction finality means that once a transaction is executed, it can't be reversed or changed. From the time a transaction is sent to when it receives validator signatures, less than half a second passes. At this point, the sender knows the transaction will be processed and can't be undone. Honest validators will reject any subsequent transactions that try to use the same input objects within the same epoch.
+
+### Settlement Finality
+
+After executing a transaction, validators send back the signed effects to the network. When a majority of validators have executed the transaction and the [effects certificate](#effects-certificate) exists, the transaction's effects (like transfers or newly created objects) are implemented. This allows the network to process new transactions that depend on these effects.
+
+Settlement finality depends on [object ownership](../../developer/iota-101/objects/object-ownership/object-ownership.mdx). For transactions involving only owned objects, this happens quickly, in under half a second. For those involving shared objects, it happens shortly after consensus, which can take a few seconds. At this point, the transaction reaches settlement finality, meaning the network can now process more transactions using the same input objects.
+
+### Checkpoint Processing
+
+The [real-world example](#real-world-example) at the beginning of the article demonstrates a finalized transaction through an effects certificate. However, if a full node goes offline before collecting all signatures, your wallet app will try another full node. If your phone dies during this process, the coffee shop will still see your payment on its terminal connected to a different full node, thanks to checkpoints.
+
+A checkpoint contains a list of transactions and is signed by a majority of validators, making it final. If a full node learns about your transaction through checkpoints, it ensures that the transaction will be finalized.
+
+### Local Execution on a Full Node
+
+Before sending back an effects certificate, a full node might execute the transaction locally if the request asks it to. This is more important for high-frequency applications like gaming but can add unnecessary delay for simple transactions like buying coffee. The `WaitForLocalExecution` parameter requests this local execution, while you can use the `WaitForEffects` parameter for a quicker response.
+
+Additionally, when any app builds a transaction, the full node is usually in charge of choosing the object that is used to pay for the transaction's gas. Since gas is paid in IOTA, which is a shared object, if the full node is not up-to-date, it could potentially lead to an invalid transaction or even a [client equivocation](../../developer/iota-101/transactions/sponsored-transactions.mdx#potential-risks-using-sponsored-transactions). You can avoid this unwanted behavior by sending the `WaitForLocalExecution` parameter.
+
+### Epoch Change
+
+Every ~24 hours, the IOTA network undergoes an epoch change, during which staking rewards are calculated and distributed, validator metadata is updated, and other network processes occur. User transactions are paused during this time. If your transaction is submitted at the epoch boundary, it may need resubmission in the new epoch. Transactions that were certified but not yet finalized will be reverted. Any transaction certificate from the previous epoch will become invalid, so the full node will resubmit the invalid transactions.
+
+### Verifying Finality
+
+If your wallet app crashes during a transaction, it stores the signed transaction locally. Upon restarting, it will verify if the transaction was finalized. If finalized, no further steps are required. If not, the app will need to resubmit the transaction.
+
+The wallet app can query the full node with the `getTransactionBlock` method to check if the transaction is finalized. If the response contains transaction details, it is finalized. If the response is `None`, the transaction may need to be resubmitted. This ensures that the coffee shop's full node will eventually recognize the transaction once it's included in a checkpoint and update the coffee shop's balance.

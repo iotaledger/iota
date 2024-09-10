@@ -1,5 +1,6 @@
 # Copyright(C) Facebook, Inc. and its affiliates.
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 from os.path import join
 
@@ -44,7 +45,7 @@ class CommandMaker:
     def generate_network_key(filename):
         assert isinstance(filename, str)
         return f'./narwhal-node generate_network_keys --filename {filename}'
-     
+
     @staticmethod
     def run_primary(primary_keys, primary_network_keys, worker_keys, committee, workers, store, parameters, debug=False):
         assert isinstance(primary_keys, str)

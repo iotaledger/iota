@@ -6,17 +6,17 @@ on:
 
   ## Run this workflow automatically every week
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
 
 jobs:
   link_checker:
     name: Check links and create automated issue if needed
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       LYCHEE_OUT: ./lychee/links-report
     steps:
       ## Check out code using Git
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
 
       - name: Check all links at *.md and doc files
         id: lychee
@@ -51,19 +51,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create issue from report file
-        if: ${{ steps.last_issue.outputs.has_found == 'false' }}
+        if: steps.last_issue.outputs.has_found == 'false'
         uses: peter-evans/create-issue-from-file@v4
         with:
           title: Link checker report
           content-filepath: ${{ env.LYCHEE_OUT }}
-          assignees: ronny-mysten, randall-Mysten, awelc, lxfind, patrickkuo
           issue-number: ${{ steps.last_issue.outputs.issue_number }}
           labels: |
             report
             automated issue
 
       - name: Update last report open issue created
-        if: ${{ steps.last_issue.outputs.has_found == 'true' }}
+        if: steps.last_issue.outputs.has_found == 'true'
         uses: peter-evans/create-issue-from-file@v4
         with:
           title: Link checker report
@@ -74,7 +73,7 @@ jobs:
             automated issue
 
       - name: Close last report open issue
-        if: ${{ steps.lychee.outputs.exit_code == 0 }}
+        if: steps.lychee.outputs.exit_code == 0
         uses: peter-evans/close-issue@v3
         with:
           issue-number: ${{ steps.last_issue.outputs.issue_number }}

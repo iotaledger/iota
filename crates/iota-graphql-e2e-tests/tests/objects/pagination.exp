@@ -1,0 +1,256 @@
+processed 14 tasks
+
+task 1 'publish'. lines 7-20:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 22-22:
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 3 'run'. lines 24-24:
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 4 'run'. lines 26-26:
+created: object(4,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 5 'run'. lines 28-28:
+created: object(5,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 6 'run'. lines 30-30:
+created: object(6,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 7 'create-checkpoint'. lines 32-32:
+Checkpoint created: 1
+
+task 8 'run-graphql'. lines 35-49:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x3461c19618ae469f04352d1c04c3d4520bc39c47149974b21e077351a526918c",
+                  "value": "4"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9840d72031eb87ac32fc798553ddea71a8e2634f08122d610e6f1e7d205bb857",
+                  "value": "3"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xb7c210e39501d53eb57a29721f1bba1136779e3fdf30968484129c01540ae1d9",
+                  "value": "2"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xbf0de7c7e7ad0ba77c99aef6a50f77462e35c6b56d39c1a8587dd9aecd24bd7a",
+                  "value": "1"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xc9d3f8119ca4b3cf7f8ce62598cc2db055922fed7d2f25c5fec41d38eab2f121",
+                  "value": "0"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 9 'run-graphql'. lines 51-65:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x3461c19618ae469f04352d1c04c3d4520bc39c47149974b21e077351a526918c",
+                  "value": "4"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9840d72031eb87ac32fc798553ddea71a8e2634f08122d610e6f1e7d205bb857",
+                  "value": "3"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 10 'run-graphql'. lines 67-83:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9840d72031eb87ac32fc798553ddea71a8e2634f08122d610e6f1e7d205bb857",
+                  "value": "3"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xb7c210e39501d53eb57a29721f1bba1136779e3fdf30968484129c01540ae1d9",
+                  "value": "2"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 11 'run-graphql'. lines 85-99:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xbf0de7c7e7ad0ba77c99aef6a50f77462e35c6b56d39c1a8587dd9aecd24bd7a",
+                  "value": "1"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xc9d3f8119ca4b3cf7f8ce62598cc2db055922fed7d2f25c5fec41d38eab2f121",
+                  "value": "0"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 12 'run-graphql'. lines 101-115:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xb7c210e39501d53eb57a29721f1bba1136779e3fdf30968484129c01540ae1d9",
+                  "value": "2"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xbf0de7c7e7ad0ba77c99aef6a50f77462e35c6b56d39c1a8587dd9aecd24bd7a",
+                  "value": "1"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 13 'run-graphql'. lines 117-130:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xbf0de7c7e7ad0ba77c99aef6a50f77462e35c6b56d39c1a8587dd9aecd24bd7a",
+                  "value": "1"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xc9d3f8119ca4b3cf7f8ce62598cc2db055922fed7d2f25c5fec41d38eab2f121",
+                  "value": "0"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

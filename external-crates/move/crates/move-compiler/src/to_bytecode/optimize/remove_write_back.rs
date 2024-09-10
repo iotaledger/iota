@@ -1,11 +1,15 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::parser::ast::FunctionName;
-use move_ir_types::ast as IR;
 use std::collections::BTreeSet;
 
-// Removes any unnecessary moving/copying a value out of a local just to reassign the value back.
+use move_ir_types::ast as IR;
+
+use crate::parser::ast::FunctionName;
+
+// Removes any unnecessary moving/copying a value out of a local just to
+// reassign the value back.
 #[allow(clippy::ptr_arg)]
 pub fn optimize(
     _f: &FunctionName,

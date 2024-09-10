@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
-use iota_json_rpc_api::{TransactionBuilderOpenRpc, TransactionBuilderServer};
+use iota_json_rpc_api::{internal_error, TransactionBuilderOpenRpc, TransactionBuilderServer};
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
     IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
@@ -91,8 +91,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         let data = self
             .0
             .transfer_object(signer, object_id, gas, *gas_budget, recipient)
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn transfer_iota(
@@ -112,8 +113,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
                 recipient,
                 amount.map(|a| *a),
             )
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn pay(
@@ -135,8 +137,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
                 gas,
                 *gas_budget,
             )
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn pay_iota(
@@ -156,8 +159,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
                 amounts.into_iter().map(|a| *a).collect(),
                 *gas_budget,
             )
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn pay_all_iota(
@@ -170,8 +174,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         let data = self
             .0
             .pay_all_iota(signer, input_coins, recipient, *gas_budget)
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn publish(
@@ -185,12 +190,14 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         let compiled_modules = compiled_modules
             .into_iter()
             .map(|data| data.to_vec().map_err(|e| anyhow::anyhow!(e)))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(internal_error)?;
         let data = self
             .0
             .publish(sender, compiled_modules, dependencies, gas, *gas_budget)
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn split_coin(
@@ -205,8 +212,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         let data = self
             .0
             .split_coin(signer, coin_object_id, split_amounts, gas, *gas_budget)
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn split_coin_equal(
@@ -220,8 +228,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         let data = self
             .0
             .split_coin_equal(signer, coin_object_id, *split_count, gas, *gas_budget)
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn merge_coin(
@@ -235,8 +244,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         let data = self
             .0
             .merge_coins(signer, primary_coin, coin_to_merge, gas, *gas_budget)
-            .await?;
-        Ok(TransactionBlockBytes::from_data(data)?)
+            .await
+            .map_err(internal_error)?;
+        Ok(TransactionBlockBytes::from_data(data).map_err(internal_error)?)
     }
 
     async fn move_call(
@@ -264,8 +274,10 @@ impl TransactionBuilderServer for TransactionBuilderApi {
                     *gas_budget,
                     None,
                 )
-                .await?,
-        )?)
+                .await
+                .map_err(internal_error)?,
+        )
+        .map_err(internal_error)?)
     }
 
     async fn batch_transaction(
@@ -279,8 +291,10 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         Ok(TransactionBlockBytes::from_data(
             self.0
                 .batch_transaction(signer, params, gas, *gas_budget)
-                .await?,
-        )?)
+                .await
+                .map_err(internal_error)?,
+        )
+        .map_err(internal_error)?)
     }
 
     async fn request_add_stake(
@@ -296,8 +310,10 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         Ok(TransactionBlockBytes::from_data(
             self.0
                 .request_add_stake(signer, coins, amount, validator, gas, *gas_budget)
-                .await?,
-        )?)
+                .await
+                .map_err(internal_error)?,
+        )
+        .map_err(internal_error)?)
     }
 
     async fn request_withdraw_stake(
@@ -310,8 +326,43 @@ impl TransactionBuilderServer for TransactionBuilderApi {
         Ok(TransactionBlockBytes::from_data(
             self.0
                 .request_withdraw_stake(signer, staked_iota, gas, *gas_budget)
-                .await?,
-        )?)
+                .await
+                .map_err(internal_error)?,
+        )
+        .map_err(internal_error)?)
+    }
+
+    async fn request_add_timelocked_stake(
+        &self,
+        signer: IotaAddress,
+        locked_balance: ObjectID,
+        validator: IotaAddress,
+        gas: ObjectID,
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes> {
+        Ok(TransactionBlockBytes::from_data(
+            self.0
+                .request_add_timelocked_stake(signer, locked_balance, validator, gas, *gas_budget)
+                .await
+                .map_err(internal_error)?,
+        )
+        .map_err(internal_error)?)
+    }
+
+    async fn request_withdraw_timelocked_stake(
+        &self,
+        signer: IotaAddress,
+        timelocked_staked_iota: ObjectID,
+        gas: ObjectID,
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes> {
+        Ok(TransactionBlockBytes::from_data(
+            self.0
+                .request_withdraw_timelocked_stake(signer, timelocked_staked_iota, gas, *gas_budget)
+                .await
+                .map_err(internal_error)?,
+        )
+        .map_err(internal_error)?)
     }
 }
 

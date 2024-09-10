@@ -1,0 +1,9 @@
+[package]
+name = "deepbook_client"
+version = "0.0.1"
+
+[dependencies]
+DeepBook = { local = "../../../../iota-framework/packages/deepbook" }
+
+[addresses]
+deepbook_client = "0x0"

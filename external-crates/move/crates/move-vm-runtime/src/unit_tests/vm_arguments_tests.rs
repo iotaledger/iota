@@ -1,17 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
 
-use crate::move_vm::MoveVM;
 use move_binary_format::{
     errors::{VMError, VMResult},
     file_format::{
         empty_module, AbilitySet, AddressIdentifierIndex, Bytecode, CodeUnit, CompiledModule,
-        FieldDefinition, FunctionDefinition, FunctionHandle, FunctionHandleIndex, IdentifierIndex,
-        ModuleHandle, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
-        StructDefinition, StructFieldInformation, StructHandle, StructHandleIndex, TableIndex,
+        DatatypeHandle, DatatypeHandleIndex, FieldDefinition, FunctionDefinition, FunctionHandle,
+        FunctionHandleIndex, IdentifierIndex, ModuleHandle, ModuleHandleIndex, Signature,
+        SignatureIndex, SignatureToken, StructDefinition, StructFieldInformation, TableIndex,
         TypeSignature, Visibility,
     },
 };
@@ -25,6 +25,8 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_vm_types::gas::UnmeteredGasMeter;
+
+use crate::move_vm::MoveVM;
 
 fn make_module_with_function(
     visibility: Visibility,
@@ -60,7 +62,7 @@ fn make_module_with_function(
             address: AddressIdentifierIndex(0),
             name: IdentifierIndex(0),
         }],
-        struct_handles: vec![StructHandle {
+        datatype_handles: vec![DatatypeHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(1),
             abilities: AbilitySet::EMPTY,
@@ -79,6 +81,8 @@ fn make_module_with_function(
         struct_def_instantiations: vec![],
         function_instantiations: vec![],
         field_instantiations: vec![],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
 
         signatures,
 
@@ -92,7 +96,7 @@ fn make_module_with_function(
         metadata: vec![],
 
         struct_defs: vec![StructDefinition {
-            struct_handle: StructHandleIndex(0),
+            struct_handle: DatatypeHandleIndex(0),
             field_information: StructFieldInformation::Declared(vec![FieldDefinition {
                 name: IdentifierIndex(1),
                 signature: TypeSignature(SignatureToken::Bool),
@@ -106,8 +110,11 @@ fn make_module_with_function(
             code: Some(CodeUnit {
                 locals: SignatureIndex(0),
                 code: vec![Bytecode::LdU64(0), Bytecode::Abort],
+                jump_tables: vec![],
             }),
         }],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
     (module, function_name)
 }
@@ -212,41 +219,42 @@ fn call_script_function(
     call_script_function_with_args_ty_args_signers(module, function_name, args, vec![], vec![])
 }
 
-// these signatures used to be bad, but there are no bad signatures for scripts at the VM
+// these signatures used to be bad, but there are no bad signatures for scripts
+// at the VM
 fn deprecated_bad_signatures() -> Vec<Signature> {
     vec![
         // struct in signature
-        Signature(vec![SignatureToken::Struct(StructHandleIndex(0))]),
+        Signature(vec![SignatureToken::Datatype(DatatypeHandleIndex(0))]),
         // struct in signature
         Signature(vec![
             SignatureToken::Bool,
-            SignatureToken::Struct(StructHandleIndex(0)),
+            SignatureToken::Datatype(DatatypeHandleIndex(0)),
             SignatureToken::U64,
         ]),
         // reference to struct in signature
         Signature(vec![
             SignatureToken::Address,
-            SignatureToken::MutableReference(Box::new(SignatureToken::Struct(StructHandleIndex(
-                0,
-            )))),
+            SignatureToken::MutableReference(Box::new(SignatureToken::Datatype(
+                DatatypeHandleIndex(0),
+            ))),
         ]),
         // vector of struct in signature
         Signature(vec![
             SignatureToken::Bool,
-            SignatureToken::Vector(Box::new(SignatureToken::Struct(StructHandleIndex(0)))),
+            SignatureToken::Vector(Box::new(SignatureToken::Datatype(DatatypeHandleIndex(0)))),
             SignatureToken::U64,
         ]),
         // vector of vector of struct in signature
         Signature(vec![
             SignatureToken::Bool,
             SignatureToken::Vector(Box::new(SignatureToken::Vector(Box::new(
-                SignatureToken::Struct(StructHandleIndex(0)),
+                SignatureToken::Datatype(DatatypeHandleIndex(0)),
             )))),
             SignatureToken::U64,
         ]),
         // reference to vector in signature
         Signature(vec![SignatureToken::Reference(Box::new(
-            SignatureToken::Vector(Box::new(SignatureToken::Struct(StructHandleIndex(0)))),
+            SignatureToken::Vector(Box::new(SignatureToken::Datatype(DatatypeHandleIndex(0)))),
         ))]),
         // reference to vector in signature
         Signature(vec![SignatureToken::Reference(Box::new(
@@ -338,7 +346,6 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 ]),
             ],
         ),
-        //
         // Vector arguments
         //
         // empty vector
@@ -501,7 +508,6 @@ fn general_cases() -> Vec<(
 
 #[test]
 fn check_script_function() {
-    //
     // Bad signatures
     //
     for signature in deprecated_bad_signatures() {
@@ -519,11 +525,11 @@ fn check_script_function() {
         )
     }
 
-    //
     // Good signatures
     //
     for (signature, args) in good_signatures_and_arguments() {
-        // Body of the script is just an abort, so `ABORTED` means the script was accepted and ran
+        // Body of the script is just an abort, so `ABORTED` means the script was
+        // accepted and ran
         let expected_status = StatusCode::ABORTED;
         let (module, function_name) = make_script_function(signature);
         assert_eq!(
@@ -535,7 +541,6 @@ fn check_script_function() {
         )
     }
 
-    //
     // Mismatched Cases
     //
     for (signature, args, error) in mismatched_cases() {
@@ -550,7 +555,8 @@ fn check_script_function() {
     }
 
     for (signature, args, signers, expected_status_opt) in general_cases() {
-        // Body of the script is just an abort, so `ABORTED` means the script was accepted and ran
+        // Body of the script is just an abort, so `ABORTED` means the script was
+        // accepted and ran
         let expected_status = expected_status_opt.unwrap_or(StatusCode::ABORTED);
         let (module, function_name) = make_script_function(signature);
         assert_eq!(
@@ -568,7 +574,6 @@ fn check_script_function() {
         );
     }
 
-    //
     // Non script visible
     // DEPRECATED this check must now be done by the adapter
     //
@@ -621,7 +626,7 @@ fn call_missing_item() {
     let module = empty_module();
     let id = &module.self_id();
     let function_name = IdentStr::new("foo").unwrap();
-    // mising module
+    // missing module
     let move_vm = MoveVM::new(vec![]).unwrap();
     let mut remote_view = RemoteStore::new();
     let mut session = move_vm.new_session(&remote_view);

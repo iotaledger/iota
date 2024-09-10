@@ -1,104 +1,80 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import { getValidDAppUrl } from '_src/shared/utils';
-import { CheckFill16 } from '@mysten/icons';
-import cn from 'clsx';
-
+import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
 import { useAccountByAddress } from '../hooks/useAccountByAddress';
-import { Heading } from '../shared/heading';
-import { Link } from '../shared/Link';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
-import { LockUnlockButton } from './accounts/LockUnlockButton';
 import { useUnlockAccount } from './accounts/UnlockAccountContext';
-import { DAppPermissionsList } from './DAppPermissionsList';
+import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
+import { Link } from 'react-router-dom';
+import { ImageIcon } from '../shared/image-icon';
 
-export type DAppInfoCardProps = {
-	name: string;
-	url: string;
-	iconUrl?: string;
-	connectedAddress?: string;
-	permissions?: PermissionType[];
-};
+export interface DAppInfoCardProps {
+    name: string;
+    url: string;
+    iconUrl?: string;
+    connectedAddress?: string;
+    permissions?: PermissionType[];
+}
 
 export function DAppInfoCard({
-	name,
-	url,
-	iconUrl,
-	connectedAddress,
-	permissions,
+    name,
+    url,
+    iconUrl,
+    connectedAddress,
+    permissions,
 }: DAppInfoCardProps) {
-	const validDAppUrl = getValidDAppUrl(url);
-	const appHostname = validDAppUrl?.hostname ?? url;
-	const { data: account } = useAccountByAddress(connectedAddress);
-	const { unlockAccount, lockAccount, isPending, accountToUnlock } = useUnlockAccount();
-
-	return (
-		<div className="bg-white p-6 flex flex-col gap-5">
-			<div className="flex flex-row flex-nowrap items-center gap-3.75 py-3">
-				<div className="flex items-stretch h-15 w-15 overflow-hidden bg-steel/20 shrink-0 grow-0 rounded-2xl">
-					{iconUrl ? <img className="flex-1" src={iconUrl} alt={name} /> : null}
-				</div>
-				<div className="flex flex-col items-start flex-nowrap gap-1 overflow-hidden">
-					<div className="max-w-full overflow-hidden">
-						<Heading variant="heading4" weight="semibold" color="gray-100" truncate>
-							{name}
-						</Heading>
-					</div>
-					<div className="max-w-full overflow-hidden">
-						<Link
-							href={validDAppUrl?.toString() ?? url}
-							title={name}
-							text={appHostname}
-							color="heroDark"
-							weight="medium"
-						/>
-					</div>
-				</div>
-			</div>
-			{connectedAddress && account ? (
-				<AccountItem
-					icon={<AccountIcon account={account} />}
-					accountID={account.id}
-					disabled={account.isLocked}
-					after={
-						<div className="flex flex-1 items-center justify-end gap-1">
-							{account.isLocked ? (
-								<div className="h-4">
-									<LockUnlockButton
-										isLocked={account.isLocked}
-										isLoading={isPending && accountToUnlock?.id === account.id}
-										onClick={(e) => {
-											// prevent the account from being selected when clicking the lock button
-											e.stopPropagation();
-											if (account.isLocked) {
-												unlockAccount(account);
-											} else {
-												lockAccount(account);
-											}
-										}}
-									/>
-								</div>
-							) : null}
-							<CheckFill16
-								className={cn('h-4 w-4', account.isLocked ? 'text-hero/10' : 'text-success')}
-							/>
-						</div>
-					}
-					hideCopy
-					hideExplorerLink
-				/>
-			) : null}
-			{permissions?.length ? (
-				<SummaryCard
-					header="Permissions requested"
-					body={<DAppPermissionsList permissions={permissions} />}
-					boxShadow
-				/>
-			) : null}
-		</div>
-	);
+    const validDAppUrl = getValidDAppUrl(url);
+    const { data: account } = useAccountByAddress(connectedAddress);
+    const { unlockAccount, lockAccount } = useUnlockAccount();
+    function handleLockAndUnlockClick() {
+        if (!account) return;
+        if (account?.isLocked) {
+            unlockAccount(account);
+        } else {
+            lockAccount(account);
+        }
+    }
+    return (
+        <div className="flex flex-col gap-y-md">
+            <Card type={CardType.Default}>
+                <CardImage type={ImageType.BgSolid} shape={ImageShape.Rounded}>
+                    <ImageIcon src={iconUrl || null} label={name} fallback={name} />
+                </CardImage>
+                <CardBody
+                    title={name}
+                    subtitle={
+                        <Link
+                            to={validDAppUrl?.toString() ?? url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {validDAppUrl?.toString() ?? url}
+                        </Link>
+                    }
+                />
+            </Card>
+            {connectedAddress && account ? (
+                <AccountItem
+                    icon={<AccountIcon account={account} />}
+                    accountID={account.id}
+                    onLockAccountClick={handleLockAndUnlockClick}
+                    onUnlockAccountClick={handleLockAndUnlockClick}
+                    hideCopy
+                    hideExplorerLink
+                />
+            ) : null}
+            {permissions?.length ? (
+                <SummaryCard
+                    header="Permissions requested"
+                    body={<DAppPermissionList permissions={permissions} />}
+                />
+            ) : null}
+        </div>
+    );
 }

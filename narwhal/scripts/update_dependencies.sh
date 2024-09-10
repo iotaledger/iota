@@ -1,8 +1,9 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# This script attempts to update the Narwhal pointer in Sui
+# This script attempts to update the Narwhal pointer in Iota
 # It is expected to fail in cases 
 set -e
 set -eo pipefail

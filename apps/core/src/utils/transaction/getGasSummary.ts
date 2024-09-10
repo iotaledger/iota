@@ -1,60 +1,62 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import {
-	DryRunTransactionBlockResponse,
-	GasCostSummary,
-	SuiGasData,
-	SuiTransactionBlockResponse,
-	TransactionEffects,
-} from '@mysten/sui.js/client';
+    DryRunTransactionBlockResponse,
+    GasCostSummary,
+    IotaGasData,
+    IotaTransactionBlockResponse,
+    TransactionEffects,
+} from '@iota/iota-sdk/client';
 
 type Optional<T> = {
-	[K in keyof T]?: T[K];
+    [K in keyof T]?: T[K];
 };
 
 export type GasSummaryType =
-	| (GasCostSummary &
-			Optional<SuiGasData> & {
-				totalGas?: string;
-				owner?: string;
-				isSponsored: boolean;
-				gasUsed: GasCostSummary;
-			})
-	| null;
+    | (GasCostSummary &
+          Optional<IotaGasData> & {
+              totalGas?: string;
+              owner?: string;
+              isSponsored: boolean;
+              gasUsed: GasCostSummary;
+          })
+    | null;
 
 export function getGasSummary(
-	transaction: SuiTransactionBlockResponse | DryRunTransactionBlockResponse,
+    transaction: IotaTransactionBlockResponse | DryRunTransactionBlockResponse,
 ): GasSummaryType {
-	const { effects } = transaction;
-	if (!effects) return null;
-	const totalGas = getTotalGasUsed(effects);
+    const { effects } = transaction;
+    if (!effects) return null;
+    const totalGas = getTotalGasUsed(effects);
 
-	let sender = 'transaction' in transaction ? transaction.transaction?.data.sender : undefined;
+    const sender = 'transaction' in transaction ? transaction.transaction?.data.sender : undefined;
 
-	const gasData = 'transaction' in transaction ? transaction.transaction?.data.gasData : {};
+    const gasData = 'transaction' in transaction ? transaction.transaction?.data.gasData : {};
 
-	const owner =
-		'transaction' in transaction
-			? transaction.transaction?.data.gasData.owner
-			: typeof effects.gasObject.owner === 'object' && 'AddressOwner' in effects.gasObject.owner
-			? effects.gasObject.owner.AddressOwner
-			: '';
+    const owner =
+        'transaction' in transaction
+            ? transaction.transaction?.data.gasData.owner
+            : typeof effects.gasObject.owner === 'object' &&
+                'AddressOwner' in effects.gasObject.owner
+              ? effects.gasObject.owner.AddressOwner
+              : '';
 
-	return {
-		...effects.gasUsed,
-		...gasData,
-		owner,
-		totalGas: totalGas?.toString(),
-		isSponsored: !!owner && !!sender && owner !== sender,
-		gasUsed: transaction?.effects!.gasUsed,
-	};
+    return {
+        ...effects.gasUsed,
+        ...gasData,
+        owner,
+        totalGas: totalGas?.toString(),
+        isSponsored: !!owner && !!sender && owner !== sender,
+        gasUsed: transaction?.effects!.gasUsed,
+    };
 }
 
 export function getTotalGasUsed(effects: TransactionEffects): bigint | undefined {
-	const gasSummary = effects?.gasUsed;
-	return gasSummary
-		? BigInt(gasSummary.computationCost) +
-				BigInt(gasSummary.storageCost) -
-				BigInt(gasSummary.storageRebate)
-		: undefined;
+    const gasSummary = effects?.gasUsed;
+    return gasSummary
+        ? BigInt(gasSummary.computationCost) +
+              BigInt(gasSummary.storageCost) -
+              BigInt(gasSummary.storageRebate)
+        : undefined;
 }

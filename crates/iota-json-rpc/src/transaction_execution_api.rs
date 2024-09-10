@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
@@ -39,20 +39,21 @@ use tracing::instrument;
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    get_balance_changes_from_effect, get_object_changes, with_tracing, IotaRpcModule,
-    ObjectProviderCache,
+    get_balance_changes_from_effect, get_object_changes,
+    logger::FutureWithTracing,
+    IotaRpcModule, ObjectProviderCache,
 };
 
 pub struct TransactionExecutionApi {
     state: Arc<dyn StateRead>,
-    transaction_orchestrator: Arc<TransactiondOrchestrator<NetworkAuthorityClient>>,
+    transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
     metrics: Arc<JsonRpcMetrics>,
 }
 
 impl TransactionExecutionApi {
     pub fn new(
         state: Arc<AuthorityState>,
-        transaction_orchestrator: Arc<TransactiondOrchestrator<NetworkAuthorityClient>>,
+        transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
         metrics: Arc<JsonRpcMetrics>,
     ) -> Self {
         Self {
@@ -76,10 +77,11 @@ impl TransactionExecutionApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         opts: Option<IotaTransactionBlockResponseOptions>,
+        request_type: Option<ExecuteTransactionRequestType>,
     ) -> Result<
         (
-            ExecuteTransactionRequestV3,
             IotaTransactionBlockResponseOptions,
+            ExecuteTransactionRequestType,
             IotaAddress,
             Vec<InputObjectKind>,
             Transaction,
@@ -89,7 +91,6 @@ impl TransactionExecutionApi {
         IotaRpcInputError,
     > {
         let opts = opts.unwrap_or_default();
-
         let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
         let sender = tx_data.sender();
         let input_objs = tx_data.input_objects().unwrap_or_default();
@@ -324,10 +325,9 @@ impl WriteApiServer for TransactionExecutionApi {
         opts: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        with_tracing!(Duration::from_secs(10), async move {
-            self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
-                .await
-        })
+        self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
+            .trace_timeout(Duration::from_secs(10))
+            .await
     }
 
     #[instrument(skip(self))]
@@ -339,7 +339,7 @@ impl WriteApiServer for TransactionExecutionApi {
         _epoch: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
     ) -> RpcResult<DevInspectResults> {
-        with_tracing!(async move {
+        async move {
             let DevInspectArgs {
                 gas_sponsor,
                 gas_budget,
@@ -361,7 +361,9 @@ impl WriteApiServer for TransactionExecutionApi {
                 )
                 .await
                 .map_err(Error::from)
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -369,7 +371,7 @@ impl WriteApiServer for TransactionExecutionApi {
         &self,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        with_tracing!(async move { self.dry_run_transaction_block(tx_bytes).await })
+        self.dry_run_transaction_block(tx_bytes).trace().await
     }
 }
 

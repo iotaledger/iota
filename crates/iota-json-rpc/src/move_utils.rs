@@ -31,7 +31,8 @@ use tracing::{error, instrument, warn};
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    with_tracing, IotaRpcModule,
+    logger::FutureWithTracing as _,
+    IotaRpcModule,
 };
 
 #[cfg_attr(test, automock)]
@@ -156,13 +157,15 @@ impl MoveUtilsServer for MoveUtils {
         &self,
         package: ObjectID,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
-        with_tracing!(async move {
+        async move {
             let modules = self.internal.get_move_modules_by_package(package).await?;
             Ok(modules
                 .into_iter()
                 .map(|(name, module)| (name, module.into()))
                 .collect::<BTreeMap<String, IotaMoveNormalizedModule>>())
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -171,10 +174,12 @@ impl MoveUtilsServer for MoveUtils {
         package: ObjectID,
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule> {
-        with_tracing!(async move {
+        async move {
             let module = self.internal.get_move_module(package, module_name).await?;
             Ok(module.into())
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -184,7 +189,7 @@ impl MoveUtilsServer for MoveUtils {
         module_name: String,
         struct_name: String,
     ) -> RpcResult<IotaMoveNormalizedStruct> {
-        with_tracing!(async move {
+        async move {
             let module = self.internal.get_move_module(package, module_name).await?;
             let structs = module.structs;
             let identifier = Identifier::new(struct_name.as_str())
@@ -196,7 +201,9 @@ impl MoveUtilsServer for MoveUtils {
                     struct_name
                 )))?,
             }
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -206,7 +213,7 @@ impl MoveUtilsServer for MoveUtils {
         module_name: String,
         function_name: String,
     ) -> RpcResult<IotaMoveNormalizedFunction> {
-        with_tracing!(async move {
+        async move {
             let module = self.internal.get_move_module(package, module_name).await?;
             let functions = module.functions;
             let identifier = Identifier::new(function_name.as_str())
@@ -214,11 +221,12 @@ impl MoveUtilsServer for MoveUtils {
             match functions.get(&identifier) {
                 Some(function) => Ok(function.clone().into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "No function was found with function name {}",
-                    function_name
+                    "No function was found with function name {function_name}",
                 )))?,
             }
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -228,7 +236,7 @@ impl MoveUtilsServer for MoveUtils {
         module: String,
         function: String,
     ) -> RpcResult<Vec<MoveFunctionArgType>> {
-        with_tracing!(async move {
+        async move {
             let object_read = self.internal.get_object_read(package)?;
 
             let normalized = match object_read {
@@ -241,13 +249,11 @@ impl MoveUtilsServer for MoveUtils {
                             .map_err(Error::from)
                     }
                     _ => Err(IotaRpcInputError::GenericInvalid(format!(
-                        "Object is not a package with ID {}",
-                        package
+                        "Object is not a package with ID {package}",
                     )))?,
                 },
                 _ => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "Package object does not exist with ID {}",
-                    package
+                    "Package object does not exist with ID {package}",
                 )))?,
             }?;
 
@@ -277,11 +283,12 @@ impl MoveUtilsServer for MoveUtils {
                     })
                     .collect::<Vec<MoveFunctionArgType>>()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "No parameters found for function {}",
-                    function
+                    "No parameters found for function {function}",
                 )))?,
             }
-        })
+        }
+        .trace()
+        .await
     }
 }
 
@@ -289,7 +296,6 @@ impl MoveUtilsServer for MoveUtils {
 mod tests {
 
     mod get_normalized_move_module_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
         use move_binary_format::file_format::basic_test_module;
 
         use super::super::*;
@@ -342,10 +348,9 @@ mod tests {
                 .get_normalized_move_module(package, module_name)
                 .await;
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
 
-            assert_eq!(error_object.code(), -32602);
-            assert_eq!(error_object.message(), &error_string);
+            assert_eq!(error_result.code(), -32602);
+            assert_eq!(error_result.message(), &error_string);
         }
     }
 }

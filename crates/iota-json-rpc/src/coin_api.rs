@@ -17,7 +17,8 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
-    gas_coin::{GAS, TOTAL_SUPPLY_NANOS},
+    gas_coin::GAS,
+    iota_system_state::IotaSystemStateTrait,
     object::Object,
     parse_iota_struct_tag,
 };
@@ -26,12 +27,13 @@ use jsonrpsee::{core::RpcResult, RpcModule};
 use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
 use tap::TapFallible;
-use tracing::{debug, info, instrument};
+use tracing::{debug, instrument};
 
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
-    with_tracing, IotaRpcModule,
+    logger::FutureWithTracing as _,
+    IotaRpcModule,
 };
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
@@ -88,13 +90,13 @@ impl CoinReadApiServer for CoinReadApi {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
-        with_tracing!(async move {
+        async move {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
 
             let cursor = match cursor {
                 Some(c) => (coin_type_tag.to_string(), c),
-                // If cursor is not specified, we need to start from the beginning of the coin type,
-                // which is the minimal possible ObjectID.
+                // If cursor is not specified, we need to start from the beginning of the coin
+                // type, which is the minimal possible ObjectID.
                 None => (coin_type_tag.to_string(), ObjectID::ZERO),
             };
 
@@ -103,7 +105,9 @@ impl CoinReadApiServer for CoinReadApi {
                     owner, cursor, limit, true, // only care about one type of coin
                 )
                 .await
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -114,7 +118,7 @@ impl CoinReadApiServer for CoinReadApi {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
-        with_tracing!(async move {
+        async move {
             let cursor = match cursor {
                 Some(object_id) => {
                     let obj = self.internal.get_object(&object_id).await?;
@@ -148,7 +152,9 @@ impl CoinReadApiServer for CoinReadApi {
                 .await?;
 
             Ok(coins)
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -157,7 +163,7 @@ impl CoinReadApiServer for CoinReadApi {
         owner: IotaAddress,
         coin_type: Option<String>,
     ) -> RpcResult<Balance> {
-        with_tracing!(async move {
+        async move {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
             let balance = self
                 .internal
@@ -173,12 +179,14 @@ impl CoinReadApiServer for CoinReadApi {
                 // note: LockedCoin is deprecated
                 locked_balance: Default::default(),
             })
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
-        with_tracing!(async move {
+        async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
                 debug!(?owner, "Failed to get all balance with error: {:?}", e);
             })?;
@@ -194,12 +202,14 @@ impl CoinReadApiServer for CoinReadApi {
                     }
                 })
                 .collect())
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_coin_metadata(&self, coin_type: String) -> RpcResult<Option<IotaCoinMetadata>> {
-        with_tracing!(async move {
+        async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             let metadata_object = self
                 .internal
@@ -210,16 +220,23 @@ impl CoinReadApiServer for CoinReadApi {
                 .await
                 .ok();
             Ok(metadata_object.and_then(|v: Object| v.try_into().ok()))
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
-        with_tracing!(async move {
+        async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             Ok(if GAS::is_gas(&coin_struct) {
+                let system_state_summary = self
+                    .internal
+                    .get_state()
+                    .get_system_state()?
+                    .into_iota_system_state_summary();
                 Supply {
-                    value: TOTAL_SUPPLY_NANOS,
+                    value: system_state_summary.iota_total_supply,
                 }
             } else {
                 let treasury_cap_object = self
@@ -235,12 +252,14 @@ impl CoinReadApiServer for CoinReadApi {
                 .map_err(Error::from)?;
                 treasury_cap.total_supply
             })
-        })
+        }
+        .trace()
+        .await
     }
 }
 
 #[cached(
-    type = "SizedCache<String, ObjectID>",
+    ty = "SizedCache<String, ObjectID>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, object_struct_tag) }"#,
     result = true
@@ -422,7 +441,6 @@ mod tests {
         utils::create_fake_transaction,
         TypeTag,
     };
-    use jsonrpsee::types::ErrorObjectOwned;
     use mockall::{mock, predicate};
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
@@ -561,8 +579,6 @@ mod tests {
     }
 
     mod get_coins_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -729,13 +745,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
                 "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -750,12 +765,11 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected =
                 expect!["Invalid struct type: 0x2::iota:🤵. Got error: unrecognized token: :🤵"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         // Unexpected error scenarios
@@ -778,13 +792,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
             let expected = expect!["Index store not available on this Fullnode."];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -804,13 +817,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INTERNAL_ERROR_CODE
             );
             let expected = expect!["Storage error: mock rocksdb error"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
@@ -907,12 +919,11 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
-            assert_eq!(error_object.code(), -32602);
+            assert_eq!(error_result.code(), -32602);
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect!["cursor is not a coin"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -929,16 +940,14 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect!["cursor not found"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
     mod get_balance_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
 
         use super::{super::*, *};
         // Success scenarios
@@ -1025,13 +1034,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
                 "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         // Unexpected error scenarios
@@ -1052,13 +1060,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
             let expected = expect!["Index store not available on this Fullnode."];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -1069,7 +1076,7 @@ mod tests {
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
             mock_state.expect_get_balance().returning(move |_, _| {
-                Err(IotaError::ExecutionError("mock db error".to_string()).into())
+                Err(IotaError::Execution("mock db error".to_string()).into())
             });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -1078,20 +1085,17 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
 
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INTERNAL_ERROR_CODE
             );
             let expected = expect!["Error executing mock db error"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
     mod get_all_balances_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -1170,13 +1174,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
             let expected = expect!["Index store not available on this Fullnode."];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
@@ -1287,7 +1290,17 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_types::id::UID;
+        use iota_types::{
+            collection_types::VecMap,
+            gas_coin::IotaTreasuryCap,
+            id::UID,
+            iota_system_state::{
+                iota_system_state_inner_v1::{
+                    IotaSystemStateInnerV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+                },
+                IotaSystemState,
+            },
+        };
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1295,16 +1308,21 @@ mod tests {
         #[tokio::test]
         async fn test_success_response_for_gas_coin() {
             let coin_type = "0x2::iota::IOTA";
-            let mock_internal = MockCoinReadInternal::new();
-            let coin_read_api = CoinReadApi {
-                internal: Box::new(mock_internal),
-            };
+
+            let mut mock_state = MockStateRead::new();
+            mock_state.expect_get_system_state().returning(move || {
+                let mut state = default_system_state();
+                state.iota_treasury_cap.inner.total_supply.value = 42;
+
+                Ok(IotaSystemState::V1(state))
+            });
+
+            let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
 
             let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
 
             let supply = response.unwrap();
-            let expected = expect!["10000000000000000000"];
-            expected.assert_eq(&supply.value.to_string());
+            assert_eq!(supply.value, 42);
         }
 
         #[tokio::test]
@@ -1355,13 +1373,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
                 "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -1397,15 +1414,69 @@ mod tests {
 
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
             let expected = expect![
                 "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
+        }
+
+        fn default_system_state() -> IotaSystemStateInnerV1 {
+            IotaSystemStateInnerV1 {
+                epoch: Default::default(),
+                protocol_version: Default::default(),
+                system_state_version: Default::default(),
+                iota_treasury_cap: IotaTreasuryCap {
+                    inner: TreasuryCap {
+                        id: UID::new(ObjectID::random()),
+                        total_supply: Supply {
+                            value: Default::default(),
+                        },
+                    },
+                },
+                validators: ValidatorSetV1 {
+                    total_stake: Default::default(),
+                    active_validators: Default::default(),
+                    pending_active_validators: Default::default(),
+                    pending_removals: Default::default(),
+                    staking_pool_mappings: Default::default(),
+                    inactive_validators: Default::default(),
+                    validator_candidates: Default::default(),
+                    at_risk_validators: VecMap {
+                        contents: Default::default(),
+                    },
+                    extra_fields: Default::default(),
+                },
+                storage_fund: StorageFundV1 {
+                    total_object_storage_rebates: iota_types::balance::Balance::new(
+                        Default::default(),
+                    ),
+                    non_refundable_balance: iota_types::balance::Balance::new(Default::default()),
+                },
+                parameters: SystemParametersV1 {
+                    epoch_duration_ms: Default::default(),
+                    max_validator_count: Default::default(),
+                    min_validator_joining_stake: Default::default(),
+                    validator_low_stake_threshold: Default::default(),
+                    validator_very_low_stake_threshold: Default::default(),
+                    validator_low_stake_grace_period: Default::default(),
+                    extra_fields: Default::default(),
+                },
+                reference_gas_price: Default::default(),
+                validator_report_records: VecMap {
+                    contents: Default::default(),
+                },
+                safe_mode: Default::default(),
+                safe_mode_storage_charges: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_computation_rewards: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_storage_rebates: Default::default(),
+                safe_mode_non_refundable_storage_fee: Default::default(),
+                epoch_start_timestamp_ms: Default::default(),
+                extra_fields: Default::default(),
+            }
         }
     }
 }

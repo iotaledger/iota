@@ -1,0 +1,1607 @@
+processed 8 tasks
+
+task 1 'run-graphql'. lines 9-103:
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "36Uuu4hEzCXtGH3RQUR8WYGsvb2mo4rZmjee2478xCp2",
+          "sender": null,
+          "signatures": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+          ],
+          "gasInput": {
+            "gasSponsor": {
+              "address": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "gasPayment": {
+              "nodes": []
+            },
+            "gasPrice": "1",
+            "gasBudget": "0"
+          },
+          "kind": {
+            "__typename": "GenesisTransaction",
+            "objects": {
+              "edges": [
+                {
+                  "cursor": "eyJpIjowLCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                    "asMoveObject": null,
+                    "asMovePackage": {
+                      "modules": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoiYWRkcmVzcyIsImMiOjB9",
+                            "node": {
+                              "name": "address"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYXNjaWkiLCJjIjowfQ",
+                            "node": {
+                              "name": "ascii"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYmNzIiwiYyI6MH0",
+                            "node": {
+                              "name": "bcs"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYml0X3ZlY3RvciIsImMiOjB9",
+                            "node": {
+                              "name": "bit_vector"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZGVidWciLCJjIjowfQ",
+                            "node": {
+                              "name": "debug"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZml4ZWRfcG9pbnQzMiIsImMiOjB9",
+                            "node": {
+                              "name": "fixed_point32"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiaGFzaCIsImMiOjB9",
+                            "node": {
+                              "name": "hash"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoib3B0aW9uIiwiYyI6MH0",
+                            "node": {
+                              "name": "option"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoic3RyaW5nIiwiYyI6MH0",
+                            "node": {
+                              "name": "string"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidHlwZV9uYW1lIiwiYyI6MH0",
+                            "node": {
+                              "name": "type_name"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidmVjdG9yIiwiYyI6MH0",
+                            "node": {
+                              "name": "vector"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxLCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                    "asMoveObject": null,
+                    "asMovePackage": {
+                      "modules": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoiYWRkcmVzcyIsImMiOjB9",
+                            "node": {
+                              "name": "address"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYXV0aGVudGljYXRvcl9zdGF0ZSIsImMiOjB9",
+                            "node": {
+                              "name": "authenticator_state"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYmFnIiwiYyI6MH0",
+                            "node": {
+                              "name": "bag"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYmFsYW5jZSIsImMiOjB9",
+                            "node": {
+                              "name": "balance"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYmNzIiwiYyI6MH0",
+                            "node": {
+                              "name": "bcs"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYmxzMTIzODEiLCJjIjowfQ",
+                            "node": {
+                              "name": "bls12381"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYm9ycm93IiwiYyI6MH0",
+                            "node": {
+                              "name": "borrow"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY2xvY2siLCJjIjowfQ",
+                            "node": {
+                              "name": "clock"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY29pbiIsImMiOjB9",
+                            "node": {
+                              "name": "coin"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY29pbl9tYW5hZ2VyIiwiYyI6MH0",
+                            "node": {
+                              "name": "coin_manager"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZGVueV9saXN0IiwiYyI6MH0",
+                            "node": {
+                              "name": "deny_list"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZGlzcGxheSIsImMiOjB9",
+                            "node": {
+                              "name": "display"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZHluYW1pY19maWVsZCIsImMiOjB9",
+                            "node": {
+                              "name": "dynamic_field"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZHluYW1pY19vYmplY3RfZmllbGQiLCJjIjowfQ",
+                            "node": {
+                              "name": "dynamic_object_field"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZWNkc2FfazEiLCJjIjowfQ",
+                            "node": {
+                              "name": "ecdsa_k1"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZWNkc2FfcjEiLCJjIjowfQ",
+                            "node": {
+                              "name": "ecdsa_r1"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZWN2cmYiLCJjIjowfQ",
+                            "node": {
+                              "name": "ecvrf"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZWQyNTUxOSIsImMiOjB9",
+                            "node": {
+                              "name": "ed25519"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZXZlbnQiLCJjIjowfQ",
+                            "node": {
+                              "name": "event"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZ3JvdGgxNiIsImMiOjB9",
+                            "node": {
+                              "name": "groth16"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoyLCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+                    "asMoveObject": null,
+                    "asMovePackage": {
+                      "modules": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoiZ2VuZXNpcyIsImMiOjB9",
+                            "node": {
+                              "name": "genesis"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiaW90YV9zeXN0ZW0iLCJjIjowfQ",
+                            "node": {
+                              "name": "iota_system"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiaW90YV9zeXN0ZW1fc3RhdGVfaW5uZXIiLCJjIjowfQ",
+                            "node": {
+                              "name": "iota_system_state_inner"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoic3Rha2luZ19wb29sIiwiYyI6MH0",
+                            "node": {
+                              "name": "staking_pool"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoic3RvcmFnZV9mdW5kIiwiYyI6MH0",
+                            "node": {
+                              "name": "storage_fund"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidGltZWxvY2tlZF9zdGFraW5nIiwiYyI6MH0",
+                            "node": {
+                              "name": "timelocked_staking"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidmFsaWRhdG9yIiwiYyI6MH0",
+                            "node": {
+                              "name": "validator"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidmFsaWRhdG9yX2NhcCIsImMiOjB9",
+                            "node": {
+                              "name": "validator_cap"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidmFsaWRhdG9yX3NldCIsImMiOjB9",
+                            "node": {
+                              "name": "validator_set"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidmFsaWRhdG9yX3dyYXBwZXIiLCJjIjowfQ",
+                            "node": {
+                              "name": "validator_wrapper"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidm90aW5nX3Bvd2VyIiwiYyI6MH0",
+                            "node": {
+                              "name": "voting_power"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJpIjozLCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::iota_system::IotaSystemState"
+                        },
+                        "json": {
+                          "id": "0x0000000000000000000000000000000000000000000000000000000000000005",
+                          "version": "1"
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjo0LCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock"
+                        },
+                        "json": {
+                          "id": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                          "timestamp_ms": "0"
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjo1LCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000007",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::authenticator_state::AuthenticatorState"
+                        },
+                        "json": {
+                          "id": "0x0000000000000000000000000000000000000000000000000000000000000007",
+                          "version": "1"
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjo2LCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::random::Random"
+                        },
+                        "json": {
+                          "id": "0x0000000000000000000000000000000000000000000000000000000000000008",
+                          "inner": {
+                            "id": "0x076b62890dad82f1ca888ea2c2c49be3b3b552ae5b3531a0577fc0d7654f2b45",
+                            "version": "1"
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjo3LCJjIjowfQ",
+                  "node": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000403",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::deny_list::DenyList"
+                        },
+                        "json": {
+                          "id": "0x0000000000000000000000000000000000000000000000000000000000000403",
+                          "lists": {
+                            "id": "0x0050cb05709280953c3e6f1487a64ac2b9b668b68efd1338b097304fc77ba24e",
+                            "size": "1"
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjo4LCJjIjowfQ",
+                  "node": {
+                    "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+                    "asMoveObject": null,
+                    "asMovePackage": {
+                      "modules": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoiYWRkcmVzc191bmxvY2tfY29uZGl0aW9uIiwiYyI6MH0",
+                            "node": {
+                              "name": "address_unlock_condition"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYWxpYXMiLCJjIjowfQ",
+                            "node": {
+                              "name": "alias"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYWxpYXNfb3V0cHV0IiwiYyI6MH0",
+                            "node": {
+                              "name": "alias_output"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiYmFzaWNfb3V0cHV0IiwiYyI6MH0",
+                            "node": {
+                              "name": "basic_output"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiZXhwaXJhdGlvbl91bmxvY2tfY29uZGl0aW9uIiwiYyI6MH0",
+                            "node": {
+                              "name": "expiration_unlock_condition"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiaXJjMjciLCJjIjowfQ",
+                            "node": {
+                              "name": "irc27"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibmZ0IiwiYyI6MH0",
+                            "node": {
+                              "name": "nft"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibmZ0X291dHB1dCIsImMiOjB9",
+                            "node": {
+                              "name": "nft_output"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoic3RhcmR1c3RfdXBncmFkZV9sYWJlbCIsImMiOjB9",
+                            "node": {
+                              "name": "stardust_upgrade_label"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoic3RvcmFnZV9kZXBvc2l0X3JldHVybl91bmxvY2tfY29uZGl0aW9uIiwiYyI6MH0",
+                            "node": {
+                              "name": "storage_deposit_return_unlock_condition"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidGltZWxvY2tfdW5sb2NrX2NvbmRpdGlvbiIsImMiOjB9",
+                            "node": {
+                              "name": "timelock_unlock_condition"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoidXRpbGl0aWVzIiwiYyI6MH0",
+                            "node": {
+                              "name": "utilities"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJpIjo5LCJjIjowfQ",
+                  "node": {
+                    "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
+                    "asMoveObject": null,
+                    "asMovePackage": {
+                      "modules": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoiY2xvYiIsImMiOjB9",
+                            "node": {
+                              "name": "clob"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY2xvYl92MiIsImMiOjB9",
+                            "node": {
+                              "name": "clob_v2"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY3JpdGJpdCIsImMiOjB9",
+                            "node": {
+                              "name": "critbit"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY3VzdG9kaWFuIiwiYyI6MH0",
+                            "node": {
+                              "name": "custodian"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoiY3VzdG9kaWFuX3YyIiwiYyI6MH0",
+                            "node": {
+                              "name": "custodian_v2"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibWF0aCIsImMiOjB9",
+                            "node": {
+                              "name": "math"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoib3JkZXJfcXVlcnkiLCJjIjowfQ",
+                            "node": {
+                              "name": "order_query"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxMCwiYyI6MH0",
+                  "node": {
+                    "address": "0x136d1036faaae7f70d93d46673870e100b842bb4039aa0df5f8216ee5c6a0f4e",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000002::deny_list::PerTypeList>"
+                        },
+                        "json": {
+                          "id": "0x136d1036faaae7f70d93d46673870e100b842bb4039aa0df5f8216ee5c6a0f4e",
+                          "name": "0",
+                          "value": {
+                            "id": "0xe1601d32d831bfa44faba29d7b3b812799b2b2fcd0705d3d7a4009c0dbbf430c",
+                            "denied_count": {
+                              "id": "0x5a6f989e0e4bef87e0412b8d7cdf97444dccce458a7025c6f57d783d1f9cb760",
+                              "size": "0"
+                            },
+                            "denied_addresses": {
+                              "id": "0x64b9fa1df2e9152ddcd1f20bacd5c5383ce38243099d1e662d79f098a294aaff",
+                              "size": "0"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxMSwiYyI6MH0",
+                  "node": {
+                    "address": "0x1f19a6214a6038be8f1fccbcd16ba1d0f1a104f2bc68d6bcfa5c3ca81192ae7f",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::PoolTokenExchangeRate>"
+                        },
+                        "json": {
+                          "id": "0x1f19a6214a6038be8f1fccbcd16ba1d0f1a104f2bc68d6bcfa5c3ca81192ae7f",
+                          "name": "0",
+                          "value": {
+                            "iota_amount": "0",
+                            "pool_token_amount": "0"
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxMiwiYyI6MH0",
+                  "node": {
+                    "address": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                        },
+                        "json": {
+                          "id": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                          "balance": {
+                            "value": "300000000000000"
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxMywiYyI6MH0",
+                  "node": {
+                    "address": "0x37234293a7e80d0382be59dc5b76993a870578c655f45620763c330742f335d2",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000002::random::RandomInner>"
+                        },
+                        "json": {
+                          "id": "0x37234293a7e80d0382be59dc5b76993a870578c655f45620763c330742f335d2",
+                          "name": "1",
+                          "value": {
+                            "version": "1",
+                            "epoch": "0",
+                            "randomness_round": "0",
+                            "random_bytes": []
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxNCwiYyI6MH0",
+                  "node": {
+                    "address": "0x57fb33b5ffc353f6fc9be499c70019339dccaa3dd0f46c76a4c51ba032396c6f",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::validator_cap::UnverifiedValidatorOperationCap"
+                        },
+                        "json": {
+                          "id": "0x57fb33b5ffc353f6fc9be499c70019339dccaa3dd0f46c76a4c51ba032396c6f",
+                          "authorizer_validator_address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxNSwiYyI6MH0",
+                  "node": {
+                    "address": "0x5a6383eb592bab4ff7c037a2118c514149ba9a86cf5a3b019c7034686365183f",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<vector<u8>,0x0000000000000000000000000000000000000000000000000000000000000002::timelock::SystemTimelockCap>"
+                        },
+                        "json": {
+                          "id": "0x5a6383eb592bab4ff7c037a2118c514149ba9a86cf5a3b019c7034686365183f",
+                          "name": [
+                            115,
+                            121,
+                            115,
+                            95,
+                            116,
+                            105,
+                            109,
+                            101,
+                            108,
+                            111,
+                            99,
+                            107,
+                            95,
+                            99,
+                            97,
+                            112
+                          ],
+                          "value": {
+                            "dummy_field": false
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxNiwiYyI6MH0",
+                  "node": {
+                    "address": "0x5f39c3f59547de5bc2f8ab2a99984ff6c878e0419b85cb674091bae34cb1e2de",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota"
+                        },
+                        "json": {
+                          "id": "0x5f39c3f59547de5bc2f8ab2a99984ff6c878e0419b85cb674091bae34cb1e2de",
+                          "pool_id": "0x3001433d608f7dbd60b7e02440dd095246027edad30427d647407a69b2ab4390",
+                          "stake_activation_epoch": "0",
+                          "principal": {
+                            "value": "1500000000000000"
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxNywiYyI6MH0",
+                  "node": {
+                    "address": "0x60912eeb10e19c6303586552e99cf05a9f2c3eabf31ecc3a6c8c2f0ef6127d57",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<0x0000000000000000000000000000000000000000000000000000000000000002::object::ID,address>"
+                        },
+                        "json": {
+                          "id": "0x60912eeb10e19c6303586552e99cf05a9f2c3eabf31ecc3a6c8c2f0ef6127d57",
+                          "name": "0x3001433d608f7dbd60b7e02440dd095246027edad30427d647407a69b2ab4390",
+                          "value": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxOCwiYyI6MH0",
+                  "node": {
+                    "address": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::iota_system_state_inner::IotaSystemStateInner>"
+                        },
+                        "json": {
+                          "id": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+                          "name": "1",
+                          "value": {
+                            "epoch": "0",
+                            "protocol_version": "1",
+                            "system_state_version": "1",
+                            "iota_treasury_cap": {
+                              "inner": {
+                                "id": "0x18a2cda987e42582a9fcb034dc9161c43821aff695f2827c1dfa927b05c70c10",
+                                "total_supply": {
+                                  "value": "31800000000000000"
+                                }
+                              }
+                            },
+                            "validators": {
+                              "total_stake": "1500000000000000",
+                              "active_validators": [
+                                {
+                                  "metadata": {
+                                    "iota_address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80",
+                                    "protocol_pubkey_bytes": [
+                                      168,
+                                      10,
+                                      113,
+                                      148,
+                                      146,
+                                      18,
+                                      4,
+                                      206,
+                                      160,
+                                      17,
+                                      65,
+                                      3,
+                                      192,
+                                      72,
+                                      69,
+                                      3,
+                                      34,
+                                      62,
+                                      177,
+                                      119,
+                                      149,
+                                      119,
+                                      28,
+                                      226,
+                                      120,
+                                      84,
+                                      208,
+                                      34,
+                                      33,
+                                      221,
+                                      215,
+                                      26,
+                                      19,
+                                      43,
+                                      135,
+                                      198,
+                                      111,
+                                      189,
+                                      25,
+                                      213,
+                                      111,
+                                      170,
+                                      66,
+                                      24,
+                                      110,
+                                      12,
+                                      78,
+                                      20,
+                                      10,
+                                      27,
+                                      128,
+                                      57,
+                                      246,
+                                      144,
+                                      114,
+                                      82,
+                                      79,
+                                      96,
+                                      215,
+                                      59,
+                                      240,
+                                      247,
+                                      211,
+                                      18,
+                                      143,
+                                      1,
+                                      109,
+                                      137,
+                                      179,
+                                      82,
+                                      215,
+                                      118,
+                                      63,
+                                      135,
+                                      18,
+                                      31,
+                                      123,
+                                      40,
+                                      235,
+                                      25,
+                                      153,
+                                      189,
+                                      81,
+                                      129,
+                                      128,
+                                      219,
+                                      99,
+                                      215,
+                                      146,
+                                      145,
+                                      113,
+                                      132,
+                                      99,
+                                      76,
+                                      126,
+                                      246
+                                    ],
+                                    "network_pubkey_bytes": [
+                                      222,
+                                      193,
+                                      56,
+                                      253,
+                                      223,
+                                      140,
+                                      108,
+                                      228,
+                                      161,
+                                      246,
+                                      151,
+                                      172,
+                                      42,
+                                      190,
+                                      219,
+                                      243,
+                                      212,
+                                      210,
+                                      59,
+                                      152,
+                                      5,
+                                      6,
+                                      236,
+                                      134,
+                                      82,
+                                      53,
+                                      90,
+                                      224,
+                                      105,
+                                      93,
+                                      152,
+                                      85
+                                    ],
+                                    "worker_pubkey_bytes": [
+                                      172,
+                                      116,
+                                      152,
+                                      220,
+                                      228,
+                                      127,
+                                      173,
+                                      148,
+                                      84,
+                                      44,
+                                      112,
+                                      162,
+                                      74,
+                                      125,
+                                      50,
+                                      95,
+                                      124,
+                                      147,
+                                      55,
+                                      36,
+                                      241,
+                                      143,
+                                      223,
+                                      60,
+                                      129,
+                                      224,
+                                      221,
+                                      102,
+                                      15,
+                                      35,
+                                      217,
+                                      101
+                                    ],
+                                    "proof_of_possession": [
+                                      146,
+                                      189,
+                                      89,
+                                      74,
+                                      29,
+                                      175,
+                                      203,
+                                      128,
+                                      64,
+                                      181,
+                                      156,
+                                      97,
+                                      250,
+                                      67,
+                                      71,
+                                      1,
+                                      183,
+                                      54,
+                                      131,
+                                      205,
+                                      9,
+                                      153,
+                                      183,
+                                      92,
+                                      197,
+                                      160,
+                                      192,
+                                      111,
+                                      216,
+                                      8,
+                                      35,
+                                      211,
+                                      26,
+                                      222,
+                                      255,
+                                      142,
+                                      137,
+                                      6,
+                                      130,
+                                      140,
+                                      153,
+                                      155,
+                                      252,
+                                      79,
+                                      139,
+                                      240,
+                                      222,
+                                      153
+                                    ],
+                                    "name": "validator-0",
+                                    "description": "",
+                                    "image_url": {
+                                      "url": ""
+                                    },
+                                    "project_url": {
+                                      "url": ""
+                                    },
+                                    "net_address": "/ip4/127.0.0.1/tcp/8000/http",
+                                    "p2p_address": "/ip4/127.0.0.1/udp/8001/http",
+                                    "primary_address": "/ip4/127.0.0.1/udp/8004/http",
+                                    "worker_address": "/ip4/127.0.0.1/udp/8005/http",
+                                    "next_epoch_protocol_pubkey_bytes": null,
+                                    "next_epoch_proof_of_possession": null,
+                                    "next_epoch_network_pubkey_bytes": null,
+                                    "next_epoch_worker_pubkey_bytes": null,
+                                    "next_epoch_net_address": null,
+                                    "next_epoch_p2p_address": null,
+                                    "next_epoch_primary_address": null,
+                                    "next_epoch_worker_address": null,
+                                    "extra_fields": {
+                                      "id": "0x1a4cc99cc0e1027b0b0311f3cb295f6eabbd145c11205428955a0b9d1a6ba76b",
+                                      "size": "0"
+                                    }
+                                  },
+                                  "voting_power": "10000",
+                                  "operation_cap_id": "0x57fb33b5ffc353f6fc9be499c70019339dccaa3dd0f46c76a4c51ba032396c6f",
+                                  "gas_price": "1000",
+                                  "staking_pool": {
+                                    "id": "0x3001433d608f7dbd60b7e02440dd095246027edad30427d647407a69b2ab4390",
+                                    "activation_epoch": "0",
+                                    "deactivation_epoch": null,
+                                    "iota_balance": "1500000000000000",
+                                    "rewards_pool": {
+                                      "value": "0"
+                                    },
+                                    "pool_token_balance": "1500000000000000",
+                                    "exchange_rates": {
+                                      "id": "0x29e7cf84f5aee6a05f025af8ded7a271720b94bfd9736e6ef2f759bd81a4068b",
+                                      "size": "1"
+                                    },
+                                    "pending_stake": "0",
+                                    "pending_total_iota_withdraw": "0",
+                                    "pending_pool_token_withdraw": "0",
+                                    "extra_fields": {
+                                      "id": "0x064e8fb415e860060f12b42ab1bb643a0460848ee3d75a0534524a85bdf900bb",
+                                      "size": "0"
+                                    }
+                                  },
+                                  "commission_rate": "200",
+                                  "next_epoch_stake": "1500000000000000",
+                                  "next_epoch_gas_price": "1000",
+                                  "next_epoch_commission_rate": "200",
+                                  "extra_fields": {
+                                    "id": "0xdaaa5ff27323a4a081fc4b5e221a54614bf2e167f52e93e8baba12f5b8d690e1",
+                                    "size": "0"
+                                  }
+                                }
+                              ],
+                              "pending_active_validators": {
+                                "contents": {
+                                  "id": "0xd9ce4b4b60bf7fbbf552fbf6658c2b8b31ba2456065707de2eb70a894dbfbd4c",
+                                  "size": "0"
+                                }
+                              },
+                              "pending_removals": [],
+                              "staking_pool_mappings": {
+                                "id": "0x2cb3a66c4a538509cff2f6006ec865ac9f642cb2f607acb24f4496ef7f8524de",
+                                "size": "1"
+                              },
+                              "inactive_validators": {
+                                "id": "0x0641c07a1dcc86c9f55180c068d0f255167e645eb0d41373d10b938a98cc199e",
+                                "size": "0"
+                              },
+                              "validator_candidates": {
+                                "id": "0x94a1766fc022d806ff39208b9cb8a59043dfb815a4d49c343ddab7ef87324e11",
+                                "size": "0"
+                              },
+                              "at_risk_validators": {
+                                "contents": []
+                              },
+                              "extra_fields": {
+                                "id": "0x6186c361ecba6118fbf024cd50622272aa29a97c0d98591e4efef62f8780bbe0",
+                                "size": "0"
+                              }
+                            },
+                            "storage_fund": {
+                              "total_object_storage_rebates": {
+                                "value": "0"
+                              },
+                              "non_refundable_balance": {
+                                "value": "0"
+                              }
+                            },
+                            "parameters": {
+                              "epoch_duration_ms": "86400000",
+                              "max_validator_count": "150",
+                              "min_validator_joining_stake": "2000000000000000",
+                              "validator_low_stake_threshold": "1500000000000000",
+                              "validator_very_low_stake_threshold": "1000000000000000",
+                              "validator_low_stake_grace_period": "7",
+                              "extra_fields": {
+                                "id": "0x3792bfca0f6751cb72cef6b2542412ff11ce804000d170b85de340de597e340b",
+                                "size": "0"
+                              }
+                            },
+                            "reference_gas_price": "1000",
+                            "validator_report_records": {
+                              "contents": []
+                            },
+                            "safe_mode": false,
+                            "safe_mode_storage_charges": {
+                              "value": "0"
+                            },
+                            "safe_mode_computation_rewards": {
+                              "value": "0"
+                            },
+                            "safe_mode_storage_rebates": "0",
+                            "safe_mode_non_refundable_storage_fee": "0",
+                            "epoch_start_timestamp_ms": "0",
+                            "extra_fields": {
+                              "id": "0x85cbb68cc1c4718c69ad9bb2387a456ff76e926ec8589d739d08e3e66a3f82c2",
+                              "size": "0"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "cursor": "eyJpIjoxOSwiYyI6MH0",
+                  "node": {
+                    "address": "0x6e7f6fbd1a1202eb7d5872b9d1078b6141fdcd4821173d551eda2a94216b7da2",
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::CoinMetadata<0x0000000000000000000000000000000000000000000000000000000000000002::smr::SMR>"
+                        },
+                        "json": {
+                          "id": "0x6e7f6fbd1a1202eb7d5872b9d1078b6141fdcd4821173d551eda2a94216b7da2",
+                          "decimals": 6,
+                          "name": "SMR",
+                          "symbol": "Shimmer",
+                          "description": "The original Shimmer (SMR) token as inherited from the Shimmer Network.",
+                          "icon_url": {
+                            "url": "https://iota.org/smr-logo.png"
+                          }
+                        }
+                      }
+                    },
+                    "asMovePackage": null
+                  }
+                }
+              ]
+            }
+          },
+          "effects": {
+            "status": "SUCCESS",
+            "errors": null,
+            "lamportVersion": 1,
+            "dependencies": {
+              "nodes": []
+            },
+            "balanceChanges": {
+              "nodes": [
+                {
+                  "owner": {
+                    "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
+                  },
+                  "amount": "30000000000000000",
+                  "coinType": {
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+                  }
+                },
+                {
+                  "owner": {
+                    "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+                  },
+                  "amount": "300000000000000",
+                  "coinType": {
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+                  }
+                }
+              ]
+            },
+            "objectChanges": {
+              "nodes": [
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                    "digest": "C7J6Hufm8BpQfZfFNfz97J81aguCpnDDBJfE7q3ZfA3V"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                    "digest": "71KmqFS16hdGnfpGKVH8nLw4m1bFo8w3sKNF2KMrghhd"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+                    "digest": "43kLYiZnwQzTuNcCfQafksxEvVExiEWooGBjGSVVHm5k"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+                    "digest": "2bXy7pwhpNPHPCWqQq3fU1oDEqsnwM5zSLhzszviEMK5"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                    "digest": "TtqE3gHcSaGMxN6umnGQnKiXvMMQqHdWAP2ixpEVR3P"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000007",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000007",
+                    "digest": "AFxNfzdLtm5FCLDACS6RAmRgvmwiKshEQt4dqM3uKN8w"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
+                    "digest": "63mVdrxvMa6uz7H7M9DWP99jN5BFaDidn3wzfuGFskH2"
+                  }
+                },
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000403",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000403",
+                    "digest": "3VXGGovKg2tEcXBQnNfNhsZh9bG6LYMJXRiArCvXSHSz"
+                  }
+                },
+                {
+                  "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+                    "digest": "Ei6wnrucqXbXZ7V9Kk1gyFmM6JpXSzit9eB9KHkTWGiu"
+                  }
+                },
+                {
+                  "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x000000000000000000000000000000000000000000000000000000000000dee9",
+                    "digest": "58hQkankKTvxvtAQRKGeC8akHnAK7huD2yphLP4dzBYG"
+                  }
+                },
+                {
+                  "address": "0x136d1036faaae7f70d93d46673870e100b842bb4039aa0df5f8216ee5c6a0f4e",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x136d1036faaae7f70d93d46673870e100b842bb4039aa0df5f8216ee5c6a0f4e",
+                    "digest": "8HvQijeqQeV38mVKEw2gidRPsKZMkChezBrDuvmf7Gnt"
+                  }
+                },
+                {
+                  "address": "0x1f19a6214a6038be8f1fccbcd16ba1d0f1a104f2bc68d6bcfa5c3ca81192ae7f",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x1f19a6214a6038be8f1fccbcd16ba1d0f1a104f2bc68d6bcfa5c3ca81192ae7f",
+                    "digest": "5tWeSdZ3jefUR5fR2RmeD2tPMk3eDFjLB17vd24cBzP8"
+                  }
+                },
+                {
+                  "address": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                    "digest": "Ex1ys1F2ektkvxuXyyRQCy1QLTpPMyZd8jjR5pe4KYc8"
+                  }
+                },
+                {
+                  "address": "0x37234293a7e80d0382be59dc5b76993a870578c655f45620763c330742f335d2",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x37234293a7e80d0382be59dc5b76993a870578c655f45620763c330742f335d2",
+                    "digest": "E3HxWtt6nbotuS4oFKXmT5T4JAsYmEHTXX1TKosdcvyF"
+                  }
+                },
+                {
+                  "address": "0x57fb33b5ffc353f6fc9be499c70019339dccaa3dd0f46c76a4c51ba032396c6f",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x57fb33b5ffc353f6fc9be499c70019339dccaa3dd0f46c76a4c51ba032396c6f",
+                    "digest": "6du8hHF2XTQnrWG7snEzkprkW7E3LzJVjT1Rvvs4iy8a"
+                  }
+                },
+                {
+                  "address": "0x5a6383eb592bab4ff7c037a2118c514149ba9a86cf5a3b019c7034686365183f",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x5a6383eb592bab4ff7c037a2118c514149ba9a86cf5a3b019c7034686365183f",
+                    "digest": "H46UMid9ioKHiAsPFJyedegek189qSURc9kpsRATyNyu"
+                  }
+                },
+                {
+                  "address": "0x5f39c3f59547de5bc2f8ab2a99984ff6c878e0419b85cb674091bae34cb1e2de",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x5f39c3f59547de5bc2f8ab2a99984ff6c878e0419b85cb674091bae34cb1e2de",
+                    "digest": "Ffpok931pqraNxgCgqEpszwK4YGVGShFb1o8aY5hmpdd"
+                  }
+                },
+                {
+                  "address": "0x60912eeb10e19c6303586552e99cf05a9f2c3eabf31ecc3a6c8c2f0ef6127d57",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x60912eeb10e19c6303586552e99cf05a9f2c3eabf31ecc3a6c8c2f0ef6127d57",
+                    "digest": "DQLWa8o9vLgpVgvavYaEz7JbiRevYbGuodJ6FtNne1k9"
+                  }
+                },
+                {
+                  "address": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+                    "digest": "4dCFJQJEgFP8UxUfyvkucirNVVHGkc9asZNAwCfqYcUe"
+                  }
+                },
+                {
+                  "address": "0x6e7f6fbd1a1202eb7d5872b9d1078b6141fdcd4821173d551eda2a94216b7da2",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x6e7f6fbd1a1202eb7d5872b9d1078b6141fdcd4821173d551eda2a94216b7da2",
+                    "digest": "7TSMG8gWFEzbWSAes7v3oKBf7oTrRxmUwR2TgEqQ5D6g"
+                  }
+                }
+              ]
+            },
+            "gasEffects": {
+              "gasObject": null,
+              "gasSummary": {
+                "computationCost": "0",
+                "storageCost": "0",
+                "storageRebate": "0",
+                "nonRefundableStorageFee": "0"
+              }
+            },
+            "timestamp": "1970-01-01T00:00:00Z",
+            "epoch": {
+              "epochId": 0
+            },
+            "checkpoint": {
+              "sequenceNumber": 0
+            },
+            "transactionBlock": {
+              "digest": "36Uuu4hEzCXtGH3RQUR8WYGsvb2mo4rZmjee2478xCp2"
+            }
+          },
+          "expiration": null
+        }
+      ]
+    }
+  }
+}
+
+task 3 'create-checkpoint'. lines 107-107:
+Checkpoint created: 1
+
+task 4 'run-graphql'. lines 109-184:
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "CHyKA8xirNCGtcDMLJcxBZsxGyAA7DNrzDEVodxZzNn",
+          "sender": null,
+          "signatures": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+          ],
+          "gasInput": {
+            "gasSponsor": {
+              "address": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "gasPayment": {
+              "nodes": []
+            },
+            "gasPrice": "1",
+            "gasBudget": "0"
+          },
+          "kind": {
+            "__typename": "ConsensusCommitPrologueTransaction",
+            "epoch": {
+              "epochId": 0
+            },
+            "round": 0,
+            "commitTimestamp": "1970-01-01T00:00:42Z",
+            "consensusCommitDigest": "11111111111111111111111111111111"
+          },
+          "effects": {
+            "status": "SUCCESS",
+            "errors": null,
+            "lamportVersion": 2,
+            "dependencies": {
+              "nodes": [
+                {
+                  "digest": "36Uuu4hEzCXtGH3RQUR8WYGsvb2mo4rZmjee2478xCp2"
+                }
+              ]
+            },
+            "balanceChanges": {
+              "nodes": []
+            },
+            "objectChanges": {
+              "nodes": [
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                  "idCreated": false,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                    "digest": "28w3Mp2x4vt94bq4TejrbLcfMsMaevDyPz6h98sgcnw4"
+                  }
+                }
+              ]
+            },
+            "gasEffects": {
+              "gasObject": null,
+              "gasSummary": {
+                "computationCost": "0",
+                "storageCost": "0",
+                "storageRebate": "0",
+                "nonRefundableStorageFee": "0"
+              }
+            },
+            "timestamp": "1970-01-01T00:00:42Z",
+            "epoch": {
+              "epochId": 0
+            },
+            "checkpoint": {
+              "sequenceNumber": 1
+            },
+            "transactionBlock": {
+              "digest": "CHyKA8xirNCGtcDMLJcxBZsxGyAA7DNrzDEVodxZzNn"
+            }
+          },
+          "expiration": null
+        }
+      ]
+    }
+  }
+}
+
+task 6 'advance-epoch'. lines 188-188:
+Epoch advanced: 0
+
+task 7 'run-graphql'. lines 190-277:
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "9wzczqe1Bo9cEqU8tzwRse5EMHSQg5VVqrT6MxwtkDuL",
+          "sender": null,
+          "signatures": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+          ],
+          "gasInput": {
+            "gasSponsor": {
+              "address": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "gasPayment": {
+              "nodes": []
+            },
+            "gasPrice": "1",
+            "gasBudget": "0"
+          },
+          "kind": {
+            "__typename": "EndOfEpochTransaction",
+            "transactions": {
+              "edges": [
+                {
+                  "cursor": "eyJpIjowLCJjIjoyfQ",
+                  "node": {
+                    "__typename": "ChangeEpochTransaction",
+                    "epoch": null,
+                    "protocolVersion": 1,
+                    "storageCharge": "0",
+                    "computationCharge": "0",
+                    "storageRebate": "0",
+                    "nonRefundableStorageFee": "0",
+                    "startTimestamp": "1970-01-01T00:01:25Z"
+                  }
+                }
+              ]
+            }
+          },
+          "effects": {
+            "status": "SUCCESS",
+            "errors": null,
+            "lamportVersion": 2,
+            "dependencies": {
+              "nodes": [
+                {
+                  "digest": "36Uuu4hEzCXtGH3RQUR8WYGsvb2mo4rZmjee2478xCp2"
+                }
+              ]
+            },
+            "balanceChanges": {
+              "nodes": []
+            },
+            "objectChanges": {
+              "nodes": [
+                {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+                  "idCreated": false,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+                    "digest": "BC4MegdKK2GkresPULRoV8aHyMrSLiKn4wgt5gza28aa"
+                  }
+                },
+                {
+                  "address": "0x4f4e0c428930f355fad7d4d0e9d94b35ff0761a25fe206b416cc59bfb419075a",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x4f4e0c428930f355fad7d4d0e9d94b35ff0761a25fe206b416cc59bfb419075a",
+                    "digest": "27qMhAizcu2pBwKypGfX3MRjydYaHyrMvXUT3WWg5uAG"
+                  }
+                },
+                {
+                  "address": "0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1",
+                    "digest": "4WMToWH72nbKF6fq7kfXkj7ZPAUoDqzqu5JYsuWiKVA7"
+                  }
+                },
+                {
+                  "address": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+                  "idCreated": false,
+                  "idDeleted": true,
+                  "outputState": null
+                },
+                {
+                  "address": "0xc20b92046489912b155a245895fea5f8bced00b279fa3e21f17aaee10160b80a",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0xc20b92046489912b155a245895fea5f8bced00b279fa3e21f17aaee10160b80a",
+                    "digest": "EkH8aN4VwczvkECm9ubjPSvggXynZeP7XJogCewGTyDD"
+                  }
+                }
+              ]
+            },
+            "gasEffects": {
+              "gasObject": null,
+              "gasSummary": {
+                "computationCost": "0",
+                "storageCost": "0",
+                "storageRebate": "0",
+                "nonRefundableStorageFee": "0"
+              }
+            },
+            "timestamp": "1970-01-01T00:01:25Z",
+            "epoch": {
+              "epochId": 0
+            },
+            "checkpoint": {
+              "sequenceNumber": 2
+            },
+            "transactionBlock": {
+              "digest": "9wzczqe1Bo9cEqU8tzwRse5EMHSQg5VVqrT6MxwtkDuL"
+            }
+          },
+          "expiration": null
+        }
+      ]
+    }
+  }
+}

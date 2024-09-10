@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -12,7 +13,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cfg_if::cfg_if;
 use consensus_config::{AuthorityIndex, NetworkKeyPair};
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use parking_lot::RwLock;
 use tokio::{
     sync::oneshot::{self, Sender},
@@ -86,7 +87,7 @@ impl NetworkClient for TonicClient {
         client
             .send_block(request)
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("send_block failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("send_block failed: {e:?}")))?;
         Ok(())
     }
 
@@ -118,7 +119,7 @@ impl NetworkClient for TonicClient {
         let response = client
             .fetch_blocks(request)
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("fetch_blocks failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("fetch_blocks failed: {e:?}")))?;
         Ok(response.into_inner().blocks)
     }
 }
@@ -153,7 +154,7 @@ impl ChannelPool {
 
         let authority = self.context.committee.authority(peer);
         let address = to_host_port_str(&authority.address).map_err(|e| {
-            ConsensusError::NetworkError(format!("Cannot convert address to host:port: {e:?}"))
+            ConsensusError::Network(format!("Cannot convert address to host:port: {e:?}"))
         })?;
         let address = format!("http://{address}");
         let endpoint = Channel::from_shared(address.clone())
@@ -171,7 +172,7 @@ impl ChannelPool {
                 Err(e) => {
                     warn!("Timed out connecting to endpoint at {address}: {e:?}");
                     if tokio::time::Instant::now() >= deadline {
-                        return Err(ConsensusError::NetworkError(format!(
+                        return Err(ConsensusError::Network(format!(
                             "Timed out connecting to endpoint at {address}: {e:?}"
                         )));
                     }
@@ -258,12 +259,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 }
 
-/// Manages the lifecycle of Tonic network client and service. Typical usage during initialization:
+/// Manages the lifecycle of Tonic network client and service. Typical usage
+/// during initialization:
 /// 1. Create a new `TonicManager`.
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with
+///    `TonicManager::install_service()`.
 pub(crate) struct TonicManager {
     context: Arc<Context>,
     client: Arc<TonicClient>,
@@ -358,8 +361,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}` into
-/// a host:port string.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+/// into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
@@ -381,8 +384,8 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}` into
-/// a SocketAddr value.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}`
+/// into a SocketAddr value.
 fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     let mut iter = addr.iter();
 
@@ -404,7 +407,8 @@ fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     }
 }
 
-// TODO: after supporting peer authentication, using rtest to share the test case with anemo_network.rs
+// TODO: after supporting peer authentication, using rtest to share the test
+// case with anemo_network.rs
 #[cfg(test)]
 mod test {
     use std::{sync::Arc, time::Duration};

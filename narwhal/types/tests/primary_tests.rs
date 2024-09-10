@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeSet, num::NonZeroUsize};
+
 use config::{AuthorityIdentifier, Committee, Stake};
 use crypto::{PublicKey, Signature};
 use fastcrypto::traits::KeyPair;
 use indexmap::IndexMap;
 use narwhal_types::{Certificate, Header, HeaderV1, Vote, VoteAPI};
-use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
-use std::collections::BTreeSet;
-use std::num::NonZeroUsize;
-use test_utils::{latest_protocol_version, AuthorityFixture, CommitteeFixture};
+use rand::{rngs::OsRng, seq::SliceRandom};
+use test_utils::{AuthorityFixture, CommitteeFixture};
 
 #[tokio::test]
 async fn test_certificate_signers_are_ordered() {
@@ -47,13 +48,7 @@ async fn test_certificate_signers_are_ordered() {
     votes.shuffle(&mut OsRng);
 
     // Create a certificate
-    let certificate = Certificate::new_unverified(
-        &latest_protocol_version(),
-        &committee,
-        Header::V1(header),
-        votes,
-    )
-    .unwrap();
+    let certificate = Certificate::new_unverified(&committee, Header::V1(header), votes).unwrap();
 
     let (stake, signers) = certificate.signed_by(&committee);
 

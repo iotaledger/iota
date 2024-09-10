@@ -1,0 +1,104 @@
+---
+title: Move Concepts
+description: Move is an open source language for writing safe packages to manipulate on-chain objects
+---
+
+import MoveSummary from "../../../_snippets/move-summary.mdx";
+
+<MoveSummary />
+
+Move allows you to define, create, and manage programmable IOTA [objects](./../objects/object-model.mdx) that represent user-level assets. The IOTA object system enhances Move by introducing new functionality while also adding convenient safety restrictions.
+
+## Move on IOTA
+
+
+Move on IOTA introduces several key differences compared to its implementation on other blockchains.
+While IOTA leverages Move's inherent security and flexibility,
+it enhances the language with additional features to significantly improve throughput,
+reduce finality delays, and make Move programming more accessible.
+
+:::tip
+
+When IOTA documentation mentions the Move language, it specifically refers to the Move implementation on the IOTA blockchain. If applicable, the documentation explicitly references the original Move use case, known as Move on Diem.
+
+:::
+
+## Compatibility
+
+Generally, Move code written for Diem is compatible with IOTA, with the following exceptions:
+
+- [Global storage operators](https://move-language.github.io/move/global-storage-operators.html)
+- [Key abilities](https://github.com/move-language/move/blob/main/language/documentation/book/src/abilities.md)
+
+## Key differences
+
+
+Move on IOTA introduces several key differences compared to its implementation on other blockchains.
+These enhancements improve scalability, security, and flexibility,
+making Move programming more efficient and accessible on the IOTA platform.
+Below, you'll find an overview of the key differences and features unique to Move on IOTA.
+
+### Object-Centric Global Storage
+
+In Move on Diem, global storage is integral to the programming model,
+with resources and modules stored globally and owned by an account with an address.
+Transactions can freely access resources from any account using operations like `move_to` and `move_from`.
+
+This model, however, presents a scaling challenge,
+as it's difficult to determine which transactions might contend over the same resource.
+This issue is common among blockchains where smart contracts store account information in large, internal mappings,
+limiting throughput.
+
+Move on IOTA addresses this scaling issue by eliminating global storage and its related operations.
+Instead, objects (as opposed to resources) and packages (sets of modules) stored on IOTA are each assigned unique identifiers. All inputs for a transaction are explicitly specified upfront using these unique identifiers, allowing the chain to schedule transactions with non-overlapping inputs to run in parallel.
+
+### Addresses Represent Object IDs
+
+In Move on Diem, a 16-byte `address` type represents account addresses in global storage, sufficient for the Diem security model.
+
+IOTA repurposes the `address` type as a 32-byte identifier used for both objects and accounts. Transactions are signed by an account (the "sender") accessible from the transaction context, and each object stores its `address` wrapped in its `id: UID` field. For more details, refer to the [object.move](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/packages/iota-framework/sources/object.move) file in the IOTA framework.
+
+### Objects with Key Ability and Globally Unique IDs
+
+In Move on Diem, the `key` ability indicates that a type is a resource, which, along with an account address, can serve as a key in global storage.
+
+On IOTA, the `key` ability denotes an object type and requires the struct's first field to have the signature `id: UID`, containing the object's unique address on-chain. IOTA's bytecode verifier ensures that new objects always receive fresh `UID`s, ensuring that identifiers are never reused.
+
+### Module Initializers
+
+As part of the [Object-Centric Global Storage](#object-centric-global-storage) approach, Move modules published into IOTA storage may include an optional `init` function. This initializer runs only once, at the time of module publication, to pre-initialize module-specific data, such as creating singleton objects. See [Module Initializers](init.mdx) for details.
+
+### Entry Points Take Object References as Input
+
+Public functions in IOTA transactions, also known as programmable transaction blocks, can take objects by value, immutable reference, or mutable reference. When taken by value, the object can be destroyed, wrapped in another object, or transferred to an IOTA ID specified by an address. If taken by mutable reference, the modified object is saved back to storage without any change in ownership. In all cases, the IOTA network authenticates the object and includes its usage as part of the transaction.
+
+Additionally, functions marked with the [entry](entry-functions.mdx) modifier can be invoked directly, even if private, as long as no other non-`entry` functions have used their inputs.
+
+## Explore Concepts
+
+This section provides an overview of some key concepts in Move, illustrated with commented code examples.
+
+### Init
+
+The `init` function is a special function executed only once—during the publication of the associated module. For more information, see [Init](init.mdx).
+
+### Entry Functions
+
+The `entry` modifier allows safe and direct invocation of module functions, similar to scripts. For more details, see [Entry Functions](entry-functions.mdx).
+
+### Strings
+
+While Move does not have a native string type, it includes a useful wrapper. See [Strings](strings.mdx) for examples.
+
+### One-Time Witness
+
+A one-time witness (OTW) is a unique instance of a type created in the module initializer, guaranteed to be the only instance. For an example, see [One-Time Witness](one-time-witness.mdx).
+
+### Patterns
+
+Move coding patterns provide solutions to common logic challenges encountered when developing Move packages for the IOTA blockchain. For a list of documented patterns, see the [Patterns](patterns/patterns.mdx) section.
+
+
+
+
+

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // TODO(tzakian) Fix the test by not pointing at diem
@@ -12,9 +13,9 @@
 //     let handle = std::thread::spawn(|| {
 //         BuildConfig::default()
 //             .compile_package(
-//                 Path::new("./tests/thread_safety_package_test_sources/Package1"),
-//                 &mut std::io::stdout(),
-//             )
+//
+// Path::new("./tests/thread_safety_package_test_sources/Package1"),
+// &mut std::io::stdout(),             )
 //             .unwrap()
 //     });
 

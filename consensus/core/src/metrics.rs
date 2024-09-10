@@ -1,15 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
-use crate::network::metrics::{NetworkRouteMetrics, QuinnConnectionMetrics};
 use prometheus::{
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram,
     HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
+
+use crate::network::metrics::{NetworkRouteMetrics, QuinnConnectionMetrics};
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -240,7 +242,7 @@ impl NodeMetrics {
             ).unwrap(),
             suspended_blocks: register_int_counter_vec_with_registry!(
                 "suspended_blocks",
-                "The number of suspended blocks. The counter is reported uniquely, so if a block is sent for reprocessing while alreadly suspended then is not double counted",
+                "The number of suspended blocks. The counter is reported uniquely, so if a block is sent for reprocessing while already suspended then is not double counted",
                 &["authority"],
                 registry,
             ).unwrap(),

@@ -1,24 +1,20 @@
-# @mysten/graphql-transport
+# @iota/graphql-transport
 
-## 0.0.3
-
-### Patch Changes
-
-- Updated dependencies [6984dd1e38]
-  - @mysten/sui.js@0.51.1
-
-## 0.0.2
+## 0.1.1
 
 ### Patch Changes
 
-- a63b9327a6: Protocol config update
-- Updated dependencies [0cafa94027]
-  - @mysten/sui.js@0.51.0
+-   Updated dependencies [4a4ba5a]
+    -   @iota/iota-sdk@0.1.1
 
-## 0.0.1
+## 0.1.0
+
+### Minor Changes
+
+-   249a7d0: First release
 
 ### Patch Changes
 
-- Updated dependencies [4830361fa4]
-  - @mysten/sui.js@0.50.1
-  - @mysten/bcs@0.11.1
+-   Updated dependencies [249a7d0]
+    -   @iota/bcs@0.1.0
+    -   @iota/iota-sdk@0.1.0

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_ir_types::location::Loc;
@@ -52,8 +53,8 @@ impl FilterContext for Context<'_> {
             .next();
         let should_remove = is_verify_only_loc.is_some();
         // TODO this is a bit of a hack
-        // but we don't have a better way of suppressing this unless the filtering was done after
-        // expansion
+        // but we don't have a better way of suppressing this unless the filtering was
+        // done after expansion
         // Ideally we would just have a warning filter scope here
         // (but again, need expansion for that)
         let silence_warning =
@@ -76,9 +77,9 @@ impl FilterContext for Context<'_> {
 // Filtering of verification-annotated module members
 //***************************************************************************
 
-// This filters out all AST elements annotated with verify-only annotated from `prog`
-// if the `verify` flag in `compilation_env` is not set. If the `verify` flag is set,
-// no filtering is performed.
+// This filters out all AST elements annotated with verify-only annotated from
+// `prog` if the `verify` flag in `compilation_env` is not set. If the `verify`
+// flag is set, no filtering is performed.
 pub fn program(compilation_env: &mut CompilationEnv, prog: P::Program) -> P::Program {
     let mut context = Context::new(compilation_env);
     filter_program(&mut context, prog)

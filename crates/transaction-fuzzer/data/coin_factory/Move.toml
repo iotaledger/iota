@@ -2,8 +2,8 @@
 name = "coin_factory"
 version = "0.0.1"
 
-[dependencies.Sui]
-local = "../../../sui-framework/packages/sui-framework"
+[dependencies.Iota]
+local = "../../../iota-framework/packages/iota-framework"
 
 [addresses]
-coiner =  "0x0"
+coiner = "0x0"

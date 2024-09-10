@@ -1,19 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::production_config;
 use move_binary_format::file_format::{
     empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
     Visibility::Public,
 };
-use move_bytecode_verifier::meter::BoundMeter;
+use move_bytecode_verifier_meter::bound::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
+
+use crate::unit_tests::production_config;
 
 #[test]
 fn test_bicliques() {
-    // See also: github.com/aptos-labs/aptos-core/security/advisories/GHSA-xm6p-ffcq-5p2v
+    // See also: github.com/aptos-labs/aptos-core/security/advisories/
+    // GHSA-xm6p-ffcq-5p2v
     const NUM_LOCALS: u8 = 128;
     const NUM_CALLS: u16 = 76;
     const NUM_FUNCTIONS: u16 = 1;
@@ -35,6 +38,7 @@ fn test_bicliques() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -61,6 +65,7 @@ fn test_bicliques() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![],
+            jump_tables: vec![],
         }),
     });
     let code = &mut m.function_defs[1].code.as_mut().unwrap().code;
@@ -87,6 +92,7 @@ fn test_bicliques() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -109,6 +115,7 @@ fn test_bicliques() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(0),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize + 2].code.as_mut().unwrap().code;
@@ -122,11 +129,11 @@ fn test_bicliques() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_bicliques",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );
@@ -138,7 +145,8 @@ fn test_bicliques() {
 
 #[test]
 fn test_merge_state_large_graph() {
-    // See also: github.com/aptos-labs/aptos-core/security/advisories/GHSA-g8v8-fw4c-8h82
+    // See also: github.com/aptos-labs/aptos-core/security/advisories/
+    // GHSA-g8v8-fw4c-8h82
     const N: u8 = 127;
     const NUM_NOP_BLOCKS: u16 = 950;
     const NUM_FUNCTIONS: u16 = 18;
@@ -160,6 +168,7 @@ fn test_merge_state_large_graph() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -185,6 +194,7 @@ fn test_merge_state_large_graph() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(1)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -205,6 +215,7 @@ fn test_merge_state_large_graph() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(1)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -226,6 +237,7 @@ fn test_merge_state_large_graph() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(1),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize + 3].code.as_mut().unwrap().code;
@@ -244,11 +256,11 @@ fn test_merge_state_large_graph() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_merge_state_large_graph",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );
@@ -260,7 +272,8 @@ fn test_merge_state_large_graph() {
 
 #[test]
 fn test_merge_state() {
-    // See also: github.com/aptos-labs/aptos-core/security/advisories/GHSA-g8v8-fw4c-8h82
+    // See also: github.com/aptos-labs/aptos-core/security/advisories/
+    // GHSA-g8v8-fw4c-8h82
     const NUM_NOP_BLOCKS: u16 = 965;
     const NUM_LOCALS: u8 = 32;
     const NUM_FUNCTIONS: u16 = 21;
@@ -282,6 +295,7 @@ fn test_merge_state() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -313,6 +327,7 @@ fn test_merge_state() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(2),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize + 1].code.as_mut().unwrap().code;
@@ -323,7 +338,8 @@ fn test_merge_state() {
         for j in 0..(NUM_LOCALS - 2) {
             // create Ref(new_id) and factor in empty-path edge id -> new_id
             code.push(Bytecode::CopyLoc(1));
-            // can't leave those references on stack since basic blocks need to be stack-neutral
+            // can't leave those references on stack since basic blocks need to be
+            // stack-neutral
             code.push(Bytecode::StLoc(j + 2));
         }
         for _ in 0..NUM_NOP_BLOCKS {
@@ -335,11 +351,11 @@ fn test_merge_state() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_merge_state",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );
@@ -351,7 +367,8 @@ fn test_merge_state() {
 
 #[test]
 fn test_copyloc_pop() {
-    // See also: github.com/aptos-labs/aptos-core/security/advisories/GHSA-2qvr-c9qp-wch7
+    // See also: github.com/aptos-labs/aptos-core/security/advisories/
+    // GHSA-2qvr-c9qp-wch7
     const NUM_COPYLOCS: u16 = 1880;
     const NUM_CHILDREN: u16 = 1020;
     const NUM_FUNCTIONS: u16 = 2;
@@ -368,7 +385,8 @@ fn test_copyloc_pop() {
         SignatureToken::Reference(Box::new(SignatureToken::Vector(Box::new(
             SignatureToken::U8,
         )))),
-        SignatureToken::U8, // ignore this, it's just here because I don't want to fix indices and the TypeParameter after removing the collision
+        SignatureToken::U8, /* ignore this, it's just here because I don't want to fix indices
+                             * and the TypeParameter after removing the collision */
     ]));
     // for VecImmBorrow
     m.signatures.push(Signature(
@@ -395,6 +413,7 @@ fn test_copyloc_pop() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(2),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
         let code = &mut m.function_defs[i as usize].code.as_mut().unwrap().code;
@@ -420,11 +439,11 @@ fn test_copyloc_pop() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_copyloc_pop",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );

@@ -11,7 +11,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^
    │         │ │
    │         │ The type '0x42::M::NoC' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:20:9
@@ -26,7 +26,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^
    │         │ │
    │         │ The type '0x42::M::Cup<u64>' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:21:9
@@ -39,7 +39,7 @@ error[E05001]: ability constraint not satisfied
    │         │ │   │
    │         │ │   The type '0x42::M::Box<0x42::M::NoC>' can have the ability 'copy' but the type argument '0x42::M::NoC' does not have the required ability 'copy'
    │         │ The type '0x42::M::Box<0x42::M::NoC>' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:22:9
@@ -54,7 +54,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^
    │         │ │
    │         │ The type '0x42::M::NoK' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:23:9
@@ -69,7 +69,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^
    │         │ │
    │         │ The type '0x42::M::Cup<u64>' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:24:9
@@ -82,7 +82,7 @@ error[E05001]: ability constraint not satisfied
    │         │ │   │
    │         │ │   The type '0x42::M::Box<0x42::M::Cup<u64>>' can have the ability 'key' but the type argument '0x42::M::Cup<u64>' does not have the required ability 'store'
    │         │ The type '0x42::M::Box<0x42::M::Cup<u64>>' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:25:9
@@ -97,7 +97,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::NoC' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:26:9
@@ -112,7 +112,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::Cup<u64>' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:26:9
@@ -127,7 +127,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::Cup<u64>' does not have the ability 'drop'
-   │         'drop' constraint not satisifed
+   │         'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:26:9
@@ -142,7 +142,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::Cup<u64>' does not have the ability 'store'
-   │         'store' constraint not satisifed
+   │         'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:27:9
@@ -157,7 +157,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:27:9
@@ -172,7 +172,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'drop'
-   │         'drop' constraint not satisifed
+   │         'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:27:9
@@ -187,7 +187,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │   │
    │         │   The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'store'
-   │         'store' constraint not satisifed
+   │         'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:28:9
@@ -200,7 +200,7 @@ error[E05001]: ability constraint not satisfied
    │         │   │         │
    │         │   │         The type '0x42::M::Pair<u64, 0x42::M::NoC>' can have the ability 'copy' but the type argument '0x42::M::NoC' does not have the required ability 'copy'
    │         │   The type '0x42::M::Pair<u64, 0x42::M::NoC>' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:29:13
@@ -214,7 +214,7 @@ error[E05001]: ability constraint not satisfied
 29 │         let Sc {} = Sc<NoC> {};
    │             ^^^^^      --- The type '0x42::M::NoC' does not have the ability 'copy'
    │             │           
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:29:21
@@ -229,7 +229,7 @@ error[E05001]: ability constraint not satisfied
    │                     ^^^^^^^^^^
    │                     │  │
    │                     │  The type '0x42::M::NoC' does not have the ability 'copy'
-   │                     'copy' constraint not satisifed
+   │                     'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:30:13
@@ -243,7 +243,7 @@ error[E05001]: ability constraint not satisfied
 30 │         let Sc {} = Sc<Cup<u64>> {};
    │             ^^^^^      -------- The type '0x42::M::Cup<u64>' does not have the ability 'copy'
    │             │           
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:30:21
@@ -258,7 +258,7 @@ error[E05001]: ability constraint not satisfied
    │                     ^^^^^^^^^^^^^^^
    │                     │  │
    │                     │  The type '0x42::M::Cup<u64>' does not have the ability 'copy'
-   │                     'copy' constraint not satisifed
+   │                     'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:31:13
@@ -271,7 +271,7 @@ error[E05001]: ability constraint not satisfied
    │             │          │   │
    │             │          │   The type '0x42::M::Box<0x42::M::NoC>' can have the ability 'copy' but the type argument '0x42::M::NoC' does not have the required ability 'copy'
    │             │          The type '0x42::M::Box<0x42::M::NoC>' does not have the ability 'copy'
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:31:21
@@ -284,7 +284,7 @@ error[E05001]: ability constraint not satisfied
    │                     │  │   │
    │                     │  │   The type '0x42::M::Box<0x42::M::NoC>' can have the ability 'copy' but the type argument '0x42::M::NoC' does not have the required ability 'copy'
    │                     │  The type '0x42::M::Box<0x42::M::NoC>' does not have the ability 'copy'
-   │                     'copy' constraint not satisifed
+   │                     'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:32:13
@@ -298,7 +298,7 @@ error[E05001]: ability constraint not satisfied
 32 │         let Sk {} = Sk<NoK> {};
    │             ^^^^^      --- The type '0x42::M::NoK' does not have the ability 'key'
    │             │           
-   │             'key' constraint not satisifed
+   │             'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:32:21
@@ -313,7 +313,7 @@ error[E05001]: ability constraint not satisfied
    │                     ^^^^^^^^^^
    │                     │  │
    │                     │  The type '0x42::M::NoK' does not have the ability 'key'
-   │                     'key' constraint not satisifed
+   │                     'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:33:13
@@ -327,7 +327,7 @@ error[E05001]: ability constraint not satisfied
 33 │         let Sk {} = Sk<Cup<u64>> {};
    │             ^^^^^      -------- The type '0x42::M::Cup<u64>' does not have the ability 'key'
    │             │           
-   │             'key' constraint not satisifed
+   │             'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:33:21
@@ -342,7 +342,7 @@ error[E05001]: ability constraint not satisfied
    │                     ^^^^^^^^^^^^^^^
    │                     │  │
    │                     │  The type '0x42::M::Cup<u64>' does not have the ability 'key'
-   │                     'key' constraint not satisifed
+   │                     'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:34:13
@@ -355,7 +355,7 @@ error[E05001]: ability constraint not satisfied
    │             │          │   │
    │             │          │   The type '0x42::M::Box<0x42::M::Cup<u64>>' can have the ability 'key' but the type argument '0x42::M::Cup<u64>' does not have the required ability 'store'
    │             │          The type '0x42::M::Box<0x42::M::Cup<u64>>' does not have the ability 'key'
-   │             'key' constraint not satisifed
+   │             'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:34:21
@@ -368,7 +368,7 @@ error[E05001]: ability constraint not satisfied
    │                     │  │   │
    │                     │  │   The type '0x42::M::Box<0x42::M::Cup<u64>>' can have the ability 'key' but the type argument '0x42::M::Cup<u64>' does not have the required ability 'store'
    │                     │  The type '0x42::M::Box<0x42::M::Cup<u64>>' does not have the ability 'key'
-   │                     'key' constraint not satisifed
+   │                     'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:35:13
@@ -382,7 +382,7 @@ error[E05001]: ability constraint not satisfied
 35 │         let Scds {} = Scds<NoC> {};
    │             ^^^^^^^        --- The type '0x42::M::NoC' does not have the ability 'copy'
    │             │               
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:35:23
@@ -397,7 +397,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::NoC' does not have the ability 'copy'
-   │                       'copy' constraint not satisifed
+   │                       'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:36:13
@@ -411,7 +411,7 @@ error[E05001]: ability constraint not satisfied
 36 │         let Scds {} = Scds<Cup<u64>> {};
    │             ^^^^^^^        -------- The type '0x42::M::Cup<u64>' does not have the ability 'copy'
    │             │               
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:36:13
@@ -425,7 +425,7 @@ error[E05001]: ability constraint not satisfied
 36 │         let Scds {} = Scds<Cup<u64>> {};
    │             ^^^^^^^        -------- The type '0x42::M::Cup<u64>' does not have the ability 'drop'
    │             │               
-   │             'drop' constraint not satisifed
+   │             'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:36:13
@@ -439,7 +439,7 @@ error[E05001]: ability constraint not satisfied
 36 │         let Scds {} = Scds<Cup<u64>> {};
    │             ^^^^^^^        -------- The type '0x42::M::Cup<u64>' does not have the ability 'store'
    │             │               
-   │             'store' constraint not satisifed
+   │             'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:36:23
@@ -454,7 +454,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::Cup<u64>' does not have the ability 'copy'
-   │                       'copy' constraint not satisifed
+   │                       'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:36:23
@@ -469,7 +469,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::Cup<u64>' does not have the ability 'drop'
-   │                       'drop' constraint not satisifed
+   │                       'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:36:23
@@ -484,7 +484,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::Cup<u64>' does not have the ability 'store'
-   │                       'store' constraint not satisifed
+   │                       'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:37:13
@@ -498,7 +498,7 @@ error[E05001]: ability constraint not satisfied
 37 │         let Scds {} = Scds<Cup<NoC>> {};
    │             ^^^^^^^        -------- The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'copy'
    │             │               
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:37:13
@@ -512,7 +512,7 @@ error[E05001]: ability constraint not satisfied
 37 │         let Scds {} = Scds<Cup<NoC>> {};
    │             ^^^^^^^        -------- The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'drop'
    │             │               
-   │             'drop' constraint not satisifed
+   │             'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:37:13
@@ -526,7 +526,7 @@ error[E05001]: ability constraint not satisfied
 37 │         let Scds {} = Scds<Cup<NoC>> {};
    │             ^^^^^^^        -------- The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'store'
    │             │               
-   │             'store' constraint not satisifed
+   │             'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:37:23
@@ -541,7 +541,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'copy'
-   │                       'copy' constraint not satisifed
+   │                       'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:37:23
@@ -556,7 +556,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'drop'
-   │                       'drop' constraint not satisifed
+   │                       'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:37:23
@@ -571,7 +571,7 @@ error[E05001]: ability constraint not satisfied
    │                       ^^^^^^^^^^^^^^^^^
    │                       │    │
    │                       │    The type '0x42::M::Cup<0x42::M::NoC>' does not have the ability 'store'
-   │                       'store' constraint not satisifed
+   │                       'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:38:13
@@ -584,7 +584,7 @@ error[E05001]: ability constraint not satisfied
    │             │              │         │
    │             │              │         The type '0x42::M::Pair<u64, 0x42::M::NoC>' can have the ability 'copy' but the type argument '0x42::M::NoC' does not have the required ability 'copy'
    │             │              The type '0x42::M::Pair<u64, 0x42::M::NoC>' does not have the ability 'copy'
-   │             'copy' constraint not satisifed
+   │             'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/ability_constraint_structs_invalid.move:38:23
@@ -597,5 +597,5 @@ error[E05001]: ability constraint not satisfied
    │                       │    │         │
    │                       │    │         The type '0x42::M::Pair<u64, 0x42::M::NoC>' can have the ability 'copy' but the type argument '0x42::M::NoC' does not have the required ability 'copy'
    │                       │    The type '0x42::M::Pair<u64, 0x42::M::NoC>' does not have the ability 'copy'
-   │                       'copy' constraint not satisifed
+   │                       'copy' constraint not satisfied
 

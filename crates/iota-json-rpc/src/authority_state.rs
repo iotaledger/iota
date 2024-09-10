@@ -12,7 +12,7 @@ use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
     authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
-    execution_cache::ObjectCacheRead,
+    execution_cache::{ExecutionCacheRead, ObjectCacheRead},
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
@@ -44,6 +44,7 @@ use iota_types::{
     },
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
+    timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::{Transaction, TransactionData, TransactionKind},
 };
 #[cfg(test)]
@@ -171,6 +172,11 @@ pub trait StateRead: Send + Sync {
 
     // governance_api
     async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>>;
+    async fn get_timelocked_staked_iota(
+        &self,
+        owner: IotaAddress,
+    ) -> StateReadResult<Vec<TimelockedStakedIota>>;
+
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
 
@@ -431,11 +437,22 @@ impl StateRead for AuthorityState {
             .get_move_objects(owner, MoveObjectType::staked_iota())
             .await?)
     }
+
+    async fn get_timelocked_staked_iota(
+        &self,
+        owner: IotaAddress,
+    ) -> StateReadResult<Vec<TimelockedStakedIota>> {
+        Ok(self
+            .get_move_objects(owner, MoveObjectType::timelocked_staked_iota())
+            .await?)
+    }
+
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
         Ok(self
-            .get_object_cache_reader()
+            .get_cache_reader()
             .get_iota_system_state_object_unsafe()?)
     }
+
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
         Ok(self
             .committee_store()
@@ -672,8 +689,8 @@ impl From<IotaError> for StateReadError {
         match e {
             IotaError::IndexStoreNotAvailable
             | IotaError::TransactionNotFound { .. }
-            | IotaError::UnsupportedFeatureError { .. }
-            | IotaError::UserInputError { .. }
+            | IotaError::UnsupportedFeature { .. }
+            | IotaError::UserInput { .. }
             | IotaError::WrongMessageVersion { .. } => StateReadError::Client(e.into()),
             _ => StateReadError::Internal(e.into()),
         }

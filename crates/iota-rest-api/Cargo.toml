@@ -1,0 +1,26 @@
+[package]
+name = "iota-rest-api"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+bcs.workspace = true
+mime = "0.3"
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+tap.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+fastcrypto.workspace = true
+iota-types.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

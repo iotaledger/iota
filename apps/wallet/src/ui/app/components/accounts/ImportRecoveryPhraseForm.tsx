@@ -1,134 +1,156 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils/bip39';
-import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
-import { Text } from '_src/ui/app/shared/text';
-import { useZodForm } from '@mysten/core';
+import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils';
+import { useZodForm } from '@iota/core';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import Alert from '../alert';
+import {
+    Input,
+    InputType,
+    Button,
+    ButtonType,
+    ButtonHtmlType,
+    InfoBox,
+    InfoBoxType,
+    InfoBoxStyle,
+} from '@iota/apps-ui-kit';
+import { Exclamation } from '@iota/ui-icons';
 
-const RECOVERY_PHRASE_WORD_COUNT = 12;
+const RECOVERY_PHRASE_WORD_COUNT = 24;
 
 const formSchema = z.object({
-	recoveryPhrase: z
-		.array(z.string().trim())
-		.length(RECOVERY_PHRASE_WORD_COUNT)
-		.transform((recoveryPhrase) => normalizeMnemonics(recoveryPhrase.join(' ')).split(' '))
-		.refine((recoveryPhrase) => validateMnemonics(recoveryPhrase.join(' ')), {
-			message: 'Recovery Passphrase is invalid',
-		}),
+    recoveryPhrase: z
+        .array(z.string().trim())
+        .length(RECOVERY_PHRASE_WORD_COUNT)
+        .transform((recoveryPhrase) => normalizeMnemonics(recoveryPhrase.join(' ')).split(' '))
+        .refine((recoveryPhrase) => validateMnemonics(recoveryPhrase.join(' ')), {
+            message: 'Recovery Passphrase is invalid',
+        }),
 });
 
-export type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
-type ImportRecoveryPhraseFormProps = {
-	submitButtonText: string;
-	cancelButtonText?: string;
-	onSubmit: SubmitHandler<FormValues>;
-};
+interface ImportRecoveryPhraseFormProps {
+    submitButtonText: string;
+    cancelButtonText?: string;
+    onSubmit: SubmitHandler<FormValues>;
+    isTextVisible?: boolean;
+}
 
 export function ImportRecoveryPhraseForm({
-	submitButtonText,
-	cancelButtonText,
-	onSubmit,
+    submitButtonText,
+    cancelButtonText,
+    onSubmit,
+    isTextVisible,
 }: ImportRecoveryPhraseFormProps) {
-	const {
-		register,
-		formState: { errors, isSubmitting, isValid, touchedFields },
-		handleSubmit,
-		setValue,
-		getValues,
-		trigger,
-	} = useZodForm({
-		mode: 'all',
-		reValidateMode: 'onChange',
-		schema: formSchema,
-		defaultValues: {
-			recoveryPhrase: Array.from({ length: RECOVERY_PHRASE_WORD_COUNT }, () => ''),
-		},
-	});
-	const navigate = useNavigate();
-	const recoveryPhrase = getValues('recoveryPhrase');
+    const {
+        register,
+        formState: { errors, isSubmitting, isValid, touchedFields },
+        handleSubmit,
+        setValue,
+        getValues,
+        trigger,
+    } = useZodForm({
+        mode: 'all',
+        reValidateMode: 'onChange',
+        schema: formSchema,
+        defaultValues: {
+            recoveryPhrase: Array.from({ length: RECOVERY_PHRASE_WORD_COUNT }, () => ''),
+        },
+    });
+    const navigate = useNavigate();
+    const recoveryPhrase = getValues('recoveryPhrase');
 
-	return (
-		<form
-			className="flex flex-col justify-between relative h-full"
-			onSubmit={handleSubmit(onSubmit)}
-		>
-			<div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
-				{recoveryPhrase.map((_, index) => {
-					const recoveryPhraseId = `recoveryPhrase.${index}` as const;
-					return (
-						<label key={index} className="flex flex-col gap-1.5 items-center">
-							<Text variant="captionSmall" weight="medium" color="steel-darker">
-								{index + 1}
-							</Text>
-							<PasswordInput
-								disabled={isSubmitting}
-								onKeyDown={(e) => {
-									if (e.key === ' ') {
-										e.preventDefault();
-										const nextInput = document.getElementsByName(`recoveryPhrase.${index + 1}`)[0];
-										nextInput?.focus();
-									}
-								}}
-								onPaste={async (e) => {
-									const inputText = e.clipboardData.getData('text');
-									const words = inputText
-										.trim()
-										.split(/\W/)
-										.map((aWord) => aWord.trim())
-										.filter(String);
+    async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>, index: number) {
+        const inputText = e.clipboardData.getData('text');
+        const words = inputText
+            .trim()
+            .split(/\W/)
+            .map((aWord) => aWord.trim())
+            .filter(String);
 
-									if (words.length > 1) {
-										e.preventDefault();
-										const pasteIndex = words.length === recoveryPhrase.length ? 0 : index;
-										const wordsToPaste = words.slice(0, recoveryPhrase.length - pasteIndex);
-										const newRecoveryPhrase = [...recoveryPhrase];
-										newRecoveryPhrase.splice(
-											pasteIndex,
-											wordsToPaste.length,
-											...words.slice(0, recoveryPhrase.length - pasteIndex),
-										);
-										setValue('recoveryPhrase', newRecoveryPhrase);
-										trigger('recoveryPhrase');
-									}
-								}}
-								id={recoveryPhraseId}
-								{...register(recoveryPhraseId)}
-							/>
-						</label>
-					);
-				})}
-			</div>
-			<div className="flex flex-col gap-2.5 pt-3 bg-sui-lightest sticky -bottom-7.5 px-6 pb-7.5 -mx-6 -mb-7.5">
-				{touchedFields.recoveryPhrase && errors.recoveryPhrase && (
-					<Alert>{errors.recoveryPhrase.message}</Alert>
-				)}
-				<div className="flex gap-2.5">
-					{cancelButtonText ? (
-						<Button
-							variant="outline"
-							size="tall"
-							text={cancelButtonText}
-							onClick={() => navigate(-1)}
-						/>
-					) : null}
-					<Button
-						type="submit"
-						disabled={isSubmitting || !isValid}
-						variant="primary"
-						size="tall"
-						loading={isSubmitting}
-						text={submitButtonText}
-					/>
-				</div>
-			</div>
-		</form>
-	);
+        if (words.length > 1) {
+            e.preventDefault();
+            const pasteIndex = words.length === recoveryPhrase.length ? 0 : index;
+            const wordsToPaste = words.slice(0, recoveryPhrase.length - pasteIndex);
+            const newRecoveryPhrase = [...recoveryPhrase];
+            newRecoveryPhrase.splice(
+                pasteIndex,
+                wordsToPaste.length,
+                ...words.slice(0, recoveryPhrase.length - pasteIndex),
+            );
+            setValue('recoveryPhrase', newRecoveryPhrase);
+            trigger('recoveryPhrase');
+        }
+    }
+
+    function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (e.key === ' ') {
+            e.preventDefault();
+            const nextInput = document.getElementsByName(
+                `recoveryPhrase.${recoveryPhrase.findIndex((word) => !word)}`,
+            )[0];
+            nextInput?.focus();
+        }
+    }
+
+    return (
+        <form
+            className="relative flex h-full flex-col justify-between"
+            onSubmit={handleSubmit(onSubmit)}
+        >
+            <div className="grid grid-cols-2 gap-2 overflow-auto pb-md">
+                {recoveryPhrase.map((_, index) => {
+                    const recoveryPhraseId = `recoveryPhrase.${index}` as const;
+                    return (
+                        <Input
+                            key={recoveryPhraseId}
+                            supportingText={String(index + 1)}
+                            type={InputType.Password}
+                            isVisibilityToggleEnabled={false}
+                            disabled={isSubmitting}
+                            placeholder="Word"
+                            isContentVisible={isTextVisible}
+                            onKeyDown={handleInputKeyDown}
+                            onPaste={(e) => handlePaste(e, index)}
+                            id={recoveryPhraseId}
+                            {...register(recoveryPhraseId)}
+                        />
+                    );
+                })}
+            </div>
+
+            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 py-sm">
+                {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
+                    <InfoBox
+                        type={InfoBoxType.Default}
+                        supportingText={errors.recoveryPhrase.message}
+                        icon={<Exclamation />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                )}
+                <div className="flex flex-row justify-stretch gap-2.5">
+                    {cancelButtonText ? (
+                        <Button
+                            type={ButtonType.Secondary}
+                            text={cancelButtonText}
+                            onClick={() => navigate(-1)}
+                            fullWidth
+                        />
+                    ) : null}
+                    <Button
+                        type={ButtonType.Primary}
+                        disabled={isSubmitting || !isValid}
+                        text={submitButtonText}
+                        fullWidth
+                        htmlType={ButtonHtmlType.Submit}
+                    />
+                </div>
+            </div>
+        </form>
+    );
 }

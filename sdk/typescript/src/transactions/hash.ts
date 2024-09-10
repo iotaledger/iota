@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { blake2b } from '@noble/hashes/blake2b';
@@ -10,11 +11,11 @@ import { blake2b } from '@noble/hashes/blake2b';
  * @param data data to hash
  */
 export function hashTypedData(typeTag: string, data: Uint8Array): Uint8Array {
-	const typeTagBytes = Array.from(`${typeTag}::`).map((e) => e.charCodeAt(0));
+    const typeTagBytes = Array.from(`${typeTag}::`).map((e) => e.charCodeAt(0));
 
-	const dataWithTag = new Uint8Array(typeTagBytes.length + data.length);
-	dataWithTag.set(typeTagBytes);
-	dataWithTag.set(data, typeTagBytes.length);
+    const dataWithTag = new Uint8Array(typeTagBytes.length + data.length);
+    dataWithTag.set(typeTagBytes);
+    dataWithTag.set(data, typeTagBytes.length);
 
-	return blake2b(dataWithTag, { dkLen: 32 });
+    return blake2b(dataWithTag, { dkLen: 32 });
 }

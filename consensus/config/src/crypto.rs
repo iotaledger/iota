@@ -1,15 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Here we select the cryptographic types that are used by default in the code base.
-//! The whole code base should only:
+//! Here we select the cryptographic types that are used by default in the code
+//! base. The whole code base should only:
 //! - refer to those aliases and not use the individual scheme implementations
-//! - not use the schemes in a way that break genericity (e.g. using their Struct impl functions)
+//! - not use the schemes in a way that break genericity (e.g. using their
+//!   Struct impl functions)
 //! - swap one of those aliases to point to another type if necessary
 //!
-//! Beware: if you change those aliases to point to another scheme implementation, you will have
-//! to change all four aliases to point to concrete types that work with each other. Failure to do
-//! so will result in a ton of compilation errors, and worse: it will not make sense!
+//! Beware: if you change those aliases to point to another scheme
+//! implementation, you will have to change all four aliases to point to
+//! concrete types that work with each other. Failure to do so will result in a
+//! ton of compilation errors, and worse: it will not make sense!
 
 use fastcrypto::{
     bls12381, ed25519,
@@ -23,7 +26,7 @@ use shared_crypto::intent::INTENT_PREFIX_LENGTH;
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NetworkPublicKey(ed25519::Ed25519PublicKey);
-pub struct NetworkPrivateKey(ed25519::Ed25519PrivateKey);
+pub struct NetworkPrivateKey(#[allow(dead_code)] ed25519::Ed25519PrivateKey);
 pub struct NetworkKeyPair(ed25519::Ed25519KeyPair);
 
 impl NetworkPublicKey {
@@ -32,7 +35,7 @@ impl NetworkPublicKey {
     }
 
     pub fn to_bytes(&self) -> [u8; 32] {
-        self.0 .0.to_bytes()
+        self.0.0.to_bytes()
     }
 }
 
@@ -118,8 +121,8 @@ impl ProtocolKeySignature {
     }
 }
 
-/// Authority key represents the identity of an authority. It is only used for identity sanity
-/// checks and not used for verification.
+/// Authority key represents the identity of an authority. It is only used for
+/// identity sanity checks and not used for verification.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthorityPublicKey(bls12381::min_sig::BLS12381PublicKey);
 pub struct AuthorityKeyPair(bls12381::min_sig::BLS12381KeyPair);

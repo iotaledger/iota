@@ -1,17 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compilation::compiled_package::make_source_and_deps_for_compiler,
-    resolution::resolution_graph::ResolvedGraph, ModelConfig,
-};
 use anyhow::Result;
 use itertools::Itertools;
 use move_compiler::shared::PackagePaths;
 use move_model::{model::GlobalEnv, options::ModelBuilderOptions, run_model_builder_with_options};
 
 use super::compiled_package::{DependencyInfo, ModuleFormat};
+use crate::{
+    compilation::compiled_package::make_source_and_deps_for_compiler,
+    resolution::resolution_graph::ResolvedGraph, ModelConfig,
+};
 
 #[derive(Debug, Clone)]
 pub struct ModelBuilder {
@@ -27,11 +28,12 @@ impl ModelBuilder {
         }
     }
 
-    // NOTE: If there are now renamings, then the root package has the global resolution of all named
-    // addresses in the package graph in scope. So we can simply grab all of the source files
-    // across all packages and build the Move model from that.
-    // TODO: In the future we will need a better way to do this to support renaming in packages
-    // where we want to support building a Move model.
+    // NOTE: If there are now renamings, then the root package has the global
+    // resolution of all named addresses in the package graph in scope. So we
+    // can simply grab all of the source files across all packages and build the
+    // Move model from that. TODO: In the future we will need a better way to do
+    // this to support renaming in packages where we want to support building a
+    // Move model.
     pub fn build_model(&self) -> Result<GlobalEnv> {
         // Make sure no renamings have been performed
         if let Some(pkg_name) = self.resolution_graph.contains_renaming() {
@@ -70,7 +72,8 @@ impl ModelBuilder {
                     source_paths: dep_source_paths,
                     address_mapping: &pkg.resolved_table,
                     compiler_config: pkg.compiler_config(
-                        /* is_dependency */ true,
+                        // is_dependency
+                        true,
                         &self.resolution_graph.build_options,
                     ),
                     module_format: if source_available {

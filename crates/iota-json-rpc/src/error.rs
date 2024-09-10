@@ -6,27 +6,30 @@ use std::collections::BTreeMap;
 
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
-use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
+use iota_json_rpc_api::{
+    error_object_from_rpc, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE,
+};
 use iota_types::{
     error::{IotaError, IotaObjectResponseError, UserInputError},
     quorum_driver_types::QuorumDriverError,
 };
 use itertools::Itertools;
 use jsonrpsee::{
-    core::Error as RpcError,
+    core::{ClientError as RpcError, RegisterMethodError},
     types::{
-        error::{CallError, INTERNAL_ERROR_CODE},
-        ErrorObject,
+        error::{ErrorCode, CALL_EXECUTION_FAILED_CODE, INTERNAL_ERROR_CODE},
+        ErrorObject, ErrorObjectOwned,
     },
 };
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::{authority_state::StateReadError, name_service::NameServiceError};
+use crate::authority_state::StateReadError;
 
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error(transparent)]
     IotaError(IotaError),
@@ -40,7 +43,9 @@ pub enum Error {
     UnexpectedError(String),
 
     #[error(transparent)]
-    RPCServerError(#[from] jsonrpsee::core::Error),
+    RPCServerError(#[from] RpcError),
+    #[error(transparent)]
+    RPCRegisterMethodError(#[from] RegisterMethodError),
 
     #[error(transparent)]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
@@ -72,17 +77,14 @@ pub enum Error {
 
     #[error("Unsupported Feature: {0}")]
     UnsupportedFeature(String),
-
-    #[error("transparent")]
-    NameServiceError(#[from] NameServiceError),
 }
 
 impl From<IotaError> for Error {
     fn from(e: IotaError) -> Self {
         match e {
-            IotaError::UserInputError { error } => Self::UserInputError(error),
-            IotaError::IotaObjectResponseError { error } => Self::IotaObjectResponseError(error),
-            IotaError::UnsupportedFeatureError { error } => Self::UnsupportedFeature(error),
+            IotaError::UserInput { error } => Self::UserInputError(error),
+            IotaError::IotaObjectResponse { error } => Self::IotaObjectResponseError(error),
+            IotaError::UnsupportedFeature { error } => Self::UnsupportedFeature(error),
             IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),
             ),
@@ -95,46 +97,60 @@ impl From<Error> for RpcError {
     /// `InvalidParams`/`INVALID_PARAMS_CODE` for client errors.
     fn from(e: Error) -> RpcError {
         match e {
-            Error::UserInputError(_) => RpcError::Call(CallError::InvalidParams(e.into())),
-            Error::UnsupportedFeature(_) => RpcError::Call(CallError::InvalidParams(e.into())),
+            Error::UserInputError(_) | Error::UnsupportedFeature(_) => RpcError::Call(
+                ErrorObject::owned::<()>(ErrorCode::InvalidRequest.code(), e.to_string(), None),
+            ),
             Error::IotaObjectResponseError(err) => match err {
                 IotaObjectResponseError::NotExists { .. }
                 | IotaObjectResponseError::DynamicFieldNotFound { .. }
                 | IotaObjectResponseError::Deleted { .. }
                 | IotaObjectResponseError::DisplayError { .. } => {
-                    RpcError::Call(CallError::InvalidParams(err.into()))
+                    RpcError::Call(ErrorObject::owned::<()>(
+                        ErrorCode::InvalidParams.code(),
+                        err.to_string(),
+                        None,
+                    ))
                 }
-                _ => RpcError::Call(CallError::Failed(err.into())),
+                _ => RpcError::Call(ErrorObject::owned::<()>(
+                    CALL_EXECUTION_FAILED_CODE,
+                    err.to_string(),
+                    None,
+                )),
             },
-            Error::NameServiceError(err) => match err {
-                NameServiceError::ExceedsMaxLength { .. }
-                | NameServiceError::InvalidHyphens { .. }
-                | NameServiceError::InvalidLength { .. }
-                | NameServiceError::InvalidUnderscore { .. }
-                | NameServiceError::LabelsEmpty { .. }
-                | NameServiceError::InvalidSeparator { .. } => {
-                    RpcError::Call(CallError::InvalidParams(err.into()))
-                }
-                _ => RpcError::Call(CallError::Failed(err.into())),
-            },
-            Error::IotaRpcInputError(err) => RpcError::Call(CallError::InvalidParams(err.into())),
+            Error::IotaRpcInputError(err) => RpcError::Call(ErrorObject::owned::<()>(
+                ErrorCode::InvalidParams.code(),
+                err.to_string(),
+                None,
+            )),
             Error::IotaError(iota_error) => match iota_error {
                 IotaError::TransactionNotFound { .. }
                 | IotaError::TransactionsNotFound { .. }
                 | IotaError::TransactionEventsNotFound { .. } => {
-                    RpcError::Call(CallError::InvalidParams(iota_error.into()))
+                    RpcError::Call(ErrorObject::owned::<()>(
+                        ErrorCode::InvalidParams.code(),
+                        iota_error.to_string(),
+                        None,
+                    ))
                 }
-                _ => RpcError::Call(CallError::Failed(iota_error.into())),
+                _ => RpcError::Call(ErrorObject::owned::<()>(
+                    CALL_EXECUTION_FAILED_CODE,
+                    iota_error.to_string(),
+                    None,
+                )),
             },
             Error::StateReadError(err) => match err {
-                StateReadError::Client(_) => RpcError::Call(CallError::InvalidParams(err.into())),
+                StateReadError::Client(_) => RpcError::Call(ErrorObject::owned::<()>(
+                    ErrorCode::InvalidParams.code(),
+                    err.to_string(),
+                    None,
+                )),
                 _ => {
-                    let error_object = ErrorObject::owned(
+                    let error_object = ErrorObject::owned::<()>(
                         jsonrpsee::types::error::INTERNAL_ERROR_CODE,
                         err.to_string(),
-                        None::<()>,
+                        None,
                     );
-                    RpcError::Call(CallError::Custom(error_object))
+                    RpcError::Call(error_object)
                 }
             },
             Error::QuorumDriverError(err) => {
@@ -143,32 +159,32 @@ impl From<Error> for RpcError {
                         let inner_error_str = match err {
                             // TODO(wlmyng): update IotaError display trait to render UserInputError
                             // with display
-                            IotaError::UserInputError { error } => error.to_string(),
+                            IotaError::UserInput { error } => error.to_string(),
                             _ => err.to_string(),
                         };
 
                         let error_message = format!("Invalid user signature: {inner_error_str}");
 
-                        let error_object = ErrorObject::owned(
+                        let error_object = ErrorObject::owned::<()>(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
                             error_message,
-                            None::<()>,
+                            None,
                         );
-                        RpcError::Call(CallError::Custom(error_object))
+                        RpcError::Call(error_object)
                     }
                     QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
-                        let error_object = ErrorObject::owned(
+                        let error_object = ErrorObject::owned::<()>(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
                             "The transaction is already finalized but with different user signatures",
-                            None::<()>,
+                            None,
                         );
-                        RpcError::Call(CallError::Custom(error_object))
+                        RpcError::Call(error_object)
                     }
                     QuorumDriverError::TimeoutBeforeFinality
                     | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. } => {
                         let error_object =
-                            ErrorObject::owned(TRANSIENT_ERROR_CODE, err.to_string(), None::<()>);
-                        RpcError::Call(CallError::Custom(error_object))
+                            ErrorObject::owned::<()>(TRANSIENT_ERROR_CODE, err.to_string(), None);
+                        RpcError::Call(error_object)
                     }
                     QuorumDriverError::ObjectsDoubleUsed {
                         conflicting_txes,
@@ -195,7 +211,7 @@ impl From<Error> for RpcError {
                             error_message,
                             Some(new_map),
                         );
-                        RpcError::Call(CallError::Custom(error_object))
+                        RpcError::Call(error_object)
                     }
                     QuorumDriverError::NonRecoverableTransactionError { errors } => {
                         let new_errors: Vec<String> = errors
@@ -215,7 +231,7 @@ impl From<Error> for RpcError {
                                     // So, we take an easier route and consider them non-retryable
                                     // at all. Combining this with the sorting above, clients will
                                     // see the dominant error first.
-                                    IotaError::UserInputError { error } => Some(error.to_string()),
+                                    IotaError::UserInput { error } => Some(error.to_string()),
                                     _ => {
                                         if err.is_retryable().0 {
                                             None
@@ -238,30 +254,34 @@ impl From<Error> for RpcError {
                             error_list
                         );
 
-                        let error_object = ErrorObject::owned(
+                        let error_object = ErrorObject::owned::<()>(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
                             error_msg,
-                            None::<()>,
+                            None,
                         );
-                        RpcError::Call(CallError::Custom(error_object))
+                        RpcError::Call(error_object)
                     }
                     QuorumDriverError::QuorumDriverInternalError(_) => {
-                        let error_object = ErrorObject::owned(
+                        let error_object = ErrorObject::owned::<()>(
                             INTERNAL_ERROR_CODE,
                             "Internal error occurred while executing transaction.",
-                            None::<()>,
+                            None,
                         );
-                        RpcError::Call(CallError::Custom(error_object))
+                        RpcError::Call(error_object)
                     }
                     QuorumDriverError::SystemOverload { .. }
                     | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
                         let error_object =
-                            ErrorObject::owned(TRANSIENT_ERROR_CODE, err.to_string(), None::<()>);
-                        RpcError::Call(CallError::Custom(error_object))
+                            ErrorObject::owned::<()>(TRANSIENT_ERROR_CODE, err.to_string(), None);
+                        RpcError::Call(error_object)
                     }
                 }
             }
-            _ => RpcError::Call(CallError::Failed(e.into())),
+            _ => RpcError::Call(ErrorObject::owned::<()>(
+                CALL_EXECUTION_FAILED_CODE,
+                e.to_string(),
+                None,
+            )),
         }
     }
 }
@@ -309,7 +329,17 @@ pub enum IotaRpcInputError {
 
 impl From<IotaRpcInputError> for RpcError {
     fn from(e: IotaRpcInputError) -> Self {
-        RpcError::Call(CallError::InvalidParams(e.into()))
+        RpcError::Call(ErrorObject::owned::<()>(
+            ErrorCode::InvalidParams.code(),
+            e.to_string(),
+            None,
+        ))
+    }
+}
+
+impl From<IotaRpcInputError> for ErrorObjectOwned {
+    fn from(value: IotaRpcInputError) -> Self {
+        error_object_from_rpc(value.into())
     }
 }
 
@@ -322,7 +352,6 @@ mod tests {
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
         digests::{ObjectDigest, TransactionDigest},
     };
-    use jsonrpsee::types::ErrorObjectOwned;
 
     use super::*;
 
@@ -346,7 +375,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
@@ -361,7 +390,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect!["Transaction timed out before reaching finality"];
@@ -377,7 +406,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
@@ -407,7 +436,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
@@ -426,7 +455,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::GasBalanceTooLow {
                                 gas_balance: 10,
                                 needed_gas_amount: 100,
@@ -436,7 +465,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::ObjectVersionUnavailableForConsumption {
                                 provided_obj_ref: test_object_ref(),
                                 current_version: 10.into(),
@@ -450,7 +479,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
@@ -464,7 +493,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
                                 object_id: test_object_ref().0,
                                 version: None,
@@ -474,7 +503,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        IotaError::RpcError("Hello".to_string(), "Testing".to_string()),
+                        IotaError::Rpc("Hello".to_string(), "Testing".to_string()),
                         0,
                         vec![],
                     ),
@@ -483,7 +512,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
@@ -499,7 +528,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32603"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect!["Internal error occurred while executing transaction."];
@@ -515,7 +544,7 @@ mod tests {
 
             let rpc_error: RpcError = Error::QuorumDriverError(quorum_driver_error).into();
 
-            let error_object: ErrorObjectOwned = rpc_error.into();
+            let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![

@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::treasury {
     use std::type_name;
 
-    use sui::coin::{Self, Coin};
-    use sui::object_bag::{Self, ObjectBag};
-    use sui::tx_context::TxContext;
+    use iota::coin::{Self, Coin};
+    use iota::object_bag::{Self, ObjectBag};
+    use iota::tx_context::TxContext;
 
     use bridge::btc::BTC;
     use bridge::eth::ETH;
     use bridge::usdc::USDC;
     use bridge::usdt::USDT;
-    use sui::coin::TreasuryCap;
+    use iota::coin::TreasuryCap;
 
     friend bridge::bridge;
 

@@ -4,7 +4,10 @@
 
 use std::{env, net::SocketAddr, str::FromStr};
 
-use axum::body::Body;
+use axum::{
+    body::Body,
+    routing::{get, post},
+};
 pub use balance_changes::*;
 use hyper::{
     header::{HeaderName, HeaderValue},
@@ -17,18 +20,23 @@ use iota_json_rpc_api::{
 };
 use iota_open_rpc::{Module, Project};
 use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
-use jsonrpsee::RpcModule;
+use tokio_util::sync::CancellationToken;
+use jsonrpsee::{types::ErrorObjectOwned, Extensions, RpcModule};
 pub use object_changes::*;
 use prometheus::Registry;
 use tokio::runtime::Handle;
-use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::info;
+use tracing::{debug, info};
 
-use crate::{error::Error, metrics::MetricsLogger, routing_layer::RpcRouter};
+use crate::{
+    axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
+    error::Error,
+    metrics::MetricsLogger,
+    routing_layer::RpcRouter,
+};
 
 pub mod authority_state;
 pub mod axum_router;
@@ -41,7 +49,6 @@ pub mod indexer_api;
 pub mod logger;
 mod metrics;
 pub mod move_utils;
-pub mod name_service;
 mod object_changes;
 pub mod read_api;
 mod routing_layer;
@@ -67,7 +74,7 @@ pub fn iota_rpc_doc(version: &str) -> Project {
         "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
         "IOTA Foundation",
         "https://iota.org",
-        "build@iota.org",
+        "contact@iota.org",
         "Apache-2.0",
         "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )
@@ -125,27 +132,16 @@ impl JsonRpcServerBuilder {
     fn trace_layer() -> TraceLayer<
         tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
         impl tower_http::trace::MakeSpan<Body> + Clone,
-        (),
-        (),
-        (),
-        (),
-        (),
     > {
-        TraceLayer::new_for_http()
-            .make_span_with(|request: &Request<Body>| {
-                let request_id = request
-                    .headers()
-                    .get("x-req-id")
-                    .and_then(|v| v.to_str().ok())
-                    .map(tracing::field::display);
+        TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+            let request_id = request
+                .headers()
+                .get("x-req-id")
+                .and_then(|v| v.to_str().ok())
+                .map(tracing::field::display);
 
-                tracing::info_span!("json-rpc-request", "x-req-id" = request_id)
-            })
-            .on_request(())
-            .on_response(())
-            .on_body_chunk(())
-            .on_eos(())
-            .on_failure(())
+            tracing::info_span!("json-rpc-request", "x-req-id" = request_id)
+        })
     }
 
     pub async fn to_router(&self, server_type: ServerType) -> Result<axum::Router, Error> {
@@ -167,7 +163,9 @@ impl JsonRpcServerBuilder {
 
         let rpc_docs = self.rpc_doc.clone();
         let mut module = self.module.clone();
-        module.register_method("rpc.discover", move |_, _| Ok(rpc_docs.clone()))?;
+        module.register_method("rpc.discover", move |_, _, _| {
+            Result::<_, ErrorObjectOwned>::Ok(rpc_docs.clone())
+        })?;
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
@@ -184,6 +182,7 @@ impl JsonRpcServerBuilder {
             self.firewall_config.clone(),
             self.policy_config.clone(),
             traffic_controller_metrics,
+            Extensions::new(),
         );
 
         let mut router = axum::Router::new();
@@ -191,58 +190,28 @@ impl JsonRpcServerBuilder {
         match server_type {
             ServerType::WebSocket => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/subscribe",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    );
+                    .route("/", get(ws_json_rpc_upgrade))
+                    .route("/subscribe", get(ws_json_rpc_upgrade));
             }
             ServerType::Http => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/json-rpc",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/public",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    );
+                    .route("/", post(json_rpc_handler))
+                    .route("/json-rpc", post(json_rpc_handler))
+                    .route("/public", post(json_rpc_handler));
             }
             ServerType::Both => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/subscribe",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/json-rpc",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/public",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    );
+                    .route("/", post(json_rpc_handler))
+                    .route("/", get(ws_json_rpc_upgrade))
+                    .route("/subscribe", get(ws_json_rpc_upgrade))
+                    .route("/json-rpc", post(json_rpc_handler))
+                    .route("/public", post(json_rpc_handler));
             }
         }
 
         let app = router.with_state(service).layer(middleware);
 
-        info!("Available JSON-RPC methods : {:?}", methods_names);
+        info!("Available JSON-RPC methods : {methods_names:?}");
 
         Ok(app)
     }
@@ -250,29 +219,36 @@ impl JsonRpcServerBuilder {
     pub async fn start(
         self,
         listen_address: SocketAddr,
-        _custom_runtime: Option<Handle>,
-        server_type: ServerType,
+        custom_runtime: Option<Handle>,
+        server_type: Option<ServerType>,
         cancel: Option<CancellationToken>,
     ) -> Result<ServerHandle, Error> {
         let app = self.to_router(server_type).await?;
 
-        let listener = tokio::net::TcpListener::bind(&listen_address)
+        let listener = tokio::net::TcpListener::bind(listen_address)
             .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+            .map_err(|e| {
+                Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+            })?;
 
-        let handle = tokio::spawn(async move {
-            axum::serve(
-                listener,
-                app.into_make_service_with_connect_info::<SocketAddr>(),
-            )
-            .await
-            .unwrap();
+        let addr = listener.local_addr().map_err(|e| {
+            Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+        })?;
+        let fut = async move {
+            axum::serve(listener, app.into_make_service())
+                .await
+                .unwrap()
             if let Some(cancel) = cancel {
                 // Signal that the server is shutting down, so other tasks can clean-up.
                 cancel.cancel();
             }
-        });
+        };
+        let handle = if let Some(custom_runtime) = custom_runtime {
+            debug!("Spawning server with custom runtime");
+            custom_runtime.spawn(fut)
+        } else {
+            tokio::spawn(fut)
+        };
 
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),

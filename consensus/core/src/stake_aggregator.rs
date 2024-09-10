@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashSet, marker::PhantomData};
+
 use consensus_config::{AuthorityIndex, Committee, Stake};
-use std::collections::HashSet;
-use std::marker::PhantomData;
 
 pub(crate) trait CommitteeThreshold {
     fn is_threshold(committee: &Committee, amount: Stake) -> bool;
@@ -40,9 +41,9 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
         }
     }
 
-    /// Adds a vote for the specified authority index to the aggregator. It is guaranteed to count
-    /// the vote only once for an authority. The method returns true when the required threshold has
-    /// been reached.
+    /// Adds a vote for the specified authority index to the aggregator. It is
+    /// guaranteed to count the vote only once for an authority. The method
+    /// returns true when the required threshold has been reached.
     pub(crate) fn add(&mut self, vote: AuthorityIndex, committee: &Committee) -> bool {
         if self.votes.insert(vote) {
             self.stake += committee.stake(vote);
