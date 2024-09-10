@@ -13,13 +13,14 @@ use crate::{
     build_json_rpc_server,
     errors::IndexerError,
     framework::fetcher::CheckpointFetcher,
-    handlers::{
-        checkpoint_handler::new_handlers,
-        objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig},
-    },
+    handlers::checkpoint_handler::new_handlers,
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
-    store::IndexerStore,
+    processors::{
+        objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig},
+        processor_orchestrator::ProcessorOrchestrator,
+    },
+    store::{IndexerStore, PgIndexerAnalyticalStore},
     IndexerConfig,
 };
 
@@ -109,6 +110,19 @@ impl Indexer {
             .await
             .expect("Rpc server task failed");
 
+        Ok(())
+    }
+
+    pub async fn start_analytical_worker(
+        store: PgIndexerAnalyticalStore,
+        metrics: IndexerMetrics,
+    ) -> Result<(), IndexerError> {
+        info!(
+            "Iota Indexer Analytical Worker (version {:?}) started...",
+            env!("CARGO_PKG_VERSION")
+        );
+        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
+        processor_orchestrator.run_forever().await;
         Ok(())
     }
 }

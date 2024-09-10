@@ -164,16 +164,6 @@ export type Address = IOwner & {
    * `0x2::iota::IOTA`.
    */
   coins: CoinConnection;
-  /**
-   * The domain explicitly configured as the default domain pointing to this
-   * address.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
-   * The IotansRegistration NFTs owned by this address. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The `0x3::staking_pool::StakedIota` objects owned by this address. */
@@ -218,27 +208,6 @@ export type AddressCoinsArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   type?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-/**
- * The 32-byte address that is an account address (corresponding to a public
- * key).
- */
-export type AddressDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/**
- * The 32-byte address that is an account address (corresponding to a public
- * key).
- */
-export type AddressIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -613,11 +582,6 @@ export type Coin = IMoveObject & IObject & IOwner & {
    */
   contents?: Maybe<MoveValue>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
    * 32-byte hash that identifies the object's contents, encoded as a Base58
    * string.
    */
@@ -662,11 +626,6 @@ export type Coin = IMoveObject & IObject & IOwner & {
    * have the `key` and `store` abilities.
    */
   hasPublicTransfer: Scalars['Boolean']['output'];
-  /**
-   * The IotansRegistration NFTs owned by this object. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -725,12 +684,6 @@ export type CoinCoinsArgs = {
 
 
 /** Some 0x2::coin::Coin Move object. */
-export type CoinDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/** Some 0x2::coin::Coin Move object. */
 export type CoinDynamicFieldArgs = {
   name: DynamicFieldName;
 };
@@ -748,15 +701,6 @@ export type CoinDynamicFieldsArgs = {
 /** Some 0x2::coin::Coin Move object. */
 export type CoinDynamicObjectFieldArgs = {
   name: DynamicFieldName;
-};
-
-
-/** Some 0x2::coin::Coin Move object. */
-export type CoinIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -841,11 +785,6 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
   contents?: Maybe<MoveValue>;
   /** The number of decimal places used to represent the token. */
   decimals?: Maybe<Scalars['Int']['output']>;
-  /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
   /** Optional description of the token, provided by the creator of the token. */
   description?: Maybe<Scalars['String']['output']>;
   /**
@@ -894,11 +833,6 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
    */
   hasPublicTransfer: Scalars['Boolean']['output'];
   iconUrl?: Maybe<Scalars['String']['output']>;
-  /**
-   * The IotansRegistration NFTs owned by this object. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Full, official name of the token. */
   name?: Maybe<Scalars['String']['output']>;
   /** Objects owned by this object, optionally `filter`-ed. */
@@ -963,12 +897,6 @@ export type CoinMetadataCoinsArgs = {
 
 
 /** The metadata for a coin type. */
-export type CoinMetadataDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/** The metadata for a coin type. */
 export type CoinMetadataDynamicFieldArgs = {
   name: DynamicFieldName;
 };
@@ -986,15 +914,6 @@ export type CoinMetadataDynamicFieldsArgs = {
 /** The metadata for a coin type. */
 export type CoinMetadataDynamicObjectFieldArgs = {
   name: DynamicFieldName;
-};
-
-
-/** The metadata for a coin type. */
-export type CoinMetadataIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -1079,11 +998,6 @@ export type DisplayEntry = {
   /** The template string for the key with placeholder values substituted. */
   value?: Maybe<Scalars['String']['output']>;
 };
-
-export enum DomainFormat {
-  At = 'AT',
-  Dot = 'DOT'
-}
 
 export type DryRunEffect = {
   __typename?: 'DryRunEffect';
@@ -1479,8 +1393,6 @@ export enum Feature {
   Coins = 'COINS',
   /** Querying an object's dynamic fields. */
   DynamicFields = 'DYNAMIC_FIELDS',
-  /** IotaNS name and reverse name look-up. */
-  NameService = 'NAME_SERVICE',
   /** Transaction and Event subscriptions. */
   Subscriptions = 'SUBSCRIPTIONS',
   /**
@@ -1705,10 +1617,6 @@ export type IOwner = {
    * `type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
    */
   coins: CoinConnection;
-  /** The domain explicitly configured as the default domain pointing to this object or address. */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /** The IotansRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated domain. */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this object or address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The `0x3::staking_pool::StakedIota` objects owned by this object or address. */
@@ -1766,33 +1674,6 @@ export type IOwnerCoinsArgs = {
  * only refer to an account or an object, never both, but it is not possible to
  * know which up-front.
  */
-export type IOwnerDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/**
- * Interface implemented by GraphQL types representing entities that can own
- * objects. Object owners are identified by an address which can represent
- * either the public key of an account or another object. The same address can
- * only refer to an account or an object, never both, but it is not possible to
- * know which up-front.
- */
-export type IOwnerIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-/**
- * Interface implemented by GraphQL types representing entities that can own
- * objects. Object owners are identified by an address which can represent
- * either the public key of an account or another object. The same address can
- * only refer to an account or an object, never both, but it is not possible to
- * know which up-front.
- */
 export type IOwnerObjectsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
@@ -1833,217 +1714,6 @@ export type Input = {
   __typename?: 'Input';
   /** Index of the programmable transaction block input (0-indexed). */
   ix: Scalars['Int']['output'];
-};
-
-export type IotansRegistration = IMoveObject & IObject & IOwner & {
-  __typename?: 'IotansRegistration';
-  address: Scalars['IotaAddress']['output'];
-  /**
-   * Total balance of all coins with marker type owned by this object. If
-   * type is not supplied, it defaults to `0x2::iota::IOTA`.
-   */
-  balance?: Maybe<Balance>;
-  /** The balances of all coin types owned by this object. */
-  balances: BalanceConnection;
-  /** The Base64-encoded BCS serialization of the object's content. */
-  bcs?: Maybe<Scalars['Base64']['output']>;
-  /**
-   * The coin objects for this object.
-   *
-   * `type` is a filter on the coin's type parameter, defaulting to
-   * `0x2::iota::IOTA`.
-   */
-  coins: CoinConnection;
-  /**
-   * Displays the contents of the Move object in a JSON string and through
-   * GraphQL types. Also provides the flat representation of the type
-   * signature, and the BCS of the corresponding data.
-   */
-  contents?: Maybe<MoveValue>;
-  /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
-   * 32-byte hash that identifies the object's contents, encoded as a Base58
-   * string.
-   */
-  digest?: Maybe<Scalars['String']['output']>;
-  /**
-   * The set of named templates defined on-chain for the type of this object,
-   * to be handled off-chain. The server substitutes data from the object
-   * into these templates to generate a display string per template.
-   */
-  display?: Maybe<Array<DisplayEntry>>;
-  /** Domain name of the IotansRegistration object */
-  domain: Scalars['String']['output'];
-  /**
-   * Access a dynamic field on an object using its name. Names are arbitrary
-   * Move values whose type have `copy`, `drop`, and `store`, and are
-   * specified using their type, and their BCS contents, Base64 encoded.
-   *
-   * Dynamic fields on wrapped objects can be accessed by using the same API
-   * under the Owner type.
-   */
-  dynamicField?: Maybe<DynamicField>;
-  /**
-   * The dynamic fields and dynamic object fields on an object.
-   *
-   * Dynamic fields on wrapped objects can be accessed by using the same API
-   * under the Owner type.
-   */
-  dynamicFields: DynamicFieldConnection;
-  /**
-   * Access a dynamic object field on an object using its name. Names are
-   * arbitrary Move values whose type have `copy`, `drop`, and `store`,
-   * and are specified using their type, and their BCS contents, Base64
-   * encoded. The value of a dynamic object field can also be accessed
-   * off-chain directly via its address (e.g. using `Query.object`).
-   *
-   * Dynamic fields on wrapped objects can be accessed by using the same API
-   * under the Owner type.
-   */
-  dynamicObjectField?: Maybe<DynamicField>;
-  /**
-   * Determines whether a transaction can transfer this object, using the
-   * TransferObjects transaction command or
-   * `iota::transfer::public_transfer`, both of which require the object to
-   * have the `key` and `store` abilities.
-   */
-  hasPublicTransfer: Scalars['Boolean']['output'];
-  /**
-   * The IotansRegistration NFTs owned by this object. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
-  /** Objects owned by this object, optionally `filter`-ed. */
-  objects: MoveObjectConnection;
-  /** The owner type of this object: Immutable, Shared, Parent, Address */
-  owner?: Maybe<ObjectOwner>;
-  /** The transaction block that created this version of the object. */
-  previousTransactionBlock?: Maybe<TransactionBlock>;
-  /** The transaction blocks that sent objects to this object. */
-  receivedTransactionBlocks: TransactionBlockConnection;
-  /** The `0x3::staking_pool::StakedIota` objects owned by this object. */
-  stakedIotas: StakedIotaConnection;
-  /**
-   * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
-   */
-  status: ObjectKind;
-  /**
-   * The amount of IOTA we would rebate if this object gets deleted or
-   * mutated. This number is recalculated based on the present storage
-   * gas price.
-   */
-  storageRebate?: Maybe<Scalars['BigInt']['output']>;
-  version: Scalars['Int']['output'];
-};
-
-
-export type IotansRegistrationBalanceArgs = {
-  type?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type IotansRegistrationBalancesArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotansRegistrationCoinsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-  type?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type IotansRegistrationDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-export type IotansRegistrationDynamicFieldArgs = {
-  name: DynamicFieldName;
-};
-
-
-export type IotansRegistrationDynamicFieldsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotansRegistrationDynamicObjectFieldArgs = {
-  name: DynamicFieldName;
-};
-
-
-export type IotansRegistrationIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotansRegistrationObjectsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<ObjectFilter>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotansRegistrationReceivedTransactionBlocksArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<TransactionBlockFilter>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotansRegistrationStakedIotasArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type IotansRegistrationConnection = {
-  __typename?: 'IotansRegistrationConnection';
-  /** A list of edges. */
-  edges: Array<IotansRegistrationEdge>;
-  /** A list of nodes. */
-  nodes: Array<IotansRegistration>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-};
-
-/** An edge in a connection. */
-export type IotansRegistrationEdge = {
-  __typename?: 'IotansRegistrationEdge';
-  /** A cursor for use in pagination */
-  cursor: Scalars['String']['output'];
-  /** The item at the end of the edge */
-  node: IotansRegistration;
 };
 
 /**
@@ -2294,8 +1964,6 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
   asCoin?: Maybe<Coin>;
   /** Attempts to convert the Move object into a `0x2::coin::CoinMetadata`. */
   asCoinMetadata?: Maybe<CoinMetadata>;
-  /** Attempts to convert the Move object into a `IotansRegistration` object. */
-  asIotansRegistration?: Maybe<IotansRegistration>;
   /**
    * Attempts to convert the Move object into a
    * `0x3::staking_pool::StakedIota`.
@@ -2323,11 +1991,6 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
    * signature, and the BCS of the corresponding data.
    */
   contents?: Maybe<MoveValue>;
-  /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
   /**
    * 32-byte hash that identifies the object's contents, encoded as a Base58
    * string.
@@ -2373,11 +2036,6 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
    * have the `key` and `store` abilities.
    */
   hasPublicTransfer: Scalars['Boolean']['output'];
-  /**
-   * The IotansRegistration NFTs owned by this object. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -2452,16 +2110,6 @@ export type MoveObjectCoinsArgs = {
  * information (content, module that governs it, version, is transferrable,
  * etc.) about this object.
  */
-export type MoveObjectDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/**
- * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
- * etc.) about this object.
- */
 export type MoveObjectDynamicFieldArgs = {
   name: DynamicFieldName;
 };
@@ -2487,19 +2135,6 @@ export type MoveObjectDynamicFieldsArgs = {
  */
 export type MoveObjectDynamicObjectFieldArgs = {
   name: DynamicFieldName;
-};
-
-
-/**
- * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
- * etc.) about this object.
- */
-export type MoveObjectIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -2598,23 +2233,10 @@ export type MovePackage = IObject & IOwner & {
    */
   coins: CoinConnection;
   /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
    * 32-byte hash that identifies the package's contents, encoded as a Base58
    * string.
    */
   digest?: Maybe<Scalars['String']['output']>;
-  /**
-   * The IotansRegistration NFTs owned by this package. These grant the owner
-   * the capability to manage the associated domain.
-   *
-   * Note that objects owned by a package are inaccessible, because packages
-   * are immutable and cannot be owned by an address.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** The transitive dependencies of this package. */
   linkage?: Maybe<Array<Linkage>>;
   /**
@@ -2718,29 +2340,6 @@ export type MovePackageCoinsArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   type?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-/**
- * A MovePackage is a kind of Move object that represents code that has been
- * published on chain. It exposes information about its modules, type
- * definitions, functions, and dependencies.
- */
-export type MovePackageDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/**
- * A MovePackage is a kind of Move object that represents code that has been
- * published on chain. It exposes information about its modules, type
- * definitions, functions, and dependencies.
- */
-export type MovePackageIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -2995,11 +2594,6 @@ export type Object = IObject & IOwner & {
    */
   coins: CoinConnection;
   /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
    * 32-byte hash that identifies the object's current contents, encoded as a
    * Base58 string.
    */
@@ -3037,11 +2631,6 @@ export type Object = IObject & IOwner & {
    * under the Owner type.
    */
   dynamicObjectField?: Maybe<DynamicField>;
-  /**
-   * The IotansRegistration NFTs owned by this object. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /**
@@ -3123,17 +2712,6 @@ export type ObjectCoinsArgs = {
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
  */
-export type ObjectDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/**
- * An object in Iota is a package (set of Move bytecode modules) or object
- * (typed data structure with fields) with additional metadata detailing its
- * id, version, transaction digest, owner field indicating how this object can
- * be accessed.
- */
 export type ObjectDynamicFieldArgs = {
   name: DynamicFieldName;
 };
@@ -3161,20 +2739,6 @@ export type ObjectDynamicFieldsArgs = {
  */
 export type ObjectDynamicObjectFieldArgs = {
   name: DynamicFieldName;
-};
-
-
-/**
- * An object in Iota is a package (set of Move bytecode modules) or object
- * (typed data structure with fields) with additional metadata detailing its
- * id, version, transaction digest, owner field indicating how this object can
- * be accessed.
- */
-export type ObjectIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -3399,11 +2963,6 @@ export type Owner = IOwner & {
    */
   coins: CoinConnection;
   /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object or address.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
    * Access a dynamic field on an object using its name. Names are arbitrary
    * Move values whose type have `copy`, `drop`, and `store`, and are
    * specified using their type, and their BCS contents, Base64 encoded.
@@ -3430,11 +2989,6 @@ export type Owner = IOwner & {
    * wrapped object.
    */
   dynamicObjectField?: Maybe<DynamicField>;
-  /**
-   * The IotansRegistration NFTs owned by this object or address. These grant
-   * the owner the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this object or address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /**
@@ -3491,17 +3045,6 @@ export type OwnerCoinsArgs = {
  * key of an account) or an Object, but never both (it is not known up-front
  * whether a given Owner is an Address or an Object).
  */
-export type OwnerDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/**
- * An Owner is an entity that can own an object. Each Owner is identified by a
- * IotaAddress which represents either an Address (corresponding to a public
- * key of an account) or an Object, but never both (it is not known up-front
- * whether a given Owner is an Address or an Object).
- */
 export type OwnerDynamicFieldArgs = {
   name: DynamicFieldName;
 };
@@ -3529,20 +3072,6 @@ export type OwnerDynamicFieldsArgs = {
  */
 export type OwnerDynamicObjectFieldArgs = {
   name: DynamicFieldName;
-};
-
-
-/**
- * An Owner is an entity that can own an object. Each Owner is identified by a
- * IotaAddress which represents either an Address (corresponding to a public
- * key of an account) or an Object, but never both (it is not known up-front
- * whether a given Owner is an Address or an Object).
- */
-export type OwnerIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -3815,8 +3344,6 @@ export type Query = {
    * protocol version known to the GraphQL service).
    */
   protocolConfig: ProtocolConfigs;
-  /** Resolves a IotaNS `domain` name to an address, if it has been bound. */
-  resolveIotansAddress?: Maybe<Address>;
   /** Configuration for this RPC service */
   serviceConfig: ServiceConfig;
   /** Fetch a transaction block by its transaction digest. */
@@ -3923,11 +3450,6 @@ export type QueryOwnerArgs = {
 
 export type QueryProtocolConfigArgs = {
   protocolVersion?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryResolveIotansAddressArgs = {
-  domain: Scalars['String']['input'];
 };
 
 
@@ -4210,11 +3732,6 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
    */
   contents?: Maybe<MoveValue>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  defaultIotansName?: Maybe<Scalars['String']['output']>;
-  /**
    * 32-byte hash that identifies the object's contents, encoded as a Base58
    * string.
    */
@@ -4273,11 +3790,6 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
    * have the `key` and `store` abilities.
    */
   hasPublicTransfer: Scalars['Boolean']['output'];
-  /**
-   * The IotansRegistration NFTs owned by this object. These grant the owner
-   * the capability to manage the associated domain.
-   */
-  iotansRegistrations: IotansRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -4344,12 +3856,6 @@ export type StakedIotaCoinsArgs = {
 
 
 /** Represents a `0x3::staking_pool::StakedIota` Move object on-chain. */
-export type StakedIotaDefaultIotansNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-/** Represents a `0x3::staking_pool::StakedIota` Move object on-chain. */
 export type StakedIotaDynamicFieldArgs = {
   name: DynamicFieldName;
 };
@@ -4367,15 +3873,6 @@ export type StakedIotaDynamicFieldsArgs = {
 /** Represents a `0x3::staking_pool::StakedIota` Move object on-chain. */
 export type StakedIotaDynamicObjectFieldArgs = {
   name: DynamicFieldName;
-};
-
-
-/** Represents a `0x3::staking_pool::StakedIota` Move object on-chain. */
-export type StakedIotaIotansRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -5230,22 +4727,6 @@ export type GetValidatorsApyQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type GetValidatorsApyQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: number, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', apy?: number | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
-
-export type ResolveNameServiceAddressQueryVariables = Exact<{
-  domain: Scalars['String']['input'];
-}>;
-
-
-export type ResolveNameServiceAddressQuery = { __typename?: 'Query', resolveIotansAddress?: { __typename?: 'Address', address: any } | null };
-
-export type ResolveNameServiceNamesQueryVariables = Exact<{
-  address: Scalars['IotaAddress']['input'];
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  cursor?: InputMaybe<Scalars['String']['input']>;
-}>;
-
-
-export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotansRegistrations: { __typename?: 'IotansRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'IotansRegistration', domain: string }> } } | null };
 
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
@@ -7685,28 +7166,6 @@ export const GetValidatorsApyDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<GetValidatorsApyQuery, GetValidatorsApyQueryVariables>;
-export const ResolveNameServiceAddressDocument = new TypedDocumentString(`
-    query resolveNameServiceAddress($domain: String!) {
-  resolveIotansAddress(domain: $domain) {
-    address
-  }
-}
-    `) as unknown as TypedDocumentString<ResolveNameServiceAddressQuery, ResolveNameServiceAddressQueryVariables>;
-export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
-    query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
-  address(address: $address) {
-    iotansRegistrations(first: $limit, after: $cursor) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      nodes {
-        domain
-      }
-    }
-  }
-}
-    `) as unknown as TypedDocumentString<ResolveNameServiceNamesQuery, ResolveNameServiceNamesQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {
