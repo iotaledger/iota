@@ -309,7 +309,7 @@ function ValidatorPageResult(): JSX.Element {
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
                         <div className="py-md--rs text-display-sm">Validators</div>
-                        <div className="flex w-full flex-col gap-md md:flex-row">
+                        <div className="flex w-full flex-col gap-md md:h-40 md:flex-row">
                             <DisplayStats
                                 label="Participation"
                                 tooltipText="Coming soon"
