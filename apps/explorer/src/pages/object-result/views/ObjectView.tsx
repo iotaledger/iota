@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
-import { ArrowUpRight16, Info16 } from '@iota/icons';
+import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
+import { CoinFormat, useFormatCoin } from '@iota/core';
+import { ArrowUpRight16 } from '@iota/icons';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
@@ -11,27 +12,14 @@ import {
     normalizeStructTag,
     parseStructTag,
 } from '@iota/iota-sdk/utils';
-import { Heading, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { type ReactNode, useEffect, useState } from 'react';
-
-import {
-    AddressLink,
-    Card,
-    Description,
-    Divider,
-    Link,
-    ObjectLink,
-    ObjectVideoImage,
-    Tooltip,
-    TransactionLink,
-} from '~/components/ui';
+import { useEffect, useState } from 'react';
+import { ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
     genFileTypeMsg,
-    getDisplayUrl,
     parseImageURL,
     parseObjectType,
     trimStdLibPrefix,
@@ -65,40 +53,6 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): J
                 <ArrowUpRight16 />
             </div>
         </div>
-    );
-}
-
-interface ObjectLinkProps {
-    children?: ReactNode;
-}
-
-function ObjectViewCard({ children }: ObjectLinkProps): JSX.Element {
-    return (
-        <Card bg="white/80" spacing="lg" height="full">
-            <div className="flex flex-col gap-4">{children}</div>
-        </Card>
-    );
-}
-
-interface LinkWebsiteProps {
-    value: string;
-}
-
-function LinkWebsite({ value }: LinkWebsiteProps): JSX.Element | null {
-    const urlData = getDisplayUrl(value);
-
-    if (!urlData) {
-        return null;
-    }
-
-    if (typeof urlData === 'string') {
-        return <Text variant="pBodySmall/medium">{urlData}</Text>;
-    }
-
-    return (
-        <Link href={urlData.href} variant="textHeroDark">
-            {urlData.display}
-        </Link>
     );
 }
 
@@ -142,41 +96,22 @@ function DescriptionCard({
     const renderDescription = name && display?.description;
 
     return (
-        <ObjectViewCard>
-            {objectNameDisplay && (
-                <Heading variant="heading4/semibold" color="steel-darker">
-                    {objectNameDisplay}
-                </Heading>
-            )}
-            {renderDescription && (
-                <Text variant="pBody/normal" color="steel-darker">
-                    {display.description}
-                </Text>
-            )}
-
-            <Description title="Object ID">
-                <ObjectLink objectId={objectId} />
-            </Description>
-
-            <Description
-                title={
-                    <div className="flex items-center gap-1">
-                        <Text variant="pBodySmall/medium" color="steel-dark">
-                            Type
-                        </Text>
-
-                        <Tooltip tip={<div className="flex flex-wrap break-all">{objectType}</div>}>
-                            <Info16 />
-                        </Tooltip>
-                    </div>
-                }
-            >
-                <ObjectLink
-                    label={<div className="text-right">{normalizedStructTag}</div>}
-                    objectId={`${address}?module=${module}`}
-                />
-            </Description>
-        </ObjectViewCard>
+        <div className="flex flex-col gap-md">
+            {objectNameDisplay && <DisplayStats label="Name" value={objectNameDisplay} />}
+            {renderDescription && <DisplayStats label="Description" value={display.description} />}
+            <DisplayStats
+                label="Object ID"
+                valueLink={`/object/${objectId}`}
+                value={formatAddress(objectId)}
+            />
+            <DisplayStats
+                label="Type"
+                valueLink={`${address}?module=${module}`}
+                value={normalizedStructTag}
+                tooltipText={objectType}
+                tooltipPosition={TooltipPosition.Right}
+            />
+        </div>
     );
 }
 
@@ -187,28 +122,15 @@ interface VersionCardProps {
 
 function VersionCard({ version, digest }: VersionCardProps): JSX.Element {
     return (
-        <ObjectViewCard>
-            <Description title="Version">
-                <Text variant="pBodySmall/medium" color="gray-90">
-                    {version}
-                </Text>
-            </Description>
-
-            <Description title="Last Transaction Block Digest">
-                <TransactionLink digest={digest} />
-            </Description>
-        </ObjectViewCard>
+        <div className="flex flex-col gap-md">
+            <DisplayStats label="Version" value={version ?? '--'} />
+            <DisplayStats
+                label="Last Transaction Block Digest"
+                valueLink={`/txblock/${digest}`}
+                value={formatAddress(digest)}
+            />
+        </div>
     );
-}
-
-interface AddressOwnerProps {
-    address: string;
-}
-
-function AddressOwner({ address }: AddressOwnerProps): JSX.Element {
-    const { data: iotansDomainName } = useResolveIotaNSName(address);
-
-    return <AddressLink address={address} label={iotansDomainName} />;
 }
 
 interface OwnerCardProps {
@@ -220,58 +142,61 @@ interface OwnerCardProps {
 }
 
 function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.Element | null {
-    const [storageRebateFormatted] = useFormatCoin(storageRebate, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [storageRebateFormatted, symbol] = useFormatCoin(
+        storageRebate,
+        IOTA_TYPE_ARG,
+        CoinFormat.FULL,
+    );
 
     if (!objOwner && !display) {
         return null;
     }
 
+    function getOwner(objOwner: ObjectOwner): string {
+        if (objOwner === 'Immutable') {
+            return 'Immutable';
+        } else if ('Shared' in objOwner) {
+            return 'Shared';
+        }
+        return 'ObjectOwner' in objOwner
+            ? formatAddress(objOwner.ObjectOwner)
+            : formatAddress(objOwner.AddressOwner);
+    }
+
+    function getOwnerLink(objOwner: ObjectOwner): string | null {
+        if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
+            return 'ObjectOwner' in objOwner
+                ? `/object/${objOwner.ObjectOwner}`
+                : `/address/${objOwner.AddressOwner}`;
+        }
+        return null;
+    }
+
     return (
-        <ObjectViewCard>
+        <div className="flex flex-col gap-md">
             {objOwner && (
-                <Description title="Owner">
-                    {objOwner === 'Immutable' ? (
-                        <Text variant="pBodySmall/medium" color="gray-90">
-                            Immutable
-                        </Text>
-                    ) : 'Shared' in objOwner ? (
-                        <Text variant="pBodySmall/medium" color="gray-90">
-                            Shared
-                        </Text>
-                    ) : 'ObjectOwner' in objOwner ? (
-                        <ObjectLink objectId={objOwner.ObjectOwner} />
-                    ) : (
-                        <AddressOwner address={objOwner.AddressOwner} />
-                    )}
-                </Description>
+                <DisplayStats
+                    label="Owner"
+                    value={getOwner(objOwner)}
+                    valueLink={getOwnerLink(objOwner) ?? undefined}
+                />
             )}
-
-            {display && (display.link || display.project_url) && (
-                <>
-                    <Divider />
-
-                    {display.link && (
-                        <Description title="Link">
-                            <LinkWebsite value={display.link} />
-                        </Description>
-                    )}
-
-                    {display.project_url && (
-                        <Description title="Website">
-                            <LinkWebsite value={display.project_url} />
-                        </Description>
-                    )}
-                </>
+            {display && display.link && (
+                <DisplayStats label="Link" value={display.link} valueLink={display.link} />
             )}
-
-            <Divider />
-
-            <Description title="Storage Rebate">
-                <Text variant="pBodySmall/medium" color="steel-darker">
-                    -{storageRebateFormatted} IOTA
-                </Text>
-            </Description>
-        </ObjectViewCard>
+            {display && display.project_url && (
+                <DisplayStats
+                    label="Website"
+                    value={display.project_url}
+                    valueLink={display.project_url}
+                />
+            )}
+            <DisplayStats
+                label="Storage Rebate"
+                value={`-${storageRebateFormatted}`}
+                supportingLabel={symbol}
+            />
+        </div>
     );
 }
 

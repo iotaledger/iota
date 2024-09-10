@@ -6,33 +6,27 @@ import { useGetDynamicFields, useOnScreen } from '@iota/core';
 import { type DynamicFieldInfo } from '@iota/iota-sdk/client';
 import { LoadingIndicator } from '@iota/ui';
 import { useRef, useEffect, useState, useMemo } from 'react';
-
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';
-import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components';
+import { FieldCollapsible } from '~/components';
 import { ObjectLink } from '~/components/ui';
+import { Panel } from '@iota/apps-ui-kit';
 
 interface DynamicFieldRowProps {
     id: string;
     result: DynamicFieldInfo;
-    noMarginBottom: boolean;
     defaultOpen: boolean;
 }
 
-function DynamicFieldRow({
-    id,
-    result,
-    noMarginBottom,
-    defaultOpen,
-}: DynamicFieldRowProps): JSX.Element {
+function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX.Element {
     const [open, onOpenChange] = useState(defaultOpen);
 
     return (
         <FieldCollapsible
             open={open}
             onOpenChange={onOpenChange}
-            noMarginBottom={noMarginBottom}
-            name={
-                <div className="flex items-center gap-1 truncate break-words text-body font-medium leading-relaxed text-steel-dark">
+            hideBorder
+            render={({ isOpen }) => (
+                <div className="flex items-center gap-xs truncate break-words pl-md--rs text-body-md text-neutral-40">
                     <div className="block w-full truncate break-words">
                         {typeof result.name?.value === 'object' ? (
                             <>Struct {result.name.type}</>
@@ -42,9 +36,9 @@ function DynamicFieldRow({
                     </div>
                     <ObjectLink objectId={result.objectId} />
                 </div>
-            }
+            )}
         >
-            <div className="flex flex-col divide-y divide-gray-45">
+            <div className="p-md--rs">
                 <UnderlyingObjectCard
                     parentId={id}
                     name={result.name}
@@ -79,13 +73,12 @@ export function DynamicFieldsCard({ id }: { id: string }) {
     }
 
     return (
-        <FieldsContainer>
-            <FieldsCard>
+        <div className="flex flex-col gap-md md:flex-row">
+            <Panel hasBorder>
                 {flattenedData?.map((result, index) => (
                     <DynamicFieldRow
                         key={result.objectId}
                         defaultOpen={index === 0}
-                        noMarginBottom={index === flattenedData.length - 1}
                         id={id}
                         result={result}
                     />
@@ -98,7 +91,7 @@ export function DynamicFieldsCard({ id }: { id: string }) {
                         </div>
                     ) : null}
                 </div>
-            </FieldsCard>
-        </FieldsContainer>
+            </Panel>
+        </div>
     );
 }
