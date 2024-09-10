@@ -132,14 +132,14 @@ export default function CheckpointDetail(): JSX.Element {
                                     </div>
                                 ) : null}
                                 {activeDetailsTabId === DetailsTabs.Signatures ? (
-                                    <div className="flex flex-col gap-lg p-md--rs">
+                                    <>
                                         <div className="inline-flex">
                                             <SegmentedButton
                                                 type={SegmentedButtonType.Transparent}
-                                                shape={ButtonSegmentType.Rounded}
+                                                shape={ButtonSegmentType.Underlined}
                                             >
                                                 <ButtonSegment
-                                                    type={ButtonSegmentType.Rounded}
+                                                    type={ButtonSegmentType.Underlined}
                                                     label="Aggregated Validator Signature"
                                                     selected={
                                                         activeNestedTabId === NestedTabs.Aggregated
@@ -151,14 +151,16 @@ export default function CheckpointDetail(): JSX.Element {
                                             </SegmentedButton>
                                         </div>
                                         {activeNestedTabId === NestedTabs.Aggregated ? (
-                                            <LabelText
-                                                size={LabelTextSize.Medium}
-                                                label="Signature"
-                                                text={data.validatorSignature}
-                                                showSupportingLabel={false}
-                                            />
+                                            <div className="flex flex-col gap-lg p-md--rs">
+                                                <LabelText
+                                                    size={LabelTextSize.Medium}
+                                                    label="Aggregated Validator Signature"
+                                                    text={data.validatorSignature}
+                                                    showSupportingLabel={false}
+                                                />
+                                            </div>
                                         ) : null}
-                                    </div>
+                                    </>
                                 ) : null}
                             </Panel>
                             <Panel>
