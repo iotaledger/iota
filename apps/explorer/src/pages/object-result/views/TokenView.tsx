@@ -93,7 +93,7 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
     const renderDynamicFields = !!dynamicFieldsData?.pages?.[0].data.length;
 
     return (
-        <>
+        <div>
             <SegmentedButton type={SegmentedButtonType.Transparent}>
                 {FIELDS_CATEGORIES.map(({ label, value }) => (
                     <ButtonSegment
@@ -119,7 +119,7 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
                 )}
                 {activeTab === FieldCategory.Dynamic && <DynamicFieldsCard id={objectId} />}
             </div>
-        </>
+        </div>
     );
 }
 
