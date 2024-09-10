@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { throttle } from 'throttle-debounce';
 
 import Alarms from './Alarms';
-import { getDB, settingsKeys } from './db';
+import { getDB, SETTINGS_KEYS } from './db';
 
 export async function getAutoLockMinutes() {
-	const minutesStored =
-		(await (await getDB()).settings.get(settingsKeys.autoLockMinutes))?.value || null;
-	return typeof minutesStored === 'number' ? minutesStored : null;
+    const minutesStored =
+        (await (await getDB()).settings.get(SETTINGS_KEYS.autoLockMinutes))?.value || null;
+    return typeof minutesStored === 'number' ? minutesStored : null;
 }
 
 /**
@@ -17,28 +18,28 @@ export async function getAutoLockMinutes() {
  * updates the alarm to the new timeout
  */
 export async function setAutoLockMinutes(minutes: number | null) {
-	await (
-		await getDB()
-	).settings.put({
-		setting: settingsKeys.autoLockMinutes,
-		value: minutes,
-	});
-	await setupAutoLockAlarm();
+    await (
+        await getDB()
+    ).settings.put({
+        setting: SETTINGS_KEYS.autoLockMinutes,
+        value: minutes,
+    });
+    await setupAutoLockAlarm();
 }
 
 export async function setupAutoLockAlarm() {
-	const minutes = await getAutoLockMinutes();
-	if (!minutes) {
-		Alarms.clearAutoLockAlarm();
-	} else {
-		Alarms.setAutoLockAlarm(minutes);
-	}
+    const minutes = await getAutoLockMinutes();
+    if (!minutes) {
+        Alarms.clearAutoLockAlarm();
+    } else {
+        Alarms.setAutoLockAlarm(minutes);
+    }
 }
 
 export const notifyUserActive = throttle(
-	5000,
-	() => {
-		setupAutoLockAlarm();
-	},
-	{ noTrailing: true },
+    5000,
+    () => {
+        setupAutoLockAlarm();
+    },
+    { noTrailing: true },
 );

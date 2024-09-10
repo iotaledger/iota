@@ -1,10 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{diag, diagnostics::Diagnostics, parser::syntax::make_loc};
 use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
+
+use crate::{diag, diagnostics::Diagnostics, parser::syntax::make_loc};
 
 struct Context {
     file_hash: FileHash,
@@ -65,13 +67,7 @@ fn decode_(context: &mut Context, buffer: &mut Vec<u8>, chars: Vec<char>) {
         }};
     }
     macro_rules! next_char_opt {
-        () => {{
-            if i < len {
-                Some(next_char!())
-            } else {
-                None
-            }
-        }};
+        () => {{ if i < len { Some(next_char!()) } else { None } }};
     }
     while i < len {
         let cur = i;

@@ -1,14 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::parser::ast::FunctionName;
-use move_ir_types::ast::{self as IR};
 use std::collections::{BTreeSet, HashMap};
 
-// Removes any "fall through jumps", i.e. this a is a jump directly to the next instruction.
-// Iterates to find a fixpoint as it might create empty blocks which could create more jumps to
-// clean up
+use move_ir_types::ast::{self as IR};
+
+use crate::parser::ast::FunctionName;
+
+// Removes any "fall through jumps", i.e. this a is a jump directly to the next
+// instruction. Iterates to find a fixpoint as it might create empty blocks
+// which could create more jumps to clean up
 
 #[allow(clippy::ptr_arg)]
 pub fn optimize(

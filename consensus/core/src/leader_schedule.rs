@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
-use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
-
 use consensus_config::AuthorityIndex;
+use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 
 use crate::context::Context;
 
@@ -68,7 +68,7 @@ impl LeaderSchedule {
 #[cfg(test)]
 mod tests {
     use consensus_config::{local_committee_and_keys, Parameters};
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
 
     use super::*;
     use crate::metrics::test_metrics;
@@ -98,7 +98,8 @@ mod tests {
             leader_schedule.elect_leader(5, 0),
             AuthorityIndex::new_for_test(1)
         );
-        // ensure we elect different leaders for the same round for the multi-leader case
+        // ensure we elect different leaders for the same round for the multi-leader
+        // case
         assert_ne!(
             leader_schedule.elect_leader_stake_based(1, 1),
             leader_schedule.elect_leader_stake_based(1, 2)
@@ -130,7 +131,8 @@ mod tests {
             leader_schedule.elect_leader_stake_based(5, 0),
             AuthorityIndex::new_for_test(3)
         );
-        // ensure we elect different leaders for the same round for the multi-leader case
+        // ensure we elect different leaders for the same round for the multi-leader
+        // case
         assert_ne!(
             leader_schedule.elect_leader_stake_based(1, 1),
             leader_schedule.elect_leader_stake_based(1, 2)

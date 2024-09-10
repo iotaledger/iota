@@ -1,0 +1,269 @@
+---
+title: Wrapped Objects
+---
+
+In programming, nesting complex data structures within others is common for organizing information.
+Move allows you to structure data by embedding a `struct` type within another `struct`, which is known as wrapping.
+For example:
+
+```move
+public struct Foo has key {
+    id: UID,
+    bar: Bar,
+}
+
+public struct Bar has store {
+    value: u64,
+}
+```
+
+In this example, the `Foo` struct contains a `Bar` struct.
+While `Bar` is a regular struct, it isn't an object since it lacks the `key` ability.
+
+To make `Bar` an object, you can modify its definition:
+
+```move
+public struct Bar has key, store {
+    id: UID,
+    value: u64,
+}
+```
+
+Now, `Bar` is also an object type.
+When `Bar` is embedded in `Foo`, it becomes wrapped within `Foo`.
+The `Foo` object serves as the wrapper for the `Bar` object.
+
+When an object is wrapped, it no longer exists independently on-chain.
+Its ID cannot be looked up, and it becomes part of the wrapping object's data.
+You cannot pass the wrapped object as an argument in any IOTA Move calls.
+The only way to interact with the wrapped object is through the wrapping object.
+
+Circular wrapping, where an object wraps another that eventually wraps back to the first, is not allowed.
+
+## Unwrapping Objects
+
+At some point, you may want to take out the wrapped object from its wrapper, making it independent again.
+This process is called **unwrapping**.
+When unwrapped, the object regains its status as an independent object on-chain, accessible via its original ID,
+which remains unchanged across the wrapping and unwrapping process.
+
+There are different ways to wrap objects, each with its own use case.
+Below are three methods of wrapping objects and their typical applications.
+
+## Direct Wrapping
+
+Direct wrapping occurs when you place one object type as a field within another object type. The most crucial property of direct wrapping is that the wrapped object cannot be unwrapped unless the wrapping object is destroyed. For example, if you wrap a `Bar` object inside a `Foo` object, the only way to make `Bar` standalone again is to unpack (and thus delete) the `Foo` object.
+
+Direct wrapping is an effective way to implement object locking, where an object is locked with constrained access and can only be unlocked through specific contract calls.
+
+## Example: Trusted Swap
+
+The following example demonstrates how to use direct wrapping 
+to implement a [trusted swap](https://github.com/iotaledger/iota/tree/develop/examples/move/trusted_swap).
+Imagine an `Object` type with `scarcity` and `style` fields.
+Here, `scarcity` represents how rare the object is, and `style` defines its content or rendering.
+If you own such objects and wish to trade them with others,
+you'd want to ensure a fair trade—trading only with objects that have the same `scarcity` but different `style`.
+
+### Defining the Object Type
+
+Start by defining the `Object` type:
+
+```move
+public struct Object has key, store {
+    id: UID,
+    scarcity: u8,
+    style: u8,
+}
+```
+
+In a real-world application,
+you would enforce a limited supply of these objects and implement a mechanism to mint them to a list of owners.
+For simplicity, the following example focuses on basic object creation:
+
+```move
+public fun new(scarcity: u8, style: u8, ctx: &mut TxContext): Object {
+    Object { id: object::new(ctx), scarcity, style }
+}
+```
+
+### Enabling Object Swaps
+
+To facilitate a swap between two objects, both objects must be owned by the same address.
+The process typically involves sending objects to a third party, such as a swapping service,
+which helps execute the swap and ensures the objects are returned to their appropriate owners.
+To retain custody of your objects during this process, direct wrapping is used.
+
+Define a wrapper object type called `SwapRequest`:
+
+```move
+public struct SwapRequest has key {
+    id: UID,
+    owner: address,
+    object: Object,
+    fee: Balance<IOTA>,
+}
+```
+
+`SwapRequest` wraps the `Object` to be swapped and records the original owner.
+A fee for the swap may also be included.
+
+### Requesting a Swap
+
+To request a swap, define a function that allows an `Object` owner to initiate the process:
+
+```move
+public fun request_swap(
+    object: Object,
+    fee: Coin<IOTA>,
+    service: address,
+    ctx: &mut TxContext,
+) {
+    assert!(coin::value(&fee) >= MIN_FEE, EFeeTooLow);
+
+    let request = SwapRequest {
+        id: object::new(ctx),
+        owner: tx_context::sender(ctx),
+        object,
+        fee: coin::into_balance(fee),
+    };
+
+    transfer::transfer(request, service)
+}
+```
+
+In this function, the `Object` is passed by value, fully consuming it and wrapping it into a `SwapRequest`.
+The wrapper object is then sent to the service operator.
+The example also uses [`coin::into_balance`](../../../../references/framework/iota-framework/coin.mdx#function-into_balance)
+to wrap the fee's [`Coin`](../../../../references/framework/iota-framework/coin.mdx) into a
+[`Balance`](../../../../references/framework/iota-framework/balance.mdx).
+
+### Executing the Swap
+
+The service operator can execute the swap between two `SwapRequest` objects using the following function:
+
+```move
+public fun execute_swap(s1: SwapRequest, s2: SwapRequest): Balance<IOTA>;
+```
+
+First, unpack the `SwapRequest` objects to retrieve the inner fields:
+
+```move
+let SwapRequest {id: id1, owner: owner1, object: o1, fee: fee1} = s1;
+let SwapRequest {id: id2, owner: owner2, object: o2, fee: fee2} = s2;
+```
+
+Next, verify that the swap is legitimate by ensuring the two objects have identical `scarcity` but different `style`:
+
+```move
+assert!(o1.scarcity == o2.scarcity, EBadSwap);
+assert!(o1.style != o2.style, EBadSwap);
+```
+
+Perform the swap by transferring the objects to their new owners:
+
+```move
+transfer::transfer(o1, owner2);
+transfer::transfer(o2, owner1);
+```
+
+Finally, delete the wrapping `SwapRequest` objects and return the combined fees to the service provider:
+
+```move
+object::delete(id1);
+object::delete(id2);
+```
+
+Finally, the service merges `fee1` and `fee2`, and returns it:
+
+```move
+balance::join(&mut fee1, fee2);
+fee1
+```
+
+## Wrapping with `Option`
+
+In some cases, direct wrapping might be too rigid.
+For example, you might want an object type that can optionally contain another object, which can be replaced later.
+This flexibility can be achieved using [`Option`](../../../../references/framework/move-stdlib/option.mdx).
+
+Consider a simple game character—a warrior with a sword and shield.
+The warrior might not always have these items, and they should be able to equip or replace them as needed.
+Define the `SimpleWarrior` type:
+
+```move
+public struct SimpleWarrior has key {
+    id: UID,
+    sword: Option<Sword>,
+    shield: Option<Shield>,
+}
+```
+
+Each `SimpleWarrior` has an optional `sword` and `shield`:
+
+```move
+public struct Sword has key, store {
+    id: UID,
+    strength: u8,
+}
+
+public struct Shield has key, store {
+    id: UID,
+    armor: u8,
+}
+```
+
+When creating a new warrior, initialize the `sword` and `shield` to `none`:
+
+```move
+public fun create_warrior(ctx: &mut TxContext) {
+    let warrior = SimpleWarrior {
+        id: object::new(ctx),
+        sword: option::none(),
+        shield: option::none(),
+    };
+    transfer::transfer(warrior, tx_context::sender(ctx))
+}
+```
+You can then define a function to equip new swords or new shields:
+
+```move
+public fun equip_sword(warrior: &mut SimpleWarrior, sword: Sword, ctx: &mut TxContext) {
+    if (option::is_some(&warrior.sword)) {
+        let old_sword = option::extract(&mut warrior.sword);
+        transfer::transfer(old_sword, tx_context::sender(ctx));
+    };
+    option::fill(&mut warrior.sword, sword);
+}
+```
+
+The function passes a `warrior` as a mutable reference of `SimpleWarrior`,
+and passes a `sword` by value to wrap it into the `warrior`.
+
+Since `Sword` is an object type without `drop` ability,
+the warrior can't drop that sword if he's already equipped another.
+If you call [`option::fill`](../../../../references/framework/move-stdlib/option.mdx#function-fill) without checking and taking out the existing sword,
+an error will occur.
+Therefore, `equip_sword` should start by checking whether there is already a sword equipped. If so, remove it out and send it back to the sender, in this case, the player's inventory.
+
+## Wrapping with `vector`
+
+Another approach is wrapping objects in a [`vector`](../../../../references/framework/move-stdlib/vector.mdx),
+allowing the container object to hold multiple instances of the wrapped type.
+This approach is useful when an object needs to manage a dynamic collection of other objects.
+
+Define a `Farm` object that wraps a `vector` of `Pet` objects:
+
+```move
+public struct Pet has key, store {
+    id: UID,
+    cuteness: u64,
+}
+
+public struct Farm has key {
+    id: UID,
+    pets: vector<Pet>,
+}
+```
+
+The `Farm` object can now contain a collection of `Pet` objects, which can only be accessed through the `Farm`.

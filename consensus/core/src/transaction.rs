@@ -1,28 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
-use mysten_metrics::metered_channel;
-use mysten_metrics::metered_channel::channel_with_total;
-use sui_protocol_config::ProtocolConfig;
+use iota_metrics::{metered_channel, metered_channel::channel_with_total};
 use tap::tap::TapFallible;
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tracing::error;
 
-use crate::block::Transaction;
-use crate::context::Context;
+use crate::{block::Transaction, context::Context};
 
-/// The maximum number of transactions pending to the queue to be pulled for block proposal
+/// The maximum number of transactions pending to the queue to be pulled for
+/// block proposal
 const MAX_PENDING_TRANSACTIONS: usize = 2_000;
 
 const MAX_CONSUMED_TRANSACTIONS_PER_REQUEST: u64 = 5_000;
 
-/// The guard acts as an acknowledgment mechanism for the inclusion of the transaction to a block.
-/// When the transaction is included to a block then the inclusion should be explicitly acknowledged
-/// by calling the `acknowledge` method. If the guard is dropped without getting acknowledged then
-/// that means the transaction has not been included to a block and the consensus is shutting down.
+/// The guard acts as an acknowledgment mechanism for the inclusion of the
+/// transaction to a block. When the transaction is included to a block then the
+/// inclusion should be explicitly acknowledged by calling the `acknowledge`
+/// method. If the guard is dropped without getting acknowledged then that means
+/// the transaction has not been included to a block and the consensus is
+/// shutting down.
 pub(crate) struct TransactionGuard {
     pub transaction: Transaction,
     included_in_block_ack: oneshot::Sender<()>,
@@ -34,9 +35,10 @@ impl TransactionGuard {
     }
 }
 
-/// The TransactionConsumer is responsible for fetching the next transactions to be included for the block proposals.
-/// The transactions are submitted to a channel which is shared between the TransactionConsumer and the TransactionClient
-/// and are pulled every time the `next` method is called.
+/// The TransactionConsumer is responsible for fetching the next transactions to
+/// be included for the block proposals. The transactions are submitted to a
+/// channel which is shared between the TransactionConsumer and the
+/// TransactionClient and are pulled every time the `next` method is called.
 pub(crate) struct TransactionConsumer {
     tx_receiver: metered_channel::Receiver<TransactionGuard>,
     max_consumed_bytes_per_request: u64,
@@ -61,14 +63,17 @@ impl TransactionConsumer {
         }
     }
 
-    // Attempts to fetch the next transactions that have been submitted for sequence. Also a `max_consumed_bytes_per_request` parameter
-    // is given in order to ensure up to `max_consumed_bytes_per_request` bytes of transactions are retrieved.
+    // Attempts to fetch the next transactions that have been submitted for
+    // sequence. Also a `max_consumed_bytes_per_request` parameter is given in
+    // order to ensure up to `max_consumed_bytes_per_request` bytes of transactions
+    // are retrieved.
     pub(crate) fn next(&mut self) -> Vec<TransactionGuard> {
         let mut transactions = Vec::new();
         let mut total_size: usize = 0;
 
         if let Some(t) = self.pending_transaction.take() {
-            // Here we assume that a transaction can always fit in `max_fetched_bytes_per_request`
+            // Here we assume that a transaction can always fit in
+            // `max_fetched_bytes_per_request`
             total_size += t.transaction.data().len();
             transactions.push(t);
         }
@@ -76,7 +81,8 @@ impl TransactionConsumer {
         while let Ok(t) = self.tx_receiver.try_recv() {
             total_size += t.transaction.data().len();
 
-            // If we went over the max size with this transaction, just cache it for the next pull.
+            // If we went over the max size with this transaction, just cache it for the
+            // next pull.
             if total_size as u64 > self.max_consumed_bytes_per_request {
                 self.pending_transaction = Some(t);
                 break;
@@ -128,8 +134,9 @@ impl TransactionClient {
         )
     }
 
-    /// Submits a transaction to be sequenced. The method returns when the transaction has been successfully
-    /// included to the next proposed block.
+    /// Submits a transaction to be sequenced. The method returns when the
+    /// transaction has been successfully included to the next proposed
+    /// block.
     pub async fn submit(&self, transaction: Vec<u8>) -> Result<(), ClientError> {
         let included_in_block = self.submit_no_wait(transaction).await?;
         included_in_block
@@ -138,11 +145,14 @@ impl TransactionClient {
             .map_err(|e| ClientError::ConsensusShuttingDown(e.to_string()))
     }
 
-    /// Submits a transaction to be sequenced. The transaction length gets evaluated and rejected from consensus if too big.
-    /// That shouldn't be the common case as sizes should be aligned between consensus and client. The method returns
-    /// a receiver to wait on until the transactions has been included in the next block to get proposed. The consumer should
-    /// wait on it to consider as inclusion acknowledgement. If the receiver errors then consensus is shutting down and transaction
-    /// has not been included to any block.
+    /// Submits a transaction to be sequenced. The transaction length gets
+    /// evaluated and rejected from consensus if too big. That shouldn't be
+    /// the common case as sizes should be aligned between consensus and client.
+    /// The method returns a receiver to wait on until the transactions has
+    /// been included in the next block to get proposed. The consumer should
+    /// wait on it to consider as inclusion acknowledgement. If the receiver
+    /// errors then consensus is shutting down and transaction has not been
+    /// included to any block.
     pub(crate) async fn submit_no_wait(
         &self,
         transaction: Vec<u8>,
@@ -168,15 +178,11 @@ impl TransactionClient {
     }
 }
 
-/// `TransactionVerifier` implementation is supplied by Sui to validate transactions in a block,
-/// before acceptance of the block.
+/// `TransactionVerifier` implementation is supplied by Iota to validate
+/// transactions in a block, before acceptance of the block.
 pub trait TransactionVerifier: Send + Sync + 'static {
     /// Determines if this batch can be voted on
-    fn verify_batch(
-        &self,
-        protocol_config: &ProtocolConfig,
-        batch: &[&[u8]],
-    ) -> Result<(), ValidationError>;
+    fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), ValidationError>;
 }
 
 #[derive(Debug, Error)]
@@ -185,29 +191,18 @@ pub enum ValidationError {
     InvalidTransaction(String),
 }
 
-/// `NoopTransactionVerifier` accepts all transactions.
-pub(crate) struct NoopTransactionVerifier;
-
-impl TransactionVerifier for NoopTransactionVerifier {
-    fn verify_batch(
-        &self,
-        _protocol_config: &ProtocolConfig,
-        _batch: &[&[u8]],
-    ) -> Result<(), ValidationError> {
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::context::Context;
-    use crate::transaction::{TransactionClient, TransactionConsumer, TransactionGuard};
-    use futures::stream::FuturesUnordered;
-    use futures::StreamExt;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use sui_protocol_config::ProtocolConfig;
+    use std::{sync::Arc, time::Duration};
+
+    use futures::{stream::FuturesUnordered, StreamExt};
+    use iota_protocol_config::ProtocolConfig;
     use tokio::time::timeout;
+
+    use crate::{
+        context::Context,
+        transaction::{TransactionClient, TransactionConsumer, TransactionGuard},
+    };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_submit_and_consume() {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -6,7 +7,7 @@ import { CONSTANTS, QueryKey } from "@/constants";
 import { InfiniteScrollArea } from "@/components/InfiniteScrollArea";
 import { ApiLockedObject, LockedListingQuery } from "@/types/types";
 import { constructUrlSearchParams, getNextPageParam } from "@/utils/helpers";
-import { useSuiClient } from "@mysten/dapp-kit";
+import { useIotaClient } from "@iota/dapp-kit";
 import { TextField } from "@radix-ui/themes";
 import { useState } from "react";
 import { LockedObject } from "./LockedObject";
@@ -29,7 +30,7 @@ export function LockedList({
   params: LockedListingQuery;
 }) {
   const [lockedId, setLockedId] = useState("");
-  const suiClient = useSuiClient();
+  const iotaClient = useIotaClient();
 
   const { data: searchData } = useGetLockedObject({
     lockedId,
@@ -52,7 +53,7 @@ export function LockedList({
           )
         ).json();
 
-        const objects = await suiClient.multiGetObjects({
+        const objects = await iotaClient.multiGetObjects({
           ids: data.data.map((x: ApiLockedObject) => x.objectId),
           options: {
             showOwner: true,
@@ -61,7 +62,7 @@ export function LockedList({
         });
 
         return {
-          suiObjects: objects.map((x) => x.data),
+          iotaObjects: objects.map((x) => x.data),
           api: data,
         };
       },
@@ -70,7 +71,7 @@ export function LockedList({
       enabled: !lockedId,
     });
 
-  const suiObjects = () => {
+  const iotaObjects = () => {
     if (lockedId) {
       if (
         !searchData?.data?.type?.startsWith(CONSTANTS.escrowContract.lockedType)
@@ -78,7 +79,7 @@ export function LockedList({
         return [];
       return [searchData?.data!];
     }
-    return data?.flatMap((x) => x.suiObjects) || [];
+    return data?.flatMap((x) => x.iotaObjects) || [];
   };
 
   const apiData = () => {
@@ -107,7 +108,7 @@ export function LockedList({
         hasNextPage={hasNextPage}
         loading={isFetchingNextPage || isLoading}
       >
-        {suiObjects().map((object) => (
+        {iotaObjects().map((object) => (
           <LockedObject
             key={object?.objectId!}
             object={object!}

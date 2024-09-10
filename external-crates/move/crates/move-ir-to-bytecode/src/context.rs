@@ -1,17 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{clone::Clone, collections::HashMap, hash::Hash};
 
 use anyhow::{bail, format_err, Result};
 use move_binary_format::{
-    access::ModuleAccess,
     file_format::{
-        AbilitySet, AddressIdentifierIndex, CodeOffset, Constant, ConstantPoolIndex, FieldHandle,
-        FieldHandleIndex, FieldInstantiation, FieldInstantiationIndex, FunctionDefinitionIndex,
-        FunctionHandle, FunctionHandleIndex, FunctionInstantiation, FunctionInstantiationIndex,
-        FunctionSignature, IdentifierIndex, ModuleHandle, ModuleHandleIndex, Signature,
-        SignatureIndex, SignatureToken, StructDefInstantiation, StructDefInstantiationIndex,
-        StructDefinitionIndex, StructHandle, StructHandleIndex, StructTypeParameter, TableIndex,
+        AbilitySet, AddressIdentifierIndex, CodeOffset, Constant, ConstantPoolIndex,
+        DatatypeHandle, DatatypeHandleIndex, DatatypeTyParameter, EnumDefInstantiation,
+        EnumDefInstantiationIndex, EnumDefinitionIndex, FieldHandle, FieldHandleIndex,
+        FieldInstantiation, FieldInstantiationIndex, FunctionDefinitionIndex, FunctionHandle,
+        FunctionHandleIndex, FunctionInstantiation, FunctionInstantiationIndex, FunctionSignature,
+        IdentifierIndex, ModuleHandle, ModuleHandleIndex, Signature, SignatureIndex,
+        SignatureToken, StructDefInstantiation, StructDefInstantiationIndex, StructDefinitionIndex,
+        TableIndex, VariantHandle, VariantHandleIndex, VariantInstantiationHandle,
+        VariantInstantiationHandleIndex,
     },
     CompiledModule,
 };
@@ -22,12 +27,11 @@ use move_core_types::{
 };
 use move_ir_types::{
     ast::{
-        BlockLabel_, ConstantName, Field_, FunctionName, ModuleIdent, ModuleName,
-        QualifiedStructIdent, StructName,
+        BlockLabel_, ConstantName, DatatypeName, Field_, FunctionName, ModuleIdent, ModuleName,
+        QualifiedDatatypeIdent, VariantName,
     },
     location::Loc,
 };
-use std::{clone::Clone, collections::HashMap, hash::Hash};
 
 macro_rules! get_or_add_item_macro {
     ($m:ident, $k_get:expr, $k_insert:expr) => {{
@@ -46,7 +50,7 @@ macro_rules! get_or_add_item_macro {
     }};
 }
 
-pub const TABLE_MAX_SIZE: usize = u16::max_value() as usize;
+pub const TABLE_MAX_SIZE: usize = u16::MAX as usize;
 fn get_or_add_item_ref<K: Clone + Eq + Hash>(
     m: &mut HashMap<K, TableIndex>,
     k: &K,
@@ -68,7 +72,7 @@ pub struct CompiledDependencyView<'a> {
     functions: HashMap<&'a IdentStr, TableIndex>,
 
     module_pool: &'a [ModuleHandle],
-    struct_pool: &'a [StructHandle],
+    datatype_pool: &'a [DatatypeHandle],
     function_pool: &'a [FunctionHandle],
     identifiers: &'a [Identifier],
     address_identifiers: &'a [AccountAddress],
@@ -82,12 +86,12 @@ impl<'a> CompiledDependencyView<'a> {
 
         let self_handle = dep.self_handle_idx();
 
-        for shandle in dep.struct_handles() {
+        for shandle in dep.datatype_handles() {
             let mhandle = dep.module_handle_at(shandle.module);
             let mname = dep.identifier_at(mhandle.name);
             let sname = dep.identifier_at(shandle.name);
-            // get_or_add_item gets the proper struct handle index, as `dep.struct_handles()` is
-            // properly ordered
+            // get_or_add_item gets the proper struct handle index, as
+            // `dep.datatype_handles()` is properly ordered
             get_or_add_item(&mut structs, (mname, sname))?;
         }
 
@@ -107,7 +111,7 @@ impl<'a> CompiledDependencyView<'a> {
             structs,
             functions,
             module_pool: dep.module_handles(),
-            struct_pool: dep.struct_handles(),
+            datatype_pool: dep.datatype_handles(),
             function_pool: dep.function_handles(),
             identifiers: dep.identifiers(),
             address_identifiers: dep.address_identifiers(),
@@ -115,8 +119,8 @@ impl<'a> CompiledDependencyView<'a> {
         })
     }
 
-    fn source_struct_info(&self, idx: StructHandleIndex) -> Option<(ModuleIdent, StructName)> {
-        let handle = self.struct_pool.get(idx.0 as usize)?;
+    fn source_struct_info(&self, idx: DatatypeHandleIndex) -> Option<(ModuleIdent, DatatypeName)> {
+        let handle = self.datatype_pool.get(idx.0 as usize)?;
         let module_handle = self.module_pool.get(handle.module.0 as usize)?;
         let address = *self
             .address_identifiers
@@ -132,7 +136,7 @@ impl<'a> CompiledDependencyView<'a> {
             address,
             name: module,
         };
-        let name = StructName(
+        let name = DatatypeName(
             self.identifiers
                 .get(handle.name.0 as usize)?
                 .as_str()
@@ -141,13 +145,17 @@ impl<'a> CompiledDependencyView<'a> {
         Some((ident, name))
     }
 
-    fn struct_handle(&self, module: &ModuleName, name: &StructName) -> Option<&'a StructHandle> {
+    fn datatype_handle(
+        &self,
+        module: &ModuleName,
+        name: &DatatypeName,
+    ) -> Option<&'a DatatypeHandle> {
         self.structs
             .get(&(
                 ident_str(module.0.as_str()).ok()?,
                 ident_str(name.0.as_str()).ok()?,
             ))
-            .and_then(|idx| self.struct_pool.get(*idx as usize))
+            .and_then(|idx| self.datatype_pool.get(*idx as usize))
     }
 
     fn function_signature(&self, name: &FunctionName) -> Option<FunctionSignature> {
@@ -181,15 +189,17 @@ impl StoredCompiledDependency {
 }
 
 pub(crate) enum CompiledDependency<'a> {
-    /// Simple `CompiledDependecyView` where the borrowed `CompiledModule` is held elsewehere,
-    /// Commonly, it is borrowed from outside of the compilers API
+    /// Simple `CompiledDependecyView` where the borrowed `CompiledModule` is
+    /// held elsewehere, Commonly, it is borrowed from outside of the
+    /// compilers API
     Borrowed(CompiledDependencyView<'a>),
-    /// `Stored` holds the `CompiledModule` as well as the `CompiledDependencyView` into the module
-    /// uses `rental` for a self referential struct
-    /// This is used to solve an issue of creating a `CompiledModule` and immediately needing to
-    /// borrow it for the `CompiledDependencyView`. The `StoredCompiledDependency` gets around this
-    /// by storing the module in it's first field, and then it's second field borrows the value in
-    /// the first field via the `rental` crate
+    /// `Stored` holds the `CompiledModule` as well as the
+    /// `CompiledDependencyView` into the module uses `rental` for a self
+    /// referential struct This is used to solve an issue of creating a
+    /// `CompiledModule` and immediately needing to borrow it for the
+    /// `CompiledDependencyView`. The `StoredCompiledDependency` gets around
+    /// this by storing the module in it's first field, and then it's second
+    /// field borrows the value in the first field via the `rental` crate
     Stored(StoredCompiledDependency),
 }
 
@@ -205,19 +215,21 @@ impl<'a> CompiledDependency<'a> {
 
 pub(crate) type CompiledDependencies<'a> = HashMap<ModuleIdent, CompiledDependency<'a>>;
 
-/// Represents all of the pools to be used in the file format, both by CompiledModule
-/// and CompiledScript.
+/// Represents all of the pools to be used in the file format, both by
+/// CompiledModule and CompiledScript.
 pub struct MaterializedPools {
     /// Module handle pool
     pub module_handles: Vec<ModuleHandle>,
     /// Struct handle pool
-    pub struct_handles: Vec<StructHandle>,
+    pub datatype_handles: Vec<DatatypeHandle>,
     /// Function handle pool
     pub function_handles: Vec<FunctionHandle>,
     /// Field handle pool
     pub field_handles: Vec<FieldHandle>,
     /// Struct instantiation pool
     pub struct_def_instantiations: Vec<StructDefInstantiation>,
+    /// Enum instantiation pool
+    pub enum_def_instantiations: Vec<EnumDefInstantiation>,
     /// Function instantiation pool
     pub function_instantiations: Vec<FunctionInstantiation>,
     /// Field instantiation pool
@@ -230,41 +242,49 @@ pub struct MaterializedPools {
     pub address_identifiers: Vec<AccountAddress>,
     /// Constant pool
     pub constant_pool: Vec<Constant>,
+    pub variant_handles: Vec<VariantHandle>,
+    pub variant_instantiation_handles: Vec<VariantInstantiationHandle>,
 }
 
 /// Compilation context for a single compilation unit (module or script).
 /// Contains all of the pools as they are built up.
 /// Specific definitions to CompiledModule or CompiledScript are not stored.
-/// However, some fields, like struct_defs and fields, are not used in CompiledScript.
+/// However, some fields, like struct_defs and fields, are not used in
+/// CompiledScript.
 pub(crate) struct Context<'a> {
     dependencies: CompiledDependencies<'a>,
 
     // helpers
     aliases: HashMap<ModuleIdent, ModuleName>,
     modules: HashMap<ModuleName, (ModuleIdent, ModuleHandle)>,
-    structs: HashMap<QualifiedStructIdent, StructHandle>,
-    struct_defs: HashMap<StructName, TableIndex>,
+    structs: HashMap<QualifiedDatatypeIdent, DatatypeHandle>,
+    struct_defs: HashMap<DatatypeName, TableIndex>,
+    enum_defs: HashMap<DatatypeName, TableIndex>,
     named_constants: HashMap<ConstantName, TableIndex>,
     labels: HashMap<BlockLabel_, u16>,
 
     // queryable pools
-    // TODO: lookup for Fields is not that seemless after binary format changes
+    // TODO: lookup for Fields is not that seamless after binary format changes
     // We need multiple lookups or a better representation for fields
-    fields: HashMap<(StructHandleIndex, Field_), (StructDefinitionIndex, SignatureToken, usize)>,
+    fields: HashMap<(DatatypeHandleIndex, Field_), (StructDefinitionIndex, SignatureToken, usize)>,
     function_handles: HashMap<(ModuleName, FunctionName), (FunctionHandle, FunctionHandleIndex)>,
     function_signatures: HashMap<(ModuleName, FunctionName), FunctionSignature>,
+    variants: HashMap<(DatatypeHandleIndex, VariantName), (EnumDefinitionIndex, usize, usize)>,
 
     // Simple pools
     module_handles: HashMap<ModuleHandle, TableIndex>,
-    struct_handles: HashMap<StructHandle, TableIndex>,
+    datatype_handles: HashMap<DatatypeHandle, TableIndex>,
     signatures: HashMap<Signature, TableIndex>,
     identifiers: HashMap<Identifier, TableIndex>,
     address_identifiers: HashMap<AccountAddress, TableIndex>,
     constant_pool: HashMap<Constant, TableIndex>,
     field_handles: HashMap<FieldHandle, TableIndex>,
     struct_instantiations: HashMap<StructDefInstantiation, TableIndex>,
+    enum_instantiations: HashMap<EnumDefInstantiation, TableIndex>,
     function_instantiations: HashMap<FunctionInstantiation, TableIndex>,
     field_instantiations: HashMap<FieldInstantiation, TableIndex>,
+    variant_handles: HashMap<VariantHandle, TableIndex>,
+    variant_instantiation_handles: HashMap<VariantInstantiationHandle, TableIndex>,
 
     // The current function index that we are on
     current_function_index: FunctionDefinitionIndex,
@@ -276,7 +296,8 @@ pub(crate) struct Context<'a> {
 impl<'a> Context<'a> {
     /// Given the dependencies and the current module, creates an empty context.
     /// The current module is a dummy `Self` for CompiledScript.
-    /// It initializes an "import" of `Self` as the alias for the current_module.
+    /// It initializes an "import" of `Self` as the alias for the
+    /// current_module.
     pub fn new(
         decl_location: Loc,
         dependencies: CompiledDependencies<'a>,
@@ -288,15 +309,18 @@ impl<'a> Context<'a> {
             modules: HashMap::new(),
             structs: HashMap::new(),
             struct_defs: HashMap::new(),
+            enum_defs: HashMap::new(),
             named_constants: HashMap::new(),
             labels: HashMap::new(),
             fields: HashMap::new(),
+            variants: HashMap::new(),
             function_handles: HashMap::new(),
             function_signatures: HashMap::new(),
             module_handles: HashMap::new(),
-            struct_handles: HashMap::new(),
+            datatype_handles: HashMap::new(),
             field_handles: HashMap::new(),
             struct_instantiations: HashMap::new(),
+            enum_instantiations: HashMap::new(),
             function_instantiations: HashMap::new(),
             field_instantiations: HashMap::new(),
             signatures: HashMap::new(),
@@ -305,6 +329,8 @@ impl<'a> Context<'a> {
             constant_pool: HashMap::new(),
             current_function_index: FunctionDefinitionIndex::new(0),
             source_map: SourceMap::new(decl_location, current_module),
+            variant_handles: HashMap::new(),
+            variant_instantiation_handles: HashMap::new(),
         };
 
         Ok(context)
@@ -362,7 +388,7 @@ impl<'a> Context<'a> {
         let materialized_pools = MaterializedPools {
             function_handles,
             module_handles: Self::materialize_map(self.module_handles),
-            struct_handles: Self::materialize_map(self.struct_handles),
+            datatype_handles: Self::materialize_map(self.datatype_handles),
             field_handles: Self::materialize_map(self.field_handles),
             signatures: Self::materialize_map(self.signatures),
             identifiers: Self::materialize_map(self.identifiers),
@@ -370,7 +396,12 @@ impl<'a> Context<'a> {
             constant_pool: Self::materialize_map(self.constant_pool),
             function_instantiations: Self::materialize_map(self.function_instantiations),
             struct_def_instantiations: Self::materialize_map(self.struct_instantiations),
+            enum_def_instantiations: Self::materialize_map(self.enum_instantiations),
             field_instantiations: Self::materialize_map(self.field_instantiations),
+            variant_handles: Self::materialize_map(self.variant_handles),
+            variant_instantiation_handles: Self::materialize_map(
+                self.variant_instantiation_handles,
+            ),
         };
         (materialized_pools, self.dependencies, self.source_map)
     }
@@ -436,6 +467,30 @@ impl<'a> Context<'a> {
         )?))
     }
 
+    pub fn variant_handle_index(
+        &mut self,
+        enum_def: EnumDefinitionIndex,
+        variant: u16,
+    ) -> Result<VariantHandleIndex> {
+        let variant_handle = VariantHandle { enum_def, variant };
+        Ok(VariantHandleIndex(get_or_add_item(
+            &mut self.variant_handles,
+            variant_handle,
+        )?))
+    }
+
+    pub fn variant_instantiation_handle_index(
+        &mut self,
+        enum_def: EnumDefInstantiationIndex,
+        variant: u16,
+    ) -> Result<VariantInstantiationHandleIndex> {
+        let variant_handle = VariantInstantiationHandle { enum_def, variant };
+        Ok(VariantInstantiationHandleIndex(get_or_add_item(
+            &mut self.variant_instantiation_handles,
+            variant_handle,
+        )?))
+    }
+
     /// Get the struct instantiation index for the alias, adds it if missing.
     pub fn struct_instantiation_index(
         &mut self,
@@ -449,6 +504,22 @@ impl<'a> Context<'a> {
         Ok(StructDefInstantiationIndex(get_or_add_item(
             &mut self.struct_instantiations,
             struct_inst,
+        )?))
+    }
+
+    /// Get the enum instantiation index for the alias, adds it if missing.
+    pub fn enum_instantiation_index(
+        &mut self,
+        def: EnumDefinitionIndex,
+        type_parameters: SignatureIndex,
+    ) -> Result<EnumDefInstantiationIndex> {
+        let enum_inst = EnumDefInstantiation {
+            def,
+            type_parameters,
+        };
+        Ok(EnumDefInstantiationIndex(get_or_add_item(
+            &mut self.enum_instantiations,
+            enum_inst,
         )?))
     }
 
@@ -484,7 +555,8 @@ impl<'a> Context<'a> {
         )?))
     }
 
-    /// Get the fake offset for the label. Labels will be fixed to real offsets after compilation
+    /// Get the fake offset for the label. Labels will be fixed to real offsets
+    /// after compilation
     pub fn label_index(&mut self, label: BlockLabel_) -> Result<CodeOffset> {
         get_or_add_item(&mut self.labels, label)
     }
@@ -524,7 +596,7 @@ impl<'a> Context<'a> {
     /// Get the field index, fails if it is not bound.
     pub fn field(
         &self,
-        s: StructHandleIndex,
+        s: DatatypeHandleIndex,
         f: Field_,
     ) -> Result<(StructDefinitionIndex, SignatureToken, usize)> {
         match self.fields.get(&(s, f.clone())) {
@@ -533,11 +605,29 @@ impl<'a> Context<'a> {
         }
     }
 
+    pub fn variant(
+        &self,
+        s: DatatypeHandleIndex,
+        f: VariantName,
+    ) -> Result<(EnumDefinitionIndex, usize)> {
+        match self.variants.get(&(s, f.clone())) {
+            None => bail!("Unbound variant {}", f),
+            Some((edef, _, tag)) => Ok((*edef, *tag)),
+        }
+    }
+
     /// Get the struct definition index, fails if it is not bound.
-    pub fn struct_definition_index(&self, s: &StructName) -> Result<StructDefinitionIndex> {
+    pub fn struct_definition_index(&self, s: &DatatypeName) -> Result<StructDefinitionIndex> {
         match self.struct_defs.get(s) {
             None => bail!("Missing struct definition for {}", s),
             Some(idx) => Ok(StructDefinitionIndex(*idx)),
+        }
+    }
+
+    pub fn enum_definition_index(&self, s: &DatatypeName) -> Result<EnumDefinitionIndex> {
+        match self.enum_defs.get(s) {
+            None => bail!("Missing enum definition for {}", s),
+            Some(idx) => Ok(EnumDefinitionIndex(*idx)),
         }
     }
 
@@ -559,6 +649,11 @@ impl<'a> Context<'a> {
         StructDefinitionIndex(idx as TableIndex)
     }
 
+    pub fn current_enum_definition_index(&self) -> EnumDefinitionIndex {
+        let idx = self.enum_defs.len();
+        EnumDefinitionIndex(idx as TableIndex)
+    }
+
     //**********************************************************************************************
     // Declarations
     //**********************************************************************************************
@@ -570,7 +665,8 @@ impl<'a> Context<'a> {
         Ok(ModuleHandle { address, name })
     }
 
-    /// Add an import. This creates a module handle index for the imported module.
+    /// Add an import. This creates a module handle index for the imported
+    /// module.
     pub fn declare_import(
         &mut self,
         id: ModuleIdent,
@@ -588,36 +684,36 @@ impl<'a> Context<'a> {
         )?))
     }
 
-    /// Given an identifier and basic "signature" information, creates a struct handle
-    /// and adds it to the pool.
-    pub fn declare_struct_handle_index(
+    /// Given an identifier and basic "signature" information, creates a struct
+    /// handle and adds it to the pool.
+    pub fn declare_datatype_handle_index(
         &mut self,
-        sname: QualifiedStructIdent,
+        sname: QualifiedDatatypeIdent,
         abilities: AbilitySet,
-        type_parameters: Vec<StructTypeParameter>,
-    ) -> Result<StructHandleIndex> {
-        self.declare_struct_handle_index_with_abilities(sname, abilities, type_parameters)
+        type_parameters: Vec<DatatypeTyParameter>,
+    ) -> Result<DatatypeHandleIndex> {
+        self.declare_datatype_handle_index_with_abilities(sname, abilities, type_parameters)
     }
 
-    fn declare_struct_handle_index_with_abilities(
+    fn declare_datatype_handle_index_with_abilities(
         &mut self,
-        sname: QualifiedStructIdent,
+        sname: QualifiedDatatypeIdent,
         abilities: AbilitySet,
-        type_parameters: Vec<StructTypeParameter>,
-    ) -> Result<StructHandleIndex> {
+        type_parameters: Vec<DatatypeTyParameter>,
+    ) -> Result<DatatypeHandleIndex> {
         let module = self.module_handle_index(&sname.module)?;
         let name = self.identifier_index(sname.name.0)?;
         self.structs.insert(
             sname.clone(),
-            StructHandle {
+            DatatypeHandle {
                 module,
                 name,
                 abilities,
                 type_parameters,
             },
         );
-        Ok(StructHandleIndex(get_or_add_item_ref(
-            &mut self.struct_handles,
+        Ok(DatatypeHandleIndex(get_or_add_item_ref(
+            &mut self.datatype_handles,
             self.structs.get(&sname).unwrap(),
         )?))
     }
@@ -625,7 +721,7 @@ impl<'a> Context<'a> {
     /// Given an identifier, declare the struct definition index.
     pub fn declare_struct_definition_index(
         &mut self,
-        s: StructName,
+        s: DatatypeName,
     ) -> Result<StructDefinitionIndex> {
         let idx = self.struct_defs.len();
         if idx > TABLE_MAX_SIZE {
@@ -638,9 +734,25 @@ impl<'a> Context<'a> {
         ))
     }
 
-    /// Given an identifier and a signature, creates a function handle and adds it to the pool.
-    /// Finds the index for the signature, or adds it to the pool if an identical one has not yet
-    /// been used.
+    /// Given an identifier, declare the enum definition index.
+    pub fn declare_enum_definition_index(
+        &mut self,
+        s: DatatypeName,
+    ) -> Result<EnumDefinitionIndex> {
+        let idx = self.enum_defs.len();
+        if idx > TABLE_MAX_SIZE {
+            bail!("too many struct definitions {}", s)
+        }
+        // TODO: Add the decl of the struct definition name here
+        // need to handle duplicates
+        Ok(EnumDefinitionIndex(
+            *self.enum_defs.entry(s).or_insert(idx as TableIndex),
+        ))
+    }
+
+    /// Given an identifier and a signature, creates a function handle and adds
+    /// it to the pool. Finds the index for the signature, or adds it to the
+    /// pool if an identical one has not yet been used.
     pub fn declare_function(
         &mut self,
         mname: ModuleName,
@@ -695,7 +807,7 @@ impl<'a> Context<'a> {
     /// Given a struct handle and a field, adds it to the pool.
     pub fn declare_field(
         &mut self,
-        s: StructHandleIndex,
+        s: DatatypeHandleIndex,
         sd_idx: StructDefinitionIndex,
         f: Field_,
         token: SignatureToken,
@@ -705,6 +817,20 @@ impl<'a> Context<'a> {
         self.fields
             .entry((s, f))
             .or_insert((sd_idx, token, decl_order));
+    }
+
+    pub fn declare_variant(
+        &mut self,
+        s: DatatypeHandleIndex,
+        ed_idx: EnumDefinitionIndex,
+        f: VariantName,
+        field_count: usize,
+        tag: usize,
+    ) {
+        // need to handle duplicates
+        self.variants
+            .entry((s, f))
+            .or_insert((ed_idx, field_count, tag));
     }
 
     //**********************************************************************************************
@@ -722,30 +848,33 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn dep_struct_handle(
+    fn dep_datatype_handle(
         &mut self,
-        s: &QualifiedStructIdent,
-    ) -> Result<(AbilitySet, Vec<StructTypeParameter>)> {
+        s: &QualifiedDatatypeIdent,
+    ) -> Result<(AbilitySet, Vec<DatatypeTyParameter>)> {
         if s.module == ModuleName::module_self() {
             bail!("Unbound struct {}", s)
         }
         let mident = *self.module_ident(&s.module)?;
         let dep = self.dependency(&mident)?;
-        match dep.struct_handle(&mident.name, &s.name) {
+        match dep.datatype_handle(&mident.name, &s.name) {
             None => bail!("Unbound struct {}", s),
             Some(shandle) => Ok((shandle.abilities, shandle.type_parameters.clone())),
         }
     }
 
     /// Given an identifier, find the struct handle index.
-    /// Creates the handle and adds it to the pool if it it is the *first* time it looks
-    /// up the struct in a dependency.
-    pub fn struct_handle_index(&mut self, s: QualifiedStructIdent) -> Result<StructHandleIndex> {
+    /// Creates the handle and adds it to the pool if it it is the *first* time
+    /// it looks up the struct in a dependency.
+    pub fn datatype_handle_index(
+        &mut self,
+        s: QualifiedDatatypeIdent,
+    ) -> Result<DatatypeHandleIndex> {
         match self.structs.get(&s) {
-            Some(sh) => Ok(StructHandleIndex(*self.struct_handles.get(sh).unwrap())),
+            Some(sh) => Ok(DatatypeHandleIndex(*self.datatype_handles.get(sh).unwrap())),
             None => {
-                let (abilities, type_parameters) = self.dep_struct_handle(&s)?;
-                self.declare_struct_handle_index_with_abilities(s, abilities, type_parameters)
+                let (abilities, type_parameters) = self.dep_datatype_handle(&s)?;
+                self.declare_datatype_handle_index_with_abilities(s, abilities, type_parameters)
             }
         }
     }
@@ -778,36 +907,36 @@ impl<'a> Context<'a> {
                 let correct_inner = self.reindex_signature_token(dep, *inner)?;
                 SignatureToken::MutableReference(Box::new(correct_inner))
             }
-            SignatureToken::Struct(orig_sh_idx) => {
+            SignatureToken::Datatype(orig_sh_idx) => {
                 let dep_info = self.dependency(dep)?;
                 let (mident, sname) = dep_info
                     .source_struct_info(orig_sh_idx)
                     .ok_or_else(|| format_err!("Malformed dependency"))?;
                 let module_name = *self.module_alias(&mident)?;
-                let sident = QualifiedStructIdent {
+                let sident = QualifiedDatatypeIdent {
                     module: module_name,
                     name: sname,
                 };
-                let correct_sh_idx = self.struct_handle_index(sident)?;
-                SignatureToken::Struct(correct_sh_idx)
+                let correct_sh_idx = self.datatype_handle_index(sident)?;
+                SignatureToken::Datatype(correct_sh_idx)
             }
-            SignatureToken::StructInstantiation(struct_inst) => {
-                let (orig_sh_idx, inners) = *struct_inst;
+            SignatureToken::DatatypeInstantiation(inst) => {
+                let (orig_sh_idx, inners) = *inst;
                 let dep_info = self.dependency(dep)?;
                 let (mident, sname) = dep_info
                     .source_struct_info(orig_sh_idx)
                     .ok_or_else(|| format_err!("Malformed dependency"))?;
                 let module_name = *self.module_alias(&mident)?;
-                let sident = QualifiedStructIdent {
+                let sident = QualifiedDatatypeIdent {
                     module: module_name,
                     name: sname,
                 };
-                let correct_sh_idx = self.struct_handle_index(sident)?;
+                let correct_sh_idx = self.datatype_handle_index(sident)?;
                 let correct_inners = inners
                     .into_iter()
                     .map(|t| self.reindex_signature_token(dep, t))
                     .collect::<Result<_>>()?;
-                SignatureToken::StructInstantiation(Box::new((correct_sh_idx, correct_inners)))
+                SignatureToken::DatatypeInstantiation(Box::new((correct_sh_idx, correct_inners)))
             }
         })
     }
@@ -865,8 +994,8 @@ impl<'a> Context<'a> {
     }
 
     /// Given an identifier, find the function handle and its index.
-    /// Creates the handle+signature and adds it to the pool if it it is the *first* time it looks
-    /// up the function in a dependency.
+    /// Creates the handle+signature and adds it to the pool if it it is the
+    /// *first* time it looks up the function in a dependency.
     pub fn function_handle(
         &mut self,
         m: ModuleName,

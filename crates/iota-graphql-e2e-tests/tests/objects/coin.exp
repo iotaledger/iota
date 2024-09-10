@@ -1,0 +1,147 @@
+processed 4 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 7-34:
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 15663600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'create-checkpoint'. lines 36-36:
+Checkpoint created: 1
+
+task 3 'run-graphql'. lines 38-86:
+Response: {
+  "data": {
+    "iotaCoins": {
+      "edges": [
+        {
+          "cursor": "IDRmFT36UloxJGpkZGlme3578Uim3sMWGVJKzX7OhggfAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "299999983336400",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IFnkm/GDFgGRCHOnWZDSEAZ+emIri2ifA5VpmGsAOVNFAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "300000000000000",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "INAutsvAL2dSYeIPKfdE43LlLFflmE2UKaqzQhAKaLXBAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "30000000000000000",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "fakeCoins": {
+      "edges": [
+        {
+          "cursor": "IA6EkODp7pgJRhSXo4hp0FRIQG8A9EDG48H+UQkM+I+yAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "2",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xc4e8b4c64f56fd8a275239ab196b296569b3051b3563b82b11fb67fc7ce5862e::fake::FAKE>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IGc/QCyD7/j3u7QzoBx/V38j0STJYjY80VnZkbZUiuXvAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "1",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xc4e8b4c64f56fd8a275239ab196b296569b3051b3563b82b11fb67fc7ce5862e::fake::FAKE>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IKQJVQF4+ULlCP1AChrKy6naKfHEbxLBmCis9WcEhAFKAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "3",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xc4e8b4c64f56fd8a275239ab196b296569b3051b3563b82b11fb67fc7ce5862e::fake::FAKE>"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "address": {
+      "coins": {
+        "edges": [
+          {
+            "cursor": "IDRmFT36UloxJGpkZGlme3578Uim3sMWGVJKzX7OhggfAQAAAAAAAAA=",
+            "node": {
+              "coinBalance": "299999983336400",
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "allBalances": {
+        "edges": [
+          {
+            "cursor": "eyJ0IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyOjppb3RhOjpJT1RBIiwiYyI6MX0",
+            "node": {
+              "coinType": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+              },
+              "coinObjectCount": 1,
+              "totalBalance": "299999983336400"
+            }
+          },
+          {
+            "cursor": "eyJ0IjoiMHhjNGU4YjRjNjRmNTZmZDhhMjc1MjM5YWIxOTZiMjk2NTY5YjMwNTFiMzU2M2I4MmIxMWZiNjdmYzdjZTU4NjJlOjpmYWtlOjpGQUtFIiwiYyI6MX0",
+            "node": {
+              "coinType": {
+                "repr": "0xc4e8b4c64f56fd8a275239ab196b296569b3051b3563b82b11fb67fc7ce5862e::fake::FAKE"
+              },
+              "coinObjectCount": 3,
+              "totalBalance": "6"
+            }
+          }
+        ]
+      },
+      "firstBalance": {
+        "edges": [
+          {
+            "cursor": "eyJ0IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyOjppb3RhOjpJT1RBIiwiYyI6MX0"
+          }
+        ]
+      },
+      "lastBalance": {
+        "edges": [
+          {
+            "cursor": "eyJ0IjoiMHhjNGU4YjRjNjRmNTZmZDhhMjc1MjM5YWIxOTZiMjk2NTY5YjMwNTFiMzU2M2I4MmIxMWZiNjdmYzdjZTU4NjJlOjpmYWtlOjpGQUtFIiwiYyI6MX0"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,26 +1,27 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::batch_maker::MAX_PARALLEL_BATCH;
-use crate::metrics::WorkerMetrics;
+use std::{sync::Arc, time::Duration};
+
 use config::{Authority, Committee, Stake, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
 use futures::stream::{futures_unordered::FuturesUnordered, StreamExt as _};
-use mysten_metrics::metered_channel::Receiver;
-use mysten_metrics::{monitored_future, spawn_logged_monitored_task};
+use iota_metrics::{metered_channel::Receiver, monitored_future, spawn_logged_monitored_task};
 use network::{CancelOnDropHandler, ReliableNetwork};
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::{task::JoinHandle, time::timeout};
 use tracing::{trace, warn};
 use types::{Batch, ConditionalBroadcastReceiver, WorkerBatchMessage};
+
+use crate::{batch_maker::MAX_PARALLEL_BATCH, metrics::WorkerMetrics};
 
 #[cfg(test)]
 #[path = "tests/quorum_waiter_tests.rs"]
 pub mod quorum_waiter_tests;
 
-/// The QuorumWaiter waits for 2f authorities to acknowledge reception of a batch.
+/// The QuorumWaiter waits for 2f authorities to acknowledge reception of a
+/// batch.
 pub struct QuorumWaiter {
     /// This authority.
     authority: Authority,
@@ -72,7 +73,8 @@ impl QuorumWaiter {
         )
     }
 
-    /// Helper function. It waits for a future to complete and then delivers a value.
+    /// Helper function. It waits for a future to complete and then delivers a
+    /// value.
     async fn waiter(
         wait_for: CancelOnDropHandler<anemo::Result<anemo::Response<()>>>,
         deliver: Stake,

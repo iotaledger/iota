@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
@@ -31,9 +32,10 @@ pub(crate) mod tonic_network;
 
 /// Network client for communicating with peers.
 ///
-/// NOTE: the timeout parameters help saving resources at client and potentially server.
-/// But it is up to the server implementation if the timeout is honored.
-/// - To bound server resources, server should implement own timeout for incoming requests.
+/// NOTE: the timeout parameters help saving resources at client and potentially
+/// server. But it is up to the server implementation if the timeout is honored.
+/// - To bound server resources, server should implement own timeout for
+///   incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + 'static {
     /// Sends a serialized SignedBlock to a peer.
@@ -54,8 +56,9 @@ pub(crate) trait NetworkClient: Send + Sync + 'static {
 }
 
 /// Network service for handling requests from peers.
-/// NOTE: using `async_trait` macro because `NetworkService` methods are called in the trait impl
-/// of `anemo_gen::ConsensusRpc`, which itself is annotated with `async_trait`.
+/// NOTE: using `async_trait` macro because `NetworkService` methods are called
+/// in the trait impl of `anemo_gen::ConsensusRpc`, which itself is annotated
+/// with `async_trait`.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
     async fn handle_send_block(&self, peer: AuthorityIndex, block: Bytes) -> ConsensusResult<()>;

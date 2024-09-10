@@ -1,38 +1,37 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compilation::compiled_package::{make_deps_for_compiler_internal, CompiledPackage},
-    resolution::resolution_graph::Package,
-    resolution::resolution_graph::ResolvedGraph,
-    source_package::{
-        manifest_parser::{resolve_move_manifest_path, EDITION_NAME, PACKAGE_NAME},
-        parsed_manifest::PackageName,
-    },
-};
-use anyhow::Result;
-use move_compiler::{
-    compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{
-        report_diagnostics_to_buffer_with_env_color, report_warnings, FilesSourceText, Migration,
-    },
-    editions::Edition,
-    shared::PackagePaths,
-    Compiler,
-};
-use move_symbol_pool::Symbol;
 use std::{
     collections::BTreeSet,
     io::Write,
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
+use move_compiler::{
+    compiled_unit::AnnotatedCompiledUnit,
+    diagnostics::{report_diagnostics_to_buffer_with_env_color, report_warnings, Migration},
+    editions::Edition,
+    shared::{files::MappedFiles, PackagePaths},
+    Compiler,
+};
+use move_symbol_pool::Symbol;
 use toml_edit::{value, Document};
+use vfs::VfsPath;
 
 use super::{
     compiled_package::{DependencyInfo, ModuleFormat},
     package_layout::CompiledPackageLayout,
+};
+use crate::{
+    compilation::compiled_package::{make_deps_for_compiler_internal, CompiledPackage},
+    resolution::resolution_graph::{Package, ResolvedGraph},
+    source_package::{
+        manifest_parser::{resolve_move_manifest_path, EDITION_NAME, PACKAGE_NAME},
+        parsed_manifest::PackageName,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -40,6 +39,7 @@ pub struct BuildPlan {
     root: PackageName,
     sorted_deps: Vec<PackageName>,
     resolution_graph: ResolvedGraph,
+    compiler_vfs_root: Option<VfsPath>,
 }
 
 pub struct CompilationDependencies<'a> {
@@ -68,7 +68,14 @@ impl BuildPlan {
             root: resolution_graph.root_package(),
             sorted_deps,
             resolution_graph,
+            compiler_vfs_root: None,
         })
+    }
+
+    pub fn set_compiler_vfs_root(mut self, vfs_root: VfsPath) -> Self {
+        assert!(self.compiler_vfs_root.is_none());
+        self.compiler_vfs_root = Some(vfs_root);
+        self
     }
 
     pub fn root_crate_edition_defined(&self) -> bool {
@@ -94,6 +101,7 @@ impl BuildPlan {
 
         let (files, res) = CompiledPackage::build_for_result(
             writer,
+            self.compiler_vfs_root.clone(),
             root_package,
             transitive_dependencies,
             &self.resolution_graph,
@@ -122,7 +130,8 @@ impl BuildPlan {
         Ok(migration)
     }
 
-    /// Compilation process does not exit even if warnings/failures are encountered
+    /// Compilation process does not exit even if warnings/failures are
+    /// encountered
     pub fn compile_no_exit<W: Write>(&self, writer: &mut W) -> Result<CompiledPackage> {
         self.compile_with_driver(writer, |compiler| {
             let (files, units_res) = compiler.build()?;
@@ -178,7 +187,8 @@ impl BuildPlan {
                     source_paths: dep_source_paths,
                     address_mapping: &dep_package.resolved_table,
                     compiler_config: dep_package.compiler_config(
-                        /* is_dependency */ true,
+                        // is_dependency
+                        true,
                         &self.resolution_graph.build_options,
                     ),
                     module_format: if source_available {
@@ -203,7 +213,7 @@ impl BuildPlan {
         compiler_driver: impl FnMut(
             Compiler,
         )
-            -> anyhow::Result<(FilesSourceText, Vec<AnnotatedCompiledUnit>)>,
+            -> anyhow::Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
     ) -> Result<CompiledPackage> {
         let dependencies = self.compute_dependencies();
         self.compile_with_driver_and_deps(dependencies, writer, compiler_driver)
@@ -216,7 +226,7 @@ impl BuildPlan {
         mut compiler_driver: impl FnMut(
             Compiler,
         )
-            -> anyhow::Result<(FilesSourceText, Vec<AnnotatedCompiledUnit>)>,
+            -> anyhow::Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
     ) -> Result<CompiledPackage> {
         let CompilationDependencies {
             root_package,
@@ -226,6 +236,7 @@ impl BuildPlan {
 
         let compiled = CompiledPackage::build_all(
             writer,
+            self.compiler_vfs_root.clone(),
             &project_root,
             root_package,
             transitive_dependencies,
@@ -240,8 +251,8 @@ impl BuildPlan {
         Ok(compiled)
     }
 
-    // Clean out old packages that are no longer used, or no longer used under the current
-    // compilation flags
+    // Clean out old packages that are no longer used, or no longer used under the
+    // current compilation flags
     fn clean(build_root: &Path, keep_paths: BTreeSet<PackageName>) -> Result<()> {
         for dir in std::fs::read_dir(build_root)? {
             let path = dir?.path();

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_model::model::{FunId, GlobalEnv, QualifiedId};
@@ -26,8 +27,9 @@ impl<'a> SummaryCache<'a> {
         }
     }
 
-    /// Return a summary for a variant of `fun_id`. Returns None if `fun_id` is a native function or
-    /// we are at the first iteration of a recursive functions group.
+    /// Return a summary for a variant of `fun_id`. Returns None if `fun_id` is
+    /// a native function or we are at the first iteration of a recursive
+    /// functions group.
     pub fn get<Summary: 'static>(
         &self,
         fun_id: QualifiedId<FunId>,
@@ -50,19 +52,21 @@ impl<'a> SummaryCache<'a> {
     }
 }
 
-/// Trait that lifts an intraprocedural analysis into a bottom-up, compositional interprocedural
-/// analysis. Here, the type `Summary` represents a transformation of the final data flow analysis
-/// state.
+/// Trait that lifts an intraprocedural analysis into a bottom-up, compositional
+/// interprocedural analysis. Here, the type `Summary` represents a
+/// transformation of the final data flow analysis state.
 pub trait CompositionalAnalysis<Summary: AbstractDomain + 'static>: DataflowAnalysis
 where
     Self::State: AbstractDomain + 'static,
 {
-    /// Specifies mapping from elements of dataflow analysis domain to elements of `Domain`.
+    /// Specifies mapping from elements of dataflow analysis domain to elements
+    /// of `Domain`.
     fn to_summary(&self, state: Self::State, fun_target: &FunctionTarget) -> Summary;
 
-    /// Computes a postcondition for the function `data` and then maps the postcondition to an
-    /// element of abstract domain `Domain` by applying `to_summary` function. The result is stored
-    /// in the summary cache of `data`.
+    /// Computes a postcondition for the function `data` and then maps the
+    /// postcondition to an element of abstract domain `Domain` by applying
+    /// `to_summary` function. The result is stored in the summary cache of
+    /// `data`.
     fn summarize(&self, fun_target: &FunctionTarget<'_>, initial_state: Self::State) -> Summary {
         if !fun_target.func_env.is_native() {
             let instrs = &fun_target.data.code;

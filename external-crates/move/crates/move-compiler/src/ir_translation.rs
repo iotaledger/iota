@@ -1,9 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use regex::{Captures, NoExpand, Regex};
 use std::{fs, path::Path};
+
+use regex::{Captures, NoExpand, Regex};
 
 macro_rules! replace {
     ($input:ident, $pat:expr, $replacer:expr) => {{

@@ -1,5 +1,5 @@
 .darkNavbarColorModeToggle {
-  color: var(--sui-white);
+  color: var(--iota-white);
 }
 .darkNavbarColorModeToggle:hover {
   background: var(--ifm-color-gray-800);

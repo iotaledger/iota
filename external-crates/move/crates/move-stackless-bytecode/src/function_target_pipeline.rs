@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use core::fmt;
@@ -12,12 +13,11 @@ use std::{
 
 use itertools::{Either, Itertools};
 use log::{debug, info};
+use move_model::model::{FunId, FunctionEnv, GlobalEnv, QualifiedId};
 use petgraph::{
     algo::has_path_connecting,
     graph::{DiGraph, NodeIndex},
 };
-
-use move_model::model::{FunId, FunctionEnv, GlobalEnv, QualifiedId};
 
 use crate::{
     function_target::{FunctionData, FunctionTarget},
@@ -26,8 +26,8 @@ use crate::{
     stackless_control_flow_graph::generate_cfg_in_dot_format,
 };
 
-/// A data structure which holds data for multiple function targets, and allows to
-/// manipulate them as part of a transformation pipeline.
+/// A data structure which holds data for multiple function targets, and allows
+/// to manipulate them as part of a transformation pipeline.
 #[derive(Debug, Default)]
 pub struct FunctionTargetsHolder {
     targets: BTreeMap<QualifiedId<FunId>, BTreeMap<FunctionVariant, FunctionData>>,
@@ -56,12 +56,12 @@ impl std::fmt::Display for VerificationFlavor {
 /// Describes a function target variant.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FunctionVariant {
-    /// The baseline variant which was created from the original Move bytecode and is then
-    /// subject of multiple transformations.
+    /// The baseline variant which was created from the original Move bytecode
+    /// and is then subject of multiple transformations.
     Baseline,
-    /// A variant which is instrumented for verification. Only functions which are target
-    /// of verification have one of those. There can be multiple verification variants,
-    /// each identified by a unique flavor.
+    /// A variant which is instrumented for verification. Only functions which
+    /// are target of verification have one of those. There can be multiple
+    /// verification variants, each identified by a unique flavor.
     Verification(VerificationFlavor),
 }
 
@@ -84,10 +84,12 @@ impl std::fmt::Display for FunctionVariant {
 
 /// A trait describing a function target processor.
 pub trait FunctionTargetProcessor {
-    /// Processes a function variant. Takes as parameter a target holder which can be mutated, the
-    /// env of the function being processed, and the target data. During the time the processor is
-    /// called, the target data is removed from the holder, and added back once transformation
-    /// has finished. This allows the processor to take ownership on the target data.
+    /// Processes a function variant. Takes as parameter a target holder which
+    /// can be mutated, the env of the function being processed, and the
+    /// target data. During the time the processor is called, the target
+    /// data is removed from the holder, and added back once transformation
+    /// has finished. This allows the processor to take ownership on the target
+    /// data.
     fn process(
         &self,
         _targets: &mut FunctionTargetsHolder,
@@ -98,9 +100,10 @@ pub trait FunctionTargetProcessor {
         unimplemented!()
     }
 
-    /// Same as `process` but can return None to indicate that the function variant is
-    /// removed. By default, this maps to `Some(self.process(..))`. One needs to implement
-    /// either this function or `process`.
+    /// Same as `process` but can return None to indicate that the function
+    /// variant is removed. By default, this maps to
+    /// `Some(self.process(..))`. One needs to implement either this
+    /// function or `process`.
     fn process_and_maybe_remove(
         &self,
         targets: &mut FunctionTargetsHolder,
@@ -111,7 +114,8 @@ pub trait FunctionTargetProcessor {
         Some(self.process(targets, func_env, data, scc_opt))
     }
 
-    /// Returns a name for this processor. This should be suitable as a file suffix.
+    /// Returns a name for this processor. This should be suitable as a file
+    /// suffix.
     fn name(&self) -> String;
 
     /// A function which is called once before any `process` call is issued.
@@ -120,9 +124,10 @@ pub trait FunctionTargetProcessor {
     /// A function which is called once after the last `process` call.
     fn finalize(&self, _env: &GlobalEnv, _targets: &mut FunctionTargetsHolder) {}
 
-    /// A function which can be implemented to indicate that instead of a sequence of initialize,
-    /// process, and finalize, this processor has a single `run` function for the analysis of the
-    /// whole set of functions.
+    /// A function which can be implemented to indicate that instead of a
+    /// sequence of initialize, process, and finalize, this processor has a
+    /// single `run` function for the analysis of the whole set of
+    /// functions.
     fn is_single_run(&self) -> bool {
         false
     }
@@ -132,7 +137,8 @@ pub trait FunctionTargetProcessor {
         unimplemented!()
     }
 
-    /// A function which creates a dump of the processors results, for debugging.
+    /// A function which creates a dump of the processors results, for
+    /// debugging.
     fn dump_result(
         &self,
         _f: &mut Formatter<'_>,
@@ -176,7 +182,8 @@ impl FunctionTargetsHolder {
             .flat_map(|(id, vs)| vs.keys().map(move |v| (*id, v.clone())))
     }
 
-    /// Adds a new function target. The target will be initialized from the Move byte code.
+    /// Adds a new function target. The target will be initialized from the Move
+    /// byte code.
     pub fn add_target(&mut self, func_env: &FunctionEnv<'_>) {
         let generator = StacklessBytecodeGenerator::new(func_env);
         let data = generator.generate_function();
@@ -295,8 +302,8 @@ impl FunctionTargetsHolder {
 }
 
 impl FunctionTargetPipeline {
-    /// Adds a processor to this pipeline. Processor will be called in the order they have been
-    /// added.
+    /// Adds a processor to this pipeline. Processor will be called in the order
+    /// they have been added.
     pub fn add_processor(&mut self, processor: Box<dyn FunctionTargetProcessor>) {
         self.processors.push(processor)
     }
@@ -370,8 +377,8 @@ impl FunctionTargetPipeline {
         sccs
     }
 
-    /// Sort the call graph in topological order with strongly connected components (SCCs)
-    /// to represent recursive calls.
+    /// Sort the call graph in topological order with strongly connected
+    /// components (SCCs) to represent recursive calls.
     pub fn sort_targets_in_topological_order(
         env: &GlobalEnv,
         targets: &FunctionTargetsHolder,
@@ -401,12 +408,14 @@ impl FunctionTargetPipeline {
         }
 
         // analyze bottom-up from the leaves of the call graph
-        // NOTE: this algorithm produces a deterministic ordering of functions to be analyzed
+        // NOTE: this algorithm produces a deterministic ordering of functions to be
+        // analyzed
         let mut dep_ordered = vec![];
         while !worklist.is_empty() {
             worklist.sort_by(|(caller1, callees1), (caller2, callees2)| {
                 // rules of ordering:
-                // - if function A depends on B (i.e., calls B), put B towards the end of the worklist
+                // - if function A depends on B (i.e., calls B), put B towards the end of the
+                //   worklist
                 // - if there are no dependencies among A and B, rank them by callee size
 
                 let node1 = *nodes.get(caller1).unwrap();
@@ -429,7 +438,8 @@ impl FunctionTargetPipeline {
 
             // At this point, one of two things is true:
             // 1. callees is empty (common case)
-            // 2. callees is nonempty and call_id is part of a recursive or mutually recursive function group
+            // 2. callees is nonempty and call_id is part of a recursive or mutually
+            //    recursive function group
 
             match sccs.get(&call_id).unwrap().as_ref() {
                 None => {
@@ -467,9 +477,10 @@ impl FunctionTargetPipeline {
         dep_ordered
     }
 
-    /// Runs the pipeline on all functions in the targets holder. Processors are run on each
-    /// individual function in breadth-first fashion; i.e. a processor can expect that processors
-    /// preceding it in the pipeline have been executed for all functions before it is called.
+    /// Runs the pipeline on all functions in the targets holder. Processors are
+    /// run on each individual function in breadth-first fashion; i.e. a
+    /// processor can expect that processors preceding it in the pipeline
+    /// have been executed for all functions before it is called.
     pub fn run_with_hook<H1, H2>(
         &self,
         env: &GlobalEnv,
@@ -522,14 +533,16 @@ impl FunctionTargetPipeline {
         }
     }
 
-    /// Run the pipeline on all functions in the targets holder, with no hooks in effect
+    /// Run the pipeline on all functions in the targets holder, with no hooks
+    /// in effect
     pub fn run(&self, env: &GlobalEnv, targets: &mut FunctionTargetsHolder) {
         self.run_with_hook(env, targets, |_| {}, |_, _, _| {})
     }
 
-    /// Runs the pipeline on all functions in the targets holder, dump the bytecode before the
-    /// pipeline as well as after each processor pass. If `dump_cfg` is set, dump the per-function
-    /// control-flow graph (in dot format) too.
+    /// Runs the pipeline on all functions in the targets holder, dump the
+    /// bytecode before the pipeline as well as after each processor pass.
+    /// If `dump_cfg` is set, dump the per-function control-flow graph (in
+    /// dot format) too.
     pub fn run_with_dump(
         &self,
         env: &GlobalEnv,

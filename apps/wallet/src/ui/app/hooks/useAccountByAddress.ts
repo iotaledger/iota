@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
@@ -6,12 +7,13 @@ import { useMemo } from 'react';
 import { useAccounts } from './useAccounts';
 
 export function useAccountByAddress(accountAddress?: string | null) {
-	const allAccountsData = useAccounts();
-	const account = useMemo(
-		() =>
-			(accountAddress && allAccountsData.data?.find(({ address }) => address === accountAddress)) ||
-			null,
-		[allAccountsData.data, accountAddress],
-	);
-	return { ...allAccountsData, data: account };
+    const allAccountsData = useAccounts();
+    const account = useMemo(
+        () =>
+            (accountAddress &&
+                allAccountsData.data?.find(({ address }) => address === accountAddress)) ||
+            null,
+        [allAccountsData.data, accountAddress],
+    );
+    return { ...allAccountsData, data: account };
 }
