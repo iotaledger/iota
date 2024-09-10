@@ -72,6 +72,7 @@ members = [
   "crates/iota-authority-aggregation",
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
+  "crates/iota-bridge",
   "crates/iota-cluster-test",
   "crates/iota-common",
   "crates/iota-config",
@@ -128,6 +129,7 @@ members = [
   "crates/iota-swarm-config",
   "crates/iota-test-transaction-builder",
   "crates/iota-test-validator",
+  "crates/iota-tls",
   "crates/iota-tool",
   "crates/iota-transaction-builder",
   "crates/iota-transaction-checks",
@@ -416,6 +418,7 @@ iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-test-validator = { path = "crates/iota-test-validator" }
+iota-tls = { path = "crates/iota-tls" }
 iota-tool = { path = "crates/iota-tool" }
 iota-transaction-builder = { path = "crates/iota-transaction-builder" }
 iota-transaction-checks = { path = "crates/iota-transaction-checks" }

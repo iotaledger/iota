@@ -22,9 +22,10 @@
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
     base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
+    bridge::BRIDGE_SUPPORTED_ASSET,
     error::ExecutionError,
     move_package::{is_test_fun, FnInfoMap},
-    IOTA_FRAMEWORK_ADDRESS,
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
 };
 use move_binary_format::{
     access::ModuleAccess,
@@ -54,6 +55,13 @@ pub fn verify_module(
     let self_id = module.self_id();
 
     if ModuleId::new(IOTA_FRAMEWORK_ADDRESS, ident_str!("iota").to_owned()) == self_id {
+        return Ok(());
+    }
+
+    if BRIDGE_SUPPORTED_ASSET
+        .iter()
+        .any(|token| ModuleId::new(BRIDGE_ADDRESS, ident_str!(token).to_owned()) == self_id)
+    {
         return Ok(());
     }
 
