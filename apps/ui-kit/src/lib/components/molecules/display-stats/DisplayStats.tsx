@@ -69,7 +69,7 @@ export function DisplayStats({
     return (
         <div
             className={cx(
-                'flex flex-col justify-between rounded-2xl p-md--rs',
+                'flex w-full flex-col justify-between rounded-2xl p-md--rs',
                 backgroundClass,
                 sizeClass,
                 textClass,
