@@ -2,12 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{BufReader, BufWriter},
-    path::Path,
-};
+use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
 use fastcrypto::{
@@ -20,9 +15,10 @@ use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list::{get_coin_deny_list, PerTypeDenyList},
+    deny_list_v1::{get_coin_deny_list, PerTypeDenyList},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
+    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::{
         get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
         IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
@@ -33,7 +29,7 @@ use iota_types::{
     object::Object,
     storage::ObjectStore,
     transaction::Transaction,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
@@ -125,7 +121,7 @@ impl Genesis {
     pub fn checkpoint(&self) -> VerifiedCheckpoint {
         self.checkpoint
             .clone()
-            .verify(&self.committee().unwrap())
+            .try_into_verified(&self.committee().unwrap())
             .unwrap()
     }
 
@@ -152,9 +148,9 @@ impl Genesis {
         self.iota_system_object().reference_gas_price()
     }
 
-    // TODO: No need to return IotaResult.
+    // TODO: No need to return IotaResult. Also consider return &.
     pub fn committee(&self) -> IotaResult<Committee> {
-        Ok(self.committee_with_network().committee)
+        Ok(self.committee_with_network().committee().clone())
     }
 
     pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {
@@ -325,12 +321,19 @@ impl UnsignedGenesis {
     }
 
     pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {
-        get_authenticator_state(&self.objects()).expect("read from genesis cannot fail")
+        get_authenticator_state(self.objects()).expect("read from genesis cannot fail")
     }
 
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
             .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .expect("read from genesis cannot fail")
+            .is_some()
+    }
+
+    pub fn has_bridge_object(&self) -> bool {
+        self.objects()
+            .get_object(&IOTA_BRIDGE_OBJECT_ID)
             .expect("read from genesis cannot fail")
             .is_some()
     }
