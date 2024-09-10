@@ -53,7 +53,7 @@ jobs:
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -71,8 +71,10 @@ jobs:
     runs-on: [self-hosted]
     needs: changes
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-      - uses: taiki-e/install-action@nextest
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: cargo test
         run: |
           array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
@@ -109,10 +111,12 @@ jobs:
           - [self-hosted]
       fail-fast: false
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: benchmark (smoke)
         run: |
           cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
@@ -123,7 +127,7 @@ jobs:
         run: |
           cargo doc --all-features --workspace --no-deps
       - name: Install cargo-hakari, and cache the binary
-        uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
+        uses: baptiste0928/cargo-install@v3
         with:
           crate: cargo-hakari
           locked: true
@@ -144,10 +148,12 @@ jobs:
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: setup filter
         run: |
           array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})

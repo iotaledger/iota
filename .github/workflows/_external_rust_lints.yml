@@ -27,7 +27,7 @@ jobs:
       !cancelled() && inputs.isRust
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
@@ -40,7 +40,7 @@ jobs:
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           ssh-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
@@ -55,7 +55,7 @@ jobs:
       - cargo-deny
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints

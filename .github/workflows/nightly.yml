@@ -32,7 +32,7 @@ jobs:
     name: build release binaries
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
       - name: cargo build
         uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # pin@v1.0.3
         with:

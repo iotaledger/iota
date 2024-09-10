@@ -45,11 +45,11 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - run: cargo build --bin iota-test-validator --bin iota --profile dev
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -79,7 +79,7 @@ jobs:
         # need to run Explorer e2e when its upstream(TS SDK and Rust) or itself is changed
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust
         run: pnpm --filter iota-explorer playwright test
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: playwright-report-explorer

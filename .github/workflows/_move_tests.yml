@@ -20,8 +20,10 @@ jobs:
     timeout-minutes: 10
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: Run move tests
         run: |
           cargo nextest run -p iota-framework-tests -- unit_tests::

@@ -10,12 +10,12 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: checkout code repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - uses: pnpm/action-setup@v4
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -26,7 +26,7 @@ jobs:
         run: echo "hasChanges=$(pnpm list --filter "...[$(git rev-parse HEAD^1)]" --depth -1 --json | jq "any(.[] | select(.private != true) ; length > 0)")" >> $GITHUB_OUTPUT
       - name: Get changed files in the changesets folder
         id: has-changesets
-        uses: tj-actions/changed-files@1c938490c880156b746568a518594309cfb3f66b # pin@v34
+        uses: tj-actions/changed-files@v45
         with:
           files: |
             .changeset/**
@@ -35,7 +35,7 @@ jobs:
         run: |
           echo "true" > missing-changeset.txt
       - name: Upload missing changeset artifact
-        uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb # pin@v3
+        uses: actions/upload-artifact@v4
         if: steps.has-changesets.outputs.any_changed != 'true' && steps.diff.outputs.hasChanges == 'true'
         with:
           name: missing-changeset

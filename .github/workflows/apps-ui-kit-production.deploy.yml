@@ -20,10 +20,10 @@ jobs:
       pull-requests: write
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"

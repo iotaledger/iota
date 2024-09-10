@@ -37,7 +37,7 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
       - uses: bmwill/rust-cache@v1
 
       - name: Install cargo-llvm-cov
@@ -82,7 +82,7 @@ jobs:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # Pin v4.1.1
 
       - name: Checkout iota repo develop branch
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v3.0.3
+        uses: actions/checkout@v4
 
       - name: Get iota commit
         env:
@@ -127,7 +127,7 @@ jobs:
           echo "oncall_name=$(echo ${oncall_name})" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin v4.0.2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

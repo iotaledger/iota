@@ -13,7 +13,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: checkout code repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Run split cluster check script
@@ -38,7 +38,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: checkout code repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Run split cluster check script

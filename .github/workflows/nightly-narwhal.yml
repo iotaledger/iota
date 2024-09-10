@@ -33,7 +33,7 @@ jobs:
     name: Narwhal run long-running end-to-end tests
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@v4
       - uses: taiki-e/install-action@nextest
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
       # 'librocksdb-sys' src directory which is managed by cargo

@@ -12,10 +12,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+        uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: Run audit
@@ -27,12 +27,12 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - uses: pnpm/action-setup@v4
       - name: Install Nodejs
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -42,7 +42,7 @@ jobs:
         run: pnpm manypkg check
       - name: Turbo Cache
         id: turbo-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: node_modules/.cache/turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
@@ -51,7 +51,7 @@ jobs:
       - name: Lint
         run: pnpm turbo lint
       - name: Install wasm-pack for mbf package
-        uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # pin@v0.4.0
+        uses: jetli/wasm-pack-action@v0.4.0
         with:
           version: "latest"
       - name: Build
@@ -66,7 +66,7 @@ jobs:
       - name: Wallet Extension Preview Package
         if: steps.wallet-diff.outcome == 'failure'
         run: pnpm --filter iota-wallet pack:zip
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: steps.wallet-diff.outcome == 'failure'
         with:
           name: wallet-extension
