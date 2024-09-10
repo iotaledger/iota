@@ -20,7 +20,7 @@ module a::m {
 
     #[allow(dead_code)]
     fun t() {
-        // type args don't satisify constraints
+        // type args don't satisfy constraints
         foo!<None, NeedsCopy<bool>>(0, &mut 1, NeedsCopy {});
         foo!<u64, NeedsCopy<None>>(0, &mut 1, NeedsCopy {});
         foo!<u64, None>(0, &mut 1, NeedsCopy {});

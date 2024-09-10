@@ -1,0 +1,12 @@
+[package]
+name = "Stardust"
+version = "0.0.1"
+published-at = "0x107a"
+edition = "2024.beta"
+
+[dependencies]
+MoveStdlib = { local = "../move-stdlib" }
+Iota = { local = "../iota-framework" }
+
+[addresses]
+stardust = "0x107a"

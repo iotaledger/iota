@@ -1,21 +1,32 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     diagnostics::WarningFilters,
     expansion::ast::{
         ability_modifiers_ast_debug, AbilitySet, Attributes, Friend, ModuleIdent, Mutability,
+        TargetKind,
     },
-    naming::ast::{BuiltinTypeName, BuiltinTypeName_, StructTypeParameter, TParam},
+    naming::ast::{BuiltinTypeName, BuiltinTypeName_, DatatypeTypeParameter, TParam},
     parser::ast::{
-        self as P, BinOp, ConstantName, Field, FunctionName, StructName, UnaryOp, ENTRY_MODIFIER,
+        self as P, BinOp, ConstantName, DatatypeName, Field, FunctionName, UnaryOp, VariantName,
+        ENTRY_MODIFIER,
     },
-    shared::{ast_debug::*, unique_map::UniqueMap, Name, NumericalAddress, TName},
+    shared::{
+        ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, Name,
+        NumericalAddress, TName,
+    },
 };
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 // High Level IR
 
@@ -25,6 +36,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Debug, Clone)]
 pub struct Program {
+    pub info: Arc<TypingProgramInfo>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }
 
@@ -38,11 +50,13 @@ pub struct ModuleDefinition {
     // package name metadata from compiler arguments, not used for any language rules
     pub package_name: Option<Symbol>,
     pub attributes: Attributes,
-    pub is_source_module: bool,
-    /// `dependency_order` is the topological order/rank in the dependency graph.
+    pub target_kind: TargetKind,
+    /// `dependency_order` is the topological order/rank in the dependency
+    /// graph.
     pub dependency_order: usize,
     pub friends: UniqueMap<ModuleIdent, Friend>,
-    pub structs: UniqueMap<StructName, StructDefinition>,
+    pub structs: UniqueMap<DatatypeName, StructDefinition>,
+    pub enums: UniqueMap<DatatypeName, EnumDefinition>,
     pub constants: UniqueMap<ConstantName, Constant>,
     pub functions: UniqueMap<FunctionName, Function>,
 }
@@ -58,7 +72,7 @@ pub struct StructDefinition {
     pub index: usize,
     pub attributes: Attributes,
     pub abilities: AbilitySet,
-    pub type_parameters: Vec<StructTypeParameter>,
+    pub type_parameters: Vec<DatatypeTypeParameter>,
     pub fields: StructFields,
 }
 
@@ -66,6 +80,25 @@ pub struct StructDefinition {
 pub enum StructFields {
     Defined(Vec<(Field, BaseType)>),
     Native(Loc),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumDefinition {
+    pub warning_filter: WarningFilters,
+    // index in the original order as defined in the source file
+    pub index: usize,
+    pub attributes: Attributes,
+    pub abilities: AbilitySet,
+    pub type_parameters: Vec<DatatypeTypeParameter>,
+    pub variants: UniqueMap<VariantName, VariantDefinition>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct VariantDefinition {
+    // index in the original order as defined in the source file
+    pub index: usize,
+    pub loc: Loc,
+    pub fields: Vec<(Field, BaseType)>,
 }
 
 //**************************************************************************************************
@@ -120,8 +153,9 @@ pub struct Function {
     pub attributes: Attributes,
     /// The original, declared visibility as defined in the source file
     pub visibility: Visibility,
-    /// We sometimes change the visibility of functions, e.g. `entry` is marked as `public` in
-    /// test_mode. This is the visibility we will actually emit in the compiled module
+    /// We sometimes change the visibility of functions, e.g. `entry` is marked
+    /// as `public` in test_mode. This is the visibility we will actually
+    /// emit in the compiled module
     pub compiled_visibility: Visibility,
     pub entry: Option<Loc>,
     pub signature: FunctionSignature,
@@ -142,7 +176,7 @@ pub struct BlockLabel(pub Name);
 #[allow(clippy::large_enum_variant)]
 pub enum TypeName_ {
     Builtin(BuiltinTypeName),
-    ModuleType(ModuleIdent, StructName),
+    ModuleType(ModuleIdent, DatatypeName),
 }
 pub type TypeName = Spanned<TypeName_>;
 
@@ -184,6 +218,11 @@ pub enum Statement_ {
         cond: Box<Exp>,
         if_block: Block,
         else_block: Block,
+    },
+    VariantMatch {
+        subject: Box<Exp>,
+        enum_name: DatatypeName,
+        arms: Vec<(VariantName, Block)>,
     },
     While {
         name: BlockLabel,
@@ -240,8 +279,21 @@ pub enum Command_ {
         if_true: Label,
         if_false: Label,
     },
+    VariantSwitch {
+        subject: Exp,
+        enum_name: DatatypeName,
+        arms: Vec<(VariantName, Label)>,
+    },
 }
 pub type Command = Spanned<Command_>;
+
+// TODO: replace this with the `move_ir_types` one when possible.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum UnpackType {
+    ByValue,
+    ByImmRef,
+    ByMutRef,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LValue_ {
@@ -251,7 +303,15 @@ pub enum LValue_ {
         ty: Box<SingleType>,
         unused_assignment: bool,
     },
-    Unpack(StructName, Vec<BaseType>, Vec<(Field, LValue)>),
+    Unpack(DatatypeName, Vec<BaseType>, Vec<(Field, LValue)>),
+    UnpackVariant(
+        DatatypeName,
+        VariantName,
+        UnpackType,
+        Loc, // rhs_loc
+        Vec<BaseType>,
+        Vec<(Field, LValue)>,
+    ),
 }
 pub type LValue = Spanned<LValue_>;
 
@@ -333,7 +393,10 @@ pub enum UnannotatedExp_ {
         var: Var,
     },
     Constant(ConstantName),
-    ErrorConstant(Option<ConstantName>),
+    ErrorConstant {
+        line_number_loc: Loc,
+        error_constant: Option<ConstantName>,
+    },
 
     ModuleCall(Box<ModuleCall>),
     Freeze(Box<Exp>),
@@ -343,7 +406,13 @@ pub enum UnannotatedExp_ {
     UnaryExp(UnaryOp, Box<Exp>),
     BinopExp(Box<Exp>, BinOp, Box<Exp>),
 
-    Pack(StructName, Vec<BaseType>, Vec<(Field, BaseType, Exp)>),
+    Pack(DatatypeName, Vec<BaseType>, Vec<(Field, BaseType, Exp)>),
+    PackVariant(
+        DatatypeName,
+        VariantName,
+        Vec<BaseType>,
+        Vec<(Field, BaseType, Exp)>,
+    ),
     Multiple(Vec<Exp>),
 
     Borrow(bool, Box<Exp>, Field, FromUnpack),
@@ -414,7 +483,7 @@ impl Command_ {
         match self {
             Break(_) | Continue(_) => panic!("ICE break/continue not translated to jumps"),
             Assign(_, _, _) | Mutate(_, _) | IgnoreAndPop { .. } => false,
-            Abort(_) | Return { .. } | Jump { .. } | JumpIf { .. } => true,
+            Abort(_) | Return { .. } | Jump { .. } | JumpIf { .. } | VariantSwitch { .. } => true,
         }
     }
 
@@ -422,9 +491,12 @@ impl Command_ {
         use Command_::*;
         match self {
             Break(_) | Continue(_) => panic!("ICE break/continue not translated to jumps"),
-            Assign(_, _, _) | Mutate(_, _) | IgnoreAndPop { .. } | Jump { .. } | JumpIf { .. } => {
-                false
-            }
+            Assign(_, _, _)
+            | Mutate(_, _)
+            | IgnoreAndPop { .. }
+            | Jump { .. }
+            | JumpIf { .. }
+            | VariantSwitch { .. } => false,
             Abort(_) | Return { .. } => true,
         }
     }
@@ -436,7 +508,12 @@ impl Command_ {
             Assign(_, ls, e) => ls.is_empty() && e.is_unit(),
             IgnoreAndPop { exp: e, .. } => e.is_unit(),
 
-            Mutate(_, _) | Return { .. } | Abort(_) | JumpIf { .. } | Jump { .. } => false,
+            Mutate(_, _)
+            | Return { .. }
+            | Abort(_)
+            | JumpIf { .. }
+            | Jump { .. }
+            | VariantSwitch { .. } => false,
         }
     }
 
@@ -459,6 +536,15 @@ impl Command_ {
                 successors.insert(*if_true);
                 successors.insert(*if_false);
             }
+            VariantSwitch {
+                subject: _,
+                enum_name: _,
+                arms,
+            } => {
+                for (_, target) in arms {
+                    successors.insert(*target);
+                }
+            }
         }
         successors
     }
@@ -468,7 +554,9 @@ impl Command_ {
         match self {
             Assign(_, _, _) | Mutate(_, _) | IgnoreAndPop { .. } => false,
             Break(_) | Continue(_) | Abort(_) | Return { .. } => true,
-            Jump { .. } | JumpIf { .. } => panic!("ICE found jump/jump-if in hlir"),
+            Jump { .. } | JumpIf { .. } | VariantSwitch { .. } => {
+                panic!("ICE found jump/jump-if/variant-switch in hlir")
+            }
         }
     }
 }
@@ -812,7 +900,7 @@ impl std::fmt::Display for Label {
 
 impl AstDebug for Program {
     fn ast_debug(&self, w: &mut AstWriter) {
-        let Program { modules } = self;
+        let Program { modules, info: _ } = self;
 
         for (m, mdef) in modules.key_cloned_iter() {
             w.write(&format!("module {}", m));
@@ -828,10 +916,11 @@ impl AstDebug for ModuleDefinition {
             warning_filter,
             package_name,
             attributes,
-            is_source_module,
+            target_kind,
             dependency_order,
             friends,
             structs,
+            enums,
             constants,
             functions,
         } = self;
@@ -840,11 +929,15 @@ impl AstDebug for ModuleDefinition {
             w.writeln(&format!("{}", n))
         }
         attributes.ast_debug(w);
-        if *is_source_module {
-            w.writeln("library module")
-        } else {
-            w.writeln("source module")
-        }
+        w.writeln(match target_kind {
+            TargetKind::Source {
+                is_root_package: true,
+            } => "root module",
+            TargetKind::Source {
+                is_root_package: false,
+            } => "dependency module",
+            TargetKind::External => "external module",
+        });
         w.writeln(&format!("dependency order #{}", dependency_order));
         for (mident, _loc) in friends.key_cloned_iter() {
             w.write(&format!("friend {};", mident));
@@ -852,6 +945,10 @@ impl AstDebug for ModuleDefinition {
         }
         for sdef in structs.key_cloned_iter() {
             sdef.ast_debug(w);
+            w.new_line();
+        }
+        for edef in enums.key_cloned_iter() {
+            edef.ast_debug(w);
             w.new_line();
         }
         for cdef in constants.key_cloned_iter() {
@@ -865,7 +962,7 @@ impl AstDebug for ModuleDefinition {
     }
 }
 
-impl AstDebug for (StructName, &StructDefinition) {
+impl AstDebug for (DatatypeName, &StructDefinition) {
     fn ast_debug(&self, w: &mut AstWriter) {
         let (
             name,
@@ -896,6 +993,51 @@ impl AstDebug for (StructName, &StructDefinition) {
                 })
             })
         }
+    }
+}
+
+impl AstDebug for (DatatypeName, &EnumDefinition) {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let (
+            name,
+            EnumDefinition {
+                warning_filter,
+                index,
+                attributes,
+                abilities,
+                type_parameters,
+                variants,
+            },
+        ) = self;
+        warning_filter.ast_debug(w);
+        attributes.ast_debug(w);
+
+        w.write(&format!("struct#{index} {name}"));
+        type_parameters.ast_debug(w);
+        ability_modifiers_ast_debug(w, abilities);
+        w.block(|w| {
+            w.list(variants, ";", |w, (_, v, vdef)| {
+                w.write(&format!("{} {{ ", v));
+                vdef.ast_debug(w);
+                w.write(" }");
+                true
+            })
+        })
+    }
+}
+
+impl AstDebug for VariantDefinition {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let VariantDefinition {
+            index,
+            fields,
+            loc: _,
+        } = self;
+        w.write(format!("id:{}|", index));
+        w.comma(fields, |w, (f, bt)| {
+            w.write(&format!("{}: ", f));
+            bt.ast_debug(w);
+        })
     }
 }
 
@@ -1138,6 +1280,21 @@ impl AstDebug for Statement_ {
                 w.write(" else ");
                 w.block(|w| else_block.ast_debug(w));
             }
+            S::VariantMatch {
+                subject,
+                enum_name,
+                arms,
+            } => {
+                w.write("variant_match(");
+                subject.ast_debug(w);
+                w.write(format!(" : {})", enum_name));
+                w.block(|w| {
+                    w.comma(arms, |w, (variant, arm)| {
+                        w.write(format!("{} =>", variant));
+                        w.block(|w| arm.ast_debug(w));
+                    })
+                });
+            }
             S::While { name, cond, block } => {
                 w.write("while ");
                 w.write(" (");
@@ -1226,6 +1383,20 @@ impl AstDebug for Command_ {
                 w.write("jump_if(");
                 cond.ast_debug(w);
                 w.write(&format!(") {} else {}", if_true.0, if_false.0));
+            }
+            C::VariantSwitch {
+                subject,
+                enum_name,
+                arms,
+            } => {
+                w.write("variant_switch(");
+                subject.ast_debug(w);
+                w.write(format!(" : {})", enum_name));
+                w.block(|w| {
+                    w.comma(arms, |w, (variant, arm)| {
+                        w.write(format!("{} => {}\n", variant, arm.0));
+                    })
+                });
             }
         }
     }
@@ -1337,6 +1508,19 @@ impl AstDebug for UnannotatedExp_ {
                 });
                 w.write("}");
             }
+            E::PackVariant(e, v, tys, fields) => {
+                w.write(&format!("{}::{}", e, v));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (f, bt, e)| {
+                    w.annotate(|w| w.write(&format!("{}", f)), bt);
+                    w.write(": ");
+                    e.ast_debug(w);
+                });
+                w.write("}");
+            }
 
             E::Multiple(es) => {
                 w.write("(");
@@ -1387,9 +1571,12 @@ impl AstDebug for UnannotatedExp_ {
             }
             E::UnresolvedError => w.write("_|_"),
             E::Unreachable => w.write("unreachable"),
-            E::ErrorConstant(c) => {
+            E::ErrorConstant {
+                line_number_loc: _,
+                error_constant,
+            } => {
                 w.write("ErrorConstant");
-                if let Some(c) = c {
+                if let Some(c) = error_constant {
                     w.write(&format!("({})", c))
                 }
             }
@@ -1450,6 +1637,23 @@ impl AstDebug for LValue_ {
             }
             L::Unpack(s, tys, fields) => {
                 w.write(&format!("{}", s));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (f, l)| {
+                    w.write(&format!("{}: ", f));
+                    l.ast_debug(w)
+                });
+                w.write("}");
+            }
+            L::UnpackVariant(e, v, unpack_type, _rhs_loc, tys, fields) => {
+                w.write(&format!("{}::{}", e, v));
+                match unpack_type {
+                    UnpackType::ByMutRef => w.write(" &mut "),
+                    UnpackType::ByImmRef => w.write(" &"),
+                    UnpackType::ByValue => (),
+                }
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");

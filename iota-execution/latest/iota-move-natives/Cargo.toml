@@ -1,0 +1,27 @@
+[package]
+name = "iota-move-natives-latest"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Move framework for iota platform"
+
+[dependencies]
+bcs.workspace = true
+better_any.workspace = true
+indexmap.workspace = true
+smallvec.workspace = true
+
+fastcrypto.workspace = true
+fastcrypto-zkp.workspace = true
+move-binary-format.workspace = true
+move-core-types.workspace = true
+move-vm-types.workspace = true
+
+move-stdlib = { path = "../../../external-crates/move/crates/move-stdlib" }
+move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
+
+iota-protocol-config.workspace = true
+iota-types.workspace = true
+tracing.workspace = true

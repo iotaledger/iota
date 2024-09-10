@@ -1,0 +1,54 @@
+[package]
+name = "iota-tool"
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+bcs.workspace = true
+clap.workspace = true
+colored.workspace = true
+comfy-table.workspace = true
+diesel.workspace = true
+eyre.workspace = true
+futures.workspace = true
+hex.workspace = true
+indicatif.workspace = true
+itertools.workspace = true
+move-core-types.workspace = true
+num_cpus.workspace = true
+object_store.workspace = true
+prometheus.workspace = true
+rocksdb.workspace = true
+ron = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+tempfile.workspace = true
+tracing.workspace = true
+
+anemo.workspace = true
+anemo-cli.workspace = true
+fastcrypto.workspace = true
+telemetry-subscribers.workspace = true
+tokio = { workspace = true, features = ["full"] }
+typed-store.workspace = true
+
+const-str = "0.5"
+git-version.workspace = true
+iota-archival.workspace = true
+iota-config.workspace = true
+iota-core.workspace = true
+iota-indexer.workspace = true
+iota-network.workspace = true
+iota-protocol-config.workspace = true
+iota-replay.workspace = true
+iota-sdk.workspace = true
+iota-snapshot.workspace = true
+iota-storage.workspace = true
+iota-types.workspace = true
+narwhal-storage.workspace = true
+narwhal-types.workspace = true

@@ -1,0 +1,333 @@
+processed 16 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1 'publish'. lines 14-27:
+created: object(1,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 29-29:
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3 'run'. lines 31-31:
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 4 'run'. lines 33-33:
+created: object(4,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 5 'run'. lines 35-35:
+created: object(5,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 6 'create-checkpoint'. lines 37-37:
+Checkpoint created: 1
+
+task 7 'run'. lines 39-39:
+created: object(7,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 8 'run'. lines 41-41:
+created: object(8,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 9 'run'. lines 43-43:
+created: object(9,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 10 'create-checkpoint'. lines 45-45:
+Checkpoint created: 2
+
+task 11 'run'. lines 47-47:
+created: object(11,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 12 'run'. lines 49-49:
+created: object(12,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 13 'create-checkpoint'. lines 51-51:
+Checkpoint created: 3
+
+task 14 'run-graphql'. lines 53-77:
+Response: {
+  "data": {
+    "checkpoints": {
+      "nodes": [
+        {
+          "sequenceNumber": 0,
+          "transactionBlocks": {
+            "edges": []
+          }
+        },
+        {
+          "sequenceNumber": 1,
+          "transactionBlocks": {
+            "edges": [
+              {
+                "cursor": "eyJjIjozLCJ0IjoyLCJ0YyI6MX0",
+                "node": {
+                  "digest": "HXNokbKw4B5MMBcHitHZWaYNGYDgzXGaqoSvR9HanCtK",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJjIjozLCJ0IjozLCJ0YyI6MX0",
+                "node": {
+                  "digest": "4xF2ovft1CFWYmECatWacfbY8hMSHPMJVyJbEe3RveGd",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJjIjozLCJ0Ijo0LCJ0YyI6MX0",
+                "node": {
+                  "digest": "2m9RNU1dCZVHN3Jq5uVxDvDRvLG7iW79kWymC7Heb5gV",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJjIjozLCJ0Ijo1LCJ0YyI6MX0",
+                "node": {
+                  "digest": "8dThgQcY2j6ej6vThhu9PQ6ELWXSU9ox85thu8ekHjwC",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "sequenceNumber": 2,
+          "transactionBlocks": {
+            "edges": [
+              {
+                "cursor": "eyJjIjozLCJ0Ijo2LCJ0YyI6Mn0",
+                "node": {
+                  "digest": "9QSWf52zez1bWP6nbmNv2SbutFvyFTnNAjrGKgDruQut",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJjIjozLCJ0Ijo3LCJ0YyI6Mn0",
+                "node": {
+                  "digest": "HropxPnGA6kkn4jM1XTec5GS7ct7U45CBWdVHQivXAis",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJjIjozLCJ0Ijo4LCJ0YyI6Mn0",
+                "node": {
+                  "digest": "9VtgLPscBMKKQodS65MVghQYGgeWzxt55vg9HqumshPo",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "sequenceNumber": 3,
+          "transactionBlocks": {
+            "edges": [
+              {
+                "cursor": "eyJjIjozLCJ0Ijo5LCJ0YyI6M30",
+                "node": {
+                  "digest": "DwykNNrQJkc3fauo9bjU919CRxCeYFRjRfq4qrjUx24P",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJjIjozLCJ0IjoxMCwidGMiOjN9",
+                "node": {
+                  "digest": "4ubnK8QKjwyexhbDbHiphsiJ46vTNwf9xfQr7B6KB4Yr",
+                  "sender": {
+                    "objects": {
+                      "edges": [
+                        {
+                          "cursor": "IKs5oplNGXqFQUDSG95/fJdrNHidt1Hyb+d3l05qFsmsAwAAAAAAAAA="
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 15 'run-graphql'. lines 79-96:
+Response: {
+  "data": {
+    "checkpoints": {
+      "nodes": [
+        {
+          "sequenceNumber": 0,
+          "epoch": {
+            "epochId": 0,
+            "checkpoints": {
+              "nodes": [
+                {
+                  "sequenceNumber": 0
+                },
+                {
+                  "sequenceNumber": 1
+                },
+                {
+                  "sequenceNumber": 2
+                },
+                {
+                  "sequenceNumber": 3
+                }
+              ]
+            }
+          }
+        },
+        {
+          "sequenceNumber": 1,
+          "epoch": {
+            "epochId": 0,
+            "checkpoints": {
+              "nodes": [
+                {
+                  "sequenceNumber": 0
+                },
+                {
+                  "sequenceNumber": 1
+                },
+                {
+                  "sequenceNumber": 2
+                },
+                {
+                  "sequenceNumber": 3
+                }
+              ]
+            }
+          }
+        },
+        {
+          "sequenceNumber": 2,
+          "epoch": {
+            "epochId": 0,
+            "checkpoints": {
+              "nodes": [
+                {
+                  "sequenceNumber": 0
+                },
+                {
+                  "sequenceNumber": 1
+                },
+                {
+                  "sequenceNumber": 2
+                },
+                {
+                  "sequenceNumber": 3
+                }
+              ]
+            }
+          }
+        },
+        {
+          "sequenceNumber": 3,
+          "epoch": {
+            "epochId": 0,
+            "checkpoints": {
+              "nodes": [
+                {
+                  "sequenceNumber": 0
+                },
+                {
+                  "sequenceNumber": 1
+                },
+                {
+                  "sequenceNumber": 2
+                },
+                {
+                  "sequenceNumber": 3
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

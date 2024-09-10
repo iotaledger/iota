@@ -1,7 +1,10 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::control_flow_graph::{BlockId, ControlFlowGraph, VMControlFlowGraph};
+use move_abstract_interpreter::control_flow_graph::{
+    BlockId, ControlFlowGraph, VMControlFlowGraph,
+};
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 /// Dense index into nodes in the same `LoopSummary`
@@ -11,41 +14,47 @@ pub struct NodeId(u16);
 /// Alias to treat vectors as `NodeId -> T` maps.
 type NodeMap<T> = Vec<T>;
 
-/// Summarise loop information from a control-flow graph by calculating its depth-first spanning
-/// tree (DFST) and then using that to:
+/// Summarise loop information from a control-flow graph by calculating its
+/// depth-first spanning tree (DFST) and then using that to:
 ///
 /// - Distinguish edges in the CFG as:
 ///   - tree edges (in the spanning tree)
-///   - back edges (going backward from descendant to ancestor in the spanning tree)
+///   - back edges (going backward from descendant to ancestor in the spanning
+///     tree)
 ///   - ... everything else.
 /// - Calculate which node is descendant of which in the DFST
-/// - Mapping nodes in the summary back to the blocks they originate from in the CFG.
+/// - Mapping nodes in the summary back to the blocks they originate from in the
+///   CFG.
 ///
-/// This is used to implement Tarjan's Loop Reducibility algorithm (Tarjan 1974).
+/// This is used to implement Tarjan's Loop Reducibility algorithm (Tarjan
+/// 1974).
 pub struct LoopSummary {
-    /// Original block corresponding to this node, useful for recovering code offsets, e.g. for
-    /// error messages.
+    /// Original block corresponding to this node, useful for recovering code
+    /// offsets, e.g. for error messages.
     blocks: NodeMap<BlockId>,
 
-    /// Number of transitive descendants for a node, in the depth-first spanning tree.
+    /// Number of transitive descendants for a node, in the depth-first spanning
+    /// tree.
     descs: NodeMap<u16>,
 
-    /// The incoming edges for a node are partitioned between `back_edges` which create cycles in
-    /// the DFS tree, and `pred_edges` which are all the rest.
+    /// The incoming edges for a node are partitioned between `back_edges` which
+    /// create cycles in the DFS tree, and `pred_edges` which are all the
+    /// rest.
     backs: NodeMap<Vec<NodeId>>,
     preds: NodeMap<Vec<NodeId>>,
 }
 
-/// A disjoint-set data structure used when collapsing loops down to single nodes in the summary
-/// graph while remembering their loop nesting depth (how many levels of nesting are contained
-/// within them)
+/// A disjoint-set data structure used when collapsing loops down to single
+/// nodes in the summary graph while remembering their loop nesting depth (how
+/// many levels of nesting are contained within them)
 pub struct LoopPartition {
-    /// The parent relationship in the disjoint-set.  The transitive closure of this type maps a
-    /// node to its representative.
+    /// The parent relationship in the disjoint-set.  The transitive closure of
+    /// this type maps a node to its representative.
     parents: NodeMap<NodeId>,
 
-    /// The nesting depth of (collapsed) nodes in the summary graph.  Nodes that are uncollapsed
-    /// (not in any loop) have a depth of 0.  Initially, all nodes are uncollapsed.
+    /// The nesting depth of (collapsed) nodes in the summary graph.  Nodes that
+    /// are uncollapsed (not in any loop) have a depth of 0.  Initially, all
+    /// nodes are uncollapsed.
     depths: NodeMap<u16>,
 }
 
@@ -153,20 +162,21 @@ impl LoopSummary {
         }
     }
 
-    /// Decides whether `descendant` is a descendant of `ancestor` in the depth-first spanning
-    /// tree.
+    /// Decides whether `descendant` is a descendant of `ancestor` in the
+    /// depth-first spanning tree.
     pub fn is_descendant(&self, NodeId(ancestor): NodeId, NodeId(descendant): NodeId) -> bool {
-        // All the descendants of `ancestor` in the DFST will have the IDs immediately following it,
-        // so we can check for descendants with a bounds check on `NodeId`, given `ancestor`'s
-        // transitive descendant count in `self.descs[ancestor]`.
+        // All the descendants of `ancestor` in the DFST will have the IDs immediately
+        // following it, so we can check for descendants with a bounds check on
+        // `NodeId`, given `ancestor`'s transitive descendant count in
+        // `self.descs[ancestor]`.
         ancestor <= descendant && descendant <= ancestor + self.descs[ancestor as usize]
     }
 
-    /// Returns an iterator over `NodeId`s in this `LoopSummary` in pre-order according to its
-    /// depth-first spanning tree.
+    /// Returns an iterator over `NodeId`s in this `LoopSummary` in pre-order
+    /// according to its depth-first spanning tree.
     pub fn preorder(&self) -> impl DoubleEndedIterator<Item = NodeId> {
-        // `LoopSummary::new` assigns `NodeId`s to blocks in preorder, so just return the natural
-        // order.
+        // `LoopSummary::new` assigns `NodeId`s to blocks in preorder, so just return
+        // the natural order.
         (0..self.blocks.len()).map(|id| NodeId(id as u16))
     }
 
@@ -193,8 +203,8 @@ impl LoopPartition {
         }
     }
 
-    /// Find the head of the collapsed node containing loop `id`, use path-compression to speed up
-    /// future accesses.
+    /// Find the head of the collapsed node containing loop `id`, use
+    /// path-compression to speed up future accesses.
     pub fn containing_loop(&mut self, id: NodeId) -> NodeId {
         let mut child = id;
         let mut parent = self.parent(child);
@@ -223,14 +233,15 @@ impl LoopPartition {
         parent
     }
 
-    /// Collapse `body` of a loop down to one node, represented by its `head`.  Calculate the
-    /// nesting depth of the collapsed node and return it.
+    /// Collapse `body` of a loop down to one node, represented by its `head`.
+    /// Calculate the nesting depth of the collapsed node and return it.
     ///
-    /// Assumes that all the nodes involved are the heads of their corresponding sets in the
-    /// partition.
+    /// Assumes that all the nodes involved are the heads of their corresponding
+    /// sets in the partition.
     ///
-    /// Note that this function can be called with an empty body, meaning `head` is the only
-    /// node in the loop.  Its nesting depth will still be incremented in this case.
+    /// Note that this function can be called with an empty body, meaning `head`
+    /// is the only node in the loop.  Its nesting depth will still be
+    /// incremented in this case.
     pub fn collapse_loop(&mut self, head: NodeId, body: &BTreeSet<NodeId>) -> u16 {
         debug_assert_eq!(head, self.parent(head));
 

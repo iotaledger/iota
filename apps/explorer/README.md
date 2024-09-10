@@ -1,20 +1,20 @@
-# Sui Explorer
+# Iota Explorer
 
-[Sui Explorer](https://explorer.sui.io/) is a network explorer for the Sui network, similar in functionality to [Etherscan](https://etherscan.io/) or [Solana Explorer](https://explorer.solana.com/). Use Sui Explorer to see the latest transactions and objects.
+[Iota Explorer](https://explorer.iota.io/) is a network explorer for the Iota network, similar in functionality to [Etherscan](https://etherscan.io/) or [Solana Explorer](https://explorer.solana.com/). Use Iota Explorer to see the latest transactions and objects.
 
 # Set Up
 
 **Requirements**: Node 18.0.0 or later.
 
-Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the Sui repository:
+Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the Iota repository:
 
 ```
 $ pnpm install
 ```
 
-> All `pnpm` commands below are intended to be run in the root of the Sui repo.
+> All `pnpm` commands below are intended to be run in the root of the Iota repo.
 
-## Developing the Sui Explorer
+## Developing the Iota Explorer
 
 To start the explorer dev server, you can run the following command:
 
@@ -29,13 +29,13 @@ This will start the dev server on port 3000, which should be accessible on http:
 Start validators locally:
 
 ```bash
-cargo run --bin sui-test-validator
+cargo run --bin iota-test-validator
 ```
 
 In a a separate terminal, you can now run the end-to-end tests:
 
 ```bash
-pnpm --filter sui-explorer playwright test
+pnpm --filter iota-explorer playwright test
 ```
 
 # Other pnpm commands

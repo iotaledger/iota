@@ -1,26 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::client::LocalNarwhalClient;
-use crate::metrics::WorkerEndpointMetrics;
-use crate::TransactionValidator;
+use std::{sync::Arc, time::Duration};
+
 use async_trait::async_trait;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use mysten_metrics::metered_channel::Sender;
-use mysten_metrics::{monitored_scope, spawn_logged_monitored_task};
-use mysten_network::server::Server;
-use mysten_network::Multiaddr;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::task::JoinHandle;
-use tokio::time::{sleep, timeout};
+use futures::{stream::FuturesUnordered, StreamExt};
+use iota_metrics::{metered_channel::Sender, monitored_scope, spawn_logged_monitored_task};
+use iota_network_stack::{server::Server, Multiaddr};
+use tokio::{
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 use tonic::{Request, Response, Status};
 use tracing::{error, info, warn};
 use types::{
     ConditionalBroadcastReceiver, Empty, Transaction, TransactionProto, Transactions,
     TransactionsServer, TxResponse,
 };
+
+use crate::{client::LocalNarwhalClient, metrics::WorkerEndpointMetrics, TransactionValidator};
 
 pub struct TxServer<V: TransactionValidator> {
     address: Multiaddr,
@@ -72,7 +71,7 @@ impl<V: TransactionValidator> TxServer<V> {
         let mut server: Server;
 
         loop {
-            match mysten_network::config::Config::new()
+            match iota_network_stack::config::Config::new()
                 .server_builder_with_metrics(self.endpoint_metrics.clone())
                 .add_service(TransactionsServer::new(tx_handler.clone()))
                 .bind(&self.address)
@@ -171,7 +170,8 @@ impl<V: TransactionValidator> Transactions for TxReceiverHandler<V> {
         while let Some(Ok(txn)) = transactions.next().await {
             let validate_scope = monitored_scope("SubmitTransactionStream_ValidateTx");
             if let Err(err) = self.validator.validate(txn.transaction.as_ref()) {
-                // If the transaction is invalid (often cryptographically), better to drop the client
+                // If the transaction is invalid (often cryptographically), better to drop the
+                // client
                 return Err(Status::invalid_argument(format!(
                     "Stream contains an invalid transaction {err}"
                 )));

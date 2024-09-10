@@ -30,7 +30,7 @@ use iota_types::{
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
-    annotated_value::{MoveStructLayout, MoveValue},
+    annotated_value::{MoveStruct, MoveStructLayout},
     identifier::Identifier,
     language_storage::StructTag,
 };
@@ -207,8 +207,8 @@ pub struct IotaObjectData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_rebate: Option<u64>,
     /// The Display metadata for frontend UI rendering, default to be None
-    /// unless IotaObjectDataOptions.showContent is set to true
-    /// This can also be None if the struct type does not have Display defined
+    /// unless IotaObjectDataOptions.showContent is set to true This can also
+    /// be None if the struct type does not have Display defined
     /// See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayFieldsResponse>,
@@ -223,6 +223,88 @@ pub struct IotaObjectData {
 }
 
 impl IotaObjectData {
+    pub fn new(
+        object_ref: ObjectRef,
+        obj: Object,
+        layout: impl Into<Option<MoveStructLayout>>,
+        options: IotaObjectDataOptions,
+        display_fields: impl Into<Option<DisplayFieldsResponse>>,
+    ) -> anyhow::Result<Self> {
+        let layout = layout.into();
+        let display_fields = display_fields.into();
+        let show_display = options.show_display;
+        let IotaObjectDataOptions {
+            show_type,
+            show_owner,
+            show_previous_transaction,
+            show_content,
+            show_bcs,
+            show_storage_rebate,
+            ..
+        } = options;
+
+        let (object_id, version, digest) = object_ref;
+        let type_ = if show_type {
+            Some(Into::<ObjectType>::into(&obj))
+        } else {
+            None
+        };
+
+        let bcs: Option<IotaRawData> = if show_bcs {
+            let data = match obj.data.clone() {
+                Data::Move(m) => {
+                    let layout = layout.clone().ok_or_else(|| {
+                        anyhow!("Layout is required to convert Move object to json")
+                    })?;
+                    IotaRawData::try_from_object(m, layout)?
+                }
+                Data::Package(p) => IotaRawData::try_from_package(p)
+                    .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
+            };
+            Some(data)
+        } else {
+            None
+        };
+
+        let obj = obj.into_inner();
+
+        let content: Option<IotaParsedData> = if show_content {
+            let data = match obj.data {
+                Data::Move(m) => {
+                    let layout = layout.ok_or_else(|| {
+                        anyhow!("Layout is required to convert Move object to json")
+                    })?;
+                    IotaParsedData::try_from_object(m, layout)?
+                }
+                Data::Package(p) => IotaParsedData::try_from_package(p)?,
+            };
+            Some(data)
+        } else {
+            None
+        };
+
+        Ok(IotaObjectData {
+            object_id,
+            version,
+            digest,
+            type_,
+            owner: if show_owner { Some(obj.owner) } else { None },
+            storage_rebate: if show_storage_rebate {
+                Some(obj.storage_rebate)
+            } else {
+                None
+            },
+            previous_transaction: if show_previous_transaction {
+                Some(obj.previous_transaction)
+            } else {
+                None
+            },
+            content,
+            bcs,
+            display: if show_display { display_fields } else { None },
+        })
+    }
+
     pub fn object_ref(&self) -> ObjectRef {
         (self.object_id, self.version, self.digest)
     }
@@ -257,7 +339,7 @@ impl Display for IotaObjectData {
             format!("----- {type_} ({}[{}]) -----", self.object_id, self.version).bold()
         )?;
         if let Some(owner) = self.owner {
-            writeln!(writer, "{}: {}", "Owner".bold().bright_black(), owner)?;
+            writeln!(writer, "{}: {owner}", "Owner".bold().bright_black())?;
         }
 
         writeln!(
@@ -269,26 +351,24 @@ impl Display for IotaObjectData {
         if let Some(storage_rebate) = self.storage_rebate {
             writeln!(
                 writer,
-                "{}: {}",
+                "{}: {storage_rebate}",
                 "Storage Rebate".bold().bright_black(),
-                storage_rebate
             )?;
         }
 
         if let Some(previous_transaction) = self.previous_transaction {
             writeln!(
                 writer,
-                "{}: {:?}",
+                "{}: {previous_transaction:?}",
                 "Previous Transaction".bold().bright_black(),
-                previous_transaction
             )?;
         }
         if let Some(content) = self.content.as_ref() {
             writeln!(writer, "{}", "----- Data -----".bold())?;
-            write!(writer, "{}", content)?;
+            write!(writer, "{content}")?;
         }
 
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -432,10 +512,9 @@ impl TryFrom<(ObjectRead, IotaObjectDataOptions)> for IotaObjectResponse {
             ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
                 IotaObjectResponseError::NotExists { object_id: id },
             )),
-            ObjectRead::Exists(object_ref, o, layout) => {
-                let data = (object_ref, o, layout, options).try_into()?;
-                Ok(IotaObjectResponse::new_with_data(data))
-            }
+            ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
+                IotaObjectData::new(object_ref, o, layout, options, None)?,
+            )),
             ObjectRead::Deleted((object_id, version, digest)) => Ok(
                 IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
                     object_id,
@@ -473,126 +552,6 @@ impl TryFrom<(ObjectInfo, IotaObjectDataOptions)> for IotaObjectResponse {
             content: None,
             bcs: None,
         }))
-    }
-}
-
-impl
-    TryFrom<(
-        ObjectRef,
-        Object,
-        Option<MoveStructLayout>,
-        IotaObjectDataOptions,
-    )> for IotaObjectData
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (object_ref, o, layout, options): (
-            ObjectRef,
-            Object,
-            Option<MoveStructLayout>,
-            IotaObjectDataOptions,
-        ),
-    ) -> Result<Self, Self::Error> {
-        let IotaObjectDataOptions {
-            show_type,
-            show_owner,
-            show_previous_transaction,
-            show_content,
-            show_bcs,
-            show_storage_rebate,
-            ..
-        } = options;
-
-        let (object_id, version, digest) = object_ref;
-        let type_ = if show_type {
-            Some(Into::<ObjectType>::into(&o))
-        } else {
-            None
-        };
-
-        let bcs: Option<IotaRawData> = if show_bcs {
-            let data = match o.data.clone() {
-                Data::Move(m) => {
-                    let layout = layout.clone().ok_or_else(|| {
-                        anyhow!("Layout is required to convert Move object to json")
-                    })?;
-                    IotaRawData::try_from_object(m, layout)?
-                }
-                Data::Package(p) => IotaRawData::try_from_package(p)
-                    .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
-            };
-            Some(data)
-        } else {
-            None
-        };
-
-        let o = o.into_inner();
-
-        let content: Option<IotaParsedData> = if show_content {
-            let data = match o.data {
-                Data::Move(m) => {
-                    let layout = layout.ok_or_else(|| {
-                        anyhow!("Layout is required to convert Move object to json")
-                    })?;
-                    IotaParsedData::try_from_object(m, layout)?
-                }
-                Data::Package(p) => IotaParsedData::try_from_package(p)?,
-            };
-            Some(data)
-        } else {
-            None
-        };
-
-        Ok(IotaObjectData {
-            object_id,
-            version,
-            digest,
-            type_,
-            owner: if show_owner { Some(o.owner) } else { None },
-            storage_rebate: if show_storage_rebate {
-                Some(o.storage_rebate)
-            } else {
-                None
-            },
-            previous_transaction: if show_previous_transaction {
-                Some(o.previous_transaction)
-            } else {
-                None
-            },
-            content,
-            bcs,
-            display: None,
-        })
-    }
-}
-
-impl
-    TryFrom<(
-        ObjectRef,
-        Object,
-        Option<MoveStructLayout>,
-        IotaObjectDataOptions,
-        Option<DisplayFieldsResponse>,
-    )> for IotaObjectData
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (object_ref, o, layout, options, display_fields): (
-            ObjectRef,
-            Object,
-            Option<MoveStructLayout>,
-            IotaObjectDataOptions,
-            Option<DisplayFieldsResponse>,
-        ),
-    ) -> Result<Self, Self::Error> {
-        let show_display = options.show_display;
-        let mut data: IotaObjectData = (object_ref, o, layout, options).try_into()?;
-        if show_display {
-            data.display = display_fields;
-        }
-        Ok(data)
     }
 }
 
@@ -835,14 +794,14 @@ impl Display for IotaParsedData {
                 )?;
             }
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
 impl IotaParsedData {
     pub fn try_from_object_read(object_read: ObjectRead) -> Result<Self, anyhow::Error> {
         match object_read {
-            ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {} does not exist", id)),
+            ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {id} does not exist")),
             ObjectRead::Exists(_object_ref, o, layout) => {
                 let data = match o.into_inner().data {
                     Data::Move(m) => {
@@ -856,10 +815,7 @@ impl IotaParsedData {
                 Ok(data)
             }
             ObjectRead::Deleted((object_id, version, digest)) => Err(anyhow::anyhow!(
-                "Object {} was deleted at version {} with digest {}",
-                object_id,
-                version,
-                digest
+                "Object {object_id} was deleted at version {version} with digest {digest}"
             )),
         }
     }
@@ -924,6 +880,14 @@ impl IotaParsedMoveObject {
         match parsed_data {
             IotaParsedData::MoveObject(o) => Ok(o),
             IotaParsedData::Package(_) => Err(anyhow::anyhow!("Object is not a Move object")),
+        }
+    }
+
+    pub fn read_dynamic_field_value(&self, field_name: &str) -> Option<IotaMoveValue> {
+        match &self.fields {
+            IotaMoveStruct::WithFields(fields) => fields.get(field_name).cloned(),
+            IotaMoveStruct::WithTypes { fields, .. } => fields.get(field_name).cloned(),
+            _ => None,
         }
     }
 }

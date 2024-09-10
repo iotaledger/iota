@@ -1,14 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(clippy::unit_arg)]
+
+use std::{convert::TryFrom, fmt};
 
 use anyhow::Result;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::prelude::*;
 use serde::{de, ser};
-use std::{convert::TryFrom, fmt};
 
 /// The minimum status code for validation statuses
 pub static VALIDATION_STATUS_MIN_CODE: u64 = 0;
@@ -40,8 +42,8 @@ pub static EXECUTION_STATUS_MIN_CODE: u64 = 4000;
 /// The maximum status code for runtim statuses
 pub static EXECUTION_STATUS_MAX_CODE: u64 = 4999;
 
-/// A status type is one of 5 different variants, along with a fallback variant in the case that we
-/// don't recognize the status code.
+/// A status type is one of 5 different variants, along with a fallback variant
+/// in the case that we don't recognize the status code.
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub enum StatusType {
     Validation,
@@ -176,7 +178,7 @@ pub enum StatusCode {
     UNKNOWN_VERIFICATION_ERROR = 1000,
     INDEX_OUT_OF_BOUNDS = 1001,
     INVALID_SIGNATURE_TOKEN = 1003,
-    RECURSIVE_STRUCT_DEFINITION = 1005,
+    RECURSIVE_DATATYPE_DEFINITION = 1005,
     FIELD_MISSING_TYPE_ABILITY = 1006,
     INVALID_FALL_THROUGH = 1007,
     NEGATIVE_STACK_SIZE_WITHIN_BLOCK = 1009,
@@ -199,7 +201,7 @@ pub enum StatusCode {
     FREEZEREF_EXISTS_MUTABLE_BORROW_ERROR = 1033,
     BORROWFIELD_TYPE_MISMATCH_ERROR = 1034,
     BORROWFIELD_BAD_FIELD_ERROR = 1035,
-    BORROWFIELD_EXISTS_MUTABLE_BORROW_ERROR = 1036,
+    FIELD_EXISTS_MUTABLE_BORROW_ERROR = 1036,
     COPYLOC_UNAVAILABLE_ERROR = 1037,
     COPYLOC_WITHOUT_COPY_ABILITY = 1038,
     COPYLOC_EXISTS_BORROW_ERROR = 1039,
@@ -308,6 +310,12 @@ pub enum StatusCode {
     // or took too long to run based on metering policies
     PROGRAM_TOO_COMPLEX = 1130,
 
+    ENUM_SWITCH_BAD_OPERAND = 1131,
+    ENUM_TYPE_MISMATCH = 1132,
+    INVALID_ENUM_SWITCH = 1133,
+    ZERO_SIZED_ENUM = 1134,
+    MAX_VARIANTS_REACHED = 1135,
+
     // These are errors that the VM might raise if a violation of internal
     // invariants takes place.
     // Invariant Violation Errors: 2000-2999
@@ -356,6 +364,8 @@ pub enum StatusCode {
     CODE_DESERIALIZATION_ERROR = 3024,
     INVALID_FLAG_BITS = 3025,
     TRAILING_BYTES = 3026,
+    UNKNOWN_ENUM_FLAG = 3027,
+    UNKNOWN_JUMP_TABLE_FLAG = 3028,
 
     // Errors that can arise at runtime
     // Runtime Errors: 4000-4999
@@ -380,9 +390,10 @@ pub enum StatusCode {
     STORAGE_WRITE_LIMIT_REACHED = 4027,
     MEMORY_LIMIT_EXCEEDED = 4028,
     VM_MAX_TYPE_NODES_REACHED = 4029,
+    VARIANT_TAG_MISMATCH = 4030,
 
     // A reserved status to represent an unknown vm status.
-    // this is std::u64::MAX, but we can't pattern match on that, so put the hardcoded value in
+    // this is u64::MAX, but we can't pattern match on that, so put the hardcoded value in
     UNKNOWN_STATUS = 18446744073709551615,
 }
 }
@@ -475,7 +486,8 @@ pub mod sub_status {
     pub const NFE_BCS_SERIALIZATION_FAILURE: u64 = 0x1C5;
 }
 
-/// The `Arbitrary` impl only generates validation statuses since the full enum is too large.
+/// The `Arbitrary` impl only generates validation statuses since the full enum
+/// is too large.
 #[cfg(any(test, feature = "fuzzing"))]
 impl Arbitrary for StatusCode {
     type Parameters = ();
@@ -494,8 +506,8 @@ impl Arbitrary for StatusCode {
 #[test]
 fn test_status_codes() {
     use std::collections::HashSet;
-    // Make sure that within the 0-EXECUTION_STATUS_MAX_CODE that all of the status codes succeed
-    // when they should, and fail when they should.
+    // Make sure that within the 0-EXECUTION_STATUS_MAX_CODE that all of the status
+    // codes succeed when they should, and fail when they should.
     for possible_major_status_code in 0..=EXECUTION_STATUS_MAX_CODE {
         if STATUS_CODE_VALUES.contains(&possible_major_status_code) {
             let status = StatusCode::try_from(possible_major_status_code);
@@ -509,8 +521,8 @@ fn test_status_codes() {
 
     let mut seen_statuses = HashSet::new();
     let mut seen_codes = HashSet::new();
-    // Now make sure that all of the error codes (including any that may be out-of-range) succeed.
-    // Make sure there aren't any duplicate mappings
+    // Now make sure that all of the error codes (including any that may be
+    // out-of-range) succeed. Make sure there aren't any duplicate mappings
     for major_status_code in STATUS_CODE_VALUES.iter() {
         assert!(
             !seen_codes.contains(major_status_code),

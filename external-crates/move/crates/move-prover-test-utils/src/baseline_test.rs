@@ -1,14 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A module supporting baseline (golden) tests.
+
+use std::{fs, path::Path};
 
 use anyhow::anyhow;
 use move_command_line_common::testing::read_env_update_baseline;
 use prettydiff::{basic::DiffOp, diff_lines};
 use regex::Regex;
-use std::{fs, path::Path};
 
 /// Verifies or updates baseline file for the given generated text.
 pub fn verify_or_update_baseline(baseline_file_name: &Path, text: &str) -> anyhow::Result<()> {
@@ -38,12 +40,12 @@ pub fn verify_or_update_baseline(baseline_file_name: &Path, text: &str) -> anyho
     }
 }
 
-/// Clean a content to be usable as a baseline file. Currently, we ensure there are no
-/// trailing whitespaces and no empty last line, because this is required by git-checks.sh.
-/// We also try to detect and remove unstable file names.
+/// Clean a content to be usable as a baseline file. Currently, we ensure there
+/// are no trailing whitespaces and no empty last line, because this is required
+/// by git-checks.sh. We also try to detect and remove unstable file names.
 fn clean_for_baseline(content: &str) -> String {
-    // Regexp for matching unstable filenames in output. This is heuristic and may need refinement
-    // on a case-by-case basis.
+    // Regexp for matching unstable filenames in output. This is heuristic and may
+    // need refinement on a case-by-case basis.
     let rex = Regex::new(r"(/var|/tmp)(/[^/]*)*/(?P<basename>[^.]*\.)").expect("regexp ok");
     let mut res = String::new();
     for line in content.lines() {
@@ -80,14 +82,16 @@ fn diff(old_content: &str, new_content: &str) -> anyhow::Result<()> {
     };
 
     let diff = diff_lines(new_content, old_content);
-    let mut result = vec!["
+    let mut result = vec![
+        "
 New output differs from baseline!
 Call this test with env variable UPBL=1 to regenerate or remove old baseline files.
 Then use your favorite changelist diff tool to verify you are good with the changes.
 
 Or check the rudimentary diff below:
 "
-    .to_string()];
+        .to_string(),
+    ];
     for d in diff.diff() {
         match d {
             DiffOp::Equal(lines) => print_context(&mut result, lines),

@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS } from '@mysten/sui.js/utils';
+import { IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS } from '@iota/iota-sdk/utils';
+import { Network } from '@iota/iota-sdk/client';
 
-import { useNetwork } from '~/context';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { useNetwork } from './';
 
-const DEFAULT_RECOGNIZED_PACKAGES = [SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS];
+const DEFAULT_RECOGNIZED_PACKAGES = [IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS];
 
-export function useRecognizedPackages() {
-	const [network] = useNetwork();
+export function useRecognizedPackages(): string[] {
+    const [network] = useNetwork();
 
-	const recognizedPackages = useFeatureValue('recognized-packages', DEFAULT_RECOGNIZED_PACKAGES);
+    const recognizedPackages = useFeatureValue('recognized-packages', DEFAULT_RECOGNIZED_PACKAGES);
 
-	// Our recognized package list is currently only available on mainnet
-	return network === Network.MAINNET ? recognizedPackages : DEFAULT_RECOGNIZED_PACKAGES;
+    // Our recognized package list is currently only available on mainnet
+    return network === Network.Mainnet ? recognizedPackages : DEFAULT_RECOGNIZED_PACKAGES;
 }

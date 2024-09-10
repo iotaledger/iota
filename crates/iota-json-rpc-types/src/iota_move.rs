@@ -39,7 +39,7 @@ pub type IotaMoveTypeParameterIndex = u16;
 #[path = "unit_tests/iota_move_tests.rs"]
 mod iota_move_tests;
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum IotaMoveAbility {
     Copy,
     Drop,
@@ -47,33 +47,33 @@ pub enum IotaMoveAbility {
     Key,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct IotaMoveAbilitySet {
     pub abilities: Vec<IotaMoveAbility>,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum IotaMoveVisibility {
     Private,
     Public,
     Friend,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveStructTypeParameter {
     pub constraints: IotaMoveAbilitySet,
     pub is_phantom: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct IotaMoveNormalizedField {
     pub name: String,
     #[serde(rename = "type")]
     pub type_: IotaMoveNormalizedType,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedStruct {
     pub abilities: IotaMoveAbilitySet,
@@ -81,7 +81,7 @@ pub struct IotaMoveNormalizedStruct {
     pub fields: Vec<IotaMoveNormalizedField>,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub enum IotaMoveNormalizedType {
     Bool,
     U8,
@@ -105,7 +105,7 @@ pub enum IotaMoveNormalizedType {
     MutableReference(Box<IotaMoveNormalizedType>),
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedFunction {
     pub visibility: IotaMoveVisibility,
@@ -115,13 +115,13 @@ pub struct IotaMoveNormalizedFunction {
     pub return_: Vec<IotaMoveNormalizedType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct IotaMoveModuleId {
     address: String,
     name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedModule {
     pub file_format_version: u32,
@@ -292,14 +292,14 @@ impl From<AbilitySet> for IotaMoveAbilitySet {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum ObjectValueKind {
     ByImmutableReference,
     ByMutableReference,
     ByValue,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum MoveFunctionArgType {
     Pure,
     Object(ObjectValueKind),
@@ -342,13 +342,13 @@ impl Display for IotaMoveValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match self {
-            IotaMoveValue::Number(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::Bool(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::Address(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::String(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Number(value) => write!(writer, "{value}")?,
+            IotaMoveValue::Bool(value) => write!(writer, "{value}")?,
+            IotaMoveValue::Address(value) => write!(writer, "{value}")?,
+            IotaMoveValue::String(value) => write!(writer, "{value}")?,
             IotaMoveValue::UID { id } => write!(writer, "{id}")?,
-            IotaMoveValue::Struct(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::Option(value) => write!(writer, "{:?}", value)?,
+            IotaMoveValue::Struct(value) => write!(writer, "{value}")?,
+            IotaMoveValue::Option(value) => write!(writer, "{value:?}")?,
             IotaMoveValue::Vector(vec) => {
                 write!(
                     writer,
@@ -356,7 +356,7 @@ impl Display for IotaMoveValue {
                     vec.iter().map(|value| format!("{value}")).join(",\n")
                 )?;
             }
-            IotaMoveValue::Variant(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Variant(value) => write!(writer, "{value}")?,
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
@@ -513,7 +513,7 @@ impl IotaMoveStruct {
         }
     }
 
-    pub fn field_value(&self, field_name: &str) -> Option<IotaMoveValue> {
+    pub fn read_dynamic_field_value(&self, field_name: &str) -> Option<IotaMoveValue> {
         match self {
             IotaMoveStruct::WithFields(fields) => fields.get(field_name).cloned(),
             IotaMoveStruct::WithTypes { type_: _, fields } => fields.get(field_name).cloned(),
@@ -536,7 +536,7 @@ impl Display for IotaMoveStruct {
                 writeln!(writer)?;
                 writeln!(writer, "  {}: {type_}", "type".bold().bright_black())?;
                 for (name, value) in fields {
-                    let value = format!("{}", value);
+                    let value = format!("{value}");
                     let value = if value.starts_with('\n') {
                         indent(&value, 2)
                     } else {
@@ -553,7 +553,7 @@ impl Display for IotaMoveStruct {
 fn indent<T: Display>(d: &T, indent: usize) -> String {
     d.to_string()
         .lines()
-        .map(|line| format!("{:indent$}{}", "", line))
+        .map(|line| format!("{:indent$}{line}", ""))
         .join("\n")
 }
 

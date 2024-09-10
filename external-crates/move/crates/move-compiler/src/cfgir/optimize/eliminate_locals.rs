@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeSet;
 
 use crate::{
     cfgir::{cfg::MutForwardCFG, remove_no_ops},
@@ -9,7 +12,6 @@ use crate::{
     parser,
     shared::unique_map::UniqueMap,
 };
-use std::collections::BTreeSet;
 
 /// returns true if anything changed
 pub fn optimize(
@@ -48,13 +50,14 @@ fn count(signature: &FunctionSignature, cfg: &MutForwardCFG) -> BTreeSet<Var> {
 }
 
 mod count {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use move_proc_macros::growing_stack;
 
     use crate::{
         hlir::ast::{FunctionSignature, *},
         parser::ast::{BinOp, UnaryOp},
     };
-    use std::collections::{BTreeMap, BTreeSet};
 
     pub struct Context {
         assigned: BTreeMap<Var, Option<usize>>,
@@ -127,7 +130,8 @@ mod count {
             C::Return { exp: e, .. }
             | C::Abort(e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. }
+            | C::VariantSwitch { subject: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -144,7 +148,7 @@ mod count {
     fn lvalue(context: &mut Context, sp!(_, l_): &LValue, substitutable: bool) {
         use LValue_ as L;
         match l_ {
-            L::Ignore | L::Unpack(_, _, _) => (),
+            L::Ignore | L::Unpack(_, _, _) | L::UnpackVariant(..) => (),
             L::Var { var, .. } => context.assign(var, substitutable),
         }
     }
@@ -157,7 +161,7 @@ mod count {
             | E::Value(_)
             | E::Constant(_)
             | E::UnresolvedError
-            | E::ErrorConstant(_) => (),
+            | E::ErrorConstant { .. } => (),
 
             E::BorrowLocal(_, var) => context.used(var, false),
 
@@ -187,6 +191,8 @@ mod count {
 
             E::Pack(_, _, fields) => fields.iter().for_each(|(_, _, e)| exp(context, e)),
 
+            E::PackVariant(_, _, _, fields) => fields.iter().for_each(|(_, _, e)| exp(context, e)),
+
             E::Multiple(es) => es.iter().for_each(|e| exp(context, e)),
 
             E::Unreachable => panic!("ICE should not analyze dead code"),
@@ -207,7 +213,7 @@ mod count {
         use UnannotatedExp_ as E;
         match &parent_e.exp.value {
             E::UnresolvedError
-            | E::ErrorConstant(_)
+            | E::ErrorConstant { .. }
             | E::BorrowLocal(_, _)
             | E::Copy { .. }
             | E::Freeze(_)
@@ -225,6 +231,9 @@ mod count {
             }
             E::Multiple(es) => es.iter().all(can_subst_exp_single),
             E::Pack(_, _, fields) => fields.iter().all(|(_, _, e)| can_subst_exp_single(e)),
+            E::PackVariant(_, _, _, fields) => {
+                fields.iter().all(|(_, _, e)| can_subst_exp_single(e))
+            }
             E::Vector(_, _, _, eargs) => eargs.iter().all(can_subst_exp_single),
 
             E::Unreachable => panic!("ICE should not analyze dead code"),
@@ -259,10 +268,12 @@ fn eliminate(cfg: &mut MutForwardCFG, ssa_temps: BTreeSet<Var>) {
 }
 
 mod eliminate {
-    use crate::hlir::ast::{self as H, *};
+    use std::collections::{BTreeMap, BTreeSet};
+
     use move_ir_types::location::*;
     use move_proc_macros::growing_stack;
-    use std::collections::{BTreeMap, BTreeSet};
+
+    use crate::hlir::ast::{self as H, *};
 
     pub struct Context {
         eliminated: BTreeMap<Var, Exp>,
@@ -298,7 +309,8 @@ mod eliminate {
             C::Return { exp: e, .. }
             | C::Abort(e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. }
+            | C::VariantSwitch { subject: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -326,7 +338,7 @@ mod eliminate {
     fn lvalue(context: &mut Context, sp!(loc, l_): LValue) -> LRes {
         use LValue_ as L;
         match l_ {
-            l_ @ L::Ignore | l_ @ L::Unpack(_, _, _) => LRes::Same(sp(loc, l_)),
+            l_ @ (L::Ignore | L::Unpack(_, _, _) | L::UnpackVariant(..)) => LRes::Same(sp(loc, l_)),
             L::Var {
                 var,
                 ty,
@@ -363,7 +375,7 @@ mod eliminate {
             | E::Value(_)
             | E::Constant(_)
             | E::UnresolvedError
-            | E::ErrorConstant(_)
+            | E::ErrorConstant { .. }
             | E::BorrowLocal(_, _) => (),
 
             E::ModuleCall(mcall) => {
@@ -388,6 +400,10 @@ mod eliminate {
             }
 
             E::Pack(_, _, fields) => fields.iter_mut().for_each(|(_, _, e)| exp(context, e)),
+
+            E::PackVariant(_, _, _, fields) => {
+                fields.iter_mut().for_each(|(_, _, e)| exp(context, e))
+            }
 
             E::Multiple(es) => es.iter_mut().for_each(|e| exp(context, e)),
 

@@ -1,33 +1,59 @@
-/crates/sui-types/src/crypto.rs @joyqvq @kchalkias @benr-ml
-/crates/sui-types/src/base_types.rs @joyqvq
-/crates/sui-keys/ @joyqvq @patrickkuo
-/crates/sui-protocol-config @mystenmark
+# Default fallback, if no other path below this matches someone from the `move` team has to review
+* @iotaledger/l1-core
 
-*.md @randall-Mysten @ronny-mysten
-# Omit auto-generated changelogs and changesets from docs review:
-/.changeset/*.md
-CHANGELOG.md
+# Everything within the SDK folder
+/sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
 
-# When snapshot changes, most likely we will need to recreate the genesis blob.
-/crates/sui-config/tests/snapshot_tests.rs @tharbert
+# Changes to the genesis builder should be approved by Konstantinos or Mirko at least
+/crates/iota-genesis-builder/ @kodemartin @miker83z
 
-# When native functions change, so we can evaluate cost impact
-/crates/sui-framework/src/natives/ @oxade
+# vm-language team
+/iota-execution/ @miker83z @valeriyr
+/external-crates/ @miker83z @valeriyr
 
-# GraphQL RPC working group
-/crates/sui-graphql-rpc/ @oxade @amnn @wlmyng @stefan-mysten @emmazzz @suiwombat
-/crates/sui-graphql-e2e-tests/ @oxade @amnn @wlmyng @stefan-mysten @emmazzz @suiwombat
+# l1-core-infra team
+/crates/iota-json-rpc*/ @iotaledger/l1-core-infra
+/crates/iota-graphql*/ @iotaledger/l1-core-infra
+/crates/iota-indexer/ @iotaledger/l1-core-infra
+/crates/iota-rest-api/ @iotaledger/l1-core-infra
 
+# dev-tools team
+/crates/iota/ @iotaledger/dev-tools
+/crates/iota-open-rpc/ @iotaledger/dev-tools
+/crates/iota-open-rpc-macros/ @iotaledger/dev-tools
+/crates/iota-sdk/ @iotaledger/dev-tools
+/crates/iota-transaction-builder/ @iotaledger/dev-tools
 
-# Notify Narwhal changes to interested folks.
-/narwhal/crypto/ @joyqvq @kchalkias
-/narwhal/executor/ @asonnino @akichidis @laura-makdah
-/narwhal/network/ @bmwill
-/narwhal/storage/ @akichidis
+# Frontend apps to be looked after by Boxfish Studio or the tooling team
+/apps/ @iotaledger/boxfish @iotaledger/tooling
+/dapps/ @iotaledger/boxfish @iotaledger/tooling
+/linting/ @iotaledger/boxfish @iotaledger/tooling
+/.husky/ @iotaledger/boxfish @iotaledger/tooling
+/.changeset/ @iotaledger/boxfish @iotaledger/tooling
+.eslintrc.js @iotaledger/boxfish @iotaledger/tooling
+.lintstagedrc.json @iotaledger/boxfish @iotaledger/tooling
+.npmrc @iotaledger/boxfish @iotaledger/tooling
+.prettierignore @iotaledger/boxfish @iotaledger/tooling
+graphql.config.ts @iotaledger/boxfish @iotaledger/tooling
+package.json @iotaledger/boxfish @iotaledger/tooling
+pnpm-workspace.yaml @iotaledger/boxfish @iotaledger/tooling
+prettier.config.js @iotaledger/boxfish @iotaledger/tooling
+turbo.json @iotaledger/boxfish @iotaledger/tooling
+vercel.json @iotaledger/boxfish @iotaledger/tooling
 
-/crates/sui-core/src/consensus_adapter.rs @laura-makdah
+# Docs are for DevEx to approve upon
+/docs/ @iotaledger/devx
+# Override ownership of Boxfish Studio and the tooling team for the following files
+/docs/**/package.json @iotaledger/devx
+/docs/**/vercel.json @iotaledger/devx
 
-apps/ @MystenLabs/fe-and-apps
-sdk/ @MystenLabs/sdk-reviewers
-sdk/kiosk @MystenLabs/kiosk-sdk-reviewers
-sdk/wallet-standard @MystenLabs/wallet-kit-reviewers
+# CI Taskforce
+/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+
+# Protect this CODEOWNERS file, with some fallback in case of unavailability
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
+
+# Disable code ownership for these auto-generated files
+/Cargo.lock
+/pnpm-lock.yaml

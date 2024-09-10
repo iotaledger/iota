@@ -1,0 +1,27 @@
+[package]
+name = "iota-framework-tests"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Runs Move tests for iota-framework"
+
+[dev-dependencies]
+prometheus.workspace = true
+
+iota-framework.workspace = true
+iota-move = { workspace = true, features = ["unit_test"] }
+iota-move-build.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
+
+iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
+iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
+move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
+
+move-cli.workspace = true
+move-package.workspace = true
+move-unit-test.workspace = true
+
+[dependencies]

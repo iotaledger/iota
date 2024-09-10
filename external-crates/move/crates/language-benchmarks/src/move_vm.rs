@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::path::PathBuf;
 
 use criterion::{measurement::Measurement, Criterion};
 use move_binary_format::CompiledModule;
@@ -14,7 +17,6 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::BlankStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 use once_cell::sync::Lazy;
-use std::path::PathBuf;
 
 static MOVE_BENCH_SRC_PATH: Lazy<PathBuf> = Lazy::new(|| {
     vec![env!("CARGO_MANIFEST_DIR"), "src", "bench.move"]
@@ -22,12 +24,14 @@ static MOVE_BENCH_SRC_PATH: Lazy<PathBuf> = Lazy::new(|| {
         .collect()
 });
 
-/// Entry point for the bench, provide a function name to invoke in Module Bench in bench.move.
+/// Entry point for the bench, provide a function name to invoke in Module Bench
+/// in bench.move.
 pub fn bench<M: Measurement + 'static>(c: &mut Criterion<M>, fun: &str) {
     let modules = compile_modules();
-    let move_vm = MoveVM::new(move_stdlib::natives::all_natives(
+    let move_vm = MoveVM::new(move_stdlib_natives::all_natives(
         AccountAddress::from_hex_literal("0x1").unwrap(),
-        move_stdlib::natives::GasParameters::zeros(),
+        move_stdlib_natives::GasParameters::zeros(),
+        /* silent debug */ true,
     ))
     .unwrap();
     execute(c, &move_vm, modules, fun);
@@ -38,6 +42,7 @@ fn compile_modules() -> Vec<CompiledModule> {
     let mut src_files = move_stdlib::move_stdlib_files();
     src_files.push(MOVE_BENCH_SRC_PATH.to_str().unwrap().to_owned());
     let (_files, compiled_units) = Compiler::from_files(
+        None,
         src_files,
         vec![],
         move_stdlib::move_stdlib_named_addresses(),
@@ -67,7 +72,7 @@ fn execute<M: Measurement + 'static>(
     for module in modules {
         let mut mod_blob = vec![];
         module
-            .serialize(&mut mod_blob)
+            .serialize_with_version(module.version, &mut mod_blob)
             .expect("Module serialization error");
         session
             .publish_module(mod_blob, sender, &mut UnmeteredGasMeter)

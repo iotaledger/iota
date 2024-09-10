@@ -1,9 +1,9 @@
 [package]
 name = "consensus-core"
 version = "0.1.0"
-license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
@@ -21,17 +21,17 @@ dashmap.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-quinn-proto.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
 mockall.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 prost.workspace = true
+quinn-proto.workspace = true
 rand.workspace = true
 serde.workspace = true
 shared-crypto.workspace = true
-sui-protocol-config.workspace = true
 tap.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -42,8 +42,8 @@ typed-store.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
-tempfile.workspace = true
 telemetry-subscribers.workspace = true
+tempfile.workspace = true
 
 [build-dependencies]
 anemo-build.workspace = true

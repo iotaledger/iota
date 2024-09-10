@@ -1,0 +1,17 @@
+processed 4 tasks
+
+task 0 'publish'. lines 7-17:
+Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'iota::coin::CurrencyCreated<u64>'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 1 'publish'. lines 19-28:
+Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'T0'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 2 'publish'. lines 30-39:
+Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'u64'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 3 'publish'. lines 41-54:
+Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'vector<_::m::X>'. The event's type must be defined in the current module"), command: Some(0) } }

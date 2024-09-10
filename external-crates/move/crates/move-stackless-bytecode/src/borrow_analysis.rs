@@ -1,13 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Data flow analysis computing borrow information for preparation of memory_instrumentation.
+//! Data flow analysis computing borrow information for preparation of
+//! memory_instrumentation.
 
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt};
 
 use itertools::Itertools;
-
 use move_binary_format::file_format::CodeOffset;
 use move_model::{
     ast::TempIndex,
@@ -28,19 +29,20 @@ use crate::{
 
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Default)]
 pub struct BorrowInfo {
-    /// Contains the nodes which are alive. This excludes nodes which are alive because
-    /// other nodes which are alive borrow from them.
+    /// Contains the nodes which are alive. This excludes nodes which are alive
+    /// because other nodes which are alive borrow from them.
     live_nodes: SetDomain<BorrowNode>,
 
     /// Forward borrow information.
     borrowed_by: MapDomain<BorrowNode, SetDomain<(BorrowNode, BorrowEdge)>>,
 
-    /// Backward borrow information. This field is not used during analysis, but computed once
-    /// analysis is done.
+    /// Backward borrow information. This field is not used during analysis, but
+    /// computed once analysis is done.
     borrows_from: MapDomain<BorrowNode, SetDomain<(BorrowNode, BorrowEdge)>>,
 }
 
-/// Represents a write-back from a source node to a destination node with the associated edge
+/// Represents a write-back from a source node to a destination node with the
+/// associated edge
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct WriteBackAction {
     /// the `src` of a write-back action must be a reference
@@ -54,20 +56,20 @@ impl BorrowInfo {
     fn get_children(&self, node: &BorrowNode) -> Vec<&BorrowNode> {
         self.borrowed_by
             .get(node)
-            .map(|s| s.iter().map(|(n, _)| n).collect_vec())
+            .map(|s| s.iter().map(|(n, _)| n).collect())
             .unwrap_or_default()
     }
 
     /// Gets the parents (together with the edges) of this node.
-    fn get_incoming(&self, node: &BorrowNode) -> Vec<(&BorrowNode, &BorrowEdge)> {
+    fn get_incoming(&self, node: &BorrowNode) -> Vec<&(BorrowNode, BorrowEdge)> {
         self.borrows_from
             .get(node)
-            .map(|s| s.iter().map(|(n, e)| (n, e)).collect_vec())
+            .map(|s| s.iter().collect())
             .unwrap_or_default()
     }
 
-    /// Checks whether a node is in use. A node is used if it is in the live_nodes set
-    /// or if it is borrowed by a node which is used.
+    /// Checks whether a node is in use. A node is used if it is in the
+    /// live_nodes set or if it is borrowed by a node which is used.
     pub fn is_in_use(&self, node: &BorrowNode) -> bool {
         if self.live_nodes.contains(node) {
             true
@@ -78,8 +80,9 @@ impl BorrowInfo {
         }
     }
 
-    /// Returns nodes which are dying from this to the next state. This includes those which
-    /// are directly dying plus those from which they borrow. Returns nodes in child-first order.
+    /// Returns nodes which are dying from this to the next state. This includes
+    /// those which are directly dying plus those from which they borrow.
+    /// Returns nodes in child-first order.
     pub fn dying_nodes(&self, next: &BorrowInfo) -> Vec<(BorrowNode, Vec<Vec<WriteBackAction>>)> {
         let mut result = vec![];
         for dying in self.live_nodes.difference(&next.live_nodes) {
@@ -94,8 +97,9 @@ impl BorrowInfo {
         result
     }
 
-    /// Start from this node and follow-up the borrow chain until reaching a live/in-use ancestor.
-    /// Collect possible paths (from this node to a live ancestor) and return them in the DFS order.
+    /// Start from this node and follow-up the borrow chain until reaching a
+    /// live/in-use ancestor. Collect possible paths (from this node to a
+    /// live ancestor) and return them in the DFS order.
     fn collect_dying_ancestor_trees(
         &self,
         node: &BorrowNode,
@@ -221,9 +225,10 @@ impl BorrowInfo {
         }
     }
 
-    /// Collect those leaves which are returned and summarize them in a hyper edge.
-    /// Each of those leaves has a path `in_mut -> ref1 .. -> refn -> out_mut`.
-    /// We create a hyper edge `in_mut --summarize(ref1, .., refn)-> out_mut` for it.
+    /// Collect those leaves which are returned and summarize them in a hyper
+    /// edge. Each of those leaves has a path `in_mut -> ref1 .. -> refn ->
+    /// out_mut`. We create a hyper edge `in_mut --summarize(ref1, ..,
+    /// refn)-> out_mut` for it.
     fn summarize(
         &mut self,
         target: &FunctionTarget<'_>,
@@ -286,7 +291,8 @@ impl BorrowInfo {
         }
     }
 
-    /// Instantiates the summarized borrow graph of a function call in this graph.
+    /// Instantiates the summarized borrow graph of a function call in this
+    /// graph.
     fn instantiate(
         &mut self,
         callee_env: &FunctionEnv,
@@ -459,8 +465,8 @@ impl FunctionTargetProcessor for BorrowAnalysisProcessor {
     }
 }
 
-/// If fun_env matches one of the functions implementing custom mutable borrow semantics,
-/// return the name of this function
+/// If fun_env matches one of the functions implementing custom mutable borrow
+/// semantics, return the name of this function
 fn get_custom_borrow_info_or_none(
     fun_env: &FunctionEnv,
     borrow_natives: &Vec<String>,
@@ -473,7 +479,8 @@ fn get_custom_borrow_info_or_none(
     None
 }
 
-/// Create a borrow annotation that captures the borrow relation between function params and returns
+/// Create a borrow annotation that captures the borrow relation between
+/// function params and returns
 fn summarize_custom_borrow(
     edge_kind: IndexEdgeKind,
     params: &[usize],
@@ -619,10 +626,11 @@ impl<'a> TransferFunctions for BorrowAnalysis<'a> {
                     }
                     AssignKind::Store => {
                         if self.func_target.get_local_type(*src).is_mutable_reference() {
-                            assert!(self
-                                .func_target
-                                .get_local_type(*dest)
-                                .is_mutable_reference());
+                            assert!(
+                                self.func_target
+                                    .get_local_type(*dest)
+                                    .is_mutable_reference()
+                            );
                             state.add_edge(src_node, dest_node, BorrowEdge::Direct);
                         }
                     }
@@ -677,7 +685,8 @@ impl<'a> TransferFunctions for BorrowAnalysis<'a> {
                                     let callee_info = if mid.qualified(*fid)
                                         == self.func_target.func_env.get_qualified_id()
                                     {
-                                        // self recursion (this is because we removed the current target from `self.targets`)
+                                        // self recursion (this is because we removed the current
+                                        // target from `self.targets`)
                                         self.func_target.get_annotations().get::<BorrowAnnotation>()
                                     } else {
                                         let callee_target = self
@@ -691,7 +700,8 @@ impl<'a> TransferFunctions for BorrowAnalysis<'a> {
                                             BorrowAnnotation::default()
                                         }
                                         Some(annotation) => {
-                                            // non-recursive case or Nth iteration of fixedpoint (N >= 1)
+                                            // non-recursive case or Nth iteration of fixedpoint (N
+                                            // >= 1)
                                             annotation.clone()
                                         }
                                     }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// <reference types="vitest" />
@@ -12,22 +13,22 @@ process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-	plugins: [react(), svgr(), pluginRewriteAll()],
-	test: {
-		// Omit end-to-end tests:
-		exclude: [...configDefaults.exclude, 'tests/**'],
-		css: true,
-		globals: true,
-		environment: 'happy-dom',
-	},
-	build: {
-		// Set the output directory to match what CRA uses:
-		outDir: 'build',
-		sourcemap: true,
-	},
-	resolve: {
-		alias: {
-			'~': new URL('./src', import.meta.url).pathname,
-		},
-	},
+    plugins: [react(), svgr(), pluginRewriteAll()],
+    test: {
+        // Omit end-to-end tests:
+        exclude: [...configDefaults.exclude, 'tests/**'],
+        css: true,
+        globals: true,
+        environment: 'happy-dom',
+    },
+    build: {
+        // Set the output directory to match what CRA uses:
+        outDir: 'build',
+        sourcemap: true,
+    },
+    resolve: {
+        alias: {
+            '~': new URL('./src', import.meta.url).pathname,
+        },
+    },
 });

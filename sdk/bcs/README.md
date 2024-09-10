@@ -6,33 +6,32 @@ available in both Browser and NodeJS environments in a type-safe way.`
 
 ## Install
 
-To install, add the [`@mysten/bcs`](https://www.npmjs.com/package/@mysten/bcs) package to your
-project:
+To install, add the [`@iota/bcs`](https://www.npmjs.com/package/@iota/bcs) package to your project:
 
 ```sh npm2yarn
-npm i @mysten/bcs
+npm i @iota/bcs
 ```
 
 ## Quickstart
 
 ```ts
-import { bcs } from '@mysten/bcs';
+import { bcs } from '@iota/bcs';
 
 // define UID as a 32-byte array, then add a transform to/from hex strings
 const UID = bcs.array(32, bcs.u8()).transform({
-	input: (id: string) => fromHex(id),
-	output: (id) => toHex(id),
+    input: (id: string) => fromHex(id),
+    output: (id) => toHex(id),
 });
 
 const Coin = bcs.struct('Coin', {
-	id: UID,
-	value: bcs.u64(),
+    id: UID,
+    value: bcs.u64(),
 });
 
 // deserialization: BCS bytes into Coin
 const bcsBytes = Coin.serialize({
-	id: '0000000000000000000000000000000000000000000000000000000000000001',
-	value: 1000000n,
+    id: '0000000000000000000000000000000000000000000000000000000000000001',
+    value: 1000000n,
 }).toBytes();
 
 const coin = Coin.parse(bcsBytes);
@@ -50,9 +49,9 @@ To be able to serialize the data and later deserialize it, a schema has to be cr
 built-in primitives, such as `string` or `u64`). There are no type hints in the serialized bytes on
 what they mean, so the schema used for decoding must match the schema used to encode the data.
 
-The `@mysten/bcs` library can be used to define schemas that can serialize and deserialize BCS
-encoded data, and and can infer the correct TypeScript for the schema from the definitions
-themselves rather than having to define them manually.
+The `@iota/bcs` library can be used to define schemas that can serialize and deserialize BCS encoded
+data, and and can infer the correct TypeScript for the schema from the definitions themselves rather
+than having to define them manually.
 
 ## Basic types
 
@@ -69,7 +68,7 @@ following table lists the primitive types available:
 | `bytes(size)`         | `Uint8Array` | `Iterable<number>`           | Fixed length bytes                                                          |
 
 ```ts
-import { bcs } from '@mysten/bcs';
+import { bcs } from '@iota/bcs';
 
 // Integers
 const u8 = bcs.u8().serialize(100).toBytes();
@@ -108,7 +107,7 @@ For most use-cases you'll want to combine primitive types into more complex type
 | `map(K, V)`            | A map of keys of type `K` to values of type `V`       |
 
 ```ts
-import { bcs } from '@mysten/bcs';
+import { bcs } from '@iota/bcs';
 
 // Vectors
 const intList = bcs.vector(bcs.u8()).serialize([1, 2, 3, 4, 5]).toBytes();
@@ -187,7 +186,7 @@ To define a generic struct or an enum, you can define a generic typescript funct
 
 ```ts
 // Example: Generics
-import { bcs, BcsType } from '@mysten/bcs';
+import { bcs, BcsType } from '@iota/bcs';
 
 // The T typescript generic is a placeholder for the typescript type of the generic value
 // The T argument will be the bcs type passed in when creating a concrete instance of the Container type
@@ -238,9 +237,9 @@ array. To handle this, you can use the `transform` API to map between the two fo
 
 ```ts
 const Address = bcs.bytes(32).transform({
-	// To change the input type, you need to provide a type definition for the input
-	input: (val: string) => fromHEX(val),
-	output: (val) => toHEX(val),
+    // To change the input type, you need to provide a type definition for the input
+    input: (val: string) => fromHEX(val),
+    output: (val) => toHEX(val),
 });
 
 const serialized = Address.serialize('0x000000...').toBytes();
@@ -253,38 +252,38 @@ when calling `serialize`. The `output` type can generally be inferred from the d
 input type will need to be provided explicitly. In some cases, for complex transforms, you'll need
 to manually type the return
 
-transforms can also handle more complex types. For instance, `@mysten/sui.js` uses the following
+transforms can also handle more complex types. For instance, `@iota/iota-sdk` uses the following
 definition to transform enums into a more TypeScript friends format:
 
 ```ts
 type Merge<T> = T extends infer U ? { [K in keyof U]: U[K] } : never;
 type EnumKindTransform<T> = T extends infer U
-	? Merge<(U[keyof U] extends null | boolean ? object : U[keyof U]) & { kind: keyof U }>
-	: never;
+    ? Merge<(U[keyof U] extends null | boolean ? object : U[keyof U]) & { kind: keyof U }>
+    : never;
 
 function enumKind<T extends object, Input extends object>(type: BcsType<T, Input>) {
-	return type.transform({
-		input: ({ kind, ...val }: EnumKindTransform<Input>) =>
-			({
-				[kind]: val,
-			}) as Input,
-		output: (val) => {
-			const key = Object.keys(val)[0] as keyof T;
+    return type.transform({
+        input: ({ kind, ...val }: EnumKindTransform<Input>) =>
+            ({
+                [kind]: val,
+            }) as Input,
+        output: (val) => {
+            const key = Object.keys(val)[0] as keyof T;
 
-			return { kind: key, ...val[key] } as EnumKindTransform<T>;
-		},
-	});
+            return { kind: key, ...val[key] } as EnumKindTransform<T>;
+        },
+    });
 }
 
 const MyEnum = enumKind(
-	bcs.enum('MyEnum', {
-		A: bcs.struct('A', {
-			id: bcs.u8(),
-		}),
-		B: bcs.struct('B', {
-			val: bcs.string(),
-		}),
-	}),
+    bcs.enum('MyEnum', {
+        A: bcs.struct('A', {
+            id: bcs.u8(),
+        }),
+        B: bcs.struct('B', {
+            val: bcs.string(),
+        }),
+    }),
 );
 
 // Enums wrapped with enumKind flatten the enum variants and add a `kind` field to differentiate them
@@ -301,7 +300,7 @@ preserves type information for the serialized bytes, and can be used to get raw 
 formats.
 
 ```ts
-import { bcs, fromB58, fromB64, fromHex } from '@mysten/bcs';
+import { bcs, fromB58, fromB64, fromHex } from '@iota/bcs';
 
 const serializedString = bcs.string().serialize('this is a string');
 
@@ -334,11 +333,11 @@ You can infer these types in one of 2 ways, either using the `$inferType` and `$
 properties on a `BcsType`, or using the `InferBcsType` and `InferBcsInput` type helpers.
 
 ```ts
-import { bcs, type InferBcsType, type InferBcsInput } from '@mysten/bcs';
+import { bcs, type InferBcsType, type InferBcsInput } from '@iota/bcs';
 
 const MyStruct = bcs.struct('MyStruct', {
-	id: bcs.u64(),
-	name: bcs.string(),
+    id: bcs.u64(),
+    name: bcs.string(),
 });
 
 // using the $inferType and $inferInput properties

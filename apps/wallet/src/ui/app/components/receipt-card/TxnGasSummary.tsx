@@ -1,45 +1,44 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GAS_TYPE_ARG } from '_redux/slices/sui-objects/Coin';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin } from '@mysten/core';
-import type { GasCostSummary } from '@mysten/sui.js/client';
+import { useFormatCoin } from '@iota/core';
 
-type TxnGasSummaryProps = {
-	gasSummary?: GasCostSummary;
-	totalGas: bigint;
-	transferAmount: bigint | null;
-};
+interface TxnGasSummaryProps {
+    totalGas: bigint;
+    transferAmount: bigint | null;
+}
 
 //TODO add gas breakdown
-export function TxnGasSummary({ gasSummary, totalGas, transferAmount }: TxnGasSummaryProps) {
-	const [totalAmount, totalAmountSymbol] = useFormatCoin(
-		totalGas + (transferAmount || 0n),
-		GAS_TYPE_ARG,
-	);
-	const [gas, symbol] = useFormatCoin(totalGas, GAS_TYPE_ARG);
+export function TxnGasSummary({ totalGas, transferAmount }: TxnGasSummaryProps) {
+    const [totalAmount, totalAmountSymbol] = useFormatCoin(
+        totalGas + (transferAmount || 0n),
+        IOTA_TYPE_ARG,
+    );
+    const [gas, symbol] = useFormatCoin(totalGas, IOTA_TYPE_ARG);
 
-	return (
-		<div className="flex flex-col w-full items-center gap-3.5 border-t border-solid border-steel/20 border-x-0 border-b-0 py-3.5 first:pt-0">
-			<div className="flex justify-between items-center w-full">
-				<Text variant="body" weight="medium" color="steel-darker">
-					Gas Fees
-				</Text>
-				<Text variant="body" weight="medium" color="steel-darker">
-					{gas} {symbol}
-				</Text>
-			</div>
-			{transferAmount ? (
-				<div className="flex justify-between items-center w-full">
-					<Text variant="body" weight="medium" color="steel-darker">
-						Total Amount
-					</Text>
-					<Text variant="body" weight="medium" color="steel-darker">
-						{totalAmount} {totalAmountSymbol}
-					</Text>
-				</div>
-			) : null}
-		</div>
-	);
+    return (
+        <div className="border-steel/20 flex w-full flex-col items-center gap-3.5 border-x-0 border-b-0 border-t border-solid py-3.5 first:pt-0">
+            <div className="flex w-full items-center justify-between">
+                <Text variant="body" weight="medium" color="steel-darker">
+                    Gas Fees
+                </Text>
+                <Text variant="body" weight="medium" color="steel-darker">
+                    {gas} {symbol}
+                </Text>
+            </div>
+            {transferAmount ? (
+                <div className="flex w-full items-center justify-between">
+                    <Text variant="body" weight="medium" color="steel-darker">
+                        Total Amount
+                    </Text>
+                    <Text variant="body" weight="medium" color="steel-darker">
+                        {totalAmount} {totalAmountSymbol}
+                    </Text>
+                </div>
+            ) : null}
+        </div>
+    );
 }

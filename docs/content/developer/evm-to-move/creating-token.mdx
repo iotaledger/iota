@@ -1,0 +1,147 @@
+---
+title: Creating an ERC-20-like token
+---
+
+## How this works in Solidity / EVM
+
+One of the most commonly used building blocks in Solidity/EVM is a contract implementing the [ERC-20 token standard](https://ethereum.org/en/developers/docs/standards/tokens/erc-20/). The ERC-20 Token standard is for fungible tokens, allowing anyone to deploy their tokens on a chain that works with other dApps expecting them. There's little magic going on here; a token is just a regular smart contract with certain standardized functionality implemented (like a function to get the token's name, symbol, decimals, and functionality to transfer tokens to other addresses). The deployed token contract keeps track of all balances, so if you hold an ERC-20 token, that actually means that a mapping inside that token contract keeps track of how many of those tokens belong to your address.
+
+A typical ERC-20 token in Solidity looks a bit like this:
+
+```solidity title="contracts/ExampleCoin.sol"
+pragma solidity ^0.8.3;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract ExampleCoin is ERC20 {
+    constructor() ERC20("ExampleCoin", "EXAMPLE") {
+        _mint(msg.sender, 10000 * 10 ** decimals());
+    }
+}
+```
+
+The version pragma on the first line indicates what version of the Solidity compiler should be used for this contract. Different versions have different properties, which have to be taken into account. For example, versions before 0.8 need additional checks or helper libraries (SafeMath) when doing calculations to avoid causing any overflows. This is no longer required with 0.8+.
+
+This contract inherits its ERC20 properties from a third party, the ERC20.sol library from OpenZeppelin, which is broadly used, battle-hardened, tested, proven reliable, and considered safe to use. The contract's constructor is overwritten to provide the token basics like Token name and Symbol according to the ERC20 standard. The contract mints 10,000 tokens with the standard amount of 18 decimals and puts them in the name of the publisher of this smart contract.
+
+Overall, it looks like a simple contract, but it has some downsides. By importing external code, the complexity of the contract is abstracted. Still, you unquestioningly trust the library you are importing, which could be risky. Because the token itself is just an interpretation of a contract and not actually a token like the native asset (like, for example, ETH on Ethereum), it can't be used in the same manner as a normal native asset, meaning you need two implementations to deal with tokens and workarounds like wrapping native tokens to work around that. This also prevents the easy discovery of tokens you own, given you need to query a specific contract to find out your balance, so if you need to know which address this contract resides in, you are out of luck. Then there's also the option to `approve()` other addresses to use your token (for example, when you interact with a Decentralised Exchange), which is highly criticized for its implementation and what that means for the security of end users.
+
+## How would this work in IOTA Move?
+
+IOTA Move takes another approach when it comes to tokens. A standard, built-in module called `Coin` allows for the creation of and interaction with tokens. Unlike with EVM, the `Coin` implementation is used for every unrestricted fungible token by default, including the chain native asset (`IOTA`). This means that unlike ERC-20, a custom `Coin` is on the same level as the `IOTA` token implementation; they are both simply `Coin` instances - no need for a `wIOTA` here.
+
+IOTA Move takes a radically different approach regarding tokens in terms of ownership and storage. Unlike Solidity, where balances are stored in the state of the contract, IOTA Move works with objects; The more it's being used, the more objects there will be. First, there is the `Coin` object itself. A `Coin` represents a transferable balance of a specific type of token as a (owned) object. You can transfer and receive coins like any other transferable object; however, if you need to transfer a smaller amount than the amount contained within the `Coin`, you need to split that amount into another `Coin` object, which you can transfer. 
+
+The initial creation of `Coin` takes place by minting these coins. This is usually done in a smart contract (module) in IOTA Move and looks like this:
+
+```move title="examples/Exampletoken.move"
+module examples::exampletoken {
+    use std::option;
+    use iota::coin;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
+
+    /// One-Time-Witness of kind: `Coin<package_object::exampletoken::EXAMPLETOKEN>`
+    struct EXAMPLETOKEN has drop {}
+
+    fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
+        let (treasurycap, metadata) = coin::create_currency(
+            witness,
+            6,                  // decimals
+            b"EXAMPLE",         // symbol
+            b"Example Coin",     // name
+            b"Just an example",  // description
+            option::none(),     // icon URL
+            ctx
+        );
+
+        // transfer the `TreasuryCap` to the sender, admin capabilities
+        transfer::public_transfer(treasurycap, tx_context::sender(ctx));
+
+        // metadata is typically frozen after creation
+        transfer::public_freeze_object(metadata);
+    }
+}
+```
+
+There's a lot to unpack here; let's look at it piece by piece. In IOTA Move, there is no 'compiler version' defined within the module itself, like in Solidity.
+
+A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `iota` package. The `std` and `iota` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](../getting-started/create-a-package.mdx).
+
+After the aliases, we see an empty struct defined:
+
+```move
+struct EXAMPLETOKEN has drop {}
+```
+
+This is the definition of the so-called [One-Time-Witness](../iota-101/move-overview/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
+
+The `init` function is called automatically when a package is published for every module. The One-Time-Witness and a `TxContext` object containing more information about the function call itself, like the address deploying the package (sender), are passed automatically.
+
+Instead of using inheritance (which is not a thing in Move), the static `coin::create_currency` function is called from the aliased coin package to create a new token. Instead of returning a `Coin`, it returns two other objects: A `TreasuryCap` and a `Metadata` object. The first has the functionality to mint new `Coin` objects of this type, and the second stores the `Metadata` of the newly created token as provided. Typically, the `TreasuryCap` is sent back to the deployer of the package, where the `Metadata` object is typically frozen (publicly accessible but read-only), Which can also be seen in this example.
+
+After publishing this package, the `init` functionality is called, and we now have some metadata published and a `TreasuryCap` object, which we received. We can use this `TreasuryCap` with the functionality in the `Coin` module to mint and burn tokens, such as using the command line tools or an SDK. In this example, we use the CLI to mint five new tokens and transfer them to a new address:
+
+```bash
+./iota client call --function mint_and_transfer --module coin --package 0x...<package_address>... --args 0x...<owned_cap_object_addr>... 5 "0x...receiver..." --type-args $0x...<deployed_token_addr>...::exampletoken::EXAMPLETOKEN --gas-budget 10000
+```
+
+An important thing to note here is that unlike with ERC-20, a `Coin` has some properties that hold true for every `Coin` type, including the ability to freely transfer `Coin` objects without limitation (except [Regulated Coins](../standards/coin.mdx#regulated-coins) which can block transfers on a per-address base). You can't simply add limiting logic to your module like you can with an ERC-20 contract. Still, you would need to wrap the `Coin` in another module that does hold these constraints to implement this logic.
+
+### Using `CoinManager`
+
+The standard implementation of using `Coin`, `TreasuryCap`, and `Metadata` is pretty straightforward but also a bit bare-bones regarding functionality. For example, adding additional metadata besides the standard fields is impossible. Querying the total supply is only possible for the holder of the `TreasuryCap` and not public info. There is no way to limit the maximum supply of a given coin transparently. To address this and make this possible in a standardized way, we also provide a so-called `CoinManager` implementation which takes over the ownership of the `TreasuryCap` and uses it to make the above possible, all from within a single `CoinManager` object. 
+
+We recommend new tokens to abstract the management of the token with the `CoinManager` to provide a more transparent and trustworthy token while retaining administrative power and gaining usable functionality. You can do this by simply creating a `CoinManager` within the `init` function of your module, creating your token by passing in the non-transferred/frozen `TreasuryCap` and `Metadata` objects:
+
+```move title="examples/Exampletoken.move"
+use iota::coin_manager;
+    
+fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
+    let (treasurycap, metadata) = coin::create_currency(
+        witness,
+        6,                  // decimals
+        b"EXAMPLE",         // symbol
+        b"Example Coin",     // name
+        b"Just an example",  // description
+        option::none(),     // icon URL
+        ctx
+    );
+   
+	// Creating the Manager, transferring ownership of the `TreasuryCap` to it
+    let (newtreasurycap, metacap, mut manager) = coin_manager::new(treasurycap, metadata, ctx);
+
+    // Limiting the maximum supply to `100`
+    newtreasurycap.enforce_maximum_supply(&mut manager, 100);
+
+    // Returning a new `CoinManagerTreasuryCap` to the creator of the `Coin`
+    transfer::public_transfer(newtreasurycap, ctx.sender());
+
+    // Returning a new `CoinManagerMetadataCap` to the creator of the `Coin`
+    transfer::public_transfer(metacap, ctx.sender());
+
+    // Publicly sharing the `CoinManager` object for convenient usage by anyone interested
+    transfer::public_share_object(manager);
+}
+```
+
+### Using Closed-Loop tokens
+
+While the `CoinManager` can limit and expand upon the management capabilities of a `Coin` type, the same rules for using a `Coin` still apply: unrestricted freedom to transfer tokens. If you need to limit this, you can either wrap the `Coin` instances in another object that adds limitations, or you can use the Closed-Loop `Token` standard, which does this in a comprehensive and standardized way. You can read more about how Closed-Loop tokens work in [the documentation](../standards/closed-loop-token.mdx).
+
+## Differences, pitfalls, pros and cons
+
+To sum up the most important differences between the two approaches:
+
+| Solidity/EVM                                                                                                                      | IOTA Move                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tokens as a contract                                                                                                              | Tokens as (owned) objects                                                                                                                                                                                                                                            |
+| All state within the same contract                                                                                                | State spread out over various objects (`TreasuryCap`, `Metadata`, and various `Coin` objects)                                                                                                                                                                         |
+| Native token and ERC-20 are implemented differently                                                                               | Both the chain native asset and custom tokens are `Coin` objects and work the same.                                                                                                                                                                                  |
+| Token logic is usually abstracted in externally imported libraries                                                                | Token logic is part of the `iota-framework` `Coin` module                                                                                                                                                                                                             |
+| Admin functionality like minting is implemented in the contract itself and is fully customizable.                                          | Admin functionality is standardized using a `TreasuryCap`, which can be used, transferred, or burned predictably.                                                                                                                                             |
+| Token balances can only be found if you have the smart contract address of the tokens you want to know the balance for            | All tokens are known and available in your wallet, given they are transferred to you as objects.                                                                                                                                                                      |
+| Modifications can all take place within the smart contract itself                                                                 | Modification to logic, with things like restricting if a `Coin` can be transferred, needs a different approach where the `Coin` is wrapped inside another object that limits the standard functionality of `Coin` based on conditions defined in that wrapper object. |
+| Non-enforced standard functionality (you can implement the ERC-20 functions as you please, including in for users undesired ways) | Enforced standard functionality (every `Coin` can be used in the same way and under the same assumptions)                                                                                                                                                            |
+
+While the Solidity/EVM approach is easy to work with and modify from a developer's perspective, it does have its downsides from an end-user perspective. You can not simply assume every ERC-20 token can be transferred as you expected without thoroughly reading and understanding the source code of those smart contracts, which is something most people can't do or don't do, given how time-consuming this is. This can lead to things like getting taxed for transfers (part of the transfer could go to the project deploying, for example), being blocked from doing a transfer (either with a malicious token or through a regulated framework), or simply losing all your tokens because they can be moved based on the logic implemented in the token contract. With the standard `Coin` implementation, this is not the case. You can assume that if you hold a `Coin`, you can always freely transfer it without any further limitations, as long as it's a `Coin` object. The logic is fixed, documented, and well-known. 

@@ -148,7 +148,7 @@ impl Display for IotaEvent {
             self.type_
         )?;
         if let Some(ts) = self.timestamp_ms {
-            writeln!(f, " │ Timestamp: {}\n └──", ts)?;
+            writeln!(f, " │ Timestamp: {ts}\n └──")?;
         }
         writeln!(f, " │ ParsedJSON:")?;
         let table_string = table.to_string();

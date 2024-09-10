@@ -1,44 +1,49 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! An identifier is the name of an entity (module, resource, function, etc) in Move.
+//! An identifier is the name of an entity (module, resource, function, etc) in
+//! Move.
 //!
-//! A valid identifier consists of an ASCII string which satisfies any of the conditions:
+//! A valid identifier consists of an ASCII string which satisfies any of the
+//! conditions:
 //!
-//! * The first character is a letter and the remaining characters are letters, digits or
-//!   underscores.
-//! * The first character is an underscore, and there is at least one further letter, digit or
-//!   underscore.
+//! * The first character is a letter and the remaining characters are letters,
+//!   digits or underscores.
+//! * The first character is an underscore, and there is at least one further
+//!   letter, digit or underscore.
 //!
 //! The spec for allowed identifiers is similar to Rust's spec
 //! ([as of version 1.38](https://doc.rust-lang.org/1.38.0/reference/identifiers.html)).
 //!
-//! Allowed identifiers are currently restricted to ASCII due to unresolved issues with Unicode
-//! normalization. See [Rust issue #55467](https://github.com/rust-lang/rust/issues/55467) and the
-//! associated RFC for some discussion. Unicode identifiers may eventually be supported once these
-//! issues are worked out.
+//! Allowed identifiers are currently restricted to ASCII due to unresolved
+//! issues with Unicode normalization. See [Rust issue #55467](https://github.com/rust-lang/rust/issues/55467) and the
+//! associated RFC for some discussion. Unicode identifiers may eventually be
+//! supported once these issues are worked out.
 //!
-//! This module only determines allowed identifiers at the bytecode level. Move source code will
-//! likely be more restrictive than even this, with a "raw identifier" escape hatch similar to
-//! Rust's `r#` identifiers.
+//! This module only determines allowed identifiers at the bytecode level. Move
+//! source code will likely be more restrictive than even this, with a "raw
+//! identifier" escape hatch similar to Rust's `r#` identifiers.
 //!
 //! Among other things, identifiers are used to:
 //! * specify keys for lookups in storage
 //! * do cross-module lookups while executing transactions
 
-use crate::gas_algebra::AbstractMemorySize;
+use std::{borrow::Borrow, fmt, ops::Deref, str::FromStr};
+
 use anyhow::{bail, Result};
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::prelude::*;
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Borrow, fmt, ops::Deref, str::FromStr};
+
+use crate::gas_algebra::AbstractMemorySize;
 
 /// Return true if this character can appear in a Move identifier.
 ///
-/// Note: there are stricter restrictions on whether a character can begin a Move
-/// identifier--only alphabetic characters are allowed here.
+/// Note: there are stricter restrictions on whether a character can begin a
+/// Move identifier--only alphabetic characters are allowed here.
 #[inline]
 pub const fn is_valid_identifier_char(c: char) -> bool {
     matches!(c, '_' | 'a'..='z' | 'A'..='Z' | '0'..='9')
@@ -48,7 +53,8 @@ pub const fn is_valid_identifier_char(c: char) -> bool {
 /// ASCII identifier characters.
 const fn all_bytes_valid(b: &[u8], start_offset: usize) -> bool {
     let mut i = start_offset;
-    // TODO(philiphayes): use for loop instead of while loop when it's stable in const fn's.
+    // TODO(philiphayes): use for loop instead of while loop when it's stable in
+    // const fn's.
     while i < b.len() {
         if !is_valid_identifier_char(b[i] as char) {
             return false;
@@ -60,9 +66,11 @@ const fn all_bytes_valid(b: &[u8], start_offset: usize) -> bool {
 
 /// Describes what identifiers are allowed.
 ///
-/// For now this is deliberately restrictive -- we would like to evolve this in the future.
-// TODO: "<SELF>" is coded as an exception. It should be removed once CompiledScript goes away.
-// Note: needs to be pub as it's used in the `ident_str!` macro.
+/// For now this is deliberately restrictive -- we would like to evolve this in
+/// the future.
+// TODO: "<SELF>" is coded as an exception. It should be removed once
+// CompiledScript goes away. Note: needs to be pub as it's used in the
+// `ident_str!` macro.
 pub const fn is_valid(s: &str) -> bool {
     // Rust const fn's don't currently support slicing or indexing &str's, so we
     // have to operate on the underlying byte slice. This is not a problem as
@@ -92,7 +100,8 @@ pub(crate) static ALLOWED_NO_SELF_IDENTIFIERS: &str =
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
 pub struct Identifier(Box<str>);
-// An identifier cannot be mutated so use Box<str> instead of String -- it is 1 word smaller.
+// An identifier cannot be mutated so use Box<str> instead of String -- it is 1
+// word smaller.
 
 impl Identifier {
     /// Creates a new `Identifier` instance.
@@ -110,7 +119,7 @@ impl Identifier {
         is_valid(s.as_ref())
     }
 
-    /// Returns if this identifier is "<SELF>".
+    /// Returns if this identifier is `<SELF>`.
     /// TODO: remove once we fully separate CompiledScript & CompiledModule.
     pub fn is_self(&self) -> bool {
         &*self.0 == "<SELF>"
@@ -129,8 +138,8 @@ impl Identifier {
 
     /// Converts this `Identifier` into a `String`.
     ///
-    /// This is not implemented as a `From` trait to discourage automatic conversions -- these
-    /// conversions should not typically happen.
+    /// This is not implemented as a `From` trait to discourage automatic
+    /// conversions -- these conversions should not typically happen.
     pub fn into_string(self) -> String {
         self.0.into()
     }
@@ -210,8 +219,8 @@ impl IdentStr {
 
     /// Converts `self` to a `&str`.
     ///
-    /// This is not implemented as a `From` trait to discourage automatic conversions -- these
-    /// conversions should not typically happen.
+    /// This is not implemented as a `From` trait to discourage automatic
+    /// conversions -- these conversions should not typically happen.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -231,6 +240,12 @@ impl IdentStr {
 impl Borrow<IdentStr> for Identifier {
     fn borrow(&self) -> &IdentStr {
         self
+    }
+}
+
+impl Borrow<str> for Identifier {
+    fn borrow(&self) -> &str {
+        &self.0
     }
 }
 
@@ -312,8 +327,9 @@ macro_rules! ident_str {
         // (2) we've just asserted that IdentStr impls RefCast<From = str>, which
         //     already guarantees the transmute is safe (RefCast checks that
         //     IdentStr(str) is #[repr(transparent)]).
-        // (3) both in and out lifetimes are 'static, so we're not widening the lifetime.
-        // (4) we've just asserted that the IdentStr passes the is_valid check.
+        // (3) both in and out lifetimes are 'static, so we're not widening the
+        // lifetime. (4) we've just asserted that the IdentStr passes the
+        // is_valid check.
         //
         // Note: this lint is unjustified and no longer checked. See issue:
         // https://github.com/rust-lang/rust-clippy/issues/6372

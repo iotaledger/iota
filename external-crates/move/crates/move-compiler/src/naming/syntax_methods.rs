@@ -1,12 +1,15 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
 
+use move_ir_types::location::*;
+
 use crate::{
     diag,
     editions::FeatureGate,
-    expansion::ast::{self as E, Attribute, Attribute_, ModuleIdent},
+    expansion::ast::{Attribute, Attribute_, ModuleIdent},
     naming::{
         ast::{
             self as N, SyntaxMethod, SyntaxMethodKind, SyntaxMethodKind_, SyntaxMethods, TypeName,
@@ -16,7 +19,6 @@ use crate::{
     parser::ast::FunctionName,
     shared::{known_attributes::SyntaxAttribute, CompilationEnv},
 };
-use move_ir_types::location::*;
 
 #[derive(PartialEq, Eq, Ord, PartialOrd)]
 enum SyntaxMethodPrekind_ {
@@ -76,20 +78,6 @@ pub(super) fn resolve_syntax_attributes(
         return None;
     }
 
-    let public_visibility = match function.visibility {
-        E::Visibility::Public(loc) => loc,
-        E::Visibility::Friend(_) | E::Visibility::Package(_) | E::Visibility::Internal => {
-            let msg = "Syntax attributes may only appear on public functions";
-            let fn_msg = "This function is not public";
-            context.env.add_diag(diag!(
-                Declarations::InvalidVisibilityModifier,
-                (attr_loc, msg),
-                (function_name.0.loc, fn_msg)
-            ));
-            return None;
-        }
-    };
-
     let method_entry = syntax_methods.entry(type_name.clone()).or_default();
 
     for prekind in syntax_method_prekinds {
@@ -108,7 +96,7 @@ pub(super) fn resolve_syntax_attributes(
         } else {
             let new_syntax_method = SyntaxMethod {
                 loc: function_name.0.loc,
-                public_visibility,
+                visibility: function.visibility,
                 kind,
                 tname: type_name.clone(),
                 target_function: (*module_name, *function_name),
@@ -159,7 +147,8 @@ fn attr_param_from_str(loc: Loc, name_str: &str) -> Option<SyntaxMethodPrekind> 
     }
 }
 
-/// Resolve the mapping for a function + syntax attribute into a SyntaxMethodKind.
+/// Resolve the mapping for a function + syntax attribute into a
+/// SyntaxMethodKind.
 fn resolve_syntax_method_prekind(
     env: &mut CompilationEnv,
     sp!(loc, attr_): &Attribute,
@@ -361,8 +350,7 @@ fn valid_return_type(
                 valid_index_return_type(context, loc, ty)
             } else if valid_mut_ref(ty) {
                 let msg = format!("Invalid {} annotation", SyntaxAttribute::SYNTAX);
-                let tmsg =
-                    "This syntax method must return an immutable reference to match its subject type";
+                let tmsg = "This syntax method must return an immutable reference to match its subject type";
                 context.env.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*loc, msg),

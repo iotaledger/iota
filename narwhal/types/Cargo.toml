@@ -1,16 +1,16 @@
 [package]
 name = "narwhal-types"
 version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
 publish = false
 
 [dependencies]
 base64.workspace = true
 bcs.workspace = true
 bytes.workspace = true
-derive_builder.workspace = true
+derive_builder = "0.20"
 enum_dispatch.workspace = true
 futures.workspace = true
 indexmap.workspace = true
@@ -28,31 +28,31 @@ tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tonic.workspace = true
 tracing.workspace = true
 
+anemo.workspace = true
 anyhow.workspace = true
 config = { path = "../config", package = "narwhal-config" }
-fastcrypto.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-anemo.workspace = true
-sui-protocol-config.workspace = true
+fastcrypto.workspace = true
 once_cell.workspace = true
 
+iota-common.workspace = true
+iota-network-stack.workspace = true
+iota-util-mem.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }
-mysten-metrics.workspace = true
-mysten-common.workspace = true
-mysten-network.workspace = true
-mysten-util-mem.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-serde_test.workspace = true
+serde_test = "1.0"
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 
+iota-metrics.workspace = true
+
 [target.'cfg(not(target_env = "msvc"))'.build-dependencies]
-protobuf-src.workspace = true
+protobuf-src = "1.1"
 
 [build-dependencies]
-prost-build.workspace = true
-rustversion.workspace = true
+prost-build = "0.13"
+rustversion = "1.0"
 tonic-build.workspace = true
 anemo-build.workspace = true
 

@@ -43,6 +43,14 @@ pub struct DelegatedStake {
     pub stakes: Vec<Stake>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegatedTimelockedStake {
+    pub validator_address: IotaAddress,
+    pub staking_pool: ObjectID,
+    pub stakes: Vec<TimelockedStake>,
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(tag = "status")]
@@ -74,6 +82,28 @@ pub struct Stake {
     pub principal: u64,
     #[serde(flatten)]
     pub status: StakeStatus,
+}
+
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelockedStake {
+    pub timelocked_staked_iota_id: ObjectID,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub stake_request_epoch: EpochId,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub stake_active_epoch: EpochId,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub principal: u64,
+    #[serde(flatten)]
+    pub status: StakeStatus,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub expiration_timestamp_ms: u64,
+    pub label: Option<String>,
 }
 
 #[serde_as]

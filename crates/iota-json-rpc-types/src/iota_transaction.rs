@@ -36,10 +36,12 @@ use iota_types::{
         Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
         InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
+        VersionedProtocolMessage,
     },
+    type_resolver::LayoutResolver,
     IOTA_FRAMEWORK_ADDRESS,
 };
-use move_binary_format::CompiledModule;
+use move_binary_format::{access::ModuleAccess, binary_views::BinaryIndexedView, CompiledModule};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::MoveTypeLayout,
@@ -278,15 +280,15 @@ impl Display for IotaTransactionBlockResponse {
         writeln!(writer, "Transaction Digest: {}", &self.digest)?;
 
         if let Some(t) = &self.transaction {
-            writeln!(writer, "{}", t)?;
+            writeln!(writer, "{t}")?;
         }
 
         if let Some(e) = &self.effects {
-            writeln!(writer, "{}", e)?;
+            writeln!(writer, "{e}")?;
         }
 
         if let Some(e) = &self.events {
-            writeln!(writer, "{}", e)?;
+            writeln!(writer, "{e}")?;
         }
 
         if let Some(object_changes) = &self.object_changes {
@@ -324,13 +326,13 @@ impl Display for IotaTransactionBlockResponse {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            writeln!(writer, "{}", table)?;
+            writeln!(writer, "{table}")?;
         }
 
         if let Some(balance_changes) = &self.balance_changes {
             let mut builder = TableBuilder::default();
             for balance in balance_changes {
-                builder.push_record(vec![format!("{}", balance)]);
+                builder.push_record(vec![format!("{balance}")]);
             }
             let mut table = builder.build();
             table.with(TablePanel::header("Balance Changes"));
@@ -338,7 +340,7 @@ impl Display for IotaTransactionBlockResponse {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            writeln!(writer, "{}", table)?;
+            writeln!(writer, "{table}")?;
         }
         Ok(())
     }
@@ -350,9 +352,9 @@ fn write_obj_changes<T: Display>(
     builder: &mut TableBuilder,
 ) -> std::fmt::Result {
     if !values.is_empty() {
-        builder.push_record(vec![format!("{} Objects: ", output_string)]);
+        builder.push_record(vec![format!("{output_string} Objects: ")]);
         for obj in values {
-            builder.push_record(vec![format!("{}", obj)]);
+            builder.push_record(vec![format!("{obj}")]);
         }
     }
     Ok(())
@@ -473,7 +475,7 @@ impl Display for IotaTransactionBlockKind {
                 writeln!(writer, "Transaction Kind: End of Epoch Transaction")?;
             }
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -1094,7 +1096,7 @@ impl Display for IotaTransactionBlockEffects {
         if !dependencies.is_empty() {
             builder.push_record(vec![format!("\nTransaction Dependencies:")]);
             for dependency in dependencies {
-                builder.push_record(vec![format!("   {}", dependency)]);
+                builder.push_record(vec![format!("   {dependency}")]);
             }
         }
 
@@ -1104,7 +1106,7 @@ impl Display for IotaTransactionBlockEffects {
             1,
             TableStyle::modern().get_horizontal(),
         )]));
-        write!(f, "{}", table)
+        write!(f, "{table}")
     }
 }
 
@@ -1176,7 +1178,7 @@ impl Display for IotaTransactionBlockEvents {
             let mut builder = TableBuilder::default();
 
             for event in &self.data {
-                builder.push_record(vec![format!("{}", event)]);
+                builder.push_record(vec![format!("{event}")]);
             }
 
             let mut table = builder.build();
@@ -1185,13 +1187,13 @@ impl Display for IotaTransactionBlockEvents {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            write!(f, "{}", table)
+            write!(f, "{table}")
         }
     }
 }
 
 // TODO: this file might not be the best place for this struct.
-/// Additional rguments supplied to dev inspect beyond what is allowed in
+/// Additional arguments supplied to dev inspect beyond what is allowed in
 /// today's API.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "DevInspectArgs", rename_all = "camelCase")]
@@ -1526,8 +1528,7 @@ impl IotaTransactionBlockData {
                 gas_data,
             })),
             _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {} not implemented",
-                message_version
+                "Support for TransactionData version {message_version} not implemented"
             )),
         }
     }
@@ -1599,7 +1600,7 @@ impl Display for IotaTransactionBlock {
             1,
             TableStyle::modern().get_horizontal(),
         )]));
-        write!(f, "{}", table)
+        write!(f, "{table}")
     }
 }
 
@@ -2156,7 +2157,7 @@ impl TryInto<TypeTag> for IotaTypeTag {
 
 impl From<TypeTag> for IotaTypeTag {
     fn from(tag: TypeTag) -> Self {
-        Self(format!("{}", tag))
+        Self(format!("{tag}"))
     }
 }
 
@@ -2186,7 +2187,7 @@ pub struct MoveCallParams {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionBlockBytes {
     /// BCS serialized transaction data bytes without its type tag, as base-64

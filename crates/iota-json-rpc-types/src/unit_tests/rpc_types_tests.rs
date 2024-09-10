@@ -138,12 +138,11 @@ fn test_serde() {
     for value in test_values {
         let json = serde_json::to_string(&value).unwrap();
         let serde_value: IotaMoveValue = serde_json::from_str(&json)
-            .map_err(|e| anyhow!("Serde failed for [{:?}], Error msg : {}", value, e))
+            .map_err(|e| anyhow!("Serde failed for [{value:?}], Error msg : {e}"))
             .unwrap();
         assert_eq!(
             value, serde_value,
-            "Error converting {:?} [{json}], got {:?}",
-            value, serde_value
+            "Error converting {value:?} [{json}], got {serde_value:?}",
         )
     }
 }

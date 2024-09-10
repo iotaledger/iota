@@ -1,53 +1,80 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_app/shared/text';
-import { TxnAddress } from '_components/receipt-card/TxnAddress';
-import { TxnAmount } from '_components/receipt-card/TxnAmount';
-import { parseAmount } from '_helpers';
+import { CoinIcon } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
-import { GAS_SYMBOL } from '_src/ui/app/redux/slices/sui-objects/Coin';
-import { useCoinMetadata } from '@mysten/core';
+import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
+import { parseAmount, useCoinMetadata, useFormatCoin } from '@iota/core';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    Divider,
+    ImageType,
+    KeyValueInfo,
+} from '@iota/apps-ui-kit';
+import { useAddressLink } from '_app/hooks/useAddressLink';
+import { ImageIconSize } from '_src/ui/app/shared/image-icon';
 
 export type PreviewTransferProps = {
-	coinType: string;
-	to: string;
-	amount: string;
-	approximation?: boolean;
-	gasBudget?: string;
+    coinType: string;
+    to: string;
+    amount: string;
+    approximation?: boolean;
+    gasBudget?: string;
 };
 
 export function PreviewTransfer({
-	coinType,
-	to,
-	amount,
-	approximation,
-	gasBudget,
+    coinType,
+    to,
+    amount,
+    approximation,
+    gasBudget,
 }: PreviewTransferProps) {
-	const accountAddress = useActiveAddress();
-	const { data: metadata } = useCoinMetadata(coinType);
-	const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
+    const accountAddress = useActiveAddress();
+    const { data: metadata } = useCoinMetadata(coinType);
+    const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
+    const [formatted, symbol] = useFormatCoin(
+        Math.abs(Number(amountWithoutDecimals.toString())),
+        coinType,
+    );
 
-	return (
-		<div className="divide-y divide-solid divide-steel/20 divide-x-0 flex flex-col px-2.5 w-full">
-			<TxnAmount
-				amount={amountWithoutDecimals.toString()}
-				label="Sending"
-				coinType={coinType}
-				approximation={approximation}
-			/>
-			<TxnAddress address={accountAddress || ''} label="From" />
-			<TxnAddress address={to} label="To" />
-			<div className="pt-3.5 mb-5 flex w-full gap-2 justify-between">
-				<div className="flex gap-1">
-					<Text variant="body" color="gray-80" weight="medium">
-						Estimated Gas Fees
-					</Text>
-				</div>
-				<Text variant="body" color="gray-90" weight="medium">
-					{gasBudget} {GAS_SYMBOL}
-				</Text>
-			</div>
-		</div>
-	);
+    const addrFrom = useAddressLink(accountAddress);
+    const addrTo = useAddressLink(to);
+
+    return (
+        <div className="flex w-full flex-col gap-md">
+            <Card type={CardType.Filled}>
+                <CardImage type={ImageType.BgSolid}>
+                    <div className="h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
+                        <CoinIcon coinType={coinType} size={ImageIconSize.Full} rounded />
+                    </div>
+                </CardImage>
+                <CardBody
+                    title={`${approximation ? '~' : ''}${formatted} ${symbol}`}
+                    subtitle="Amount"
+                />
+                <CardAction type={CardActionType.SupportingText} />
+            </Card>
+            <div className="flex flex-col gap-md--rs p-sm--rs">
+                <KeyValueInfo
+                    keyText={'From'}
+                    valueText={addrFrom.address}
+                    valueLink={addrFrom.explorerHref}
+                />
+                <Divider />
+                <KeyValueInfo
+                    keyText={'To'}
+                    valueText={addrTo.address}
+                    valueLink={addrTo.explorerHref}
+                />
+                <Divider />
+                <KeyValueInfo keyText={'Est. Gas Fees'} valueText={`${gasBudget} ${GAS_SYMBOL}`} />
+            </div>
+        </div>
+    );
 }

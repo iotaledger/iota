@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) mod mem_store;
@@ -12,9 +13,8 @@ use std::ops::Range;
 use consensus_config::AuthorityIndex;
 use serde::{Deserialize, Serialize};
 
-use crate::block::Slot;
 use crate::{
-    block::{BlockRef, Round, VerifiedBlock},
+    block::{BlockRef, Round, Slot, VerifiedBlock},
     commit::{CommitIndex, TrustedCommit},
     error::ConsensusResult,
 };
@@ -31,6 +31,7 @@ pub(crate) trait Store: Send + Sync {
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks whether there is any block at the given slot
+    #[allow(dead_code)]
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
@@ -40,9 +41,11 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
-    // The method returns the last `num_of_rounds` rounds blocks by author in round ascending order.
-    // When a `before_round` is defined then the blocks of round `<=before_round` are returned. If not
-    // then the max value for round will be used as cut off.
+    // The method returns the last `num_of_rounds` rounds blocks by author in round
+    // ascending order. When a `before_round` is defined then the blocks of
+    // round `<=before_round` are returned. If not then the max value for round
+    // will be used as cut off.
+    #[allow(dead_code)]
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,
@@ -56,7 +59,8 @@ pub(crate) trait Store: Send + Sync {
     /// Reads all commits from start (inclusive) until end (exclusive).
     fn scan_commits(&self, range: Range<CommitIndex>) -> ConsensusResult<Vec<TrustedCommit>>;
 
-    /// Reads the last commit info, including last committed round per authority.
+    /// Reads the last commit info, including last committed round per
+    /// authority.
     fn read_last_commit_info(&self) -> ConsensusResult<Option<CommitInfo>>;
 }
 
@@ -96,9 +100,9 @@ impl WriteBatch {
     }
 }
 
-/// Per-commit properties that can be derived and do not need to be part of the Commit struct.
-/// Only the latest version is needed for CommitInfo, but more versions are stored for
-/// debugging and potential recovery.
+/// Per-commit properties that can be derived and do not need to be part of the
+/// Commit struct. Only the latest version is needed for CommitInfo, but more
+/// versions are stored for debugging and potential recovery.
 // TODO: version this struct.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct CommitInfo {

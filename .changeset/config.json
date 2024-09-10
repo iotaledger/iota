@@ -4,19 +4,25 @@
 	"commit": false,
 	"fixed": [],
 	"linked": [],
-	"access": "public",
-	"baseBranch": "main",
+	"access": "restricted",
+	"baseBranch": "develop",
 	"updateInternalDependencies": "minor",
 	"privatePackages": false,
 	"ignore": [
-		"sui-wallet",
-		"sui-explorer",
-		"@mysten/core",
-		"@mysten/ui",
+		"iota-wallet",
+		"iota-explorer",
+		"wallet-dashboard",
+		"@iota/apps-ui-kit",
+		"apps-backend",
+		"@iota/core",
+		"@iota/ui",
+		"@iota/apps-ui-kit",
+		"@iota/create-dapp",
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli",
-		"@mysten/sdk-docs"
+		"@iota/zklogin",
+		"@iota/iotans-toolkit"
 	],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true
