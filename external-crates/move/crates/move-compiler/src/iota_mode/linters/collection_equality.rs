@@ -8,11 +8,12 @@
 //! into consideration structural (in)equality.
 
 use super::{
-    base_type, LinterDiagCategory, BAG_MOD_NAME, BAG_STRUCT_NAME, IOTA_PKG_NAME,
-    LINKED_TABLE_MOD_NAME, LINKED_TABLE_STRUCT_NAME, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    OBJECT_BAG_MOD_NAME, OBJECT_BAG_STRUCT_NAME, OBJECT_TABLE_MOD_NAME, OBJECT_TABLE_STRUCT_NAME,
-    TABLE_MOD_NAME, TABLE_STRUCT_NAME, TABLE_VEC_MOD_NAME, TABLE_VEC_STRUCT_NAME, VEC_MAP_MOD_NAME,
-    VEC_MAP_STRUCT_NAME, VEC_SET_MOD_NAME, VEC_SET_STRUCT_NAME,
+    base_type, LinterDiagnosticCategory, LinterDiagnosticCode, BAG_MOD_NAME,
+    BAG_STRUCT_NAME, IOTA_PKG_NAME, LINKED_TABLE_MOD_NAME, LINKED_TABLE_STRUCT_NAME,
+    LINT_WARNING_PREFIX, OBJECT_BAG_MOD_NAME, OBJECT_BAG_STRUCT_NAME,
+    OBJECT_TABLE_MOD_NAME, OBJECT_TABLE_STRUCT_NAME, TABLE_MOD_NAME, TABLE_STRUCT_NAME,
+    TABLE_VEC_MOD_NAME, TABLE_VEC_STRUCT_NAME, VEC_MAP_MOD_NAME, VEC_MAP_STRUCT_NAME,
+    VEC_SET_MOD_NAME, VEC_SET_STRUCT_NAME,
 };
 use crate::{
     diag,
@@ -22,7 +23,7 @@ use crate::{
     },
     naming::ast as N,
     parser::ast as P,
-    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    shared::{CompilationEnv, Identifier},
     typing::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
@@ -32,8 +33,8 @@ use crate::{
 const COLLECTIONS_EQUALITY_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagCategory::CollectionEquality as u8,
-    LINTER_DEFAULT_DIAG_CODE,
+    LinterDiagnosticCategory::Iota as u8,
+    LinterDiagnosticCode::CollectionEquality as u8,
     "possibly useless collections compare",
 );
 
@@ -64,11 +65,7 @@ pub struct Context<'a> {
 impl TypingVisitorConstructor for CollectionEqualityVisitor {
     type Context<'a> = Context<'a>;
 
-    fn context<'a>(
-        env: &'a mut CompilationEnv,
-        _program_info: &'a TypingProgramInfo,
-        _program: &T::Program_,
-    ) -> Self::Context<'a> {
+    fn context<'a>(env: &'a mut CompilationEnv, _program: &T::Program) -> Self::Context<'a> {
         Context { env }
     }
 }

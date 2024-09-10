@@ -34,6 +34,7 @@ pub mod accumulator;
 pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
+pub mod bridge;
 pub mod clock;
 pub mod coin;
 pub mod coin_manager;
@@ -117,6 +118,11 @@ pub const DEEPBOOK_PACKAGE_ID: ObjectID = ObjectID::from_address(DEEPBOOK_ADDRES
 pub const STARDUST_ADDRESS: AccountAddress = stardust_addr();
 pub const STARDUST_PACKAGE_ID: ObjectID = ObjectID::from_address(STARDUST_ADDRESS);
 
+/// 0xb-- account address where Bridge modules are stored
+/// Same as the ObjectID
+pub const BRIDGE_ADDRESS: AccountAddress = address_from_single_byte(11);
+pub const BRIDGE_PACKAGE_ID: ObjectID = ObjectID::from_address(BRIDGE_ADDRESS);
+
 /// 0x5: hardcoded object ID for the singleton iota system state object.
 pub const IOTA_SYSTEM_STATE_ADDRESS: AccountAddress = address_from_single_byte(5);
 pub const IOTA_SYSTEM_STATE_OBJECT_ID: ObjectID = ObjectID::from_address(IOTA_SYSTEM_STATE_ADDRESS);
@@ -142,6 +148,10 @@ pub const IOTA_RANDOMNESS_STATE_OBJECT_ID: ObjectID =
 pub const IOTA_DENY_LIST_ADDRESS: AccountAddress = deny_list_addr();
 pub const IOTA_DENY_LIST_OBJECT_ID: ObjectID = ObjectID::from_address(IOTA_DENY_LIST_ADDRESS);
 
+/// 0x9: hardcode object ID for the singleton bridge object.
+pub const IOTA_BRIDGE_ADDRESS: AccountAddress = address_from_single_byte(9);
+pub const IOTA_BRIDGE_OBJECT_ID: ObjectID = ObjectID::from_address(IOTA_BRIDGE_ADDRESS);
+
 /// Return `true` if `addr` is a special system package that can be upgraded at
 /// epoch boundaries. All new system package ID's must be added here.
 pub fn is_system_package(addr: impl Into<AccountAddress>) -> bool {
@@ -152,6 +162,7 @@ pub fn is_system_package(addr: impl Into<AccountAddress>) -> bool {
             | IOTA_SYSTEM_ADDRESS
             | DEEPBOOK_ADDRESS
             | STARDUST_ADDRESS
+            | BRIDGE_ADDRESS
     )
 }
 
@@ -252,6 +263,7 @@ pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
         "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
         "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
         "stardust" => Some(STARDUST_ADDRESS),
+        "bridge" => Some(BRIDGE_ADDRESS),
         _ => None,
     }
 }

@@ -7,7 +7,10 @@
 //! serialization because of limitations in the `toml` crate related to
 //! serializing types as inline tables.
 
-use std::io::{Read, Seek, Write};
+use std::{
+    collections::HashMap,
+    io::{Read, Seek, Write},
+};
 
 use anyhow::{anyhow, bail, Context, Result};
 use move_compiler::editions::{Edition, Flavor};
@@ -29,7 +32,8 @@ use super::LockFile;
 ///
 /// V0: Base version.
 /// V1: Adds toolchain versioning support.
-pub const VERSION: u64 = 1;
+/// V2: Adds support for managing addresses on package publish and upgrades.
+pub const VERSION: u64 = 2;
 
 /// Table for storing package info under an environment.
 const ENV_TABLE_NAME: &str = "env";
@@ -97,6 +101,18 @@ pub struct ToolchainVersion {
     pub flavor: Flavor,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ManagedPackage {
+    #[serde(rename = "chain-id")]
+    pub chain_id: String,
+    #[serde(rename = "original-published-id")]
+    pub original_published_id: String,
+    #[serde(rename = "latest-published-id")]
+    pub latest_published_id: String,
+    #[serde(rename = "published-version")]
+    pub version: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Header {
     pub version: u64,
@@ -154,6 +170,24 @@ impl ToolchainVersion {
             .context("Deserializing toolchain version")?;
 
         Ok(value.toolchain_version)
+    }
+}
+
+impl ManagedPackage {
+    pub fn read(lock: &mut impl Read) -> Result<HashMap<String, ManagedPackage>> {
+        let contents = {
+            let mut buf = String::new();
+            lock.read_to_string(&mut buf).context("Reading lock file")?;
+            buf
+        };
+
+        #[derive(Deserialize)]
+        struct Lookup {
+            env: HashMap<String, ManagedPackage>,
+        }
+        let Lookup { env } = toml::de::from_str::<Lookup>(&contents)
+            .context("Deserializing managed package in environment")?;
+        Ok(env)
     }
 }
 
@@ -219,7 +253,7 @@ pub fn update_dependency_graph(
     use toml_edit::value;
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
+    let mut toml = toml_string.parse::<toml_edit::Document>()?;
     let move_table = toml
         .entry("move")
         .or_insert(Item::Table(toml_edit::Table::new()))
@@ -266,7 +300,7 @@ pub fn update_compiler_toolchain(
 ) -> Result<()> {
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
+    let mut toml = toml_string.parse::<toml_edit::Document>()?;
     let move_table = toml["move"].as_table_mut().ok_or(std::fmt::Error)?;
     let toolchain_version = toml::Value::try_from(ToolchainVersion {
         compiler_version,
@@ -320,17 +354,42 @@ pub enum ManagedAddressUpdate {
     },
 }
 
+/// Sets the `original-published-id` to a given `id` in the lock file. This is a raw utility
+/// for preparing package publishing and package upgrades. Invariant: callers maintain a valid
+/// hex `id`.
+pub fn set_original_id(file: &mut LockFile, environment: &str, id: &str) -> Result<()> {
+    use toml_edit::{value, Document};
+    let mut toml_string = String::new();
+    file.read_to_string(&mut toml_string)?;
+    let mut toml = toml_string.parse::<Document>()?;
+    let env_table = toml
+        .get_mut(ENV_TABLE_NAME)
+        .and_then(|item| item.as_table_mut())
+        .ok_or_else(|| anyhow!("Could not find 'env' table in Move.lock"))?
+        .get_mut(environment)
+        .and_then(|item| item.as_table_mut())
+        .ok_or_else(|| anyhow!("Could not find {environment} table in Move.lock"))?;
+    env_table[ORIGINAL_PUBLISHED_ID_KEY] = value(id);
+
+    file.set_len(0)?;
+    file.rewind()?;
+    write!(file, "{}", toml)?;
+    file.flush()?;
+    file.rewind()?;
+    Ok(())
+}
+
 /// Saves published or upgraded package addresses in the lock file.
 pub fn update_managed_address(
     file: &mut LockFile,
     environment: &str,
     managed_address_update: ManagedAddressUpdate,
 ) -> Result<()> {
-    use toml_edit::{value, DocumentMut, Table};
+    use toml_edit::{value, Document, Table};
 
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<DocumentMut>()?;
+    let mut toml = toml_string.parse::<Document>()?;
 
     let env_table = toml
         .entry(ENV_TABLE_NAME)
