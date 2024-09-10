@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -13,16 +14,16 @@ pub mod error;
 pub mod summaries;
 pub mod transitions;
 
-use crate::config::{Args, EXECUTE_UNVERIFIED_MODULE, RUN_ON_VM};
+use std::{fs, io::Write, panic, thread};
+
 use bytecode_generator::BytecodeGenerator;
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use getrandom::getrandom;
 use module_generation::generate_module;
 use move_binary_format::{
-    access::ModuleAccess,
     errors::VMError,
     file_format::{
-        AbilitySet, CompiledModule, FunctionDefinitionIndex, SignatureToken, StructHandleIndex,
+        AbilitySet, CompiledModule, DatatypeHandleIndex, FunctionDefinitionIndex, SignatureToken,
     },
 };
 use move_bytecode_verifier::verify_module_unmetered;
@@ -40,8 +41,9 @@ use move_vm_test_utils::{DeltaStorage, InMemoryStorage};
 use move_vm_types::gas::UnmeteredGasMeter;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use std::{fs, io::Write, panic, thread};
 use tracing::{debug, error, info};
+
+use crate::config::{Args, EXECUTE_UNVERIFIED_MODULE, RUN_ON_VM};
 
 /// This function calls the Bytecode verifier to test it
 fn run_verifier(module: CompiledModule) -> Result<CompiledModule, String> {
@@ -54,6 +56,7 @@ fn run_verifier(module: CompiledModule) -> Result<CompiledModule, String> {
 static STORAGE_WITH_MOVE_STDLIB: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::new();
     let (_, compiled_units) = Compiler::from_files(
+        None,
         move_stdlib::move_stdlib_files(),
         vec![],
         move_stdlib::move_stdlib_named_addresses(),
@@ -73,8 +76,8 @@ static STORAGE_WITH_MOVE_STDLIB: Lazy<InMemoryStorage> = Lazy::new(|| {
 
 /// This function runs a verified module in the VM runtime
 fn run_vm(module: CompiledModule) -> Result<(), VMError> {
-    // By convention the 0'th index function definition is the entrypoint to the module (i.e. that
-    // will contain only simply-typed arguments).
+    // By convention the 0'th index function definition is the entrypoint to the
+    // module (i.e. that will contain only simply-typed arguments).
     let entry_idx = FunctionDefinitionIndex::new(0);
     let function_signature = {
         let handle = module.function_def_at(entry_idx).function;
@@ -97,8 +100,8 @@ fn run_vm(module: CompiledModule) -> Result<(), VMError> {
             | SignatureToken::U8
             | SignatureToken::U128
             | SignatureToken::Signer
-            | SignatureToken::Struct(_)
-            | SignatureToken::StructInstantiation(_)
+            | SignatureToken::Datatype(_)
+            | SignatureToken::DatatypeInstantiation(_)
             | SignatureToken::Reference(_)
             | SignatureToken::MutableReference(_)
             | SignatureToken::TypeParameter(_)
@@ -132,9 +135,10 @@ fn execute_function_in_module(
         module.identifier_at(entry_name_idx)
     };
     {
-        let vm = MoveVM::new(move_stdlib::natives::all_natives(
+        let vm = MoveVM::new(move_stdlib_natives::all_natives(
             AccountAddress::from_hex_literal("0x1").unwrap(),
-            move_stdlib::natives::GasParameters::zeros(),
+            move_stdlib_natives::GasParameters::zeros(),
+            /* silent debug */ true,
         ))
         .unwrap();
 
@@ -164,8 +168,8 @@ fn execute_function_in_module(
     }
 }
 
-/// Serialize a module to `path` if `output_path` is `Some(path)`. If `output_path` is `None`
-/// print the module out as debug output.
+/// Serialize a module to `path` if `output_path` is `Some(path)`. If
+/// `output_path` is `None` print the module out as debug output.
 fn output_error_case(module: CompiledModule, output_path: Option<String>, case_id: u64, tid: u64) {
     match output_path {
         Some(path) => {
@@ -235,9 +239,7 @@ pub fn module_frame_generation(
     let mut module = generate_module(&mut rng, generation_options.clone());
     // Either get the number of iterations provided by the user, or iterate "infinitely"--up to
     // u128::MAX number of times.
-    let iters = num_iters
-        .map(|x| x as u128)
-        .unwrap_or_else(|| std::u128::MAX);
+    let iters = num_iters.map(|x| x as u128).unwrap_or_else(|| u128::MAX);
 
     while generated < iters && sender.send(module).is_ok() {
         module = generate_module(&mut rng, generation_options.clone());
@@ -260,8 +262,8 @@ pub fn module_frame_generation(
         }
     }
 
-    // Drop the sender channel to signal to the consumers that they should expect no more modules,
-    // and should finish up.
+    // Drop the sender channel to signal to the consumers that they should expect no
+    // more modules, and should finish up.
     drop(sender);
 
     // Gather final stats from the consumers.
@@ -367,9 +369,9 @@ pub fn run_generation(args: Args) {
         }));
     }
 
-    // Need to drop this channel otherwise we'll get infinite blocking since the other channels are
-    // cloned; this one will remain open unless we close it and other threads are going to block
-    // waiting for more stats.
+    // Need to drop this channel otherwise we'll get infinite blocking since the
+    // other channels are cloned; this one will remain open unless we close it
+    // and other threads are going to block waiting for more stats.
     drop(stats_sender);
 
     let num_iters = args.num_iterations;
@@ -396,19 +398,20 @@ pub(crate) fn substitute(token: &SignatureToken, tys: &[SignatureToken]) -> Sign
         Address => Address,
         Signer => Signer,
         Vector(ty) => Vector(Box::new(substitute(ty, tys))),
-        Struct(idx) => Struct(*idx),
-        StructInstantiation(struct_inst) => {
-            let (idx, type_params) = &**struct_inst;
-            StructInstantiation(Box::new((
+        Datatype(idx) => Datatype(*idx),
+        DatatypeInstantiation(inst) => {
+            let (idx, type_params) = &**inst;
+            DatatypeInstantiation(Box::new((
                 *idx,
                 type_params.iter().map(|ty| substitute(ty, tys)).collect(),
             )))
-        },
+        }
         Reference(ty) => Reference(Box::new(substitute(ty, tys))),
         MutableReference(ty) => MutableReference(Box::new(substitute(ty, tys))),
         TypeParameter(idx) => {
-            // Assume that the caller has previously parsed and verified the structure of the
-            // file and that this guarantees that type parameter indices are always in bounds.
+            // Assume that the caller has previously parsed and verified the structure of
+            // the file and that this guarantees that type parameter indices are
+            // always in bounds.
             debug_assert!((*idx as usize) < tys.len());
             tys[*idx as usize].clone()
         }
@@ -416,7 +419,7 @@ pub(crate) fn substitute(token: &SignatureToken, tys: &[SignatureToken]) -> Sign
 }
 
 pub fn abilities(
-    module: &impl ModuleAccess,
+    module: &CompiledModule,
     ty: &SignatureToken,
     constraints: &[AbilitySet],
 ) -> AbilitySet {
@@ -434,13 +437,13 @@ pub fn abilities(
             vec![abilities(module, ty, constraints)],
         )
         .unwrap(),
-        Struct(idx) => {
-            let sh = module.struct_handle_at(*idx);
+        Datatype(idx) => {
+            let sh = module.datatype_handle_at(*idx);
             sh.abilities
         }
-        StructInstantiation(struct_inst) => {
-            let (idx, type_args) = &**struct_inst;
-            let sh = module.struct_handle_at(*idx);
+        DatatypeInstantiation(inst) => {
+            let (idx, type_args) = &**inst;
+            let sh = module.datatype_handle_at(*idx);
             let declared_abilities = sh.abilities;
             let declared_phantom_parameters =
                 sh.type_parameters.iter().map(|param| param.is_phantom);
@@ -459,22 +462,22 @@ pub fn abilities(
 
 pub(crate) fn get_struct_handle_from_reference(
     reference_signature: &SignatureToken,
-) -> Option<StructHandleIndex> {
+) -> Option<DatatypeHandleIndex> {
     match reference_signature {
         SignatureToken::Reference(signature) => match &**signature {
-            SignatureToken::StructInstantiation(struct_inst) => {
-                let (idx, _) = &**struct_inst;
+            SignatureToken::Datatype(idx) => Some(*idx),
+            SignatureToken::DatatypeInstantiation(inst) => {
+                let (idx, _) = &**inst;
                 Some(*idx)
             }
-            SignatureToken::Struct(idx) => Some(*idx),
             _ => None,
         },
         SignatureToken::MutableReference(signature) => match &**signature {
-            SignatureToken::StructInstantiation(struct_inst) => {
-                let (idx, _) = &**struct_inst;
+            SignatureToken::Datatype(idx) => Some(*idx),
+            SignatureToken::DatatypeInstantiation(inst) => {
+                let (idx, _) = &**inst;
                 Some(*idx)
             }
-            SignatureToken::Struct(idx) => Some(*idx),
             _ => None,
         },
         _ => None,
@@ -488,11 +491,11 @@ pub(crate) fn get_type_actuals_from_reference(
 
     match token {
         Reference(box_) | MutableReference(box_) => match &**box_ {
-            StructInstantiation(struct_inst) => {
-                let (_, tys) = &**struct_inst;
+            DatatypeInstantiation(inst) => {
+                let (_, tys) = &**inst;
                 Some(tys.clone())
-            },
-            Struct(_) => Some(vec![]),
+            }
+            Datatype(_) => Some(vec![]),
             _ => None,
         },
         Bool
@@ -502,8 +505,8 @@ pub(crate) fn get_type_actuals_from_reference(
         | Address
         | Signer
         | Vector(_)
-        | Struct(_)
-        | StructInstantiation(_)
+        | Datatype(_)
+        | DatatypeInstantiation(_)
         | TypeParameter(_)
         | U16
         | U32

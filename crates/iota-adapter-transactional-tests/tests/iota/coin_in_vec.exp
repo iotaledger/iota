@@ -1,0 +1,24 @@
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 7-29:
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 7942000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'programmable'. lines 31-33:
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 3 'run'. lines 35-35:
+mutated: object(0,0), object(1,0)
+wrapped: object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 2629600,  storage_rebate: 3313600, non_refundable_storage_fee: 0
+
+task 4 'run'. lines 37-37:
+mutated: object(0,0), object(1,0)
+unwrapped: object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 3313600,  storage_rebate: 2629600, non_refundable_storage_fee: 0

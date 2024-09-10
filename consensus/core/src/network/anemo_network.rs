@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -86,7 +87,7 @@ impl AnemoClient {
         }
 
         let (mut subscriber, _) = network.subscribe().map_err(|e| {
-            ConsensusError::NetworkError(format!("Cannot subscribe to AnemoNetwork updates: {e:?}"))
+            ConsensusError::Network(format!("Cannot subscribe to AnemoNetwork updates: {e:?}"))
         })?;
 
         let sleep = tokio::time::sleep(timeout);
@@ -135,7 +136,7 @@ impl NetworkClient for AnemoClient {
         client
             .send_block(anemo::Request::new(request).with_timeout(timeout))
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("send_block failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("send_block failed: {e:?}")))?;
         Ok(())
     }
 
@@ -161,7 +162,7 @@ impl NetworkClient for AnemoClient {
         let response = client
             .fetch_blocks(anemo::Request::new(request).with_timeout(timeout))
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("fetch_blocks failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("fetch_blocks failed: {e:?}")))?;
         Ok(response.into_body().blocks)
     }
 }
@@ -264,7 +265,8 @@ impl<S: NetworkService> ConsensusRpc for AnemoServiceProxy<S> {
 /// 2. Take `AnemoClient` from `AnemoManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `AnemoService` for consensus RPC handler.
-/// 5. Install `AnemoService` to `AnemoManager` with `AnemoManager::install_service()`.
+/// 5. Install `AnemoService` to `AnemoManager` with
+///    `AnemoManager::install_service()`.
 pub(crate) struct AnemoManager {
     context: Arc<Context>,
     client: Arc<AnemoClient>,
@@ -294,6 +296,7 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
         self.client.clone()
     }
 
+    /// Installs and starts the consensus service on the specified network.
     async fn install_service(&mut self, network_keypair: NetworkKeyPair, service: Arc<S>) {
         self.context
             .metrics
@@ -388,8 +391,8 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
 
             let mut config = anemo::Config::default();
             config.quic = Some(quic_config);
-            // Set the max_frame_size to be 1 GB to work around the issue of there being too many
-            // delegation events in the epoch change txn.
+            // Set the max_frame_size to be 1 GB to work around the issue of there being too
+            // many delegation events in the epoch change txn.
             config.max_frame_size = Some(1 << 30);
             // Set a default timeout of 300s for all RPC requests
             config.inbound_request_timeout_ms = Some(300_000);
@@ -491,7 +494,8 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
 #[derive(Clone)]
 pub(crate) struct MetricsMakeCallbackHandler {
     metrics: Arc<NetworkRouteMetrics>,
-    /// Size in bytes above which a request or response message is considered excessively large
+    /// Size in bytes above which a request or response message is considered
+    /// excessively large
     excessive_message_size: usize,
 }
 
@@ -716,8 +720,8 @@ mod test {
             test_block_0.serialized(),
         );
 
-        // `Committee` is generated with the same random seed in Context::new_for_test(),
-        // so the first 4 authorities are the same.
+        // `Committee` is generated with the same random seed in
+        // Context::new_for_test(), so the first 4 authorities are the same.
         let (context_4, keys_4) = Context::new_for_test(5);
         let context_4 = Arc::new(
             context_4
@@ -734,22 +738,26 @@ mod test {
         // client_4 should not be able to reach service_0 or service_1, because of the
         // AllowedPeers filter.
         let test_block_2 = VerifiedBlock::new_for_test(TestBlock::new(9, 2).build());
-        assert!(client_4
-            .send_block(
-                context.committee.to_authority_index(0).unwrap(),
-                &test_block_2,
-                Duration::from_secs(5),
-            )
-            .await
-            .is_err());
+        assert!(
+            client_4
+                .send_block(
+                    context.committee.to_authority_index(0).unwrap(),
+                    &test_block_2,
+                    Duration::from_secs(5),
+                )
+                .await
+                .is_err()
+        );
         let test_block_3 = VerifiedBlock::new_for_test(TestBlock::new(9, 3).build());
-        assert!(client_4
-            .send_block(
-                context.committee.to_authority_index(1).unwrap(),
-                &test_block_3,
-                Duration::from_secs(5),
-            )
-            .await
-            .is_err());
+        assert!(
+            client_4
+                .send_block(
+                    context.committee.to_authority_index(1).unwrap(),
+                    &test_block_3,
+                    Duration::from_secs(5),
+                )
+                .await
+                .is_err()
+        );
     }
 }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
@@ -9,7 +10,8 @@ use prometheus::{
 
 #[derive(Clone)]
 pub(crate) struct QuinnConnectionMetrics {
-    /// The connection status of known peers. 0 if not connected, 1 if connected.
+    /// The connection status of known peers. 0 if not connected, 1 if
+    /// connected.
     pub network_peer_connected: IntGaugeVec,
     /// The number of connected peers
     pub network_peers: IntGauge,
@@ -204,8 +206,8 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
 ];
 
-// Arbitrarily chosen buckets for message size, with gradually-lowering exponent to give us
-// better resolution at high sizes.
+// Arbitrarily chosen buckets for message size, with gradually-lowering exponent
+// to give us better resolution at high sizes.
 const SIZE_BYTE_BUCKETS: &[f64] = &[
     2048., 8192., // *4
     16384., 32768., 65536., 131072., 262144., 524288., 1048576., // *2

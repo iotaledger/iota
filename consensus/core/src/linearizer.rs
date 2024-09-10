@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
@@ -77,8 +78,8 @@ impl Linearizer {
     }
 
     // This function should be called whenever a new commit is observed. This will
-    // iterate over the sequence of committed leaders and produce a list of committed
-    // sub-dags.
+    // iterate over the sequence of committed leaders and produce a list of
+    // committed sub-dags.
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlock>,
@@ -124,11 +125,12 @@ impl Linearizer {
             self.dag_state.write().add_commit(commit.clone());
             committed_sub_dags.push(sub_dag);
         }
-        // Committed blocks must be persisted to storage before sending them to Sui and executing
-        // their transactions.
-        // Commit metadata can be persisted more lazily because they are recoverable. Uncommitted
-        // blocks can wait to persist too.
-        // But for simplicity, all unpersisted blocks and commits are flushed to storage.
+        // Committed blocks must be persisted to storage before sending them to Iota and
+        // executing their transactions.
+        // Commit metadata can be persisted more lazily because they are recoverable.
+        // Uncommitted blocks can wait to persist too.
+        // But for simplicity, all unpersisted blocks and commits are flushed to
+        // storage.
         if !committed_sub_dags.is_empty() {
             self.dag_state.write().flush();
         }

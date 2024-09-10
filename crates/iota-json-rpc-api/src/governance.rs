@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_types::{DelegatedStake, IotaCommittee, ValidatorApys};
+use iota_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, IotaCommittee, ValidatorApys};
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -11,6 +11,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides access to validator and staking-related data such as current
+/// committee info, delegated stakes, and APY.
 #[open_rpc(namespace = "iotax", tag = "Governance Read API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait GovernanceReadApi {
@@ -25,6 +27,21 @@ pub trait GovernanceReadApi {
     /// Return all [DelegatedStake].
     #[method(name = "getStakes")]
     async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>>;
+
+    /// Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn
+    /// its status will be Unstaked.
+    #[method(name = "getTimelockedStakesByIds")]
+    async fn get_timelocked_stakes_by_ids(
+        &self,
+        timelocked_staked_iota_ids: Vec<ObjectID>,
+    ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
+
+    /// Return all [DelegatedTimelockedStake].
+    #[method(name = "getTimelockedStakes")]
+    async fn get_timelocked_stakes(
+        &self,
+        owner: IotaAddress,
+    ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return the committee information for the asked `epoch`.
     #[method(name = "getCommitteeInfo")]

@@ -1,16 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
 import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
+import Heading from "@theme/Heading";
 import RefNav from "./api-ref/refnav";
 import Methods from "./api-ref/method";
 
 import ScrollSpy from "react-ui-scrollspy";
 
-import openrpc_mainnet from "../../open-spec/mainnet/openrpc.json";
-import openrpc_testnet from "../../open-spec/testnet/openrpc.json";
-import openrpc_devnet from "../../open-spec/devnet/openrpc.json";
+// TODO: Once the repo is public, we can use the old imports again and reactivate the ../../utils/getopenrpcspecs.js script
+import openrpc_mainnet from "../../../../../crates/iota-open-rpc/spec/openrpc.json";
+import openrpc_testnet from "../../../../../crates/iota-open-rpc/spec/openrpc.json";
+import openrpc_devnet from "../../../../../crates/iota-open-rpc/spec/openrpc.json";
 
 export function getRef(url) {
   return url.substring(url.lastIndexOf("/") + 1, url.length);
@@ -86,9 +89,9 @@ const Rpc = () => {
       <main className="flex-grow w-3/4">
         <div className="mx-8">
           <div className="">
-            <h1 className="fixed bg-white dark:bg-ifm-background-color-dark w-full py-4 top-14">
-              Sui JSON-RPC Reference - Version: {openrpc.info.version}
-            </h1>
+            <Heading as="h1" className="fixed bg-white dark:bg-ifm-background-color-dark w-full py-4 top-14">
+              IOTA JSON-RPC Reference - Version: {openrpc.info.version}
+            </Heading>
             <ScrollSpy>
               <div className="">
                 <p className="pt-24">{openrpc.info.description}</p>

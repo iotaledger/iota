@@ -1,19 +1,21 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
+
+use std::{
+    fs::{self, File},
+    io::{self, Write},
+    path::Path,
+};
 
 use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
 use move_coverage::{
     coverage_map::{CoverageMap, TraceMap},
     format_csv_summary, format_human_summary, summary,
-};
-use std::{
-    fs::{self, File},
-    io::{self, Write},
-    path::Path,
 };
 
 #[derive(Debug, Parser)]
@@ -27,7 +29,8 @@ struct Args {
     /// The path to the coverage map or trace file
     #[clap(long = "input-trace-path", short = 't')]
     pub input_trace_path: String,
-    /// Whether the passed-in file is a raw trace file or a serialized coverage map
+    /// Whether the passed-in file is a raw trace file or a serialized coverage
+    /// map
     #[clap(long = "is-raw-trace", short = 'r')]
     pub is_raw_trace_file: bool,
     /// The path to the module binary
@@ -42,7 +45,8 @@ struct Args {
     /// The path to the standard library binary directory for Move
     #[clap(long = "stdlib-path", short = 's')]
     pub stdlib_path: Option<String>,
-    /// Whether path coverage should be derived (default is instruction coverage)
+    /// Whether path coverage should be derived (default is instruction
+    /// coverage)
     #[clap(long = "derive-path-coverage", short = 'p')]
     pub derive_path_coverage: bool,
     /// Output CSV data of coverage

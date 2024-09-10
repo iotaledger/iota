@@ -1,16 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    loader::{Function, Loader, Resolver},
-    native_functions::NativeContext,
-    trace,
-};
+use std::{cmp::min, collections::VecDeque, fmt::Write, sync::Arc};
+
 use fail::fail_point;
 use move_binary_format::{
     errors::*,
-    file_format::{Bytecode, FunctionHandleIndex, FunctionInstantiationIndex},
+    file_format::{Bytecode, FunctionHandleIndex, FunctionInstantiationIndex, JumpTableInner},
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -29,16 +27,20 @@ use move_vm_types::{
     gas::{GasMeter, SimpleInstruction},
     loaded_data::runtime_types::Type,
     values::{
-        self, IntegerValue, Locals, Reference, Struct, StructRef, VMValueCast, Value, Vector,
-        VectorRef,
+        self, IntegerValue, Locals, Reference, Struct, StructRef, VMValueCast, Value, Variant,
+        VariantRef, Vector, VectorRef,
     },
     views::TypeView,
 };
 use smallvec::SmallVec;
-
-use crate::native_extensions::NativeContextExtensions;
-use std::{cmp::min, collections::VecDeque, fmt::Write, sync::Arc};
 use tracing::error;
+
+use crate::{
+    loader::{Function, Loader, Resolver},
+    native_extensions::NativeContextExtensions,
+    native_functions::NativeContext,
+    trace,
+};
 
 macro_rules! debug_write {
     ($($toks: tt)*) => {
@@ -74,7 +76,8 @@ enum InstrRet {
 /// `Interpreter` instances can execute Move functions.
 ///
 /// An `Interpreter` instance is a stand alone execution context for a function.
-/// It mimics execution on a single thread, with an call stack and an operand stack.
+/// It mimics execution on a single thread, with an call stack and an operand
+/// stack.
 pub(crate) struct Interpreter {
     /// Operand stack, where Move `Value`s are stored for stack operations.
     operand_stack: Stack,
@@ -100,8 +103,8 @@ impl Interpreter {
     pub fn runtime_limits_config(&self) -> &VMRuntimeLimitsConfig {
         &self.runtime_limits_config
     }
-    /// Entrypoint into the interpreter. All external calls need to be routed through this
-    /// function.
+    /// Entrypoint into the interpreter. All external calls need to be routed
+    /// through this function.
     pub(crate) fn entrypoint(
         function: Arc<Function>,
         ty_args: Vec<Type>,
@@ -153,10 +156,11 @@ impl Interpreter {
 
     /// Main loop for the execution of a function.
     ///
-    /// This function sets up a `Frame` and calls `execute_code_unit` to execute code of the
-    /// function represented by the frame. Control comes back to this function on return or
-    /// on call. When that happens the frame is changes to a new one (call) or to the one
-    /// at the top of the stack (return). If the call stack is empty execution is completed.
+    /// This function sets up a `Frame` and calls `execute_code_unit` to execute
+    /// code of the function represented by the frame. Control comes back to
+    /// this function on return or on call. When that happens the frame is
+    /// changes to a new one (call) or to the one at the top of the stack
+    /// (return). If the call stack is empty execution is completed.
     fn execute_main(
         mut self,
         loader: &Loader,
@@ -186,7 +190,7 @@ impl Interpreter {
             .map_err(|err| self.set_location(err))?;
         loop {
             let resolver = current_frame.resolver(link_context, loader);
-            let exit_code = current_frame //self
+            let exit_code = current_frame // self
                 .execute_code(&resolver, &mut self, gas_meter)
                 .map_err(|err| self.maybe_core_dump(err, &current_frame))?;
             match exit_code {
@@ -204,7 +208,8 @@ impl Interpreter {
                     profile_close_frame!(gas_meter, current_frame.function.pretty_string());
 
                     if let Some(frame) = self.call_stack.pop() {
-                        // Note: the caller will find the callee's return values at the top of the shared operand stack
+                        // Note: the caller will find the callee's return values at the top of the
+                        // shared operand stack
                         current_frame = frame;
                         current_frame.pc += 1; // advance past the Call instruction in the caller
                     } else {
@@ -248,7 +253,7 @@ impl Interpreter {
                         let err = set_err_info!(frame, err);
                         self.maybe_core_dump(err, &frame)
                     })?;
-                    // Note: the caller will find the the callee's return values at the top of the shared operand stack
+                    // Note: the caller will find the callee's return values at the top of the shared operand stack
                     current_frame = frame;
                 }
                 ExitCode::CallGeneric(idx) => {
@@ -297,11 +302,11 @@ impl Interpreter {
         }
     }
 
-    /// Returns a `Frame` if the call is to a Move function. Calls to native functions are
-    /// "inlined" and this returns `None`.
+    /// Returns a `Frame` if the call is to a Move function. Calls to native
+    /// functions are "inlined" and this returns `None`.
     ///
-    /// Native functions do not push a frame at the moment and as such errors from a native
-    /// function are incorrectly attributed to the caller.
+    /// Native functions do not push a frame at the moment and as such errors
+    /// from a native function are incorrectly attributed to the caller.
     fn make_call_frame(
         &mut self,
         loader: &Loader,
@@ -377,9 +382,10 @@ impl Interpreter {
             function.clone(),
             &ty_args,
         )?;
-        // Put return values on the top of the operand stack, where the caller will find them.
-        // This is one of only two times the operand stack is shared across call stack frames; the other is in handling
-        // the Return instruction for normal calls
+        // Put return values on the top of the operand stack, where the caller will find
+        // them. This is one of only two times the operand stack is shared
+        // across call stack frames; the other is in handling the Return
+        // instruction for normal calls
         for value in return_values {
             self.operand_stack.push(value)?;
         }
@@ -416,8 +422,9 @@ impl Interpreter {
 
         let result = native_function(&mut native_context, ty_args.to_vec(), args)?;
 
-        // Note(Gas): The order by which gas is charged / error gets returned MUST NOT be modified
-        //            here or otherwise it becomes an incompatible change!!!
+        // Note(Gas): The order by which gas is charged / error gets returned MUST NOT
+        // be modified            here or otherwise it becomes an incompatible
+        // change!!!
         let return_values = match result.result {
             Ok(vals) => {
                 gas_meter.charge_native_function(result.cost, Some(vals.iter()))?;
@@ -432,8 +439,9 @@ impl Interpreter {
             }
         };
 
-        // Paranoid check to protect us against incorrect native function implementations. A native function that
-        // returns a different number of values than its declared types will trigger this check
+        // Paranoid check to protect us against incorrect native function
+        // implementations. A native function that returns a different number of
+        // values than its declared types will trigger this check
         if return_values.len() != return_type_count {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
@@ -483,13 +491,14 @@ impl Interpreter {
         self.binop(|lhs, rhs| Ok(Value::bool(f(lhs, rhs)?)))
     }
 
-    //
     // Debugging and logging helpers.
     //
 
-    /// Given an `VMStatus` generate a core dump if the error is an `InvariantViolation`.
+    /// Given an `VMStatus` generate a core dump if the error is an
+    /// `InvariantViolation`.
     fn maybe_core_dump(&self, mut err: VMError, current_frame: &Frame) -> VMError {
-        // a verification error cannot happen at runtime so change it into an invariant violation.
+        // a verification error cannot happen at runtime so change it into an invariant
+        // violation.
         if err.status_type() == StatusType::Verification {
             error!("Verification error during runtime: {:?}", err);
             let new_err = PartialVMError::new(StatusCode::VERIFICATION_ERROR);
@@ -595,12 +604,12 @@ impl Interpreter {
         Ok(())
     }
 
-    /// Generate a string which is the status of the interpreter: call stack, current bytecode
-    /// stream, locals and operand stack.
+    /// Generate a string which is the status of the interpreter: call stack,
+    /// current bytecode stream, locals and operand stack.
     ///
-    /// It is used when generating a core dump but can be used for debugging of the interpreter.
-    /// It will be exposed via a debug module to give developers a way to print the internals
-    /// of an execution.
+    /// It is used when generating a core dump but can be used for debugging of
+    /// the interpreter. It will be exposed via a debug module to give
+    /// developers a way to print the internals of an execution.
     fn internal_state_str(&self, current_frame: &Frame) -> String {
         let mut internal_state = "Call stack:\n".to_string();
         for (i, frame) in self.call_stack.0.iter().enumerate() {
@@ -694,8 +703,8 @@ impl Stack {
         Stack { value: vec![] }
     }
 
-    /// Push a `Value` on the stack if the max stack size has not been reached. Abort execution
-    /// otherwise.
+    /// Push a `Value` on the stack if the max stack size has not been reached.
+    /// Abort execution otherwise.
     fn push(&mut self, value: Value) -> PartialVMResult<()> {
         if self.value.len() < OPERAND_STACK_SIZE_LIMIT {
             self.value.push(value);
@@ -712,8 +721,8 @@ impl Stack {
             .ok_or_else(|| PartialVMError::new(StatusCode::EMPTY_VALUE_STACK))
     }
 
-    /// Pop a `Value` of a given type off the stack. Abort if the value is not of the given
-    /// type or if the stack is empty.
+    /// Pop a `Value` of a given type off the stack. Abort if the value is not
+    /// of the given type or if the stack is empty.
     fn pop_as<T>(&mut self) -> PartialVMResult<T>
     where
         Value: VMValueCast<T>,
@@ -772,8 +781,8 @@ impl CallStack {
     }
 }
 
-/// A `Frame` is the execution context for a function. It holds the locals of the function and
-/// the function itself.
+/// A `Frame` is the execution context for a function. It holds the locals of
+/// the function and the function itself.
 // #[derive(Debug)]
 struct Frame {
     pc: u16,
@@ -992,7 +1001,7 @@ impl Frame {
             }
             Bytecode::PackGeneric(si_idx) => {
                 let field_count = resolver.field_instantiation_count(*si_idx);
-                let ty = resolver.instantiate_generic_type(*si_idx, ty_args)?;
+                let ty = resolver.instantiate_struct_type(*si_idx, ty_args)?;
                 Self::check_depth_of_type(resolver, &ty)?;
                 gas_meter.charge_pack(
                     true,
@@ -1189,8 +1198,8 @@ impl Frame {
             }
             Bytecode::FreezeRef => {
                 gas_meter.charge_simple_instr(S::FreezeRef)?;
-                // FreezeRef should just be a null op as we don't distinguish between mut
-                // and immut ref at runtime.
+                // FreezeRef should just be a null op as we don't distinguish
+                // between mut and immut ref at runtime.
             }
             Bytecode::Not => {
                 gas_meter.charge_simple_instr(S::Not)?;
@@ -1272,10 +1281,88 @@ impl Frame {
                 gas_meter.charge_vec_swap(make_ty!(ty))?;
                 vec_ref.swap(idx1, idx2, ty)?;
             }
+            Bytecode::PackVariant(vidx) => {
+                let (field_count, variant_tag) = resolver.variant_field_count_and_tag(*vidx);
+                let enum_type = resolver.get_enum_type(*vidx);
+                Self::check_depth_of_type(resolver, &enum_type)?;
+                gas_meter.charge_pack(
+                    false,
+                    interpreter.operand_stack.last_n(field_count as usize)?,
+                )?;
+                let args = interpreter.operand_stack.popn(field_count)?;
+                interpreter
+                    .operand_stack
+                    .push(Value::variant(Variant::pack(variant_tag, args)))?;
+            }
+            Bytecode::PackVariantGeneric(vidx) => {
+                let (field_count, variant_tag) =
+                    resolver.variant_instantiantiation_field_count_and_tag(*vidx);
+                let ty = resolver.instantiate_enum_type(*vidx, ty_args)?;
+                Self::check_depth_of_type(resolver, &ty)?;
+                gas_meter.charge_pack(
+                    true,
+                    interpreter.operand_stack.last_n(field_count as usize)?,
+                )?;
+                let args = interpreter.operand_stack.popn(field_count)?;
+                interpreter
+                    .operand_stack
+                    .push(Value::variant(Variant::pack(variant_tag, args)))?;
+            }
+            Bytecode::UnpackVariant(vidx) => {
+                let variant = interpreter.operand_stack.pop_as::<Variant>()?;
+                let (_, variant_tag) = resolver.variant_field_count_and_tag(*vidx);
+                gas_meter.charge_unpack(false, variant.field_views())?;
+                variant.check_tag(variant_tag)?;
+                for value in variant.unpack()? {
+                    interpreter.operand_stack.push(value)?;
+                }
+            }
+            Bytecode::UnpackVariantImmRef(vidx) | Bytecode::UnpackVariantMutRef(vidx) => {
+                let reference = interpreter.operand_stack.pop_as::<VariantRef>()?;
+                let (_, variant_tag) = resolver.variant_field_count_and_tag(*vidx);
+                reference.check_tag(variant_tag)?;
+                let references = reference.unpack_variant()?;
+                gas_meter.charge_unpack(false, references.iter())?;
+                for reference in references {
+                    interpreter.operand_stack.push(reference)?;
+                }
+            }
+            Bytecode::UnpackVariantGeneric(vidx) => {
+                let variant = interpreter.operand_stack.pop_as::<Variant>()?;
+                gas_meter.charge_unpack(true, variant.field_views())?;
+                let (_, variant_tag) =
+                    resolver.variant_instantiantiation_field_count_and_tag(*vidx);
+                variant.check_tag(variant_tag)?;
+                for value in variant.unpack()? {
+                    interpreter.operand_stack.push(value)?;
+                }
+            }
+            Bytecode::UnpackVariantGenericImmRef(vidx)
+            | Bytecode::UnpackVariantGenericMutRef(vidx) => {
+                let reference = interpreter.operand_stack.pop_as::<VariantRef>()?;
+                let (_, variant_tag) =
+                    resolver.variant_instantiantiation_field_count_and_tag(*vidx);
+                reference.check_tag(variant_tag)?;
+                let references = reference.unpack_variant()?;
+                gas_meter.charge_unpack(true, references.iter())?;
+                for reference in references {
+                    interpreter.operand_stack.push(reference)?;
+                }
+            }
+            Bytecode::VariantSwitch(jump_table_index) => {
+                let reference = interpreter.operand_stack.pop_as::<VariantRef>()?;
+                gas_meter.charge_variant_switch(&reference)?;
+                let tag = reference.get_tag()?;
+                let JumpTableInner::Full(jump_table) =
+                    &function.jump_tables()[jump_table_index.0 as usize].jump_table;
+                *pc = jump_table[tag as usize];
+                return Ok(InstrRet::Branch);
+            }
         }
 
         Ok(InstrRet::Ok)
     }
+
     fn execute_code_impl(
         &mut self,
         resolver: &Resolver,
@@ -1287,11 +1374,7 @@ impl Frame {
             for instruction in &code[self.pc as usize..] {
                 trace!(
                     &self.function,
-                    &self.locals,
-                    self.pc,
-                    instruction,
-                    resolver,
-                    interpreter
+                    &self.locals, self.pc, instruction, resolver, interpreter
                 );
 
                 fail_point!("move_vm::interpreter_loop", |_| {
@@ -1325,7 +1408,8 @@ impl Frame {
                     InstrRet::Branch => break,
                 };
 
-                // invariant: advance to pc +1 is iff instruction at pc executed without aborting
+                // invariant: advance to pc +1 is iff instruction at pc executed without
+                // aborting
                 self.pc += 1;
             }
             // ok we are out, it's a branch, check the pc for good luck
@@ -1400,19 +1484,23 @@ impl Frame {
             Type::Reference(ty) | Type::MutableReference(ty) | Type::Vector(ty) => {
                 Self::check_depth_of_type_impl(resolver, ty, check_depth!(1), max_depth)?
             }
-            Type::Struct(si) => {
-                let struct_type = resolver.loader().get_struct_type(*si).ok_or_else(|| {
+            Type::Datatype(si) => {
+                let struct_type = resolver.loader().get_type(*si).ok_or_else(|| {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Struct Definition not resolved".to_string())
                 })?;
-                check_depth!(struct_type
-                    .depth
-                    .as_ref()
-                    .ok_or_else(|| { PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED) })?
-                    .solve(&[])?)
+                check_depth!(
+                    struct_type
+                        .depth
+                        .as_ref()
+                        .ok_or_else(|| {
+                            PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED)
+                        })?
+                        .solve(&[])?
+                )
             }
-            Type::StructInstantiation(struct_inst) => {
-                let (si, ty_args) = &**struct_inst;
+            Type::DatatypeInstantiation(inst) => {
+                let (si, ty_args) = &**inst;
                 // Calculate depth of all type arguments, and make sure they themselves are not too deep.
                 let ty_arg_depths = ty_args
                     .iter()
@@ -1421,22 +1509,26 @@ impl Frame {
                         Self::check_depth_of_type_impl(resolver, ty, check_depth!(0), max_depth)
                     })
                     .collect::<PartialVMResult<Vec<_>>>()?;
-                let struct_type = resolver.loader().get_struct_type(*si).ok_or_else(|| {
+                let struct_type = resolver.loader().get_type(*si).ok_or_else(|| {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Struct Definition not resolved".to_string())
                 })?;
-                check_depth!(struct_type
-                    .depth
-                    .as_ref()
-                    .ok_or_else(|| { PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED) })?
-                    .solve(&ty_arg_depths)?)
+                check_depth!(
+                    struct_type
+                        .depth
+                        .as_ref()
+                        .ok_or_else(|| {
+                            PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED)
+                        })?
+                        .solve(&ty_arg_depths)?
+                )
             }
             // NB: substitution must be performed before calling this function
             Type::TyParam(_) => {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Type parameter should be fully resolved".to_string()),
-                )
+                );
             }
         };
 

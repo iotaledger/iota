@@ -16,6 +16,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides methods to query transactions, events, or objects and allows to
+/// subscribe to data streams.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {
@@ -58,7 +60,7 @@ pub trait IndexerApi {
     #[method(name = "queryEvents")]
     async fn query_events(
         &self,
-        /// The event query criteria. See [Event filter](https://wiki.iota.org/build/event_api#event-filters) documentation for examples.
+        /// The event query criteria. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
         query: EventFilter,
         /// optional paging cursor
         cursor: Option<EventID>,
@@ -71,15 +73,15 @@ pub trait IndexerApi {
     /// Subscribe to a stream of Iota event
     #[rustfmt::skip]
     #[subscription(name = "subscribeEvent", item = IotaEvent)]
-    fn subscribe_event(
+    async fn subscribe_event(
         &self,
-        /// The filter criteria of the event stream. See [Event filter](https://wiki.iota.org/build/event_api#event-filters) documentation for examples.
+        /// The filter criteria of the event stream. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
         filter: EventFilter,
     );
 
     /// Subscribe to a stream of Iota transaction effects
     #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
-    fn subscribe_transaction(&self, filter: TransactionFilter);
+    async fn subscribe_transaction(&self, filter: TransactionFilter);
 
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]
@@ -95,6 +97,7 @@ pub trait IndexerApi {
     ) -> RpcResult<DynamicFieldPage>;
 
     /// Return the dynamic field object information for a specified object
+    #[rustfmt::skip]
     #[method(name = "getDynamicFieldObject")]
     async fn get_dynamic_field_object(
         &self,
@@ -103,23 +106,4 @@ pub trait IndexerApi {
         /// The Name of the dynamic field
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
-
-    /// Return the resolved address given resolver and name
-    #[method(name = "resolveNameServiceAddress")]
-    async fn resolve_name_service_address(
-        &self,
-        /// The name to resolve
-        name: String,
-    ) -> RpcResult<Option<IotaAddress>>;
-
-    /// Return the resolved names given address,
-    /// if multiple names are resolved, the first one is the primary name.
-    #[method(name = "resolveNameServiceNames")]
-    async fn resolve_name_service_names(
-        &self,
-        /// The address to resolve
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>>;
 }

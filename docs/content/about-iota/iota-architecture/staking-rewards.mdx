@@ -1,0 +1,51 @@
+import StakingPoolReqs from "../../_snippets/staking-pool-reqs.mdx";
+
+# Staking and Rewards
+
+IOTA uses a Delegated Proof-of-Stake (DPoS) system, where [validators](../tokenomics/validators-staking.mdx) get their
+voting power from IOTA token holders who delegate their stakes to them.
+When rewards are distributed at the end of each [epoch](epochs.mdx),
+validators receive their [rewards](#rewards-distribution) based on their [performance](#performance)
+and [commission rate](#commission-rate).
+The rewards automatically increase as validators' staking pools receive new delegated stakes.
+
+## Staking on IOTA vs. Other Blockchains
+
+The IOTA staking mechanism has some unique features compared to other blockchains:
+
+### Self-custodial Staking
+
+Stakers keep their staked IOTA tokens in their own account.
+
+### Auto-compounding Rewards
+
+Rewards automatically reinvest due to a liquidity-pool-inspired design.
+
+### Staking Timing
+
+When a user stakes with a validator, their stake counts towards the validator's voting power starting from the next
+epoch. Similarly, when a user withdraws their stake, it stops counting from the next epoch.
+
+<StakingPoolReqs />
+
+## Rewards Distribution
+
+At the end of each [epoch](epochs.mdx), gas fees and stake subsidies are distributed among validators and stakers as
+rewards. The amount of rewards a validator gets depends on:
+
+### Performance
+
+If a validator underperforms, other validators can report them, causing the reported validator to lose all their rewards
+for that epoch.
+
+### Commission Rate
+
+This is the percentage a validator takes from their stakers' rewards.
+For example, if a validator's commission rate is 10%, they take 10% of the rewards each epoch as new stake objects.
+
+### Rewards Withdrawal
+
+Validators receive rewards as regular stake objects, so they withdraw their staking rewards the same way as stakers.
+Validators can call
+the [`0x3::iota_system::request_withdraw_stake`](https://github.com/iotaledger/iota/blob/6234ae2cc8137f3a2a34cd0aa1ac4fd5f31260e2/crates/iota-framework/packages/iota-system/sources/iota_system.move#L272)
+function to withdraw their stake and receive their rewards.

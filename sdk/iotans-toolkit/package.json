@@ -1,0 +1,49 @@
+{
+    "name": "@iota/iotans-toolkit",
+    "private": true,
+    "author": "IOTA Foundation <contact@iota.org>",
+    "description": "IotaNS TypeScript SDK",
+    "version": "0.0.0",
+    "license": "Apache-2.0",
+    "type": "commonjs",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/cjs/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/esm/index.js",
+            "require": "./dist/cjs/index.js"
+        }
+    },
+    "files": [
+        "CHANGELOG.md",
+        "dist",
+        "src"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+        "build": "build-package",
+        "prepublishOnly": "pnpm build",
+        "test": "vitest",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+    },
+    "devDependencies": {
+        "@faker-js/faker": "^8.0.2",
+        "@iota/build-scripts": "workspace:*",
+        "dotenv": "^16.4.5",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.3.3",
+        "vitest": "^0.33.0"
+    },
+    "dependencies": {
+        "@iota/iota-sdk": "workspace:*"
+    }
+}

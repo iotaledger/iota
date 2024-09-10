@@ -1,108 +1,107 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module locked_stake::locked_stake {
-    use sui::tx_context::TxContext;
-    use sui::coin;
-    use sui::balance::{Self, Balance};
-    use sui::object::{Self, ID, UID};
-    use sui::vec_map::{Self, VecMap};
-    use sui::sui::SUI;
-    use sui_system::staking_pool::StakedSui;
-    use sui_system::sui_system::{Self, SuiSystemState};
+    use iota::coin;
+    use iota::balance::{Self, Balance};
+    use iota::vec_map::{Self, VecMap};
+    use iota::iota::IOTA;
+    use iota_system::staking_pool::StakedIota;
+    use iota_system::iota_system::{Self, IotaSystemState};
     use locked_stake::epoch_time_lock::{Self, EpochTimeLock};
 
     const EInsufficientBalance: u64 = 0;
     const EStakeObjectNonExistent: u64 = 1;
 
-    /// An object that locks SUI tokens and stake objects until a given epoch, and allows
+    /// An object that locks IOTA tokens and stake objects until a given epoch, and allows
     /// staking and unstaking operations when locked.
-    struct LockedStake has key {
+    public struct LockedStake has key {
         id: UID,
-        staked_sui: VecMap<ID, StakedSui>,
-        sui: Balance<SUI>,
+        staked_iota: VecMap<ID, StakedIota>,
+        iota: Balance<IOTA>,
         locked_until_epoch: EpochTimeLock,
     }
 
     // ============================= basic operations =============================
 
-    /// Create a new LockedStake object with empty staked_sui and sui balance given a lock time.
+    /// Create a new LockedStake object with empty staked_iota and iota balance given a lock time.
     /// Aborts if the given epoch has already passed.
     public fun new(locked_until_epoch: u64, ctx: &mut TxContext): LockedStake {
         LockedStake {
             id: object::new(ctx),
-            staked_sui: vec_map::empty(),
-            sui: balance::zero(),
+            staked_iota: vec_map::empty(),
+            iota: balance::zero(),
             locked_until_epoch: epoch_time_lock::new(locked_until_epoch, ctx),
         }
     }
 
     /// Unlocks and returns all the assets stored inside this LockedStake object.
     /// Aborts if the unlock epoch is in the future.
-    public fun unlock(ls: LockedStake, ctx: &TxContext): (VecMap<ID, StakedSui>, Balance<SUI>) {
-        let LockedStake { id, staked_sui, sui, locked_until_epoch } = ls;
+    public fun unlock(ls: LockedStake, ctx: &TxContext): (VecMap<ID, StakedIota>, Balance<IOTA>) {
+        let LockedStake { id, staked_iota, iota, locked_until_epoch } = ls;
         epoch_time_lock::destroy(locked_until_epoch, ctx);
         object::delete(id);
-        (staked_sui, sui)
+        (staked_iota, iota)
     }
 
     /// Deposit a new stake object to the LockedStake object.
-    public fun deposit_staked_sui(ls: &mut LockedStake, staked_sui: StakedSui) {
-        let id = object::id(&staked_sui);
+    public fun deposit_staked_iota(ls: &mut LockedStake, staked_iota: StakedIota) {
+        let id = object::id(&staked_iota);
         // This insertion can't abort since each object has a unique id.
-        vec_map::insert(&mut ls.staked_sui, id, staked_sui);
+        vec_map::insert(&mut ls.staked_iota, id, staked_iota);
     }
 
-    /// Deposit sui balance to the LockedStake object.
-    public fun deposit_sui(ls: &mut LockedStake, sui: Balance<SUI>) {
-        balance::join(&mut ls.sui, sui);
+    /// Deposit iota balance to the LockedStake object.
+    public fun deposit_iota(ls: &mut LockedStake, iota: Balance<IOTA>) {
+        balance::join(&mut ls.iota, iota);
     }
 
-    /// Take `amount` of SUI from the sui balance, stakes it, and puts the stake object
-    /// back into the staked sui vec map.
+    /// Take `amount` of IOTA from the iota balance, stakes it, and puts the stake object
+    /// back into the staked iota vec map.
     public fun stake(
         ls: &mut LockedStake,
-        sui_system: &mut SuiSystemState,
+        iota_system: &mut IotaSystemState,
         amount: u64,
         validator_address: address,
         ctx: &mut TxContext
     ) {
-        assert!(balance::value(&ls.sui) >= amount, EInsufficientBalance);
-        let stake = sui_system::request_add_stake_non_entry(
-            sui_system,
-            coin::from_balance(balance::split(&mut ls.sui, amount), ctx),
+        assert!(balance::value(&ls.iota) >= amount, EInsufficientBalance);
+        let stake = iota_system::request_add_stake_non_entry(
+            iota_system,
+            coin::from_balance(balance::split(&mut ls.iota, amount), ctx),
             validator_address,
             ctx
         );
-        deposit_staked_sui(ls, stake);
+        deposit_staked_iota(ls, stake);
     }
 
-    /// Unstake the stake object with `staked_sui_id` and puts the resulting principal
-    /// and rewards back into the locked sui balance.
-    /// Returns the amount of SUI unstaked, including both principal and rewards.
+    /// Unstake the stake object with `staked_iota_id` and puts the resulting principal
+    /// and rewards back into the locked iota balance.
+    /// Returns the amount of IOTA unstaked, including both principal and rewards.
     /// Aborts if no stake exists with the given id.
     public fun unstake(
         ls: &mut LockedStake,
-        sui_system: &mut SuiSystemState,
-        staked_sui_id: ID,
+        iota_system: &mut IotaSystemState,
+        staked_iota_id: ID,
         ctx: &mut TxContext
     ): u64 {
-        assert!(vec_map::contains(&ls.staked_sui, &staked_sui_id), EStakeObjectNonExistent);
-        let (_, stake) = vec_map::remove(&mut ls.staked_sui, &staked_sui_id);
-        let sui_balance = sui_system::request_withdraw_stake_non_entry(sui_system, stake, ctx);
-        let amount = balance::value(&sui_balance);
-        deposit_sui(ls, sui_balance);
+        assert!(vec_map::contains(&ls.staked_iota, &staked_iota_id), EStakeObjectNonExistent);
+        let (_, stake) = vec_map::remove(&mut ls.staked_iota, &staked_iota_id);
+        let iota_balance = iota_system::request_withdraw_stake_non_entry(iota_system, stake, ctx);
+        let amount = balance::value(&iota_balance);
+        deposit_iota(ls, iota_balance);
         amount
     }
 
     // ============================= getters =============================
 
-    public fun staked_sui(ls: &LockedStake): &VecMap<ID, StakedSui> {
-        &ls.staked_sui
+    public fun staked_iota(ls: &LockedStake): &VecMap<ID, StakedIota> {
+        &ls.staked_iota
     }
 
-    public fun sui_balance(ls: &LockedStake): u64 {
-        balance::value(&ls.sui)
+    public fun iota_balance(ls: &LockedStake): u64 {
+        balance::value(&ls.iota)
     }
 
     public fun locked_until_epoch(ls: &LockedStake): u64 {

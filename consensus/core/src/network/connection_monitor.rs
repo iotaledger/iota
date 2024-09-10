@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anemo::{types::PeerEvent, PeerId};
 use dashmap::DashMap;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use quinn_proto::ConnectionStats;
 use tokio::{
     sync::oneshot::{Receiver, Sender},
@@ -20,7 +21,7 @@ const CONNECTION_STAT_COLLECTION_INTERVAL: Duration = Duration::from_secs(60);
 pub(crate) struct ConnectionMonitorHandle {
     handle: JoinHandle<()>,
     stop: Sender<()>,
-    // TODO: Sui will use this component eventually instead of the NW version
+    // TODO: Iota will use this component eventually instead of the NW version
     #[allow(unused)]
     connection_statuses: Arc<DashMap<PeerId, ConnectionStatus>>,
 }

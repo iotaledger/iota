@@ -13,23 +13,84 @@
   display: flex;
   flex-direction: column;
   row-gap: 2.5rem;
-  margin: 0 auto;
-  text-align: center;
-  width: 43.375rem;
-  max-width: 95%;
-  margin: 10rem auto;
+  margin-top: 10rem;
+  margin-left: 16rem;
+  padding-top: 2rem;
+  width: 400px;
+}
+.backgroundImage {
+  background: black url(../../static/img/heroTextBg.svg);
+  height: 27rem;
+  margin-top: -10rem;
+  background-position: right;
+  background-repeat: no-repeat;
+  background-size: 50% 100%;
+  margin-bottom: 2rem;
 }
 
-.card, .cardCTA {
-  background-color: rgba(247, 247, 248, .05);
+@media (max-width: 1000px) {
+  .backgroundImage {
+    background-size: 77% 99%;
+  }
+}
+@media (max-width: 1100px) {
+  .backgroundImage {
+    background-size: 75% 100%;
+  }
+}
+@media (max-width: 2000px) {
+  .backgroundImage {
+    background-size: 40% 100%;
+  }
+}
+@media (max-width: 1700px) {
+  .backgroundImage {
+    background-size: 50% 100%;
+  }
+}
+@media (max-width: 800px) {
+  .backgroundImage {
+    background-size: 77% 99%;
+  }
+  .heroText {
+    padding-top: 5rem;
+    padding-left: 4rem;
+  }
+}
+@media (max-width: 1200px) and (min-width: 900px) {
+  .backgroundImage {
+    background-size: 83% 100%;
+  }
+}
+@media (max-width: 1000px) and (min-width: 900px) {
+  .backgroundImage {
+    background-size: 77% 99%;
+  }
+}
+@media (max-width: 899px) and (min-width: 799px) {
+  .backgroundImage {
+    background-size: 94% 107%;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 1200px) {
+  .backgroundImage {
+    background-size: 75% 100%;
+  }
+}
+.card,
+.cardCTA {
+  height: 480px;
   border: 1px solid;
-  border-color: var(--sui-line);
+  border-color: var(--iota-line);
   display: flex;
   flex-direction: column;
   padding: 1.875rem;
   justify-content: space-between;
   border-radius: 30px;
-  height: 20.3125rem;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 101% 60%;
 }
 .cardCTA {
   height: 100%;
@@ -45,10 +106,10 @@
 .cardLink {
   display: flex;
   justify-content: flex-start;
-  border-top: solid 1px var(--sui-line);
-  border-bottom: solid 1px var(--sui-line);
-  padding: .5rem 0;
-  color: var(--sui-gray);
+  border-top: solid 1px var(--iota-line);
+  border-bottom: solid 1px var(--iota-line);
+  padding: 0.5rem 0;
+  color: var(--iota-gray);
   position: relative;
 }
 
@@ -67,7 +128,7 @@
   height: 18px;
 }
 .cardLink:after:hover svg path {
-  stroke: var(--sui-primary);
+  stroke: var(--iota-primary);
 }
 
 .cardLink:hover {
@@ -76,8 +137,8 @@
 
 .cardCTALink {
   display: flex;
-  padding: .5rem 0;
-  column-gap: .5rem;
+  padding: 0.5rem 0;
+  column-gap: 0.5rem;
   height: 100%;
   justify-content: center;
   align-items: center;
@@ -92,13 +153,13 @@
 .cardsB {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  row-gap: .5rem;
-  column-gap: .5rem;
+  row-gap: 0.5rem;
+  column-gap: 0.5rem;
   max-width: 772px;
 }
 
 .cardB {
-  background-color: rgba(247, 247, 248, .05);
+  background-color: black;
   padding: 1.7rem;
   font-family: var(--headerFont);
   font-size: 1.5rem;
@@ -106,7 +167,7 @@
   line-height: 1.75rem;
   letter-spacing: -0.04em;
   text-align: left;
-  color: var(--sui-white);
+  color: var(--iota-white);
   border-radius: 36px;
   display: flex;
   flex-direction: column;
@@ -132,18 +193,25 @@
 .why {
   display: grid;
   width: 100%;
-  max-width: var(--sui-max-width-desktop);
+  max-width: var(--iota-max-width-desktop);
   grid-template-columns: 2fr 4fr;
-  column-gap: .5rem;
+  column-gap: 0.5rem;
   margin: 0 auto;
   padding: 0 1rem;
   row-gap: 1rem;
+}
+.whyImgCard {
+  background-color: black;
+  border-radius: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .TwoColParagraph {
   display: flex;
   flex-direction: column;
-  max-width: var(--sui-max-width-desktop);
+  max-width: var(--iota-max-width-desktop);
   margin: 5rem auto;
   padding: 0 1rem;
 }
@@ -153,7 +221,7 @@
   flex-direction: row;
   justify-content: flex-start;
   padding: 2.5rem 0;
-  border-bottom: solid 1px var(--sui-line);
+  border-bottom: solid 1px var(--iota-line);
 }
 
 .TwoColItem:last-child {
@@ -162,19 +230,18 @@
 
 .TwoColItem span {
   flex: 4;
-  color: var(--sui-white);
+  color: var(--iota-white);
   font-family: var(--headerFont);
   font-size: 2rem;
   font-weight: 400;
   line-height: 2.125rem;
   letter-spacing: -0.04em;
   text-align: left;
-
 }
 
 .TwoColItem p {
   flex: 8;
-  color: var(--sui-gray);
+  color: var(--iota-gray);
   font-family: Inter;
   font-size: 1.125rem;
   font-weight: 500;
@@ -183,7 +250,6 @@
   text-align: left;
   margin: 0;
 }
-
 
 @media screen and (max-width: 996px) {
   .sectionHeader {
@@ -210,7 +276,7 @@
 }
 
 @media screen and (max-width: 799px) {
-  .heroText { 
+  .heroText {
     margin: 2rem 0;
   }
 }

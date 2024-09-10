@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Slot } from '@radix-ui/react-slot';
@@ -10,21 +11,21 @@ import { buttonVariants } from './Button.css.js';
 import type { ButtonVariants } from './Button.css.js';
 
 type ButtonProps = {
-	asChild?: boolean;
+    asChild?: boolean;
 } & ButtonHTMLAttributes<HTMLButtonElement> &
-	ButtonVariants;
+    ButtonVariants;
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-	({ className, variant, size, asChild = false, ...props }, forwardedRef) => {
-		const Comp = asChild ? Slot : 'button';
-		return (
-			<Comp
-				{...props}
-				className={clsx(buttonVariants({ variant, size }), className)}
-				ref={forwardedRef}
-			/>
-		);
-	},
+    ({ className, variant, size, asChild = false, ...props }, forwardedRef) => {
+        const Comp = asChild ? Slot : 'button';
+        return (
+            <Comp
+                {...props}
+                className={clsx(buttonVariants({ variant, size }), className)}
+                ref={forwardedRef}
+            />
+        );
+    },
 );
 Button.displayName = 'Button';
 

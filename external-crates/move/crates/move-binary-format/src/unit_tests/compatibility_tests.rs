@@ -1,14 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, convert::TryFrom};
+
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
 
 use crate::{
     compatibility::{Compatibility, InclusionCheck},
     file_format::*,
     normalized::{self, Type},
 };
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
 
 // A way to permute pools, and index into them still.
 pub struct Permutation {
@@ -96,6 +98,7 @@ fn mk_module_entry(vis: u8, is_entry: bool) -> normalized::Module {
                         Bytecode::LdConst(ConstantPoolIndex(2)),
                         Bytecode::Ret,
                     ],
+                    jump_tables: vec![],
                 }),
             },
         ],
@@ -104,7 +107,7 @@ fn mk_module_entry(vis: u8, is_entry: bool) -> normalized::Module {
             Signature(vec![SignatureToken::U64]), // u64
         ],
         struct_defs: vec![],
-        struct_handles: vec![],
+        datatype_handles: vec![],
         constant_pool: vec![
             Constant {
                 type_: SignatureToken::U8,
@@ -125,6 +128,10 @@ fn mk_module_entry(vis: u8, is_entry: bool) -> normalized::Module {
         struct_def_instantiations: vec![],
         function_instantiations: vec![],
         field_instantiations: vec![],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
     normalized::Module::new(&m)
 }
@@ -184,6 +191,7 @@ fn mk_module_plus_code_perm(vis: u8, code: Vec<Bytecode>, p: Permutation) -> nor
                 code: Some(CodeUnit {
                     locals: SignatureIndex(p.permute(0)),
                     code,
+                    jump_tables: vec![],
                 }),
             },
             // public(script) fun fn() { return; }
@@ -200,6 +208,7 @@ fn mk_module_plus_code_perm(vis: u8, code: Vec<Bytecode>, p: Permutation) -> nor
                         Bytecode::LdConst(ConstantPoolIndex(p.permute(2))),
                         Bytecode::Ret,
                     ],
+                    jump_tables: vec![],
                 }),
             },
         ]),
@@ -208,7 +217,7 @@ fn mk_module_plus_code_perm(vis: u8, code: Vec<Bytecode>, p: Permutation) -> nor
             Signature(vec![SignatureToken::U64]), // u64
         ]),
         struct_defs: vec![],
-        struct_handles: vec![],
+        datatype_handles: vec![],
         constant_pool: p.pool(vec![
             Constant {
                 type_: SignatureToken::U8,
@@ -229,6 +238,10 @@ fn mk_module_plus_code_perm(vis: u8, code: Vec<Bytecode>, p: Permutation) -> nor
         struct_def_instantiations: vec![],
         function_instantiations: vec![],
         field_instantiations: vec![],
+        enum_defs: vec![],
+        enum_def_instantiations: vec![],
+        variant_handles: vec![],
+        variant_instantiation_handles: vec![],
     };
     normalized::Module::new(&m)
 }
@@ -266,42 +279,69 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
         address_identifiers: vec![
             AccountAddress::ZERO, // Module address
         ],
-        struct_handles: p.pool(vec![
-            StructHandle {
+        datatype_handles: p.pool(vec![
+            DatatypeHandle {
                 module: ModuleHandleIndex(0),
                 name: IdentifierIndex(p.permute(1)),
                 abilities: AbilitySet::PRIMITIVES,
                 type_parameters: vec![],
             },
-            StructHandle {
+            DatatypeHandle {
                 module: ModuleHandleIndex(0),
                 name: IdentifierIndex(p.permute(2)),
                 abilities: AbilitySet::PRIMITIVES,
-                type_parameters: vec![StructTypeParameter {
+                type_parameters: vec![DatatypeTyParameter {
                     constraints: AbilitySet::PRIMITIVES,
                     is_phantom: false,
                 }],
             },
-            StructHandle {
+            DatatypeHandle {
                 module: ModuleHandleIndex(0),
                 name: IdentifierIndex(p.permute(3)),
                 abilities: AbilitySet::EMPTY | Ability::Key,
                 type_parameters: vec![],
             },
-            StructHandle {
+            DatatypeHandle {
                 module: ModuleHandleIndex(0),
                 name: IdentifierIndex(p.permute(4)),
                 abilities: AbilitySet::EMPTY | Ability::Key,
-                type_parameters: vec![StructTypeParameter {
+                type_parameters: vec![DatatypeTyParameter {
                     constraints: AbilitySet::PRIMITIVES,
                     is_phantom: false,
                 }],
+            },
+            DatatypeHandle {
+                module: ModuleHandleIndex(0),
+                name: IdentifierIndex(p.permute(5)),
+                abilities: AbilitySet::PRIMITIVES,
+                type_parameters: vec![],
+            },
+            DatatypeHandle {
+                module: ModuleHandleIndex(0),
+                name: IdentifierIndex(p.permute(6)),
+                abilities: AbilitySet::PRIMITIVES,
+                type_parameters: vec![DatatypeTyParameter {
+                    constraints: AbilitySet::PRIMITIVES,
+                    is_phantom: false,
+                }],
+            },
+            DatatypeHandle {
+                module: ModuleHandleIndex(0),
+                name: IdentifierIndex(p.permute(7)),
+                abilities: AbilitySet::PRIMITIVES,
+                type_parameters: vec![],
+            },
+            DatatypeHandle {
+                module: ModuleHandleIndex(0),
+                name: IdentifierIndex(p.permute(8)),
+                abilities: AbilitySet::PRIMITIVES,
+                type_parameters: vec![],
             },
         ]),
         struct_defs: p.pool(vec![
             // struct S { f: u64 }
             StructDefinition {
-                struct_handle: StructHandleIndex(p.permute(0)),
+                struct_handle: DatatypeHandleIndex(p.permute(0)),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
                     name: IdentifierIndex(p.permute(5)),
                     signature: TypeSignature(SignatureToken::U64),
@@ -309,7 +349,7 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
             },
             // struct GS<T> { f: T }
             StructDefinition {
-                struct_handle: StructHandleIndex(p.permute(1)),
+                struct_handle: DatatypeHandleIndex(p.permute(1)),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
                     name: IdentifierIndex(p.permute(5)),
                     signature: TypeSignature(SignatureToken::TypeParameter(0)),
@@ -317,7 +357,7 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
             },
             // struct R has key { f: u64 }
             StructDefinition {
-                struct_handle: StructHandleIndex(p.permute(2)),
+                struct_handle: DatatypeHandleIndex(p.permute(2)),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
                     name: IdentifierIndex(p.permute(5)),
                     signature: TypeSignature(SignatureToken::U64),
@@ -325,7 +365,7 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
             },
             // struct GR<T> has key { f: T }
             StructDefinition {
-                struct_handle: StructHandleIndex(p.permute(3)),
+                struct_handle: DatatypeHandleIndex(p.permute(3)),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
                     name: IdentifierIndex(p.permute(5)),
                     signature: TypeSignature(SignatureToken::TypeParameter(0)),
@@ -368,6 +408,7 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
                 code: Some(CodeUnit {
                     locals: SignatureIndex(p.permute(0)),
                     code: vec![Bytecode::Ret],
+                    jump_tables: vec![],
                 }),
             },
             // fun g_fn<T>() { return; }
@@ -379,6 +420,7 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
                 code: Some(CodeUnit {
                     locals: SignatureIndex(p.permute(0)),
                     code: vec![Bytecode::Ret],
+                    jump_tables: vec![],
                 }),
             },
             FunctionDefinition {
@@ -389,6 +431,7 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
                 code: Some(CodeUnit {
                     locals: SignatureIndex(p.permute(0)),
                     code: vec![],
+                    jump_tables: vec![],
                 }),
             },
         ]),
@@ -422,6 +465,74 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
         struct_def_instantiations: vec![],
         function_instantiations: vec![],
         field_instantiations: vec![],
+        enum_defs: p.pool(vec![
+            EnumDefinition {
+                enum_handle: DatatypeHandleIndex(p.permute(4)),
+                variants: vec![VariantDefinition {
+                    variant_name: IdentifierIndex(p.permute(0)),
+                    fields: vec![FieldDefinition {
+                        name: IdentifierIndex(p.permute(4)),
+                        signature: TypeSignature(SignatureToken::U64),
+                    }],
+                }],
+            },
+            EnumDefinition {
+                enum_handle: DatatypeHandleIndex(p.permute(5)),
+                variants: vec![VariantDefinition {
+                    variant_name: IdentifierIndex(p.permute(0)),
+                    fields: vec![
+                        FieldDefinition {
+                            name: IdentifierIndex(p.permute(5)),
+                            signature: TypeSignature(SignatureToken::U64),
+                        },
+                        FieldDefinition {
+                            name: IdentifierIndex(p.permute(3)),
+                            signature: TypeSignature(SignatureToken::TypeParameter(0)),
+                        },
+                    ],
+                }],
+            },
+            EnumDefinition {
+                enum_handle: DatatypeHandleIndex(p.permute(6)),
+                variants: vec![VariantDefinition {
+                    variant_name: IdentifierIndex(p.permute(0)),
+                    fields: vec![FieldDefinition {
+                        name: IdentifierIndex(p.permute(4)),
+                        signature: TypeSignature(SignatureToken::U64),
+                    }],
+                }],
+            },
+            EnumDefinition {
+                enum_handle: DatatypeHandleIndex(p.permute(7)),
+                variants: vec![VariantDefinition {
+                    variant_name: IdentifierIndex(p.permute(0)),
+                    fields: vec![FieldDefinition {
+                        name: IdentifierIndex(p.permute(4)),
+                        signature: TypeSignature(SignatureToken::U64),
+                    }],
+                }],
+            },
+        ]),
+        enum_def_instantiations: vec![],
+        variant_handles: p.pool(vec![
+            VariantHandle {
+                enum_def: EnumDefinitionIndex(p.permute(0)),
+                variant: 0,
+            },
+            VariantHandle {
+                enum_def: EnumDefinitionIndex(p.permute(1)),
+                variant: 0,
+            },
+            VariantHandle {
+                enum_def: EnumDefinitionIndex(p.permute(2)),
+                variant: 0,
+            },
+            VariantHandle {
+                enum_def: EnumDefinitionIndex(p.permute(3)),
+                variant: 0,
+            },
+        ]),
+        variant_instantiation_handles: vec![],
     };
     normalized::Module::new(&m)
 }
@@ -429,9 +540,11 @@ fn make_complex_module_perm(p: Permutation) -> normalized::Module {
 #[test]
 fn deprecated_unchanged_script_visibility() {
     let script_module = mk_module(Visibility::DEPRECATED_SCRIPT);
-    assert!(Compatibility::full_check()
-        .check(&script_module, &script_module)
-        .is_ok(),);
+    assert!(
+        Compatibility::full_check()
+            .check(&script_module, &script_module)
+            .is_ok(),
+    );
 }
 
 #[test]
@@ -439,19 +552,25 @@ fn deprecated_remove_script_visibility() {
     let script_module = mk_module(Visibility::DEPRECATED_SCRIPT);
     // script -> private, not allowed
     let private_module = mk_module(Visibility::Private as u8);
-    assert!(Compatibility::full_check()
-        .check(&script_module, &private_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&script_module, &private_module)
+            .is_err()
+    );
     // script -> public, not allowed
     let public_module = mk_module(Visibility::Public as u8);
-    assert!(Compatibility::full_check()
-        .check(&script_module, &public_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&script_module, &public_module)
+            .is_err()
+    );
     // script -> friend, not allowed
     let friend_module = mk_module(Visibility::Friend as u8);
-    assert!(Compatibility::full_check()
-        .check(&script_module, &friend_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&script_module, &friend_module)
+            .is_err()
+    );
 }
 
 #[test]
@@ -459,45 +578,59 @@ fn deprecated_add_script_visibility() {
     let script_module = mk_module(Visibility::DEPRECATED_SCRIPT);
     // private -> script, allowed
     let private_module = mk_module(Visibility::Private as u8);
-    assert!(Compatibility::full_check()
-        .check(&private_module, &script_module)
-        .is_ok());
+    assert!(
+        Compatibility::full_check()
+            .check(&private_module, &script_module)
+            .is_ok()
+    );
     // public -> script, not allowed
     let public_module = mk_module(Visibility::Public as u8);
-    assert!(Compatibility::full_check()
-        .check(&public_module, &script_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&public_module, &script_module)
+            .is_err()
+    );
     // friend -> script, not allowed
     let friend_module = mk_module(Visibility::Friend as u8);
-    assert!(Compatibility::full_check()
-        .check(&friend_module, &script_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&friend_module, &script_module)
+            .is_err()
+    );
 }
 
 #[test]
 fn private_entry_to_public_entry_allowed() {
     let private_module = max_version(mk_module_entry(Visibility::Private as u8, true));
     let public_module = max_version(mk_module_entry(Visibility::Public as u8, true));
-    assert!(Compatibility::full_check()
-        .check(&private_module, &public_module)
-        .is_ok());
+    assert!(
+        Compatibility::full_check()
+            .check(&private_module, &public_module)
+            .is_ok()
+    );
 
-    assert!(Compatibility::full_check()
-        .check(&public_module, &private_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&public_module, &private_module)
+            .is_err()
+    );
 }
 
 #[test]
 fn public_loses_entry() {
     let public_entry = max_version(mk_module_entry(Visibility::Public as u8, true));
     let public = max_version(mk_module_entry(Visibility::Public as u8, false));
-    assert!(Compatibility::full_check()
-        .check(&public, &public_entry)
-        .is_ok());
+    assert!(
+        Compatibility::full_check()
+            .check(&public, &public_entry)
+            .is_ok()
+    );
 
-    assert!(Compatibility::full_check()
-        .check(&public_entry, &public)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&public_entry, &public)
+            .is_err()
+    );
 }
 
 #[test]
@@ -513,33 +646,41 @@ fn private_entry_signature_change_allowed() {
         .parameters = vec![Type::U64];
 
     // allow updating signatures of private entry functions
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: false,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_ok());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: false,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_ok()
+    );
 
     // allow updating signatures of private entry functions
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: false,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&updated_module, &module)
-    .is_ok());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: false,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&updated_module, &module)
+        .is_ok()
+    );
 
     // disallow updating signatures of private entry functions
-    assert!(Compatibility::full_check()
-        .check(&module, &updated_module)
-        .is_err());
+    assert!(
+        Compatibility::full_check()
+            .check(&module, &updated_module)
+            .is_err()
+    );
 }
 
 #[test]
@@ -613,16 +754,19 @@ fn entry_fun_compat_tests() {
 
     // Every valid combo is valid under `check_private_entry_linking = false`
     for (prev, new) in valid_combos.into_iter() {
-        assert!(Compatibility {
-            check_struct_and_pub_function_linking: true,
-            check_struct_layout: true,
-            check_friend_linking: true,
-            check_private_entry_linking: false,
-            disallowed_new_abilities: AbilitySet::EMPTY,
-            disallow_change_struct_type_params: false,
-        }
-        .check(prev, new)
-        .is_ok());
+        assert!(
+            Compatibility {
+                check_datatype_and_pub_function_linking: true,
+                check_datatype_layout: true,
+                check_friend_linking: true,
+                check_private_entry_linking: false,
+                disallowed_new_abilities: AbilitySet::EMPTY,
+                disallow_change_datatype_type_params: false,
+                disallow_new_variants: false,
+            }
+            .check(prev, new)
+            .is_ok()
+        );
     }
 
     // Every
@@ -632,40 +776,49 @@ fn entry_fun_compat_tests() {
 
     // Every valid combo is valid under `check_private_entry_linking = false`
     for (prev, new) in valid_entry_fun_changes_with_friend_api_breakage.into_iter() {
-        assert!(Compatibility {
-            check_struct_and_pub_function_linking: true,
-            check_struct_layout: true,
-            check_friend_linking: false,
-            check_private_entry_linking: false,
-            disallowed_new_abilities: AbilitySet::EMPTY,
-            disallow_change_struct_type_params: false,
-        }
-        .check(prev, new)
-        .is_ok());
+        assert!(
+            Compatibility {
+                check_datatype_and_pub_function_linking: true,
+                check_datatype_layout: true,
+                check_friend_linking: false,
+                check_private_entry_linking: false,
+                disallowed_new_abilities: AbilitySet::EMPTY,
+                disallow_change_datatype_type_params: false,
+                disallow_new_variants: false,
+            }
+            .check(prev, new)
+            .is_ok()
+        );
 
-        assert!(Compatibility {
-            check_struct_and_pub_function_linking: true,
-            check_struct_layout: true,
-            check_friend_linking: true,
-            check_private_entry_linking: false,
-            disallowed_new_abilities: AbilitySet::EMPTY,
-            disallow_change_struct_type_params: false,
-        }
-        .check(prev, new)
-        .is_err());
+        assert!(
+            Compatibility {
+                check_datatype_and_pub_function_linking: true,
+                check_datatype_layout: true,
+                check_friend_linking: true,
+                check_private_entry_linking: false,
+                disallowed_new_abilities: AbilitySet::EMPTY,
+                disallow_change_datatype_type_params: false,
+                disallow_new_variants: false,
+            }
+            .check(prev, new)
+            .is_err()
+        );
     }
 
     for (prev, new) in invalid_combos.into_iter() {
-        assert!(Compatibility {
-            check_struct_and_pub_function_linking: true,
-            check_struct_layout: true,
-            check_friend_linking: true,
-            check_private_entry_linking: false,
-            disallowed_new_abilities: AbilitySet::EMPTY,
-            disallow_change_struct_type_params: false,
-        }
-        .check(prev, new)
-        .is_err());
+        assert!(
+            Compatibility {
+                check_datatype_and_pub_function_linking: true,
+                check_datatype_layout: true,
+                check_friend_linking: true,
+                check_private_entry_linking: false,
+                disallowed_new_abilities: AbilitySet::EMPTY,
+                disallow_change_datatype_type_params: false,
+                disallow_new_variants: false,
+            }
+            .check(prev, new)
+            .is_err()
+        );
     }
 }
 
@@ -681,38 +834,47 @@ fn public_entry_signature_change_disallowed() {
         .unwrap()
         .parameters = vec![Type::U64];
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: false,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_err());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: false,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_err()
+    );
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: false,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&updated_module, &module)
-    .is_err());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: false,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&updated_module, &module)
+        .is_err()
+    );
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: true,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_err());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: true,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_err()
+    );
 }
 
 #[test]
@@ -726,49 +888,61 @@ fn friend_entry_signature_change_allowed() {
         .unwrap()
         .parameters = vec![Type::U64];
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: false,
-        check_private_entry_linking: false,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_ok());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: false,
+            check_private_entry_linking: false,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_ok()
+    );
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: false,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_err());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: false,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_err()
+    );
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: false,
-        check_private_entry_linking: true,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_err());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: false,
+            check_private_entry_linking: true,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_err()
+    );
 
-    assert!(Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: true,
-        check_private_entry_linking: true,
-        disallowed_new_abilities: AbilitySet::EMPTY,
-        disallow_change_struct_type_params: false,
-    }
-    .check(&module, &updated_module)
-    .is_err());
+    assert!(
+        Compatibility {
+            check_datatype_and_pub_function_linking: true,
+            check_datatype_layout: true,
+            check_friend_linking: true,
+            check_private_entry_linking: true,
+            disallowed_new_abilities: AbilitySet::EMPTY,
+            disallow_change_datatype_type_params: false,
+            disallow_new_variants: false,
+        }
+        .check(&module, &updated_module)
+        .is_err()
+    );
 }
 
 #[test]

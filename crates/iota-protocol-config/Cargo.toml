@@ -1,0 +1,18 @@
+[package]
+name = "iota-protocol-config"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+clap.workspace = true
+iota-protocol-config-macros.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_with.workspace = true
+tracing.workspace = true
+
+[target.'cfg(not(msim))'.dev-dependencies]
+insta.workspace = true

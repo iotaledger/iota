@@ -1,31 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
+
 use bytes::Bytes;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use mysten_metrics::{monitored_future, monitored_scope};
+use consensus_config::AuthorityIndex;
+use futures::{stream::FuturesUnordered, StreamExt};
+use iota_metrics::{monitored_future, monitored_scope};
 use parking_lot::Mutex;
 #[cfg(not(test))]
 use rand::{rngs::ThreadRng, seq::SliceRandom};
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::error::TrySendError;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::oneshot;
-use tokio::task::JoinSet;
-use tokio::time::{error::Elapsed, sleep, sleep_until, timeout, Instant};
+use tokio::{
+    sync::{
+        mpsc::{channel, error::TrySendError, Receiver, Sender},
+        oneshot,
+    },
+    task::JoinSet,
+    time::{error::Elapsed, sleep, sleep_until, timeout, Instant},
+};
 use tracing::{debug, info, warn};
 
-use crate::block::{BlockRef, SignedBlock, VerifiedBlock};
-use crate::block_verifier::BlockVerifier;
-use crate::context::Context;
-use crate::core_thread::CoreThreadDispatcher;
-use crate::error::{ConsensusError, ConsensusResult};
-use crate::network::NetworkClient;
-use crate::BlockAPI;
-use consensus_config::AuthorityIndex;
+use crate::{
+    block::{BlockRef, SignedBlock, VerifiedBlock},
+    block_verifier::BlockVerifier,
+    context::Context,
+    core_thread::CoreThreadDispatcher,
+    error::{ConsensusError, ConsensusResult},
+    network::NetworkClient,
+    BlockAPI,
+};
 
 /// The number of concurrent fetch blocks requests per authority
 const FETCH_BLOCKS_CONCURRENCY: usize = 5;
@@ -50,8 +58,8 @@ pub(crate) struct SynchronizerHandle {
 }
 
 impl SynchronizerHandle {
-    /// Explicitly asks from the synchronizer to fetch the blocks - provided the block_refs set - from
-    /// the peer authority.
+    /// Explicitly asks from the synchronizer to fetch the blocks - provided the
+    /// block_refs set - from the peer authority.
     pub(crate) async fn fetch_blocks(
         &self,
         block_refs: BTreeSet<BlockRef>,
@@ -86,6 +94,8 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C, V, D> {
+    /// Starts the synchronizer, which is responsible for fetching blocks from
+    /// other authorities and managing block synchronization tasks.
     pub fn start(
         network_client: Arc<C>,
         context: Arc<Context>,
@@ -135,7 +145,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
     // The main loop to listen for the submitted commands.
     async fn run(&mut self) {
-        // We want the synchronizer to run periodically every 500ms to fetch any missing blocks.
+        // We want the synchronizer to run periodically every 500ms to fetch any missing
+        // blocks.
         const SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
         let scheduler_timeout = sleep_until(Instant::now() + SYNCHRONIZER_TIMEOUT);
 
@@ -246,8 +257,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         }
     }
 
-    /// Processes the requested raw fetched blocks from peer `peer_index`. If no error is returned then
-    /// the verified blocks are immediately sent to Core for processing.
+    /// Processes the requested raw fetched blocks from peer `peer_index`. If no
+    /// error is returned then the verified blocks are immediately sent to
+    /// Core for processing.
     async fn process_fetched_blocks(
         serialized_blocks: Vec<Bytes>,
         peer_index: AuthorityIndex,
@@ -268,8 +280,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
             // TODO: dedup block verifications, here and with fetched blocks.
             if let Err(e) = block_verifier.verify(&signed_block) {
-                // TODO: we might want to use a different metric to track the invalid "served" blocks
-                // from the invalid "proposed" ones.
+                // TODO: we might want to use a different metric to track the invalid "served"
+                // blocks from the invalid "proposed" ones.
                 context
                     .metrics
                     .node_metrics
@@ -292,9 +304,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             verified_blocks.push(verified_block);
         }
 
-        // Now send them to core for processing. Ignore the returned missing blocks as we don't want
-        // this mechanism to keep feedback looping on fetching more blocks. The periodic synchronization
-        // will take care of that.
+        // Now send them to core for processing. Ignore the returned missing blocks as
+        // we don't want this mechanism to keep feedback looping on fetching
+        // more blocks. The periodic synchronization will take care of that.
         let _missing_blocks = core_dispatcher
             .add_blocks(verified_blocks)
             .await
@@ -327,8 +339,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         .await;
 
         if matches!(resp, Ok(Err(_))) {
-            // Add a delay before retrying - if that is needed. If request has timed out then eventually
-            // this will be a no-op.
+            // Add a delay before retrying - if that is needed. If request has timed out
+            // then eventually this will be a no-op.
             sleep_until(start + request_timeout).await;
             retries += 1;
         }
@@ -356,12 +368,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .spawn(monitored_future!(async move {
                 let _scope = monitored_scope("FetchMissingBlocksScheduler");
 
-                context.metrics.node_metrics.fetch_blocks_scheduler_inflight.inc();
+                context
+                    .metrics
+                    .node_metrics
+                    .fetch_blocks_scheduler_inflight
+                    .inc();
 
                 let total_requested = missing_blocks.len();
 
                 // Fetch blocks from peers
-                let results = Self::fetch_blocks_from_authorities(context.clone(), network_client, missing_blocks).await;
+                let results = Self::fetch_blocks_from_authorities(
+                    context.clone(),
+                    network_client,
+                    missing_blocks,
+                )
+                .await;
 
                 if results.is_empty() {
                     warn!("No results returned while requesting missing blocks");
@@ -372,23 +393,49 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 let mut total_fetched = 0;
                 for (requested_block_refs, fetched_blocks, peer) in results {
                     total_fetched += fetched_blocks.len();
-                    context.metrics.node_metrics.fetched_blocks.with_label_values(&[&peer.to_string(), "periodic"]).inc_by(fetched_blocks.len() as u64);
+                    context
+                        .metrics
+                        .node_metrics
+                        .fetched_blocks
+                        .with_label_values(&[&peer.to_string(), "periodic"])
+                        .inc_by(fetched_blocks.len() as u64);
 
-                    if let Err(err) = Self::process_fetched_blocks(fetched_blocks, peer, requested_block_refs, core_dispatcher.clone(), block_verifier.clone(), context.clone()).await {
-                        warn!("Error occurred while processing fetched blocks from peer {peer}: {err}");
+                    if let Err(err) = Self::process_fetched_blocks(
+                        fetched_blocks,
+                        peer,
+                        requested_block_refs,
+                        core_dispatcher.clone(),
+                        block_verifier.clone(),
+                        context.clone(),
+                    )
+                    .await
+                    {
+                        warn!(
+                            "Error occurred while processing fetched blocks from peer {peer}: {err}"
+                        );
                     }
                 }
 
-                context.metrics.node_metrics.fetch_blocks_scheduler_inflight.dec();
+                context
+                    .metrics
+                    .node_metrics
+                    .fetch_blocks_scheduler_inflight
+                    .dec();
 
-                debug!("Total blocks requested to fetch: {}, total fetched: {}", total_requested, total_fetched);
+                debug!(
+                    "Total blocks requested to fetch: {}, total fetched: {}",
+                    total_requested, total_fetched
+                );
             }));
         Ok(())
     }
 
-    /// Fetches the `missing_blocks` from available peers. The method will attempt to split the load amongst multiple (random) peers.
-    /// The method returns a vector with the fetched blocks from each peer that successfully responded. Each element of the vector
-    /// is a tuple which contains the requested missing block refs, the returned blocks and the peer authority index.
+    /// Fetches the `missing_blocks` from available peers. The method will
+    /// attempt to split the load amongst multiple (random) peers.
+    /// The method returns a vector with the fetched blocks from each peer that
+    /// successfully responded. Each element of the vector is a tuple which
+    /// contains the requested missing block refs, the returned blocks and the
+    /// peer authority index.
     async fn fetch_blocks_from_authorities(
         context: Arc<Context>,
         network_client: Arc<C>,
@@ -409,7 +456,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .filter_map(|(peer_index, _)| (peer_index != context.own_index).then_some(peer_index))
             .collect::<Vec<_>>();
 
-        // TODO: probably inject the RNG to allow unit testing - this is a work around for now.
+        // TODO: probably inject the RNG to allow unit testing - this is a work around
+        // for now.
         cfg_if::cfg_if! {
             if #[cfg(not(test))] {
                 // Shuffle the peers
@@ -482,22 +530,29 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
 #[cfg(test)]
 mod tests {
-    use crate::block::{BlockRef, Round, TestBlock, VerifiedBlock};
-    use crate::block_verifier::NoopBlockVerifier;
-    use crate::context::Context;
-    use crate::core_thread::{CoreError, CoreThreadDispatcher};
-    use crate::error::{ConsensusError, ConsensusResult};
-    use crate::network::NetworkClient;
-    use crate::synchronizer::{Synchronizer, FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+        time::Duration,
+    };
+
     use async_trait::async_trait;
     use bytes::Bytes;
     use consensus_config::AuthorityIndex;
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::sync::Arc;
-    use std::time::Duration;
     use tokio::time::sleep;
 
-    // TODO: create a complete Mock for thread dispatcher to be used from several tests
+    use crate::{
+        block::{BlockRef, Round, TestBlock, VerifiedBlock},
+        block_verifier::NoopBlockVerifier,
+        context::Context,
+        core_thread::{CoreError, CoreThreadDispatcher},
+        error::{ConsensusError, ConsensusResult},
+        network::NetworkClient,
+        synchronizer::{Synchronizer, FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT},
+    };
+
+    // TODO: create a complete Mock for thread dispatcher to be used from several
+    // tests
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
         add_blocks: tokio::sync::Mutex<Vec<VerifiedBlock>>,
@@ -668,8 +723,8 @@ mod tests {
         let peer = AuthorityIndex::new_for_test(1);
         let mut iter = expected_blocks.iter().peekable();
         while let Some(block) = iter.next() {
-            // stub the fetch_blocks request from peer 1 and give some high response latency so requests
-            // can start blocking the peer task.
+            // stub the fetch_blocks request from peer 1 and give some high response latency
+            // so requests can start blocking the peer task.
             network_client
                 .stub_fetch_blocks(
                     vec![block.clone()],
@@ -681,8 +736,8 @@ mod tests {
             let mut missing_blocks = BTreeSet::new();
             missing_blocks.insert(block.reference());
 
-            // WHEN requesting to fetch the blocks, it should not succeed for the last request and get
-            // an error with "saturated" synchronizer
+            // WHEN requesting to fetch the blocks, it should not succeed for the last
+            // request and get an error with "saturated" synchronizer
             if iter.peek().is_none() {
                 match handle.fetch_blocks(missing_blocks, peer).await {
                     Err(ConsensusError::SynchronizerSaturated(index)) => {
@@ -720,8 +775,8 @@ mod tests {
             .await;
 
         // AND stub the requests for authority 1 & 2
-        // Make the first authority timeout, so the second will be called. "We" are authority = 0, so
-        // we are skipped anyways.
+        // Make the first authority timeout, so the second will be called. "We" are
+        // authority = 0, so we are skipped anyways.
         network_client
             .stub_fetch_blocks(
                 expected_blocks.clone(),
@@ -752,10 +807,12 @@ mod tests {
         assert_eq!(added_blocks, expected_blocks);
 
         // AND missing blocks should have been consumed by the stub
-        assert!(core_dispatcher
-            .get_missing_blocks()
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            core_dispatcher
+                .get_missing_blocks()
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 }

@@ -15,6 +15,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides methods for constructing transactions such as transferring objects,
+/// sending coins, performing Move calls, or managing stakes.
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]
 pub trait TransactionBuilder {
@@ -136,7 +138,7 @@ pub trait TransactionBuilder {
         function: String,
         /// the type arguments of the Move function
         type_arguments: Vec<IotaTypeTag>,
-        /// the arguments to be passed into the Move function, in [IotaJson](https://wiki.iota.org/build/iota-json) format
+        /// the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.io/build/iota-json) format
         arguments: Vec<IotaJsonValue>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
         gas: Option<ObjectID>,
@@ -163,7 +165,8 @@ pub trait TransactionBuilder {
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Create an unsigned transaction to split a coin object into multiple coins.
+    /// Create an unsigned transaction to split a coin object into multiple
+    /// coins.
     #[rustfmt::skip]
     #[method(name = "splitCoin")]
     async fn split_coin(
@@ -261,6 +264,38 @@ pub trait TransactionBuilder {
         staked_iota: ObjectID,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
         gas: Option<ObjectID>,
+        /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes>;
+
+    /// Add timelocked stake to a validator's staking pool using multiple balances and amount.
+    #[rustfmt::skip]
+    #[method(name = "requestAddTimelockedStake")]
+    async fn request_add_timelocked_stake(
+        &self,
+        /// the transaction signer's Iota address
+        signer: IotaAddress,
+        /// TimeLock<Balance<IOTA>> object to stake
+        locked_balance: ObjectID,
+        /// the validator's Iota address
+        validator: IotaAddress,
+        /// gas object to be used in this transaction
+        gas: ObjectID,
+        /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes>;
+
+    /// Withdraw timelocked stake from a validator's staking pool.
+    #[rustfmt::skip]
+    #[method(name = "requestWithdrawTimelockedStake")]
+    async fn request_withdraw_timelocked_stake(
+        &self,
+        /// the transaction signer's Iota address
+        signer: IotaAddress,
+        /// TimelockedStakedIota object ID
+        timelocked_staked_iota: ObjectID,
+        /// gas object to be used in this transaction
+        gas: ObjectID,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;

@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This crate provides various APIs for interacting with the IOTA blockchain.
+//! It includes methods for querying data, building and executing transactions,
+//! managing governance-related data, and more.
+
 use anyhow::anyhow;
 pub use bridge::{BridgeReadApiClient, BridgeReadApiOpenRpc, BridgeReadApiServer};
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
@@ -9,6 +13,13 @@ pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
 pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
 pub use indexer::{IndexerApiClient, IndexerApiOpenRpc, IndexerApiServer};
 use iota_metrics::histogram::Histogram;
+use jsonrpsee::{
+    core::ClientError,
+    types::{
+        error::{INTERNAL_ERROR_CODE, UNKNOWN_ERROR_CODE},
+        ErrorObjectOwned,
+    },
+};
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
 use once_cell::sync::Lazy;
 use prometheus::{register_int_counter_with_registry, IntCounter};
@@ -289,3 +300,16 @@ pub const CLIENT_TARGET_API_VERSION_HEADER: &str = "client-target-api-version";
 
 pub const TRANSIENT_ERROR_CODE: i32 = -32050;
 pub const TRANSACTION_EXECUTION_CLIENT_ERROR_CODE: i32 = -32002;
+
+/// Convert a jsonrpsee client error into a generic error object.
+pub fn error_object_from_rpc(rpc_err: ClientError) -> ErrorObjectOwned {
+    match rpc_err {
+        ClientError::Call(e) => ErrorObjectOwned::owned(e.code(), e.message().to_owned(), e.data()),
+        _ => ErrorObjectOwned::owned::<()>(UNKNOWN_ERROR_CODE, rpc_err.to_string(), None),
+    }
+}
+
+/// Convert an internal error into a generic error object.
+pub fn internal_error(err: impl ToString) -> ErrorObjectOwned {
+    ErrorObjectOwned::owned::<()>(INTERNAL_ERROR_CODE, err.to_string(), None)
+}

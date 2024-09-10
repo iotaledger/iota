@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseSerializedSignature, PublicKey, SignatureScheme } from '@mysten/sui.js/cryptography';
-import { parsePartialSignatures } from '@mysten/sui.js/multisig';
-import { toB64 } from '@mysten/sui.js/utils';
-import { publicKeyFromRawBytes } from '@mysten/sui.js/verify';
+import { parseSerializedSignature, PublicKey, SignatureScheme } from '@iota/iota-sdk/cryptography';
+import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
+import { toB64 } from '@iota/iota-sdk/utils';
+import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 
@@ -15,9 +16,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 interface SignaturePubkeyPair {
-	signatureScheme: SignatureScheme;
-	publicKey: PublicKey;
-	signature: Uint8Array;
+    signatureScheme: SignatureScheme;
+    publicKey: PublicKey;
+    signature: Uint8Array;
 }
 
 /*
@@ -36,118 +37,122 @@ AIYbCXAhPmILpWq6xsEY/Nu310Kednlb60Qcd/nD+u2WCXE/FvSXNRUQW9OQKGqt2CeskPyv2SEhaKMZ
 */
 
 function Signature({ signature, index }: { signature: SignaturePubkeyPair; index: number }) {
-	const suiAddress = signature.publicKey.toSuiAddress();
+    const iotaAddress = signature.publicKey.toIotaAddress();
 
-	const pubkey_base64_sui_format = signature.publicKey.toSuiPublicKey();
+    const pubkey_base64_iota_format = signature.publicKey.toIotaPublicKey();
 
-	const pubkey = signature.publicKey.toBase64();
-	const scheme = signature.signatureScheme.toString();
+    const pubkey = signature.publicKey.toBase64();
+    const scheme = signature.signatureScheme.toString();
 
-	const details = [
-		{ label: 'Signature Public Key', value: pubkey },
-		{ label: 'Sui Format Public Key ( flag | pk )', value: pubkey_base64_sui_format },
-		{ label: 'Sui Address', value: suiAddress },
-		{ label: 'Signature', value: toB64(signature.signature) },
-	];
+    const details = [
+        { label: 'Signature Public Key', value: pubkey },
+        { label: 'Iota Format Public Key ( flag | pk )', value: pubkey_base64_iota_format },
+        { label: 'Iota Address', value: iotaAddress },
+        { label: 'Signature', value: toB64(signature.signature) },
+    ];
 
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Signature #{index}</CardTitle>
-				<CardDescription>{scheme}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<div className="flex flex-col gap-2">
-					{details.map(({ label, value }, index) => (
-						<div key={index} className="flex flex-col gap-1.5">
-							<div className="font-bold">{label}</div>
-							<div className="bg-muted rounded text-sm font-mono p-2 break-all">{value}</div>
-						</div>
-					))}
-				</div>
-			</CardContent>
-		</Card>
-	);
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Signature #{index}</CardTitle>
+                <CardDescription>{scheme}</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col gap-2">
+                    {details.map(({ label, value }, index) => (
+                        <div key={index} className="flex flex-col gap-1.5">
+                            <div className="font-bold">{label}</div>
+                            <div className="bg-muted rounded text-sm font-mono p-2 break-all">
+                                {value}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+    );
 }
 
 export default function SignatureAnalyzer() {
-	const [signature, setSignature] = useState('');
-	const [error, setError] = useState<Error | null>(null);
-	const [listSignaturePubKeys, setListSignaturePubkeys] = useState<SignaturePubkeyPair[] | null>(
-		null,
-	);
+    const [signature, setSignature] = useState('');
+    const [error, setError] = useState<Error | null>(null);
+    const [listSignaturePubKeys, setListSignaturePubkeys] = useState<SignaturePubkeyPair[] | null>(
+        null,
+    );
 
-	return (
-		<div className="flex flex-col gap-4">
-			<h2 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-				Signature Analyzer
-			</h2>
+    return (
+        <div className="flex flex-col gap-4">
+            <h2 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+                Signature Analyzer
+            </h2>
 
-			{error && (
-				<Alert variant="destructive">
-					<AlertCircle className="h-4 w-4" />
-					<AlertTitle>Error</AlertTitle>
-					<AlertDescription>{error.message}</AlertDescription>
-				</Alert>
-			)}
+            {error && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error.message}</AlertDescription>
+                </Alert>
+            )}
 
-			<form
-				className="flex flex-col gap-4"
-				onSubmit={async (e) => {
-					e.preventDefault();
-					setError(null);
+            <form
+                className="flex flex-col gap-4"
+                onSubmit={async (e) => {
+                    e.preventDefault();
+                    setError(null);
 
-					try {
-						const parsedSignature = parseSerializedSignature(signature);
+                    try {
+                        const parsedSignature = parseSerializedSignature(signature);
 
-						if (parsedSignature.signatureScheme === 'MultiSig') {
-							const partialSignatures = parsePartialSignatures(parsedSignature.multisig);
+                        if (parsedSignature.signatureScheme === 'MultiSig') {
+                            const partialSignatures = parsePartialSignatures(
+                                parsedSignature.multisig,
+                            );
 
-							setListSignaturePubkeys(
-								partialSignatures.map((signature) => {
-									return {
-										signatureScheme: signature.signatureScheme,
-										publicKey: signature.publicKey,
-										signature: signature.signature,
-									};
-								}),
-							);
-						} else {
-							setListSignaturePubkeys([
-								{
-									signatureScheme: parsedSignature.signatureScheme,
-									publicKey: publicKeyFromRawBytes(
-										parsedSignature.signatureScheme,
-										parsedSignature.publicKey,
-									),
-									signature: parsedSignature.signature,
-								},
-							]);
-						}
-					} catch (e) {
-						setError(e as Error);
-					}
-				}}
-			>
-				<div className="grid w-full gap-1.5">
-					<Label htmlFor="bytes">Signature Bytes (base64 encoded)</Label>
-					<Textarea
-						id="bytes"
-						rows={4}
-						value={signature}
-						onChange={(e) => setSignature(e.target.value)}
-					/>
-				</div>
-				<div>
-					<Button type="submit">Analyze Signature</Button>
-				</div>
-			</form>
+                            setListSignaturePubkeys(
+                                partialSignatures.map((signature) => {
+                                    return {
+                                        signatureScheme: signature.signatureScheme,
+                                        publicKey: signature.publicKey,
+                                        signature: signature.signature,
+                                    };
+                                }),
+                            );
+                        } else {
+                            setListSignaturePubkeys([
+                                {
+                                    signatureScheme: parsedSignature.signatureScheme,
+                                    publicKey: publicKeyFromRawBytes(
+                                        parsedSignature.signatureScheme,
+                                        parsedSignature.publicKey,
+                                    ),
+                                    signature: parsedSignature.signature,
+                                },
+                            ]);
+                        }
+                    } catch (e) {
+                        setError(e as Error);
+                    }
+                }}
+            >
+                <div className="grid w-full gap-1.5">
+                    <Label htmlFor="bytes">Signature Bytes (base64 encoded)</Label>
+                    <Textarea
+                        id="bytes"
+                        rows={4}
+                        value={signature}
+                        onChange={(e) => setSignature(e.target.value)}
+                    />
+                </div>
+                <div>
+                    <Button type="submit">Analyze Signature</Button>
+                </div>
+            </form>
 
-			<div className="flex flex-col gap-6 mt-6">
-				{listSignaturePubKeys?.map((signature, index) => (
-					<Signature index={index} signature={signature} />
-				))}
-			</div>
-		</div>
-	);
+            <div className="flex flex-col gap-6 mt-6">
+                {listSignaturePubKeys?.map((signature, index) => (
+                    <Signature index={index} signature={signature} />
+                ))}
+            </div>
+        </div>
+    );
 }

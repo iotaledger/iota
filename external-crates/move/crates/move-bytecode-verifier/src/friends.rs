@@ -1,10 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains verification of usage of dependencies for modules
 use move_binary_format::{
-    access::ModuleAccess,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::CompiledModule,
 };
@@ -25,13 +25,15 @@ fn verify_module_impl(module: &CompiledModule) -> PartialVMResult<()> {
 
     // cannot make friends with modules outside of the account address
     //
-    // NOTE: this constraint is a policy decision rather than a technical requirement. The VM and
-    // other bytecode verifier passes do not rely on the assumption that friend modules must be
-    // declared within the same account address.
+    // NOTE: this constraint is a policy decision rather than a technical
+    // requirement. The VM and other bytecode verifier passes do not rely on the
+    // assumption that friend modules must be declared within the same account
+    // address.
     //
-    // However, lacking a definite use case of friending modules across account boundaries, and also
-    // to minimize the associated changes on the module publishing flow, we temporarily enforce this
-    // constraint and we may consider lifting this limitation in the future.
+    // However, lacking a definite use case of friending modules across account
+    // boundaries, and also to minimize the associated changes on the module
+    // publishing flow, we temporarily enforce this constraint and we may
+    // consider lifting this limitation in the future.
     let self_address =
         module.address_identifier_at(module.module_handle_at(module.self_handle_idx()).address);
     let has_external_friend = module

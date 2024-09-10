@@ -1,10 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
-use crate::cli::Options;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::Instant,
+};
+
 use anyhow::anyhow;
 use codespan_reporting::{
     diagnostic::Severity,
@@ -14,7 +20,6 @@ use codespan_reporting::{
 use log::{debug, info, warn};
 use move_compiler::shared::PackagePaths;
 use move_docgen::Docgen;
-use move_errmapgen::ErrmapGen;
 use move_model::{model::GlobalEnv, parse_addresses_from_options, run_model_builder_with_options};
 use move_stackless_bytecode::{
     escape_analysis::EscapeAnalysisProcessor,
@@ -22,11 +27,8 @@ use move_stackless_bytecode::{
     number_operation::GlobalNumberOperationState,
     pipeline_factory,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+
+use crate::cli::Options;
 
 pub mod cli;
 
@@ -73,7 +75,7 @@ pub fn create_init_num_operation_state(env: &GlobalEnv) {
             global_state.create_initial_func_oper_state(&fun_env);
         }
     }
-    //global_state.create_initial_exp_oper_state(env);
+    // global_state.create_initial_exp_oper_state(env);
     env.set_extension(global_state);
 }
 
@@ -94,23 +96,17 @@ pub fn run_move_prover_with_model<W: WriteColor>(
     )?;
     env.report_diag(error_writer, options.prover.report_severity);
 
-    // Add the prover options as an extension to the environment, so they can be accessed
-    // from there.
+    // Add the prover options as an extension to the environment, so they can be
+    // accessed from there.
     env.set_extension(options.prover.clone());
 
-    // Populate initial number operation state for each function and struct based on the pragma
+    // Populate initial number operation state for each function and struct based on
+    // the pragma
     create_init_num_operation_state(env);
 
     // Until this point, prover and docgen have same code. Here we part ways.
     if options.run_docgen {
         return run_docgen(env, &options, error_writer, now);
-    }
-    // Same for the error map generator
-    if options.run_errmapgen {
-        return {
-            run_errmapgen(env, &options, now);
-            Ok(())
-        };
     }
     // Same for escape analysis
     if options.run_escape {
@@ -220,20 +216,6 @@ fn run_docgen<W: WriteColor>(
     }
 }
 
-fn run_errmapgen(env: &GlobalEnv, options: &Options, now: Instant) {
-    let mut generator = ErrmapGen::new(env, &options.errmapgen);
-    let checking_elapsed = now.elapsed();
-    info!("generating error map");
-    generator.gen();
-    generator.save_result();
-    let generating_elapsed = now.elapsed();
-    info!(
-        "{:.3}s checking, {:.3}s generating",
-        checking_elapsed.as_secs_f64(),
-        (generating_elapsed - checking_elapsed).as_secs_f64()
-    );
-}
-
 fn run_escape(env: &GlobalEnv, options: &Options, now: Instant) {
     let mut targets = FunctionTargetsHolder::default();
     for module_env in env.get_modules() {
@@ -255,7 +237,8 @@ fn run_escape(env: &GlobalEnv, options: &Options, now: Instant) {
     pipeline.run(env, &mut targets);
     let end = now.elapsed();
 
-    // print escaped internal refs flagged by analysis. do not report errors in dependencies
+    // print escaped internal refs flagged by analysis. do not report errors in
+    // dependencies
     let mut error_writer = Buffer::no_color();
     env.report_diag_with_filter(&mut error_writer, |d| {
         let fname = env.get_file(d.labels[0].file_id).to_str().unwrap();

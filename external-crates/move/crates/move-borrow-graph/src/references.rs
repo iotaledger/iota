@@ -1,16 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    paths::{self, Path},
-    shared::*,
-};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt,
     fmt::Debug,
+};
+
+use crate::{
+    paths::{self, Path},
+    shared::*,
 };
 
 //**************************************************************************************************
@@ -39,7 +41,8 @@ pub(crate) struct BorrowEdge<Loc: Copy, Lbl: Clone + Ord> {
     /// true if it is an exact (strong) edge,
     /// false if it is a prefix (weak) edge
     pub(crate) strong: bool,
-    /// The path (either exact/prefix strong/weak) for the borrow relationship of this edge
+    /// The path (either exact/prefix strong/weak) for the borrow relationship
+    /// of this edge
     pub(crate) path: Path<Lbl>,
     /// Location information for the edge
     pub(crate) loc: Loc,
@@ -59,8 +62,8 @@ pub(crate) struct BorrowEdges<Loc: Copy, Lbl: Clone + Ord>(
     pub(crate) BTreeMap<RefID, BorrowEdgeSet<Loc, Lbl>>,
 );
 
-/// Represents the borrow relationships and information for a node in the borrow graph, i.e
-/// for a single reference
+/// Represents the borrow relationships and information for a node in the borrow
+/// graph, i.e for a single reference
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Ref<Loc: Copy, Lbl: Clone + Ord> {
     /// Parent to child
@@ -68,8 +71,9 @@ pub(crate) struct Ref<Loc: Copy, Lbl: Clone + Ord> {
     pub(crate) borrowed_by: BorrowEdges<Loc, Lbl>,
     /// Child to parent
     /// 'self' borrows from _
-    /// Needed for efficient querying, but should be in one-to-one corespondence with borrowed by
-    /// i.e. x is borrowed by y IFF y borrows from x
+    /// Needed for efficient querying, but should be in one-to-one
+    /// correspondence with borrowed by i.e. x is borrowed by y IFF y
+    /// borrows from x
     pub(crate) borrows_from: BTreeSet<RefID>,
     /// true if mutable, false otherwise
     pub(crate) mutable: bool,
@@ -86,8 +90,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowEdge<Loc, Lbl> {
 }
 
 // The borrow set has a maximum size.
-// Beyond that size, the borrow-set becomes lossy and is considered to borrow any possible edge
-// (or extension) from the source reference
+// Beyond that size, the borrow-set becomes lossy and is considered to borrow
+// any possible edge (or extension) from the source reference
 pub const MAX_EDGE_SET_SIZE: usize = 10;
 impl<Loc: Copy, Lbl: Clone + Ord> BorrowEdgeSet<Loc, Lbl> {
     pub(crate) fn new() -> Self {
@@ -185,7 +189,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> Ref<Loc, Lbl> {
 // Traits
 //**********************************************************************************************
 
-/// Dummy struct used to implement traits for BorrowEdge that skips over the loc field
+/// Dummy struct used to implement traits for BorrowEdge that skips over the loc
+/// field
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct BorrowEdgeNoLoc<'a, Lbl: Clone> {
     strong: bool,

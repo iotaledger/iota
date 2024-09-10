@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const BITSET_VALUE_UNAVAILABLE: u16 = u16::MAX;
@@ -137,9 +138,9 @@ impl ErrorBitset {
 
 #[cfg(test)]
 mod tests {
+    use proptest::{prelude::*, proptest};
+
     use super::{ErrorBitset, ErrorBitsetBuilder};
-    use proptest::prelude::*;
-    use proptest::proptest;
 
     proptest! {
         #[test]

@@ -1,8 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod state;
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use state::*;
 
 use super::{
     absint::*,
@@ -15,10 +22,6 @@ use crate::{
     hlir::ast::{self as H, *},
     shared::{unique_map::UniqueMap, CompilationEnv},
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use state::*;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 //**************************************************************************************************
 // Entry and trait bindings
@@ -96,7 +99,8 @@ fn command(state: &mut LivenessState, sp!(_, cmd_): &Command) {
         C::Return { exp: e, .. }
         | C::Abort(e)
         | C::IgnoreAndPop { exp: e, .. }
-        | C::JumpIf { cond: e, .. } => exp(state, e),
+        | C::JumpIf { cond: e, .. }
+        | C::VariantSwitch { subject: e, .. } => exp(state, e),
 
         C::Jump { .. } => (),
         C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -115,6 +119,9 @@ fn lvalue(state: &mut LivenessState, sp!(_, l_): &LValue) {
             state.0.remove(var);
         }
         L::Unpack(_, _, fields) => fields.iter().for_each(|(_, l)| lvalue(state, l)),
+        L::UnpackVariant(_, _, _, _, _, fields) => {
+            fields.iter().for_each(|(_, l)| lvalue(state, l))
+        }
     }
 }
 
@@ -126,7 +133,7 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
         | E::Value(_)
         | E::Constant(_)
         | E::UnresolvedError
-        | E::ErrorConstant(_) => (),
+        | E::ErrorConstant { .. } => (),
 
         E::BorrowLocal(_, var) | E::Copy { var, .. } | E::Move { var, .. } => {
             state.0.insert(*var);
@@ -146,6 +153,7 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
         }
 
         E::Pack(_, _, fields) => fields.iter().for_each(|(_, _, e)| exp(state, e)),
+        E::PackVariant(_, _, _, fields) => fields.iter().for_each(|(_, _, e)| exp(state, e)),
 
         E::Multiple(es) => es.iter().for_each(|e| exp(state, e)),
 
@@ -158,10 +166,11 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
 //**************************************************************************************************
 
 /// This pass:
-/// - Switches the last inferred `copy` to a `move`.
-///   It will error if the `copy` was specified by the user
-/// - Reports an error if an assignment/let was not used
-///   Switches it to an `Ignore` if it has the drop ability (helps with error messages for borrows)
+/// - Switches the last inferred `copy` to a `move`. It will error if the `copy`
+///   was specified by the user
+/// - Reports an error if an assignment/let was not used Switches it to an
+///   `Ignore` if it has the drop ability (helps with error messages for
+///   borrows)
 
 pub fn last_usage(
     compilation_env: &mut CompilationEnv,
@@ -183,6 +192,8 @@ pub fn last_usage(
 }
 
 mod last_usage {
+    use std::collections::{BTreeSet, VecDeque};
+
     use move_proc_macros::growing_stack;
 
     use crate::{
@@ -194,7 +205,6 @@ mod last_usage {
         },
         shared::*,
     };
-    use std::collections::{BTreeSet, VecDeque};
 
     struct Context<'a, 'b> {
         env: &'a mut CompilationEnv,
@@ -262,7 +272,8 @@ mod last_usage {
             C::Return { exp: e, .. }
             | C::Abort(e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. }
+            | C::VariantSwitch { subject: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -286,7 +297,7 @@ mod last_usage {
                 if !*unused_assignment && !context.next_live.contains(v) {
                     match display_var(v.value()) {
                         DisplayVar::Tmp => (),
-                        DisplayVar::Orig(vstr) => {
+                        DisplayVar::Orig(vstr) | DisplayVar::MatchTmp(vstr) => {
                             if !v.starts_with_underscore() {
                                 let msg = format!(
                                     "Unused assignment for variable '{vstr}'. Consider \
@@ -303,6 +314,9 @@ mod last_usage {
                 }
             }
             L::Unpack(_, _, fields) => fields.iter_mut().for_each(|(_, l)| lvalue(context, l)),
+            L::UnpackVariant(_, _, _, _, _, fields) => {
+                fields.iter_mut().for_each(|(_, l)| lvalue(context, l))
+            }
         }
     }
 
@@ -314,7 +328,7 @@ mod last_usage {
             | E::Value(_)
             | E::Constant(_)
             | E::UnresolvedError
-            | E::ErrorConstant(_) => (),
+            | E::ErrorConstant { .. } => (),
 
             E::BorrowLocal(_, var) | E::Move { var, .. } => {
                 // remove it from context to prevent accidental dropping in previous usages
@@ -325,8 +339,8 @@ mod last_usage {
                 // Even if not switched to a move:
                 // remove it from dropped_live to prevent accidental dropping in previous usages
                 let var_is_dead = context.dropped_live.remove(var);
-                // Non-references might still be borrowed, but that error will be caught in borrow
-                // checking with a specific tip/message
+                // Non-references might still be borrowed, but that error will be caught in
+                // borrow checking with a specific tip/message
                 if var_is_dead && !*from_user {
                     parent_e.exp.value = E::Move {
                         var: *var,
@@ -357,6 +371,11 @@ mod last_usage {
                 .rev()
                 .for_each(|(_, _, e)| exp(context, e)),
 
+            E::PackVariant(_, _, _, fields) => fields
+                .iter_mut()
+                .rev()
+                .for_each(|(_, _, e)| exp(context, e)),
+
             E::Multiple(es) => es.iter_mut().rev().for_each(|e| exp(context, e)),
 
             E::Unreachable => panic!("ICE should not analyze dead code"),
@@ -368,23 +387,25 @@ mod last_usage {
 // Refs Refinement
 //**************************************************************************************************
 
-/// This refinement releases dead reference values by adding a move + pop. In other words, if a
-/// reference `r` is dead, it will insert `_ = move r` after the last usage
+/// This refinement releases dead reference values by adding a move + pop. In
+/// other words, if a reference `r` is dead, it will insert `_ = move r` after
+/// the last usage
 ///
-/// However, due to the previous `last_usage` analysis. Any last usage of a reference is a move.
-/// And any unused assignment to a reference holding local is switched to a `Ignore`.
-/// Thus the only way a reference could still be dead is if it was live in a loop
-/// Additionally, the borrow checker will consider any reference to be released if it was released
-/// in any predecessor.
-/// As such, the only references that need to be released by an added `_ = move r` are references
-/// at the beginning of a block given that
+/// However, due to the previous `last_usage` analysis. Any last usage of a
+/// reference is a move. And any unused assignment to a reference holding local
+/// is switched to a `Ignore`. Thus the only way a reference could still be dead
+/// is if it was live in a loop Additionally, the borrow checker will consider
+/// any reference to be released if it was released in any predecessor.
+/// As such, the only references that need to be released by an added `_ = move
+/// r` are references at the beginning of a block given that
 /// (1) The reference is live in the predecessor and the predecessor is a loop
-/// (2)  The reference is live in ALL predecessors (otherwise the borrow checker will release them)
+/// (2)  The reference is live in ALL predecessors (otherwise the borrow checker
+/// will release them)
 ///
-/// Because of this, `build_forward_intersections` intersects all of the forward post states of
-/// predecessors.
-/// Then `release_dead_refs_block` adds a release at the beginning of the block if the reference
-/// satisfies (1) and (2)
+/// Because of this, `build_forward_intersections` intersects all of the forward
+/// post states of predecessors.
+/// Then `release_dead_refs_block` adds a release at the beginning of the block
+/// if the reference satisfies (1) and (2)
 
 pub fn release_dead_refs(
     context: &super::CFGContext,

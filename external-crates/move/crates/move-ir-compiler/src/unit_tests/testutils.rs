@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -18,13 +19,13 @@ fn compile_module_string_impl(
     let compiled_module = compile_module(module, &deps)?.0;
 
     let mut serialized_module = Vec::<u8>::new();
-    compiled_module.serialize(&mut serialized_module)?;
+    compiled_module.serialize_with_version(compiled_module.version, &mut serialized_module)?;
     let deserialized_module = CompiledModule::deserialize_with_defaults(&serialized_module)
         .map_err(|e| e.finish(Location::Undefined))?;
     assert_eq!(compiled_module, deserialized_module);
 
-    // Always return a CompiledModule because some callers explicitly care about unverified
-    // modules.
+    // Always return a CompiledModule because some callers explicitly care about
+    // unverified modules.
     Ok(match verify_module_unmetered(&compiled_module) {
         Ok(_) => (compiled_module, None),
         Err(error) => (compiled_module, Some(error)),

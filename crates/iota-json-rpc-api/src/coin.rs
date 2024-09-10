@@ -10,6 +10,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides access to coin-related data such as coins owned by an address,
+/// balances, or metadata.
 #[open_rpc(namespace = "iotax", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait CoinReadApi {
@@ -29,6 +31,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<CoinPage>;
 
     /// Return all Coin objects owned by an address.
+    #[rustfmt::skip]
     #[method(name = "getAllCoins")]
     async fn get_all_coins(
         &self,
@@ -51,8 +54,8 @@ pub trait CoinReadApi {
         coin_type: Option<String>,
     ) -> RpcResult<Balance>;
 
-    /// Return the total coin balance for all coin type, owned by the address
-    /// owner.
+    /// Return the total coin balance for all coin type, owned by the address owner.
+    #[rustfmt::skip]
     #[method(name = "getAllBalances")]
     async fn get_all_balances(
         &self,
@@ -60,7 +63,7 @@ pub trait CoinReadApi {
         owner: IotaAddress,
     ) -> RpcResult<Vec<Balance>>;
 
-    /// Return metadata(e.g., symbol, decimals) for a coin
+    /// Return metadata (e.g., symbol, decimals) for a coin.
     #[rustfmt::skip]
     #[method(name = "getCoinMetadata")]
     async fn get_coin_metadata(
@@ -69,7 +72,7 @@ pub trait CoinReadApi {
         coin_type: String,
     ) -> RpcResult<Option<IotaCoinMetadata>>;
 
-    /// Return total supply for a coin
+    /// Return total supply for a coin.
     #[rustfmt::skip]
     #[method(name = "getTotalSupply")]
     async fn get_total_supply(
