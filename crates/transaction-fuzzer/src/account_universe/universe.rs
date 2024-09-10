@@ -9,6 +9,12 @@ use proptest::{
 };
 use proptest_derive::Arbitrary;
 
+use proptest::{
+    collection::{vec, SizeRange},
+    prelude::*,
+};
+use proptest_derive::Arbitrary;
+
 use crate::{
     account_universe::{
         account::{AccountCurrent, AccountData},
