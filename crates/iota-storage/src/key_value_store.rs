@@ -347,7 +347,7 @@ impl TransactionKeyValueStore {
             .into_iter()
             .next()
             .flatten()
-            .ok_or(IotaError::UserInput {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointNotFound(checkpoint),
             })
     }
@@ -364,7 +364,7 @@ impl TransactionKeyValueStore {
             .into_iter()
             .next()
             .flatten()
-            .ok_or(IotaError::UserInput {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointNotFound(checkpoint),
             })
     }
@@ -381,7 +381,7 @@ impl TransactionKeyValueStore {
             .into_iter()
             .next()
             .flatten()
-            .ok_or(IotaError::UserInput {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{:?}", digest)),
             })
     }
@@ -398,7 +398,7 @@ impl TransactionKeyValueStore {
             .into_iter()
             .next()
             .flatten()
-            .ok_or(IotaError::UserInput {
+            .ok_or(IotaError::UserInputError {
                 error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{:?}", digest)),
             })
     }
