@@ -26,7 +26,7 @@ use tokio::{
 };
 use tracing::debug;
 use types::{
-    now, validate_batch_version, Batch, BatchAPI, BatchDigest, MetadataAPI, RequestBatchesRequest,
+    now, Batch, BatchAPI, BatchDigest, MetadataAPI, RequestBatchesRequest,
     RequestBatchesResponse,
 };
 
@@ -280,10 +280,6 @@ impl BatchFetcher {
             )
             .await?;
         for batch in batches {
-            // TODO: Remove once we have removed BatchV1 from the codebase.
-            validate_batch_version(&batch, &self.protocol_config)
-                .map_err(|err| anyhow::anyhow!("[Protocol violation] Invalid batch: {err}"))?;
-
             let batch_digest = batch.digest();
             if !digests_to_fetch.contains(&batch_digest) {
                 bail!(
@@ -357,96 +353,8 @@ mod tests {
     use rand::rngs::StdRng;
     use test_utils::latest_protocol_version;
     use tokio::time::timeout;
-    use types::BatchV1;
 
     use super::*;
-
-    // TODO: Remove once we have removed BatchV1 from the codebase.
-    // Case #1: Receive BatchV1 but network is upgraded past v11 so we fail because
-    // we expect BatchV2
-    #[tokio::test]
-    pub async fn test_fetcher_with_batch_v1_and_network_v12() {
-        telemetry_subscribers::init_for_testing();
-        let mut network = TestRequestBatchesNetwork::new();
-        let batch_store = test_utils::create_batch_store();
-        let latest_protocol_config = latest_protocol_version();
-        let batchv1_1 = Batch::V1(BatchV1::new(vec![vec![1]]));
-        let batchv1_2 = Batch::V1(BatchV1::new(vec![vec![2]]));
-        let (digests, known_workers) = (
-            HashSet::from_iter(vec![batchv1_1.digest(), batchv1_2.digest()]),
-            HashSet::from_iter(test_pks(&[1, 2])),
-        );
-        network.put(&[1, 2], batchv1_1.clone());
-        network.put(&[2, 3], batchv1_2.clone());
-        let fetcher = BatchFetcher {
-            name: test_pk(0),
-            network: Arc::new(network.clone()),
-            batch_store: batch_store.clone(),
-            metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_config,
-        };
-        let fetch_result = timeout(
-            Duration::from_secs(1),
-            fetcher.fetch(digests, known_workers),
-        )
-        .await;
-        assert!(fetch_result.is_err());
-    }
-
-    // TODO: Remove once we have removed BatchV1 from the codebase.
-    // Case #2: Receive BatchV2 and network is upgraded past v11 so we are okay
-    #[tokio::test]
-    pub async fn test_fetcher_with_batch_v2_and_network_v12() {
-        let mut network = TestRequestBatchesNetwork::new();
-        let batch_store = test_utils::create_batch_store();
-        let latest_protocol_config = &latest_protocol_version();
-        let batchv2_1 = Batch::new(vec![vec![1]], latest_protocol_config);
-        let batchv2_2 = Batch::new(vec![vec![2]], latest_protocol_config);
-        let (digests, known_workers) = (
-            HashSet::from_iter(vec![batchv2_1.digest(), batchv2_2.digest()]),
-            HashSet::from_iter(test_pks(&[1, 2])),
-        );
-        network.put(&[1, 2], batchv2_1.clone());
-        network.put(&[2, 3], batchv2_2.clone());
-        let fetcher = BatchFetcher {
-            name: test_pk(0),
-            network: Arc::new(network.clone()),
-            batch_store: batch_store.clone(),
-            metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_version(),
-        };
-        let mut expected_batches = HashMap::from_iter(vec![
-            (batchv2_1.digest(), batchv2_1.clone()),
-            (batchv2_2.digest(), batchv2_2.clone()),
-        ]);
-        let mut fetched_batches = fetcher.fetch(digests, known_workers).await;
-        // Reset metadata from the fetched and expected batches
-        for batch in fetched_batches.values_mut() {
-            // assert received_at was set to some value before resetting.
-            assert!(batch.versioned_metadata().received_at().is_some());
-            batch.versioned_metadata_mut().set_received_at(0);
-        }
-        for batch in expected_batches.values_mut() {
-            batch.versioned_metadata_mut().set_received_at(0);
-        }
-        assert_eq!(fetched_batches, expected_batches);
-        assert_eq!(
-            batch_store
-                .get(&batchv2_1.digest())
-                .unwrap()
-                .unwrap()
-                .digest(),
-            batchv2_1.digest()
-        );
-        assert_eq!(
-            batch_store
-                .get(&batchv2_2.digest())
-                .unwrap()
-                .unwrap()
-                .digest(),
-            batchv2_2.digest()
-        );
-    }
 
     #[tokio::test]
     pub async fn test_fetcher() {

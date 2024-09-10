@@ -212,14 +212,6 @@ impl<V: TransactionValidator> PrimaryToWorker for PrimaryReceiverHandler<V> {
 
         let mut write_batch = self.store.batch();
         for batch in response.batches.iter_mut() {
-            // TODO: Remove once we have removed BatchV1 from the codebase.
-            validate_batch_version(batch, &self.protocol_config).map_err(|err| {
-                anemo::rpc::Status::new_with_message(
-                    StatusCode::BadRequest,
-                    format!("Invalid batch: {err}"),
-                )
-            })?;
-
             if !message.is_certified {
                 // This batch is not part of a certificate, so we need to validate it.
                 if let Err(err) = self.validator.validate_batch(batch, &self.protocol_config) {
