@@ -157,12 +157,10 @@ async fn test_stake() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
-    let tx_digest = response.transaction_identifier.hash;
-
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest,
+            response.transaction_identifier.hash,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -219,12 +217,10 @@ async fn test_stake_all() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
-    let tx_digest = response.transaction_identifier.hash;
-
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest,
+            response.transaction_identifier.hash,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -288,12 +284,10 @@ async fn test_withdraw_stake() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
-    let tx_digest = response.transaction_identifier.hash;
-
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest,
+            response.transaction_identifier.hash,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -340,12 +334,10 @@ async fn test_withdraw_stake() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
-    let tx_digest = response.transaction_identifier.hash;
-
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest,
+            response.transaction_identifier.hash,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -411,12 +403,10 @@ async fn test_pay_iota() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
-    let tx_digest = response.transaction_identifier.hash;
-
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            tx_digest,
+            response.transaction_identifier.hash,
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -473,12 +463,10 @@ async fn test_pay_iota_multiple_times() {
 
         let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
-        let tx_digest = response.transaction_identifier.hash;
-
         let tx = client
             .read_api()
             .get_transaction_with_options(
-                tx_digest,
+                response.transaction_identifier.hash,
                 IotaTransactionBlockResponseOptions::new()
                     .with_input()
                     .with_effects()

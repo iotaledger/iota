@@ -17,7 +17,6 @@ use iota_sdk::rpc_types::IotaExecutionStatus;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
-    digests::TransactionDigest,
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
@@ -26,6 +25,7 @@ use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     errors::Error,
+    operations::Operations,
     types::{
         Amount, ConstructionCombineRequest, ConstructionCombineResponse, ConstructionDeriveRequest,
         ConstructionDeriveResponse, ConstructionHashRequest, ConstructionMetadata,
@@ -385,21 +385,29 @@ pub async fn parse(
 ) -> Result<ConstructionParseResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let val = if request.signed {
+    let (tx_data, tx_digest) = if request.signed {
         let tx: Transaction = bcs::from_bytes(&request.transaction.to_vec()?)?;
         let tx_digest = *tx.digest();
-        (tx.into_data().intent_message().value.clone(), tx_digest)
+
+        (
+            tx.into_data().intent_message().value.clone(),
+            Some(tx_digest),
+        )
     } else {
         let intent: IntentMessage<TransactionData> =
             bcs::from_bytes(&request.transaction.to_vec()?)?;
-        (intent.value, TransactionDigest::default())
+
+        (intent.value, None)
     };
+
     let account_identifier_signers = if request.signed {
-        vec![val.0.sender().into()]
+        vec![tx_data.sender().into()]
     } else {
         vec![]
     };
-    let operations = val.try_into()?;
+
+    let operations = Operations::from_transaction_data(tx_data, tx_digest)?;
+
     Ok(ConstructionParseResponse {
         operations,
         account_identifier_signers,
