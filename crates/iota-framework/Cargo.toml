@@ -21,7 +21,6 @@ move-core-types.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-capitalize = "0.3.4"
 regex.workspace = true
 tempfile.workspace = true
 
