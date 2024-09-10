@@ -946,10 +946,13 @@ fn exp(context: &mut Context, e: &T::Exp) {
 }
 
 fn otw_special_cases(context: &Context) -> bool {
-    context
-        .current_module()
-        .value
-        .is(IOTA_ADDR_NAME, IOTA_MODULE_NAME)
+    BRIDGE_SUPPORTED_ASSET
+        .iter()
+        .any(|token| context.current_module().value.is(BRIDGE_ADDR_NAME, token))
+        || context
+            .current_module()
+            .value
+            .is(IOTA_ADDR_NAME, IOTA_MODULE_NAME)
 }
 
 fn check_event_emit(context: &mut Context, loc: Loc, mcall: &ModuleCall) {

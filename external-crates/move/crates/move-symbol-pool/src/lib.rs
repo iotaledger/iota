@@ -75,6 +75,8 @@ static_symbols!(
     "AuthenticatorState",
     "random",
     "Random",
+    "bridge",
+    "Bridge",
     "id",
     "transfer",
     "freeze_object",
