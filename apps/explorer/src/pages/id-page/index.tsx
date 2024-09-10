@@ -71,12 +71,12 @@ function PageLayoutContainer({ address }: PageLayoutContainerProps): JSX.Element
     return (
         <PageLayout
             loading={isLoading}
-            isError={!!iotansAddressError}
-            gradient={{
-                size: 'md',
-                content: <Header address={address} />,
-            }}
-            content={<PageContent address={data || address} error={iotansAddressError} />}
+            content={
+                <>
+                    <Header address={address} />
+                    <PageContent address={data || address} error={iotansAddressError} />
+                </>
+            }
         />
     );
 }
