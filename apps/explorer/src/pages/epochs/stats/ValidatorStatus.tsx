@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
+import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
 import { getRefGasPrice } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
@@ -62,25 +62,12 @@ export function ValidatorStatus(): JSX.Element | null {
                     </div>
 
                     <div className="h-full w-1/2">
-                        {/* Replace with Display Stats */}
-                        <div className="flex h-full w-full flex-col items-start justify-between rounded-xl bg-neutral-96 p-md">
-                            <div className="flex flex-row gap-xxxs">
-                                <div className="flex flex-col">
-                                    <span className="text-label-sm text-neutral-10">
-                                        Estimated Next Epoch
-                                    </span>
-                                    <span className="text-label-sm text-neutral-10">
-                                        Reference Gas Price
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex flex-row items-baseline gap-xxs">
-                                <span className="text-title-md text-neutral-10">
-                                    {nextRefGasPrice.toString()}
-                                </span>
-                                <span className="text-label-md text-neutral-10/40">nano</span>
-                            </div>
-                        </div>
+                        <DisplayStats
+                            label="Estimated Next Epoch
+                            Reference Gas Price"
+                            value={nextRefGasPrice.toString()}
+                            supportingLabel="nano"
+                        />
                     </div>
                 </div>
             </div>
