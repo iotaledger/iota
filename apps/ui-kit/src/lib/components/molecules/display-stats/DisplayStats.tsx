@@ -79,7 +79,7 @@ export function DisplayStats({
     return (
         <div
             className={cx(
-                'flex w-full flex-col justify-between rounded-2xl p-md--rs',
+                'flex h-full w-full flex-col justify-between rounded-2xl p-md--rs',
                 backgroundClass,
                 sizeClass,
                 textClass,
@@ -100,7 +100,7 @@ export function DisplayStats({
                 </div>
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
-            <div className="flex flex-row items-baseline gap-xxs">
+            <div className="flex flex-row items-baseline gap-xxs break-all">
                 {valueLink ? (
                     <a
                         href={valueLink}
