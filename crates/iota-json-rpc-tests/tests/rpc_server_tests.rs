@@ -16,7 +16,7 @@ use iota_json_rpc_api::{
     TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    Balance, CoinPage, DelegatedStake, IotaCoinMetadata, IotaExecutionStatus,
+    Balance, CoinPage, DelegatedStake, DelegatedTimelockedStake, IotaCoinMetadata, IotaExecutionStatus,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, ObjectChange, ObjectsPage, StakeStatus,
