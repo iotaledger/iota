@@ -1686,12 +1686,13 @@ impl<'a> fmt::Display for SubstTOML<'a> {
 
 /// Escape a string to output in a TOML file.
 fn str_escape(s: &str) -> String {
-    format!("\"{s}\"")
+    toml::Value::String(s.to_string()).to_string()
 }
 
 /// Escape a path to output in a TOML file.
 fn path_escape(p: &Path) -> Result<String, fmt::Error> {
-    p.to_str().map(str_escape).ok_or(fmt::Error)
+    // Handle non-UTF-8 paths by escaping the lossy representation
+    Ok(str_escape(p.to_string_lossy().as_ref()))
 }
 
 fn format_deps(
