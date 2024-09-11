@@ -6,7 +6,6 @@ import cx from 'classnames';
 import { Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
 import { Tooltip, TooltipPosition } from '../tooltip';
-import { truncate } from 'fs';
 
 interface KeyValueProps {
     /**
