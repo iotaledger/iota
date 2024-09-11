@@ -1,6 +1,6 @@
 [package]
 name = "iota-metric-checker"
-version = "0.0.0"
+version.workspace = true
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -14,7 +14,9 @@ chrono.workspace = true
 clap.workspace = true
 humantime.workspace = true
 once_cell.workspace = true
-prometheus-http-query = { version = "0.8", default-features = false, features = ["rustls-tls"] }
+prometheus-http-query = { version = "0.8", default-features = false, features = [
+    "rustls-tls",
+] }
 reqwest.workspace = true
 serde.workspace = true
 serde_yaml = "0.9"

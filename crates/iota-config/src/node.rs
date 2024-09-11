@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
@@ -12,10 +11,10 @@ use std::{
 };
 
 use anyhow::Result;
+use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
-use iota_protocol_config::{Chain, SupportedProtocolVersions};
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress},
     committee::EpochId,
     crypto::{
         get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -23,8 +22,10 @@ use iota_types::{
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
+    supported_protocol_versions::{Chain, SupportedProtocolVersions},
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use narwhal_config::Parameters as ConsensusParameters;
+use narwhal_config::Parameters as NarwhalParameters;
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -76,16 +77,19 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
 
-    // TODO: Remove this as it's no longer used.
-    #[serde(default)]
-    pub enable_event_processing: bool,
-
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
 
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub remove_deprecated_tables: bool,
+
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
-    pub websocket_only: bool,
+    /// Determines the jsonrpc server type as either:
+    /// - 'websocket' for a websocket based service (deprecated)
+    /// - 'http' for an http based service
+    /// - 'both' for both a websocket and http based service (deprecated)
+    pub jsonrpc_server_type: Option<ServerType>,
 
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
@@ -165,6 +169,45 @@ pub struct NodeConfig {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_with_range: Option<RunWithRange>,
+
+    // For killswitch use None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_config: Option<PolicyConfig>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub firewall_config: Option<RemoteFirewallConfig>,
+
+    #[serde(default)]
+    pub execution_cache: ExecutionCacheConfig,
+
+    // step 1 in removing the old state accumulator
+    #[serde(skip)]
+    #[serde(default = "bool_true")]
+    pub state_accumulator_v2: bool,
+
+    #[serde(default = "bool_true")]
+    pub enable_soft_bundle: bool,
+
+    #[serde(default = "bool_true")]
+    pub enable_validator_tx_finalizer: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExecutionCacheConfig {
+    #[default]
+    PassthroughCache,
+    WritebackCache {
+        max_cache_size: Option<usize>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerType {
+    WebSocket,
+    Http,
+    Both,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -179,6 +222,8 @@ fn default_jwk_fetch_interval_seconds() -> u64 {
 
 pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
     let mut map = BTreeMap::new();
+
+    // providers that are available on devnet only.
     let experimental_providers = BTreeSet::from([
         "Google".to_string(),
         "Facebook".to_string(),
@@ -186,12 +231,20 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
         "Kakao".to_string(),
         "Apple".to_string(),
         "Slack".to_string(),
+        "TestIssuer".to_string(),
+        "Microsoft".to_string(),
+        "KarrierOne".to_string(),
+        "Credenza3".to_string(),
     ]);
+
+    // providers that are available for mainnet and testnet.
     let providers = BTreeSet::from([
         "Google".to_string(),
         "Facebook".to_string(),
         "Twitch".to_string(),
         "Apple".to_string(),
+        "KarrierOne".to_string(),
+        "Credenza3".to_string(),
     ]);
     map.insert(Chain::Mainnet, providers.clone());
     map.insert(Chain::Testnet, providers);
@@ -252,6 +305,10 @@ pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
 
 pub fn bool_true() -> bool {
     true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 impl Config for NodeConfig {}
@@ -333,6 +390,10 @@ impl NodeConfig {
             })
             .collect()
     }
+
+    pub fn jsonrpc_server_type(&self) -> ServerType {
+        self.jsonrpc_server_type.unwrap_or(ServerType::Http)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -346,18 +407,21 @@ pub enum ConsensusProtocol {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    pub address: Multiaddr,
+    // Base consensus DB path for all epochs.
     pub db_path: PathBuf,
 
-    /// Optional alternative address preferentially used by a primary to talk to
-    /// its own worker. For example, this could be used to connect to
-    /// co-located workers over a private LAN address.
-    pub internal_worker_address: Option<Multiaddr>,
+    // The number of epochs for which to retain the consensus DBs. Setting it to 0 will make a
+    // consensus DB getting dropped as soon as system is switched to a new epoch.
+    pub db_retention_epochs: Option<u64>,
+
+    // Pruner will run on every epoch change but it will also check periodically on every
+    // `db_pruner_period_secs` seconds to see if there are any epoch DBs to remove.
+    pub db_pruner_period_secs: Option<u64>,
 
     /// Maximum number of pending transactions to submit to consensus, including
     /// those in submission wait.
-    /// Assuming 10_000 txn tps * 10 sec consensus latency = 100_000 inflight
-    /// consensus txns, Default to 100_000.
+    /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
+    /// consensus latency.
     pub max_pending_transactions: Option<usize>,
 
     /// When defined caps the calculated submission position to the
@@ -371,12 +435,11 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    pub narwhal_config: ConsensusParameters,
+    // Deprecated: Narwhal specific configs.
+    pub address: Multiaddr,
+    pub narwhal_config: NarwhalParameters,
 
-    /// The choice of consensus protocol to run. We default to Narwhal.
-    #[serde(skip)]
-    #[serde(default = "default_consensus_protocol")]
-    pub protocol: ConsensusProtocol,
+    pub parameters: Option<ConsensusParameters>,
 }
 
 impl ConsensusConfig {
@@ -389,7 +452,7 @@ impl ConsensusConfig {
     }
 
     pub fn max_pending_transactions(&self) -> usize {
-        self.max_pending_transactions.unwrap_or(100_000)
+        self.max_pending_transactions.unwrap_or(20_000)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -397,13 +460,20 @@ impl ConsensusConfig {
             .map(Duration::from_millis)
     }
 
-    pub fn narwhal_config(&self) -> &ConsensusParameters {
+    pub fn narwhal_config(&self) -> &NarwhalParameters {
         &self.narwhal_config
     }
-}
 
-pub fn default_consensus_protocol() -> ConsensusProtocol {
-    ConsensusProtocol::Narwhal
+    pub fn db_retention_epochs(&self) -> u64 {
+        self.db_retention_epochs.unwrap_or(0)
+    }
+
+    pub fn db_pruner_period(&self) -> Duration {
+        // Default to 1 hour
+        self.db_pruner_period_secs
+            .map(Duration::from_secs)
+            .unwrap_or(Duration::from_secs(3_600))
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -534,7 +604,7 @@ impl Default for CheckpointExecutorConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
@@ -574,7 +644,7 @@ pub struct AuthorityStorePruningConfig {
     /// default value, false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub killswitch_tombstone_pruning: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
     pub smooth: bool,
 }
 
@@ -594,6 +664,10 @@ fn default_max_checkpoints_in_batch() -> usize {
     10
 }
 
+fn default_smoothing() -> bool {
+    cfg!(not(test))
+}
+
 impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
@@ -606,7 +680,7 @@ impl Default for AuthorityStorePruningConfig {
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             killswitch_tombstone_pruning: false,
-            smooth: false,
+            smooth: true,
         }
     }
 }
@@ -729,8 +803,16 @@ pub struct AuthorityOverloadConfig {
     // is overloaded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub check_system_overload_at_execution: bool,
-    // TODO: Move other thresholds here as well, including `MAX_TM_QUEUE_LENGTH`
-    // and `MAX_PER_OBJECT_QUEUE_LENGTH`.
+
+    // Reject a transaction if transaction manager queue length is above this threshold.
+    // 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+    #[serde(default = "default_max_transaction_manager_queue_length")]
+    pub max_transaction_manager_queue_length: usize,
+
+    // Reject a transaction if the number of pending transactions depending on the object
+    // is above the threshold.
+    #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
+    pub max_transaction_manager_per_object_queue_length: usize,
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -765,6 +847,14 @@ fn default_check_system_overload_at_signing() -> bool {
     true
 }
 
+fn default_max_transaction_manager_queue_length() -> usize {
+    100_000
+}
+
+fn default_max_transaction_manager_per_object_queue_length() -> usize {
+    100
+}
+
 impl Default for AuthorityOverloadConfig {
     fn default() -> Self {
         Self {
@@ -774,10 +864,13 @@ impl Default for AuthorityOverloadConfig {
             execution_queue_latency_hard_limit: default_execution_queue_latency_hard_limit(),
             max_load_shedding_percentage: default_max_load_shedding_percentage(),
             min_load_shedding_percentage_above_hard_limit:
-                default_min_load_shedding_percentage_above_hard_limit(),
+            default_min_load_shedding_percentage_above_hard_limit(),
             safe_transaction_ready_rate: default_safe_transaction_ready_rate(),
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
+            max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
+            max_transaction_manager_per_object_queue_length:
+            default_max_transaction_manager_per_object_queue_length(),
         }
     }
 }
@@ -823,8 +916,8 @@ impl Genesis {
         match &self.location {
             Some(GenesisLocation::InPlace { genesis }) => Ok(genesis),
             Some(GenesisLocation::File {
-                genesis_file_location,
-            }) => self
+                     genesis_file_location,
+                 }) => self
                 .genesis
                 .get_or_try_init(|| genesis::Genesis::load(genesis_file_location)),
             None => anyhow::bail!("no genesis location set"),
@@ -889,7 +982,7 @@ impl KeyPairWithPath {
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
             |e| panic!("Invalid keypair file at path {:?}: {e}", &path),
         )))
-        .expect("Failed to set keypair");
+            .expect("Failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
@@ -955,7 +1048,7 @@ impl AuthorityKeyPairWithPath {
             read_authority_keypair_from_file(&path)
                 .unwrap_or_else(|_| panic!("Invalid authority keypair file at path {:?}", &path)),
         ))
-        .expect("Failed to set authority keypair");
+            .expect("Failed to set authority keypair");
         Self {
             location: AuthorityKeyPairLocation::File { path },
             keypair: cell,
@@ -1034,12 +1127,12 @@ mod tests {
             &IotaKeyPair::Ed25519(worker_key_pair.copy()),
             PathBuf::from("worker.key"),
         )
-        .unwrap();
+            .unwrap();
         write_keypair_to_file(
             &IotaKeyPair::Ed25519(network_key_pair.copy()),
             PathBuf::from("network.key"),
         )
-        .unwrap();
+            .unwrap();
 
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();

@@ -6,12 +6,16 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anemo.workspace = true
 anemo-tower.workspace = true
 anyhow.workspace = true
 arc-swap.workspace = true
 axum.workspace = true
+bin-version.workspace = true
 clap.workspace = true
 const-str.workspace = true
 futures.workspace = true
