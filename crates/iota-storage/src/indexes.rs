@@ -712,7 +712,7 @@ impl IndexStore {
             }
             // NOTE: filter via checkpoint sequence number is implemented in
             // `get_transactions` of authority.rs.
-            Some(_) => Err(IotaError::UserInputError {
+            Some(_) => Err(IotaError::UserInput {
                 error: UserInputError::Unsupported(format!("{:?}", filter)),
             }),
             None => {
@@ -848,7 +848,7 @@ impl IndexStore {
     ) -> IotaResult<Vec<TransactionDigest>> {
         // If we are passed a function with no module return a UserInputError
         if function.is_some() && module.is_none() {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::MoveFunctionInputError(
                     "Cannot supply function without supplying module".to_string(),
                 ),
@@ -857,7 +857,7 @@ impl IndexStore {
 
         // We cannot have a cursor without filling out the other keys.
         if cursor.is_some() && (module.is_none() || function.is_none()) {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::MoveFunctionInputError(
                     "Cannot supply cursor without supplying module and function".to_string(),
                 ),
