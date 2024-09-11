@@ -129,19 +129,20 @@ body,
         grid-template-areas:
             'heroImage name'
             'heroImage description'
-            'objectId owner'
-            'version type'
-            'storageRebate lastTxBlock';
+            'heroImage objectId'
+            'heroImage type'
+            'owner storageRebate'
+            'version lastTxBlock';
     }
 
     @screen md {
         .address-grid-container-top {
             @apply grid-cols-[300px,1fr,1fr] grid-rows-2 gap-md;
             grid-template-areas:
-                'heroImage name description'
-                'heroImage objectId type'
-                'heroImage version type'
-                'owner lastTxBlock storageRebate';
+                'heroImage name owner'
+                'heroImage description storageRebate'
+                'heroImage objectId version'
+                'heroImage type lastTxBlock';
             }
         .address-grid-container-top.no-description.no-image {
             @apply grid grid-cols-3 grid-rows-2;
