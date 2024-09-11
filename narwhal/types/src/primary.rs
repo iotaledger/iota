@@ -23,6 +23,7 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
+use iota_protocol_config::ProtocolConfig;
 use iota_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
@@ -99,7 +100,7 @@ pub enum VersionedMetadata {
 }
 
 impl VersionedMetadata {
-    pub fn new() -> Self {
+    pub fn new(_protocol_config: &ProtocolConfig) -> Self {
         Self::V1(MetadataV1 {
             created_at: now(),
             received_at: None,
@@ -157,8 +158,8 @@ pub enum Batch {
 }
 
 impl Batch {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
-        Self::V2(BatchV2::new(transactions))
+    pub fn new(transactions: Vec<Transaction>, protocol_config: &ProtocolConfig) -> Self {
+        Self::V2(BatchV2::new(transactions, protocol_config))
     }
 
     pub fn size(&self) -> usize {
@@ -221,10 +222,10 @@ impl BatchAPI for BatchV2 {
 }
 
 impl BatchV2 {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
+    pub fn new(transactions: Vec<Transaction>, protocol_config: &ProtocolConfig) -> Self {
         Self {
             transactions,
-            versioned_metadata: VersionedMetadata::new(),
+            versioned_metadata: VersionedMetadata::new(protocol_config),
         }
     }
 
@@ -797,7 +798,7 @@ pub enum Certificate {
 }
 
 impl Certificate {
-    pub fn genesis(committee: &Committee) -> Vec<Self> {
+    pub fn genesis(_protocol_config: &ProtocolConfig, committee: &Committee) -> Vec<Self> {
         CertificateV2::genesis(committee)
             .into_iter()
             .map(Self::V2)
@@ -805,6 +806,7 @@ impl Certificate {
     }
 
     pub fn new_unverified(
+        protocol_config: &ProtocolConfig,
         committee: &Committee,
         header: Header,
         votes: Vec<(AuthorityIdentifier, Signature)>,
@@ -813,6 +815,7 @@ impl Certificate {
     }
 
     pub fn new_unsigned(
+        protocol_config: &ProtocolConfig,
         committee: &Committee,
         header: Header,
         votes: Vec<(AuthorityIdentifier, Signature)>,
@@ -861,11 +864,10 @@ impl Certificate {
             Self::V2(certificate) => certificate.origin(),
         }
     }
-}
 
-impl Default for Certificate {
-    fn default() -> Self {
-        Self::V2(CertificateV2::default())
+    // Used for testing
+    pub fn default(_protocol_config: &ProtocolConfig) -> Certificate {
+        Certificate::V2(CertificateV2::default())
     }
 }
 
@@ -1039,7 +1041,7 @@ impl CertificateV2 {
             })
             .map(|(index, _)| index as u32);
 
-        let signed_authorities= roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
+        let signed_authorities = roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
             .map_err(|_| DagError::InvalidBitmap("Failed to convert votes into a bitmap of authority keys. Something is likely very wrong...".to_string()))?;
 
         // Ensure that all authorities in the set of votes are known
@@ -1060,7 +1062,7 @@ impl CertificateV2 {
             AggregateSignature::aggregate::<Signature, Vec<&Signature>>(
                 sigs.iter().map(|(_, sig)| sig).collect(),
             )
-            .map_err(|_| DagError::InvalidSignature)?
+                .map_err(|_| DagError::InvalidSignature)?
         };
 
         let aggregate_signature_bytes = AggregateSignatureBytes::from(&aggregated_signature);
@@ -1187,6 +1189,7 @@ impl CertificateV2 {
 // SignatureVerificationState is why the modified certificate is being returned.
 pub fn validate_received_certificate_version(
     mut certificate: Certificate,
+    protocol_config: &ProtocolConfig,
 ) -> anyhow::Result<Certificate> {
     match certificate {
         Certificate::V2(_) => {
@@ -1345,6 +1348,7 @@ pub struct FetchCertificatesRequest {
     /// between
     /// - rounds of certificates to be skipped from the response and
     /// - the GC round.
+    ///
     /// These rounds are skipped because the requestor already has them.
     pub skip_rounds: Vec<(AuthorityIdentifier, Vec<u8>)>,
     /// Maximum number of certificates that should be returned.
@@ -1519,13 +1523,14 @@ impl From<&Vote> for VoteInfo {
 mod tests {
     use std::time::Duration;
 
+    use test_utils::latest_protocol_version;
     use tokio::time::sleep;
 
     use crate::{Batch, BatchAPI, BatchV2, MetadataAPI, MetadataV1, Timestamp, VersionedMetadata};
 
     #[tokio::test]
     async fn test_elapsed() {
-        let batch = Batch::new(vec![]);
+        let batch = Batch::new(vec![], &latest_protocol_version());
 
         assert!(*batch.versioned_metadata().created_at() > 0);
 

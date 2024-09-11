@@ -21,8 +21,8 @@ use iota_types::{
 use typed_store::{
     rocks::{DBMap, MetricConf},
     traits::{Map, TableSummary, TypedStoreDebug},
+    DBMapUtils,
 };
-use typed_store_derive::DBMapUtils;
 
 pub type IsFirstRecord = bool;
 

@@ -15,6 +15,12 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
+    IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlock,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ObjectChange, ProtocolConfigResponse,
+};
+use iota_metrics::{add_server_timing, spawn_monitored_task};
     IotaEvent, IotaGetPastObjectRequest, IotaLoadedChildObject, IotaLoadedChildObjectsResponse,
     IotaMoveStruct, IotaMoveValue, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
     IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEvents,
@@ -656,6 +662,27 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
+    async fn try_get_object_before_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        let version = self
+            .state
+            .find_object_lt_or_eq_version(&object_id, &version)
+            .await
+            .map_err(Error::from)?
+            .map(|obj| obj.version())
+            .unwrap_or_default();
+        self.try_get_past_object(
+            object_id,
+            version,
+            Some(IotaObjectDataOptions::bcs_lossless()),
+        )
+        .await
+    }
+
+    #[instrument(skip(self))]
     async fn try_multi_get_past_objects(
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
@@ -722,10 +749,12 @@ impl ReadApiServer for ReadApi {
             // Fetch transaction to determine existence
             let transaction_kv_store = self.transaction_kv_store.clone();
             let transaction = spawn_monitored_task!(async move {
-                transaction_kv_store.get_tx(digest).await.map_err(|err| {
+                let ret = transaction_kv_store.get_tx(digest).await.map_err(|err| {
                     debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
                     Error::from(err)
-                })
+                });
+                add_server_timing("tx_kv_lookup");
+                ret
             })
             .await
             .map_err(Error::from)??;
@@ -1012,33 +1041,6 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse> {
-        async move {
-            let res = self
-                .state
-                .loaded_child_object_versions(&digest)
-                .map_err(|e| {
-                    error!("Failed to get loaded child objects at {digest:?} with error: {e:?}");
-                    Error::StateReadError(e)
-                })?;
-            Ok(IotaLoadedChildObjectsResponse {
-                loaded_child_objects: match res {
-                    Some(v) => v
-                        .into_iter()
-                        .map(|q| IotaLoadedChildObject::new(q.0, q.1))
-                        .collect::<Vec<_>>(),
-                    None => vec![],
-                },
-            })
-        }
-        .trace()
-        .await
-    }
-
-    #[instrument(skip(self))]
     async fn get_protocol_config(
         &self,
         version: Option<BigInt<u64>>,
@@ -1304,6 +1306,17 @@ fn get_value_from_move_struct(
                     Err(Error::UnexpectedError(format!(
                         "Unexpected move struct type for field {var_name}"
                     )))?;
+                }
+            }
+            IotaMoveValue::Variant(IotaMoveVariant {
+                fields, variant, ..
+            }) => {
+                if let Some(value) = fields.get(part) {
+                    current_value = value;
+                } else {
+                    Err(anyhow!(
+                        "Field value {var_name} cannot be found in variant {variant}",
+                    ))?
                 }
             }
             _ => {

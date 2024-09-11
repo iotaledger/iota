@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,7 +10,7 @@ use serde_with::serde_as;
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
     base_types::{AuthorityName, IotaAddress, ObjectID},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     id::ID,
@@ -179,24 +177,28 @@ pub struct IotaSystemStateSummary {
 
 impl IotaSystemStateSummary {
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.active_validators {
-            let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: Multiaddr::try_from(validator.net_address.clone()).unwrap(),
-                    narwhal_primary_address: Multiaddr::try_from(validator.primary_address.clone())
-                        .unwrap(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
+                (
+                    name,
+                    (
+                        validator.voting_power,
+                        NetworkMetadata {
+                            network_address: Multiaddr::try_from(validator.net_address.clone())
+                                .unwrap(),
+                            narwhal_primary_address: Multiaddr::try_from(
+                                validator.primary_address.clone(),
+                            )
+                            .unwrap(),
+                        },
+                    ),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 }
 

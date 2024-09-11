@@ -17,11 +17,11 @@ use iota_metrics::{metered_channel, spawn_logged_monitored_task};
 use iota_protocol_config::ProtocolConfig;
 use network::{client::NetworkClient, PrimaryToWorkerClient};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use types::{
-    Batch, BatchAPI, BatchDigest, Certificate, CertificateAPI, CommittedSubDag,
-    ConditionalBroadcastReceiver, ConsensusOutput, FetchBatchesRequest, HeaderAPI, MetadataAPI,
-    Timestamp,
+    error::LocalClientError, Batch, BatchAPI, BatchDigest, Certificate, CertificateAPI,
+    CommittedSubDag, ConditionalBroadcastReceiver, ConsensusOutput, FetchBatchesRequest, HeaderAPI,
+    MetadataAPI, Timestamp,
 };
 
 use crate::{errors::SubscriberResult, metrics::ExecutorMetrics, ExecutionState};
@@ -111,7 +111,6 @@ async fn run_notify<State: ExecutionState + Send + Sync + 'static>(
             _ = rx_shutdown.receiver.recv() => {
                 return
             }
-
         }
     }
 }
@@ -367,7 +366,9 @@ impl Subscriber {
                 {
                     Ok(resp) => break resp.batches,
                     Err(e) => {
-                        error!("Failed to fetch batches from worker {worker_name}: {e:?}");
+                        if !matches!(e, LocalClientError::ShuttingDown) {
+                            warn!("Failed to fetch batches from worker {worker_name}: {e:?}");
+                        }
                         // Loop forever on failure. During shutdown, this should get cancelled.
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         continue;

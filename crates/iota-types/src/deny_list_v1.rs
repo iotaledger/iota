@@ -16,6 +16,7 @@ use crate::{
     id::{ID, UID},
     object::{Object, Owner},
     storage::ObjectStore,
+    transaction::{CheckedInputObjects, ReceivingObjects},
     IOTA_DENY_LIST_OBJECT_ID,
 };
 
@@ -51,59 +52,85 @@ pub struct PerTypeDenyList {
     pub denied_addresses: Table,
 }
 
-impl DenyList {
-    pub fn check_coin_deny_list(
-        address: IotaAddress,
-        coin_types: BTreeSet<String>,
-        object_store: &dyn ObjectStore,
-    ) -> UserInputResult {
-        let Some(deny_list) = get_coin_deny_list(object_store) else {
-            // TODO: This is where we should fire an invariant violation metric.
-            if cfg!(debug_assertions) {
-                panic!("Failed to get the coin deny list");
-            } else {
-                return Ok(());
-            }
-        };
-        Self::check_deny_list(deny_list, address, coin_types, object_store)
-    }
+/// Checks coin denylist v1 at signing time.
+/// It checks that none of the coin types in the transaction are denied for the
+/// sender.
+pub fn check_coin_deny_list_v1(
+    sender: IotaAddress,
+    input_objects: &CheckedInputObjects,
+    receiving_objects: &ReceivingObjects,
+    object_store: &dyn ObjectStore,
+) -> UserInputResult {
+    let coin_types = input_object_coin_types_for_denylist_check(input_objects, receiving_objects);
 
-    fn check_deny_list(
-        deny_list: PerTypeDenyList,
-        address: IotaAddress,
-        coin_types: BTreeSet<String>,
-        object_store: &dyn ObjectStore,
-    ) -> UserInputResult {
-        // TODO: Add caches to avoid repeated DF reads.
-        let Ok(count) = get_dynamic_field_from_store::<IotaAddress, u64>(
-            object_store,
-            deny_list.denied_count.id,
-            &address,
-        ) else {
-            return Ok(());
-        };
-        if count == 0 {
+    let Some(deny_list) = get_coin_deny_list(object_store) else {
+        // TODO: This is where we should fire an invariant violation metric.
+        if cfg!(debug_assertions) {
+            panic!("Failed to get the coin deny list");
+        } else {
             return Ok(());
         }
-        for coin_type in coin_types {
-            let Ok(denied_addresses) = get_dynamic_field_from_store::<Vec<u8>, VecSet<IotaAddress>>(
-                object_store,
-                deny_list.denied_addresses.id,
-                &coin_type.clone().into_bytes(),
-            ) else {
-                continue;
-            };
-            let denied_addresses: BTreeSet<_> = denied_addresses.contents.into_iter().collect();
-            if denied_addresses.contains(&address) {
-                debug!(
-                    "Address {} is denied for coin package {:?}",
-                    address, coin_type
-                );
-                return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
+    };
+    check_deny_list_v1_impl(deny_list, sender, coin_types, object_store)
+}
+
+/// Returns all unique coin types in canonical string form from the input
+/// objects and receiving objects. It filters out IOTA coins since it's known
+/// that it's not a regulated coin.
+pub(crate) fn input_object_coin_types_for_denylist_check(
+    input_objects: &CheckedInputObjects,
+    receiving_objects: &ReceivingObjects,
+) -> BTreeSet<String> {
+    let all_objects = input_objects
+        .inner()
+        .iter_objects()
+        .chain(receiving_objects.iter_objects());
+    all_objects
+        .filter_map(|obj| {
+            if obj.is_gas_coin() {
+                None
+            } else {
+                obj.coin_type_maybe()
+                    .map(|type_tag| type_tag.to_canonical_string(false))
             }
-        }
-        Ok(())
+        })
+        .collect()
+}
+
+fn check_deny_list_v1_impl(
+    deny_list: PerTypeDenyList,
+    address: IotaAddress,
+    coin_types: BTreeSet<String>,
+    object_store: &dyn ObjectStore,
+) -> UserInputResult {
+    let Ok(count) = get_dynamic_field_from_store::<IotaAddress, u64>(
+        object_store,
+        deny_list.denied_count.id,
+        &address,
+    ) else {
+        return Ok(());
+    };
+    if count == 0 {
+        return Ok(());
     }
+    for coin_type in coin_types {
+        let Ok(denied_addresses) = get_dynamic_field_from_store::<Vec<u8>, VecSet<IotaAddress>>(
+            object_store,
+            deny_list.denied_addresses.id,
+            &coin_type.clone().into_bytes(),
+        ) else {
+            continue;
+        };
+        let denied_addresses: BTreeSet<_> = denied_addresses.contents.into_iter().collect();
+        if denied_addresses.contains(&address) {
+            debug!(
+                "Address {} is denied for coin package {:?}",
+                address, coin_type
+            );
+            return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -119,6 +146,7 @@ pub struct RegulatedCoinMetadata {
 }
 
 pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Object> {
+    // TODO: We should return error if this is not found.
     match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
         Ok(Some(obj)) => Some(obj),
         Ok(None) => {

@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{iota_serde::IotaTypeTag, object::Owner};

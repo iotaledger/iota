@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    ObjectsPage, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
