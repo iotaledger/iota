@@ -45,8 +45,8 @@ export function ValidatorStats({
         <div className="flex flex-col gap-lg md:flex-row">
             <Panel>
                 <Title title="Staked on Validator" />
-                <div className="flex flex-col gap-lg p-md--rs">
-                    <div className="flex w-full flex-row justify-between gap-md">
+                <div className="grid grid-cols-2 gap-md p-md--rs">
+                    <div className="grid grid-rows-1 gap-md">
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Staking APY"
@@ -65,7 +65,7 @@ export function ValidatorStats({
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
-                    <div className="flex w-full flex-row justify-between gap-md">
+                    <div className="grid grid-rows-1 gap-md">
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Commission"
@@ -91,41 +91,39 @@ export function ValidatorStats({
             </Panel>
             <Panel>
                 <Title title="Validator Staking Rewards" />
-                <div className="flex flex-col gap-lg p-md--rs">
-                    <div className="flex w-full flex-row justify-between gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Last Epoch Rewards"
-                            text={typeof epochRewards === 'number' ? formattedEpochRewards : '0'}
-                            showSupportingLabel
-                            supportingLabel={epochRewardsSymbol}
-                            tooltipText={
-                                epochRewards === null
-                                    ? 'Coming soon'
-                                    : 'The staking rewards earned during the previous epoch.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Reward Pool"
-                            text={formattedRewardsPoolBalance}
-                            supportingLabel={rewardsPoolBalanceSymbol}
-                            showSupportingLabel
-                            tooltipText={
-                                Number(rewardsPoolBalance) <= 0
-                                    ? 'Coming soon'
-                                    : 'The current balance in this validator’s reward pool.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
+                <div className="grid grid-cols-2 gap-md p-md--rs">
+                    <LabelText
+                        size={LabelTextSize.Medium}
+                        label="Last Epoch Rewards"
+                        text={typeof epochRewards === 'number' ? formattedEpochRewards : '0'}
+                        showSupportingLabel
+                        supportingLabel={epochRewardsSymbol}
+                        tooltipText={
+                            epochRewards === null
+                                ? 'Coming soon'
+                                : 'The staking rewards earned during the previous epoch.'
+                        }
+                        tooltipPosition={TooltipPosition.Right}
+                    />
+                    <LabelText
+                        size={LabelTextSize.Medium}
+                        label="Reward Pool"
+                        text={formattedRewardsPoolBalance}
+                        supportingLabel={rewardsPoolBalanceSymbol}
+                        showSupportingLabel
+                        tooltipText={
+                            Number(rewardsPoolBalance) <= 0
+                                ? 'Coming soon'
+                                : 'The current balance in this validator’s reward pool.'
+                        }
+                        tooltipPosition={TooltipPosition.Right}
+                    />
                 </div>
             </Panel>
             <Panel>
                 <Title title="Network Participation" />
-                <div className="flex flex-col gap-lg p-md--rs">
-                    <div className="flex w-full flex-row justify-between gap-md">
+                <div className="grid grid-cols-2 gap-md p-md--rs">
+                    <div className="grid grid-rows-1 gap-md">
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Checkpoint Participation"
@@ -151,7 +149,7 @@ export function ValidatorStats({
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
-                    <div className="flex w-full flex-row justify-between gap-md">
+                    <div className="grid grid-rows-1 gap-md">
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Tallying Score"
@@ -177,7 +175,7 @@ export function ValidatorStats({
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
-                    <div className="flex w-full flex-row justify-between gap-md">
+                    <div className="grid grid-rows-1 gap-md">
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Proposed next epoch gas price"
