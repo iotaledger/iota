@@ -106,7 +106,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                     </div>
                     <section className=" -mx-6 bg-white">
                         <div className="flex flex-col gap-4 p-6">
-                            <GasFees sender={addressForTransaction} transaction={transaction} />
+                            <GasFees gasSummary={summary?.gas} isEstimate />
                             <TransactionDetails
                                 sender={addressForTransaction}
                                 transaction={transaction}

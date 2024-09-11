@@ -2,56 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionData, useTransactionGasBudget } from '_src/ui/app/hooks';
-import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
-import { type TransactionBlock } from '@iota/iota-sdk/transactions';
-import { formatAddress } from '@iota/iota-sdk/utils';
-
-import { DescriptionItem, DescriptionList } from './DescriptionList';
-import { SummaryCard } from './SummaryCard';
+import { TitleSize, Badge, BadgeType, Title, Panel } from '@iota/apps-ui-kit';
+import { Collapsible } from '_src/ui/app/shared/collapse';
+import { GasSummary } from '_src/ui/app/shared/transaction-summary/cards/GasSummary';
+import { type GasSummaryType } from '@iota/core';
 
 interface GasFeesProps {
-    sender?: string;
-    transaction: TransactionBlock;
+    gasSummary?: GasSummaryType;
+    isEstimate?: boolean;
 }
+const DEFAULT_TITLE = 'Gas Fees';
 
-export function GasFees({ sender, transaction }: GasFeesProps) {
-    const { data: transactionData } = useTransactionData(sender, transaction);
-    const { data: gasBudget, isPending, isError } = useTransactionGasBudget(sender, transaction);
-    const isSponsored =
-        transactionData?.gasConfig.owner &&
-        transactionData.sender !== transactionData.gasConfig.owner;
+export function GasFees({ gasSummary, isEstimate }: GasFeesProps) {
+    const title = isEstimate ? `Estimate ${DEFAULT_TITLE}` : DEFAULT_TITLE;
+    const trailingElement =
+        gasSummary?.isSponsored && gasSummary.owner ? (
+            <div className="ml-1 flex">
+                <Badge type={BadgeType.PrimarySoft} label="Sponsored" />
+            </div>
+        ) : null;
     return (
-        <SummaryCard
-            header="Estimated Gas Fees"
-            badge={
-                isSponsored ? (
-                    <div className="text-success rounded-full bg-white px-1.5 py-0.5 text-captionSmallExtra font-medium uppercase">
-                        Sponsored
+        <Panel hasBorder>
+            <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
+                <Collapsible
+                    hideBorder
+                    defaultOpen
+                    render={() => (
+                        <Title
+                            size={TitleSize.Small}
+                            title={title}
+                            trailingElement={trailingElement}
+                        />
+                    )}
+                >
+                    <div className="flex flex-col gap-y-sm p-md">
+                        <GasSummary gasSummary={gasSummary} />
                     </div>
-                ) : null
-            }
-            initialExpanded
-        >
-            <DescriptionList>
-                <DescriptionItem title="You Pay">
-                    {isPending
-                        ? 'Estimating...'
-                        : isError
-                          ? 'Gas estimation failed'
-                          : `${isSponsored ? 0 : gasBudget} ${GAS_SYMBOL}`}
-                </DescriptionItem>
-                {isSponsored && (
-                    <>
-                        <DescriptionItem title="Sponsor Pays">
-                            {gasBudget ? `${gasBudget} ${GAS_SYMBOL}` : '-'}
-                        </DescriptionItem>
-                        <DescriptionItem title="Sponsor">
-                            {formatAddress(transactionData!.gasConfig.owner!)}
-                        </DescriptionItem>
-                    </>
-                )}
-            </DescriptionList>
-        </SummaryCard>
+                </Collapsible>
+            </div>
+        </Panel>
     );
 }

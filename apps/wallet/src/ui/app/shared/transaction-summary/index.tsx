@@ -8,8 +8,8 @@ import { LoadingIndicator } from '_components';
 import { Heading } from '../heading';
 import { BalanceChanges } from './cards/BalanceChanges';
 import { ExplorerLinkCard } from './cards/ExplorerLink';
-import { GasSummary } from './cards/GasSummary';
 import { ObjectChanges } from './cards/ObjectChanges';
+import { GasFees } from '../../pages/approval-request/transaction-request/GasFees';
 
 export function TransactionSummary({
     summary,
@@ -43,7 +43,7 @@ export function TransactionSummary({
                     )}
                     <BalanceChanges changes={summary?.balanceChanges} />
                     <ObjectChanges changes={summary?.objectSummary} />
-                    {showGasSummary && <GasSummary gasSummary={summary?.gas} />}
+                    {showGasSummary && <GasFees gasSummary={summary?.gas} />}
                     <ExplorerLinkCard
                         digest={summary?.digest}
                         timestamp={summary?.timestamp ?? undefined}
