@@ -1,12 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use num::BigUint;
 
 use crate::{
     ast::{TempIndex, Value},
-    model::{FunctionEnv, GlobalEnv, Loc, NodeId, QualifiedInstId, StructId},
+    model::{DatatypeId, FunctionEnv, GlobalEnv, Loc, NodeId, QualifiedInstId},
     symbol::Symbol,
     ty::Type,
 };
@@ -39,8 +40,8 @@ pub trait ExpGenerator<'env> {
         self.set_loc(loc);
     }
 
-    /// Creates a new expression node id, using current default location, provided type,
-    /// and optional instantiation.
+    /// Creates a new expression node id, using current default location,
+    /// provided type, and optional instantiation.
     fn new_node(&self, ty: Type, inst_opt: Option<Vec<Type>>) -> NodeId {
         let node_id = self.global_env().new_node(self.get_current_loc(), ty);
         if let Some(inst) = inst_opt {
@@ -69,12 +70,13 @@ pub trait ExpGenerator<'env> {
         self.global_env().symbol_pool().make(str)
     }
 
-    /// Get's the memory associated with a Call(Global,..) or Call(Exists, ..) node. Crashes
-    /// if the the node is not typed as expected.
-    fn get_memory_of_node(&self, node_id: NodeId) -> QualifiedInstId<StructId> {
-        // We do have a call `f<R<..>>` so extract the type from the function instantiation.
+    /// Get's the memory associated with a Call(Global,..) or Call(Exists, ..)
+    /// node. Crashes if the node is not typed as expected.
+    fn get_memory_of_node(&self, node_id: NodeId) -> QualifiedInstId<DatatypeId> {
+        // We do have a call `f<R<..>>` so extract the type from the function
+        // instantiation.
         let rty = &self.global_env().get_node_instantiation(node_id)[0];
-        let (mid, sid, inst) = rty.require_struct();
+        let (mid, sid, inst) = rty.require_datatype();
         mid.qualified_inst(sid, inst.to_owned())
     }
 }

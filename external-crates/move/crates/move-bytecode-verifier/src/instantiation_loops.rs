@@ -1,20 +1,24 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This implements an algorithm that detects loops during the instantiation of generics.
+//! This implements an algorithm that detects loops during the instantiation of
+//! generics.
 //!
-//! It builds a graph from the given `CompiledModule` and converts the original problem into
-//! finding strongly connected components in the graph with certain properties. Read the
-//! documentation of the types/functions below for details of how it works.
+//! It builds a graph from the given `CompiledModule` and converts the original
+//! problem into finding strongly connected components in the graph with certain
+//! properties. Read the documentation of the types/functions below for details
+//! of how it works.
 //!
-//! Note: We're doing generics only up to specialization, and are doing a conservative check of
-//! generic call sites to eliminate those which could lead to an infinite number of specialized
-//! instances. We do reject recursive functions that create a new type upon each call but do
-//! terminate eventually.
+//! Note: We're doing generics only up to specialization, and are doing a
+//! conservative check of generic call sites to eliminate those which could lead
+//! to an infinite number of specialized instances. We do reject recursive
+//! functions that create a new type upon each call but do terminate eventually.
+
+use std::collections::{hash_map, HashMap, HashSet};
 
 use move_binary_format::{
-    access::ModuleAccess,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::{
         Bytecode, CompiledModule, FunctionDefinition, FunctionDefinitionIndex, FunctionHandleIndex,
@@ -28,7 +32,6 @@ use petgraph::{
     visit::EdgeRef,
     Graph,
 };
-use std::collections::{hash_map, HashMap, HashSet};
 
 /// Data attached to each node.
 /// Each node corresponds to a type formal of a generic function in the module.
@@ -37,8 +40,8 @@ struct Node(FunctionDefinitionIndex, TypeParameterIndex);
 
 /// Data attached to each edge. Indicating the type of the edge.
 enum Edge<'a> {
-    /// This type of edge from type formal T1 to T2 means the type bound to T1 is used to
-    /// instantiate T2 unmodified, thus the name `Identity`.
+    /// This type of edge from type formal T1 to T2 means the type bound to T1
+    /// is used to instantiate T2 unmodified, thus the name `Identity`.
     ///
     /// Example:
     /// ```
@@ -47,8 +50,9 @@ enum Edge<'a> {
     /// //    edge: foo_T --Id--> bar_T
     /// ```
     Identity,
-    /// This type of edge from type formal T1 to T2 means T2 is instantiated with a type resulted
-    /// by applying one or more type constructors to T1 (potentially with other types).
+    /// This type of edge from type formal T1 to T2 means T2 is instantiated
+    /// with a type resulted by applying one or more type constructors to T1
+    /// (potentially with other types).
     ///
     /// This is interesting to us as it creates a new (and bigger) type.
     ///
@@ -143,14 +147,14 @@ impl<'a> InstantiationLoopChecker<'a> {
 
         fn rec(type_params: &mut HashSet<TypeParameterIndex>, ty: &SignatureToken) {
             match ty {
-                Bool | Address | U8 | U16 | U32 | U64 | U128 | U256 | Signer | Struct(_) => (),
+                Bool | Address | U8 | U16 | U32 | U64 | U128 | U256 | Signer | Datatype(_) => {}
                 TypeParameter(idx) => {
                     type_params.insert(*idx);
                 }
                 Vector(ty) => rec(type_params, ty),
                 Reference(ty) | MutableReference(ty) => rec(type_params, ty),
-                StructInstantiation(struct_inst) => {
-                    let (_, tys) = &**struct_inst;
+                DatatypeInstantiation(inst) => {
+                    let (_, tys) = &**inst;
                     for ty in tys {
                         rec(type_params, ty);
                     }
@@ -170,8 +174,9 @@ impl<'a> InstantiationLoopChecker<'a> {
         self.graph.add_edge(node_from_idx, node_to_idx, edge);
     }
 
-    /// Helper of 'fn build_graph' that inspects a function call. If type parameters of the caller
-    /// appear in the type actuals to the callee, nodes and edges are added to the graph.
+    /// Helper of 'fn build_graph' that inspects a function call. If type
+    /// parameters of the caller appear in the type actuals to the callee,
+    /// nodes and edges are added to the graph.
     fn build_graph_call(
         &mut self,
         caller_idx: FunctionDefinitionIndex,
@@ -201,8 +206,8 @@ impl<'a> InstantiationLoopChecker<'a> {
         }
     }
 
-    /// Helper of `fn build_graph` that inspects a function definition for calls between two generic
-    /// functions defined in the current module.
+    /// Helper of `fn build_graph` that inspects a function definition for calls
+    /// between two generic functions defined in the current module.
     fn build_graph_function_def(
         &mut self,
         caller_idx: FunctionDefinitionIndex,
@@ -226,9 +231,10 @@ impl<'a> InstantiationLoopChecker<'a> {
 
     /// Builds a graph G such that
     ///   - Each type formal of a generic function is a node in G.
-    ///   - There is an edge from type formal f_T to g_T if f_T is used to instantiate g_T in a
-    ///     call.
-    ///     - Each edge is labeled either `Identity` or `TyConApp`. See `Edge` for details.
+    ///   - There is an edge from type formal f_T to g_T if f_T is used to
+    ///     instantiate g_T in a call.
+    ///     - Each edge is labeled either `Identity` or `TyConApp`. See `Edge`
+    ///       for details.
     fn build_graph(&mut self) {
         for (def_idx, func_def) in self
             .module
@@ -241,10 +247,12 @@ impl<'a> InstantiationLoopChecker<'a> {
         }
     }
 
-    /// Computes the strongly connected components of the graph built and keep the ones that
-    /// contain at least one `TyConApp` edge. Such components indicate there exists a loop such
-    /// that an input type can get "bigger" infinitely many times along the loop, also creating
-    /// infinitely many types. This is precisely the kind of constructs we want to forbid.
+    /// Computes the strongly connected components of the graph built and keep
+    /// the ones that contain at least one `TyConApp` edge. Such components
+    /// indicate there exists a loop such that an input type can get
+    /// "bigger" infinitely many times along the loop, also creating
+    /// infinitely many types. This is precisely the kind of constructs we want
+    /// to forbid.
     fn find_non_trivial_components(&self) -> Vec<(Vec<NodeIndex>, Vec<EdgeIndex>)> {
         tarjan_scc(&self.graph)
             .into_iter()

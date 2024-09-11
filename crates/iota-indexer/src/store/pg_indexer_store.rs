@@ -764,10 +764,14 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             .metrics
             .checkpoint_db_commit_latency_transactions_chunks_transformation
             .start_timer();
-        let transactions = transactions
-            .iter()
-            .map(StoredTransaction::from)
-            .collect::<Vec<_>>();
+        let transactions = transactions.iter().map(StoredTransaction::from);
+        let transactions = if cfg!(feature = "postgres-feature") {
+            transactions
+                .map(|stored| stored.store_inner_genesis_data_as_large_object(&self.blocking_cp))
+                .collect::<Result<Vec<_>, _>>()?
+        } else {
+            transactions.collect::<Vec<_>>()
+        };
         drop(transformation_guard);
 
         transactional_blocking_with_retry!(
@@ -1321,17 +1325,14 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
                                 .eq(excluded(epochs::epoch_total_transactions)),
                             epochs::last_checkpoint_id.eq(excluded(epochs::last_checkpoint_id)),
                             epochs::epoch_end_timestamp.eq(excluded(epochs::epoch_end_timestamp)),
-                            epochs::storage_fund_reinvestment
-                                .eq(excluded(epochs::storage_fund_reinvestment)),
                             epochs::storage_charge.eq(excluded(epochs::storage_charge)),
                             epochs::storage_rebate.eq(excluded(epochs::storage_rebate)),
-                            epochs::stake_subsidy_amount.eq(excluded(epochs::stake_subsidy_amount)),
                             epochs::total_gas_fees.eq(excluded(epochs::total_gas_fees)),
                             epochs::total_stake_rewards_distributed
                                 .eq(excluded(epochs::total_stake_rewards_distributed)),
-                            epochs::leftover_storage_fund_inflow
-                                .eq(excluded(epochs::leftover_storage_fund_inflow)),
                             epochs::epoch_commitments.eq(excluded(epochs::epoch_commitments)),
+                            epochs::burnt_tokens_amount.eq(excluded(epochs::burnt_tokens_amount)),
+                            epochs::minted_tokens_amount.eq(excluded(epochs::minted_tokens_amount)),
                         ),
                         |excluded: StoredEpochInfo| (
                             epochs::system_state.eq(excluded.system_state.clone()),
@@ -1922,17 +1923,10 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
         let chunks = chunk!(transactions, self.config.parallel_chunk_size);
         let futures = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_transactions_chunk(c)))
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_transactions_chunk(c)));
 
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                tracing::error!("Failed to join persist_transactions_chunk futures: {}", e);
-                IndexerError::from(e)
-            })?
+        futures::future::try_join_all(futures)
+            .await?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -1958,17 +1952,10 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
         let chunks = chunk!(events, self.config.parallel_chunk_size);
         let futures = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_events_chunk(c)))
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_events_chunk(c)));
 
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                tracing::error!("Failed to join persist_events_chunk futures: {}", e);
-                IndexerError::from(e)
-            })?
+        futures::future::try_join_all(futures)
+            .await?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -2013,22 +2000,14 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .start_timer();
         let chunks = chunk!(indices, self.config.parallel_chunk_size);
 
-        let futures = chunks
-            .into_iter()
-            .map(|chunk| {
-                self.spawn_task(move |this: Self| async move {
-                    this.persist_event_indices_chunk(chunk).await
-                })
+        let futures = chunks.into_iter().map(|chunk| {
+            self.spawn_task(move |this: Self| async move {
+                this.persist_event_indices_chunk(chunk).await
             })
-            .collect::<Vec<_>>();
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                tracing::error!("Failed to join persist_event_indices_chunk futures: {}", e);
-                IndexerError::from(e)
-            })?
+        });
+
+        futures::future::try_join_all(futures)
+            .await?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -2053,22 +2032,13 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .start_timer();
         let chunks = chunk!(indices, self.config.parallel_chunk_size);
 
-        let futures = chunks
-            .into_iter()
-            .map(|chunk| {
-                self.spawn_task(move |this: Self| async move {
-                    this.persist_tx_indices_chunk(chunk).await
-                })
-            })
-            .collect::<Vec<_>>();
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                tracing::error!("Failed to join persist_tx_indices_chunk futures: {}", e);
-                IndexerError::from(e)
-            })?
+        let futures = chunks.into_iter().map(|chunk| {
+            self.spawn_task(
+                move |this: Self| async move { this.persist_tx_indices_chunk(chunk).await },
+            )
+        });
+        futures::future::try_join_all(futures)
+            .await?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {

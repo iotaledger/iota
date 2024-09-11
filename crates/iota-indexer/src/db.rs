@@ -344,6 +344,9 @@ pub mod setup_postgres {
                 db_url.to_string(),
             )
             .await;
+        } else if indexer_config.analytical_worker {
+            let store = PgIndexerAnalyticalStore::new(blocking_cp);
+            return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
         Ok(())
     }

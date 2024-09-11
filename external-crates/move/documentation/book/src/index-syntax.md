@@ -242,7 +242,6 @@ whose subject and return mutability differ:
 #[syntax(index)]
 public fun borrow_imm(x: &mut Matrix<u64>, ...): &u64 { ... }
     // ERROR! incompatible mutability
-
 ```
 
 ### Type Compatibility

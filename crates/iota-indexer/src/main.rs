@@ -17,12 +17,9 @@ async fn main() -> Result<(), IndexerError> {
     );
 
     let mut indexer_config = IndexerConfig::parse();
-    // TODO: remove. Temporary safeguard to migrate to `rpc_client_url` usage
-    if indexer_config.rpc_client_url.contains("testnet") {
-        indexer_config.remote_store_url = Some("https://checkpoints.testnet.iota.io".to_string());
-    } else if indexer_config.rpc_client_url.contains("mainnet") {
-        indexer_config.remote_store_url = Some("https://checkpoints.mainnet.iota.io".to_string());
-    }
+    // TODO: Explore other options as in upstream.
+    // For the moment we only use the fullnode for fetching checkpoints
+    indexer_config.remote_store_url = Some(format!("{rpc_client_url}/rest"));
     info!("Parsed indexer config: {:#?}", indexer_config);
     let (_registry_service, registry) = start_prometheus_server(
         // NOTE: this parses the input host addr and port number for socket addr,

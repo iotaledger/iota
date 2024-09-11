@@ -20,11 +20,11 @@ use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use super::{
-    checkpoint_handler::CheckpointHandler, tx_processor::IndexingPackageBuffer,
-    TransactionObjectChangesToCommit,
-};
 use crate::{
+    handlers::{
+        checkpoint_handler::CheckpointHandler, tx_processor::IndexingPackageBuffer,
+        TransactionObjectChangesToCommit,
+    },
     metrics::IndexerMetrics,
     store::{
         package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},

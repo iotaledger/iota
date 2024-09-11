@@ -1,8 +1,8 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::file_format::{Constant, SignatureToken};
 use move_core_types::account_address::AccountAddress;
 use proptest::{
     arbitrary::any,
@@ -10,8 +10,10 @@ use proptest::{
     strategy::Strategy,
 };
 
-// A `ConstantPoolGen` gives you back a `Strategy` that makes a constant pool with
-// `Address` and `Vector<U8>` only.
+use crate::file_format::{Constant, SignatureToken};
+
+// A `ConstantPoolGen` gives you back a `Strategy` that makes a constant pool
+// with `Address` and `Vector<U8>` only.
 // TODO: make it more general and plug in a constant API
 #[derive(Clone, Debug)]
 pub struct ConstantPoolGen {
@@ -20,8 +22,9 @@ pub struct ConstantPoolGen {
 }
 
 impl ConstantPoolGen {
-    // Return a `Strategy` that builds a ConstantPool with a number of `addresse`s and
-    // `vector<u8>` respectively driven by `address_count` and `byte_array_count`
+    // Return a `Strategy` that builds a ConstantPool with a number of `addresses`
+    // and `vector<u8>` respectively driven by `address_count` and
+    // `byte_array_count`
     pub fn strategy(
         address_count: impl Into<SizeRange>,
         byte_array_count: impl Into<SizeRange>,
@@ -49,7 +52,8 @@ impl ConstantPoolGen {
         for mut byte_array in self.byte_arrays {
             // TODO: below is a trick to make serialization easy (size being one byte)
             // This can hopefully help soon in defining an API for constants
-            // As a restriction is a non issue as we don't have input over big numbers (>100)
+            // As a restriction is a non issue as we don't have input over big numbers
+            // (>100)
             if byte_array.len() > 127 {
                 continue;
             }

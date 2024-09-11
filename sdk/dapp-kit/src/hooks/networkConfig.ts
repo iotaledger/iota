@@ -1,45 +1,46 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClientOptions } from '@mysten/sui.js/client';
+import type { IotaClientOptions } from '@iota/iota-sdk/client';
 
-import { useSuiClientContext } from './useSuiClient.js';
+import { useIotaClientContext } from './useIotaClient.js';
 
-export type NetworkConfig<T extends object = object> = SuiClientOptions & {
-	variables?: T;
+export type NetworkConfig<T extends object = object> = IotaClientOptions & {
+    variables?: T;
 };
 
 export function createNetworkConfig<
-	const T extends Record<string, Config>,
-	Config extends NetworkConfig<Variables> = T[keyof T],
-	Variables extends object = NonNullable<Config['variables']>,
+    const T extends Record<string, Config>,
+    Config extends NetworkConfig<Variables> = T[keyof T],
+    Variables extends object = NonNullable<Config['variables']>,
 >(networkConfig: T) {
-	function useNetworkConfig(): Config {
-		const { config } = useSuiClientContext();
+    function useNetworkConfig(): Config {
+        const { config } = useIotaClientContext();
 
-		if (!config) {
-			throw new Error('No network config found');
-		}
+        if (!config) {
+            throw new Error('No network config found');
+        }
 
-		return config as T[keyof T];
-	}
+        return config as T[keyof T];
+    }
 
-	function useNetworkVariables(): Variables {
-		const { variables } = useNetworkConfig();
+    function useNetworkVariables(): Variables {
+        const { variables } = useNetworkConfig();
 
-		return (variables ?? {}) as Variables;
-	}
+        return (variables ?? {}) as Variables;
+    }
 
-	function useNetworkVariable<K extends keyof Variables>(name: K): Variables[K] {
-		const variables = useNetworkVariables();
+    function useNetworkVariable<K extends keyof Variables>(name: K): Variables[K] {
+        const variables = useNetworkVariables();
 
-		return variables[name];
-	}
+        return variables[name];
+    }
 
-	return {
-		networkConfig,
-		useNetworkConfig,
-		useNetworkVariables,
-		useNetworkVariable,
-	};
+    return {
+        networkConfig,
+        useNetworkConfig,
+        useNetworkVariables,
+        useNetworkVariable,
+    };
 }

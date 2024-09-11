@@ -432,7 +432,6 @@ impl StoredObject {
                 object_id
             )),
         )?;
-
         Ok(Some(DynamicFieldInfo {
             version: oref.1,
             digest: object_digest,

@@ -1,0 +1,247 @@
+---
+title: Object and Package Versioning
+description: Versioning provides the ability to upgrade packages and objects on the IOTA network.
+---
+
+In IOTA, every object stored on-chain is referenced by an ID and a version.
+When a transaction modifies an object,
+it creates a new version of that object while keeping the same ID.
+This ensures a linear history for each object, where only the latest version is accessible to transactions.
+
+## Object Versioning
+
+### How Versioning Works
+
+When a transaction modifies an object with ID `I`, it creates a new version with the same ID but a later version.
+For example:
+
+```
+(I, v0) => ...
+(I, v1) => ...  # v0 < v1
+(I, v2) => ...  # v1 < v2
+```
+
+Even though multiple versions of the object may exist in the store,
+only the latest version (`v2` in this example) is accessible to transactions.
+The versioning system guarantees that only one transaction can modify an object at a time, ensuring a linear history.
+
+Versions are strictly increasing, and (ID, version) pairs are never reused.
+This allows node operators to prune old object versions if they choose,
+although they might keep prior versions to serve requests for an object's history.
+
+### Move Objects
+
+IOTA uses [Lamport timestamps](https://en.wikipedia.org/wiki/Lamport_timestamp) in its versioning algorithm for objects.
+The use of Lamport timestamps ensures that versions are never reused.
+The new version for objects touched by a transaction is one greater than the latest version among all input objects to the transaction.
+For example, a transaction transferring an object `O` at version 5 using a gas object `G` at version 3 updates both `O` and `G` to version 6.
+
+#### Address-Owned Objects
+
+[Address-owned objects](object-ownership/address-owned.mdx) must be referenced by their specific ID and version in a transaction.
+When a validator signs a transaction using an owned object, that object version is locked to that transaction.
+Validators will reject other transactions that attempt to use the same object version, preventing equivocation.
+
+#### Immutable Objects
+
+[Immutable objects](object-ownership/immutable.mdx) are referenced by their ID and version,
+but they do not need to be locked since their contents and versions do not change.
+The version is relevant because it identifies when the object became immutable.
+
+#### Shared Objects
+
+[Shared objects](object-ownership/shared.mdx) are referenced by their ID, the version they were shared at,
+and whether they are accessed mutably.
+The exact version accessed is determined during transaction scheduling by consensus,
+ensuring proper sequencing of reads and writes.
+
+#### Wrapped Objects
+
+[Wrapped objects](object-ownership/wrapped.mdx) are accessed through the object that wraps them,
+not directly by their ID.
+For example, if an `Inner` object is wrapped inside an `Outer` object, you must access `Inner` via `Outer`.
+Validators will reject transactions that directly reference wrapped objects. However, wrapped objects can be unwrapped, making them accessible by their ID again.
+
+```move
+module example::wrapped {
+
+    public struct Inner has key, store {
+        id: UID,
+        x: u64,
+    }
+
+    public struct Outer has key {
+        id: UID,
+        inner: Inner,
+    }
+
+    entry fun make_wrapped(ctx: &mut TxContext) {
+        let inner = Inner {
+            id: object::new(ctx),
+            x: 42,
+        };
+
+        let outer = Outer {
+            id: object::new(ctx),
+            inner,
+        };
+
+        transfer::transfer(outer, tx_context::sender(ctx));
+    }
+}
+```
+
+When working with an `Outer` object the owner must specify it as the transaction input
+to gain access to its `inner` field.
+This allows interacting with the `Inner` instance within.
+It's important to note that validators will reject any transactions that directly attempt to specify wrapped objects, 
+such as the `inner` of an `Outer`, as inputs.
+
+Consequently, when a transaction involves reading a wrapped object,
+you aren't required to specify the version of that object.
+
+Over time, wrapped objects may become "unwrapped," making them accessible again by their original ID:
+
+```move
+module example::wrapped {
+    // ...
+
+    entry fun unwrap(outer: Outer, ctx: &TxContext) {
+        let Outer { id, inner } = outer;
+        object::delete(id);
+        transfer::transfer(inner, tx_context::sender(ctx));
+    }
+}
+```
+
+The `unwrap` function in the above example operates by taking an instance of `Outer`, destroying it,
+and returning the `Inner` object back to you, the sender.
+Once this function is called the previous owner of `Outer`, can directly access `Inner` using its ID,
+as it is now unwrapped.
+Throughout the lifespan of an object, it can be wrapped and unwrapped multiple times,
+yet it will always retain its original ID.
+
+To prevent version re-use, the system employs a Lamport timestamp-based versioning scheme.
+This ensures the version at which an object is unwrapped is always greater than the version at which it was wrapped.
+
+Here’s how it works:
+
+- After a wrapping transaction, `W`, where object `I` is wrapped within object `O`, the version of `O` must be greater than or equal to the version of `I`. This implies one of the following scenarios:
+  - If `I` is an input, its version is strictly lower.
+  - If `I` is newly created, its version is equal to `O`.
+- After a subsequent transaction unwrapping `I` from `O`, the following conditions hold true:
+  - The version of `O` as an input must be greater than or equal to its version after `W` because it is part of a later transaction, implying that the version has increased.
+  - The version of `I` in the output must be strictly greater than the version of `O` as an input.
+
+This leads to the following chain of inequalities for the version of `I` before wrapping:
+
+- It is less than or equal to `O`'s version after wrapping.
+- It is less than or equal to `O`'s version before unwrapping.
+- It is less than the version of `I` after unwrapping.
+
+So, the version of `I` before wrapping is always less than its version after unwrapping.
+
+
+#### Dynamic Fields
+
+From a versioning standpoint, dynamic fields behave similarly to wrapped objects:
+
+- These fields are accessible only through their parent object, meaning they cannot be used as direct transaction inputs.
+- Consequently, you don't need to include their IDs or versions in transaction inputs.
+- The Lamport timestamp-based versioning ensures that when a field containing an object is removed, the object becomes accessible by its ID, with its version incremented to a unique, previously unused version.
+
+:::info
+
+One key difference between dynamic fields and wrapped objects is that if a transaction modifies a dynamic field,
+its version is incremented during that transaction.
+In contrast, a wrapped object's version remains unchanged.
+
+:::
+
+When you add a new dynamic field to a parent object,
+it creates a `Field` object that links the field name and value to the parent.
+Unlike other newly created objects,
+the ID for this `Field` instance is not generated using [`iota::object::new`](../../../references/framework/iota-framework/object.mdx#function-new).
+Instead, it's computed as a hash of the parent object ID along with the field name’s type and value,
+allowing you to look up the `Field` via its parent and name.
+
+If you remove a field, IOTA deletes the associated `Field`, and if you add a new field with the same name,
+IOTA generates a new instance with the same ID.
+Lamport timestamp-based versioning, combined with the fact that dynamic fields are only accessible through their parent object,
+guarantees that (ID, version) pairs are not reused:
+
+- The transaction that deletes the original field increments the parent's version to a value greater than the deleted field's version.
+- The transaction that creates the new version of the same field assigns it a version greater than the parent's current version.
+
+So, the new `Field` instance will always have a version greater than the deleted one.
+
+## Packages
+
+Move packages are also versioned and stored on-chain, 
+though they follow a distinct versioning scheme because they are immutable once created.
+This means that when referencing a package in transaction inputs (such as the package a function belongs to in a Move call transaction),
+you only need to specify the package ID, and it will always be loaded at its latest version.
+
+### User Packages
+
+Every time you publish or upgrade a package, IOTA generates a new ID.
+A newly published package starts with version 1,
+while an upgraded package has a version one greater than the previous version.
+Unlike objects, older package versions remain accessible even after an upgrade.
+For example, consider a package `P` that has been published and upgraded twice:
+
+```
+(0x17fb7f87e48622257725f584949beac81539a3f4ff864317ad90357c37d82605, 1) => P v1
+(0x260f6eeb866c61ab5659f4a89bc0704dd4c51a573c4f4627e40c5bb93d4d500e, 2) => P v2
+(0xd24cc3ec3e2877f085bc756337bf73ae6976c38c3d93a0dbaf8004505de980ef, 3) => P v3
+```
+
+In this example, each version of the package has a unique ID.
+Despite the existence of `v2` and `v3`, you can still call functions in `v1`.
+
+### Framework Packages
+
+Framework packages (such as the Move standard library at `0x1`, the IOTA Framework at `0x2`, and IOTA System at `0x3`)
+are unique in that their IDs must remain consistent across upgrades.
+The network can upgrade these packages while keeping their IDs stable through a system transaction,
+but this process can only occur at epoch boundaries since framework packages are considered immutable.
+New versions of framework packages share the same ID as their predecessors, but their version increments by one:
+
+
+```
+(0x1, 1) => MoveStdlib v1
+(0x1, 2) => MoveStdlib v2
+(0x1, 3) => MoveStdlib v3
+```
+
+This example shows how the first three versions of the Move standard library would be represented on-chain.
+
+### Package Versions
+
+IOTA smart contracts are organized into upgradeable packages,
+meaning that multiple versions of a given package can coexist on-chain.
+Before a package can be used, you must first publish its initial version.
+When upgrading a package, you create a new version, and each upgrade builds on the immediately preceding version in the version history.
+This means that you can only upgrade from the `nth` version to the `(n+1)th` version.
+For instance, after upgrading from version 1 to 2, you can only upgrade from version 2 to 3, not directly from version 1 to 3.
+
+Versioning also exists in package manifest files, both in the package section and the dependencies section. Consider the following example of manifest code:
+
+```toml
+[package]
+name = "some_pkg"
+version = "1.0.0"
+edition = "2024.beta"
+
+[dependencies]
+another_pkg = { git = "https://github.com/another_pkg/another_pkg.git" , version = "2.0.0"}
+```
+
+The version references in the manifest serve primarily for user-level documentation,
+as the `publish` and `upgrade` commands do not utilize this information.
+If you publish a package with a certain version in the manifest file,
+and later modify and re-publish it with a different version (using the `publish` command instead of `upgrade`),
+these are treated as different packages rather than versions of the same package on-chain.
+Consequently, you cannot use one package as a dependency override for the other.
+While you can specify such an override during the build process,
+it will result in an error during publishing or upgrading on-chain.

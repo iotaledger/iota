@@ -1,9 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Contains definitions of symbols -- internalized strings which support fast hashing and
-//! comparison.
+//! Contains definitions of symbols -- internalized strings which support fast
+//! hashing and comparison.
 
 use std::{
     cell::RefCell,
@@ -35,9 +36,10 @@ impl<'a> fmt::Display for SymbolDisplay<'a> {
     }
 }
 
-/// A pool of symbols. Allows to lookup a symbol by a string representation, and discover
-/// the string representation of an existing symbol. This struct does not need be mutable
-/// for operations on it, which is important so references to it can be freely passed around.
+/// A pool of symbols. Allows to lookup a symbol by a string representation, and
+/// discover the string representation of an existing symbol. This struct does
+/// not need be mutable for operations on it, which is important so references
+/// to it can be freely passed around.
 #[derive(Debug)]
 pub struct SymbolPool {
     inner: RefCell<InnerPool>,
@@ -60,10 +62,11 @@ impl SymbolPool {
         }
     }
 
-    /// Looks up a symbol by its string representation. If a symbol with this representation
-    /// already exists, it will be returned, otherwise a new one will be created in the
-    /// pool. The implementation uses internally a RefCell for storing symbols, so the pool
-    /// does not need to be mutable.
+    /// Looks up a symbol by its string representation. If a symbol with this
+    /// representation already exists, it will be returned, otherwise a new
+    /// one will be created in the pool. The implementation uses internally
+    /// a RefCell for storing symbols, so the pool does not need to be
+    /// mutable.
     pub fn make(&self, s: &str) -> Symbol {
         let mut pool = self.inner.borrow_mut();
         let key = Rc::new(s.to_string());
@@ -76,9 +79,9 @@ impl SymbolPool {
         Symbol(new_sym)
     }
 
-    /// Returns the string representation of this symbol, as an rc'ed string to avoid copies.
-    /// If the past symbol was not created from this pool, a runtime error may happen (or a wrong
-    /// string will be returned).
+    /// Returns the string representation of this symbol, as an rc'ed string to
+    /// avoid copies. If the past symbol was not created from this pool, a
+    /// runtime error may happen (or a wrong string will be returned).
     pub fn string(&self, sym: Symbol) -> Rc<String> {
         self.inner.borrow().strings[sym.0].clone()
     }

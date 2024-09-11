@@ -10,7 +10,7 @@ error[E05001]: ability constraint not satisfied
   │               ^^^^^^^
   │               │    │
   │               │    The type '0x8675309::M::R' does not have the ability 'copy'
-  │               'copy' constraint not satisifed
+  │               'copy' constraint not satisfied
 
 warning[W09005]: dead or unreachable code
   ┌─ tests/move_check/typing/constraints_not_satisfied_lvalues_pack_type_args.move:8:29
@@ -32,5 +32,5 @@ error[E05001]: ability constraint not satisfied
   │           ^^^^^^^
   │           │    │
   │           │    The type '0x8675309::M::R' does not have the ability 'copy'
-  │           'copy' constraint not satisifed
+  │           'copy' constraint not satisfied
 

@@ -2,11 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub(crate) use indexer_analytics_store::IndexerAnalyticalStore;
 pub(crate) use indexer_store::*;
+pub use pg_indexer_analytical_store::PgIndexerAnalyticalStore;
 pub use pg_indexer_store::PgIndexerStore;
 
+mod indexer_analytics_store;
 pub mod indexer_store;
 pub mod package_resolver;
+mod pg_indexer_analytical_store;
 mod pg_indexer_store;
 pub mod pg_partition_manager;
 
@@ -145,6 +149,7 @@ pub mod diesel_macro {
                 Err(backoff::Error::Transient { err, .. }) => Err(err),
                 Err(backoff::Error::Permanent(err)) => Err(err),
             };
+
             result
         }};
     }

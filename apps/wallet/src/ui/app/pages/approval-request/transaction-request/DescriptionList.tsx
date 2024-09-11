@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -8,23 +9,23 @@
 import type { ReactNode } from 'react';
 
 export interface DescriptionItemProps {
-	title: string | ReactNode;
-	children: ReactNode;
+    title: string | ReactNode;
+    children: ReactNode;
 }
 
 export function DescriptionItem({ title, children }: DescriptionItemProps) {
-	return (
-		<div className="flex items-center">
-			<dt className="text-pBodySmall font-medium text-steel-dark flex-1">{title}</dt>
-			<dd className="ml-0 text-steel-darker text-pBodySmall font-medium">{children}</dd>
-		</div>
-	);
+    return (
+        <div className="flex items-center">
+            <dt className="text-steel-dark flex-1 text-pBodySmall font-medium">{title}</dt>
+            <dd className="text-steel-darker ml-0 text-pBodySmall font-medium">{children}</dd>
+        </div>
+    );
 }
 
-export type DescriptionListProps = {
-	children: ReactNode;
-};
+export interface DescriptionListProps {
+    children: ReactNode;
+}
 
 export function DescriptionList({ children }: DescriptionListProps) {
-	return <dl className="flex flex-col gap-2 m-0">{children}</dl>;
+    return <dl className="m-0 flex flex-col gap-2">{children}</dl>;
 }

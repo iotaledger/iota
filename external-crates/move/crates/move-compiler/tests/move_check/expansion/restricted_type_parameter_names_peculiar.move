@@ -1,6 +1,6 @@
 #[allow(unused_type_parameter)]
 module a::m {
-    // none of these are invlaid ... but they are weird
+    // none of these are invalid ... but they are weird
     struct S<
         __,
         _u64,

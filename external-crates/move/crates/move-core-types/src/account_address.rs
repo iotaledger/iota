@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{convert::TryFrom, fmt, str::FromStr};
 
 use hex::FromHex;
 use rand::{rngs::OsRng, Rng};
 use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
-use std::{convert::TryFrom, fmt, str::FromStr};
 
 use crate::gas_algebra::AbstractMemorySize;
 
@@ -51,16 +53,19 @@ impl AccountAddress {
     }
 
     /// Return a canonical string representation of the address
-    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16, 20, or 32 depending on the Move platform)
-    /// e.g., 0000000000000000000000000000000a, *not* 0x0000000000000000000000000000000a, 0xa, or 0xA
-    /// Note: this function is guaranteed to be stable, and this is suitable for use inside
-    /// Move native functions or the VM.
-    /// However, one can pass with_prefix=true to get its representation with the 0x prefix.
+    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16,
+    /// 20, or 32 depending on the Move platform)
+    /// e.g., 0000000000000000000000000000000a, *not*
+    /// 0x0000000000000000000000000000000a, 0xa, or 0xA Note: this function
+    /// is guaranteed to be stable, and this is suitable for use inside Move
+    /// native functions or the VM. However, one can pass with_prefix=true
+    /// to get its representation with the 0x prefix.
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         self.to_canonical_display(with_prefix).to_string()
     }
 
-    /// Implements Display for the address, with the prefix 0x if with_prefix is true.
+    /// Implements Display for the address, with the prefix 0x if with_prefix is
+    /// true.
     pub fn to_canonical_display(&self, with_prefix: bool) -> impl fmt::Display + '_ {
         struct HexDisplay<'a> {
             data: &'a [u8],
@@ -327,14 +332,16 @@ impl std::error::Error for AccountAddressParseError {}
 
 #[cfg(test)]
 mod tests {
-    use super::AccountAddress;
-    use crate::gas_algebra::AbstractMemorySize;
-    use hex::FromHex;
-    use proptest::prelude::*;
     use std::{
         convert::{AsRef, TryFrom},
         str::FromStr,
     };
+
+    use hex::FromHex;
+    use proptest::prelude::*;
+
+    use super::AccountAddress;
+    use crate::gas_algebra::AbstractMemorySize;
 
     #[test]
     fn test_display_impls() {

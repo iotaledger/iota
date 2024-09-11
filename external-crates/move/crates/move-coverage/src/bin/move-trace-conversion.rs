@@ -1,12 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
+use std::path::Path;
+
 use clap::Parser;
 use move_coverage::coverage_map::{output_map_to_file, CoverageMap, TraceMap};
-use std::path::Path;
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -22,7 +24,8 @@ struct Args {
     /// The path to the output file location
     #[clap(long = "output-file-path", short = 'o')]
     pub output_file_path: String,
-    /// Add traces from `input_file_path` to an existing coverage map at `update_coverage_map`
+    /// Add traces from `input_file_path` to an existing coverage map at
+    /// `update_coverage_map`
     #[clap(long = "update", short = 'u')]
     pub update: Option<String>,
     /// Collect structured trace instead of aggregated coverage information

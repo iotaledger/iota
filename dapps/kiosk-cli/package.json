@@ -15,8 +15,8 @@
     "trailingComma": "all"
   },
   "dependencies": {
-    "@mysten/kiosk": "workspace:*",
-    "@mysten/sui.js": "workspace:*",
+    "@iota/iota-sdk": "workspace:*",
+    "@iota/kiosk": "workspace:*",
     "commander": "^11.0.0"
   }
 }

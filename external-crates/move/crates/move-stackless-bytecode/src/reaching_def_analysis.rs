@@ -1,16 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Reaching definition analysis with subsequent copy propagation.
 //
-// This analysis and transformation only propagates definitions, leaving dead assignments
-// in the code. The subsequent livevar_analysis takes care of removing those.
+// This analysis and transformation only propagates definitions, leaving dead
+// assignments in the code. The subsequent livevar_analysis takes care of
+// removing those.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use itertools::Itertools;
-
 use move_binary_format::file_format::CodeOffset;
 use move_model::{ast::TempIndex, model::FunctionEnv};
 
@@ -39,8 +40,8 @@ pub struct ReachingDefState {
     pub havoced: HavocSet,
 }
 
-/// The annotation for reaching definitions. For each code position, we have a map of local
-/// indices to the set of definitions reaching the code position.
+/// The annotation for reaching definitions. For each code position, we have a
+/// map of local indices to the set of definitions reaching the code position.
 #[derive(Default)]
 pub struct ReachingDefAnnotation(BTreeMap<CodeOffset, ReachingDefState>);
 
@@ -51,7 +52,8 @@ impl ReachingDefProcessor {
         Box::new(ReachingDefProcessor {})
     }
 
-    /// Returns Some(temp, def) if temp has a unique reaching definition and None otherwise.
+    /// Returns Some(temp, def) if temp has a unique reaching definition and
+    /// None otherwise.
     fn get_unique_def(
         temp: TempIndex,
         defs: &BTreeSet<Def>,
@@ -67,10 +69,11 @@ impl ReachingDefProcessor {
         Some((temp, *def))
     }
 
-    /// Gets the propagated local resolving aliases using the reaching definitions.
+    /// Gets the propagated local resolving aliases using the reaching
+    /// definitions.
     fn get_propagated_local(temp: TempIndex, state: &ReachingDefState) -> TempIndex {
-        // For being robust, we protect this function against cycles in alias definitions. If
-        // a cycle is detected, alias resolution stops.
+        // For being robust, we protect this function against cycles in alias
+        // definitions. If a cycle is detected, alias resolution stops.
         fn get(
             temp: TempIndex,
             state: &ReachingDefState,
@@ -108,8 +111,9 @@ impl ReachingDefProcessor {
         res
     }
 
-    /// Compute the set of locals which are borrowed from or which are otherwise used to refer to.
-    /// We can't alias such locals to other locals because of reference semantics.
+    /// Compute the set of locals which are borrowed from or which are otherwise
+    /// used to refer to. We can't alias such locals to other locals because
+    /// of reference semantics.
     fn borrowed_locals(&self, code: &[Bytecode]) -> BTreeSet<TempIndex> {
         use Bytecode::*;
         code.iter()
@@ -159,9 +163,9 @@ impl FunctionTargetProcessor for ReachingDefProcessor {
             let new_code = Self::copy_propagation(&target, code, &annotations);
             data.code = new_code;
 
-            // Currently we do not need reaching defs after this phase. If so in the future, we
-            // need to uncomment this statement.
-            //data.annotations.set(annotations);
+            // Currently we do not need reaching defs after this phase. If so in
+            // the future, we need to uncomment this statement.
+            // data.annotations.set(annotations);
         }
 
         data

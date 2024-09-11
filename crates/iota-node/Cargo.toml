@@ -1,0 +1,55 @@
+[package]
+name = "iota-node"
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anemo.workspace = true
+anemo-tower.workspace = true
+anyhow.workspace = true
+arc-swap.workspace = true
+axum.workspace = true
+clap.workspace = true
+const-str.workspace = true
+futures.workspace = true
+git-version.workspace = true
+humantime.workspace = true
+prometheus.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+snap.workspace = true
+tap.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tower.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+fastcrypto.workspace = true
+fastcrypto-zkp.workspace = true
+iota-archival.workspace = true
+iota-common.workspace = true
+iota-config.workspace = true
+iota-core.workspace = true
+iota-json-rpc.workspace = true
+iota-json-rpc-api.workspace = true
+iota-macros.workspace = true
+iota-metrics.workspace = true
+iota-network.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
+iota-rest-api.workspace = true
+iota-snapshot.workspace = true
+iota-storage.workspace = true
+iota-tls.workspace = true
+iota-types.workspace = true
+move-vm-profiler.workspace = true
+narwhal-network.workspace = true
+narwhal-worker.workspace = true
+telemetry-subscribers.workspace = true
+typed-store.workspace = true
+
+[target.'cfg(msim)'.dependencies]
+iota-simulator.workspace = true

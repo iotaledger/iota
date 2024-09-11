@@ -12,6 +12,12 @@ use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc_api::{cap_page_limit, internal_error, IndexerApiServer};
+use iota_json_rpc_types::{
+    DynamicFieldPage, EventFilter, EventPage, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, ObjectsPage,
+    Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -31,6 +37,10 @@ use jsonrpsee::{
 use tap::TapFallible;
 
 use crate::{indexer_reader::IndexerReader, IndexerError};
+use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, RpcModule};
+
+use crate::indexer_reader::IndexerReader;
+
 
 pub(crate) struct IndexerApi<T: R2D2Connection + 'static> {
     inner: IndexerReader<T>,
@@ -80,52 +90,65 @@ impl<T: R2D2Connection + 'static> IndexerApi<T> {
         objects.truncate(limit);
 
         let next_cursor = objects.last().map(|o_read| o_read.object_id());
-        let mut parallel_tasks = vec![];
-        for o in objects {
-            let inner_clone = self.inner.clone();
-            let options = options.clone();
-            parallel_tasks.push(tokio::task::spawn(async move {
-                match o {
-                    ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                        IotaObjectResponseError::NotExists { object_id: id },
-                    )),
-                    ObjectRead::Exists(object_ref, o, layout) => {
-                        if options.show_display {
-                            match inner_clone.get_display_fields(&o, &layout).await {
-                                Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
-                                    (object_ref, o, layout, options, Some(rendered_fields))
-                                        .try_into()?,
-                                )),
-                                Err(e) => Ok(IotaObjectResponse::new(
-                                    Some((object_ref, o, layout, options, None).try_into()?),
-                                    Some(IotaObjectResponseError::DisplayError {
-                                        error: e.to_string(),
-                                    }),
-                                )),
+        let mut parallel_tasks = Vec::with_capacity(objects.len());
+        async fn check_read_obj(
+            obj: ObjectRead,
+            reader: IndexerReader,
+            options: IotaObjectDataOptions,
+        ) -> anyhow::Result<IotaObjectResponse> {
+            match obj {
+                ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::NotExists { object_id: id },
+                )),
+                ObjectRead::Exists(object_ref, o, layout) => {
+                    if options.show_display {
+                        match reader.get_display_fields(&o, &layout).await {
+                            Ok(rendered_fields) => {
+                                Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                                    object_ref,
+                                    o,
+                                    layout,
+                                    options,
+                                    rendered_fields,
+                                )?))
                             }
-                        } else {
-                            Ok(IotaObjectResponse::new_with_data(
-                                (object_ref, o, layout, options, None).try_into()?,
-                            ))
+                            Err(e) => Ok(IotaObjectResponse::new(
+                                Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
+                                Some(IotaObjectResponseError::DisplayError {
+                                    error: e.to_string(),
+                                }),
+                            )),
                         }
+                    } else {
+                        Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                            object_ref, o, layout, options, None,
+                        )?))
                     }
-                    ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                        IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                            object_id,
-                            version,
-                            digest,
-                        }),
-                    ),
                 }
-            }));
+                ObjectRead::Deleted((object_id, version, digest)) => Ok(
+                    IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
+                        object_id,
+                        version,
+                        digest,
+                    }),
+                ),
+            }
+        }
+        for obj in objects {
+            parallel_tasks.push(tokio::task::spawn(check_read_obj(
+                obj,
+                self.inner.clone(),
+                options.clone(),
+            )));
         }
         let data = futures::future::join_all(parallel_tasks)
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e: tokio::task::JoinError| anyhow::anyhow!(e))?
+            .map_err(internal_error)?
             .into_iter()
-            .collect::<Result<Vec<_>, anyhow::Error>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(internal_error)?;
 
         Ok(Page {
             data,
@@ -172,8 +195,7 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
                 limit + 1,
                 descending_order.unwrap_or(false),
             )
-            .await
-            .map_err(|e: IndexerError| anyhow::anyhow!(e))?;
+            .await?;
 
         let has_next_page = results.len() > limit;
         results.truncate(limit);
@@ -243,7 +265,11 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        let name_bcs_value = self.inner.bcs_name_from_dynamic_field_name(&name).await?;
+        let name_bcs_value = self
+            .inner
+            .bcs_name_from_dynamic_field_name_in_blocking_task(&name)
+            .await?;
+
         // Try as Dynamic Field
         let id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,
@@ -258,7 +284,8 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
             | iota_types::object::ObjectRead::Deleted(_) => {}
             iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
-                    (object_ref, o, layout, options, None).try_into()?,
+                    IotaObjectData::new(object_ref, o, layout, options, None)
+                        .map_err(internal_error)?,
                 ));
             }
         }
@@ -282,7 +309,8 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
             | iota_types::object::ObjectRead::Deleted(_) => {}
             iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
-                    (object_ref, o, layout, options, None).try_into()?,
+                    IotaObjectData::new(object_ref, o, layout, options, None)
+                        .map_err(internal_error)?,
                 ));
             }
         }
@@ -304,133 +332,6 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
         Err(SubscriptionEmptyError)
     }
 
-    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
-        let domain: Domain = name.parse().map_err(IndexerError::NameServiceError)?;
-        let parent_domain = domain.parent();
-
-        // construct the record ids to lookup.
-        let record_id = self.name_service_config.record_field_id(&domain);
-        let parent_record_id = self.name_service_config.record_field_id(&parent_domain);
-
-        // get latest timestamp to check expiration.
-        let current_timestamp = self
-            .inner
-            .spawn_blocking(|this| this.get_latest_checkpoint())
-            .await?
-            .timestamp_ms;
-
-        // gather the requests to fetch in the multi_get_objs.
-        let mut requests = vec![record_id];
-
-        // we only want to fetch both the child and the parent if the domain is a
-        // subdomain.
-        if domain.is_subdomain() {
-            requests.push(parent_record_id);
-        }
-
-        // fetch both parent (if subdomain) and child records in a single get query.
-        // We do this as we do not know if the subdomain is a node or leaf record.
-        let domains: Vec<_> = self
-            .inner
-            .multi_get_objects_in_blocking_task(requests)
-            .await?
-            .into_iter()
-            .map(|o| iota_types::object::Object::try_from(o).ok())
-            .collect();
-
-        // Find the requested object in the list of domains.
-        // We need to loop (in an array of maximum size 2), as we cannot guarantee
-        // the order of the returned objects.
-        let Some(requested_object) = domains
-            .iter()
-            .find(|o| o.as_ref().is_some_and(|o| o.id() == record_id))
-            .and_then(|o| o.clone())
-        else {
-            return Ok(None);
-        };
-
-        let name_record: NameRecord = requested_object.try_into().map_err(IndexerError::from)?;
-
-        // Handle NODE record case.
-        if !name_record.is_leaf_record() {
-            return if !name_record.is_node_expired(current_timestamp) {
-                Ok(name_record.target_address)
-            } else {
-                Err(IndexerError::NameServiceError(NameServiceError::NameExpired).into())
-            };
-        }
-
-        // repeat the process for the parent object too.
-        let Some(requested_object) = domains
-            .iter()
-            .find(|o| o.as_ref().is_some_and(|o| o.id() == parent_record_id))
-            .and_then(|o| o.clone())
-        else {
-            return Err(IndexerError::NameServiceError(NameServiceError::NameExpired).into());
-        };
-
-        let parent_record: NameRecord = requested_object.try_into().map_err(IndexerError::from)?;
-
-        if parent_record.is_valid_leaf_parent(&name_record)
-            && !parent_record.is_node_expired(current_timestamp)
-        {
-            Ok(name_record.target_address)
-        } else {
-            Err(IndexerError::NameServiceError(NameServiceError::NameExpired).into())
-        }
-    }
-
-    async fn resolve_name_service_names(
-        &self,
-        address: IotaAddress,
-        _cursor: Option<ObjectID>,
-        _limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>> {
-        let reverse_record_id = self
-            .name_service_config
-            .reverse_record_field_id(address.as_ref());
-
-        let mut result = Page {
-            data: vec![],
-            next_cursor: None,
-            has_next_page: false,
-        };
-
-        let Some(field_reverse_record_object) = self
-            .inner
-            .get_object_in_blocking_task(reverse_record_id)
-            .await?
-        else {
-            return Ok(result);
-        };
-
-        let domain = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Domain>>()
-            .ok_or_else(|| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
-                    "Malformed Object {reverse_record_id}"
-                ))
-            })?
-            .value;
-
-        let domain_name = domain.to_string();
-
-        // Tries to resolve the name, to verify it is not expired.
-        let resolved_address = self
-            .resolve_name_service_address(domain_name.clone())
-            .await?;
-
-        // If we do not have a resolved address, we do not include the domain in the
-        // result.
-        if resolved_address.is_none() {
-            return Ok(result);
-        }
-
-        // We push the domain name to the result and return it.
-        result.data.push(domain_name);
-
-        Ok(result)
-    }
 }
 
 impl<T: R2D2Connection> IotaRpcModule for IndexerApi<T> {

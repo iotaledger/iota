@@ -1,0 +1,53 @@
+name: Rust lints
+
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
+    secrets:
+      SSH_PRIVATE_KEY_IOTA_CI:
+        required: true
+      SSH_GITHUB_KNOWN_HOSTS:
+        required: true
+
+concurrency:
+  group: ext-rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rustfmt:
+    if: always() && inputs.isRust
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Install latest nightly
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+      - name: Check Rust formatting
+        run: |
+          cargo +nightly ci-fmt-external
+
+  cargo-deny:
+    if: always() && inputs.isRust
+    name: cargo-deny (advisories, licenses, bans, ...)
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          ssh-known-hosts: ${{ secrets.SSH_GITHUB_KNOWN_HOSTS }}
+          use-git-cli: true
+
+  clippy:
+    if: always() && inputs.isRust
+    needs:
+      - rustfmt
+      - cargo-deny
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+
+      # See '.cargo/config' for list of enabled/disabled clippy lints
+      - name: Check Clippy Lints
+        run: cargo ci-clippy-external

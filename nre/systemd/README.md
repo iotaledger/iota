@@ -1,67 +1,68 @@
-# Run a Sui Node using Systemd
+# Run a Iota Node using Systemd
 
 Tested using:
+
 - Ubuntu 20.04 (linux/amd64) on bare metal
 - Ubuntu 22.04 (linux/amd64) on bare metal
 
 ## Prerequisites and Setup
 
-1. Add a `sui` user and the `/opt/sui` directories
+1. Add a `iota` user and the `/opt/iota` directories
 
 ```shell
-sudo useradd sui
-sudo mkdir -p /opt/sui/bin
-sudo mkdir -p /opt/sui/config
-sudo mkdir -p /opt/sui/db
-sudo mkdir -p /opt/sui/key-pairs
-sudo chown -R sui:sui /opt/sui
+sudo useradd iota
+sudo mkdir -p /opt/iota/bin
+sudo mkdir -p /opt/iota/config
+sudo mkdir -p /opt/iota/db
+sudo mkdir -p /opt/iota/key-pairs
+sudo chown -R iota:iota /opt/iota
 ```
 
-2. Install the Sui Node (sui-node) binary, two options:
-    
+2. Install the Iota Node (iota-node) binary, two options:
+
 - Pre-built binary stored in Amazon S3:
-        
+
 ```shell
-wget https://releases.sui.io/$SUI_SHA/sui-node
-chmod +x sui-node
-sudo mv sui-node /opt/sui/bin
+wget https://releases.iota.io/$IOTA_SHA/iota-node
+chmod +x iota-node
+sudo mv iota-node /opt/iota/bin
 ```
 
 - Build from source:
 
 ```shell
-git clone https://github.com/MystenLabs/sui.git && cd sui
-git checkout $SUI_SHA
-cargo build --release --bin sui-node
-mv ./target/release/sui-node /opt/sui/bin/sui-node
+git clone https://github.com/iotaledger/iota.git && cd iota
+git checkout $IOTA_SHA
+cargo build --release --bin iota-node
+mv ./target/release/iota-node /opt/iota/bin/iota-node
 ```
 
-3. Copy your key-pairs into `/opt/sui/key-pairs/` 
+3. Copy your key-pairs into `/opt/iota/key-pairs/`
 
-If generated during the Genesis ceremony these will be at `SuiExternal.git/sui-testnet-wave3/genesis/key-pairs/`
+If generated during the Genesis ceremony these will be at `IotaExternal.git/iota-testnet-wave3/genesis/key-pairs/`
 
-Make sure when you copy them they retain `sui` user permissions. To be safe you can re-run: `sudo chown -R sui:sui /opt/sui`
+Make sure when you copy them they retain `iota` user permissions. To be safe you can re-run: `sudo chown -R iota:iota /opt/iota`
 
-4. Update the node configuration file and place it in the `/opt/sui/config/` directory.
+4. Update the node configuration file and place it in the `/opt/iota/config/` directory.
 
-Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/sui/key-pairs`, you can use the following example: 
+Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example:
 
 ```
 protocol-key-pair: 
-  path: /opt/sui/key-pairs/protocol.key
+  path: /opt/iota/key-pairs/protocol.key
 worker-key-pair: 
-  path: /opt/sui/key-pairs/worker.key
+  path: /opt/iota/key-pairs/worker.key
 network-key-pair: 
-  path: /opt/sui/key-pairs/network.key
+  path: /opt/iota/key-pairs/network.key
 ```
 
-5. Place genesis.blob in `/opt/sui/config/` (should be available after the Genesis ceremony)
+5. Place genesis.blob in `/opt/iota/config/` (should be available after the Genesis ceremony)
 
-6. Copy the sui-node systemd service unit file 
+6. Copy the iota-node systemd service unit file
 
-File: [sui-node.service](./sui-node.service)
+File: [iota-node.service](./iota-node.service)
 
-Copy the file to `/etc/systemd/system/sui-node.service`.
+Copy the file to `/etc/systemd/system/iota-node.service`.
 
 7. Reload systemd with this new service unit file, run:
 
@@ -72,62 +73,62 @@ sudo systemctl daemon-reload
 8. Enable the new service with systemd
 
 ```shell
-sudo systemctl enable sui-node.service
+sudo systemctl enable iota-node.service
 ```
 
 ## Connectivity
 
-You may need to explicitly open the ports outlined in [Sui for Node Operators](../sui_for_node_operators.md#connectivity) for the required Sui Node connectivity.
+You may need to explicitly open the ports outlined in [Iota for Node Operators](../validator-tasks#connectivity) for the required Iota Node connectivity.
 
 ## Start the node
 
 Start the Validator:
 
 ```shell
-sudo systemctl start sui-node
+sudo systemctl start iota-node
 ```
 
 Check that the node is up and running:
 
 ```shell
-sudo systemctl status sui-node
+sudo systemctl status iota-node
 ```
 
 Follow the logs with:
 
 ```shell
-journalctl -u sui-node -f
+journalctl -u iota-node -f
 ```
 
 ## Updates
 
-When an update is required to the Sui Node software the following procedure can be used. It is highly **unlikely** that you will want to restart with a clean database.
+When an update is required to the Iota Node software the following procedure can be used. It is highly **unlikely** that you will want to restart with a clean database.
 
-- assumes sui-node lives in `/opt/sui/bin/`
-- assumes systemd service is named sui-node
-- **DO NOT** delete the Sui databases
+- assumes iota-node lives in `/opt/iota/bin/`
+- assumes systemd service is named iota-node
+- **DO NOT** delete the Iota databases
 
-1. Stop sui-node systemd service
+1. Stop iota-node systemd service
 
 ```
-sudo systemctl stop sui-node
+sudo systemctl stop iota-node
 ```
 
-2. Fetch the new sui-node binary
+2. Fetch the new iota-node binary
 
 ```shell
-wget https://releases.sui.io/${SUI_SHA}/sui-node
+wget https://releases.iota.io/${IOTA_SHA}/iota-node
 ```
 
 3. Update and move the new binary:
 
 ```
-chmod +x sui-node
-sudo mv sui-node /opt/sui/bin/
+chmod +x iota-node
+sudo mv iota-node /opt/iota/bin/
 ```
 
-4. start sui-node systemd service
+4. start iota-node systemd service
 
 ```
-sudo systemctl start sui-node
+sudo systemctl start iota-node
 ```

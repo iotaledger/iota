@@ -39,14 +39,14 @@ use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use super::{
-    tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
-    CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-};
 use crate::{
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{committer::start_tx_checkpoint_commit_task, tx_processor::IndexingPackageBuffer},
+    handlers::{
+        committer::start_tx_checkpoint_commit_task,
+        tx_processor::{EpochEndIndexingObjectStore, IndexingPackageBuffer, TxChangesProcessor},
+        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
+    },
     metrics::IndexerMetrics,
     models::display::StoredDisplay,
     store::{

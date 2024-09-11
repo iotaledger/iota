@@ -1,19 +1,24 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::WorkerMetrics;
+#[cfg(feature = "benchmark")]
+use std::convert::TryInto;
+use std::sync::Arc;
+
+#[cfg(feature = "trace_transaction")]
+use byteorder::{BigEndian, ReadBytesExt};
 use config::WorkerId;
 use fastcrypto::hash::Hash;
-use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use mysten_metrics::metered_channel::{Receiver, Sender};
-use mysten_metrics::{monitored_scope, spawn_logged_monitored_task};
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use iota_metrics::{
+    metered_channel::{Receiver, Sender},
+    monitored_scope, spawn_logged_monitored_task,
+};
+use iota_protocol_config::ProtocolConfig;
 use network::{client::NetworkClient, WorkerToPrimaryClient};
-use std::sync::Arc;
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
 use tokio::{
     task::JoinHandle,
     time::{sleep, Duration, Instant},
@@ -24,10 +29,7 @@ use types::{
     Transaction, TxResponse, WorkerOwnBatchMessage,
 };
 
-#[cfg(feature = "trace_transaction")]
-use byteorder::{BigEndian, ReadBytesExt};
-#[cfg(feature = "benchmark")]
-use std::convert::TryInto;
+use crate::metrics::WorkerMetrics;
 
 // The number of batches to store / transmit in parallel.
 pub const MAX_PARALLEL_BATCH: usize = 100;
@@ -47,13 +49,14 @@ pub struct BatchMaker {
     /// Receiver for shutdown.
     rx_shutdown: ConditionalBroadcastReceiver,
     /// Channel to receive transactions from the network.
-    rx_batch_maker: Receiver<(Transaction, TxResponse)>,
+    rx_batch_maker: Receiver<(Vec<Transaction>, TxResponse)>,
     /// Output channel to deliver sealed batches to the `QuorumWaiter`.
     tx_quorum_waiter: Sender<(Batch, tokio::sync::oneshot::Sender<()>)>,
     /// Metrics handler
     node_metrics: Arc<WorkerMetrics>,
     /// The timestamp of the batch creation.
-    /// Average resident time in the batch would be ~ (batch seal time - creation time) / 2
+    /// Average resident time in the batch would be ~ (batch seal time -
+    /// creation time) / 2
     batch_start_timestamp: Instant,
     /// The network client to send our batches to the primary.
     client: NetworkClient,
@@ -69,7 +72,7 @@ impl BatchMaker {
         batch_size_limit: usize,
         max_batch_delay: Duration,
         rx_shutdown: ConditionalBroadcastReceiver,
-        rx_batch_maker: Receiver<(Transaction, TxResponse)>,
+        rx_batch_maker: Receiver<(Vec<Transaction>, TxResponse)>,
         tx_quorum_waiter: Sender<(Batch, tokio::sync::oneshot::Sender<()>)>,
         node_metrics: Arc<WorkerMetrics>,
         client: NetworkClient,
@@ -115,26 +118,32 @@ impl BatchMaker {
                 // Note that transactions are only consumed when the number of batches
                 // 'in-flight' are below a certain number (MAX_PARALLEL_BATCH). This
                 // condition will be met eventually if the store and network are functioning.
-                Some((transaction, response_sender)) = self.rx_batch_maker.recv(), if batch_pipeline.len() < MAX_PARALLEL_BATCH => {
+                Some((transactions, response_sender)) = self.rx_batch_maker.recv(), if batch_pipeline.len() < MAX_PARALLEL_BATCH => {
                     let _scope = monitored_scope("BatchMaker::recv");
-                    current_batch_size += transaction.len();
-                    current_batch.transactions_mut().push(transaction);
+
+                    // If there are multiple transactions, we only send back the digest of the first Batch.
+                    // This currently poses no issue but needs to be fixed should a caller need to know the digest of all batches.
                     current_responses.push(response_sender);
-                    if current_batch_size >= self.batch_size_limit {
-                        if let Some(seal) = self.seal(false, current_batch, current_batch_size, current_responses).await{
-                            batch_pipeline.push(seal);
+                    for transaction in transactions {
+                        current_batch_size += transaction.len();
+                        current_batch.transactions_mut().push(transaction);
+
+                        if current_batch_size >= self.batch_size_limit {
+                            if let Some(seal) = self.seal(false, current_batch, current_batch_size, current_responses).await{
+                                batch_pipeline.push(seal);
+                            }
+                            self.node_metrics.parallel_worker_batches.set(batch_pipeline.len() as i64);
+
+                            current_batch = Batch::new(vec![], &self.protocol_config);
+                            current_responses = Vec::new();
+                            current_batch_size = 0;
+
+                            timer.as_mut().reset(Instant::now() + self.max_batch_delay);
+                            self.batch_start_timestamp = Instant::now();
+
+                            // Yield once per size threshold to allow other tasks to run.
+                            tokio::task::yield_now().await;
                         }
-                        self.node_metrics.parallel_worker_batches.set(batch_pipeline.len() as i64);
-
-                        current_batch = Batch::new(vec![], &self.protocol_config);
-                        current_responses = Vec::new();
-                        current_batch_size = 0;
-
-                        timer.as_mut().reset(Instant::now() + self.max_batch_delay);
-                        self.batch_start_timestamp = Instant::now();
-
-                        // Yield once per size threshold to allow other tasks to run.
-                        tokio::task::yield_now().await;
                     }
                 },
 
@@ -182,7 +191,8 @@ impl BatchMaker {
         {
             let digest = batch.digest();
 
-            // Look for sample txs (they all start with 0) and gather their txs id (the next 8 bytes).
+            // Look for sample txs (they all start with 0) and gather their txs id (the next
+            // 8 bytes).
             let tx_ids: Vec<_> = batch
                 .transactions()
                 .iter()

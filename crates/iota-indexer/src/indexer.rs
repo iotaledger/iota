@@ -25,6 +25,7 @@ use crate::{
         objects_snapshot_processor::{start_objects_snapshot_processor, SnapshotLagConfig},
         pruner::Pruner,
     },
+    processors::processor_orchestrator::ProcessorOrchestrator,
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     store::IndexerStore,
@@ -195,6 +196,18 @@ impl Indexer {
 
         Ok(())
     }
+    pub async fn start_analytical_worker<S: IndexerAnalyticalStore + Clone + Send + Sync + 'static>(
+        store: S,
+        metrics: IndexerMetrics,
+     ) -> Result<(), IndexerError> {
+        info!(
+            "Iota Indexer Analytical Worker (version {:?}) started...",
+            env!("CARGO_PKG_VERSION")
+        );
+        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
+        processor_orchestrator.run_forever().await;
+        Ok(())
+    }
 }
 
 struct ShimIndexerProgressStore {
@@ -216,6 +229,5 @@ impl ProgressStore for ShimIndexerProgressStore {
     }
 
     async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<()> {
-        Ok(())
-    }
+
 }

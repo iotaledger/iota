@@ -7,7 +7,7 @@ use std::{env, net::SocketAddr, path::PathBuf};
 use diesel::{connection::SimpleConnection, r2d2::R2D2Connection};
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, Secret};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -69,11 +69,6 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
-    // Reduce the connection pool size to 10 for testing
-    // to prevent maxing out
-    info!("Setting DB_POOL_SIZE to 10");
-    std::env::set_var("DB_POOL_SIZE", "10");
-
     let db_url = db_url.unwrap_or_else(|| {
         let pg_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".into());
         let pg_port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "32770".into());
@@ -81,9 +76,6 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
         format!("postgres://postgres:{pw}@{pg_host}:{pg_port}")
     });
 
-    let pool_config = ConnectionPoolConfig::default();
-
-    // Default to writer mode
     let mut config = IndexerConfig {
         db_url: Some(db_url.clone().into()),
         rpc_client_url: rpc_url,
@@ -95,42 +87,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
         ..Default::default()
     };
 
-    let registry = prometheus::Registry::default();
-
-    init_metrics(&registry);
-
-    let indexer_metrics = IndexerMetrics::new(&registry);
-
-    let mut parsed_url = config.get_db_url().unwrap();
-
-    if reset_database {
-        let db_name = parsed_url.expose_secret().split('/').last().unwrap();
-        // Switch to default to create a new database
-        let (default_db_url, _) = replace_db_name(parsed_url.expose_secret(), "postgres");
-
-        // Open in default mode
-        let blocking_pool =
-            new_connection_pool_with_config::<T>(&default_db_url, Some(5), pool_config).unwrap();
-        let mut default_conn = blocking_pool.get().unwrap();
-
-        // Delete the old db if it exists
-        default_conn
-            .batch_execute(&format!("DROP DATABASE IF EXISTS {}", db_name))
-            .unwrap();
-
-        // Create the new db
-        default_conn
-            .batch_execute(&format!("CREATE DATABASE {}", db_name))
-            .unwrap();
-        parsed_url = replace_db_name(parsed_url.expose_secret(), db_name)
-            .0
-            .into();
-    }
-
-    let blocking_pool =
-        new_connection_pool_with_config::<T>(parsed_url.expose_secret(), Some(5), pool_config)
-            .unwrap();
-    let store = PgIndexerStore::new(blocking_pool.clone(), indexer_metrics.clone());
+    let store = create_pg_store(config.get_db_url().unwrap(), reset_database);
 
     let handle = match reader_writer_config {
         ReaderWriterConfig::Reader {
@@ -167,6 +124,52 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     };
 
     (store, handle)
+}
+
+pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexerStore {
+    // Reduce the connection pool size to 10 for testing
+    // to prevent maxing out
+    info!("Setting DB_POOL_SIZE to 10");
+    std::env::set_var("DB_POOL_SIZE", "10");
+
+    // Set connection timeout for tests to 1 second
+    let mut pool_config = ConnectionPoolConfig::default();
+
+    let registry = prometheus::Registry::default();
+
+    init_metrics(&registry);
+
+    let indexer_metrics = IndexerMetrics::new(&registry);
+
+    let mut parsed_url = db_url.clone();
+    if reset_database {
+        let db_name = parsed_url.expose_secret().split('/').last().unwrap();
+        // Switch to default to create a new database
+        let (default_db_url, _) = replace_db_name(parsed_url.expose_secret(), "postgres");
+
+        // Open in default mode
+        let blocking_pool =
+            new_connection_pool_with_config::<T>(&default_db_url, Some(5), pool_config).unwrap();
+        let mut default_conn = blocking_pool.get().unwrap();
+
+        // Delete the old db if it exists
+        default_conn
+            .batch_execute(&format!("DROP DATABASE IF EXISTS {}", db_name))
+            .unwrap();
+
+        // Create the new db
+        default_conn
+            .batch_execute(&format!("CREATE DATABASE {}", db_name))
+            .unwrap();
+        parsed_url = replace_db_name(parsed_url.expose_secret(), db_name)
+            .0
+            .into();
+    }
+
+    let blocking_pool =
+        new_connection_pool_with_config::<T>(parsed_url.expose_secret(), Some(5), pool_config)
+            .unwrap();
+    PgIndexerStore::new(blocking_pool.clone(), indexer_metrics.clone())
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {

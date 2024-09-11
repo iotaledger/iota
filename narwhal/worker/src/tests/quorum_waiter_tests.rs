@@ -1,15 +1,14 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-use crate::metrics::WorkerMetrics;
-use crate::NUM_SHUTDOWN_RECEIVERS;
 use prometheus::Registry;
-use test_utils::{
-    batch, latest_protocol_version, test_network, CommitteeFixture, WorkerToWorkerMockServer,
-};
+use test_utils::{batch, test_network, CommitteeFixture, WorkerToWorkerMockServer};
 use types::PreSubscribedBroadcastSender;
+
+use super::*;
+use crate::{metrics::WorkerMetrics, NUM_SHUTDOWN_RECEIVERS};
 
 #[tokio::test]
 async fn wait_for_quorum() {
@@ -28,7 +27,8 @@ async fn wait_for_quorum() {
     // Spawn a `QuorumWaiter` instance.
     let _quorum_waiter_handler = QuorumWaiter::spawn(
         my_primary.authority().clone(),
-        /* worker_id */ 0,
+        // worker_id
+        0,
         committee.clone(),
         worker_cache.clone(),
         tx_shutdown.subscribe(),
@@ -38,7 +38,7 @@ async fn wait_for_quorum() {
     );
 
     // Make a batch.
-    let batch = batch(&latest_protocol_version());
+    let batch = batch();
     let message = WorkerBatchMessage {
         batch: batch.clone(),
     };
@@ -61,7 +61,8 @@ async fn wait_for_quorum() {
     let (s, r) = tokio::sync::oneshot::channel();
     tx_quorum_waiter.send((batch.clone(), s)).await.unwrap();
 
-    // Wait for the `QuorumWaiter` to gather enough acknowledgements and output the batch.
+    // Wait for the `QuorumWaiter` to gather enough acknowledgements and output the
+    // batch.
     r.await.unwrap();
 
     // Ensure the other listeners correctly received the batch.
@@ -87,7 +88,8 @@ async fn pipeline_for_quorum() {
     // Spawn a `QuorumWaiter` instance.
     let _quorum_waiter_handler = QuorumWaiter::spawn(
         my_primary.authority().clone(),
-        /* worker_id */ 0,
+        // worker_id
+        0,
         committee.clone(),
         worker_cache.clone(),
         tx_shutdown.subscribe(),
@@ -97,7 +99,7 @@ async fn pipeline_for_quorum() {
     );
 
     // Make a batch.
-    let batch = batch(&latest_protocol_version());
+    let batch = batch();
     let message = WorkerBatchMessage {
         batch: batch.clone(),
     };
@@ -124,7 +126,8 @@ async fn pipeline_for_quorum() {
     let (s1, r1) = tokio::sync::oneshot::channel();
     tx_quorum_waiter.send((batch.clone(), s1)).await.unwrap();
 
-    // Wait for the `QuorumWaiter` to gather enough acknowledgements and output the batch.
+    // Wait for the `QuorumWaiter` to gather enough acknowledgements and output the
+    // batch.
     r0.await.unwrap();
 
     // Ensure the other listeners correctly received the batch.

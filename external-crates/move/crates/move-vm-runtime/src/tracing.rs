@@ -1,9 +1,7 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
-#[cfg(any(debug_assertions, feature = "debugging"))]
-use crate::debug::DebugContext;
 
 #[cfg(any(debug_assertions, feature = "debugging"))]
 use ::{
@@ -20,6 +18,8 @@ use ::{
     },
 };
 
+#[cfg(any(debug_assertions, feature = "debugging"))]
+use crate::debug::DebugContext;
 #[cfg(any(debug_assertions, feature = "debugging"))]
 use crate::{
     interpreter::Interpreter,
@@ -48,7 +48,6 @@ static DEBUGGING_ENABLED: Lazy<bool> =
 static LOGGING_FILE: Lazy<Mutex<File>> = Lazy::new(|| {
     Mutex::new(
         OpenOptions::new()
-            .write(true)
             .create(true)
             .append(true)
             .open(&*FILE_PATH)

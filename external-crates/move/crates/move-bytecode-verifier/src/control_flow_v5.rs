@@ -1,12 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker to verify control flow in bytecode version 5 and below. The
-//! following properties are ensured:
+//! This module implements a checker to verify control flow in bytecode version
+//! 5 and below. The following properties are ensured:
 //! - All forward jumps do not enter into the middle of a loop
 //! - All "breaks" (forward, loop-exiting jumps) go to the "end" of the loop
 //! - All "continues" (back jumps in a loop) are only to the current loop
+use std::{collections::HashSet, convert::TryInto};
+
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{Bytecode, CodeOffset, CodeUnit, FunctionDefinitionIndex},
@@ -14,7 +17,6 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
-use std::{collections::HashSet, convert::TryInto};
 
 pub fn verify(
     verifier_config: &VerifierConfig,
@@ -37,9 +39,10 @@ pub fn verify(
 
 fn verify_fallthrough(
     current_function: FunctionDefinitionIndex,
-    code: &Vec<Bytecode>,
+    code: &[Bytecode],
 ) -> PartialVMResult<()> {
-    // Check to make sure that the bytecode vector ends with a branching instruction.
+    // Check to make sure that the bytecode vector ends with a branching
+    // instruction.
     match code.last() {
         None => Err(PartialVMError::new(StatusCode::EMPTY_CODE_UNIT)),
         Some(last) if !last.is_unconditional_branch() => {
@@ -259,7 +262,8 @@ fn check_loop_depth(
     })
 }
 
-// Only called after continues are verified, so we can assume that loops are well nested
+// Only called after continues are verified, so we can assume that loops are
+// well nested
 fn count_loop_depth(labels: &[Label]) -> Vec<usize> {
     let last_continues: HashSet<CodeOffset> = labels
         .iter()

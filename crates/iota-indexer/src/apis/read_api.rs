@@ -10,6 +10,13 @@ use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
+use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
+use iota_json_rpc_api::{internal_error, ReadApiServer, QUERY_MAX_RESULT_LIMIT};
+use iota_json_rpc_types::{
+    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
+    IotaLoadedChildObjectsResponse, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
+    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ProtocolConfigResponse,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -84,7 +91,10 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
                         Ok(rendered_fields) => display_fields = Some(rendered_fields),
                         Err(e) => {
                             return Ok(IotaObjectResponse::new(
-                                Some((object_ref, o, layout, options, None).try_into()?),
+                                Some(
+                                    IotaObjectData::new(object_ref, o, layout, options, None)
+                                        .map_err(internal_error)?,
+                                ),
                                 Some(IotaObjectResponseError::DisplayError {
                                     error: e.to_string(),
                                 }),
@@ -93,7 +103,8 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
                     }
                 }
                 Ok(IotaObjectResponse::new_with_data(
-                    (object_ref, o, layout, options, display_fields).try_into()?,
+                    IotaObjectData::new(object_ref, o, layout, options, display_fields)
+                        .map_err(internal_error)?,
                 ))
             }
             ObjectRead::Deleted((object_id, version, digest)) => Ok(
@@ -179,10 +190,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
         _version: SequenceNumber,
         _options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn try_get_object_before_version(
@@ -190,10 +198,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
         _: ObjectID,
         _: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn try_multi_get_past_objects(
@@ -201,10 +206,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
         _past_objects: Vec<IotaGetPastObjectRequest>,
         _options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>> {
@@ -213,7 +215,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
     }
 
     async fn get_checkpoint(&self, id: CheckpointId) -> RpcResult<Checkpoint> {
-        self.get_checkpoint(id).await.map_err(Into::into)
+        Ok(self.get_checkpoint(id).await?)
     }
 
     async fn get_checkpoints(
@@ -244,20 +246,6 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
             next_cursor,
             has_next_page,
         })
-    }
-
-    async fn get_checkpoints_deprecated_limit(
-        &self,
-        cursor: Option<BigInt<u64>>,
-        limit: Option<BigInt<u64>>,
-        descending_order: bool,
-    ) -> RpcResult<CheckpointPage> {
-        self.get_checkpoints(
-            cursor,
-            limit.map(|l| l.into_inner() as usize),
-            descending_order,
-        )
-        .await
     }
 
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {

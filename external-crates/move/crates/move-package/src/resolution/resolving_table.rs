@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -11,13 +12,14 @@ use crate::source_package::parsed_manifest::{NamedAddress, PackageName};
 /// A named address qualified with the package name whose scope it belongs to.
 pub type QualifiedAddress = (PackageName, NamedAddress);
 
-/// A data structure for unifying named addresses across packages according to renamings and
-/// assigning them numerical addresses.
+/// A data structure for unifying named addresses across packages according to
+/// renamings and assigning them numerical addresses.
 #[derive(Debug)]
 pub struct ResolvingTable {
-    /// Disjoint set data structure for assignments which can either hold no value, a fixed value or
-    /// a forwarding reference to another element in the table.  Each entry in the `redirection`
-    /// table gets a slot in the `assignment` table.
+    /// Disjoint set data structure for assignments which can either hold no
+    /// value, a fixed value or a forwarding reference to another element in
+    /// the table.  Each entry in the `redirection` table gets a slot in the
+    /// `assignment` table.
     assignments: Vec<Assignment>,
 
     /// Mapping named addresses to an entry in the `assignments` table.
@@ -51,22 +53,24 @@ impl ResolvingTable {
             .map(|((_, name), ix)| (*name, self.parent(*ix)))
     }
 
-    /// Return a reference to the address that `name` is currently bound to, if one exists, or
-    /// `None` otherwise.
+    /// Return a reference to the address that `name` is currently bound to, if
+    /// one exists, or `None` otherwise.
     pub fn get(&self, name: QualifiedAddress) -> Option<&AccountAddress> {
         self.parent(*self.redirection.get(&name)?).as_ref()
     }
 
-    /// Indicates whether there is a binding in this resolving table for `name`.  A table contains a
-    /// binding if it has previously been passed into a call to `define` or `unify` (even if it has
-    /// not been assigned a concrete numerical address).
+    /// Indicates whether there is a binding in this resolving table for `name`.
+    /// A table contains a binding if it has previously been passed into a
+    /// call to `define` or `unify` (even if it has not been assigned a
+    /// concrete numerical address).
     pub fn contains(&self, name: QualifiedAddress) -> bool {
         self.redirection.contains_key(&name)
     }
 
-    /// Add the binding `name = addr` to the table and propagate it across all renamings that
-    /// transitively involve `name`.  Fails if this introduces a contradiction (A path through
-    /// bindings between two account addresses that are unequal to each other), and succeeds
+    /// Add the binding `name = addr` to the table and propagate it across all
+    /// renamings that transitively involve `name`.  Fails if this
+    /// introduces a contradiction (A path through bindings between two
+    /// account addresses that are unequal to each other), and succeeds
     /// otherwise.
     pub fn define(&mut self, name: QualifiedAddress, addr: Option<AccountAddress>) -> Result<()> {
         let ix = self.get_or_create_assignment(name);
@@ -87,9 +91,9 @@ impl ResolvingTable {
         Ok(())
     }
 
-    /// Add the binding `a = b` to the table.  Fails if this introduces a contradiction (A path
-    /// through bindings between two account addresses that are unequal to each other), and succeeds
-    /// otherwise.
+    /// Add the binding `a = b` to the table.  Fails if this introduces a
+    /// contradiction (A path through bindings between two account addresses
+    /// that are unequal to each other), and succeeds otherwise.
     pub fn unify(&mut self, a: QualifiedAddress, b: QualifiedAddress) -> Result<()> {
         let ix = self.get_or_create_assignment(a);
         let jx = self.get_or_create_assignment(b);
@@ -121,10 +125,12 @@ impl ResolvingTable {
         Ok(())
     }
 
-    /// Returns the index of the "root" assignment (i.e. not a link to another assignment) for
-    /// `name` in this table, creating an empty assignment if one does not already exist.
+    /// Returns the index of the "root" assignment (i.e. not a link to another
+    /// assignment) for `name` in this table, creating an empty assignment
+    /// if one does not already exist.
     ///
-    /// Performs path compression on the internal links to speed up future look-ups.
+    /// Performs path compression on the internal links to speed up future
+    /// look-ups.
     fn get_or_create_assignment(&mut self, name: QualifiedAddress) -> usize {
         let Some(mut c) = self.redirection.get(&name).copied() else {
             self.assignments.push(Assignment::Assign(None));
@@ -153,8 +159,8 @@ impl ResolvingTable {
         gp
     }
 
-    /// Chase links from the assignent at index `ix` until a non-link `Assignment` is found, and
-    /// return a reference to that.
+    /// Chase links from the assignent at index `ix` until a non-link
+    /// `Assignment` is found, and return a reference to that.
     fn parent(&self, mut ix: usize) -> &Option<AccountAddress> {
         loop {
             match &self.assignments[ix] {

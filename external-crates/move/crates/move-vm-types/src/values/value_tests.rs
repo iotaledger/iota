@@ -1,10 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{loaded_data::runtime_types::Type, values::*, views::*};
 use move_binary_format::errors::*;
 use move_core_types::{account_address::AccountAddress, u256::U256};
+
+use crate::{loaded_data::runtime_types::Type, values::*, views::*};
 
 #[test]
 fn locals() -> PartialVMResult<()> {
@@ -139,7 +141,7 @@ fn global_value_non_struct() -> PartialVMResult<()> {
 }
 
 #[test]
-fn leagacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
+fn legacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
     let mut locals = Locals::new(10);
 
     locals.store_loc(0, Value::u128(0), true)?;
@@ -162,7 +164,7 @@ fn leagacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
 }
 
 #[test]
-fn legacy_struct_abstract_memory_size_consistenty() -> PartialVMResult<()> {
+fn legacy_struct_abstract_memory_size_consistency() -> PartialVMResult<()> {
     let structs = [
         Struct::pack([]),
         Struct::pack([Value::struct_(Struct::pack([Value::u8(0), Value::u64(0)]))]),

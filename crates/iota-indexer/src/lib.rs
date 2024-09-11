@@ -39,6 +39,7 @@ pub mod indexer;
 pub mod indexer_reader;
 pub mod metrics;
 pub mod models;
+pub mod processors;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;
@@ -85,11 +86,7 @@ pub struct IndexerConfig {
     #[clap(long)]
     pub data_ingestion_path: Option<PathBuf>,
     #[clap(long)]
-    pub name_service_package_address: Option<IotaAddress>,
-    #[clap(long)]
-    pub name_service_registry_id: Option<ObjectID>,
-    #[clap(long)]
-    pub name_service_reverse_registry_id: Option<ObjectID>,
+    pub analytical_worker: bool,
 }
 
 impl IndexerConfig {
@@ -161,9 +158,7 @@ impl Default for IndexerConfig {
             fullnode_sync_worker: true,
             rpc_server_worker: true,
             data_ingestion_path: None,
-            name_service_package_address: None,
-            name_service_registry_id: None,
-            name_service_reverse_registry_id: None,
+            analytical_worker: false,
         }
     }
 }
@@ -230,8 +225,7 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
     headers.insert(CLIENT_SDK_TYPE_HEADER, HeaderValue::from_static("indexer"));
 
     HttpClientBuilder::default()
-        .max_request_body_size(2 << 30)
-        .max_concurrent_requests(usize::MAX)
+        .max_request_size(2 << 30)
         .set_headers(headers.clone())
         .build(rpc_client_url)
         .map_err(|e| {

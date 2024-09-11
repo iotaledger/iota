@@ -109,14 +109,13 @@ pub struct IndexedEpochInfo {
     pub epoch_total_transactions: Option<u64>,
     pub last_checkpoint_id: Option<u64>,
     pub epoch_end_timestamp: Option<u64>,
-    pub storage_fund_reinvestment: Option<u64>,
     pub storage_charge: Option<u64>,
     pub storage_rebate: Option<u64>,
-    pub stake_subsidy_amount: Option<u64>,
     pub total_gas_fees: Option<u64>,
     pub total_stake_rewards_distributed: Option<u64>,
-    pub leftover_storage_fund_inflow: Option<u64>,
     pub epoch_commitments: Option<Vec<CheckpointCommitment>>,
+    pub burnt_tokens_amount: Option<u64>,
+    pub minted_tokens_amount: Option<u64>,
 }
 
 impl IndexedEpochInfo {
@@ -158,11 +157,8 @@ impl IndexedEpochInfo {
             ),
             last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_fund_reinvestment: Some(event.storage_fund_reinvestment),
             storage_charge: Some(event.storage_charge),
             storage_rebate: Some(event.storage_rebate),
-            leftover_storage_fund_inflow: Some(event.leftover_storage_fund_inflow),
-            stake_subsidy_amount: Some(event.stake_subsidy_amount),
             total_gas_fees: Some(event.total_gas_fees),
             total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
             epoch_commitments: last_checkpoint_summary
@@ -178,6 +174,8 @@ impl IndexedEpochInfo {
             protocol_version: 0,
             total_stake: 0,
             storage_fund_balance: 0,
+            burnt_tokens_amount: Some(event.burnt_tokens_amount),
+            minted_tokens_amount: Some(event.minted_tokens_amount),
         }
     }
 }

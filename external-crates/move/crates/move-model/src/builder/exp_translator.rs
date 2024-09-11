@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, LinkedList};
 
 use itertools::Itertools;
-use num::{BigInt, BigUint, FromPrimitive};
-
 use move_compiler::{expansion::ast as EA, parser::ast as PA, shared::Name};
 use move_core_types::runtime_value::MoveValue;
+use num::{BigInt, BigUint, FromPrimitive};
 
 use crate::{
     ast::Value,
@@ -25,11 +25,11 @@ pub(crate) struct ExpTranslator<'env, 'translator, 'module_translator> {
     pub type_params_table: BTreeMap<Symbol, Type>,
     /// Type parameters in sequence they have been added.
     pub type_params: Vec<(Symbol, Type)>,
-    /// A scoped symbol table for local names. The first element in the list contains the most
-    /// inner scope.
+    /// A scoped symbol table for local names. The first element in the list
+    /// contains the most inner scope.
     pub local_table: LinkedList<BTreeMap<Symbol, LocalVarEntry>>,
-    /// When compiling a condition, the result type of the function the condition is associated
-    /// with.
+    /// When compiling a condition, the result type of the function the
+    /// condition is associated with.
     #[allow(unused)]
     pub result_type: Option<Type>,
     /// The currently build type substitution.
@@ -91,8 +91,8 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
             .update_node_instantiation(node_id, instantiation);
     }
 
-    /// Finalizes types in this build, producing errors if some could not be inferred
-    /// and remained incomplete.
+    /// Finalizes types in this build, producing errors if some could not be
+    /// inferred and remained incomplete.
     pub fn finalize_types(&mut self) {
         for i in self.node_counter_start..self.parent.parent.env.next_free_node_number() {
             let node_id = NodeId::new(i);
@@ -111,7 +111,7 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
         }
     }
 
-    /// Finalize the the given type, producing an error if it is not complete.
+    /// Finalize the given type, producing an error if it is not complete.
     fn finalize_type(&self, node_id: NodeId, ty: &Type) -> Type {
         let ty = self.subs.specialize(ty);
         if ty.is_incomplete() {
@@ -128,11 +128,12 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
         ty
     }
 
-    /// Constructs a type display context used to visualize types in error messages.
+    /// Constructs a type display context used to visualize types in error
+    /// messages.
     fn type_display_context(&self) -> TypeDisplayContext<'_> {
         TypeDisplayContext::WithoutEnv {
             symbol_pool: self.symbol_pool(),
-            reverse_struct_table: &self.parent.parent.reverse_struct_table,
+            reverse_datatype_table: &self.parent.parent.reverse_datatype_table,
         }
     }
 
@@ -195,8 +196,9 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
         }
     }
 
-    /// Analyzes the sequence of type parameters as they are provided via the source AST and enters
-    /// them into the environment. Returns a vector for representing them in the target AST.
+    /// Analyzes the sequence of type parameters as they are provided via the
+    /// source AST and enters them into the environment. Returns a vector
+    /// for representing them in the target AST.
     pub fn analyze_and_add_type_params<'a, I>(&mut self, type_params: I) -> Vec<(Symbol, Type)>
     where
         I: IntoIterator<Item = &'a Name>,
@@ -213,8 +215,9 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
             .collect_vec()
     }
 
-    /// Analyzes the sequence of function parameters as they are provided via the source AST and
-    /// enters them into the environment. Returns a vector for representing them in the target AST.
+    /// Analyzes the sequence of function parameters as they are provided via
+    /// the source AST and enters them into the environment. Returns a
+    /// vector for representing them in the target AST.
     pub fn analyze_and_add_params(
         &mut self,
         params: &[(EA::Mutability, PA::Var, EA::Type)],
@@ -261,7 +264,7 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
                             return check_zero_args(self, Type::new_prim(PrimitiveType::U128));
                         }
                         "u256" => {
-                            return check_zero_args(self, Type::new_prim(PrimitiveType::U256))
+                            return check_zero_args(self, Type::new_prim(PrimitiveType::U256));
                         }
                         "num" => return check_zero_args(self, Type::new_prim(PrimitiveType::Num)),
                         "range" => {
@@ -296,12 +299,12 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
                 let sym = self.parent.module_access_to_qualified(access);
                 let rty = self.parent.parent.lookup_type(&loc, &sym);
                 // Replace type instantiation.
-                if let Type::Struct(mid, sid, params) = &rty {
+                if let Type::Datatype(mid, sid, params) = &rty {
                     if params.len() != args.len() {
                         self.error(&loc, "type argument count mismatch");
                         Type::Error
                     } else {
-                        Type::Struct(*mid, *sid, self.translate_types(args))
+                        Type::Datatype(*mid, *sid, self.translate_types(args))
                     }
                 } else if !args.is_empty() {
                     self.error(&loc, "type cannot have type arguments");
@@ -424,8 +427,8 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
             | (Type::Tuple(_), MoveValue::Vector(_))
             | (Type::Tuple(_), MoveValue::Struct(_))
             | (Type::Vector(_), MoveValue::Struct(_))
-            | (Type::Struct(_, _, _), MoveValue::Vector(_))
-            | (Type::Struct(_, _, _), MoveValue::Struct(_))
+            | (Type::Datatype(_, _, _), MoveValue::Vector(_))
+            | (Type::Datatype(_, _, _), MoveValue::Struct(_))
             | (Type::TypeParameter(_), MoveValue::Vector(_))
             | (Type::TypeParameter(_), MoveValue::Struct(_))
             | (Type::Reference(_, _), MoveValue::Vector(_))
@@ -439,7 +442,18 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
             | (Type::Error, MoveValue::Vector(_))
             | (Type::Error, MoveValue::Struct(_))
             | (Type::Var(_), MoveValue::Vector(_))
-            | (Type::Var(_), MoveValue::Struct(_)) => {
+            | (Type::Var(_), MoveValue::Struct(_))
+            | (Type::Primitive(_), MoveValue::Variant(_))
+            | (Type::Tuple(_), MoveValue::Variant(_))
+            | (Type::Vector(_), MoveValue::Variant(_))
+            | (Type::Datatype(_, _, _), MoveValue::Variant(_))
+            | (Type::TypeParameter(_), MoveValue::Variant(_))
+            | (Type::Reference(_, _), MoveValue::Variant(_))
+            | (Type::Fun(_, _), MoveValue::Variant(_))
+            | (Type::TypeDomain(_), MoveValue::Variant(_))
+            | (Type::ResourceDomain(_, _, _), MoveValue::Variant(_))
+            | (Type::Error, MoveValue::Variant(_))
+            | (Type::Var(_), MoveValue::Variant(_)) => {
                 self.error(
                     loc,
                     &format!("Not yet supported constant value: {:?}", value),

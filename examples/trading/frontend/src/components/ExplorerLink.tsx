@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientContext } from "@mysten/dapp-kit";
-import { formatAddress } from "@mysten/sui.js/utils";
+import { useIotaClientContext } from "@iota/dapp-kit";
+import { formatAddress } from "@iota/iota-sdk/utils";
 import { CheckIcon, CopyIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -19,9 +20,9 @@ export function ExplorerLink({
   isAddress?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  const { network } = useSuiClientContext();
+  const { network } = useIotaClientContext();
 
-  const link = `https://suiexplorer.com/${
+  const link = `https://iotaexplorer.com/${
     isAddress ? "address" : "object"
   }/${id}?network=${network}`;
 

@@ -1,0 +1,7 @@
+processed 2 tasks
+
+task 0 'programmable'. lines 5-6:
+Error: Remove whitespace between // and > to start a command
+
+task 1 'programmable'. lines 8-9:
+Error: Actual command index of 0 does not match annotated index 1

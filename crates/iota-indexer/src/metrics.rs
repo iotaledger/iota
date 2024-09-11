@@ -38,8 +38,10 @@ pub fn start_prometheus_server(
         .layer(Extension(registry_service.clone()));
 
     tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-        axum::serve(listener, app).await.unwrap();
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, app.into_make_service())
+            .await
+            .unwrap();
     });
     Ok((registry_service, registry))
 }
@@ -111,6 +113,10 @@ pub struct IndexerMetrics {
     // latencies of various steps of data ingestion.
     // checkpoint E2E latency is: fullnode_download_latency + checkpoint_index_latency +
     // db_commit_latency
+    // Analytical
+    pub latest_move_call_metrics_tx_seq: IntGauge,
+    pub latest_address_metrics_tx_seq: IntGauge,
+    pub latest_network_metrics_cp_seq: IntGauge,
     pub checkpoint_download_bytes_size: IntGauge,
     pub tokio_blocking_task_wait_latency: Histogram,
     pub fullnode_checkpoint_data_download_latency: Histogram,
@@ -307,6 +313,19 @@ impl IndexerMetrics {
             db_commit_lag_ms: register_int_gauge_with_registry!(
                 "db_commit_lag_ms",
                 "Lag of the latest checkpoint in milliseconds",
+            latest_move_call_metrics_tx_seq: register_int_gauge_with_registry!(
+                "latest_move_call_metrics_tx_seq",
+                "Latest move call metrics tx seq",
+                registry,
+            ).unwrap(),
+            latest_address_metrics_tx_seq: register_int_gauge_with_registry!(
+                "latest_address_metrics_tx_seq",
+                "Latest address metrics tx seq",
+                registry,
+            ).unwrap(),
+            latest_network_metrics_cp_seq: register_int_gauge_with_registry!(
+                "latest_network_metrics_cp_seq",
+                "Latest network metrics cp seq",
                 registry,
             ).unwrap(),
             checkpoint_download_bytes_size: register_int_gauge_with_registry!(
@@ -409,7 +428,7 @@ impl IndexerMetrics {
             .unwrap(),
             checkpoint_db_commit_latency: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency",
-                "Time spent commiting a checkpoint to the db",
+                "Time spent committing a checkpoint to the db",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -417,21 +436,21 @@ impl IndexerMetrics {
 
             checkpoint_db_commit_latency_step_1: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_step_1",
-                "Time spent commiting a checkpoint to the db, step 1",
+                "Time spent committing a checkpoint to the db, step 1",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_transactions: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_transactions",
-                "Time spent commiting transactions",
+                "Time spent committing transactions",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_transactions_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_transactions_chunks",
-                "Time spent commiting transactions chunks",
+                "Time spent committing transactions chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -445,103 +464,103 @@ impl IndexerMetrics {
             .unwrap(),
             checkpoint_db_commit_latency_objects: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects",
-                "Time spent commiting objects",
+                "Time spent committing objects",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_objects_snapshot: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_snapshot",
-                "Time spent commiting objects snapshots",
+                "Time spent committing objects snapshots",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_objects_history: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history",
-                "Time spent commiting objects history",
+                "Time spent committing objects history",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             checkpoint_db_commit_latency_objects_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_chunks",
-                "Time spent commiting objects chunks",
+                "Time spent committing objects chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_objects_snapshot_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_snapshot_chunks",
-                "Time spent commiting objects snapshot chunks",
+                "Time spent committing objects snapshot chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_objects_history_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history_chunks",
-                "Time spent commiting objects history chunks",
+                "Time spent committing objects history chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             checkpoint_db_commit_latency_events: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_events",
-                "Time spent commiting events",
+                "Time spent committing events",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_events_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_events_chunks",
-                "Time spent commiting events chunks",
+                "Time spent committing events chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_event_indices: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_event_indices",
-                "Time spent commiting event indices",
+                "Time spent committing event indices",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_event_indices_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_event_indices_chunks",
-                "Time spent commiting event indices chunks",
+                "Time spent committing event indices chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_packages: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_packages",
-                "Time spent commiting packages",
+                "Time spent committing packages",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_tx_indices: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_tx_indices",
-                "Time spent commiting tx indices",
+                "Time spent committing tx indices",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_tx_indices_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_tx_indices_chunks",
-                "Time spent commiting tx_indices chunks",
+                "Time spent committing tx_indices chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_checkpoints: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_checkpoints",
-                "Time spent commiting checkpoints",
+                "Time spent committing checkpoints",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             checkpoint_db_commit_latency_epoch: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_epochs",
-                "Time spent commiting epochs",
+                "Time spent committing epochs",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -554,35 +573,35 @@ impl IndexerMetrics {
             ).unwrap(),
             thousand_transaction_avg_db_commit_latency: register_histogram_with_registry!(
                 "transaction_db_commit_latency",
-                "Average time spent commiting 1000 transactions to the db",
+                "Average time spent committing 1000 transactions to the db",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             object_db_commit_latency: register_histogram_with_registry!(
                 "object_db_commit_latency",
-                "Time spent commiting a object to the db",
+                "Time spent committing a object to the db",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             object_mutation_db_commit_latency: register_histogram_with_registry!(
                 "object_mutation_db_commit_latency",
-                "Time spent commiting a object mutation to the db",
+                "Time spent committing a object mutation to the db",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             object_deletion_db_commit_latency: register_histogram_with_registry!(
                 "object_deletion_db_commit_latency",
-                "Time spent commiting a object deletion to the db",
+                "Time spent committing a object deletion to the db",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             epoch_db_commit_latency: register_histogram_with_registry!(
                 "epoch_db_commit_latency",
-                "Time spent commiting a epoch to the db",
+                "Time spent committing a epoch to the db",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )

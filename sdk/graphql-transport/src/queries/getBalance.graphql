@@ -1,14 +1,15 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query getBalance($owner: SuiAddress!, $type: String = "0x2::sui::SUI") {
-	address(address: $owner) {
-		balance(type: $type) {
-			coinType {
-				repr
-			}
-			coinObjectCount
-			totalBalance
-		}
-	}
+query getBalance($owner: IotaAddress!, $type: String = "0x2::iota::IOTA") {
+    address(address: $owner) {
+        balance(type: $type) {
+            coinType {
+                repr
+            }
+            coinObjectCount
+            totalBalance
+        }
+    }
 }

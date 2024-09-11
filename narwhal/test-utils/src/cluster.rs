@@ -1,30 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{latest_protocol_version, temp_dir, CommitteeFixture};
+
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc, time::Duration};
+
 use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::SerializedTransaction;
 use fastcrypto::traits::KeyPair as _;
+use iota_metrics::RegistryService;
+use iota_network_stack::multiaddr::Multiaddr;
 use itertools::Itertools;
-use mysten_metrics::RegistryService;
-use mysten_network::multiaddr::Multiaddr;
 use network::client::NetworkClient;
-use node::primary_node::PrimaryNode;
-use node::worker_node::WorkerNode;
-use node::{execution_state::SimpleExecutionState, metrics::worker_metrics_registry};
+use node::{
+    execution_state::SimpleExecutionState, metrics::worker_metrics_registry,
+    primary_node::PrimaryNode, worker_node::WorkerNode,
+};
 use prometheus::{proto::Metric, Registry};
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc, time::Duration};
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
-use tokio::sync::RwLockWriteGuard;
 use tokio::{
-    sync::{broadcast::Sender, mpsc::channel, RwLock},
+    sync::{broadcast::Sender, mpsc::channel, RwLock, RwLockWriteGuard},
     task::JoinHandle,
 };
 use tonic::transport::Channel;
 use tracing::info;
 use types::TransactionsClient;
 use worker::TrivialTransactionValidator;
+
+use crate::{latest_protocol_version, temp_dir, CommitteeFixture};
 
 #[cfg(test)]
 #[path = "tests/cluster_tests.rs"]
@@ -45,8 +49,9 @@ impl Cluster {
     /// create all the authorities (primaries & workers) that are defined under
     /// the committee structure, but none of them will be started.
     ///
-    /// Fields passed in via Parameters will be used, expect specified ports which have to be
-    /// different for each instance. If None, the default Parameters will be used.
+    /// Fields passed in via Parameters will be used, expect specified ports
+    /// which have to be different for each instance. If None, the default
+    /// Parameters will be used.
     pub fn new(parameters: Option<Parameters>) -> Self {
         let fixture = CommitteeFixture::builder().randomize_ports(true).build();
         let committee = fixture.committee();
@@ -84,17 +89,17 @@ impl Cluster {
 
     /// Starts a cluster by the defined number of authorities. The authorities
     /// will be started sequentially started from the one with id zero up to
-    /// the provided number `authorities_number`. If none number is provided, then
-    /// the maximum number of authorities will be started.
-    /// If a number higher than the available ones in the committee is provided then
-    /// the method will panic.
+    /// the provided number `authorities_number`. If none number is provided,
+    /// then the maximum number of authorities will be started.
+    /// If a number higher than the available ones in the committee is provided
+    /// then the method will panic.
     /// The workers_per_authority dictates how many workers per authority should
-    /// also be started (the same number will be started for each authority). If none
-    /// is provided then the maximum number of workers will be started.
-    /// If the `boot_wait_time` is provided then between node starts we'll wait for this
-    /// time before the next node is started. This is useful to simulate staggered
-    /// node starts. If none is provided then the nodes will be started immediately
-    /// the one after the other.
+    /// also be started (the same number will be started for each authority). If
+    /// none is provided then the maximum number of workers will be started.
+    /// If the `boot_wait_time` is provided then between node starts we'll wait
+    /// for this time before the next node is started. This is useful to
+    /// simulate staggered node starts. If none is provided then the nodes
+    /// will be started immediately the one after the other.
     pub async fn start(
         &mut self,
         authorities_number: Option<usize>,
@@ -113,7 +118,7 @@ impl Cluster {
             self.start_node(id, false, workers_per_authority).await;
 
             if let Some(d) = boot_wait_time {
-                // we don't want to wait after the last node has been boostraped
+                // we don't want to wait after the last node has been bootstrapped
                 if id < authorities - 1 {
                     info!(
                         "#### Will wait for {} seconds before starting the next node ####",
@@ -125,18 +130,18 @@ impl Cluster {
         }
     }
 
-    /// Starts the authority node by the defined id - if not already running - and
-    /// the details are returned. If the node is already running then a panic
-    /// is thrown instead.
+    /// Starts the authority node by the defined id - if not already running -
+    /// and the details are returned. If the node is already running then a
+    /// panic is thrown instead.
     /// When the preserve_store is true, then the started authority will use the
-    /// same path that has been used the last time when started (both the primary
-    /// and the workers).
+    /// same path that has been used the last time when started (both the
+    /// primary and the workers).
     /// This is basically a way to use the same storage between node restarts.
-    /// When the preserve_store is false, then authority will start with an empty
-    /// storage.
-    /// If the `workers_per_authority` is provided then the corresponding number of
-    /// workers will be started per authority. Otherwise if not provided, then maximum
-    /// number of workers will be started per authority.
+    /// When the preserve_store is false, then authority will start with an
+    /// empty storage.
+    /// If the `workers_per_authority` is provided then the corresponding number
+    /// of workers will be started per authority. Otherwise if not provided,
+    /// then maximum number of workers will be started per authority.
     pub async fn start_node(
         &mut self,
         id: usize,
@@ -202,10 +207,10 @@ impl Cluster {
     }
 
     /// This method asserts the progress of the cluster.
-    /// `expected_nodes`: Nodes expected to have made progress. Any number different than that
-    /// will make the assertion fail.
-    /// `commit_threshold`: The acceptable threshold between the minimum and maximum reported
-    /// commit value from the nodes.
+    /// `expected_nodes`: Nodes expected to have made progress. Any number
+    /// different than that will make the assertion fail.
+    /// `commit_threshold`: The acceptable threshold between the minimum and
+    /// maximum reported commit value from the nodes.
     pub async fn assert_progress(
         &self,
         expected_nodes: u64,
@@ -222,7 +227,10 @@ impl Cluster {
             expected_nodes as usize,
             "Expected to have received commit metrics from {expected_nodes} nodes"
         );
-        assert!(rounds.values().all(|v| v > &1), "All nodes are available so all should have made progress and committed at least after the first round");
+        assert!(
+            rounds.values().all(|v| v > &1),
+            "All nodes are available so all should have made progress and committed at least after the first round"
+        );
 
         if expected_nodes == 0 {
             return HashMap::new();
@@ -578,8 +586,8 @@ impl AuthorityDetails {
     }
 
     /// Starts the node's primary and workers. If the num_of_workers is provided
-    /// then only those ones will be started. Otherwise all the available workers
-    /// will be started instead.
+    /// then only those ones will be started. Otherwise all the available
+    /// workers will be started instead.
     /// If the preserve_store value is true then the previous node's storage
     /// will be preserved. If false then the node will  start with a fresh
     /// (empty) storage.
@@ -675,8 +683,8 @@ impl AuthorityDetails {
     /// (ex same number of nodes).
     /// `preserve_store`: if true then the same storage will be used for the
     /// node
-    /// `delay`: before starting again we'll wait for that long. If zero provided
-    /// then won't wait at all
+    /// `delay`: before starting again we'll wait for that long. If zero
+    /// provided then won't wait at all
     pub async fn restart(&self, preserve_store: bool, delay: Duration) {
         let num_of_workers = self.workers().await.len();
 
@@ -745,7 +753,7 @@ impl AuthorityDetails {
     ) -> TransactionsClient<Channel> {
         let internal = self.internal.read().await;
 
-        let config = mysten_network::config::Config::new();
+        let config = iota_network_stack::config::Config::new();
         let channel = config
             .connect_lazy(
                 &internal
@@ -797,7 +805,9 @@ pub fn setup_tracing() -> TelemetryGuards {
     let tracing_level = "debug";
     let network_tracing_level = "info";
 
-    let log_filter = format!("{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},quinn={network_tracing_level}");
+    let log_filter = format!(
+        "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},quinn={network_tracing_level}"
+    );
 
     telemetry_subscribers::TelemetryConfig::new()
         // load env variables
