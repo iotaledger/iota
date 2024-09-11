@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 description = "Tool to fuzz the system with randomly generated transactions"
 
+[lints]
+workspace = true
+
 [dependencies]
 move-core-types.workspace = true
 once_cell.workspace = true

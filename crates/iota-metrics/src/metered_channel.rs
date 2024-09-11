@@ -173,7 +173,9 @@ impl<'a, T> Drop for Permit<'a, T> {
     fn drop(&mut self) {
         // in the case the permit is dropped without sending, we still want to decrease
         // the occupancy of the channel
-        self.gauge_ref.dec()
+        if self.permit.is_some() {
+            self.gauge_ref.dec();
+        }
     }
 }
 
@@ -327,7 +329,7 @@ impl<T> From<Receiver<T>> for ReceiverStream<T> {
 ////////////////////////////////////////////////////////////////
 
 /// Similar to `mpsc::channel`, `channel` creates a pair of `Sender` and
-/// `Receiver`
+/// `Receiver` Deprecated: use `monitored_mpsc::channel` instead.
 #[track_caller]
 pub fn channel<T>(size: usize, gauge: &IntGauge) -> (Sender<T>, Receiver<T>) {
     gauge.set(0);
@@ -345,6 +347,7 @@ pub fn channel<T>(size: usize, gauge: &IntGauge) -> (Sender<T>, Receiver<T>) {
     )
 }
 
+/// Deprecated: use `monitored_mpsc::channel` instead.
 #[track_caller]
 pub fn channel_with_total<T>(
     size: usize,
