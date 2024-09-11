@@ -4,7 +4,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { DisplayStats, DisplayStatsSize, DisplayStatsType } from '@iota/apps-ui-kit';
+import { DisplayStats, DisplayStatsSize, DisplayStatsType, TooltipPosition } from '@iota/apps-ui-kit';
 import {
     formatPercentageDisplay,
     roundFloat,
@@ -18,6 +18,7 @@ import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
 import { useMemo } from 'react';
+import { t } from 'vitest/dist/types-198fd1d9';
 import { ErrorBoundary, PageLayout, StakeColumn } from '~/components';
 import {
     Banner,
@@ -299,6 +300,33 @@ function ValidatorPageResult(): JSX.Element {
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
         useFormatCoin(lastEpochRewardOnAllValidators, IOTA_TYPE_ARG);
 
+    const validatorStats = [
+        {
+            title: 'Total Staked',
+            value: formattedTotalStakedAmount,
+            supportingLabel: totalStakedSymbol,
+            tooltipText:
+                'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
+        },
+        {
+            title: 'Participation',
+            value: '--',
+            tooltipText: 'Coming soon',
+        },
+        {
+            title: 'Last Epoch Rewards',
+            value: formattedlastEpochRewardOnAllValidatorsAmount,
+            supportingLabel: lastEpochRewardOnAllValidatorsSymbol,
+            tooltipText: 'The staking rewards earned in the previous epoch.',
+        },
+        {
+            title: 'AVG APY',
+            value: averageAPY ? `${averageAPY}%` : '--',
+            tooltipText:
+                'The average annualized percentage yield globally for all involved validators.',
+        },
+    ];
+
     return (
         <PageLayout
             content={
@@ -309,39 +337,19 @@ function ValidatorPageResult(): JSX.Element {
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
                         <div className="py-md--rs text-display-sm">Validators</div>
-                        <div className="flex w-full flex-col gap-md md:h-40 md:flex-row">
-                            <DisplayStats
-                                label="Participation"
-                                tooltipText="Coming soon"
-                                value="--"
-                                type={DisplayStatsType.Secondary}
-                                size={DisplayStatsSize.Large}
-                            />
-
-                            <DisplayStats
-                                label="Last Epoch Rewards"
-                                tooltipText="The staking rewards earned in the previous epoch."
-                                value={formattedlastEpochRewardOnAllValidatorsAmount}
-                                supportingLabel={lastEpochRewardOnAllValidatorsSymbol}
-                                type={DisplayStatsType.Secondary}
-                                size={DisplayStatsSize.Large}
-                            />
-
-                            <DisplayStats
-                                label="Total IOTA Staked"
-                                tooltipText="The combined IOTA staked by validators and delegators on the network to support validation and generate rewards."
-                                value={formattedTotalStakedAmount}
-                                supportingLabel={totalStakedSymbol}
-                                type={DisplayStatsType.Secondary}
-                                size={DisplayStatsSize.Large}
-                            />
-                            <DisplayStats
-                                label="AVG APY"
-                                tooltipText="The average annualized percentage yield globally for all involved validators."
-                                value={averageAPY ? `${averageAPY}%` : '--'}
-                                type={DisplayStatsType.Secondary}
-                                size={DisplayStatsSize.Large}
-                            />
+                        <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
+                            {validatorStats.map((stat) => (
+                                <DisplayStats
+                                    key={stat.title}
+                                    label={stat.title}
+                                    tooltipText={stat.tooltipText}
+                                    value={stat.value}
+                                    supportingLabel={stat.supportingLabel}
+                                    type={DisplayStatsType.Secondary}
+                                    size={DisplayStatsSize.Large}
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
+                            ))}
                         </div>
                         <div>
                             <ErrorBoundary>
