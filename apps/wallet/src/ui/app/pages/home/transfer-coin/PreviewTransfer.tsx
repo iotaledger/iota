@@ -65,15 +65,21 @@ export function PreviewTransfer({
                     keyText={'From'}
                     valueText={addrFrom.address}
                     valueLink={addrFrom.explorerHref}
+                    fullwidth
                 />
                 <Divider />
                 <KeyValueInfo
                     keyText={'To'}
                     valueText={addrTo.address}
                     valueLink={addrTo.explorerHref}
+                    fullwidth
                 />
                 <Divider />
-                <KeyValueInfo keyText={'Est. Gas Fees'} valueText={`${gasBudget} ${GAS_SYMBOL}`} />
+                <KeyValueInfo
+                    keyText={'Est. Gas Fees'}
+                    valueText={`${gasBudget} ${GAS_SYMBOL}`}
+                    fullwidth
+                />
             </div>
         </div>
     );
