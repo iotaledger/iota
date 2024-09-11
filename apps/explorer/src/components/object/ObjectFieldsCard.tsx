@@ -12,7 +12,7 @@ import { Banner } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
-import { ButtonUnstyled, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { ButtonUnstyled, KeyValueInfo, Panel, TitleSize } from '@iota/apps-ui-kit';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -112,56 +112,63 @@ export function ObjectFieldsCard({
 
     return (
         <div className="flex flex-col gap-md md:flex-row">
-            <div className="w-full md:w-1/3">
-                <Panel hasBorder>
-                    <div className="flex flex-col gap-md p-xs">
-                        {renderSearchBar && (
-                            <Combobox value={query} onValueChange={setQuery}>
-                                <div className="flex w-full justify-between rounded-lg border border-white/50 bg-white py-1 pl-3 shadow-dropdownContent">
-                                    <ComboboxInput
-                                        placeholder="Search"
-                                        className="w-full border-none focus:outline-0"
+            <div className="flex w-full flex-1 md:w-1/3">
+                <div className="w-full">
+                    <Panel hasBorder>
+                        <div className="flex flex-col gap-md p-xs">
+                            {renderSearchBar && (
+                                <Combobox value={query} onValueChange={setQuery}>
+                                    <div className="flex w-full justify-between rounded-lg border border-white/50 bg-white py-1 pl-3 shadow-dropdownContent">
+                                        <ComboboxInput
+                                            placeholder="Search"
+                                            className="w-full border-none focus:outline-0"
+                                        />
+                                        <button
+                                            className="border-none bg-inherit pr-2"
+                                            type="submit"
+                                        >
+                                            <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
+                                        </button>
+                                    </div>
+                                    <ComboboxList
+                                        showResultsCount
+                                        options={filteredFieldNames.map((item) => ({
+                                            value: item.name,
+                                            label: item.name,
+                                        }))}
+                                        onSelect={({ value }) => {
+                                            setActiveFieldName(value);
+                                        }}
                                     />
-                                    <button className="border-none bg-inherit pr-2" type="submit">
-                                        <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
-                                    </button>
-                                </div>
-                                <ComboboxList
-                                    showResultsCount
-                                    options={filteredFieldNames.map((item) => ({
-                                        value: item.name,
-                                        label: item.name,
-                                    }))}
-                                    onSelect={({ value }) => {
-                                        setActiveFieldName(value);
-                                    }}
-                                />
-                            </Combobox>
-                        )}
-                        <div
-                            className={clsx(
-                                'flex max-h-44 flex-col overflow-y-auto md:max-h-96',
-                                renderSearchBar && 'mt-4',
+                                </Combobox>
                             )}
-                        >
-                            {normalizedStructData?.fields?.map(({ name, type }) => (
-                                <ButtonUnstyled
-                                    key={name}
-                                    className="rounded-lg p-xs hover:bg-primary-80/20"
-                                    onClick={() => onFieldsNameClick(name)}
-                                >
-                                    <KeyValueInfo
-                                        keyText={name}
-                                        valueText={getFieldTypeValue(type, objectType).displayName}
-                                        isTruncated
-                                    />
-                                </ButtonUnstyled>
-                            ))}
+                            <div
+                                className={clsx(
+                                    'flex max-h-44 flex-col overflow-y-auto md:max-h-96',
+                                    renderSearchBar && 'mt-4',
+                                )}
+                            >
+                                {normalizedStructData?.fields?.map(({ name, type }) => (
+                                    <ButtonUnstyled
+                                        key={name}
+                                        className="rounded-lg p-xs hover:bg-primary-80/20"
+                                        onClick={() => onFieldsNameClick(name)}
+                                    >
+                                        <KeyValueInfo
+                                            keyText={name}
+                                            valueText={
+                                                getFieldTypeValue(type, objectType).displayName
+                                            }
+                                            isTruncated
+                                        />
+                                    </ButtonUnstyled>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </Panel>
+                    </Panel>
+                </div>
             </div>
-            <div className="w-full md:w-2/3">
+            <div className="flex w-full md:w-2/3">
                 <Panel hasBorder>
                     <div className="flex flex-col gap-md p-md--rs">
                         {normalizedStructData?.fields.map(({ name, type }, index) => (
@@ -170,6 +177,7 @@ export function ObjectFieldsCard({
                                     open={openFieldsName[name]}
                                     onOpenChange={onSetOpenFieldsName(name)}
                                     name={name}
+                                    titleSize={TitleSize.Small}
                                 >
                                     <div className="p-md--rs">
                                         <FieldItem
