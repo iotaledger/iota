@@ -15,7 +15,7 @@ use network::client::NetworkClient;
 use once_cell::sync::OnceCell;
 use prometheus::Registry;
 use storage::{CertificateStore, NodeStorage};
-use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+use test_utils::{get_protocol_config, latest_protocol_version, temp_dir, CommitteeFixture};
 use tokio::{
     sync::{
         mpsc::{self, error::TryRecvError, Receiver, Sender},
@@ -229,6 +229,7 @@ async fn fetch_certificates_v2_basic() {
     let _certificate_fetcher_handle = CertificateFetcher::spawn(
         id,
         fixture.committee(),
+        cert_v2_config.clone(),
         client_network.clone(),
         certificate_store.clone(),
         rx_consensus_round_updates.clone(),
@@ -239,7 +240,7 @@ async fn fetch_certificates_v2_basic() {
     );
 
     // Generate headers and certificates in successive rounds
-    let genesis_certs: Vec<_> = Certificate::genesis(&fixture.committee());
+    let genesis_certs: Vec<_> = Certificate::genesis(&cert_v2_config, &fixture.committee());
     for cert in genesis_certs.iter() {
         certificate_store
             .write(cert.clone())
@@ -255,9 +256,9 @@ async fn fetch_certificates_v2_basic() {
     for i in 0..rounds {
         let parents: BTreeSet<_> = current_round
             .into_iter()
-            .map(|header| fixture.certificate(&header).digest())
+            .map(|header| fixture.certificate(&cert_v2_config, &header).digest())
             .collect();
-        (_, current_round) = fixture.headers_round(i, &parents);
+        (_, current_round) = fixture.headers_round(i, &parents, &cert_v2_config);
         headers.extend(current_round.clone());
     }
 
@@ -270,7 +271,7 @@ async fn fetch_certificates_v2_basic() {
     // Create certificates test data.
     let mut certificates = vec![];
     for header in headers.into_iter() {
-        certificates.push(fixture.certificate(&header));
+        certificates.push(fixture.certificate(&cert_v2_config, &header));
     }
     assert_eq!(certificates.len(), total_certificates); // note genesis is not included
     assert_eq!(400, total_certificates);

@@ -2,7 +2,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{collections::HashMap, net::Ipv4Addr, sync::Arc, thread::sleep, time::Duration};
 
 use anemo::{
@@ -21,6 +20,7 @@ use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache,
 use crypto::{traits::KeyPair as _, NetworkKeyPair, NetworkPublicKey};
 use iota_metrics::{metered_channel::channel_with_total, spawn_logged_monitored_task};
 use iota_network_stack::{multiaddr::Protocol, Multiaddr};
+use iota_protocol_config::ProtocolConfig;
 use network::{
     client::NetworkClient,
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
@@ -69,6 +69,8 @@ pub struct Worker {
     committee: Committee,
     /// The worker information cache.
     worker_cache: WorkerCache,
+    // The protocol configuration.
+    protocol_config: ProtocolConfig,
     /// The configuration parameters
     parameters: Parameters,
     /// The persistent storage.
@@ -82,6 +84,7 @@ impl Worker {
         id: WorkerId,
         committee: Committee,
         worker_cache: WorkerCache,
+        protocol_config: ProtocolConfig,
         parameters: Parameters,
         validator: impl TransactionValidator,
         client: NetworkClient,
@@ -100,6 +103,7 @@ impl Worker {
             id,
             committee: committee.clone(),
             worker_cache: worker_cache.clone(),
+            protocol_config: protocol_config.clone(),
             parameters: parameters.clone(),
             store,
         };
@@ -114,6 +118,7 @@ impl Worker {
         let mut shutdown_receivers = tx_shutdown.subscribe_n(NUM_SHUTDOWN_RECEIVERS);
 
         let mut worker_service = WorkerToWorkerServer::new(WorkerReceiverHandler {
+            protocol_config: protocol_config.clone(),
             id: worker.id,
             client: client.clone(),
             store: worker.store.clone(),
@@ -142,6 +147,7 @@ impl Worker {
             authority_id: worker.authority.id(),
             id: worker.id,
             committee: worker.committee.clone(),
+            protocol_config: protocol_config.clone(),
             worker_cache: worker.worker_cache.clone(),
             store: worker.store.clone(),
             request_batches_timeout: worker.parameters.sync_retry_delay,
@@ -292,6 +298,7 @@ impl Worker {
             network.clone(),
             worker.store.clone(),
             node_metrics.clone(),
+            protocol_config.clone(),
         );
         client.set_primary_to_worker_local_handler(
             worker_peer_id,
@@ -299,6 +306,7 @@ impl Worker {
                 authority_id: worker.authority.id(),
                 id: worker.id,
                 committee: worker.committee.clone(),
+                protocol_config,
                 worker_cache: worker.worker_cache.clone(),
                 store: worker.store.clone(),
                 request_batches_timeout: worker.parameters.sync_retry_delay,
@@ -478,8 +486,11 @@ impl Worker {
             .expect("Our public key or worker id is not in the worker cache")
             .transactions;
         let address = address
-            .replace(0, |_protocol| Some(Protocol::Ip4(Ipv4Addr::UNSPECIFIED)))
-            .unwrap();
+            .replace(0, |protocol| match protocol {
+                Protocol::Ip4(ip) if ip.is_loopback() => None,
+                _ => Some(Protocol::Ip4(Ipv4Addr::UNSPECIFIED)),
+            })
+            .unwrap_or(address);
 
         let tx_server_handle = TxServer::spawn(
             address.clone(),
@@ -503,6 +514,7 @@ impl Worker {
             node_metrics.clone(),
             client,
             self.store.clone(),
+            self.protocol_config.clone(),
         );
 
         // The `QuorumWaiter` waits for 2f authorities to acknowledge reception of the

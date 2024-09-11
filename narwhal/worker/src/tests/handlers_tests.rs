@@ -6,7 +6,7 @@
 use std::vec;
 
 use fastcrypto::hash::Hash;
-use test_utils::CommitteeFixture;
+use test_utils::{get_protocol_config, latest_protocol_version, CommitteeFixture};
 use types::{MockWorkerToWorker, WorkerToWorkerServer};
 
 use super::*;
@@ -16,6 +16,7 @@ use crate::TrivialTransactionValidator;
 async fn synchronize() {
     telemetry_subscribers::init_for_testing();
 
+    let latest_protocol_config = latest_protocol_version();
     let fixture = CommitteeFixture::builder().randomize_ports(true).build();
     let committee = fixture.committee();
     let worker_cache = fixture.worker_cache();
@@ -27,7 +28,7 @@ async fn synchronize() {
 
     // Create network with mock behavior to respond to RequestBatches request.
     let target_primary = fixture.authorities().nth(1).unwrap();
-    let batch = test_utils::batch();
+    let batch = test_utils::batch(&latest_protocol_config);
     let digest = batch.digest();
     let message = WorkerSynchronizeMessage {
         digests: vec![digest],
@@ -66,6 +67,7 @@ async fn synchronize() {
         authority_id,
         id,
         committee,
+        protocol_config: latest_protocol_config.clone(),
         worker_cache,
         store: store.clone(),
         request_batches_timeout: Duration::from_secs(999),
@@ -106,6 +108,7 @@ async fn synchronize_when_batch_exists() {
         authority_id,
         id,
         committee: committee.clone(),
+        protocol_config: latest_protocol_version(),
         worker_cache,
         store: store.clone(),
         request_batches_timeout: Duration::from_secs(999),
@@ -116,7 +119,7 @@ async fn synchronize_when_batch_exists() {
     };
 
     // Store the batch.
-    let batch = test_utils::batch();
+    let batch = test_utils::batch(&latest_protocol_version());
     let batch_id = batch.digest();
     let missing = vec![batch_id];
     store.insert(&batch_id, &batch).unwrap();
