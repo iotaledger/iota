@@ -40,6 +40,10 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub system_state_version: u64,
+    /// The current IOTA supply.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub iota_total_supply: u64,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "BigInt<u64>")]

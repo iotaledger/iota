@@ -20,7 +20,7 @@ use crate::{
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         get_validators_from_table_vec,
-        iota_system_state_inner_v1::{StakeSubsidyV1, StorageFundV1, ValidatorSetV1},
+        iota_system_state_inner_v1::{StorageFundV1, ValidatorSetV1},
     },
     storage::ObjectStore,
 };

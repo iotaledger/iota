@@ -768,7 +768,7 @@ impl From<&str> for IotaError {
 
 impl From<String> for IotaError {
     fn from(error: String) -> Self {
-        IotaError::GenericAuthorityError { error }
+        IotaError::GenericAuthority { error }
     }
 }
 

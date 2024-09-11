@@ -41,6 +41,7 @@ use crate::{
         CertificateDigest, ChainIdentifier, ConsensusCommitDigest, SenderSignedDataDigest,
         ZKLoginInputsDigest,
     },
+    event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
@@ -2314,7 +2315,7 @@ impl SenderSignedData {
             match sig {
                 GenericSignature::MultiSig(_) => {
                     if !config.supports_upgraded_multisig() {
-                        return Err(IotaError::UserInputError {
+                        return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
                                 "upgraded multisig format not enabled on this network".to_string(),
                             ),
@@ -2323,7 +2324,7 @@ impl SenderSignedData {
                 }
                 GenericSignature::ZkLoginAuthenticator(_) => {
                     if !config.zklogin_auth() {
-                        return Err(IotaError::UserInputError {
+                        return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
                                 "zklogin is not enabled on this network".to_string(),
                             ),
@@ -2332,7 +2333,7 @@ impl SenderSignedData {
                 }
                 GenericSignature::PasskeyAuthenticator(_) => {
                     if !config.passkey_auth() {
-                        return Err(IotaError::UserInputError {
+                        return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
                                 "passkey is not enabled on this network".to_string(),
                             ),
@@ -2358,7 +2359,7 @@ impl SenderSignedData {
         let tx_data = &self.transaction_data();
         fp_ensure!(
             !tx_data.is_system_tx(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::Unsupported(
                     "SenderSignedData must not contain system transaction".to_string()
                 )

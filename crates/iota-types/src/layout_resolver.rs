@@ -23,7 +23,7 @@ pub fn get_layout_from_struct_tag(
 ) -> Result<A::MoveDatatypeLayout, IotaError> {
     let type_ = TypeTag::Struct(Box::new(struct_tag));
     let layout = TypeLayoutBuilder::build_with_types(&type_, resolver).map_err(|e| {
-        IotaError::ObjectSerializationError {
+        IotaError::ObjectSerialization {
             error: e.to_string(),
         }
     })?;
@@ -41,7 +41,7 @@ pub fn get_layout_from_struct_tag(
 pub fn into_struct_layout(layout: A::MoveDatatypeLayout) -> Result<A::MoveStructLayout, IotaError> {
     match layout {
         A::MoveDatatypeLayout::Struct(s) => Ok(s),
-        A::MoveDatatypeLayout::Enum(e) => Err(IotaError::ObjectSerializationError {
+        A::MoveDatatypeLayout::Enum(e) => Err(IotaError::ObjectSerialization {
             error: format!("Expected struct layout but got an enum {e:?}"),
         }),
     }

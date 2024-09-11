@@ -169,13 +169,13 @@ pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrappe
         .get_object(&IOTA_BRIDGE_OBJECT_ID)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
-            IotaError::IotaBridgeReadError("BridgeWrapper object not found".to_owned())
+            IotaError::IotaBridgeRead("BridgeWrapper object not found".to_owned())
         })?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
-        IotaError::IotaBridgeReadError("BridgeWrapper object must be a Move object".to_owned())
+        IotaError::IotaBridgeRead("BridgeWrapper object must be a Move object".to_owned())
     })?;
     let result = bcs::from_bytes::<BridgeWrapper>(move_object.contents())
-        .map_err(|err| IotaError::IotaBridgeReadError(err.to_string()))?;
+        .map_err(|err| IotaError::IotaBridgeRead(err.to_string()))?;
     Ok(result)
 }
 
@@ -187,14 +187,14 @@ pub fn get_bridge(object_store: &dyn ObjectStore) -> Result<Bridge, IotaError> {
         1 => {
             let result: BridgeInnerV1 = get_dynamic_field_from_store(object_store, id, &version)
                 .map_err(|err| {
-                    IotaError::IotaBridgeReadError(format!(
+                    IotaError::IotaBridgeRead(format!(
                         "Failed to load bridge inner object with ID {:?} and version {:?}: {:?}",
                         id, version, err
                     ))
                 })?;
             Ok(Bridge::V1(result))
         }
-        _ => Err(IotaError::IotaBridgeReadError(format!(
+        _ => Err(IotaError::IotaBridgeRead(format!(
             "Unsupported IotaBridge version: {}",
             version
         ))),
@@ -470,7 +470,7 @@ pub struct MoveTypeBridgeRecord {
 pub fn is_bridge_committee_initiated(object_store: &dyn ObjectStore) -> IotaResult<bool> {
     match get_bridge(object_store) {
         Ok(bridge) => Ok(!bridge.committee().members.contents.is_empty()),
-        Err(IotaError::IotaBridgeReadError(..)) => Ok(false),
+        Err(IotaError::IotaBridgeRead(..)) => Ok(false),
         Err(other) => Err(other),
     }
 }

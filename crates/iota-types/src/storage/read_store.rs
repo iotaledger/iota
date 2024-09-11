@@ -176,11 +176,6 @@ pub trait ReadStore: ObjectStore {
             effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
         };
 
-        use super::ObjectKey;
-        use crate::{
-            effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
-        };
-
         let transaction_digests = checkpoint_contents
             .iter()
             .map(|execution_digests| execution_digests.transaction)
