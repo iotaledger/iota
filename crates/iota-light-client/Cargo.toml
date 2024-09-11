@@ -20,10 +20,16 @@ async-trait.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 clap.workspace = true
+env_logger = "0.11.5"
+getset = "0.1"
+log = "0.4.22"
+object_store.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = ["full"] }
+url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
