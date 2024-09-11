@@ -11,19 +11,35 @@ export interface TablePaginationOptions {
     /**
      * On Next page button click.
      */
-    onNextPageClick?: () => void;
+    onNext?: () => void;
     /**
      * On Previous page button click.
      */
-    onPreviousPageClick?: () => void;
+    onPrev?: () => void;
     /**
      * On First page button click.
      */
-    onFirstPageClick?: () => void;
+    onFirst?: () => void;
     /**
      * On Last page button click.
      */
-    onLastPageClick?: () => void;
+    onLast?: () => void;
+    /**
+     * Has Next button.
+     */
+    hasNext?: boolean;
+    /**
+     * Has Previous button.
+     */
+    hasPrev?: boolean;
+    /**
+     * Has First button.
+     */
+    hasFirst?: boolean;
+    /**
+     * Has Last button.
+     */
+    hasLast?: boolean;
 }
 
 export type TableProps = {
@@ -82,29 +98,29 @@ export function Table({
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<DoubleArrowLeft />}
-                                disabled={!paginationOptions.onFirstPageClick}
-                                onClick={paginationOptions.onFirstPageClick}
+                                disabled={!paginationOptions.hasFirst}
+                                onClick={paginationOptions.onFirst}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<ArrowLeft />}
-                                disabled={!paginationOptions.onPreviousPageClick}
-                                onClick={paginationOptions.onPreviousPageClick}
+                                disabled={!paginationOptions.hasPrev}
+                                onClick={paginationOptions.onPrev}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<ArrowRight />}
-                                disabled={!paginationOptions.onNextPageClick}
-                                onClick={paginationOptions.onNextPageClick}
+                                disabled={!paginationOptions.hasNext}
+                                onClick={paginationOptions.onNext}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<DoubleArrowRight />}
-                                disabled={!paginationOptions.onLastPageClick}
-                                onClick={paginationOptions.onLastPageClick}
+                                disabled={!paginationOptions.hasLast}
+                                onClick={paginationOptions.onLast}
                             />
                         </div>
                     )}
