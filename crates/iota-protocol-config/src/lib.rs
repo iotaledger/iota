@@ -1598,20 +1598,20 @@ impl ProtocolConfig {
             max_programmable_tx_commands: Some(1024),
             move_binary_format_version: Some(7),
             min_move_binary_format_version: Some(6),
-            binary_module_handles: None,
-            binary_struct_handles: None,
-            binary_function_handles: None,
-            binary_function_instantiations: None,
-            binary_signatures: None,
-            binary_constant_pool: None,
-            binary_identifiers: None,
-            binary_address_identifiers: None,
-            binary_struct_defs: None,
-            binary_struct_def_instantiations: None,
-            binary_function_defs: None,
-            binary_field_handles: None,
-            binary_field_instantiations: None,
-            binary_friend_decls: None,
+            binary_module_handles: Some(100),
+            binary_struct_handles: Some(300),
+            binary_function_handles: Some(1500),
+            binary_function_instantiations: Some(750),
+            binary_signatures: Some(1000),
+            binary_constant_pool: Some(4000),
+            binary_identifiers: Some(10000),
+            binary_address_identifiers: Some(100),
+            binary_struct_defs: Some(200),
+            binary_struct_def_instantiations: Some(100),
+            binary_function_defs: Some(1000),
+            binary_field_handles: Some(500),
+            binary_field_instantiations: Some(250),
+            binary_friend_decls: Some(100),
             binary_enum_defs: None,
             binary_enum_def_instantiations: None,
             binary_variant_handles: None,
@@ -2098,6 +2098,8 @@ impl ProtocolConfig {
 
         cfg.feature_flags.rethrow_serialization_type_layout_errors = true;
 
+        cfg.feature_flags.bridge = true;
+
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
             cfg.feature_flags.enable_poseidon = true;
@@ -2115,11 +2117,6 @@ impl ProtocolConfig {
             cfg.feature_flags.passkey_auth = true;
 
             cfg.feature_flags.authority_capabilities_v2 = true;
-        }
-
-        // Mainnet
-        if chain == Chain::Mainnet {
-            cfg.feature_flags.bridge = true;
         }
 
         // TODO: remove the never_loop attribute when the version 2 is added.
