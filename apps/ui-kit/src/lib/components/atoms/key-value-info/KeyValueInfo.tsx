@@ -3,9 +3,10 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { Info } from '@iota/ui-icons';
+import { Copy, Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
 import { Tooltip, TooltipPosition } from '../tooltip';
+import { ButtonUnstyled } from '../button';
 
 interface KeyValueProps {
     /**
@@ -36,6 +37,26 @@ interface KeyValueProps {
      * The size of the value (optional).
      */
     size?: ValueSize;
+    /**
+     * Text that need to be copied (optional).
+     */
+    copyText?: string;
+    /**
+     * The onCopySuccess event of the KeyValue  (optional).
+     */
+    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
+    /**
+     * The onCopyError event of the KeyValue  (optional).
+     */
+    onCopyError?: (e: unknown, text: string) => void;
+    /**
+     * Has copy icon (optional).
+     */
+    isCopyable?: boolean;
+    /**
+     * Full width KeyValue (optional).
+     */
+    fullwidth?: boolean;
 }
 
 export function KeyValueInfo({
@@ -46,10 +67,37 @@ export function KeyValueInfo({
     supportingLabel,
     valueLink,
     size = ValueSize.Small,
+    copyText = valueText,
+    onCopySuccess,
+    onCopyError,
+    isCopyable,
+    fullwidth,
 }: KeyValueProps): React.JSX.Element {
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        if (!navigator.clipboard) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(copyText);
+            onCopySuccess?.(event, copyText);
+        } catch (error) {
+            console.error('Failed to copy:', error);
+            onCopyError?.(error, copyText);
+        }
+    }
+
     return (
-        <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
-            <div className="flex w-full flex-row items-center gap-x-0.5">
+        <div
+            className={cx('flex w-full flex-row items-baseline gap-xs py-xxs font-inter', {
+                'justify-between': fullwidth,
+            })}
+        >
+            <div
+                className={cx('flex shrink-0 flex-row items-center gap-x-0.5', {
+                    'w-1/4': !fullwidth,
+                })}
+            >
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
                 {tooltipText && (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
@@ -57,7 +105,11 @@ export function KeyValueInfo({
                     </Tooltip>
                 )}
             </div>
-            <div className="flex w-full flex-row items-baseline justify-end gap-1">
+            <div
+                className={cx('flex flex-row items-baseline gap-1 break-all', {
+                    'w-3/4': !fullwidth,
+                })}
+            >
                 {valueLink ? (
                     <a
                         href={valueLink}
@@ -89,6 +141,13 @@ export function KeyValueInfo({
                         )}
                     </>
                 )}
+                <div className="self-center">
+                    {isCopyable && (
+                        <ButtonUnstyled onClick={handleCopyClick}>
+                            <Copy className="text-neutral-60 dark:text-neutral-40" />
+                        </ButtonUnstyled>
+                    )}
+                </div>
             </div>
         </div>
     );

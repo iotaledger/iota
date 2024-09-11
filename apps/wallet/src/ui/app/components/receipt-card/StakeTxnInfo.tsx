@@ -61,12 +61,14 @@ export function StakeTxnInfo({ apy, startEpoch, gasSummary }: StakeTxnInfoProps)
                         valueText={apy}
                         tooltipText="This is the Annualized Percentage Yield of the a specific validator’s past operations. Note there is no guarantee this APY will be true in the future."
                         tooltipPosition={TooltipPosition.Right}
+                        fullwidth
                     />
                 )}
-                <KeyValueInfo keyText="Staking Rewards Start" valueText={stakedRewardsStartEpoch} />
+                <KeyValueInfo keyText="Staking Rewards Start" valueText={stakedRewardsStartEpoch} fullwidth />
                 <KeyValueInfo
                     keyText="Redeem Rewards"
                     valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
+                    fullwidth
                 />
                 <Divider />
                 <GasSummary gasSummary={gasSummary} />

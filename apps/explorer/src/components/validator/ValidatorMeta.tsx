@@ -2,17 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowUpRight12 } from '@iota/icons';
+import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { Heading, Text } from '@iota/ui';
-
-import {
-    AddressLink,
-    CopyToClipboard,
-    DescriptionItem,
-    DescriptionList,
-    ImageIcon,
-} from '~/components/ui';
+import toast from 'react-hot-toast';
+import { ArrowTopRight } from '@iota/ui-icons';
+import { ImageIcon } from '~/components/ui';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
@@ -25,68 +19,64 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
     const description = validatorData.description;
     const projectUrl = validatorData.projectUrl;
 
+    function handleOnCopy() {
+        toast.success('Copied to clipboard');
+    }
+
     return (
-        <>
-            <div className="flex basis-full gap-5 border-r border-transparent border-r-gray-45 md:mr-7.5 md:basis-1/3">
-                <ImageIcon src={logo} label={validatorName} fallback={validatorName} size="xl" />
-                <div className="mt-1.5 flex flex-col">
-                    <Heading as="h1" variant="heading2/bold" color="gray-90">
-                        {validatorName}
-                    </Heading>
-                    {projectUrl && (
-                        <a
-                            href={projectUrl}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            className="mt-2.5 inline-flex items-center gap-1.5 text-body font-medium text-iota-dark no-underline"
-                        >
-                            {projectUrl.replace(/\/$/, '')}
-                            <ArrowUpRight12 className="text-steel" />
-                        </a>
-                    )}
+        <div className="flex flex-col gap-y-md">
+            <Panel>
+                <div className="flex flex-col gap-lg p-md--rs md:flex-row">
+                    <div className="flex flex-row gap-lg">
+                        <ImageIcon
+                            src={logo}
+                            label={validatorName}
+                            fallback={validatorName}
+                            size="xl"
+                        />
+                        <div className="flex flex-col gap-y-sm">
+                            <div>
+                                <Badge type={BadgeType.Neutral} label="Validator" />
+                            </div>
+                            <div className="flex flex-row items-center gap-x-xs text-neutral-10 dark:text-neutral-92">
+                                <span className="text-headline-md">{validatorName}</span>
+                                {projectUrl && (
+                                    <a href={projectUrl} target="_blank" rel="noreferrer noopener">
+                                        <ArrowTopRight />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex w-1/2 flex-col gap-y-md">
+                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                            Description
+                        </span>
+                        <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                            {description ?? '--'}
+                        </span>
+                    </div>
                 </div>
-            </div>
-            <div className="min-w-0 basis-full break-words md:basis-2/3">
-                <DescriptionList>
-                    <DescriptionItem title="Description" align="start">
-                        <Text variant="pBody/medium" color="gray-90">
-                            {description || '--'}
-                        </Text>
-                    </DescriptionItem>
-                    <DescriptionItem title="Location" align="start">
-                        <Text variant="pBody/medium" color="gray-90">
-                            --
-                        </Text>
-                    </DescriptionItem>
-                    <DescriptionItem title="Pool ID" align="start">
-                        <div className="flex items-start gap-1 break-all">
-                            <Text variant="pBody/medium" color="steel-darker">
-                                {validatorData.stakingPoolId}
-                            </Text>
-                            <CopyToClipboard
-                                size="md"
-                                color="steel"
-                                copyText={validatorData.stakingPoolId}
-                            />
-                        </div>
-                    </DescriptionItem>
-                    <DescriptionItem title="Address" align="start">
-                        <div className="flex items-start gap-1">
-                            <AddressLink address={validatorData.iotaAddress} noTruncate />
-                            <CopyToClipboard
-                                size="md"
-                                color="steel"
-                                copyText={validatorData.iotaAddress}
-                            />
-                        </div>
-                    </DescriptionItem>
-                    <DescriptionItem title="Public Key" align="start">
-                        <Text variant="pBody/medium" color="steel-darker">
-                            {validatorPublicKey}
-                        </Text>
-                    </DescriptionItem>
-                </DescriptionList>
-            </div>
-        </>
+            </Panel>
+            <Panel>
+                <div className="flex flex-col gap-md p-md--rs">
+                    <KeyValueInfo keyText="Location" valueText="--" />
+                    <KeyValueInfo
+                        keyText="Pool ID"
+                        valueText={validatorData.stakingPoolId}
+                        isCopyable
+                        onCopySuccess={handleOnCopy}
+                    />
+                    <KeyValueInfo
+                        keyText="Address"
+                        valueText={validatorData.iotaAddress}
+                        valueLink={`/address/${validatorData.iotaAddress}`}
+                        isCopyable
+                        onCopySuccess={handleOnCopy}
+                    />
+                    <KeyValueInfo keyText="Public Key" valueText={validatorPublicKey} />
+                </div>
+            </Panel>
+        </div>
     );
 }
