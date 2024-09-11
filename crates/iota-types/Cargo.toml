@@ -79,7 +79,7 @@ better_any.workspace = true
 derive_more.workspace = true
 lru.workspace = true
 proptest.workspace = true
-proptest-derive.workspace = true
+proptest-derive = { workspace = true, optional = true }
 typed-store-error.workspace = true
 
 iota-sdk2.workspace = true
@@ -89,7 +89,6 @@ bincode.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 proptest.workspace = true
-proptest-derive.workspace = true
 serde_yaml.workspace = true
 
 async-trait.workspace = true
