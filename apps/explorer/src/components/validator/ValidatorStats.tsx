@@ -78,7 +78,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Delegators"
-                            text={numberOfDelegators ?? '--'}
+                            text={numberOfDelegators || '--'}
                             showSupportingLabel={false}
                             tooltipText={
                                 !numberOfDelegators
@@ -128,7 +128,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Checkpoint Participation"
-                            text={networkStakingParticipation ?? '--'}
+                            text={networkStakingParticipation || '--'}
                             showSupportingLabel={false}
                             tooltipText={
                                 !networkStakingParticipation
@@ -140,7 +140,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Voted Last Round"
-                            text={votedLastRound ?? '--'}
+                            text={votedLastRound || '--'}
                             showSupportingLabel={false}
                             tooltipText={
                                 !votedLastRound
@@ -166,7 +166,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Last Narwhal round"
-                            text={lastNarwhalRound ?? '--'}
+                            text={lastNarwhalRound || '--'}
                             showSupportingLabel={false}
                             tooltipText={
                                 !lastNarwhalRound
