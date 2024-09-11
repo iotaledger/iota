@@ -6,7 +6,7 @@ import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useEffect, useState } from 'react';
 
 import { Button, ButtonType } from '@iota/apps-ui-kit';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight, Loader } from '@iota/ui-icons';
 
 const TIME_TO_WAIT_FOR_EXPLORER = 60 * 1000;
 
@@ -38,8 +38,6 @@ export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
         transactionID: digest!,
     });
 
-    if (!shouldShowExplorerLink) return null;
-
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
@@ -51,8 +49,9 @@ export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
             text="View on Explorer"
             onClick={handleOpen}
             fullWidth
-            icon={<ArrowTopRight />}
+            icon={shouldShowExplorerLink ? <ArrowTopRight /> : <Loader className="animate-spin" />}
             iconAfterText
+            disabled={!shouldShowExplorerLink}
         />
     );
 }
