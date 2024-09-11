@@ -81,20 +81,18 @@ export function CheckpointsTable({
             <div className="flex justify-between">
                 <div className="flex items-center space-x-3">
                     {!disablePagination && (
-                        <div className="[&_button]:px-2 [&_button]:py-1">
-                            <Select
-                                value={limit.toString()}
-                                options={[
-                                    { id: '20', label: '20 Per Page' },
-                                    { id: '40', label: '40 Per Page' },
-                                    { id: '60', label: '60 Per Page' },
-                                ]}
-                                onValueChange={(e) => {
-                                    setLimit(Number(e));
-                                    pagination.onFirst();
-                                }}
-                            />
-                        </div>
+                        <Select
+                            value={limit.toString()}
+                            options={[
+                                { id: '20', label: '20 Per Page' },
+                                { id: '40', label: '40 Per Page' },
+                                { id: '60', label: '60 Per Page' },
+                            ]}
+                            onValueChange={(e) => {
+                                setLimit(Number(e));
+                                pagination.onFirst();
+                            }}
+                        />
                     )}
                 </div>
             </div>
