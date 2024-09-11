@@ -153,19 +153,17 @@ export default function AddressResultPage(): JSX.Element {
 
     return (
         <PageLayout
-            gradient={{
-                size: 'md',
-                content: isIotaNSAddress ? (
-                    <IotaNSAddressResultPageHeader name={id!} />
-                ) : (
-                    <AddressResultPageHeader address={id!} />
-                ),
-            }}
             content={
                 isIotaNSAddress ? (
-                    <IotaNSAddressResult name={id!} />
+                    <>
+                        <IotaNSAddressResultPageHeader name={id!} />
+                        <IotaNSAddressResult name={id!} />
+                    </>
                 ) : (
-                    <AddressResult address={id!} />
+                    <>
+                        <AddressResultPageHeader address={id!} />
+                        <AddressResult address={id!} />
+                    </>
                 )
             }
         />

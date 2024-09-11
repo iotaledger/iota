@@ -13,6 +13,7 @@ import { PlayPause } from '~/components/ui';
 import {
     ButtonSegment,
     ButtonSegmentType,
+    Panel,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
@@ -81,7 +82,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     }, [isTransactionKindFilterEnabled]);*/
 
     return (
-        <>
+        <Panel>
             <div className="relative">
                 <SegmentedButton type={SegmentedButtonType.Transparent}>
                     {ACTIVITY_CATEGORIES.map(({ label, value }) => (
@@ -146,6 +147,6 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                     />
                 )}
             </div>
-        </>
+        </Panel>
     );
 }

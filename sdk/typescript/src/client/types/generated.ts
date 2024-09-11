@@ -11,6 +11,21 @@
  * /crates/iota-open-rpc/spec/openrpc.json
  */
 
+/** Provides metrics about the addresses. */
+export interface AddressMetrics {
+    /** The checkpoint sequence number at which the metrics were computed. */
+    checkpoint: string;
+    /** The count of sender addresses. */
+    cumulativeActiveAddresses: string;
+    /** The count of sender and recipient addresses. */
+    cumulativeAddresses: string;
+    /** The count of daily unique sender addresses. */
+    dailyActiveAddresses: string;
+    /** The epoch to which the checkpoint is assigned. */
+    epoch: string;
+    /** The checkpoint timestamp. */
+    timestampMs: string;
+}
 export interface Balance {
     coinObjectCount: number;
     coinType: string;
@@ -203,6 +218,50 @@ export interface EndOfEpochData {
      * checkpoint.
      */
     nextEpochProtocolVersion: string;
+}
+export interface EndOfEpochInfo {
+    burntTokensAmount: string;
+    epochEndTimestamp: string;
+    lastCheckpointId: string;
+    mintedTokensAmount: string;
+    /** existing fields from `SystemEpochInfoEvent` (without epoch) */
+    protocolVersion: string;
+    referenceGasPrice: string;
+    storageCharge: string;
+    storageFundBalance: string;
+    storageRebate: string;
+    totalGasFees: string;
+    totalStake: string;
+    totalStakeRewardsDistributed: string;
+}
+export interface EpochInfo {
+    /** The end of epoch information. */
+    endOfEpochInfo?: EndOfEpochInfo | null;
+    /** Epoch number */
+    epoch: string;
+    /** The timestamp when the epoch started. */
+    epochStartTimestamp: string;
+    /** Count of tx in epoch */
+    epochTotalTransactions: string;
+    /** First, last checkpoint sequence numbers */
+    firstCheckpointId: string;
+    /** The reference gas price for the given epoch. */
+    referenceGasPrice?: string | null;
+    /** List of validators included in epoch */
+    validators: IotaValidatorSummary[];
+}
+/** A light-weight version of `EpochInfo` for faster loading */
+export interface EpochMetrics {
+    /** The end of epoch information. */
+    endOfEpochInfo?: EndOfEpochInfo | null;
+    /** The current epoch ID. */
+    epoch: string;
+    /** The timestamp when the epoch started. */
+    epochStartTimestamp: string;
+    /** The total number of transactions in the epoch. */
+    epochTotalTransactions: string;
+    /** The first checkpoint ID of the epoch. */
+    firstCheckpointId: string;
 }
 export interface IotaEvent {
     /** Base 58 encoded bcs bytes of the move event */
@@ -789,6 +848,14 @@ export interface LoadedChildObject {
 export interface LoadedChildObjectsResponse {
     loadedChildObjects: LoadedChildObject[];
 }
+export interface MoveCallMetrics {
+    /** The count of calls of each function in the last 30 days. */
+    rank30Days: [MoveFunctionName, string][];
+    /** The count of calls of each function in the last 3 days. */
+    rank3Days: [MoveFunctionName, string][];
+    /** The count of calls of each function in the last 7 days. */
+    rank7Days: [MoveFunctionName, string][];
+}
 export interface MoveCallParams {
     arguments: unknown[];
     function: string;
@@ -801,6 +868,15 @@ export type IotaMoveFunctionArgType =
     | {
           Object: ObjectValueKind;
       };
+/** Identifies a Move function. */
+export interface MoveFunctionName {
+    /** The function name. */
+    function: string;
+    /** The module name to which the function belongs. */
+    module: string;
+    /** The package ID to which the function belongs. */
+    package: string;
+}
 export type MoveStruct =
     | MoveValue[]
     | {
@@ -872,6 +948,22 @@ export interface MultiSigPublicKeyLegacy {
      * threshold, the MultiSig is verified.
      */
     threshold: number;
+}
+export interface NetworkMetrics {
+    /** Current checkpoint number */
+    currentCheckpoint: string;
+    /** Current epoch number */
+    currentEpoch: string;
+    /** Current TPS - Transaction Blocks per Second. */
+    currentTps: number;
+    /** Total number of addresses seen in the network */
+    totalAddresses: string;
+    /** Total number of live objects in the network */
+    totalObjects: string;
+    /** Total number of packages published in the network */
+    totalPackages: string;
+    /** Peak TPS in the past 30 days */
+    tps30Days: number;
 }
 /**
  * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
@@ -1106,6 +1198,26 @@ export interface PaginatedDynamicFieldInfos {
  * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
  * item.
  */
+export interface PaginatedEpochInfos {
+    data: EpochInfo[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedEpochMetricss {
+    data: EpochMetrics[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
 export interface PaginatedEvents {
     data: IotaEvent[];
     hasNextPage: boolean;
@@ -1118,16 +1230,6 @@ export interface PaginatedEvents {
  */
 export interface PaginatedObjectsResponse {
     data: IotaObjectResponse[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedStrings {
-    data: string[];
     hasNextPage: boolean;
     nextCursor?: string | null;
 }

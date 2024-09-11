@@ -17,9 +17,6 @@ interface StakeTxnInfoProps {
 }
 
 export function StakeTxnInfo({ apy, startEpoch, gasSummary }: StakeTxnInfoProps) {
-    // Reward will be available after 2 epochs
-    // TODO: Get epochStartTimestampMs/StartDate
-    // for staking epoch + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE
     const startEarningRewardsEpoch =
         Number(startEpoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS;
 

@@ -146,7 +146,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }
 
     return (
-        <div className="flex h-full flex-col justify-between">
+        <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
                 <Panel hasBorder>

@@ -14,10 +14,10 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionSummary } from '../../shared/transaction-summary';
 import { StakeTxn } from './StakeTxn';
 import { UnStakeTxn } from './UnstakeTxn';
-import { Button, ButtonType, Card, CardBody, CardType } from '@iota/apps-ui-kit';
-import { useNavigate } from 'react-router-dom';
+import { Card, CardBody, CardType } from '@iota/apps-ui-kit';
 import { CheckmarkFilled } from '@iota/ui-icons';
 import cl from 'clsx';
+import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -52,13 +52,8 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         currentAddress: activeAddress,
         recognizedPackagesList,
     });
-    const navigate = useNavigate();
 
     if (!summary) return null;
-
-    function handleCancel() {
-        navigate('/');
-    }
 
     const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
 
@@ -67,10 +62,13 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)
         return (
-            <div className="flex h-full flex-col justify-between">
+            <div className="flex h-full w-full flex-col justify-between">
                 {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
                 {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
-                <Button type={ButtonType.Primary} text="Finish" onClick={handleCancel} fullWidth />
+                <ExplorerLinkCard
+                    digest={summary?.digest}
+                    timestamp={summary?.timestamp ?? undefined}
+                />
             </div>
         );
 
