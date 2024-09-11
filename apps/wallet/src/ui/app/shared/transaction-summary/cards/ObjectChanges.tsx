@@ -144,7 +144,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                             >
                                 <>
                                     {!!changes.changesWithDisplay.length && (
-                                        <div className="flex gap-2 overflow-y-auto">
+                                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
                                             <ExpandableList
                                                 defaultItemsToShow={5}
                                                 items={
