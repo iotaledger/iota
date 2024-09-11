@@ -329,13 +329,6 @@ const references = [
         },
         items: [
             'references/contribute/contribution-process',
-            'references/contribute/contribute-to-iota-repos',
-            {
-                type: 'link',
-                label: 'Submit a SIP',
-                href: 'https://sips.iota.io',
-            },
-            'references/contribute/localize-iota-docs',
             'references/contribute/code-of-conduct',
             'references/contribute/style-guide',
         ],
