@@ -579,7 +579,6 @@ mod tests {
     }
 
     mod get_coins_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -1097,7 +1096,6 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-
         use super::{super::*, *};
 
         // Success scenarios

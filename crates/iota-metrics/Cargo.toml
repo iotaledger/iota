@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
@@ -16,6 +19,7 @@ parking_lot.workspace = true
 prometheus.workspace = true
 prometheus-closure-metric.workspace = true
 scopeguard.workspace = true
+simple-server-timing-header.workspace = true
 tap.workspace = true
 tokio.workspace = true
 tracing.workspace = true

@@ -5,9 +5,7 @@
 use std::env;
 
 use async_trait::async_trait;
-use hyper::{header::HeaderValue, HeaderMap};
-use iota_config::local_ip_utils;
-use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder};
+use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder, ServerType};
 use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 use iota_open_rpc::Module;
 use iota_open_rpc_macros::open_rpc;
@@ -21,11 +19,14 @@ use prometheus::Registry;
 
 #[tokio::test]
 async fn test_rpc_backward_compatibility() {
-    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new());
+    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);
     builder.register_module(TestApiModule).unwrap();
 
     let address = local_ip_utils::new_local_tcp_socket_for_testing();
-    let _handle = builder.start(address, None, None).await.unwrap();
+    let _handle = builder
+        .start(address, None, ServerType::Http, None)
+        .await
+        .unwrap();
     let url = format!("http://0.0.0.0:{}", address.port());
 
     // Test with un-versioned client
@@ -35,7 +36,7 @@ async fn test_rpc_backward_compatibility() {
 
     // try to access old method directly should fail
     let client = HttpClientBuilder::default().build(&url).unwrap();
-    let response: Result<String, _> = client.request("test_foo_1_5", rpc_params!("string")).await;
+    let response: RpcResult<String> = client.request("test_foo_1_5", rpc_params!("string")).await;
     assert!(response.is_err());
 
     // Test with versioned client, version > backward compatible method version
@@ -100,16 +101,19 @@ async fn test_rpc_backward_compatibility() {
 async fn test_disable_routing() {
     env::set_var("DISABLE_BACKWARD_COMPATIBILITY", "true");
 
-    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new());
+    let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);
     builder.register_module(TestApiModule).unwrap();
 
     let address = local_ip_utils::new_local_tcp_socket_for_testing();
-    let _handle = builder.start(address, None, None).await.unwrap();
+    let _handle = builder
+        .start(address, None, ServerType::Http, None)
+        .await
+        .unwrap();
     let url = format!("http://0.0.0.0:{}", address.port());
 
     // try to access old method directly should fail
     let client = HttpClientBuilder::default().build(&url).unwrap();
-    let response: Result<String, _> = client.request("test_foo_1_5", rpc_params!("string")).await;
+    let response: RpcResult<String> = client.request("test_foo_1_5", rpc_params!("string")).await;
     assert!(response.is_err());
 
     // Test with versioned client, version = backward compatible method version,
@@ -124,7 +128,7 @@ async fn test_disable_routing() {
         .build(&url)
         .unwrap();
 
-    let response: Result<String, _> = client_with_new_header
+    let response: RpcResult<String> = client_with_new_header
         .request(
             "test_foo",
             rpc_params!("old version expect string as input"),

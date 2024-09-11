@@ -14,6 +14,7 @@ use config::AuthorityIdentifier;
 use fastcrypto::hash::Hash;
 use iota_common::sync::notify_read::NotifyRead;
 use iota_macros::fail_point;
+use iota_metrics::{RegistryID, RegistryService};
 use lru::LruCache;
 use parking_lot::Mutex;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
@@ -23,28 +24,40 @@ use types::{Certificate, CertificateDigest, Round};
 
 use crate::StoreResult;
 
-#[derive(Clone)]
 pub struct CertificateStoreCacheMetrics {
+    // Prometheus RegistryService for the metrics
+    registry_service: RegistryService,
+    // The registry id & value, saved for cleaning up the registered metrics
+    // after consensus shuts down.
+    registry: (RegistryID, Registry),
     hit: IntCounter,
     miss: IntCounter,
 }
 
 impl CertificateStoreCacheMetrics {
-    pub fn new(registry: &Registry) -> Self {
+    pub fn new(registry_service: RegistryService) -> Self {
+        let registry = Registry::new_custom(None, None).unwrap();
+        let registry_id = registry_service.add(registry.clone());
         Self {
+            registry_service,
+            registry: (registry_id, registry.clone()),
             hit: register_int_counter_with_registry!(
                 "certificate_store_cache_hit",
                 "The number of hits in the cache",
-                registry
+                registry,
             )
             .unwrap(),
             miss: register_int_counter_with_registry!(
                 "certificate_store_cache_miss",
                 "The number of miss in the cache",
-                registry
+                registry,
             )
             .unwrap(),
         }
+    }
+
+    pub fn unregister(&self) {
+        self.registry_service.remove(self.registry.0);
     }
 }
 
@@ -79,11 +92,11 @@ pub trait Cache {
 #[derive(Clone)]
 pub struct CertificateStoreCache {
     cache: Arc<Mutex<LruCache<CertificateDigest, Certificate>>>,
-    metrics: Option<CertificateStoreCacheMetrics>,
+    metrics: Option<Arc<CertificateStoreCacheMetrics>>,
 }
 
 impl CertificateStoreCache {
-    pub fn new(size: NonZeroUsize, metrics: Option<CertificateStoreCacheMetrics>) -> Self {
+    pub fn new(size: NonZeroUsize, metrics: Option<Arc<CertificateStoreCacheMetrics>>) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(size))),
             metrics,
@@ -613,13 +626,17 @@ impl<T: Cache> CertificateStore<T> {
     /// Retrieves the highest round number in the store.
     /// Returns 0 if there is no certificate in the store.
     pub fn highest_round_number(&self) -> Round {
-        self.certificate_id_by_round
+        if let Some(((round, _), _)) = self
+            .certificate_id_by_round
             .unbounded_iter()
             .skip_to_last()
             .reverse()
             .next()
-            .map(|((round, _), _)| round)
-            .unwrap_or_default()
+        {
+            round
+        } else {
+            0
+        }
     }
 
     /// Retrieves the last round number of the given origin.
@@ -695,7 +712,7 @@ mod test {
         reopen,
         rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     };
-    use test_utils::{temp_dir, CommitteeFixture};
+    use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
     use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
 
     use crate::{certificate_store::CertificateStore, Cache, CertificateStoreCache};
@@ -806,23 +823,28 @@ mod test {
     fn certificates(rounds: u64) -> Vec<Certificate> {
         let fixture = CommitteeFixture::builder().build();
         let committee = fixture.committee();
-        let mut current_round: Vec<_> = Certificate::genesis(&committee)
-            .into_iter()
-            .map(|cert| cert.header().clone())
-            .collect();
+        let mut current_round: Vec<_> =
+            Certificate::genesis(&latest_protocol_version(), &committee)
+                .into_iter()
+                .map(|cert| cert.header().clone())
+                .collect();
 
         let mut result: Vec<Certificate> = Vec::new();
         for i in 0..rounds {
             let parents: BTreeSet<_> = current_round
                 .iter()
-                .map(|header| fixture.certificate(header).digest())
+                .map(|header| {
+                    fixture
+                        .certificate(&latest_protocol_version(), header)
+                        .digest()
+                })
                 .collect();
-            (_, current_round) = fixture.headers_round(i, &parents);
+            (_, current_round) = fixture.headers_round(i, &parents, &latest_protocol_version());
 
             result.extend(
                 current_round
                     .iter()
-                    .map(|h| fixture.certificate(h))
+                    .map(|h| fixture.certificate(&latest_protocol_version(), h))
                     .collect::<Vec<Certificate>>(),
             );
         }
