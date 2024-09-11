@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -16,13 +14,13 @@ use crate::{
     balance::Balance,
     base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         get_validators_from_table_vec,
-        iota_system_state_inner_v1::{StorageFundV1, ValidatorSetV1},
+        iota_system_state_inner_v1::{StakeSubsidyV1, StorageFundV1, ValidatorSetV1},
     },
     storage::ObjectStore,
 };
@@ -126,24 +124,26 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (
+                        validator.voting_power,
+                        NetworkMetadata {
+                            network_address: verified_metadata.net_address.clone(),
+                            narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        },
+                    ),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
