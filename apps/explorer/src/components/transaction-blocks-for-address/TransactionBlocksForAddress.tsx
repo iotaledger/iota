@@ -135,6 +135,7 @@ export function TransactionBlocksForAddress({
 
                 {(hasNextPage || (data && data?.pages.length > 1)) && (
                     <Pagination
+                        hasFirst={currentPageState[filterValue] !== 0}
                         onNext={() => {
                             if (isPending || isFetching) {
                                 return;

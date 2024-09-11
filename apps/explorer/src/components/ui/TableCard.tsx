@@ -11,6 +11,7 @@ import {
     TableHeader,
     TableHeaderCell,
     TableHeaderRow,
+    type TablePaginationOptions,
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
@@ -21,6 +22,7 @@ import {
 } from '@tanstack/react-table';
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
+import { useNavigateWithQuery } from './LinkWithQuery';
 
 export interface TableCardProps<DataType extends object> {
     refetching?: boolean;
@@ -28,6 +30,9 @@ export interface TableCardProps<DataType extends object> {
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
+    paginationOptions?: TablePaginationOptions;
+    totalLabel?: string;
+    viewAll?: string;
 }
 
 export function TableCard<DataType extends object>({
@@ -36,7 +41,11 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    paginationOptions,
+    totalLabel,
+    viewAll,
 }: TableCardProps<DataType>): JSX.Element {
+    const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
     // Use Columns to create a table
@@ -75,7 +84,19 @@ export function TableCard<DataType extends object>({
                 refetching && 'opacity-50',
             )}
         >
-            <Table rowIndexes={table.getRowModel().rows.map((row) => row.index)}>
+            <Table
+                rowIndexes={table.getRowModel().rows.map((row) => row.index)}
+                paginationOptions={paginationOptions}
+                actionLabel={viewAll ? 'View All' : undefined}
+                supportingLabel={totalLabel}
+                onActionClick={
+                    viewAll
+                        ? () => {
+                              navigate(viewAll, {});
+                          }
+                        : undefined
+                }
+            >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableHeaderRow key={headerGroup.id}>

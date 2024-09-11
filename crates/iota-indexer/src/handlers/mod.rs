@@ -14,7 +14,6 @@ use crate::{
 
 pub mod checkpoint_handler;
 pub mod committer;
-pub mod objects_snapshot_processor;
 pub mod tx_processor;
 
 #[derive(Debug)]
