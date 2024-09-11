@@ -27,7 +27,7 @@ pub const DERVIATION_PATH_PURPOSE_SECP256R1: u32 = 74;
 /// Ed25519 follows SLIP-0010 using hardened path: m/44'/4218'/0'/0'/{index}'
 /// Secp256k1 follows BIP-32/44 using path where the first 3 levels are
 /// hardened: m/54'/4218'/0'/0/{index} Secp256r1 follows BIP-32/44 using path
-/// where the first 3 levels are hardened: m/74'/4218'/0'/0/{index}
+/// where the first 3 levels are hardened: m/74'/4218'/0'/0/{index}.
 /// Note that the purpose node is used to distinguish signature schemes.
 pub fn derive_key_pair_from_path(
     seed: &[u8],
@@ -64,7 +64,8 @@ pub fn derive_key_pair_from_path(
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeature {
+        | SignatureScheme::ZkLoginAuthenticator
+        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }
@@ -168,7 +169,8 @@ pub fn validate_path(
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeature {
+        | SignatureScheme::ZkLoginAuthenticator
+        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }

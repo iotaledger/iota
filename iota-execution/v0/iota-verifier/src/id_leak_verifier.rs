@@ -17,13 +17,14 @@ use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
     authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
+    bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
     deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
     id::OBJECT_MODULE_NAME,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     randomness_state::RANDOMNESS_MODULE_NAME,
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
@@ -98,6 +99,8 @@ const IOTA_DENY_LIST_CREATE: FunctionIdent = (
     DENY_LIST_CREATE_FUNC,
 );
 
+const IOTA_BRIDGE_CREATE: FunctionIdent =
+    (&BRIDGE_ADDRESS, BRIDGE_MODULE_NAME, ident_str!("create"));
 const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
@@ -105,6 +108,7 @@ const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_AUTHENTICATOR_STATE_CREATE,
     IOTA_RANDOMNESS_STATE_CREATE,
     IOTA_DENY_LIST_CREATE,
+    IOTA_BRIDGE_CREATE,
 ];
 
 impl AbstractValue {

@@ -1,6 +1,6 @@
 [package]
 name = "iota-data-ingestion"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"

@@ -44,7 +44,11 @@ impl TransactionValidator for NilTxValidator {
     fn validate(&self, _tx: &[u8]) -> Result<(), Self::Error> {
         eyre::bail!("Invalid transaction");
     }
-    fn validate_batch(&self, _txs: &Batch) -> Result<(), Self::Error> {
+    fn validate_batch(
+        &self,
+        _txs: &Batch,
+        _protocol_config: &ProtocolConfig,
+    ) -> Result<(), Self::Error> {
         eyre::bail!("Invalid batch");
     }
 }
@@ -88,6 +92,7 @@ async fn reject_invalid_clients_transactions() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
+        latest_protocol_version(),
         parameters,
         NilTxValidator,
         client,
@@ -108,7 +113,7 @@ async fn reject_invalid_clients_transactions() {
     let mut client = TransactionsClient::new(channel);
     let tx = transaction();
     let txn = TransactionProto {
-        transaction: Bytes::from(tx.clone()),
+        transactions: vec![Bytes::from(tx.clone())],
     };
 
     // Check invalid transactions are rejected
@@ -117,7 +122,7 @@ async fn reject_invalid_clients_transactions() {
 
     let worker_pk = worker_cache.worker(&public_key, &worker_id).unwrap().name;
 
-    let batch = batch();
+    let batch = batch(&latest_protocol_version());
     let batch_message = WorkerBatchMessage {
         batch: batch.clone(),
     };
@@ -184,6 +189,7 @@ async fn handle_remote_clients_transactions() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
+        latest_protocol_version(),
         parameters,
         TrivialTransactionValidator,
         client.clone(),
@@ -196,7 +202,7 @@ async fn handle_remote_clients_transactions() {
     let mut peer_networks = Vec::new();
 
     // Create batches
-    let batch = batch();
+    let batch = batch(&latest_protocol_version());
     let batch_digest = batch.digest();
 
     let (tx_await_batch, mut rx_await_batch) = test_utils::test_channel!(CHANNEL_CAPACITY);
@@ -240,7 +246,7 @@ async fn handle_remote_clients_transactions() {
         let mut fut_list = FuturesOrdered::new();
         for tx in batch.transactions() {
             let txn = TransactionProto {
-                transaction: Bytes::from(tx.clone()),
+                transactions: vec![Bytes::from(tx.clone())],
             };
 
             // Calls to submit_transaction are now blocking, so we need to drive them
@@ -303,6 +309,7 @@ async fn handle_local_clients_transactions() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
+        latest_protocol_version(),
         parameters,
         TrivialTransactionValidator,
         client.clone(),
@@ -315,7 +322,7 @@ async fn handle_local_clients_transactions() {
     let mut peer_networks = Vec::new();
 
     // Create batches
-    let batch = batch();
+    let batch = batch(&latest_protocol_version());
     let batch_digest = batch.digest();
 
     let (tx_await_batch, mut rx_await_batch) = test_utils::test_channel!(CHANNEL_CAPACITY);
@@ -359,7 +366,10 @@ async fn handle_local_clients_transactions() {
             // all at the same time, rather than sequentially.
             let inner_client = client.clone();
             fut_list.push_back(async move {
-                inner_client.submit_transaction(txn.clone()).await.unwrap();
+                inner_client
+                    .submit_transactions(vec![txn.clone()])
+                    .await
+                    .unwrap();
             });
         }
 
@@ -443,6 +453,7 @@ async fn get_network_peers_from_admin_server() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
+        latest_protocol_version(),
         worker_1_parameters.clone(),
         TrivialTransactionValidator,
         client_1.clone(),
@@ -558,6 +569,7 @@ async fn get_network_peers_from_admin_server() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
+        latest_protocol_version(),
         worker_2_parameters.clone(),
         TrivialTransactionValidator,
         client_2,
