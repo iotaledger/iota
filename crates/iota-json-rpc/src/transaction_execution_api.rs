@@ -24,9 +24,10 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     iota_serde::BigInt,
     quorum_driver_types::{
-        ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
     },
     signature::GenericSignature,
+    storage::PostExecutionPackageResolver,
     transaction::{
         InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
@@ -90,12 +91,6 @@ impl TransactionExecutionApi {
         IotaRpcInputError,
     > {
         let opts = opts.unwrap_or_default();
-        let request_type = match (request_type, opts.require_local_execution()) {
-            (Some(ExecuteTransactionRequestType::WaitForEffectsCert), true) => {
-                Err(IotaRpcInputError::InvalidExecuteTransactionRequestType)?
-            }
-            (t, _) => t.unwrap_or_else(|| opts.default_execution_request_type()),
-        };
         let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
         let sender = tx_data.sender();
         let input_objs = tx_data.input_objects().unwrap_or_default();
@@ -119,9 +114,21 @@ impl TransactionExecutionApi {
         } else {
             None
         };
+
+        let request = ExecuteTransactionRequestV3 {
+            transaction: txn.clone(),
+            include_events: opts.show_events,
+            include_input_objects: opts.show_balance_changes || opts.show_object_changes,
+            include_output_objects: opts.show_balance_changes
+                || opts.show_object_changes
+                // In order to resolve events, we may need access to the newly published packages.
+                || opts.show_events,
+            include_auxiliary_data: false,
+        };
+
         Ok((
+            request,
             opts,
-            request_type,
             sender,
             input_objs,
             txn,
@@ -137,66 +144,99 @@ impl TransactionExecutionApi {
         opts: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> Result<IotaTransactionBlockResponse, Error> {
-        let (opts, request_type, sender, input_objs, txn, transaction, raw_transaction) =
-            self.prepare_execute_transaction_block(tx_bytes, signatures, opts, request_type)?;
+        let request_type =
+            request_type.unwrap_or(ExecuteTransactionRequestType::WaitForEffectsCert);
+        let (request, opts, sender, input_objs, txn, transaction, raw_transaction) =
+            self.prepare_execute_transaction_block(tx_bytes, signatures, opts)?;
         let digest = *txn.digest();
 
         let transaction_orchestrator = self.transaction_orchestrator.clone();
         let orch_timer = self.metrics.orchestrator_latency_ms.start_timer();
-        let response = spawn_monitored_task!(transaction_orchestrator.execute_transaction_block(
-            ExecuteTransactionRequest {
-                transaction: txn,
-                request_type,
-            }
-        ))
+        let (response, is_executed_locally) = spawn_monitored_task!(
+            transaction_orchestrator.execute_transaction_block(request, request_type, None)
+        )
         .await?
         .map_err(Error::from)?;
         drop(orch_timer);
 
+        self.handle_post_orchestration(
+            response,
+            is_executed_locally,
+            opts,
+            digest,
+            input_objs,
+            transaction,
+            raw_transaction,
+            sender,
+        )
+        .await
+    }
+
+    async fn handle_post_orchestration(
+        &self,
+        response: ExecuteTransactionResponseV3,
+        is_executed_locally: bool,
+        opts: IotaTransactionBlockResponseOptions,
+        digest: TransactionDigest,
+        input_objs: Vec<InputObjectKind>,
+        transaction: Option<IotaTransactionBlock>,
+        raw_transaction: Vec<u8>,
+        sender: IotaAddress,
+    ) -> Result<IotaTransactionBlockResponse, Error> {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
-        let ExecuteTransactionResponse::EffectsCert(cert) = response;
-        let (effects, transaction_events, is_executed_locally) = *cert;
-        let mut events: Option<IotaTransactionBlockEvents> = None;
-        if opts.show_events {
+
+        let events = if opts.show_events {
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            let backing_package_store = self.state.get_backing_package_store();
+            let backing_package_store = PostExecutionPackageResolver::new(
+                self.state.get_backing_package_store().clone(),
+                &response.output_objects,
+            );
             let mut layout_resolver = epoch_store
                 .executor()
-                .type_layout_resolver(Box::new(backing_package_store.as_ref()));
-            events = Some(IotaTransactionBlockEvents::try_from(
-                transaction_events,
+                .type_layout_resolver(Box::new(backing_package_store));
+            Some(IotaTransactionBlockEvents::try_from(
+                response.events.unwrap_or_default(),
                 digest,
                 None,
                 layout_resolver.as_mut(),
-            )?);
-        }
-
-        let object_cache = ObjectProviderCache::new(self.state.clone());
-        let balance_changes = if opts.show_balance_changes && is_executed_locally {
-            Some(
-                get_balance_changes_from_effect(&object_cache, &effects.effects, input_objs, None)
-                    .await?,
-            )
+            )?)
         } else {
             None
         };
-        let object_changes = if opts.show_object_changes && is_executed_locally {
-            Some(
-                get_object_changes(
-                    &object_cache,
-                    sender,
-                    effects.effects.modified_at_versions(),
-                    effects.effects.all_changed_objects(),
-                    effects.effects.all_removed_objects(),
+
+        let object_cache = response.output_objects.map(|output_objects| {
+            ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
+        });
+
+        let balance_changes = match &object_cache {
+            Some(object_cache) if opts.show_balance_changes => Some(
+                get_balance_changes_from_effect(
+                    object_cache,
+                    &response.effects.effects,
+                    input_objs,
+                    None,
                 )
                 .await?,
-            )
-        } else {
-            None
+            ),
+            _ => None,
+        };
+
+        let object_changes = match &object_cache {
+            Some(object_cache) if opts.show_object_changes => Some(
+                get_object_changes(
+                    object_cache,
+                    sender,
+                    response.effects.effects.modified_at_versions(),
+                    response.effects.effects.all_changed_objects(),
+                    response.effects.effects.all_removed_objects(),
+                )
+                .await?,
+            ),
+            _ => None,
         };
 
         let raw_effects = if opts.show_raw_effects {
-            bcs::to_bytes(&effects.effects)?
+            bcs::to_bytes(&response.effects.effects)?
         } else {
             vec![]
         };
@@ -205,7 +245,9 @@ impl TransactionExecutionApi {
             digest,
             transaction,
             raw_transaction,
-            effects: opts.show_effects.then_some(effects.effects.try_into()?),
+            effects: opts
+                .show_effects
+                .then_some(response.effects.effects.try_into()?),
             events,
             object_changes,
             balance_changes,

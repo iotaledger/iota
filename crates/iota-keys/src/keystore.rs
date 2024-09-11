@@ -131,8 +131,8 @@ pub trait AccountKeystore: Send + Sync {
         &mut self,
         phrase: &str,
         key_scheme: SignatureScheme,
-        alias: Option<String>,
         derivation_path: Option<DerivationPath>,
+        alias: Option<String>,
     ) -> Result<IotaAddress, anyhow::Error> {
         let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
             .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))?;
@@ -441,13 +441,11 @@ impl FileBasedKeystore {
         Ok(())
     }
 
+    /// Keys saved as Base64 with 33 bytes `flag || privkey` ($BASE64_STR).
+    /// To see Bech32 format encoding, use `iota keytool export $IOTA_ADDRESS`
+    /// where $IOTA_ADDRESS can be found with `iota keytool list`. Or use
+    /// `iota keytool convert $BASE64_STR`
     pub fn save_keystore(&self) -> Result<(), anyhow::Error> {
-        println!(
-            "Keys saved as Base64 with 33 bytes `flag || privkey` ($BASE64_STR). 
-        To see Bech32 format encoding, use `iota keytool export $IOTA_ADDRESS` where 
-        $IOTA_ADDRESS can be found with `iota keytool list`. Or use `iota keytool convert $BASE64_STR`."
-        );
-
         if let Some(path) = &self.path {
             let store = serde_json::to_string_pretty(
                 &self

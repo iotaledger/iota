@@ -12,7 +12,7 @@ use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
     authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
-    execution_cache::ExecutionCacheRead,
+    execution_cache::{ExecutionCacheRead, ObjectCacheRead},
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
@@ -28,6 +28,7 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    bridge::Bridge,
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
     dynamic_field::DynamicFieldInfo,
@@ -94,7 +95,7 @@ pub trait StateRead: Send + Sync {
         limit: usize,
     ) -> StateReadResult<Vec<(ObjectID, DynamicFieldInfo)>>;
 
-    fn get_cache_reader(&self) -> &Arc<dyn ExecutionCacheRead>;
+    fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
     fn get_object_store(&self) -> &Arc<dyn ObjectStore + Send + Sync>;
 
@@ -175,8 +176,12 @@ pub trait StateRead: Send + Sync {
         &self,
         owner: IotaAddress,
     ) -> StateReadResult<Vec<TimelockedStakedIota>>;
+
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
+
+    // bridge_api
+    fn get_bridge(&self) -> StateReadResult<Bridge>;
 
     // coin_api
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest>;
@@ -241,11 +246,6 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Option<VerifiedCheckpoint>>;
 
     fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<CheckpointSequenceNumber>;
-
-    fn loaded_child_object_versions(
-        &self,
-        transaction_digest: &TransactionDigest,
-    ) -> StateReadResult<Option<Vec<(ObjectID, SequenceNumber)>>>;
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier>;
 }
@@ -317,8 +317,8 @@ impl StateRead for AuthorityState {
         Ok(self.get_dynamic_fields(owner, cursor, limit)?)
     }
 
-    fn get_cache_reader(&self) -> &Arc<dyn ExecutionCacheRead> {
-        self.get_cache_reader()
+    fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {
+        self.get_object_cache_reader()
     }
 
     fn get_object_store(&self) -> &Arc<dyn ObjectStore + Send + Sync> {
@@ -437,6 +437,7 @@ impl StateRead for AuthorityState {
             .get_move_objects(owner, MoveObjectType::staked_iota())
             .await?)
     }
+
     async fn get_timelocked_staked_iota(
         &self,
         owner: IotaAddress,
@@ -445,15 +446,23 @@ impl StateRead for AuthorityState {
             .get_move_objects(owner, MoveObjectType::timelocked_staked_iota())
             .await?)
     }
+
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
         Ok(self
             .get_cache_reader()
             .get_iota_system_state_object_unsafe()?)
     }
+
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
         Ok(self
             .committee_store()
             .get_or_latest_committee(epoch.map(|e| *e))?)
+    }
+
+    fn get_bridge(&self) -> StateReadResult<Bridge> {
+        self.get_cache_reader()
+            .get_bridge_object_unsafe()
+            .map_err(|err| err.into())
     }
 
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest> {
@@ -573,13 +582,6 @@ impl StateRead for AuthorityState {
 
     fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<CheckpointSequenceNumber> {
         Ok(self.get_latest_checkpoint_sequence_number()?)
-    }
-
-    fn loaded_child_object_versions(
-        &self,
-        transaction_digest: &TransactionDigest,
-    ) -> StateReadResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
-        Ok(self.loaded_child_object_versions(transaction_digest)?)
     }
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier> {
