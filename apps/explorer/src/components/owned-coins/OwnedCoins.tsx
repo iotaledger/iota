@@ -185,6 +185,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             {displayedBalances.length > limit && (
                                 <div className="flex flex-col justify-between gap-2 md:flex-row">
                                     <Pagination
+                                        hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
                                         hasNext={
                                             currentSlice !==
