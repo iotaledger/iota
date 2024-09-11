@@ -21,11 +21,10 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
-    // TODO: add missing fields
-    let numberOfDelegators;
-    let networkStakingParticipation;
-    let votedLastRound;
-    let lastNarwhalRound;
+    const numberOfDelegators = 0;
+    const networkStakingParticipation = 0;
+    const votedLastRound = 0;
+    const lastNarwhalRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
     const commission = Number(validatorData.commissionRate) / 100;
