@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title, Tooltip } from '@iota/apps-ui-kit';
+import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
 import { getRefGasPrice } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
 
 import { RingChart, RingChartLegend } from '~/components/ui';
@@ -74,9 +73,6 @@ export function ValidatorStatus(): JSX.Element | null {
                                         Reference Gas Price
                                     </span>
                                 </div>
-                                <Tooltip text="Example Message">
-                                    <Info className="h-4 w-4 text-neutral-10/40" />
-                                </Tooltip>
                             </div>
                             <div className="flex flex-row items-baseline gap-xxs">
                                 <span className="text-title-md text-neutral-10">

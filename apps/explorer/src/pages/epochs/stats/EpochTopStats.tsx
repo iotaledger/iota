@@ -25,18 +25,15 @@ export function EpochTopStats({
     endOfEpochInfo,
 }: EpochProgressProps): React.JSX.Element {
     const { progress, label } = useEpochProgress();
-    const endLabel = inProgress ? 'Ends' : 'Ended';
     const endTime = inProgress ? label : end ? formatDate(end) : undefined;
-
-    const startLabel = inProgress ? 'Starts' : 'Started';
 
     return (
         <div className="flex w-full flex-col gap-md--rs">
             {inProgress ? <ProgressBar progress={progress || 0} /> : null}
 
             <EpochStatsGrid>
-                <LabelText text={formatDate(start)} label={startLabel} />
-                {endTime ? <LabelText text={endTime} label={endLabel} /> : null}
+                <LabelText text={formatDate(start)} label="Start" />
+                {endTime ? <LabelText text={endTime} label="End" /> : null}
                 {endOfEpochInfo && (
                     <TokenStats
                         label="Supply Change"
