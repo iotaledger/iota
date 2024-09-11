@@ -53,7 +53,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)
         return (
-            <div className="flex h-full flex-col justify-between">
+            <div className="flex h-full w-full flex-col justify-between">
                 {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
                 {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
                 <ExplorerLinkCard
