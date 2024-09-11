@@ -6,11 +6,15 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
+bcs.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-versions = "6.3"
+versions.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
