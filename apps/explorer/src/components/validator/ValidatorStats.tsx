@@ -21,6 +21,7 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
+    // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
     const numberOfDelegators = 0;
     const networkStakingParticipation = 0;
     const votedLastRound = 0;
