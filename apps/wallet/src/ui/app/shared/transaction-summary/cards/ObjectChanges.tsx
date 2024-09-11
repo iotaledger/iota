@@ -120,7 +120,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
         <>
             {Object.entries(changes).map(([owner, changes]) => {
                 const ownerAddress = useAddressLink(owner);
-                const lable = getObjectChangeLabel(type);
+                const label = getObjectChangeLabel(type);
                 const [open, setOpen] = useState(true);
 
                 return (
@@ -136,7 +136,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                         title="Object Changes"
                                         trailingElement={
                                             <div className="ml-1 flex">
-                                                <Badge type={BadgeType.PrimarySoft} label={lable} />
+                                                <Badge type={BadgeType.PrimarySoft} label={label} />
                                             </div>
                                         }
                                     />
