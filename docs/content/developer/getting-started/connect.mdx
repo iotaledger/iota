@@ -10,11 +10,13 @@ import AlphaNet from "../../_snippets/alphanet.mdx";
 
 ## IOTA CLI
 
-IOTA provides [IOTA command line interface (CLI)](/references/cli/client.mdx) to interact with [IOTA networks](#iota-networks):
+IOTA provides a [IOTA command line interface (CLI)](/references/cli/client.mdx) to interact with [IOTA networks](#iota-networks), it does the following and more:
 
 - Create and manage your private keys
-- Create example NFTs
 - Call and publish Move modules
+- Compile and test Move modules
+- Create and execute programmable transaction blocks ([PTBs](/references/cli/ptb.mdx))
+- Interact with testnet/devnet faucets
 
 You can use the [CLI](iota-environment.mdx#iota-cli) or [SDKs](iota-environment.mdx#iota-sdks) to send transactions and
 read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the following
@@ -89,6 +91,12 @@ Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for se
 
 Finally, you will be prompted to select the key scheme you want to use. After this, you will receive a message that
 states the selected key-scheme, the generated address and your secret recovery phrase.
+
+:::tip Signature scheme selection
+
+If you are unsure which scheme to use just go with the default ed25519 scheme (option 0).
+
+:::
 
 ```bash
 Generated new keypair for address with scheme "ed25519" [0xb9c83a8b40d3263c9ba40d551514fbac1f8c12e98a4005a0dac072d3549c2442]
