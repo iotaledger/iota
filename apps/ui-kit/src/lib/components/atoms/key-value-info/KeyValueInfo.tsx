@@ -6,6 +6,7 @@ import cx from 'classnames';
 import { Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
 import { Tooltip, TooltipPosition } from '../tooltip';
+import { truncate } from 'fs';
 
 interface KeyValueProps {
     /**
@@ -36,6 +37,10 @@ interface KeyValueProps {
      * The size of the value (optional).
      */
     size?: ValueSize;
+    /**
+     * The flag to truncate the value text.
+     */
+    isTruncated?: boolean;
 }
 
 export function KeyValueInfo({
@@ -46,6 +51,7 @@ export function KeyValueInfo({
     supportingLabel,
     valueLink,
     size = ValueSize.Small,
+    isTruncated = false,
 }: KeyValueProps): React.JSX.Element {
     return (
         <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
@@ -57,13 +63,19 @@ export function KeyValueInfo({
                     </Tooltip>
                 )}
             </div>
-            <div className="flex w-full flex-row items-baseline justify-end gap-1">
+            <div
+                className={cx('flex w-full flex-row items-baseline justify-end gap-1', {
+                    truncate: isTruncated,
+                })}
+            >
                 {valueLink ? (
                     <a
                         href={valueLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-body-md text-primary-30 dark:text-primary-80"
+                        className={cx('text-body-md text-primary-30 dark:text-primary-80', {
+                            truncate: isTruncated,
+                        })}
                     >
                         {valueText}
                     </a>
@@ -73,6 +85,7 @@ export function KeyValueInfo({
                             className={cx(
                                 'text-neutral-10 dark:text-neutral-92',
                                 size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
+                                { truncate: isTruncated },
                             )}
                         >
                             {valueText}

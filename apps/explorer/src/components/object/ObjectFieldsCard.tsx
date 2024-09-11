@@ -153,6 +153,7 @@ export function ObjectFieldsCard({
                                     <KeyValueInfo
                                         keyText={name}
                                         valueText={getFieldTypeValue(type, objectType).displayName}
+                                        isTruncated
                                     />
                                 </ButtonUnstyled>
                             ))}
@@ -160,27 +161,29 @@ export function ObjectFieldsCard({
                     </div>
                 </Panel>
             </div>
-            <Panel hasBorder>
-                <div className="flex flex-col gap-md p-md--rs">
-                    {normalizedStructData?.fields.map(({ name, type }, index) => (
-                        <ScrollToViewCard key={name} inView={name === activeFieldName}>
-                            <FieldCollapsible
-                                open={openFieldsName[name]}
-                                onOpenChange={onSetOpenFieldsName(name)}
-                                name={name}
-                            >
-                                <div className="p-md--rs">
-                                    <FieldItem
-                                        value={fieldsData[name]}
-                                        objectType={objectType}
-                                        type={type}
-                                    />
-                                </div>
-                            </FieldCollapsible>
-                        </ScrollToViewCard>
-                    ))}
-                </div>
-            </Panel>
+            <div className="w-full md:w-2/3">
+                <Panel hasBorder>
+                    <div className="flex flex-col gap-md p-md--rs">
+                        {normalizedStructData?.fields.map(({ name, type }, index) => (
+                            <ScrollToViewCard key={name} inView={name === activeFieldName}>
+                                <FieldCollapsible
+                                    open={openFieldsName[name]}
+                                    onOpenChange={onSetOpenFieldsName(name)}
+                                    name={name}
+                                >
+                                    <div className="p-md--rs">
+                                        <FieldItem
+                                            value={fieldsData[name]}
+                                            objectType={objectType}
+                                            type={type}
+                                        />
+                                    </div>
+                                </FieldCollapsible>
+                            </ScrollToViewCard>
+                        ))}
+                    </div>
+                </Panel>
+            </div>
         </div>
     );
 }
