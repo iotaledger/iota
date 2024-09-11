@@ -3,14 +3,28 @@
 
 import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
-import { useNotifications, useNewStakeTransaction } from '@/hooks';
-import { parseAmount, useCoinMetadata, useGetValidatorsApy } from '@iota/core';
+import {
+    useNotifications,
+    useNewStakeTransaction,
+    useGetCurrentEpochStartTimestamp,
+} from '@/hooks';
+import {
+    GroupedTimelockObject,
+    parseAmount,
+    TIMELOCK_IOTA_TYPE,
+    useCoinMetadata,
+    useGetAllOwnedObjects,
+    useGetValidatorsApy,
+} from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
+import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 
 interface NewStakePopupProps {
     onClose: () => void;
+    isTimelockedStaking?: boolean;
+    onSuccess?: (digest: string) => void;
 }
 
 enum Step {
@@ -18,20 +32,40 @@ enum Step {
     EnterAmount,
 }
 
-function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
+function NewStakePopup({
+    onClose,
+    onSuccess,
+    isTimelockedStaking,
+}: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
     const account = useCurrentAccount();
+    const senderAddress = account?.address ?? '';
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = metadata?.decimals ?? 0;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
+    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
+
+    let groupedTimelockObjects: GroupedTimelockObject[] = [];
+    if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
+        groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+            timelockedObjects,
+            amountWithoutDecimals,
+            currentEpochMs,
+        );
+    }
 
     const { data: newStakeData } = useNewStakeTransaction(
         selectedValidator,
         amountWithoutDecimals,
-        account?.address ?? '',
+        senderAddress,
+        isTimelockedStaking,
+        groupedTimelockObjects,
     );
 
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
@@ -54,13 +88,26 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     }
 
     function handleStake(): void {
+        if (isTimelockedStaking && groupedTimelockObjects.length === 0) {
+            addNotification('Invalid stake amount. Please try again.', NotificationType.Error);
+            return;
+        }
         if (!newStakeData?.transaction) {
             addNotification('Stake transaction was not created', NotificationType.Error);
             return;
         }
-        signAndExecuteTransactionBlock({
-            transactionBlock: newStakeData?.transaction,
-        })
+        signAndExecuteTransactionBlock(
+            {
+                transactionBlock: newStakeData?.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    if (onSuccess) {
+                        onSuccess(tx.digest);
+                    }
+                },
+            },
+        )
             .then(() => {
                 onClose();
                 addNotification('Stake transaction has been sent');

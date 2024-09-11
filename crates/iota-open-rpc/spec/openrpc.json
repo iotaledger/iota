@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.1.6"
+    "version": "0.2.0"
   },
   "methods": [
     {
@@ -3260,6 +3260,32 @@
       ]
     },
     {
+      "name": "iotax_getAllEpochAddressMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "params": [
+        {
+          "name": "descending_order",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "Vec<AddressMetrics>",
+        "required": true,
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AddressMetrics"
+          }
+        }
+      }
+    },
+    {
       "name": "iotax_getBalance",
       "tags": [
         {
@@ -3315,6 +3341,32 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_getCheckpointAddressMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "params": [
+        {
+          "name": "checkpoint",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      ],
+      "result": {
+        "name": "AddressMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/AddressMetrics"
+        }
+      }
     },
     {
       "name": "iotax_getCoinMetadata",
@@ -3529,6 +3581,23 @@
       ]
     },
     {
+      "name": "iotax_getCurrentEpoch",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return current epoch info",
+      "params": [],
+      "result": {
+        "name": "EpochInfo",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/EpochInfo"
+        }
+      }
+    },
+    {
       "name": "iotax_getDynamicFieldObject",
       "tags": [
         {
@@ -3709,6 +3778,105 @@
       ]
     },
     {
+      "name": "iotax_getEpochMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return a list of epoch metrics, which is a subset of epoch info",
+      "params": [
+        {
+          "name": "cursor",
+          "description": "Optional paging cursor",
+          "schema": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        },
+        {
+          "name": "limit",
+          "description": "Maximum number of items per page",
+          "schema": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        {
+          "name": "descending_order",
+          "description": "Flag to return results in descending order",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "EpochMetricsPage",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Page_for_EpochMetrics_and_BigInt_for_uint64"
+        }
+      }
+    },
+    {
+      "name": "iotax_getEpochs",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return a list of epoch info",
+      "params": [
+        {
+          "name": "cursor",
+          "description": "Optional paging cursor",
+          "schema": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        },
+        {
+          "name": "limit",
+          "description": "Maximum number of items per page",
+          "schema": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        {
+          "name": "descending_order",
+          "description": "Flag to return results in descending order",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "EpochPage",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Page_for_EpochInfo_and_BigInt_for_uint64"
+        }
+      }
+    },
+    {
+      "name": "iotax_getLatestAddressMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Address related metrics",
+      "params": [],
+      "result": {
+        "name": "AddressMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/AddressMetrics"
+        }
+      }
+    },
+    {
       "name": "iotax_getLatestIotaSystemState",
       "tags": [
         {
@@ -3734,6 +3902,40 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_getMoveCallMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return move call metrics",
+      "params": [],
+      "result": {
+        "name": "MoveCallMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/MoveCallMetrics"
+        }
+      }
+    },
+    {
+      "name": "iotax_getNetworkMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return Network metrics",
+      "params": [],
+      "result": {
+        "name": "NetworkMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/NetworkMetrics"
+        }
+      }
     },
     {
       "name": "iotax_getOwnedObjects",
@@ -4153,6 +4355,22 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_getTotalTransactions",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "params": [],
+      "result": {
+        "name": "BigInt<u64>",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/BigInt_for_uint64"
+        }
+      }
     },
     {
       "name": "iotax_getValidatorsApy",
@@ -5423,6 +5641,56 @@
   ],
   "components": {
     "schemas": {
+      "AddressMetrics": {
+        "description": "Provides metrics about the addresses.",
+        "type": "object",
+        "required": [
+          "checkpoint",
+          "cumulativeActiveAddresses",
+          "cumulativeAddresses",
+          "dailyActiveAddresses",
+          "epoch",
+          "timestampMs"
+        ],
+        "properties": {
+          "checkpoint": {
+            "description": "The checkpoint sequence number at which the metrics were computed.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "cumulativeActiveAddresses": {
+            "description": "The count of sender addresses.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "cumulativeAddresses": {
+            "description": "The count of sender and recipient addresses.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "dailyActiveAddresses": {
+            "description": "The count of daily unique sender addresses.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "epoch": {
+            "description": "The epoch to which the checkpoint is assigned.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "timestampMs": {
+            "description": "The checkpoint timestamp.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
       "AuthorityPublicKeyBytes": {
         "description": "Defines the compressed version of the public key that we pass around in Iota",
         "allOf": [
@@ -5489,6 +5757,9 @@
       },
       "Base64": {
         "description": "Base64 encoding",
+        "type": "string"
+      },
+      "BigInt_for_uint": {
         "type": "string"
       },
       "BigInt_for_uint128": {
@@ -6203,6 +6474,192 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/ProtocolVersion"
+              }
+            ]
+          }
+        }
+      },
+      "EndOfEpochInfo": {
+        "type": "object",
+        "required": [
+          "burntTokensAmount",
+          "epochEndTimestamp",
+          "lastCheckpointId",
+          "mintedTokensAmount",
+          "protocolVersion",
+          "referenceGasPrice",
+          "storageCharge",
+          "storageFundBalance",
+          "storageRebate",
+          "totalGasFees",
+          "totalStake",
+          "totalStakeRewardsDistributed"
+        ],
+        "properties": {
+          "burntTokensAmount": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epochEndTimestamp": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "lastCheckpointId": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "mintedTokensAmount": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "protocolVersion": {
+            "description": "existing fields from `SystemEpochInfoEvent` (without epoch)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "referenceGasPrice": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storageCharge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storageFundBalance": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storageRebate": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "totalGasFees": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "totalStake": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "totalStakeRewardsDistributed": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        }
+      },
+      "EpochInfo": {
+        "type": "object",
+        "required": [
+          "epoch",
+          "epochStartTimestamp",
+          "epochTotalTransactions",
+          "firstCheckpointId",
+          "validators"
+        ],
+        "properties": {
+          "endOfEpochInfo": {
+            "description": "The end of epoch information.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndOfEpochInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "epoch": {
+            "description": "Epoch number",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochStartTimestamp": {
+            "description": "The timestamp when the epoch started.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochTotalTransactions": {
+            "description": "Count of tx in epoch",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "firstCheckpointId": {
+            "description": "First, last checkpoint sequence numbers",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "referenceGasPrice": {
+            "description": "The reference gas price for the given epoch.",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "validators": {
+            "description": "List of validators included in epoch",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaValidatorSummary"
+            }
+          }
+        }
+      },
+      "EpochMetrics": {
+        "description": "A light-weight version of `EpochInfo` for faster loading",
+        "type": "object",
+        "required": [
+          "epoch",
+          "epochStartTimestamp",
+          "epochTotalTransactions",
+          "firstCheckpointId"
+        ],
+        "properties": {
+          "endOfEpochInfo": {
+            "description": "The end of epoch information.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndOfEpochInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "epoch": {
+            "description": "The current epoch ID.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochStartTimestamp": {
+            "description": "The timestamp when the epoch started.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochTotalTransactions": {
+            "description": "The total number of transactions in the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "firstCheckpointId": {
+            "description": "The first checkpoint ID of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
               }
             ]
           }
@@ -8524,6 +8981,67 @@
           }
         }
       },
+      "MoveCallMetrics": {
+        "type": "object",
+        "required": [
+          "rank30Days",
+          "rank3Days",
+          "rank7Days"
+        ],
+        "properties": {
+          "rank30Days": {
+            "description": "The count of calls of each function in the last 30 days.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/MoveFunctionName"
+                },
+                {
+                  "$ref": "#/components/schemas/BigInt_for_uint"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          },
+          "rank3Days": {
+            "description": "The count of calls of each function in the last 3 days.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/MoveFunctionName"
+                },
+                {
+                  "$ref": "#/components/schemas/BigInt_for_uint"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          },
+          "rank7Days": {
+            "description": "The count of calls of each function in the last 7 days.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/MoveFunctionName"
+                },
+                {
+                  "$ref": "#/components/schemas/BigInt_for_uint"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          }
+        }
+      },
       "MoveCallParams": {
         "type": "object",
         "required": [
@@ -8578,6 +9096,33 @@
             "additionalProperties": false
           }
         ]
+      },
+      "MoveFunctionName": {
+        "description": "Identifies a Move function.",
+        "type": "object",
+        "required": [
+          "function",
+          "module",
+          "package"
+        ],
+        "properties": {
+          "function": {
+            "description": "The function name.",
+            "type": "string"
+          },
+          "module": {
+            "description": "The module name to which the function belongs.",
+            "type": "string"
+          },
+          "package": {
+            "description": "The package ID to which the function belongs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          }
+        }
       },
       "MoveStruct": {
         "anyOf": [
@@ -8794,6 +9339,70 @@
             "type": "integer",
             "format": "uint16",
             "minimum": 0.0
+          }
+        }
+      },
+      "NetworkMetrics": {
+        "type": "object",
+        "required": [
+          "currentCheckpoint",
+          "currentEpoch",
+          "currentTps",
+          "totalAddresses",
+          "totalObjects",
+          "totalPackages",
+          "tps30Days"
+        ],
+        "properties": {
+          "currentCheckpoint": {
+            "description": "Current checkpoint number",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "currentEpoch": {
+            "description": "Current epoch number",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "currentTps": {
+            "description": "Current TPS - Transaction Blocks per Second.",
+            "type": "number",
+            "format": "double"
+          },
+          "totalAddresses": {
+            "description": "Total number of addresses seen in the network",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "totalObjects": {
+            "description": "Total number of live objects in the network",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "totalPackages": {
+            "description": "Total number of packages published in the network",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "tps30Days": {
+            "description": "Peak TPS in the past 30 days",
+            "type": "number",
+            "format": "double"
           }
         }
       },
@@ -9628,6 +10237,64 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Page_for_EpochInfo_and_BigInt_for_uint64": {
+        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
+        "type": "object",
+        "required": [
+          "data",
+          "hasNextPage"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EpochInfo"
+            }
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Page_for_EpochMetrics_and_BigInt_for_uint64": {
+        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
+        "type": "object",
+        "required": [
+          "data",
+          "hasNextPage"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EpochMetrics"
+            }
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
               },
               {
                 "type": "null"

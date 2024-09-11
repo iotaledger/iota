@@ -2,17 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Select } from '@iota/apps-ui-kit';
-import { ArrowRight } from '@iota/ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo, useState } from 'react';
-import {
-    Link,
-    Pagination,
-    PlaceholderTable,
-    TableCard,
-    useCursorPagination,
-} from '~/components/ui';
+import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { generateTableDataFromCheckpointsData } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
@@ -68,53 +61,34 @@ export function CheckpointsTable({
                     colHeadings={['Digest', 'Sequence Number', 'Time', 'Transaction Count']}
                 />
             ) : (
-                <div>
-                    <TableCard data={cardData.data} columns={cardData.columns} />
-                </div>
+                <TableCard
+                    data={cardData.data}
+                    columns={cardData.columns}
+                    totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
+                    viewAll={!disablePagination ? '/recent?tab=checkpoints' : undefined}
+                    paginationOptions={
+                        !disablePagination
+                            ? {
+                                  ...pagination,
+                                  hasNext: maxCursor
+                                      ? Number(data && data.nextCursor) > Number(maxCursor)
+                                      : pagination.hasNext,
+                              }
+                            : undefined
+                    }
+                />
             )}
-
             <div className="flex justify-between">
-                {!disablePagination ? (
-                    <Pagination
-                        {...pagination}
-                        hasNext={
-                            maxCursor
-                                ? Number(data && data.nextCursor) > Number(maxCursor)
-                                : pagination.hasNext
-                        }
-                    />
-                ) : (
-                    <Link
-                        to="/recent?tab=checkpoints"
-                        after={<ArrowRight className="h-3 w-3 -rotate-45" />}
-                    >
-                        View all
-                    </Link>
-                )}
-
-                <div className="flex items-center gap-md">
-                    <div className="whitespace-nowrap text-label-md text-neutral-40">
-                        {count ? numberSuffix(Number(count)) : '-'}
-                        {` Total`}
-                    </div>
+                <div className="flex items-center space-x-3">
                     {!disablePagination && (
                         <div className="[&_button]:px-2 [&_button]:py-1">
                             <Select
+                                value={limit.toString()}
                                 options={[
-                                    {
-                                        id: '20',
-                                        label: '20 Per Page',
-                                    },
-                                    {
-                                        id: '40',
-                                        label: '40 Per Page',
-                                    },
-                                    {
-                                        id: '60',
-                                        label: '60 Per Page',
-                                    },
+                                    { id: '20', label: '20 Per Page' },
+                                    { id: '40', label: '40 Per Page' },
+                                    { id: '60', label: '60 Per Page' },
                                 ]}
-                                value={String(limit)}
                                 onValueChange={(e) => {
                                     setLimit(Number(e));
                                     pagination.onFirst();

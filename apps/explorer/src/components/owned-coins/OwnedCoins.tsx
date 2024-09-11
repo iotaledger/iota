@@ -116,7 +116,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                 </div>
             ) : (
                 <div className="relative flex h-full flex-col gap-4 overflow-auto text-left">
-                    <div className="max-sm:pb-3 max-sm:pt-5 flex min-h-14 w-full flex-col justify-between gap-y-3 border-b border-gray-45 sm:flex-row sm:items-center">
+                    <div className="flex min-h-14 w-full flex-col justify-between gap-y-3 border-b border-gray-45 max-sm:pb-3 max-sm:pt-5 sm:flex-row sm:items-center">
                         <Heading color="steel-darker" variant="heading4/semibold">
                             {coinBalanceHeader}
                         </Heading>
@@ -185,6 +185,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             {displayedBalances.length > limit && (
                                 <div className="flex flex-col justify-between gap-2 md:flex-row">
                                     <Pagination
+                                        hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
                                         hasNext={
                                             currentSlice !==

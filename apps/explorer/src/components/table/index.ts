@@ -2,5 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './HighlightedTableCol';
-export * from './IotaAmount';
 export * from './TableFooter';
