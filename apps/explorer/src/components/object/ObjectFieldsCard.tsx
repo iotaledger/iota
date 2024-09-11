@@ -112,7 +112,7 @@ export function ObjectFieldsCard({
 
     return (
         <div className="flex flex-col gap-md md:flex-row">
-            <div className="w-full md:w-1/4">
+            <div className="w-full md:w-1/3">
                 <Panel hasBorder>
                     <div className="flex flex-col gap-md p-xs">
                         {renderSearchBar && (
@@ -161,14 +161,13 @@ export function ObjectFieldsCard({
                 </Panel>
             </div>
             <Panel hasBorder>
-                <div className="flex flex-col gap-xxs">
+                <div className="flex flex-col gap-md p-md--rs">
                     {normalizedStructData?.fields.map(({ name, type }, index) => (
                         <ScrollToViewCard key={name} inView={name === activeFieldName}>
                             <FieldCollapsible
                                 open={openFieldsName[name]}
                                 onOpenChange={onSetOpenFieldsName(name)}
                                 name={name}
-                                hideBorder
                             >
                                 <div className="p-md--rs">
                                     <FieldItem

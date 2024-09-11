@@ -24,7 +24,6 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
         <FieldCollapsible
             open={open}
             onOpenChange={onOpenChange}
-            hideBorder
             render={({ isOpen }) => (
                 <div className="flex items-center gap-xs truncate break-words pl-md--rs text-body-md text-neutral-40">
                     <div className="block w-full truncate break-words">
@@ -73,23 +72,25 @@ export function DynamicFieldsCard({ id }: { id: string }) {
     }
 
     return (
-        <div className="flex flex-col gap-md md:flex-row">
+        <div className="flex flex-col gap-md">
             <Panel hasBorder>
-                {flattenedData?.map((result, index) => (
-                    <DynamicFieldRow
-                        key={result.objectId}
-                        defaultOpen={index === 0}
-                        id={id}
-                        result={result}
-                    />
-                ))}
+                <div className="flex flex-col gap-md p-md--rs">
+                    {flattenedData?.map((result, index) => (
+                        <DynamicFieldRow
+                            key={result.objectId}
+                            defaultOpen={index === 0}
+                            id={id}
+                            result={result}
+                        />
+                    ))}
 
-                <div ref={observerElem}>
-                    {isSpinnerVisible ? (
-                        <div className="mt-1 flex w-full justify-center">
-                            <LoadingIndicator text="Loading data" />
-                        </div>
-                    ) : null}
+                    <div ref={observerElem}>
+                        {isSpinnerVisible ? (
+                            <div className="mt-1 flex w-full justify-center">
+                                <LoadingIndicator text="Loading data" />
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             </Panel>
         </div>
