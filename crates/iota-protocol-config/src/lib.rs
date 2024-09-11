@@ -1051,13 +1051,6 @@ pub struct ProtocolConfig {
     debug_print_base_cost: Option<u64>,
     debug_print_stack_trace_base_cost: Option<u64>,
 
-    // ==== Ephemeral (consensus only) params deleted ====
-    //
-    // Const params for consensus scoring decision
-    // The scaling factor property for the MED outlier detection
-    // scoring_decision_mad_divisor: Option<f64>,
-    // The cutoff value for the MED outlier detection
-    // scoring_decision_cutoff_value: Option<f64>,
     /// === Execution Version ===
     execution_version: Option<u64>,
 
@@ -1928,11 +1921,6 @@ impl ProtocolConfig {
             // max size of written objects during a system TXn to allow for larger writes
             // akin to `max_size_written_objects` but for system TXns
             max_size_written_objects_system_tx: Some(50 * 1000 * 1000),
-
-            // ==== Ephemeral (consensus only) params deleted ====
-            // Const params for consensus scoring decision
-            // scoring_decision_mad_divisor: Some(2.3),
-            // scoring_decision_cutoff_value: Some(2.5),
 
             // Limits the length of a Move identifier
             max_move_identifier_len: Some(128),
