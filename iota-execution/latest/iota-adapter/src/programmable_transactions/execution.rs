@@ -69,6 +69,13 @@ mod checked {
         programmable_transactions::context::*,
     };
 
+    /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
+    /// applying a series of commands to the transaction's context. The
+    /// function initializes the execution context, processes each command
+    /// in sequence, and handles errors by recording any loaded runtime objects
+    /// before exiting. After successful command execution, it applies the
+    /// resulting changes, saving the loaded runtime objects and wrapped
+    /// object containers for later use.
     pub fn execute<Mode: ExecutionMode>(
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
@@ -406,6 +413,11 @@ mod checked {
         res
     }
 
+    /// Writes back the results of an execution, updating mutable references and
+    /// processing return values. This function iterates through mutable
+    /// reference values and their corresponding kinds, restoring them to
+    /// the execution context. It also processes return values for non-entry
+    /// Move calls by converting them into `Value` types.
     fn write_back_results<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
@@ -436,6 +448,12 @@ mod checked {
             .collect()
     }
 
+    /// Constructs a `Value` from the given `ValueKind` and byte data. Depending
+    /// on the kind, it either creates an `Object` or `Raw` value. For
+    /// `Object` types, it uses the execution context to generate an
+    /// `ObjectValue`, considering whether the object was used in a non-entry
+    /// Move call. For `Raw` types, it wraps the raw bytes with type and ability
+    /// information.
     fn make_value(
         context: &mut ExecutionContext<'_, '_, '_>,
         value_info: ValueKind,
@@ -641,6 +659,11 @@ mod checked {
         )])
     }
 
+    /// Checks the compatibility between an existing Move package and the new
+    /// upgrading modules based on the specified upgrade policy. The
+    /// function first validates the upgrade policy, then normalizes the
+    /// existing and new modules to compare them. For each module, it verifies
+    /// compatibility according to the policy.
     fn check_compatibility<'a>(
         context: &ExecutionContext,
         existing_package: &MovePackage,
@@ -678,6 +701,11 @@ mod checked {
         Ok(())
     }
 
+    /// Verifies the compatibility of two normalized Move modules based on the
+    /// specified upgrade policy. Depending on the policy, it checks if the
+    /// new module is a subset, equal, or compatible with the
+    /// current module. The compatibility check may include aspects like struct
+    /// layout, public function linking, and struct type parameters.
     fn check_module_compatibility(
         policy: &UpgradePolicy,
         cur_module: &normalized::Module,
@@ -709,6 +737,10 @@ mod checked {
         })
     }
 
+    /// Retrieves a `PackageObject` from the storage based on the provided
+    /// `package_id`. It ensures that exactly one package is fetched,
+    /// returning an invariant violation if the number of fetched packages
+    /// does not match the expected count.
     fn fetch_package(
         context: &ExecutionContext<'_, '_, '_>,
         package_id: &ObjectID,
@@ -726,6 +758,9 @@ mod checked {
         }
     }
 
+    /// Fetches a list of `PackageObject` instances based on the provided
+    /// package IDs from the execution context. It collects the package IDs
+    /// and attempts to retrieve the corresponding packages from the state view.
     fn fetch_packages<'ctx, 'vm, 'state, 'a>(
         context: &'ctx ExecutionContext<'vm, 'state, 'a>,
         package_ids: impl IntoIterator<Item = &'ctx ObjectID>,
@@ -759,6 +794,11 @@ mod checked {
     /// ************************************************************************
     /// **** *******************
 
+    /// Executes a Move function within the given module by invoking the Move
+    /// VM, passing the specified type arguments and serialized arguments.
+    /// Depending on the `TxContextKind`, the transaction context
+    /// is appended to the arguments. The function handles mutable updates to
+    /// the transaction context when objects are created during execution.
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
@@ -804,6 +844,10 @@ mod checked {
         Ok(result)
     }
 
+    /// Deserializes a list of binary-encoded Move modules into `CompiledModule`
+    /// instances using the protocol's binary configuration. The function
+    /// ensures that the module list is not empty and converts any
+    /// deserialization errors into an `ExecutionError`.
     #[allow(clippy::extra_unused_type_parameters)]
     fn deserialize_modules<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -827,6 +871,11 @@ mod checked {
         Ok(modules)
     }
 
+    /// Publishes a set of `CompiledModule` instances to the blockchain under
+    /// the specified package ID and verifies them using the Iota bytecode
+    /// verifier. The modules are serialized and published via the VM,
+    /// and the Iota verifier runs additional checks after the Move bytecode
+    /// verifier has passed.
     fn publish_and_verify_modules(
         context: &mut ExecutionContext<'_, '_, '_>,
         package_id: ObjectID,
@@ -859,6 +908,11 @@ mod checked {
         Ok(())
     }
 
+    /// Initializes the provided `CompiledModule` instances by searching for and
+    /// executing any functions named `INIT_FN_NAME`. For each module
+    /// containing an initialization function, the function is invoked
+    /// without arguments, and the result is checked to ensure no return values
+    /// are present.
     fn init_modules<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
@@ -1132,6 +1186,10 @@ mod checked {
             .collect()
     }
 
+    /// Verifies that certain private functions in the Iota framework are not
+    /// directly invoked. This function checks if the module and function
+    /// being called belong to restricted areas, such as the `iota::event`
+    /// or `iota::transfer` modules.
     fn check_private_generics(
         _context: &mut ExecutionContext,
         module_id: &ModuleId,

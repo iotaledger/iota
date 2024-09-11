@@ -65,6 +65,12 @@ mod checked {
         type_layout_resolver::TypeLayoutResolver,
     };
 
+    /// Executes a transaction and generates its resulting effects, including
+    /// gas usage, transaction effects, and execution results. The function
+    /// processes input objects, manages gas, and handles transaction
+    /// execution based on the provided `TransactionKind`. It checks for any
+    /// expensive operations, manages shared object references, and ensures
+    /// transaction dependencies are met.
     #[instrument(name = "tx_execute_to_effects", level = "debug", skip_all)]
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
@@ -219,6 +225,12 @@ mod checked {
         )
     }
 
+    /// Executes a state update during the genesis phase, applying the provided
+    /// `ProgrammableTransaction` to update the genesis state. The function
+    /// creates an `InnerTemporaryStore`, processes the input objects,
+    /// and executes the transaction in unmetered mode using the `Genesis`
+    /// execution mode. After execution, it updates the object versions and
+    /// previous transaction references.
     pub fn execute_genesis_state_update(
         store: &dyn BackingStore,
         protocol_config: &ProtocolConfig,
@@ -250,6 +262,13 @@ mod checked {
         Ok(temporary_store.into_inner())
     }
 
+    /// Executes a transaction by processing the specified `TransactionKind` and
+    /// applying the necessary gas charges, object reads, and execution
+    /// loops. The function manages gas costs through the `GasCharger`,
+    /// handles specific checks for denied certificates and deleted input
+    /// objects, and performs conservation checks. It also accounts for
+    /// unmetered storage rebates and adjusts for special cases like epoch
+    /// change transactions.
     #[instrument(name = "tx_execute", level = "debug", skip_all)]
     fn execute_transaction<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
@@ -360,6 +379,14 @@ mod checked {
         (cost_summary, result)
     }
 
+    /// Performs IOTA conservation checks during transaction execution, ensuring
+    /// that the transaction does not create or destroy IOTA. If
+    /// conservation is violated, the function attempts to recover
+    /// by resetting the gas charger, recharging gas, and rechecking
+    /// conservation. If recovery fails, it panics to avoid IOTA creation or
+    /// destruction. These checks include both simple and expensive
+    /// checks based on the configuration and are skipped for genesis or epoch
+    /// change transactions.
     #[instrument(name = "run_conservation_checks", level = "debug", skip_all)]
     fn run_conservation_checks<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
@@ -439,6 +466,10 @@ mod checked {
         result
     }
 
+    /// Checks if the estimated size of transaction effects exceeds predefined
+    /// limits based on the protocol configuration. For metered
+    /// transactions, it enforces hard limits, while for system transactions, it
+    /// allows soft limits with warnings.
     #[instrument(name = "check_meter_limit", level = "debug", skip_all)]
     fn check_meter_limit(
         temporary_store: &mut TemporaryStore<'_>,
@@ -478,6 +509,10 @@ mod checked {
         }
     }
 
+    /// Checks if the total size of written objects in the transaction exceeds
+    /// the limits defined in the protocol configuration. For metered
+    /// transactions, it enforces a hard limit, while for system transactions,
+    /// it allows a soft limit with warnings.
     #[instrument(name = "check_written_objects_limit", level = "debug", skip_all)]
     fn check_written_objects_limit<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
@@ -521,6 +556,12 @@ mod checked {
         Ok(())
     }
 
+    /// Executes the given transaction based on its `TransactionKind` by
+    /// processing it through various handlers such as epoch changes,
+    /// genesis transactions, consensus commit prologues, and programmable
+    /// transactions. For each type of transaction, the corresponding logic is
+    /// invoked, such as advancing the epoch, setting up consensus commits, or
+    /// executing a programmable transaction.
     #[instrument(level = "debug", skip_all)]
     fn execution_loop<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
@@ -684,6 +725,11 @@ mod checked {
         Ok(result)
     }
 
+    /// Mints epoch rewards by creating both storage and computation rewards
+    /// using a `ProgrammableTransactionBuilder`. The function takes in the
+    /// `AdvanceEpochParams`, serializes the storage and computation
+    /// charges, and invokes the reward creation function within the Iota
+    /// framework.
     fn mint_epoch_rewards_in_pt(
         builder: &mut ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
@@ -718,6 +764,13 @@ mod checked {
         (storage_charges, computation_rewards)
     }
 
+    /// Constructs a `ProgrammableTransaction` to advance the epoch. It creates
+    /// storage charges and computation rewards by invoking
+    /// `mint_epoch_rewards_in_pt`, advances the epoch by setting up the
+    /// necessary arguments, such as epoch number, protocol version, storage
+    /// rebate, and slashing rate, and executing the `advance_epoch` function
+    /// within the Iota system. Then, it destroys the storage rebates to
+    /// complete the transaction.
     pub fn construct_advance_epoch_pt(
         mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
@@ -774,6 +827,8 @@ mod checked {
         Ok(builder.finish())
     }
 
+    /// Constructs a `ProgrammableTransaction` to advance the epoch in safe
+    /// mode.
     pub fn construct_advance_epoch_safe_mode_pt(
         params: &AdvanceEpochParams,
         protocol_config: &ProtocolConfig,
@@ -824,6 +879,13 @@ mod checked {
         Ok(builder.finish())
     }
 
+    /// Executes the process of advancing the epoch by constructing and
+    /// executing an epoch advancement `ProgrammableTransaction`. If the
+    /// transaction fails, it switches to safe mode and retries the
+    /// epoch advancement in a more controlled environment. The function also
+    /// handles the publication and upgrade of system packages for the new
+    /// epoch. If any system package is added or upgraded, it ensures the
+    /// proper execution and storage of the changes.
     fn advance_epoch(
         builder: ProgrammableTransactionBuilder,
         change_epoch: ChangeEpoch,
@@ -987,6 +1049,10 @@ mod checked {
         )
     }
 
+    /// Sets up a `ProgrammableTransactionBuilder` to create a new authenticator
+    /// state. This function adds a Move call to the Iota framework's
+    /// `authenticator_state_create` function, preparing the transaction for
+    /// execution.
     fn setup_authenticator_state_create(
         mut builder: ProgrammableTransactionBuilder,
     ) -> ProgrammableTransactionBuilder {
@@ -1002,6 +1068,8 @@ mod checked {
         builder
     }
 
+    /// Configures a `ProgrammableTransactionBuilder` to create a new randomness
+    /// state.
     fn setup_randomness_state_create(
         mut builder: ProgrammableTransactionBuilder,
     ) -> ProgrammableTransactionBuilder {
@@ -1017,6 +1085,12 @@ mod checked {
         builder
     }
 
+    /// Sets up and executes a `ProgrammableTransaction` to update the
+    /// authenticator state. This function constructs a transaction that
+    /// invokes the `authenticator_state_update` function from the Iota
+    /// framework, passing the authenticator state object and new active JWKS as
+    /// arguments. It then executes the transaction using the system
+    /// execution mode.
     fn setup_authenticator_state_update(
         update: AuthenticatorStateUpdate,
         temporary_store: &mut TemporaryStore<'_>,
@@ -1059,6 +1133,10 @@ mod checked {
         )
     }
 
+    /// Configures a `ProgrammableTransactionBuilder` to expire authenticator
+    /// state by invoking the `authenticator_state_expire_jwks` function
+    /// from the Iota framework. The function adds the necessary Move call
+    /// with the authenticator state object and the minimum epoch as arguments.
     fn setup_authenticator_state_expire(
         mut builder: ProgrammableTransactionBuilder,
         expire: AuthenticatorStateExpire,
@@ -1082,6 +1160,12 @@ mod checked {
         builder
     }
 
+    /// Sets up and executes a `ProgrammableTransaction` to update the
+    /// randomness state. The function constructs a transaction that invokes
+    /// the `randomness_state_update` function from the Iota framework,
+    /// passing the randomness state object, the randomness round,
+    /// and the random bytes as arguments. It then executes the transaction
+    /// using the system execution mode.
     fn setup_randomness_state_update(
         update: RandomnessStateUpdate,
         temporary_store: &mut TemporaryStore<'_>,
@@ -1125,6 +1209,10 @@ mod checked {
         )
     }
 
+    /// Configures a `ProgrammableTransactionBuilder` to create a coin deny list
+    /// state by invoking the `deny_list_create` function from the Iota
+    /// framework. This function adds the necessary Move call and prepares
+    /// the transaction for execution.
     fn setup_coin_deny_list_state_create(
         mut builder: ProgrammableTransactionBuilder,
     ) -> ProgrammableTransactionBuilder {

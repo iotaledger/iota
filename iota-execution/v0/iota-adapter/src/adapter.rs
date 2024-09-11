@@ -36,6 +36,12 @@ mod checked {
     };
     use tracing::instrument;
 
+    /// Creates a new instance of `MoveVM` with the specified native functions
+    /// and protocol configuration. The VM is configured using a `VMConfig`
+    /// that sets limits for vector length, value depth, and other
+    /// runtime options based on the provided `ProtocolConfig`. If gas profiling
+    /// is enabled, the function configures the profiler with the provided
+    /// path.
     pub fn new_move_vm(
         natives: NativeFunctionTable,
         protocol_config: &ProtocolConfig,
@@ -75,6 +81,10 @@ mod checked {
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
+    /// Creates a new set of `NativeContextExtensions` for the Move VM,
+    /// configuring extensions such as `ObjectRuntime` and
+    /// `NativesCostTable`. These extensions manage object resolution, input
+    /// objects, metering, protocol configuration, and metrics tracking.
     pub fn new_native_extensions<'r>(
         child_resolver: &'r dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
@@ -131,6 +141,7 @@ mod checked {
         Ok(())
     }
 
+    /// Returns an error message for a missing unwrapped object.
     pub fn missing_unwrapped_msg(id: &ObjectID) -> String {
         format!(
             "Unable to unwrap object {}. Was unable to retrieve last known version in the parent sync",

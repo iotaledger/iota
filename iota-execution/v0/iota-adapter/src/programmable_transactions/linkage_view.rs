@@ -57,6 +57,10 @@ pub struct LinkageInfo {
 pub struct SavedLinkage(LinkageInfo);
 
 impl<'state> LinkageView<'state> {
+    /// Creates a new `LinkageView` instance with the provided `IotaResolver`.
+    /// This instance is responsible for resolving and linking types across
+    /// different contexts. It initializes internal caches for type origins
+    /// and past contexts.
     pub fn new(resolver: Box<dyn IotaResolver + 'state>) -> Self {
         Self {
             resolver,
@@ -66,6 +70,7 @@ impl<'state> LinkageView<'state> {
         }
     }
 
+    /// Reset the `LinkageInfo`.
     pub fn reset_linkage(&mut self) {
         self.linkage_info = None;
     }
@@ -150,10 +155,16 @@ impl<'state> LinkageView<'state> {
         Ok(runtime_id)
     }
 
+    /// Retrieves the original package ID (as an `AccountAddress`) from the
+    /// linkage information, if available.
     pub fn original_package_id(&self) -> Option<AccountAddress> {
         Some(self.linkage_info.as_ref()?.runtime_id)
     }
 
+    /// Retrieves the cached type origin for the given `ModuleId` and struct
+    /// identifier (`IdentStr`). This method uses the internal
+    /// `type_origin_cache` to provide fast lookups for previously resolved
+    /// types.
     fn get_cached_type_origin(
         &self,
         runtime_id: &ModuleId,
@@ -166,6 +177,8 @@ impl<'state> LinkageView<'state> {
             .cloned()
     }
 
+    /// Adds a type origin to the cache, associating the given `ModuleId` and
+    /// struct identifier (`Identifier`) with the provided defining `ObjectID`.
     fn add_type_origin(
         &self,
         runtime_id: ModuleId,
@@ -196,12 +209,14 @@ impl<'state> LinkageView<'state> {
         Ok(())
     }
 
+    /// Retrieves the current link context's storage ID as an `AccountAddress`.
     pub(crate) fn link_context(&self) -> AccountAddress {
         self.linkage_info
             .as_ref()
             .map_or(AccountAddress::ZERO, |l| l.storage_id)
     }
 
+    /// Relocates a given `ModuleId` based on the current linkage context.
     pub(crate) fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, IotaError> {
         let Some(linkage) = &self.linkage_info else {
             invariant_violation!("No linkage context set while relocating {module_id}.")
@@ -232,6 +247,12 @@ impl<'state> LinkageView<'state> {
         ))
     }
 
+    /// Determines the defining module for a given struct within a `ModuleId`.
+    /// The function first checks the cached type origin and returns the
+    /// corresponding `ModuleId` if found. If not, it relocates the
+    /// module and queries the type origin table from the associated package. If
+    /// the defining module is found, it caches the result and returns the
+    /// `ModuleId`.
     pub(crate) fn defining_module(
         &self,
         runtime_id: &ModuleId,
