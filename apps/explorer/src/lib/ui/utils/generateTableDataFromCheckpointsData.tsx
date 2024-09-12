@@ -9,6 +9,7 @@ import { checkpointSequenceToLink, checkpointToLink } from '~/components';
 interface CheckpointData {
     digest: TableCellProps;
     time: TableCellProps;
+    transactions: TableCellProps;
     sequenceNumber: TableCellProps;
     transactionBlockCount: TableCellProps;
 }
@@ -34,6 +35,10 @@ export function generateTableDataFromCheckpointsData(results: CheckpointPage): C
                     to: checkpointToLink({ digest: checkpoint.digest }),
                 },
                 time: { type: TableCellType.Text, label: checkpoint.timestampMs },
+                transactions: {
+                    type: TableCellType.Text,
+                    label: checkpoint.networkTotalTransactions,
+                },
                 sequenceNumber: {
                     type: TableCellType.Link,
                     label: checkpoint.sequenceNumber,
@@ -52,6 +57,10 @@ export function generateTableDataFromCheckpointsData(results: CheckpointPage): C
             {
                 header: 'Sequence Number',
                 accessorKey: 'sequenceNumber',
+            },
+            {
+                header: 'Transactions',
+                accessorKey: 'transactions',
             },
             {
                 header: 'Time',
