@@ -2,22 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@iota/icons';
-import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
-import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
+import { SplitPanes, useSearchParamsMerged, VerticalList } from '~/components/ui';
 import {
+    ButtonSegment,
+    ButtonSegmentType,
     ListItem,
-    SplitPanes,
-    TabHeader,
-    useSearchParamsMerged,
-    VerticalList,
-} from '~/components/ui';
+    Search,
+    SegmentedButton,
+    SegmentedButtonType,
+    type Suggestion,
+} from '@iota/apps-ui-kit';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { ModuleFunctionsInteraction } from './module-functions-interaction';
 import { ModuleCodeTabs } from './ModuleCodeTabs';
+import { TabbedContentWrapper, ListTabContent } from './TabbedContentWrapper';
+import { TabsProvider, type TabItem } from '../tabs';
 
 type ModuleType = [moduleName: string, code: string];
 
@@ -54,8 +56,8 @@ export function PkgModulesWrapper({
 
     const moduleNames = modules.map(([name]) => name);
     const filteredModules = query
-        ? moduleNames.filter(([name]) => name.toLowerCase().includes(query.toLowerCase()))
-        : moduleNames;
+        ? moduleNames.filter((name) => name.toLowerCase().includes(query.toLowerCase()))
+        : [];
 
     const submitSearch = useCallback(() => {
         if (filteredModules.length === 1) {
@@ -91,72 +93,119 @@ export function PkgModulesWrapper({
         },
         {
             panel: (
-                <div className="h-full grow overflow-auto border-gray-45 pt-5 md:pl-7">
-                    <TabHeader size="md" title="Execute">
-                        <div className={clsx('overflow-auto', { 'h-verticalListLong': isCompact })}>
-                            <ModuleFunctionsInteraction
-                                // force recreating everything when we change modules
-                                key={`${id}-${selectedModuleName}`}
-                                packageId={id}
-                                moduleName={selectedModuleName}
-                            />
-                        </div>
-                    </TabHeader>
-                </div>
+                <ExecutePanelContent
+                    packageId={id}
+                    moduleName={selectedModuleName}
+                    isCompact={isCompact}
+                />
             ),
             defaultSize: 60,
         },
     ];
 
-    return (
-        <div className="flex flex-col gap-5 border-b border-gray-45 md:flex-row md:flex-nowrap">
-            <div className="w-full md:w-1/5">
-                <Combobox value={query} onValueChange={setQuery}>
-                    <div className="mt-2.5 flex w-full justify-between rounded-md border border-gray-50 py-1 pl-3 placeholder-gray-65 shadow-sm">
-                        <ComboboxInput placeholder="Search" className="w-full border-none" />
-                        <button
-                            onClick={submitSearch}
-                            className="border-none bg-inherit pr-2"
-                            type="submit"
-                        >
-                            <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
-                        </button>
-                    </div>
+    const searchSuggestions: Suggestion[] = filteredModules.map((item) => ({
+        id: item,
+        label: item,
+    }));
 
-                    <ComboboxList
-                        showResultsCount
-                        options={filteredModules.map((item) => ({
-                            item,
-                            value: item,
-                            label: item,
-                        }))}
-                        onSelect={({ item }) => {
-                            onChangeModule(item);
-                        }}
-                    />
-                </Combobox>
-                <div className="h-verticalListShort overflow-auto pt-3 md:h-verticalListLong">
-                    <VerticalList>
-                        {moduleNames.map((name) => (
-                            <div key={name} className="mx-0.5 mt-0.5 md:min-w-fit">
+    function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (e.key === 'Enter') {
+            submitSearch();
+        }
+    }
+    return (
+        <div className="flex h-full flex-col gap-5 border-b border-gray-45 md:flex-row md:flex-nowrap">
+            <div className="w-full md:w-1/5">
+                <div className="relative z-[1]">
+                    <Search
+                        onKeyDown={handleSearchKeyDown}
+                        searchValue={query}
+                        onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
+                        placeholder="Search"
+                        isLoading={false}
+                        suggestions={searchSuggestions}
+                        renderSuggestion={(suggestion) => (
+                            <div className="z-10 flex cursor-pointer justify-between bg-neutral-98">
                                 <ListItem
-                                    active={selectedModuleName === name}
-                                    onClick={() => onChangeModule(name)}
+                                    hideBottomBorder
+                                    onClick={() => onChangeModule(suggestion.label)}
                                 >
-                                    {name}
+                                    <div className="overflow-hidden text-ellipsis">
+                                        {suggestion.label}
+                                    </div>
+                                    <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                                        {suggestion.type}
+                                    </div>
                                 </ListItem>
                             </div>
-                        ))}
+                        )}
+                    />
+                </div>
+                <div className="h-full min-h-[13rem] overflow-auto pt-3 md:min-h-[30rem]">
+                    <VerticalList>
+                        <div className="flex flex-col gap-sm">
+                            {moduleNames.map((name) => (
+                                <ButtonSegment
+                                    key={name}
+                                    type={ButtonSegmentType.Underlined}
+                                    selected={name === selectedModuleName}
+                                    onClick={() => onChangeModule(name)}
+                                    label={name}
+                                />
+                            ))}
+                        </div>
                     </VerticalList>
                 </div>
             </div>
-            {isMediumOrAbove ? (
-                <div className="w-4/5">
-                    <SplitPanes direction={splitPanelOrientation} splitPanels={panelContent} />
-                </div>
-            ) : (
-                panelContent.map((panel, index) => <div key={index}>{panel.panel}</div>)
-            )}
+            <div className="hidden w-4/5 md:block">
+                <SplitPanes direction={splitPanelOrientation} splitPanels={panelContent} />
+            </div>
+            <div className="block md:hidden">
+                {panelContent.map((panel, index) => (
+                    <div key={index}>{panel.panel}</div>
+                ))}
+            </div>
         </div>
+    );
+}
+
+function ExecutePanelContent({
+    packageId,
+    moduleName,
+    isCompact,
+}: {
+    packageId: string;
+    moduleName: string;
+    isCompact: boolean;
+}): React.JSX.Element {
+    const EXECUTE_TAB: TabItem = {
+        id: 'execute',
+        label: 'Execute',
+    };
+    const TABS: TabItem[] = [EXECUTE_TAB];
+
+    return (
+        <TabbedContentWrapper>
+            <TabsProvider tabs={TABS}>
+                <SegmentedButton type={SegmentedButtonType.Transparent}>
+                    {TABS.map(({ id, label }) => (
+                        <ButtonSegment
+                            type={ButtonSegmentType.Underlined}
+                            label={label}
+                            key={id}
+                            selected
+                        />
+                    ))}
+                </SegmentedButton>
+
+                <ListTabContent id={EXECUTE_TAB.id} isCompact={isCompact}>
+                    <ModuleFunctionsInteraction
+                        key={`${packageId}-${moduleName}`}
+                        packageId={packageId}
+                        moduleName={moduleName}
+                    />
+                </ListTabContent>
+            </TabsProvider>
+        </TabbedContentWrapper>
     );
 }
