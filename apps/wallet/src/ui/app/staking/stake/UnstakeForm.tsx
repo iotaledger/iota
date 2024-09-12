@@ -59,23 +59,27 @@ export function UnStakeForm({
                     <KeyValueInfo
                         keyText="Current Epoch Ends"
                         valueText={currentEpochEndTimeFormatted}
+                        fullwidth
                     />
                     <Divider />
                     <KeyValueInfo
                         keyText="Your Stake"
                         valueText={tokenBalance}
                         supportingLabel={GAS_SYMBOL}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Rewards Earned"
                         valueText={rewards}
                         supportingLabel={rewardSymbol}
+                        fullwidth
                     />
                     <Divider />
                     <KeyValueInfo
                         keyText="Total unstaked IOTA"
                         valueText={totalIota}
                         supportingLabel={GAS_SYMBOL}
+                        fullwidth
                     />
                 </div>
             </Panel>
@@ -85,6 +89,7 @@ export function UnStakeForm({
                         keyText="Gas Fees"
                         valueText={gasBudget || '-'}
                         supportingLabel={GAS_SYMBOL}
+                        fullwidth
                     />
                 </div>
             </Panel>

@@ -5,6 +5,8 @@ import React from 'react';
 import cx from 'classnames';
 import { LabelTextSize } from './labelText.enums';
 import { LABEL_TEXT_SIZE, SUPPORTING_TEXT_SIZE, TEXT_SIZE } from './labelText.classes';
+import { Info } from '@iota/ui-icons';
+import { TooltipPosition, Tooltip } from '../tooltip';
 
 interface LabelTextProps {
     /**
@@ -27,6 +29,14 @@ interface LabelTextProps {
      * The text of the LabelText.
      */
     text: string;
+    /**
+     * The tooltip position.
+     */
+    tooltipPosition?: TooltipPosition;
+    /**
+     * The tooltip text.
+     */
+    tooltipText?: string;
 }
 
 export function LabelText({
@@ -35,6 +45,8 @@ export function LabelText({
     supportingLabel,
     label,
     text,
+    tooltipPosition,
+    tooltipText,
 }: LabelTextProps): React.JSX.Element {
     const textClasses = TEXT_SIZE[size];
     const supportingLabelClasses = SUPPORTING_TEXT_SIZE[size];
@@ -60,11 +72,21 @@ export function LabelText({
                     </span>
                 )}
             </div>
-            <span
-                className={cx('font-inter text-neutral-60 dark:text-neutral-40', labelTextClasses)}
-            >
-                {label}
-            </span>
+            <div className="flex flex-row items-center gap-x-0.5">
+                <span
+                    className={cx(
+                        'font-inter text-neutral-60 dark:text-neutral-40',
+                        labelTextClasses,
+                    )}
+                >
+                    {label}
+                </span>
+                {tooltipText && (
+                    <Tooltip text={tooltipText} position={tooltipPosition}>
+                        <Info className="text-neutral-60 dark:text-neutral-40" />
+                    </Tooltip>
+                )}
+            </div>
         </div>
     );
 }

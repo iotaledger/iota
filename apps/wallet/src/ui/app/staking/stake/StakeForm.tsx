@@ -128,15 +128,18 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     <KeyValueInfo
                         keyText="Staking Rewards Start"
                         valueText={stakedRewardsStartEpoch}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Redeem Rewards"
                         valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Gas fee"
                         valueText={gasBudget}
                         supportingLabel={symbol}
+                        fullwidth
                     />
                 </div>
             </Panel>

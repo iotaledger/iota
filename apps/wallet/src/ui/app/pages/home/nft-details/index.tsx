@@ -141,6 +141,7 @@ function NFTDetailsPage() {
                                                             keyText="Website"
                                                             valueText={nftDisplayData?.projectUrl}
                                                             valueLink={nftDisplayData?.projectUrl}
+                                                            fullwidth
                                                         />
                                                     )}
                                                     {nftDisplayData?.creator && (
@@ -149,6 +150,7 @@ function NFTDetailsPage() {
                                                             valueText={
                                                                 nftDisplayData?.creator ?? '-'
                                                             }
+                                                            fullwidth
                                                         />
                                                     )}
                                                 </div>
@@ -162,12 +164,14 @@ function NFTDetailsPage() {
                                                         keyText="Owner"
                                                         valueText={formatAddress(ownerAddress)}
                                                         valueLink={ownerExplorerLink || ''}
+                                                        fullwidth
                                                     />
                                                 )}
                                                 {nftId && (
                                                     <KeyValueInfo
                                                         keyText="Object ID"
                                                         valueText={formatAddress(nftId)}
+                                                        fullwidth
                                                     />
                                                 )}
                                                 <KeyValueInfo
@@ -179,6 +183,7 @@ function NFTDetailsPage() {
                                                             ? `${fileExtensionType.name} ${fileExtensionType.type}`
                                                             : '-'
                                                     }
+                                                    fullwidth
                                                 />
                                             </div>
                                         </Collapsible>
@@ -194,6 +199,7 @@ function NFTDetailsPage() {
                                                                 keyText={aKey}
                                                                 valueText={valueText}
                                                                 valueLink={valueLink}
+                                                                fullwidth
                                                             />
                                                         );
                                                     })}
