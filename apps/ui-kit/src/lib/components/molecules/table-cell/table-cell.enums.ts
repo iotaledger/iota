@@ -11,3 +11,8 @@ export enum TableCellType {
     Link = 'link',
     Children = 'children',
 }
+
+export enum TableCellTextColor {
+    Default = 'text-neutral-40 dark:text-neutral-60',
+    Dark = 'text-neutral-10 dark:text-neutral-92',
+}

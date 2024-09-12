@@ -20,7 +20,7 @@ import { CheckpointsTable, PageLayout } from '~/components';
 import { Banner, Stats, type StatsProps, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
-import { validatorsTableData } from '../validators/Validators';
+import { generateValidatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
@@ -79,7 +79,7 @@ export default function EpochDetail() {
         if (!epochData?.validators) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData({
+        return generateValidatorsTableData({
             validators: epochData.validators,
             atRiskValidators: [],
             validatorEvents: [],

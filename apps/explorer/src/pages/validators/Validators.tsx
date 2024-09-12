@@ -107,7 +107,7 @@ function generateAtRiskValidator(atRisk: number | null) {
     );
 }
 
-export function validatorsTableData({
+export function generateValidatorsTableData({
     validators,
     atRiskValidators,
     validatorEvents,
@@ -338,7 +338,7 @@ function ValidatorPageResult(): JSX.Element {
 
     const validatorsTable = useMemo(() => {
         if (!data || !validatorEvents) return null;
-        return validatorsTableData({
+        return generateValidatorsTableData({
             validators: data.activeValidators,
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
