@@ -981,10 +981,8 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             )
         }));
 
-        futures::future::join_all(futures)
+        futures::future::try_join_all(futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!("Failed to join event indices futures in a chunk: {}", e);
                 IndexerError::from(e)
@@ -1254,10 +1252,8 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             })
         }));
 
-        futures::future::join_all(futures)
+        futures::future::try_join_all(futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!("Failed to join tx indices futures in a chunk: {}", e);
                 IndexerError::from(e)
@@ -1720,12 +1716,9 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             chunk!(object_deletions, self.config.parallel_objects_chunk_size);
         let mutation_futures = object_mutation_chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_mutation_chunk(c)))
-            .collect::<Vec<_>>();
-        futures::future::join_all(mutation_futures)
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_mutation_chunk(c)));
+        futures::future::try_join_all(mutation_futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!(
                     "Failed to join persist_object_mutation_chunk futures: {}",
@@ -1743,12 +1736,9 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             })?;
         let deletion_futures = object_deletion_chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_deletion_chunk(c)))
-            .collect::<Vec<_>>();
-        futures::future::join_all(deletion_futures)
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_deletion_chunk(c)));
+        futures::future::try_join_all(deletion_futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!(
                     "Failed to join persist_object_deletion_chunk futures: {}",
@@ -1792,13 +1782,10 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
         let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
         let futures = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.backfill_objects_snapshot_chunk(c)))
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.backfill_objects_snapshot_chunk(c)));
 
-        futures::future::join_all(futures)
+        futures::future::try_join_all(futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!(
                     "Failed to join backfill_objects_snapshot_chunk futures: {}",
@@ -1844,13 +1831,10 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
         let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
         let futures = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_objects_history_chunk(c)))
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_objects_history_chunk(c)));
 
-        futures::future::join_all(futures)
+        futures::future::try_join_all(futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!(
                     "Failed to join persist_objects_history_chunk futures: {}",
@@ -1926,7 +1910,11 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .map(|c| self.spawn_blocking_task(move |this| this.persist_transactions_chunk(c)));
 
         futures::future::try_join_all(futures)
-            .await?
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_transactions_chunk futures: {}", e);
+                IndexerError::from(e)
+            })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -1955,7 +1943,11 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             .map(|c| self.spawn_blocking_task(move |this| this.persist_events_chunk(c)));
 
         futures::future::try_join_all(futures)
-            .await?
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_events_chunk futures: {}", e);
+                IndexerError::from(e)
+            })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -2007,7 +1999,11 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
         });
 
         futures::future::try_join_all(futures)
-            .await?
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_event_indices_chunk futures: {}", e);
+                IndexerError::from(e)
+            })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -2038,7 +2034,11 @@ impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
             )
         });
         futures::future::try_join_all(futures)
-            .await?
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_tx_indices_chunk futures: {}", e);
+                IndexerError::from(e)
+            })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {

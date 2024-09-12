@@ -19,7 +19,7 @@ async fn main() -> Result<(), IndexerError> {
     let mut indexer_config = IndexerConfig::parse();
     // TODO: Explore other options as in upstream.
     // For the moment we only use the fullnode for fetching checkpoints
-    indexer_config.remote_store_url = Some(format!("{rpc_client_url}/rest"));
+    indexer_config.remote_store_url = Some(format!("{}/rest", indexer_config.rpc_client_url));
     info!("Parsed indexer config: {:#?}", indexer_config);
     let (_registry_service, registry) = start_prometheus_server(
         // NOTE: this parses the input host addr and port number for socket addr,

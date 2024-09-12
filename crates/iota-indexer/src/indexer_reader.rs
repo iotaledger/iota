@@ -17,9 +17,10 @@ use diesel::{
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
-    Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo, EventFilter,
-    IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, TransactionFilter,
+    AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
+    EventFilter, IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, MoveCallMetrics,
+    MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -514,7 +515,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .await
     }
 
-    /// This method tries to transfroms [`StoredTransaction`] values
+    /// This method tries to transform [`StoredTransaction`] values
     /// into transaction blocks, without any other modification.
     async fn stored_transaction_to_transaction_block(
         &self,
@@ -744,7 +745,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             stored_txes = stored_txes
                 .into_iter()
                 .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect()
+                .collect();
         }
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
@@ -1100,8 +1101,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                     .select(events::tx_sequence_number)
                     .order(events::dsl::tx_sequence_number.desc())
                     .first::<i64>(conn)
-                    .optional()
-            })?
+            })
             .map_or(-1, |max_tx_seq| max_tx_seq + 1);
 
             (max_tx_seq, 0)

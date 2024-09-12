@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{binary_views::BinaryIndexedView, file_format::SignatureToken};
+use move_binary_format::{file_format::SignatureToken, CompiledModule};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 
@@ -34,10 +34,12 @@ pub fn get_randomness_state_obj_initial_shared_version(
         }))
 }
 
-pub fn is_mutable_random(view: &BinaryIndexedView<'_>, s: &SignatureToken) -> bool {
+pub fn is_mutable_random(view: &CompiledModule, s: &SignatureToken) -> bool {
     match s {
         SignatureToken::MutableReference(inner) => is_mutable_random(view, inner),
-        SignatureToken::Struct(idx) => resolve_struct(view, *idx) == RESOLVED_IOTA_RANDOMNESS_STATE,
+        SignatureToken::Datatype(idx) => {
+            resolve_struct(view, *idx) == RESOLVED_IOTA_RANDOMNESS_STATE
+        }
         _ => false,
     }
 }
