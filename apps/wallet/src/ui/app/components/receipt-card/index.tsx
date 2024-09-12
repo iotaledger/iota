@@ -8,11 +8,10 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
-import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
-import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
-import { StakeTxnCard } from './StakeTxnCard';
+import { StakeTxn } from './StakeTxn';
 import { StatusIcon } from './StatusIcon';
-import { UnStakeTxnCard } from './UnstakeTxnCard';
+import { UnStakeTxn } from './UnstakeTxn';
+import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -54,24 +53,13 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)
         return (
-            <div className="relative block h-full w-full">
-                <TransactionStatus
-                    success={summary?.status === 'success'}
-                    timestamp={txn.timestampMs ?? undefined}
+            <div className="flex h-full w-full flex-col justify-between">
+                {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
+                {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
+                <ExplorerLinkCard
+                    digest={summary?.digest}
+                    timestamp={summary?.timestamp ?? undefined}
                 />
-                <section className="bg-iota/10 -mx-5 min-h-full">
-                    <div className="px-5 py-10">
-                        <div className="flex flex-col gap-4">
-                            {stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}
-                            {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
-                            <GasSummary gasSummary={summary?.gas} />
-                            <ExplorerLinkCard
-                                digest={summary?.digest}
-                                timestamp={summary?.timestamp ?? undefined}
-                            />
-                        </div>
-                    </div>
-                </section>
             </div>
         );
 
