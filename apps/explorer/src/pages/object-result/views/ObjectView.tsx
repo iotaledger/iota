@@ -180,12 +180,6 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
         />
     );
 }
-// {display && display.link && (
-//     <DisplayStats label="Link" value={display.link} valueLink={display.link} />
-// )}
-// {display && display.project_url && (
-
-// )}
 interface StorageRebateCardProps {
     storageRebate: string;
 }
