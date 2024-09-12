@@ -37,6 +37,7 @@ export interface TableCardProps<DataType extends RowData> {
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
+    areHeadersCentered?: boolean;
     paginationOptions?: TablePaginationOptions;
     totalLabel?: string;
     viewAll?: string;
@@ -48,6 +49,7 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    areHeadersCentered,
     paginationOptions,
     totalLabel,
     viewAll,
@@ -100,6 +102,7 @@ export function TableCard<DataType extends object>({
                                             ? column.getToggleSortingHandler()
                                             : undefined
                                     }
+                                    isContentCentered={areHeadersCentered}
                                 />
                             ))}
                         </TableHeaderRow>

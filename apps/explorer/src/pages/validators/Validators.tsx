@@ -155,7 +155,7 @@ function ValidatorPageResult(): JSX.Element {
                                     <TableCard
                                         data={validatorsTable.data}
                                         columns={validatorsTable.columns}
-                                        sortTable
+                                        areHeadersCentered={false}
                                     />
                                 )}
                             </ErrorBoundary>

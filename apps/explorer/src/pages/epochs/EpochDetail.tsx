@@ -75,7 +75,7 @@ export default function EpochDetail() {
     );
 
     const validatorsTable = useMemo(() => {
-        if (!epochData?.validators) return null;
+        if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableData({

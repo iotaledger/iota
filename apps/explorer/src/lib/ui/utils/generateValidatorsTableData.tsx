@@ -194,10 +194,12 @@ export function generateValidatorsTableData({
                     stake: {
                         type: TableCellType.Children,
                         children: <StakeColumn stake={totalStake} />,
+                        noWrap: true,
                     },
                     nextEpochGasPrice: {
                         type: TableCellType.Children,
                         children: <StakeColumn stake={validator.nextEpochGasPrice} inNano />,
+                        noWrap: true,
                     },
                     apy: {
                         type: TableCellType.Text,
@@ -212,6 +214,7 @@ export function generateValidatorsTableData({
                             ? {
                                   type: TableCellType.Children,
                                   children: <StakeColumn stake={Number(lastReward)} />,
+                                  noWrap: true,
                               }
                             : {
                                   type: TableCellType.Text,
