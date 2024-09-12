@@ -38,6 +38,10 @@ interface KeyValueProps {
      */
     size?: ValueSize;
     /**
+     * The flag to truncate the value text.
+     */
+    isTruncated?: boolean;
+    /**
      * Text that need to be copied (optional).
      */
     copyText?: string;
@@ -67,6 +71,7 @@ export function KeyValueInfo({
     supportingLabel,
     valueLink,
     size = ValueSize.Small,
+    isTruncated = false,
     copyText = valueText,
     onCopySuccess,
     onCopyError,
@@ -108,6 +113,7 @@ export function KeyValueInfo({
             <div
                 className={cx('flex flex-row items-baseline gap-1 break-all', {
                     'w-3/4': !fullwidth,
+                    truncate: isTruncated,
                 })}
             >
                 {valueLink ? (
@@ -115,7 +121,9 @@ export function KeyValueInfo({
                         href={valueLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-body-md text-primary-30 dark:text-primary-80"
+                        className={cx('text-body-md text-primary-30 dark:text-primary-80', {
+                            truncate: isTruncated,
+                        })}
                     >
                         {valueText}
                     </a>
@@ -125,6 +133,7 @@ export function KeyValueInfo({
                             className={cx(
                                 'text-neutral-10 dark:text-neutral-92',
                                 size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
+                                { truncate: isTruncated },
                             )}
                         >
                             {valueText}

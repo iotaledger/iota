@@ -7,7 +7,6 @@ import { ObjectDetailsHeader } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useParams } from 'react-router-dom';
-
 import { ErrorBoundary, PageLayout } from '~/components';
 import { Banner, PageHeader } from '~/components/ui';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
@@ -41,7 +40,7 @@ export function ObjectResult(): JSX.Element {
     return (
         <PageLayout
             content={
-                <>
+                <div className="flex flex-col gap-y-2xl">
                     {isPackage ? undefined : (
                         <div>
                             <PageHeader
@@ -50,13 +49,7 @@ export function ObjectResult(): JSX.Element {
                                 before={<ObjectDetailsHeader className="h-6 w-6" />}
                             />
 
-                            <ErrorBoundary>
-                                {data && (
-                                    <div className="mt-5">
-                                        <ObjectView data={data} />
-                                    </div>
-                                )}
-                            </ErrorBoundary>
+                            <ErrorBoundary>{data && <ObjectView data={data} />}</ErrorBoundary>
                         </div>
                     )}
                     {isPageError || !data || !resp ? (
@@ -65,7 +58,7 @@ export function ObjectResult(): JSX.Element {
                             {objID}
                         </Banner>
                     ) : (
-                        <div className="mb-10">
+                        <>
                             {isPackage && <PageHeader type="Package" title={resp.id} />}
                             <ErrorBoundary>
                                 <div className={clsx(isPackage && 'mt-10')}>
@@ -76,9 +69,9 @@ export function ObjectResult(): JSX.Element {
                                     )}
                                 </div>
                             </ErrorBoundary>
-                        </div>
+                        </>
                     )}
-                </>
+                </div>
             }
         />
     );
