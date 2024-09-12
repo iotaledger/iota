@@ -92,7 +92,7 @@ impl GenesisTransaction {
 
         let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
-        for c in cs {
+        for cursor in cursors {
             let native_event = self.native.events[c.ix].clone();
 
             let event = Event {
