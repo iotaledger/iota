@@ -48,7 +48,7 @@ impl GenesisTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) =
+        let Some((prev, next, _, cursors)) =
             page.paginate_consistent_indices(self.native.objects.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
@@ -57,13 +57,15 @@ impl GenesisTransaction {
         connection.has_previous_page = prev;
         connection.has_next_page = next;
 
-        for c in cs {
-            let GenesisObject::RawObject { data, owner } = self.native.objects[c.ix].clone();
+        for cursor in cursors {
+            let GenesisObject::RawObject { data, owner } = self.native.objects[cursor.ix].clone();
             let native =
                 NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
 
-            let object = Object::from_native(IotaAddress::from(native.id()), native, Some(c.c));
-            connection.edges.push(Edge::new(c.encode_cursor(), object));
+            let object = Object::from_native(IotaAddress::from(native.id()), native, Some(cursor.c));
+            connection
+                .edges
+                .push(Edge::new(cursor.encode_cursor(), object));
         }
 
         Ok(connection)
@@ -81,7 +83,7 @@ impl GenesisTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) =
+        let Some((prev, next, _, cursors)) =
             page.paginate_consistent_indices(self.native.events.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
@@ -93,7 +95,7 @@ impl GenesisTransaction {
         let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         for cursor in cursors {
-            let native_event = self.native.events[c.ix].clone();
+            let native_event = self.native.events[cursor.ix].clone();
 
             let event = Event {
                 stored: None,
@@ -101,7 +103,9 @@ impl GenesisTransaction {
                 checkpoint_viewed_at,
             };
 
-            connection.edges.push(Edge::new(c.encode_cursor(), event));
+            connection
+                .edges
+                .push(Edge::new(cursor.encode_cursor(), event));
         }
 
         Ok(connection)
