@@ -63,7 +63,7 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
                 const ownerAddress = useAddressLink(owner);
 
                 return (
-                    <Panel hasBorder>
+                    <Panel key={owner} hasBorder>
                         <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
                             <Header title="Balance Changes" />
                             <BalanceChangeEntries changes={changes} />

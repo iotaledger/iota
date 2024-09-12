@@ -124,7 +124,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                 const [open, setOpen] = useState(true);
 
                 return (
-                    <Panel hasBorder>
+                    <Panel key={`${type}-${owner}`} hasBorder>
                         <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
                             <Collapsible
                                 hideBorder
