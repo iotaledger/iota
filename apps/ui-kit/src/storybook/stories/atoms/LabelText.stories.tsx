@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { LabelText, LabelTextSize } from '@/components';
+import { LabelText, LabelTextSize, TooltipPosition } from '@/components';
 
 const meta: Meta<typeof LabelText> = {
     component: LabelText,
@@ -45,6 +45,15 @@ export const Default: Story = {
         },
         text: {
             control: 'text',
+        },
+        tooltipText: {
+            control: 'text',
+        },
+        tooltipPosition: {
+            control: {
+                type: 'select',
+                options: Object.values(TooltipPosition),
+            },
         },
     },
 };
