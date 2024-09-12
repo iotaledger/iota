@@ -7,7 +7,7 @@ use move_binary_format::errors::VMError;
 use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("{0}")]
     Bcs(#[from] bcs::Error),
@@ -15,7 +15,7 @@ pub enum Error {
     #[error("Store {} error: {}", store, source)]
     Store {
         store: &'static str,
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+        source: Arc<dyn std::error::Error + Send + Sync + 'static>,
     },
 
     #[error("{0}")]
@@ -52,8 +52,8 @@ pub enum Error {
     #[error("Package not found: {0}")]
     PackageNotFound(AccountAddress),
 
-    #[error("Struct not found: {0}::{1}::{2}")]
-    StructNotFound(AccountAddress, String, String),
+    #[error("Datatype not found: {0}::{1}::{2}")]
+    DatatypeNotFound(AccountAddress, String, String),
 
     #[error("More than {0} struct definitions required to resolve type")]
     TooManyTypeNodes(usize, usize),
@@ -77,7 +77,7 @@ pub enum Error {
     UnexpectedSigner,
 
     #[error("Unexpected error: {0}")]
-    UnexpectedError(Box<dyn std::error::Error + Send + Sync + 'static>),
+    UnexpectedError(Arc<dyn std::error::Error + Send + Sync + 'static>),
 
     #[error("Type layout nesting exceeded limit of {0}")]
     ValueNesting(usize),
