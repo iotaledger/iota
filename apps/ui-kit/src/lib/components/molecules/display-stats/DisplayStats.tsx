@@ -56,6 +56,10 @@ interface DisplayStatsProps {
      * The value link is external.
      */
     isExternalLink?: boolean;
+    /**
+     * The value is truncated
+     */
+    isTruncated?: boolean;
 }
 
 export function DisplayStats({
@@ -69,6 +73,7 @@ export function DisplayStats({
     icon,
     valueLink,
     isExternalLink = false,
+    isTruncated,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
@@ -100,19 +105,31 @@ export function DisplayStats({
                 </div>
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
-            <div className="flex flex-row items-baseline gap-xxs break-all">
+            <div
+                className={cx('flex w-full flex-row items-baseline gap-xxs', {
+                    truncate: isTruncated,
+                })}
+            >
                 {valueLink ? (
                     <a
                         href={valueLink}
                         target={isExternalLink ? '_blank' : '_self'}
                         rel="noreferrer"
-                        className={cx('text-primary-30 dark:text-primary-80', valueTextClass)}
+                        className={cx('text-primary-30 dark:text-primary-80', valueTextClass, {
+                            truncate: isTruncated,
+                        })}
                     >
                         {value}
                     </a>
                 ) : (
                     <>
-                        <span className={cx(valueTextClass)}>{value}</span>
+                        <span
+                            className={cx(valueTextClass, {
+                                truncate: isTruncated,
+                            })}
+                        >
+                            {value}
+                        </span>
                         {supportingLabel && (
                             <span className={cx('opacity-40', supportingLabelTextClass)}>
                                 {supportingLabel}

@@ -16,6 +16,9 @@ import { Signatures } from './Signatures';
 
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import styles from './TransactionResult.module.css';
+import { TransactionDetails } from './transaction-summary/TransactionDetails';
+import { useTransactionSummary } from '@iota/core';
+import { useRecognizedPackages } from '~/hooks';
 
 interface TabsContentContainerProps {
     value: string;
@@ -91,10 +94,22 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
         minSize: 40,
         defaultSize: isProgrammableTransaction ? 65 : 50,
     };
-
+    const recognizedPackagesList = useRecognizedPackages();
+    const summary = useTransactionSummary({
+        transaction,
+        recognizedPackagesList,
+    });
     return (
         <div className={clsx(styles.txdetailsbg)}>
-            <div className="h-screen md:h-full">
+            <div className="flex h-screen flex-col gap-2xl md:h-full">
+                <div>
+                    <TransactionDetails
+                        timestamp={summary?.timestamp}
+                        sender={summary?.sender}
+                        checkpoint={transaction.checkpoint}
+                        executedEpoch={transaction.effects?.executedEpoch}
+                    />
+                </div>
                 <SplitPanes
                     autoSaveId={LocalStorageSplitPaneKey.TransactionView}
                     onCollapse={setIsCollapsed}
