@@ -62,7 +62,8 @@ impl GenesisTransaction {
             let native =
                 NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
 
-            let object = Object::from_native(IotaAddress::from(native.id()), native, Some(cursor.c));
+            let object =
+                Object::from_native(IotaAddress::from(native.id()), native, Some(cursor.c));
             connection
                 .edges
                 .push(Edge::new(cursor.encode_cursor(), object));
