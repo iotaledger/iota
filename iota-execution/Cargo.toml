@@ -37,7 +37,6 @@ gas-profiler = [
   "iota-adapter-latest/gas-profiler",
   # "iota-adapter-$CUT/gas-profiler",
   "move-vm-runtime-latest/gas-profiler",
-  # "iota-adapter-$CUT/gas-profiler",
-  "move-vm-config/gas-profiler",
   # "move-vm-runtime-$CUT/gas-profiler",
+  "move-vm-config/gas-profiler",
 ]
