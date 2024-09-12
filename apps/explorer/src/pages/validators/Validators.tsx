@@ -4,34 +4,33 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { DisplayStats, DisplayStatsSize, DisplayStatsType, TooltipPosition } from '@iota/apps-ui-kit';
 import {
     formatPercentageDisplay,
     roundFloat,
+    useFormatCoin,
     useGetValidatorsApy,
     useGetValidatorsEvents,
     type ApyByValidator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { Heading, Text } from '@iota/ui';
-import { lazy, Suspense, useMemo } from 'react';
-
-import { DelegationAmount, ErrorBoundary, PageLayout, StakeColumn } from '~/components';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { Text } from '@iota/ui';
+import { useMemo } from 'react';
+import { t } from 'vitest/dist/types-198fd1d9';
+import { ErrorBoundary, PageLayout, StakeColumn } from '~/components';
 import {
     Banner,
-    Card,
     ImageIcon,
     Link,
     PlaceholderTable,
-    Stats,
     TableCard,
     TableHeader,
     Tooltip,
 } from '~/components/ui';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { ampli, getValidatorMoveEvent } from '~/lib/utils';
-
-const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 
 export function validatorsTableData(
     validators: IotaValidatorSummary[],
@@ -294,6 +293,40 @@ function ValidatorPageResult(): JSX.Element {
         );
     }, [data, validatorEvents, validatorsApy]);
 
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin(
+        totalStaked,
+        IOTA_TYPE_ARG,
+    );
+    const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
+        useFormatCoin(lastEpochRewardOnAllValidators, IOTA_TYPE_ARG);
+
+    const validatorStats = [
+        {
+            title: 'Total Staked',
+            value: formattedTotalStakedAmount,
+            supportingLabel: totalStakedSymbol,
+            tooltipText:
+                'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
+        },
+        {
+            title: 'Participation',
+            value: '--',
+            tooltipText: 'Coming soon',
+        },
+        {
+            title: 'Last Epoch Rewards',
+            value: formattedlastEpochRewardOnAllValidatorsAmount,
+            supportingLabel: lastEpochRewardOnAllValidatorsSymbol,
+            tooltipText: 'The staking rewards earned in the previous epoch.',
+        },
+        {
+            title: 'AVG APY',
+            value: averageAPY ? `${averageAPY}%` : '--',
+            tooltipText:
+                'The average annualized percentage yield globally for all involved validators.',
+        },
+    ];
+
     return (
         <PageLayout
             content={
@@ -302,74 +335,23 @@ function ValidatorPageResult(): JSX.Element {
                         Validator data could not be loaded
                     </Banner>
                 ) : (
-                    <>
-                        <div className="grid gap-5 md:grid-cols-2">
-                            <Card spacing="lg">
-                                <div className="flex w-full basis-full flex-col gap-8">
-                                    <Heading
-                                        as="div"
-                                        variant="heading4/semibold"
-                                        color="steel-darker"
-                                    >
-                                        Validators
-                                    </Heading>
-
-                                    <div className="flex flex-col gap-8 md:flex-row">
-                                        <div className="flex flex-col gap-8">
-                                            <Stats
-                                                label="Participation"
-                                                tooltip="Coming soon"
-                                                unavailable
-                                            />
-
-                                            <Stats
-                                                label="Last Epoch Rewards"
-                                                tooltip="The stake rewards collected during the last epoch."
-                                                unavailable={
-                                                    lastEpochRewardOnAllValidators === null
-                                                }
-                                            >
-                                                <DelegationAmount
-                                                    amount={
-                                                        typeof lastEpochRewardOnAllValidators ===
-                                                        'number'
-                                                            ? lastEpochRewardOnAllValidators
-                                                            : 0n
-                                                    }
-                                                    isStats
-                                                />
-                                            </Stats>
-                                        </div>
-                                        <div className="flex flex-col gap-8">
-                                            <Stats
-                                                label="Total IOTA Staked"
-                                                tooltip="The total IOTA staked on the network by validators and delegators to validate the network and earn rewards."
-                                                unavailable={totalStaked <= 0}
-                                            >
-                                                <DelegationAmount
-                                                    amount={totalStaked || 0n}
-                                                    isStats
-                                                />
-                                            </Stats>
-                                            <Stats
-                                                label="AVG APY"
-                                                tooltip="The global average of annualized percentage yield of all participating validators."
-                                                unavailable={averageAPY === null}
-                                            >
-                                                {averageAPY}%
-                                            </Stats>
-                                        </div>
-                                    </div>
-                                </div>
-                            </Card>
-
-                            <ErrorBoundary>
-                                <Suspense fallback={null}>
-                                    <ValidatorMap minHeight={230} />
-                                </Suspense>
-                            </ErrorBoundary>
+                    <div className="flex w-full flex-col gap-xl">
+                        <div className="py-md--rs text-display-sm">Validators</div>
+                        <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
+                            {validatorStats.map((stat) => (
+                                <DisplayStats
+                                    key={stat.title}
+                                    label={stat.title}
+                                    tooltipText={stat.tooltipText}
+                                    value={stat.value}
+                                    supportingLabel={stat.supportingLabel}
+                                    type={DisplayStatsType.Secondary}
+                                    size={DisplayStatsSize.Large}
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
+                            ))}
                         </div>
-                        <div className="mt-8">
+                        <div>
                             <ErrorBoundary>
                                 <TableHeader>All Validators</TableHeader>
                                 {(isPending || validatorsEventsLoading) && (
@@ -389,7 +371,7 @@ function ValidatorPageResult(): JSX.Element {
                                 )}
                             </ErrorBoundary>
                         </div>
-                    </>
+                    </div>
                 )
             }
         />

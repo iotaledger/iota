@@ -5,7 +5,7 @@ import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { DisplayStats, TooltipPosition, DisplayStatsType, DisplayStatsSize } from '@/components';
 
-const meta = {
+const meta: Meta<typeof DisplayStats> = {
     component: DisplayStats,
     tags: ['autodocs'],
     render: (props) => {
@@ -59,6 +59,12 @@ export const Default: Story = {
                 type: 'select',
                 options: Object.values(DisplayStatsSize),
             },
+        },
+        valueLink: {
+            control: 'text',
+        },
+        isExternalLink: {
+            control: 'boolean',
         },
     },
 };
