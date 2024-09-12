@@ -78,12 +78,7 @@ export function TableCard<DataType extends object>({
     });
 
     return (
-        <div
-            className={clsx(
-                'w-full overflow-x-auto border-b border-gray-45 pb-4',
-                refetching && 'opacity-50',
-            )}
-        >
+        <div className={clsx('w-full overflow-x-auto', refetching && 'opacity-50')}>
             <Table
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
