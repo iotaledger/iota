@@ -18,6 +18,7 @@ import { Card, CardBody, CardType } from '@iota/apps-ui-kit';
 import { CheckmarkFilled } from '@iota/ui-icons';
 import cl from 'clsx';
 import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
+import { GasFees } from '../../pages/approval-request/transaction-request/GasFees';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -73,12 +74,19 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         );
 
     return (
-        <div className="-mr-3 h-full overflow-y-auto overflow-x-hidden">
-            <TransactionStatus
-                success={summary.status === 'success'}
-                timestamp={txn.timestampMs ?? undefined}
+        <div className="-mr-3 flex h-full flex-col">
+            <div className="flex flex-col gap-md overflow-y-auto overflow-x-hidden pb-lg">
+                <TransactionStatus
+                    success={summary.status === 'success'}
+                    timestamp={txn.timestampMs ?? undefined}
+                />
+                <TransactionSummary summary={summary} />
+                <GasFees gasSummary={summary?.gas} />
+            </div>
+            <ExplorerLinkCard
+                digest={summary?.digest}
+                timestamp={summary?.timestamp ?? undefined}
             />
-            <TransactionSummary showGasSummary summary={summary} />
         </div>
     );
 }

@@ -98,13 +98,20 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                     keyText="Package"
                     valueText={formatAddress(packageId)}
                     valueLink={packageIdLink || ''}
+                    fullwidth
                 />
                 <KeyValueInfo
                     keyText="Module"
                     valueText={moduleName}
                     valueLink={moduleLink || ''}
+                    fullwidth
                 />
-                <KeyValueInfo keyText="Type" valueText={typeName} valueLink={moduleLink || ''} />
+                <KeyValueInfo
+                    keyText="Type"
+                    valueText={typeName}
+                    valueLink={moduleLink || ''}
+                    fullwidth
+                />
             </div>
         </Collapsible>
     );
@@ -185,6 +192,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                     keyText="Owner"
                                     valueText={ownerAddress.address}
                                     valueLink={ownerAddress.explorerHref}
+                                    fullwidth
                                 />
                             </div>
                         </div>

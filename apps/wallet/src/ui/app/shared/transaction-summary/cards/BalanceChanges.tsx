@@ -73,6 +73,7 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
                                     keyText="Owner"
                                     valueText={ownerAddress.address}
                                     valueLink={ownerAddress.explorerHref}
+                                    fullwidth
                                 />
                             </div>
                         </div>

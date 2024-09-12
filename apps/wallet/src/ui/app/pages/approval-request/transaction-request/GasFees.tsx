@@ -8,13 +8,16 @@ import { GasSummary } from '_src/ui/app/shared/transaction-summary/cards/GasSumm
 import { type GasSummaryType } from '@iota/core';
 
 interface GasFeesProps {
+    sender?: string;
     gasSummary?: GasSummaryType;
     isEstimate?: boolean;
+    isPending?: boolean;
+    isError?: boolean;
 }
 const DEFAULT_TITLE = 'Gas Fees';
 
-export function GasFees({ gasSummary, isEstimate }: GasFeesProps) {
-    const title = isEstimate ? `Estimate ${DEFAULT_TITLE}` : DEFAULT_TITLE;
+export function GasFees({ sender, gasSummary, isEstimate, isPending, isError }: GasFeesProps) {
+    const title = isEstimate ? `Est. ${DEFAULT_TITLE}` : DEFAULT_TITLE;
     const trailingElement =
         gasSummary?.isSponsored && gasSummary.owner ? (
             <div className="ml-1 flex">
@@ -36,7 +39,12 @@ export function GasFees({ gasSummary, isEstimate }: GasFeesProps) {
                     )}
                 >
                     <div className="flex flex-col gap-y-sm p-md">
-                        <GasSummary gasSummary={gasSummary} />
+                        <GasSummary
+                            sender={sender}
+                            gasSummary={gasSummary}
+                            isPending={isPending}
+                            isError={isError}
+                        />
                     </div>
                 </Collapsible>
             </div>
