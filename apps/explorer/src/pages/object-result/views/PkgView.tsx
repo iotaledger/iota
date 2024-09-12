@@ -12,7 +12,6 @@ import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
 import { ObjectFilterValue } from '~/lib/enums';
-import styles from './ObjectView.module.css';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -123,15 +122,13 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
                     </div>
                 </Panel>
 
-                <div className={styles.txsection}>
-                    <ErrorBoundary>
-                        <TransactionBlocksForAddress
-                            address={viewedData.id}
-                            filter={ObjectFilterValue.Input}
-                            header="Transaction Blocks"
-                        />
-                    </ErrorBoundary>
-                </div>
+                <ErrorBoundary>
+                    <TransactionBlocksForAddress
+                        address={viewedData.id}
+                        filter={ObjectFilterValue.Input}
+                        header="Transaction Blocks"
+                    />
+                </ErrorBoundary>
             </div>
         </div>
     );

@@ -101,14 +101,15 @@ function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
                                             reference
                                         ) {
                                             const href = `/object/${reference.address}?module=${reference.module}`;
+                                            const { key: _, ...tokenProps } = getTokenProps({
+                                                token,
+                                                key,
+                                            });
 
                                             return (
                                                 <LinkWithQuery
                                                     key={key}
-                                                    {...getTokenProps({
-                                                        token,
-                                                        key,
-                                                    })}
+                                                    {...tokenProps}
                                                     to={href}
                                                     target={
                                                         normalizeIotaAddress(reference.address) ===

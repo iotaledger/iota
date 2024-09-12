@@ -5,7 +5,6 @@
 import { useGetObject } from '@iota/core';
 import { ObjectDetailsHeader } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
-import clsx from 'clsx';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
 import { Banner, PageHeader } from '~/components/ui';
@@ -61,13 +60,7 @@ export function ObjectResult(): JSX.Element {
                         <>
                             {isPackage && <PageHeader type="Package" title={resp.id} />}
                             <ErrorBoundary>
-                                <div className={clsx(isPackage && 'mt-10')}>
-                                    {isPackage ? (
-                                        <PkgView data={resp} />
-                                    ) : (
-                                        <TokenView data={data} />
-                                    )}
-                                </div>
+                                {isPackage ? <PkgView data={resp} /> : <TokenView data={data} />}
                             </ErrorBoundary>
                         </>
                     )}
