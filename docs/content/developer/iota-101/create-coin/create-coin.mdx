@@ -21,7 +21,7 @@ Extending the example further, add a `mint` function to the module. Use the `min
 If you published the previous example to a IOTA network, you can use the `iota client call` command to mint coins and deliver them to the address you provide. See [IOTA CLI](../../../references/cli.mdx) for more information on the command line interface.
 
 ```shell
-iota client call --function mint --module mycoin --package <PACKAGE-ID> --args <TREASURY-CAP-ID> <COIN-AMOUNT> <RECIPIENT-ADDRESS> --gas-budget <GAS-AMOUNT>
+iota client call --function mint --module mycoin --package <PACKAGE-ID> --args <TREASURY-CAP-ID> <COIN-AMOUNT> <RECIPIENT-ADDRESS>
 ```
 
 If the call is successful your console displays the result, which includes a **Balance Changes** section with the following information included:

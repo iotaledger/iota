@@ -115,8 +115,7 @@ tx.moveCall({
 iota client call \
     --package 0x2 \
     --module kiosk \
-    --function default \
-    --gas-budget 1000000000
+    --function default 
 ```
 
 ### Create an IOTA Kiosk with advanced options
@@ -146,7 +145,6 @@ tx.moveCall({
 
 ```shell
 iota client ptb \
-    --gas-budget 1000000000 \
     --move-call 0x2::kiosk::new \
     --assign kiosk \
     --move-call 0x2::transfer::public_share_object "<0x2::kiosk::Kiosk>" kiosk.0 \
@@ -191,8 +189,7 @@ iota client call \
     --module kiosk \
     --function place \
     --args "<KIOSK_ID>" "<CAP_ID>" "<ITEM_ID>" \
-    --type-args "<ITEM_TYPE>" \
-    --gas-budget 1000000000
+    --type-args "<ITEM_TYPE>" 
 ```
 
 ## Take items from a kiosk
@@ -222,8 +219,7 @@ let item = tx.moveCall({
 The `kiosk::take` function is built to be PTB friendly and returns the asset. In this IOTA CLI PTB example we transfer the taken item to the given address.
 
 ```shell
-iota client ptb \
-    --gas-budget 1000000000 \
+iota client ptb  \
     --assign kiosk @<KIOSK_ID> \
     --assign kiosk_owner_cap @<KIOSK_OWNER_CAP_ID> \
     --assign item @<ITEM_ID> \
@@ -275,8 +271,7 @@ iota client call \
     --module kiosk \
     --function lock \
     --args "<KIOSK_ID>" "<CAP_ID>" "<TRANSFER_POLICY_ID>" "<ITEM_ID>" \
-    --type-args "<ITEM_TYPE>" \
-    --gas-budget 1000000000
+    --type-args "<ITEM_TYPE>" 
 ```
 
 ## List and delist items from a kiosk
@@ -319,8 +314,7 @@ iota client call \
     --module kiosk \
     --function list \
     --args "<KIOSK_ID>" "<CAP_ID>" "<ITEM_ID>" "<PRICE>" \
-    --type-args "ITEM_TYPE" \
-    --gas-budget 1000000000
+    --type-args "ITEM_TYPE" 
 ```
 
 ### Delist an item
@@ -355,8 +349,7 @@ iota client call \
     --module kiosk \
     --function delist \
     --args "<KIOSK_ID>" "<CAP_ID>" "<ITEM_ID>" \
-    --type-args "ITEM_TYPE" \
-    --gas-budget 1000000000
+    --type-args "ITEM_TYPE" 
 ```
 
 ## Purchase an item from a kiosk
@@ -371,7 +364,6 @@ When you use the `kiosk::purchase` function, it returns the purchased asset and 
 
 ```shell
 iota client ptb \
-  --gas-budget 1000000000 \
   --assign kiosk @<KIOSK_ID> \
   --assign item @<ITEM_ID> \
   --assign coin @<COIN_ID> \
@@ -504,8 +496,7 @@ iota client ptb \
   --assign kiosk_owner_cap @<KIOSK_OWNER_CAP_ID> \
   --move-call 0x2::kiosk::withdraw kiosk kiosk_owner_cap none \
   --assign withdrawn_coin \
-  --transfer-objects [withdrawn_coin] <YOUR_ADDRESS> \
-  --gas-budget 1000000000
+  --transfer-objects [withdrawn_coin] <YOUR_ADDRESS> 
 ```
 
 Passing `none` withdraws all profits, while passing `some(x)` will attempt to withdraw a `Coin<IOTA>` with a balance of `x`. This amount `x` can be smaller or equal to the contained profits.

@@ -154,7 +154,7 @@ To interact with objects, you need to publish the `ColorObject` code on-chain.
 Use the following command, replacing `<GAS-AMOUNT>` with your gas budget:
 
 ```shell
-iota client publish $ROOT/examples/move/color_object --gas-budget <GAS-AMOUNT>
+iota client publish $ROOT/examples/move/color_object
 ```
 
 ### Creating a New `ColorObject`
@@ -163,7 +163,7 @@ Set the package object ID to the `$PACKAGE` environment variable.
 Then, create a new `ColorObject` by executing the following command:
 
 ```shell
-iota client call --gas-budget <GAS-AMOUNT> --package $PACKAGE --module "color_object" --function "create" --args 0 255 0
+iota client call --package $PACKAGE --module "color_object" --function "create" --args 0 255 0
 ```
 
 After creation, set the newly created object ID to `$OBJECT`.
@@ -183,7 +183,7 @@ You should see an object with the ID stored in `$OBJECT`.
 To make the object immutable, use the following command:
 
 ```shell
-iota client call --gas-budget <GAS-AMOUNT> --package $PACKAGE --module "color_object" --function "freeze_object" --args \"$OBJECT\"
+iota client call --package $PACKAGE --module "color_object" --function "freeze_object" --args \"$OBJECT\"
 ```
 
 ### Verifying Object Immutability
@@ -214,7 +214,7 @@ Finally, if you attempt to modify the immutable object, the CLI will prevent the
 Use the following command as an example:
 
 ```shell
-iota client call --gas-budget <GAS-AMOUNT> --package $PACKAGE --module "color_object" --function "update" --args \"$OBJECT\" 0 0 0
+iota client call --package $PACKAGE --module "color_object" --function "update" --args \"$OBJECT\" 0 0 0
 ```
 
 The response will indicate that you cannot pass an immutable object to a mutable argument.

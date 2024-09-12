@@ -16,7 +16,7 @@ After you have successfully [created](create-a-package.mdx) and [tested](build-t
 To publish your package, use the IOTA client's `publish` command. Execute this command from your package's root directory, and include the `--gas-budget` parameter to set the maximum gas you're willing to spend on this transaction. If the transaction requires more gas than your budget, it will fail.
 
 ```shell
-iota client publish --gas-budget 5000000
+iota client publish
 ```
 
 Once the transaction succeeds, you will receive a response similar to the following, detailing the transaction data, effects, and any changes to objects and balances:

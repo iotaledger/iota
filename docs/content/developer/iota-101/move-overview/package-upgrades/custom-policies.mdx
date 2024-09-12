@@ -346,7 +346,7 @@ module policy::day_of_week {
 You can use the `iota client publish` command to publish the policy.
 
 ```bash
-iota client publish --gas-budget 100000000
+iota client publish
 ```
 
 <details>
@@ -442,7 +442,7 @@ You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../
 `UpgradeCap` to make the policy immutable.
 
 ```bash
-iota client call --gas-budget 10000000 \
+iota client call \
     --package 0x2 \
     --module 'package' \
     --function 'make_immutable' \
@@ -853,7 +853,7 @@ If you receive a `ReferenceError: fetch is not defined` error, use Node.js versi
 You can use the CLI to test that your newly published package works:
 
 ```bash
-iota client call --gas-budget 10000000 \
+iota client call \
     --package '<EXAMPLE-PACKAGE-ID>' \
     --module 'example' \
     --function 'nudge' \
@@ -1118,7 +1118,7 @@ Use the IOTA Client CLI to test the upgraded package.
 Note that the package ID will be different from the original version of your example package:
 
 ```bash
-iota client call --gas-budget 10000000 \
+iota client call \
     --package '<UPGRADED-EXAMPLE-PACKAGE>' \
     --module 'example' \
     --function 'nudge'

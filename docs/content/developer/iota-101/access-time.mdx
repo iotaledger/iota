@@ -23,7 +23,7 @@ The example below demonstrates an entry function that emits an event containing 
 A call to the previous entry function takes the following form, passing `0x6` as the address for the `Clock` parameter:
 
 ```shell
-iota client call --package <EXAMPLE> --module 'clock' --function 'access' --args '0x6' --gas-budget <GAS-AMOUNT>
+iota client call --package <EXAMPLE> --module 'clock' --function 'access' --args '0x6'
 ```
 
 Expect the `Clock` timestamp to change at the rate the network generates checkpoints, which is **every 1 second** with Narwhal/Bullshark consensus and **every 0.1 to 0.2 seconds** with Mysticeti consensus.

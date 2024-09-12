@@ -147,7 +147,7 @@ A8z83EqjmgwRNFV6sme6A5tTTTQPjiLgiW76neyvhLud
 ### Set gas price for the next epoch
 
 ```shell
-$ iota validator request_set_gas_price --args 0x5 \"42\" --gas-budget GAS-BUDGET-AMOUNT>
+$ iota validator request_set_gas_price --args 0x5 \"42\"
 ```
 
 ### Display the validator information
@@ -327,7 +327,6 @@ Options:
       --operation-cap-id <operation-cap-id>  Optional when sender is reporter validator itself and it holds the Cap object. Required when sender is not the reporter validator itself. Validator's
                                              OperationCap ID can be found by using the `display-metadata` subcommand
       --undo-report <undo-report>            If true, undo an existing report [possible values: true, false]
-      --gas-budget <gas-budget>              Gas budget for this transaction
       --json                                 Return command outputs in json format
   -h, --help                                 Print help
   -V, --version                              Print version

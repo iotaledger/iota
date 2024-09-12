@@ -31,7 +31,6 @@ Options:
           Perform a dry run of the PTB instead of executing it.
           
       --gas-coin <ID>                                                 The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
-      --gas-budget <NANOS>                                            The gas budget for the transaction, in NANOS.
       --make-move-vec <TYPE> <[VALUES]>                               Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
       --merge-coins <INTO_COIN> <[COIN OBJECTS]>                      Merge N coins into the provided coin.
       --move-call <PACKAGE::MODULE::FUNCTION> <TYPE> <FUNCTION_ARGS>  Make a Move call to a function.
@@ -83,7 +82,7 @@ To pass in multiple types, delimit them with a comma:
 CLI PTBs support string literals as inputs, which will be encoded as pure values that can be used as inputs to `vector<u8>`, `std::ascii::String` and `std::string::String` parameters. The following example previews a transaction block that passes the string `"Hello, world"` to a function `m::f` in a package `$PKG` (its ID is held in an environment variable).
 
 ```bash
-iota client ptb --move-call "$PKG::m::f" '"Hello, world"' --gas-budget 10000000 --preview
+iota client ptb --move-call "$PKG::m::f" '"Hello, world"' --preview
 ```
 
 :::warning

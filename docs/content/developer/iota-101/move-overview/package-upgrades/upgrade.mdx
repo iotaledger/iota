@@ -382,7 +382,7 @@ iota_package = "0x0"
 Once your package is ready, you can publish it using the following command:
 
 ```shell
-iota client publish --gas-budget <GAS-BUDGET-AMOUNT>
+iota client publish
 ```
 
 If successful, you'll receive a response similar to this:
@@ -534,7 +534,7 @@ With the updated manifest and code prepared, you're ready to perform the upgrade
 Use the following command, passing the `UpgradeCap` ID using the `--upgrade-capability` flag:
 
 ```shell
-iota client upgrade --gas-budget <GAS-BUDGET-AMOUNT> --upgrade-capability <UPGRADE-CAP-ID>
+iota client upgrade --upgrade-capability <UPGRADE-CAP-ID>
 ```
 
 ### Finalizing the Upgrade
