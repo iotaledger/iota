@@ -64,7 +64,11 @@ export function StakeTxnInfo({ apy, startEpoch, gasSummary }: StakeTxnInfoProps)
                         fullwidth
                     />
                 )}
-                <KeyValueInfo keyText="Staking Rewards Start" valueText={stakedRewardsStartEpoch} fullwidth />
+                <KeyValueInfo
+                    keyText="Staking Rewards Start"
+                    valueText={stakedRewardsStartEpoch}
+                    fullwidth
+                />
                 <KeyValueInfo
                     keyText="Redeem Rewards"
                     valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
