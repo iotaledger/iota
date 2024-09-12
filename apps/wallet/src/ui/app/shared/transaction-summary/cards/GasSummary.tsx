@@ -19,7 +19,7 @@ export function GasSummary({ gasSummary }: GasSummaryProps) {
     const gasOwnerLink = useAddressLink(gasSummary?.owner || null);
 
     if (!gasSummary)
-        return <KeyValueInfo keyText="Gas fee" valueText="0" supportingLabel={symbol} />;
+        return <KeyValueInfo keyText="Gas fee" valueText="0" supportingLabel={symbol} fullwidth />;
 
     return (
         <>

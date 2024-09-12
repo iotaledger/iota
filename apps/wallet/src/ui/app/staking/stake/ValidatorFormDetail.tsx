@@ -119,12 +119,14 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
                         valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Stake Share"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Stake percentage managed by this validator."
                         valueText={formatPercentageDisplay(totalStakePercentage)}
+                        fullwidth
                     />
                     {!unstake && (
                         <>
@@ -134,6 +136,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                                 tooltipText="Stake percentage managed by this validator."
                                 valueText={totalValidatorStakeFormatted}
                                 supportingLabel={totalValidatorStakeSymbol}
+                                fullwidth
                             />
                             <KeyValueInfo
                                 keyText="Your Staked IOTA"
@@ -141,6 +144,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                                 tooltipText="Your current staked balance."
                                 valueText={totalStakeFormatted}
                                 supportingLabel={totalStakeSymbol}
+                                fullwidth
                             />
                         </>
                     )}

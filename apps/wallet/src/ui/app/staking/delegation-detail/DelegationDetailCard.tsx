@@ -155,20 +155,24 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                             keyText="Your Stake"
                             valueText={totalStakeFormatted}
                             supportingLabel={totalStakeSymbol}
+                            fullwidth
                         />
                         <KeyValueInfo
                             keyText="Earned"
                             valueText={iotaEarnedFormatted}
                             supportingLabel={iotaEarnedSymbol}
+                            fullwidth
                         />
                         <Divider />
                         <KeyValueInfo
                             keyText="APY"
                             valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                            fullwidth
                         />
                         <KeyValueInfo
                             keyText="Commission"
                             valueText={`${commission.toString()}%`}
+                            fullwidth
                         />
                     </div>
                 </Panel>
