@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats } from '@iota/apps-ui-kit';
-import { formatDate } from '@iota/core';
+import { formatDate, useResolveIotaNSName } from '@iota/core';
+
 interface TransactionDetailsProps {
     sender?: string;
     checkpoint?: string | null;
@@ -17,13 +18,15 @@ export function TransactionDetails({
     executedEpoch,
     timestamp,
 }: TransactionDetailsProps): JSX.Element {
+    const { data: domainName } = useResolveIotaNSName(sender);
+
     return (
         <div className="grid grid-cols-1 gap-sm md:grid-cols-4">
             {sender && (
                 <DisplayStats
                     label="Sender"
                     value={sender}
-                    valueLink={`/address/${sender}`}
+                    valueLink={domainName ?? `/address/${sender}`}
                     isTruncated
                 />
             )}
