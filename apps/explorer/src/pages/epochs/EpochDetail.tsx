@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useCoinMetadata, useFormatCoin } from '@iota/core';
+import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
@@ -20,11 +20,11 @@ import { CheckpointsTable, PageLayout } from '~/components';
 import { Banner, Stats, type StatsProps, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
-import { generateValidatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
 import { validatorColumns } from './epochValidatorsSchema';
+import { generateValidatorsTableData } from '~/lib/ui/utils/generateValidatorsTableData';
 
 function IotaStats({
     amount,
@@ -67,7 +67,6 @@ export default function EpochDetail() {
                 limit: 1,
             }),
     });
-    const { data: coinMetaData } = useCoinMetadata(IOTA_TYPE_ARG);
 
     const [epochData] = data?.data ?? [];
     const isCurrentEpoch = useMemo(
@@ -85,7 +84,7 @@ export default function EpochDetail() {
             validatorEvents: [],
             rollingAverageApys: null,
             columns: validatorColumns,
-            symbol: coinMetaData?.symbol,
+            showValidatorIcon: true,
         });
     }, [epochData]);
 
