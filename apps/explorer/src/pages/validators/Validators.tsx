@@ -4,7 +4,12 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { DisplayStats, DisplayStatsSize, DisplayStatsType, TooltipPosition } from '@iota/apps-ui-kit';
+import {
+    DisplayStats,
+    DisplayStatsSize,
+    DisplayStatsType,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import {
     formatPercentageDisplay,
     roundFloat,
@@ -18,7 +23,6 @@ import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
 import { useMemo } from 'react';
-import { t } from 'vitest/dist/types-198fd1d9';
 import { ErrorBoundary, PageLayout, StakeColumn } from '~/components';
 import {
     Banner,

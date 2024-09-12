@@ -5,7 +5,6 @@
 import { Select } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo, useState } from 'react';
-
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { generateTableDataFromCheckpointsData } from '~/lib/ui';
@@ -49,7 +48,7 @@ export function CheckpointsTable({
     const cardData = data ? generateTableDataFromCheckpointsData(data) : undefined;
 
     return (
-        <div className="flex flex-col space-y-3 text-left xl:pr-10">
+        <div className="flex flex-col gap-md text-left xl:pr-10">
             {isError && (
                 <div className="pt-2 font-sans font-semibold text-issue-dark">
                     Failed to load Checkpoints
