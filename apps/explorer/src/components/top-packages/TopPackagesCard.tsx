@@ -9,7 +9,7 @@ import { FilterList, TabHeader } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { TopPackagesTable } from './TopPackagesTable';
-import { Panel } from '@iota/apps-ui-kit';
+import { Chip, Panel, Title } from '@iota/apps-ui-kit';
 
 type DateFilter = '3D' | '7D' | '30D';
 type ApiDateFilter = 'rank3Days' | 'rank7Days' | 'rank30Days';
@@ -33,22 +33,20 @@ export function TopPackagesCard(): JSX.Element {
     return (
         <Panel>
             <div className="relative">
-                <div className="absolute right-0 mt-1">
+                <div className="absolute right-0 mr-2 mt-2">
                     <FilterList
-                        lessSpacing
                         options={['3D', '7D', '30D']}
-                        value={selectedFilter}
-                        onChange={(val) => setSelectedFilter(val)}
+                        selected={selectedFilter}
+                        onSelected={(val) => setSelectedFilter(val)}
                     />
                 </div>
-                <TabHeader
+                <Title
                     title="Popular Packages"
-                    tooltip="Popular packages is recomputed on epoch changes."
-                >
-                    <ErrorBoundary>
-                        <TopPackagesTable data={filteredData} isLoading={isPending} />
-                    </ErrorBoundary>
-                </TabHeader>
+                    tooltipText="Popular packages is recomputed on epoch changes."
+                />
+                <ErrorBoundary>
+                    <TopPackagesTable data={filteredData} isLoading={isPending} />
+                </ErrorBoundary>
             </div>
         </Panel>
     );
