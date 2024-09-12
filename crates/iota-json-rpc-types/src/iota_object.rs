@@ -30,7 +30,7 @@ use iota_types::{
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
-    annotated_value::{MoveStruct, MoveStructLayout},
+    annotated_value::{MoveStructLayout, MoveValue},
     identifier::Identifier,
     language_storage::StructTag,
 };
@@ -900,7 +900,7 @@ pub fn type_and_fields_from_move_event_data(
             IotaMoveStruct::WithTypes { type_, .. } => {
                 Ok((type_.clone(), move_struct.clone().to_json_value()))
             }
-            _ => Err(IotaError::ObjectDeserializationError {
+            _ => Err(IotaError::ObjectDeserialization {
                 error: "Found non-type IotaMoveStruct in MoveValue event".to_string(),
             }),
         },
@@ -911,7 +911,7 @@ pub fn type_and_fields_from_move_event_data(
         | IotaMoveValue::Address(_)
         | IotaMoveValue::String(_)
         | IotaMoveValue::UID { .. }
-        | IotaMoveValue::Option(_) => Err(IotaError::ObjectDeserializationError {
+        | IotaMoveValue::Option(_) => Err(IotaError::ObjectDeserialization {
             error: "Invalid MoveValue event type -- this should not be possible".to_string(),
         }),
     }

@@ -36,12 +36,10 @@ use iota_types::{
         Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
         InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
-        VersionedProtocolMessage,
     },
-    type_resolver::LayoutResolver,
     IOTA_FRAMEWORK_ADDRESS,
 };
-use move_binary_format::{access::ModuleAccess, binary_views::BinaryIndexedView, CompiledModule};
+use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::MoveTypeLayout,
