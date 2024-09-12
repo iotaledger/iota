@@ -180,6 +180,7 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
         />
     );
 }
+
 interface StorageRebateCardProps {
     storageRebate: string;
 }
