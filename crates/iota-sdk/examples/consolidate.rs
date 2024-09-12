@@ -20,27 +20,31 @@ use utils::{setup_for_write, sign_and_execute_transaction};
 async fn main() -> Result<(), anyhow::Error> {
     let (client, sender, _) = setup_for_write().await?;
 
-    let mut coins = client
+    let gas_budget = 5_000_000;
+    let mut gas_coin_ref = None;
+
+    let mut chunks = client
         .coin_read_api()
         .get_coins_stream(sender, None)
-        .collect::<Vec<_>>()
-        .await;
-    println!("Merging {} coin objects...", coins.len());
-
-    let gas_budget = 50_000_000;
-    let mut gas_coin_ref = coins
-        .remove(
-            coins
-                .iter()
-                .position(|c| c.balance >= gas_budget)
-                .expect("no coin with enough balance for gas"),
-        )
-        .object_ref();
-
-    for input_coins_one_tx in coins
         // Max inputs without exceeding the transaction size
         .chunks(1676)
-    {
+        .boxed();
+    while let Some(mut input_coins_one_tx) = chunks.next().await {
+        println!("Merging {} coin objects...", input_coins_one_tx.len());
+
+        if gas_coin_ref.is_none() {
+            gas_coin_ref.replace(
+                input_coins_one_tx
+                    .remove(
+                        input_coins_one_tx
+                            .iter()
+                            .position(|c| c.balance >= gas_budget)
+                            .expect("no coin with enough balance for gas"),
+                    )
+                    .object_ref(),
+            );
+        }
+
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             // Max arguments for a programmable transaction command -1 because of the
@@ -61,11 +65,12 @@ async fn main() -> Result<(), anyhow::Error> {
         let kind = TransactionKind::ProgrammableTransaction(pt);
 
         let gas_price = client.read_api().get_reference_gas_price().await?;
-
-        let tx_data = TransactionData::new(kind, sender, gas_coin_ref, gas_budget, gas_price);
+        let tx_data =
+            TransactionData::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
 
         let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
         println!("Transaction sent {}", transaction_response.digest);
+
         // Update the gas_coin_ref for the next transaction
         for object_change in transaction_response
             .object_changes
@@ -78,7 +83,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ..
             } = object_change
             {
-                gas_coin_ref = (object_id, version, digest);
+                gas_coin_ref.replace((object_id, version, digest));
             }
         }
     }
