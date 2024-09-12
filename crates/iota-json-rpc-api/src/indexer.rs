@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -73,7 +73,7 @@ pub trait IndexerApi {
     /// Subscribe to a stream of Iota event
     #[rustfmt::skip]
     #[subscription(name = "subscribeEvent", item = IotaEvent)]
-    async fn subscribe_event(
+    fn subscribe_event(
         &self,
         /// The filter criteria of the event stream. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
         filter: EventFilter,
@@ -81,7 +81,7 @@ pub trait IndexerApi {
 
     /// Subscribe to a stream of Iota transaction effects
     #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
-    async fn subscribe_transaction(&self, filter: TransactionFilter);
+    fn subscribe_transaction(&self, filter: TransactionFilter);
 
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]
