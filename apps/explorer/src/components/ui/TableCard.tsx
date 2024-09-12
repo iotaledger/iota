@@ -8,7 +8,6 @@ import {
     TableBodyRow,
     TableCell,
     type TableCellProps,
-    TableCellType,
     TableHeader,
     TableHeaderCell,
     TableHeaderRow,
@@ -16,7 +15,6 @@ import {
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
-    flexRender,
     getCoreRowModel,
     getSortedRowModel,
     type RowData,
@@ -26,10 +24,6 @@ import {
 import clsx from 'clsx';
 import { useState } from 'react';
 import { useNavigateWithQuery } from './LinkWithQuery';
-
-interface ColumnDefMeta {
-    isRenderCell?: boolean;
-}
 
 export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
@@ -111,22 +105,9 @@ export function TableCard<DataType extends object>({
                 <TableBody>
                     {table.getRowModel().rows.map((row) => (
                         <TableBodyRow key={row.id} rowIndex={row.index}>
-                            {row.getVisibleCells().map((cell) => {
-                                // If the column has a custom cell renderer, use it
-                                if ((cell.column.columnDef.meta as ColumnDefMeta)?.isRenderCell) {
-                                    return (
-                                        <TableCell key={cell.id} type={TableCellType.Children}>
-                                            {flexRender(
-                                                cell.column.columnDef.cell,
-                                                cell.getContext(),
-                                            )}
-                                        </TableCell>
-                                    );
-                                }
-                                return (
-                                    <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
-                                );
-                            })}
+                            {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
+                            ))}
                         </TableBodyRow>
                     ))}
                 </TableBody>

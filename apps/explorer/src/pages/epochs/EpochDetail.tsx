@@ -7,6 +7,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
+import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
@@ -23,8 +24,42 @@ import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/uti
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
-import { validatorColumns } from './epochValidatorsSchema';
 import { generateValidatorsTableData } from '~/lib/ui/utils/generateValidatorsTableData';
+
+export const VALIDATOR_COLUMNS: ColumnDef<object, unknown>[] = [
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+    {
+        header: 'Proposed next Epoch gas price',
+        accessorKey: 'nextEpochGasPrice',
+    },
+    {
+        header: 'APY',
+        accessorKey: 'apy',
+    },
+    {
+        header: 'Commission',
+        accessorKey: 'commission',
+    },
+    {
+        header: 'Last Epoch Reward',
+        accessorKey: 'lastReward',
+    },
+    {
+        header: 'Voting Power',
+        accessorKey: 'votingPower',
+    },
+    {
+        header: 'Status',
+        accessorKey: 'atRisk',
+    },
+];
 
 function IotaStats({
     amount,
@@ -83,7 +118,7 @@ export default function EpochDetail() {
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
-            columns: validatorColumns,
+            columns: VALIDATOR_COLUMNS,
             showValidatorIcon: true,
         });
     }, [epochData]);

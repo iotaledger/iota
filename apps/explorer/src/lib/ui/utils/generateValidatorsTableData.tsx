@@ -9,15 +9,7 @@ import {
     TableCellTextColor,
 } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
-import {
-    type ApyByValidator,
-    // formatAmount,
-    formatPercentageDisplay,
-    // roundFloat,
-    // useFormatCoin,
-    // useGetValidatorsApy,
-    // useGetValidatorsEvents,
-} from '@iota/core';
+import { type ApyByValidator, formatPercentageDisplay } from '@iota/core';
 
 import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
 import { Link, StakeColumn, AddressLink, ImageIcon } from '~/components';
@@ -44,6 +36,45 @@ interface GenerateValidatorsTableDataArgs {
     showValidatorIcon?: boolean;
     columns?: ColumnDef<object, unknown>[];
 }
+
+const DEFAULT_COLUMNS: ColumnDef<object, unknown>[] = [
+    {
+        header: '#',
+        accessorKey: 'number',
+    },
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+    {
+        header: 'Proposed Next Epoch Gas Price',
+        accessorKey: 'nextEpochGasPrice',
+    },
+    {
+        header: 'APY',
+        accessorKey: 'apy',
+    },
+    {
+        header: 'Commission',
+        accessorKey: 'commission',
+    },
+    {
+        header: 'Last Epoch Rewards',
+        accessorKey: 'lastReward',
+    },
+    {
+        header: 'Voting Power',
+        accessorKey: 'votingPower',
+    },
+    {
+        header: 'Status',
+        accessorKey: 'atRisk',
+    },
+];
 
 function generateValidatorName(address: string, name: string, imageUrl: string) {
     return (
@@ -99,45 +130,6 @@ function generateValidatorAddress(address: string, name: string, limit?: number)
         </div>
     );
 }
-
-const DEFAULT_COLUMNS: ColumnDef<object, unknown>[] = [
-    {
-        header: '#',
-        accessorKey: 'number',
-    },
-    {
-        header: 'Name',
-        accessorKey: 'name',
-    },
-    {
-        header: 'Stake',
-        accessorKey: 'stake',
-    },
-    {
-        header: 'Proposed Next Epoch Gas Price',
-        accessorKey: 'nextEpochGasPrice',
-    },
-    {
-        header: 'APY',
-        accessorKey: 'apy',
-    },
-    {
-        header: 'Commission',
-        accessorKey: 'commission',
-    },
-    {
-        header: 'Last Epoch Rewards',
-        accessorKey: 'lastReward',
-    },
-    {
-        header: 'Voting Power',
-        accessorKey: 'votingPower',
-    },
-    {
-        header: 'Status',
-        accessorKey: 'atRisk',
-    },
-];
 
 export function generateValidatorsTableData({
     validators,
