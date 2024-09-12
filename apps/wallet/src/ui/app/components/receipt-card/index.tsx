@@ -53,6 +53,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         currentAddress: activeAddress,
         recognizedPackagesList,
     });
+    const isSender = txn.transaction?.data.sender === activeAddress;
 
     if (!summary) return null;
 
@@ -81,7 +82,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                     timestamp={txn.timestampMs ?? undefined}
                 />
                 <TransactionSummary summary={summary} />
-                <GasFees gasSummary={summary?.gas} />
+                {isSender && <GasFees gasSummary={summary?.gas} />}
             </div>
             <ExplorerLinkCard
                 digest={summary?.digest}
