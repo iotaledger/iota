@@ -62,7 +62,10 @@ export function Modal({ open, onClose, children }: ModalProps): JSX.Element {
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 z-10 bg-gray-100/80" aria-hidden="true" />
+                    <div
+                        className="fixed inset-0 z-10 bg-shader-neutral-light-48"
+                        aria-hidden="true"
+                    />
                 </Transition.Child>
                 <div className="fixed inset-0 z-10 overflow-y-auto">
                     <div className="flex min-h-full items-center justify-center">
