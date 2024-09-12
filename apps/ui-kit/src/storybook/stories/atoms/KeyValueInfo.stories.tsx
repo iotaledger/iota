@@ -57,5 +57,8 @@ export const Default: Story = {
                 options: Object.values(ValueSize),
             },
         },
+        isCopyable: {
+            control: 'boolean',
+        },
     },
 };
