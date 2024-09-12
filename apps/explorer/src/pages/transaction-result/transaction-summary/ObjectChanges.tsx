@@ -32,6 +32,7 @@ import {
     ObjectLink,
 } from '~/components/ui';
 import { ObjectDisplay } from './ObjectDisplay';
+import { Badge, BadgeType } from '@iota/apps-ui-kit';
 
 interface ItemProps {
     label: string;
@@ -206,23 +207,14 @@ function ObjectChangeEntries({
     }
 
     return (
-        <CollapsibleSection
-            title={
-                <Text
-                    variant="body/semibold"
-                    color={title === ObjectChangeLabels.created ? 'success-dark' : 'steel-darker'}
-                >
-                    {title}
-                </Text>
-            }
-        >
+        <CollapsibleSection>
             <ExpandableList
                 items={expandableItems}
                 defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
                 itemsLabel="Objects"
             >
                 <div
-                    className={clsx('flex max-h-[300px] gap-2 overflow-y-auto', {
+                    className={clsx('flex gap-2 overflow-y-auto', {
                         'flex-row': isDisplay,
                         'flex-col': !isDisplay,
                     })}
@@ -275,7 +267,7 @@ interface ObjectChangeEntriesCardsProps {
 
 export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCardsProps) {
     if (!data) return null;
-
+    const badgeLabel = ObjectChangeLabels[type];
     return (
         <>
             {Object.entries(data).map(([ownerAddress, changes]) => {
@@ -284,10 +276,9 @@ export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCard
                 );
                 return (
                     <CollapsibleCard
+                        collapsible
                         key={ownerAddress}
                         title="Changes"
-                        size="sm"
-                        shadow
                         footer={
                             renderFooter && (
                                 <ObjectChangeEntriesCardFooter
@@ -295,6 +286,9 @@ export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCard
                                     ownerAddress={ownerAddress}
                                 />
                             )
+                        }
+                        supportingTitleElement={
+                            <Badge label={badgeLabel} type={BadgeType.PrimarySoft} />
                         }
                     >
                         <div className="flex flex-col gap-4">

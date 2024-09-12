@@ -12,7 +12,7 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
     if (!data?.length) return null;
 
     return (
-        <CollapsibleCard title="Changes" size="sm" shadow>
+        <CollapsibleCard title="Changes">
             <CollapsibleSection
                 title={
                     <Text variant="body/semibold" color="success-dark">

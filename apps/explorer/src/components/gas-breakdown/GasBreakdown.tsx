@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Title } from '@iota/apps-ui-kit';
 import {
     CoinFormat,
     type TransactionSummary,
@@ -59,23 +60,19 @@ function TotalGasAmount({ amount }: GasProps): JSX.Element | null {
     }
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-0.5">
-                <Heading variant="heading3/semibold" color="steel-darker">
+        <div className="flex w-full flex-row items-center justify-between gap-md px-md--rs pt-xs">
+            <div className="flex flex-col items-start gap-xxs">
+                <span className="text-body-lg text-neutral-10 dark:text-neutral-92">
                     {formattedAmount}
-                </Heading>
-                <Text variant="body/medium" color="steel-dark">
-                    {symbol}
-                </Text>
+                </span>
+                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">{symbol}</span>
             </div>
 
-            <div className="flex items-center gap-0.5">
-                <Heading variant="heading6/medium" color="steel">
+            <div className="flex flex-col items-start gap-xxs">
+                <span className="text-body-lg text-neutral-10 dark:text-neutral-92">
                     {BigInt(amount)?.toLocaleString()}
-                </Heading>
-                <Text variant="body/medium" color="steel">
-                    nano
-                </Text>
+                </span>
+                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">nano</span>
             </div>
         </div>
     );
@@ -117,16 +114,14 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
     return (
         <CollapsibleCard
             collapsible
-            title={
-                <div className="flex flex-col gap-2">
-                    <Heading variant="heading4/semibold" color="steel-darker">
-                        Gas & Storage Fee
-                    </Heading>
+            render={({ isOpen }) => (
+                <div className="flex w-full flex-col gap-2">
+                    <Title title="Gas & Storage Fee" />
                     <TotalGasAmount amount={totalGas} />
                 </div>
-            }
+            )}
         >
-            <CollapsibleSection>
+            <CollapsibleSection hideBorder>
                 {isSponsored && owner && (
                     <div className="mb-4 flex items-center gap-2 rounded-xl bg-iota/10 px-3 py-2">
                         <Text variant="pBody/medium" color="steel-darker">

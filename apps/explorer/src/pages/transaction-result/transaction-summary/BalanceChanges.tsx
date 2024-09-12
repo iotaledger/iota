@@ -81,15 +81,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
 
     return (
         <CollapsibleCard
-            title={
-                <div className="flex w-full flex-wrap items-center justify-between gap-y-2">
-                    <Heading variant="heading6/semibold" color="steel-darker">
-                        Balance Changes
-                    </Heading>
-                </div>
-            }
-            shadow
-            size="sm"
+            title="Balance Changes"
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between">
