@@ -91,7 +91,7 @@ enum EpochTabs {
 }
 
 export default function EpochDetail() {
-    const [activeTabId, setActiveTabId] = useState(EpochTabs.Validators);
+    const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
