@@ -4,7 +4,7 @@
 
 import { type TransactionFilter } from '@iota/iota-sdk/client';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
-import { Pagination, PlaceholderTable, TableCard } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
@@ -115,6 +115,46 @@ export function TransactionBlocksForAddress({
             ? genTableDataFromTxData(data.pages[currentPage].data)
             : undefined;
 
+    const isPaginationVisible = hasNextPage || (data && data?.pages.length > 1);
+    const pagination = {
+        onNext: () => {
+            if (isPending || isFetching) {
+                return;
+            }
+
+            // Make sure we are at the end before fetching another page
+            if (
+                data &&
+                currentPageState[filterValue] === data?.pages.length - 1 &&
+                !isPending &&
+                !isFetching
+            ) {
+                fetchNextPage();
+            }
+            dispatch({
+                type: PageAction.Next,
+
+                filterValue,
+            });
+        },
+        hasNext:
+            (Boolean(hasNextPage) && Boolean(data?.pages[currentPage])) ||
+            currentPage < (data?.pages.length ?? 0) - 1,
+        hasFirst: currentPageState[filterValue] !== 0,
+        hasPrev: currentPageState[filterValue] !== 0,
+        onPrev: () =>
+            dispatch({
+                type: PageAction.Prev,
+
+                filterValue,
+            }),
+        onFirst: () =>
+            dispatch({
+                type: PageAction.First,
+                filterValue,
+            }),
+    };
+
     return (
         <Panel>
             <div data-testid="tx">
@@ -133,52 +173,12 @@ export function TransactionBlocksForAddress({
                         />
                     ) : (
                         <div>
-                            <TableCard data={cardData.data} columns={cardData.columns} />
+                            <TableCard
+                                data={cardData.data}
+                                columns={cardData.columns}
+                                paginationOptions={isPaginationVisible ? pagination : undefined}
+                            />
                         </div>
-                    )}
-
-                    {(hasNextPage || (data && data?.pages.length > 1)) && (
-                        <Pagination
-                            hasFirst={currentPageState[filterValue] !== 0}
-                            onNext={() => {
-                                if (isPending || isFetching) {
-                                    return;
-                                }
-
-                                // Make sure we are at the end before fetching another page
-                                if (
-                                    data &&
-                                    currentPageState[filterValue] === data?.pages.length - 1 &&
-                                    !isPending &&
-                                    !isFetching
-                                ) {
-                                    fetchNextPage();
-                                }
-                                dispatch({
-                                    type: PageAction.Next,
-
-                                    filterValue,
-                                });
-                            }}
-                            hasNext={
-                                (Boolean(hasNextPage) && Boolean(data?.pages[currentPage])) ||
-                                currentPage < (data?.pages.length ?? 0) - 1
-                            }
-                            hasPrev={currentPageState[filterValue] !== 0}
-                            onPrev={() =>
-                                dispatch({
-                                    type: PageAction.Prev,
-
-                                    filterValue,
-                                })
-                            }
-                            onFirst={() =>
-                                dispatch({
-                                    type: PageAction.First,
-                                    filterValue,
-                                })
-                            }
-                        />
                     )}
                 </div>
             </div>

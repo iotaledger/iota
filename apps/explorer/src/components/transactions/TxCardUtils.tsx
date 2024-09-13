@@ -7,6 +7,8 @@ import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-s
 
 import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
 import { addressToLink, transactionToLink } from '../ui';
+import { formatAddress, formatDigest } from '@iota/iota-sdk/utils';
+import { getElapsedTime } from '~/pages/epochs/utils';
 
 interface TransactionData {
     date: TableCellProps;
@@ -32,10 +34,13 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
             const sender = transaction.transaction?.data.sender;
 
             return {
-                date: { type: TableCellType.Text, label: transaction.timestampMs?.toString() },
+                date: {
+                    type: TableCellType.Text,
+                    label: getElapsedTime(Number(transaction.timestampMs), Date.now()),
+                },
                 digest: {
                     type: TableCellType.Link,
-                    label: transaction.digest,
+                    label: formatDigest(transaction.digest),
                     to: transactionToLink({ digest: transaction.digest }),
                 },
                 txns: {
@@ -54,7 +59,7 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
                 sender: sender
                     ? {
                           type: TableCellType.Link,
-                          label: sender,
+                          label: formatAddress(sender),
                           to: addressToLink({ address: sender }),
                       }
                     : {
