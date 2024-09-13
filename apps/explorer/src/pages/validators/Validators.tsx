@@ -11,13 +11,13 @@ import { generateValidatorsTableData } from '~/lib/ui/utils';
 
 import { ErrorBoundary, PageLayout } from '~/components';
 import { Banner, PlaceholderTable, TableCard, TableHeader } from '~/components/ui';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/src/utils';
 import {
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');

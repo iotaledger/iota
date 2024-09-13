@@ -7,7 +7,6 @@ import { ArrowRight12 } from '@iota/icons';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 import { useMemo } from 'react';
-
 import { Banner, Link, PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableData } from '~/lib/ui';
 
