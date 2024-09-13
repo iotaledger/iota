@@ -143,19 +143,19 @@ body,
                 'heroImage description storageRebate'
                 'heroImage objectId version'
                 'heroImage type lastTxBlock';
-            }
+        }
         .address-grid-container-top.no-description.no-image {
             @apply grid grid-cols-3 grid-rows-2;
-            grid-template-areas: 
-            'objectId version owner'
-            'type lastTxBlock storageRebate';
+            grid-template-areas:
+                'objectId version owner'
+                'type lastTxBlock storageRebate';
         }
         .address-grid-container-top.no-image {
             @apply grid grid-cols-3 grid-rows-3;
-            grid-template-areas: 
-            'name description type'
-            'objectId version type'
-            'owner lastTxBlock storageRebate';
+            grid-template-areas:
+                'name description type'
+                'objectId version type'
+                'owner lastTxBlock storageRebate';
         }
     }
 }

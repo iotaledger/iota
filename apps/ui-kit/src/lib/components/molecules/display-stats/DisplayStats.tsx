@@ -56,6 +56,10 @@ interface DisplayStatsProps {
      * The value link is external.
      */
     isExternalLink?: boolean;
+    /**
+     * The value is truncated
+     */
+    isTruncated?: boolean;
 }
 
 export function DisplayStats({
@@ -69,6 +73,7 @@ export function DisplayStats({
     icon,
     valueLink,
     isExternalLink = false,
+    isTruncated = false,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
@@ -76,6 +81,11 @@ export function DisplayStats({
     const valueTextClass = VALUE_TEXT_CLASSES[size];
     const labelTextClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
+    function truncate(value: string, startLength: number, endLength: number): string {
+        return value.length > startLength + endLength && isTruncated
+            ? `${value.slice(0, startLength)}...${value.slice(-endLength)}`
+            : value;
+    }
     return (
         <div
             className={cx(
@@ -100,7 +110,7 @@ export function DisplayStats({
                 </div>
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
-            <div className="flex flex-row items-baseline gap-xxs break-all">
+            <div className="flex w-full flex-row items-baseline gap-xxs">
                 {valueLink ? (
                     <a
                         href={valueLink}
@@ -108,11 +118,11 @@ export function DisplayStats({
                         rel="noreferrer"
                         className={cx('text-primary-30 dark:text-primary-80', valueTextClass)}
                     >
-                        {value}
+                        {truncate(value, 6, 6)}
                     </a>
                 ) : (
                     <>
-                        <span className={cx(valueTextClass)}>{value}</span>
+                        <span className={cx(valueTextClass)}>{truncate(value, 6, 6)}</span>
                         {supportingLabel && (
                             <span className={cx('opacity-40', supportingLabelTextClass)}>
                                 {supportingLabel}

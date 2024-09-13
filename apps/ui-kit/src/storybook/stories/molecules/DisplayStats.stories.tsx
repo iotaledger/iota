@@ -66,5 +66,8 @@ export const Default: Story = {
         isExternalLink: {
             control: 'boolean',
         },
+        isTruncated: {
+            control: 'boolean',
+        },
     },
 };
