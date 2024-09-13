@@ -4,15 +4,26 @@
 
 import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info16 } from '@iota/icons';
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
+import { LoadingIndicator } from '@iota/ui';
+import { FilterList, Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
-
 import OwnedCoinView from './OwnedCoinView';
 import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
-import { Pagination } from '~/components/ui';
+import {
+    Button,
+    ButtonType,
+    Dropdown,
+    DropdownPosition,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    ListItem,
+    Select,
+    Title,
+} from '@iota/apps-ui-kit';
+import { Pagination } from '../ui';
 
 export type CoinBalanceVerified = CoinBalance & {
     isRecognized?: boolean;
@@ -30,7 +41,7 @@ interface OwnerCoinsProps {
 export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
-    const [filterValue, setFilterValue] = useState(CoinFilter.Recognized);
+    const [filterValue, setFilterValue] = useState(CoinFilter.All);
     const { isPending, data, isError } = useIotaClientQuery('getAllBalances', {
         owner: normalizeIotaAddress(id),
     });
@@ -83,24 +94,29 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
         };
     }, [data, recognizedPackages]);
 
-    const filterOptions = useMemo(
+    const filterOptions: FilterOption[] = useMemo(
         () => [
+            { label: 'All', onClick: () => setFilterValue(CoinFilter.All) },
             {
-                label: `${balances.recognizedBalances.length} RECOGNIZED`,
-                value: CoinFilter.Recognized,
+                label: `Recognized`,
+                counter: balances.recognizedBalances.length,
+                isDisabled: !balances.recognizedBalances.length,
+                onClick: () => setFilterValue(CoinFilter.Recognized),
             },
             {
-                label: `${balances.unrecognizedBalances.length} UNRECOGNIZED`,
-                value: CoinFilter.Unrecognized,
+                label: `Unrecognized`,
+                counter: balances.unrecognizedBalances.length,
+                isDisabled: !balances.unrecognizedBalances.length,
+                onClick: () => setFilterValue(CoinFilter.Unrecognized),
             },
-            { label: 'ALL', value: CoinFilter.All },
         ],
         [balances],
     );
 
-    const displayedBalances = useMemo(() => balances[filterValue], [balances, filterValue]);
     const hasCoinsBalance = balances.allBalances.length > 0;
-    const coinBalanceHeader = hasCoinsBalance ? `${balances.allBalances.length} Coins` : 'Coins';
+    const coinBalanceHeader =
+        `${balances.allBalances.length ?? 0} Coin` + (balances.allBalances.length !== 1 ? 's' : '');
+    const displayedBalances = useMemo(() => balances[filterValue], [balances, filterValue]);
 
     if (isError) {
         return (
@@ -108,82 +124,40 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
         );
     }
 
+    const visibleCoins = displayedBalances.slice((currentSlice - 1) * limit, currentSlice * limit);
+
     return (
-        <div className="h-full w-full md:pr-10">
+        <div className="h-full w-full grow">
             {isPending ? (
                 <div className="m-auto flex h-full w-full justify-center text-white">
                     <LoadingIndicator />
                 </div>
             ) : (
-                <div className="relative flex h-full flex-col gap-4 overflow-auto text-left">
-                    <div className="flex min-h-14 w-full flex-col justify-between gap-y-3 border-b border-gray-45 max-sm:pb-3 max-sm:pt-5 sm:flex-row sm:items-center">
-                        <Heading color="steel-darker" variant="heading4/semibold">
-                            {coinBalanceHeader}
-                        </Heading>
-                        {hasCoinsBalance && (
-                            <div>
-                                <RadioGroup
-                                    aria-label="transaction filter"
-                                    value={filterValue}
-                                    onValueChange={(value) => setFilterValue(value as CoinFilter)}
-                                >
-                                    {filterOptions.map((filter) => (
-                                        <RadioGroupItem
-                                            key={filter.value}
-                                            value={filter.value}
-                                            label={filter.label}
-                                            disabled={!balances[filter.value].length}
-                                        />
-                                    ))}
-                                </RadioGroup>
-                            </div>
+                <div className="flex h-full flex-col">
+                    <Title
+                        title={coinBalanceHeader}
+                        trailingElement={
+                            hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
+                        }
+                    />
+                    <div className="px-md--rs">
+                        {filterValue === CoinFilter.Unrecognized && (
+                            <InfoBox
+                                icon={<Warning />}
+                                supportingText="These coins have not been recognized by the Iota Foundation."
+                                type={InfoBoxType.Default}
+                                style={InfoBoxStyle.Default}
+                            />
                         )}
                     </div>
-                    {filterValue === CoinFilter.Unrecognized && (
-                        <div className="flex items-center gap-2 rounded-2xl border border-gray-45 p-2 text-steel-darker">
-                            <div>
-                                <Info16 width="16px" />
-                            </div>
-                            <Text color="steel-darker" variant="body/medium">
-                                These coins have not been recognized by Iota Foundation.
-                            </Text>
-                        </div>
-                    )}
-
-                    {hasCoinsBalance && (
+                    {hasCoinsBalance ? (
                         <>
-                            <div className="flex max-h-coinsAndAssetsContainer flex-col overflow-auto md:max-h-full">
-                                <div className="mb-2.5 flex uppercase tracking-wider text-gray-80">
-                                    <div className="w-[45%] pl-3">
-                                        <Text variant="caption/medium" color="steel-dark">
-                                            Type
-                                        </Text>
-                                    </div>
-                                    <div className="w-[25%] px-2">
-                                        <Text variant="caption/medium" color="steel-dark">
-                                            Objects
-                                        </Text>
-                                    </div>
-                                    <div className="w-[30%]">
-                                        <Text variant="caption/medium" color="steel-dark">
-                                            Balance
-                                        </Text>
-                                    </div>
-                                </div>
-                                <div>
-                                    {displayedBalances
-                                        .slice((currentSlice - 1) * limit, currentSlice * limit)
-                                        .map((coin) => (
-                                            <OwnedCoinView
-                                                id={id}
-                                                key={coin.coinType}
-                                                coin={coin}
-                                            />
-                                        ))}
-                                </div>
+                            <div className="overflow-y-auto p-sm--rs">
+                                <CoinList coins={visibleCoins} id={id} />
                             </div>
+
                             {displayedBalances.length > limit && (
-                                <div className="flex flex-col justify-between gap-2 md:flex-row">
+                                <div className="flex flex-col justify-between gap-2 px-sm--rs py-xs--rs md:flex-row">
                                     <Pagination
                                         hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
@@ -196,40 +170,103 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         onFirst={() => setCurrentSlice(1)}
                                     />
                                     <div className="flex items-center gap-3">
-                                        <Text variant="body/medium" color="steel-dark">
+                                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
                                             {`Showing `}
                                             {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
                                                 ? displayedBalances.length
                                                 : currentSlice * limit}
-                                        </Text>
-                                        <select
-                                            className="form-select flex rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                            value={limit}
-                                            onChange={(e) => {
-                                                setLimit(Number(e.target.value));
+                                        </span>
+                                        <Select
+                                            dropdownPosition={DropdownPosition.Top}
+                                            value={limit.toString()}
+                                            options={[
+                                                { label: '20 Per Page', id: '20' },
+                                                { label: '40 Per Page', id: '40' },
+                                                { label: '60 Per Page', id: '60' },
+                                            ]}
+                                            onValueChange={(value) => {
+                                                setLimit(Number(value));
                                                 setCurrentSlice(1);
                                             }}
-                                        >
-                                            <option value={20}>20 Per Page</option>
-                                            <option value={40}>40 Per Page</option>
-                                            <option value={60}>60 Per Page</option>
-                                        </select>
+                                        />
                                     </div>
                                 </div>
                             )}
                         </>
-                    )}
-
-                    {!hasCoinsBalance && (
+                    ) : (
                         <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                            <Text variant="body/medium" color="steel-dark">
-                                No Coins owned
-                            </Text>
+                            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                                No Coins Owned
+                            </span>
                         </div>
                     )}
                 </div>
             )}
         </div>
+    );
+}
+
+interface FilterOption {
+    label: string;
+    isDisabled?: boolean;
+    counter?: number;
+    onClick: () => void;
+}
+
+interface CoinsFilterProps {
+    filterOptions: FilterOption[];
+}
+
+function CoinsFilter({ filterOptions }: CoinsFilterProps) {
+    const [areFiltersVisible, setAreFiltersVisible] = useState<boolean>(false);
+
+    function toggleFilterDropdown() {
+        setAreFiltersVisible(!areFiltersVisible);
+    }
+
+    return (
+        <div className="relative z-10">
+            <Button type={ButtonType.Ghost} onClick={toggleFilterDropdown} icon={<FilterList />} />
+            {areFiltersVisible && (
+                <div className="absolute right-0">
+                    <Dropdown>
+                        {filterOptions.map(({ onClick, counter, label, isDisabled }, index) => (
+                            <ListItem
+                                isDisabled={isDisabled}
+                                key={index}
+                                onClick={() => {
+                                    onClick();
+                                    toggleFilterDropdown();
+                                }}
+                                hideBottomBorder
+                            >
+                                <div className="flex w-full flex-row gap-x-md">
+                                    <span>{label}</span>
+                                    {counter && (
+                                        <span className="ml-auto tabular-nums">{counter}</span>
+                                    )}
+                                </div>
+                            </ListItem>
+                        ))}
+                    </Dropdown>
+                </div>
+            )}
+        </div>
+    );
+}
+
+interface CoinListProps {
+    coins: CoinBalanceVerified[];
+    id: string;
+}
+
+function CoinList({ coins, id }: CoinListProps) {
+    return (
+        <>
+            {coins.map((coin, index) => (
+                <OwnedCoinView key={`${coin.coinType}-${index}`} coin={coin} id={id} />
+            ))}
+        </>
     );
 }

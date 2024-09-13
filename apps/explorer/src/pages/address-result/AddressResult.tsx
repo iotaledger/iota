@@ -14,10 +14,12 @@ import {
     PageLayout,
     TransactionsForAddress,
 } from '~/components';
-import { Divider, PageHeader, SplitPanes, TabHeader, TabsList, TabsTrigger } from '~/components/ui';
+import { Divider, PageHeader, SplitPanes } from '~/components/ui';
+
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { TotalStaked } from './TotalStaked';
+import { Panel, Title, Divider as DividerUI } from '@iota/apps-ui-kit';
 
 interface AddressResultPageHeaderProps {
     address: string;
@@ -25,7 +27,6 @@ interface AddressResultPageHeaderProps {
 }
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
-const TOP_PANEL_MIN_SIZE = 20;
 
 interface AddressResultPageHeaderProps {
     address: string;
@@ -53,86 +54,23 @@ function IotaNSAddressResultPageHeader({ name }: { name: string }): JSX.Element 
 }
 
 function AddressResult({ address }: { address: string }): JSX.Element {
-    const isMediumOrAbove = useBreakpoint('md');
-
-    const leftPane = {
-        panel: <OwnedCoins id={address} />,
-        minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
-        defaultSize: LEFT_RIGHT_PANEL_MIN_SIZE,
-    };
-
-    const rightPane = {
-        panel: <OwnedObjects id={address} />,
-        minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
-    };
-
-    const topPane = {
-        panel: (
-            <div className="flex h-full flex-col justify-between">
-                <ErrorBoundary>
-                    {isMediumOrAbove ? (
-                        <SplitPanes
-                            autoSaveId={LocalStorageSplitPaneKey.AddressViewHorizontal}
-                            dividerSize="none"
-                            splitPanels={[leftPane, rightPane]}
-                            direction="horizontal"
-                        />
-                    ) : (
-                        <>
-                            {leftPane.panel}
-                            <div className="my-8">
-                                <Divider />
-                            </div>
-                            {rightPane.panel}
-                        </>
-                    )}
-                </ErrorBoundary>
-            </div>
-        ),
-        minSize: TOP_PANEL_MIN_SIZE,
-    };
-
-    const bottomPane = {
-        panel: (
-            <div className="flex h-full flex-col pt-12">
-                <TabsList>
-                    <TabsTrigger value="tab">Transaction Blocks</TabsTrigger>
-                </TabsList>
-
-                <ErrorBoundary>
-                    <div data-testid="tx" className="relative mt-4 h-full min-h-14 overflow-auto">
-                        <TransactionsForAddress address={address} type="address" />
-                    </div>
-                </ErrorBoundary>
-
-                <div className="mt-0.5">
-                    <Divider />
-                </div>
-            </div>
-        ),
-    };
-
     return (
-        <TabHeader title="Owned Objects" noGap>
-            {isMediumOrAbove ? (
-                <div className="h-300">
-                    <SplitPanes
-                        autoSaveId={LocalStorageSplitPaneKey.AddressViewVertical}
-                        dividerSize="none"
-                        splitPanels={[topPane, bottomPane]}
-                        direction="vertical"
-                    />
+        <>
+            <Panel>
+                <Title title="Owned Objects" />
+                <DividerUI />
+                <div className="flex flex-col gap-2xl">
+                    <OwnedObjectsPanel address={address} />
                 </div>
-            ) : (
-                <>
-                    {topPane.panel}
-                    <div className="mt-5">
-                        <Divider />
-                    </div>
-                    {bottomPane.panel}
-                </>
-            )}
-        </TabHeader>
+            </Panel>
+
+            <Panel>
+                <Title title="Transaction Blocks" />
+                <div className="flex flex-col gap-2xl p-md--rs">
+                    <TransactionBlocksPanel address={address} />
+                </div>
+            </Panel>
+        </>
     );
 }
 
@@ -154,18 +92,67 @@ export default function AddressResultPage(): JSX.Element {
     return (
         <PageLayout
             content={
-                isIotaNSAddress ? (
-                    <>
-                        <IotaNSAddressResultPageHeader name={id!} />
-                        <IotaNSAddressResult name={id!} />
-                    </>
-                ) : (
-                    <>
-                        <AddressResultPageHeader address={id!} />
-                        <AddressResult address={id!} />
-                    </>
-                )
+                <div className="flex flex-col gap-2xl">
+                    {isIotaNSAddress ? (
+                        <>
+                            <IotaNSAddressResultPageHeader name={id!} />
+                            <IotaNSAddressResult name={id!} />
+                        </>
+                    ) : (
+                        <>
+                            <AddressResultPageHeader address={id!} />
+                            <AddressResult address={id!} />
+                        </>
+                    )}
+                </div>
             }
         />
+    );
+}
+
+function OwnedObjectsPanel({ address }: { address: string }) {
+    const isMediumOrAbove = useBreakpoint('md');
+    const leftPane = {
+        panel: <OwnedCoins id={address} />,
+        minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
+        defaultSize: LEFT_RIGHT_PANEL_MIN_SIZE,
+    };
+
+    const rightPane = {
+        panel: <OwnedObjects id={address} />,
+        minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
+    };
+
+    return (
+        <div className="flex h-[800px] flex-col justify-between">
+            <ErrorBoundary>
+                {isMediumOrAbove ? (
+                    <SplitPanes
+                        autoSaveId={LocalStorageSplitPaneKey.AddressViewHorizontal}
+                        dividerSize="none"
+                        splitPanels={[leftPane, rightPane]}
+                        direction="horizontal"
+                    />
+                ) : (
+                    <>
+                        {leftPane.panel}
+                        <div className="my-8">
+                            <Divider />
+                        </div>
+                        {rightPane.panel}
+                    </>
+                )}
+            </ErrorBoundary>
+        </div>
+    );
+}
+
+function TransactionBlocksPanel({ address }: { address: string }) {
+    return (
+        <ErrorBoundary>
+            <div data-testid="tx" className="relative mt-4 h-full min-h-14 overflow-auto">
+                <TransactionsForAddress address={address} type="address" />
+            </div>
+        </ErrorBoundary>
     );
 }
