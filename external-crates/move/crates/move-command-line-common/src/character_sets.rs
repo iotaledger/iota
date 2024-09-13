@@ -1,13 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::{self, Display};
 
 /// Determine if a character is an allowed eye-visible (printable) character.
 ///
-/// The only allowed printable characters are the printable ascii characters (SPACE through ~) and
-/// tabs. All other characters are invalid and we return false.
+/// The only allowed printable characters are the printable ascii characters
+/// (SPACE through ~) and tabs. All other characters are invalid and we return
+/// false.
 pub fn is_permitted_printable_char(c: char) -> bool {
     let x = c as u32;
     let is_above_space = x >= 0x20; // Don't allow meta characters
@@ -49,8 +51,9 @@ pub fn is_permitted_non_ascii_unicode(c: char) -> bool {
 
 /// Determine if a character is permitted character.
 ///
-/// A permitted character is either a permitted printable character, or a permitted
-/// newline. Any other characters are disallowed from appearing in the file.
+/// A permitted character is either a permitted printable character, or a
+/// permitted newline. Any other characters are disallowed from appearing in the
+/// file.
 pub fn is_permitted_char(c: char) -> bool {
     is_permitted_printable_char(c)
         || is_permitted_newline_lf_char(c)
@@ -59,8 +62,9 @@ pub fn is_permitted_char(c: char) -> bool {
 
 /// Determine if the characters is permitted characters.
 ///
-/// A permitted characters is either a permitted printable character, or a permitted
-/// newlines. Any other characters are disallowed from appearing in the file.
+/// A permitted characters is either a permitted printable character, or a
+/// permitted newlines. Any other characters are disallowed from appearing in
+/// the file.
 pub fn is_permitted_chars(chars: &[char], idx: usize) -> bool {
     let c1 = chars[idx];
     if is_permitted_char(c1) {
@@ -75,7 +79,8 @@ pub fn is_permitted_chars(chars: &[char], idx: usize) -> bool {
     is_permitted_newline_crlf_chars(c1, c2)
 }
 
-/// simple wrapper for displaying characters. Escapes non-printable characters for error messages
+/// simple wrapper for displaying characters. Escapes non-printable characters
+/// for error messages
 pub struct DisplayChar(pub char);
 
 impl Display for DisplayChar {

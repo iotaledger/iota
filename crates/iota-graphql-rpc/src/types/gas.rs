@@ -9,7 +9,7 @@ use iota_types::{
     transaction::GasData,
 };
 
-use super::{
+use crate::types::{
     address::Address,
     big_int::BigInt,
     cursor::Page,

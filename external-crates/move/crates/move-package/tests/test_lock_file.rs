@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use expect_test::expect;
@@ -11,7 +12,7 @@ use tempfile::TempDir;
 
 use move_compiler::editions::{Edition, Flavor};
 use move_package::lock_file::schema::{
-    update_managed_address, ManagedAddressUpdate, ToolchainVersion,
+    update_managed_address, ManagedAddressUpdate, ManagedPackage, ToolchainVersion,
 };
 use move_package::lock_file::LockFile;
 use move_package::resolution::dependency_graph::DependencyGraph;
@@ -26,8 +27,10 @@ fn commit() {
     {
         let mut lock = LockFile::new(
             pkg.path().to_path_buf(),
-            /* manifest_digest */ "42".to_string(),
-            /* deps_digest */ "7".to_string(),
+            // manifest_digest
+            "42".to_string(),
+            // deps_digest
+            "7".to_string(),
         )
         .unwrap();
         writeln!(lock, "# Write and commit").unwrap();
@@ -43,8 +46,9 @@ fn commit() {
         buf
     };
 
-    // Check that the content written into the `LockFile` instance above can be found at the path
-    // that that lock file was committed to (indicating that the commit actually happened).
+    // Check that the content written into the `LockFile` instance above can be
+    // found at the path that that lock file was committed to (indicating that
+    // the commit actually happened).
     assert!(
         lock_contents.ends_with("# Write and commit\n"),
         "Lock file doesn't have expected content:\n{}",
@@ -59,8 +63,10 @@ fn discard() {
     {
         let mut lock = LockFile::new(
             pkg.path().to_path_buf(),
-            /* manifest_digest */ "42".to_string(),
-            /* deps_digest */ "7".to_string(),
+            // manifest_digest
+            "42".to_string(),
+            // deps_digest
+            "7".to_string(),
         )
         .unwrap();
         writeln!(lock, "# Write but don't commit").unwrap();
@@ -86,7 +92,7 @@ deps_digest = "0"
 [move.toolchain-version]
 compiler-version = "0.0.0"
 edition = "legacy"
-flavor = "sui"
+flavor = "iota"
 "#;
     fs::write(lock_path.clone(), lock_contents).unwrap();
 
@@ -149,7 +155,7 @@ flavor = "sui"
         [move.toolchain-version]
         compiler-version = "0.0.0"
         edition = "legacy"
-        flavor = "sui"
+        flavor = "iota"
     "#]];
     expected.assert_eq(&contents);
 }
@@ -157,24 +163,36 @@ flavor = "sui"
 #[test]
 fn update_lock_file_toolchain_version() {
     let pkg = create_test_package().unwrap();
-    let lock_path = pkg.path().join("Move.lock");
+    let move_manifest = pkg.path().join("Move.toml");
+    // The 2024.beta in the manifest should override defaults.
+    fs::write(
+        move_manifest,
+        r#"
+          [package]
+          name = "test"
+          edition = "2024.beta"
+        "#,
+    )
+    .unwrap();
 
+    let lock_path = pkg.path().join("Move.lock");
     let lock = LockFile::new(
         pkg.path().to_path_buf(),
-        /* manifest_digest */ "42".to_string(),
-        /* deps_digest */ "7".to_string(),
+        // manifest_digest
+        "42".to_string(),
+        // deps_digest
+        "7".to_string(),
     )
     .unwrap();
     lock.commit(&lock_path).unwrap();
 
     let build_config = BuildConfig {
-        default_flavor: Some(Flavor::Sui),
+        default_flavor: Some(Flavor::Iota),
         default_edition: Some(Edition::E2024_ALPHA),
         lock_file: Some(lock_path.clone()),
         ..Default::default()
     };
-    let _ =
-        build_config.update_lock_file_toolchain_version(&pkg.path().to_path_buf(), "0.0.1".into());
+    let _ = build_config.update_lock_file_toolchain_version(pkg.path(), "0.0.1".into());
 
     let mut lock_file = File::open(lock_path).unwrap();
     let toolchain_version =
@@ -184,8 +202,8 @@ fn update_lock_file_toolchain_version() {
 
     let expected = expect![[r#"
         compiler-version = "0.0.1"
-        edition = "2024.alpha"
-        flavor = "sui"
+        edition = "2024.beta"
+        flavor = "iota"
     "#]];
     expected.assert_eq(&toml);
 }
@@ -198,8 +216,10 @@ fn test_update_managed_address() {
     // Initialize lock file.
     let lock = LockFile::new(
         pkg.path().to_path_buf(),
-        /* manifest_digest */ "42".to_string(),
-        /* deps_digest */ "7".to_string(),
+        // manifest_digest
+        "42".to_string(),
+        // deps_digest
+        "7".to_string(),
     )
     .unwrap();
     lock.commit(&lock_path).unwrap();
@@ -209,7 +229,7 @@ fn test_update_managed_address() {
     let mut lock = LockFile::from(pb, &lock_path).unwrap();
     update_managed_address(
         &mut lock,
-        "default".into(),
+        "default",
         ManagedAddressUpdate::Published {
             original_id: "0x123".into(),
             chain_id: "35834a8a".into(),
@@ -219,7 +239,7 @@ fn test_update_managed_address() {
 
     update_managed_address(
         &mut lock,
-        "default".into(),
+        "default",
         ManagedAddressUpdate::Upgraded {
             latest_id: "0x456".into(),
             version: 2,
@@ -230,33 +250,29 @@ fn test_update_managed_address() {
 
     // Read lock file and check contents.
     let mut lock_file = File::open(lock_path).unwrap();
-    let contents = {
-        let mut buf = String::new();
-        let _ = lock_file.read_to_string(&mut buf);
-        buf
-    };
+    let envs: Vec<_> = ManagedPackage::read(&mut lock_file)
+        .unwrap()
+        .into_iter()
+        .collect();
 
     let expected = expect![[r#"
-        # @generated by Move, please check-in and do not edit manually.
-
-        [move]
-        version = 1
-        manifest_digest = "42"
-        deps_digest = "7"
-
-        [env]
-
-        [env.default]
-        chain-id = "35834a8a"
-        original-published-id = "0x123"
-        latest-published-id = "0x456"
-        published-version = "2"
+        [
+            (
+                "default",
+                ManagedPackage {
+                    chain_id: "35834a8a",
+                    original_published_id: "0x123",
+                    latest_published_id: "0x456",
+                    version: "2",
+                },
+            ),
+        ]
     "#]];
-    expected.assert_eq(&contents);
+    expected.assert_debug_eq(&envs);
 }
 
-/// Create a simple Move package with no sources (just a manifest and an output directory) in a
-/// temporary directory, and return it.
+/// Create a simple Move package with no sources (just a manifest and an output
+/// directory) in a temporary directory, and return it.
 fn create_test_package() -> io::Result<TempDir> {
     let dir = tempfile::tempdir()?;
 

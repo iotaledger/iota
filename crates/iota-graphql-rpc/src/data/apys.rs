@@ -12,31 +12,14 @@ use itertools::Itertools;
 /// together with tests, and slightly altered to return one APY for each call
 /// instead of multiple ones.
 ///
-/// See original code here:
-/// <https://github.com/iotaledger/iota/blob/c3feec3ac3b626bf2fd40c668ba32be9c73e7528/crates/iota-json-rpc/src/governance_api.rs#L280>
-pub(crate) fn calculate_apy(
-    stake_subsidy_start_epoch: u64,
-    rates: &[(u64, PoolTokenExchangeRate)],
-) -> f64 {
-    // we start the apy calculation from the epoch when the stake subsidy starts
-    let exchange_rates = rates
-        .iter()
-        .filter_map(|(epoch, rate)| {
-            if epoch >= &stake_subsidy_start_epoch {
-                Some(rate)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let exchange_rates_size = exchange_rates.len();
-
-    // we need at least 2 data points to calculate apy
-    if exchange_rates_size >= 2 {
+/// See original code here: <../../iota-json-rpc/src/governance_api.rs#L436>
+pub(crate) fn calculate_apy(rates: &[(u64, PoolTokenExchangeRate)]) -> f64 {
+    // We need at least 2 data points to calculate apy.
+    if rates.len() >= 2 {
         // rates are sorted by epoch in descending order.
-        let er_e = exchange_rates.iter().dropping(1);
+        let er_e = rates.clone().dropping(1);
         // rate e+1
-        let er_e_1 = exchange_rates.iter().dropping_back(1);
+        let er_e_1 = rates.dropping_back(1);
         let apys = er_e
             .zip(er_e_1)
             .map(apy_rate)
@@ -44,8 +27,12 @@ pub(crate) fn calculate_apy(
             .take(30)
             .collect::<Vec<_>>();
 
-        let apy_counts = apys.len() as f64;
-        apys.iter().sum::<f64>() / apy_counts
+        if apys.is_empty() {
+            0.0
+        } else {
+            let apy_counts = apys.len() as f64;
+            apys.iter().sum::<f64>() / apy_counts
+        }
     } else {
         0.0
     }
@@ -93,7 +80,7 @@ mod tests {
         });
 
         for (address, (validator, rates)) in &validator_exchange_rates {
-            let apy = calculate_apy(20, &rates.rates);
+            let apy = calculate_apy(&rates.rates);
             println!("{} {}: {}", validator, address, apy);
             assert!(apy < 0.07)
         }

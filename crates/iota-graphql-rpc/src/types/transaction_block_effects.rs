@@ -23,23 +23,25 @@ use iota_types::{
     },
 };
 
-use super::{
-    balance_change::BalanceChange,
-    base64::Base64,
-    checkpoint::{Checkpoint, CheckpointId},
-    cursor::{JsonCursor, Page},
-    date_time::DateTime,
-    digest::Digest,
-    epoch::Epoch,
-    event::Event,
-    gas::GasEffects,
-    object_change::ObjectChange,
-    transaction_block::{TransactionBlock, TransactionBlockInner},
-    uint53::UInt53,
-    unchanged_shared_object::UnchangedSharedObject,
-};
 use crate::{
-    consistency::ConsistentIndexCursor, data::package_resolver::PackageResolver, error::Error,
+    consistency::ConsistentIndexCursor,
+    data::package_resolver::PackageResolver,
+    error::Error,
+    types::{
+        balance_change::BalanceChange,
+        base64::Base64,
+        checkpoint::{Checkpoint, CheckpointId},
+        cursor::{JsonCursor, Page},
+        date_time::DateTime,
+        digest::Digest,
+        epoch::Epoch,
+        event::Event,
+        gas::GasEffects,
+        object_change::ObjectChange,
+        transaction_block::{TransactionBlock, TransactionBlockInner},
+        uint53::UInt53,
+        unchanged_shared_object::UnchangedSharedObject,
+    },
 };
 
 /// Wraps the actual transaction block effects data with the checkpoint sequence

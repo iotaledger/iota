@@ -6,8 +6,10 @@ use async_graphql::*;
 use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
 use iota_types::object::Owner as NativeOwner;
 
-use super::{big_int::BigInt, iota_address::IotaAddress, move_type::MoveType, owner::Owner};
-use crate::error::Error;
+use crate::{
+    error::Error,
+    types::{big_int::BigInt, iota_address::IotaAddress, move_type::MoveType, owner::Owner},
+};
 
 pub(crate) struct BalanceChange {
     stored: StoredBalanceChange,

@@ -16,20 +16,22 @@ use iota_indexer::types::OwnerType;
 use iota_types::{parse_iota_type_tag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use super::{
-    available_range::AvailableRange,
-    big_int::BigInt,
-    cursor::{self, Page, RawPaginated, ScanLimited, Target},
-    iota_address::IotaAddress,
-    move_type::MoveType,
-    uint53::UInt53,
-};
 use crate::{
     consistency::Checkpointed,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    filter, query,
+    filter,
+    move_type::MoveType,
+    query,
     raw_query::RawQuery,
+    types::{
+        available_range::AvailableRange,
+        big_int::BigInt,
+        cursor::{self, Page, RawPaginated, ScanLimited, Target},
+        iota_address::IotaAddress,
+        move_type::MoveType,
+        uint53::UInt53,
+    },
 };
 
 /// The total balance for a particular coin type.

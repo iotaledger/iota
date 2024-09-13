@@ -5,29 +5,33 @@
 use async_graphql::{connection::Connection, *};
 use iota_types::{
     coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
-    gas_coin::{GAS, TOTAL_SUPPLY_IOTA},
+    gas_coin::GAS,
     TypeTag,
 };
 
-use super::{
-    balance::{self, Balance},
-    base64::Base64,
-    big_int::BigInt,
-    coin::Coin,
-    display::DisplayEntry,
-    dynamic_field::{DynamicField, DynamicFieldName},
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotaNSRegistration},
-    move_object::{MoveObject, MoveObjectImpl},
-    move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
-    owner::OwnerImpl,
-    stake::StakedIota,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-    type_filter::ExactTypeFilter,
-    uint53::UInt53,
+use crate::{
+    connection::ScanConnection,
+    context_data::db_data_provider::PgManager,
+    data::Db,
+    error::Error,
+    types::{
+        balance::{self, Balance},
+        base64::Base64,
+        big_int::BigInt,
+        coin::Coin,
+        display::DisplayEntry,
+        dynamic_field::{DynamicField, DynamicFieldName},
+        iota_address::IotaAddress,
+        move_object::{MoveObject, MoveObjectImpl},
+        move_value::MoveValue,
+        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        owner::OwnerImpl,
+        stake::StakedIota,
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        type_filter::ExactTypeFilter,
+        uint53::UInt53,
+    },
 };
-use crate::{connection::ScanConnection, data::Db, error::Error};
 
 pub(crate) struct CoinMetadata {
     pub super_: MoveObject,
@@ -116,33 +120,6 @@ impl CoinMetadata {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(&self.super_.super_)
-            .default_iotans_name(ctx, format)
-            .await
-    }
-
-    /// The IotaNSRegistration NFTs owned by this object. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        OwnerImpl::from(&self.super_.super_)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -348,7 +325,7 @@ impl CoinMetadata {
         };
 
         let supply = CoinMetadata::query_total_supply(
-            ctx.data_unchecked(),
+            ctx,
             coin_type,
             self.super_.super_.checkpoint_viewed_at,
         )
@@ -397,7 +374,7 @@ impl CoinMetadata {
     }
 
     pub(crate) async fn query_total_supply(
-        db: &Db,
+        ctx: &Context<'_>,
         coin_type: TypeTag,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<u64>, Error> {
@@ -408,11 +385,17 @@ impl CoinMetadata {
         };
 
         Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
-            TOTAL_SUPPLY_IOTA
+            let pg_manager = ctx.data_unchecked::<PgManager>();
+
+            let state = pg_manager.fetch_iota_system_state(None).await?;
+
+            state.iota_total_supply
         } else {
-            let cap_type = TreasuryCap::type_(*coin_struct);
-            let Some(object) = Object::query_singleton(db, cap_type, checkpoint_viewed_at).await?
-            else {
+            let cap_type = TreasuryCap::type_(*coin_struct).into();
+
+            let db = ctx.data_unchecked();
+
+            let Some(object) = Object::query_singleton(db, cap_type).await? else {
                 return Ok(None);
             };
 

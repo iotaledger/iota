@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeSet;
 
 use criterion::{
     criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
 };
 use fastcrypto::{hash::Hash, traits::KeyPair};
 use narwhal_types::Certificate;
-use std::collections::BTreeSet;
 use test_utils::{latest_protocol_version, make_optimal_signed_certificates, CommitteeFixture};
 
 pub fn verify_certificates(c: &mut Criterion) {

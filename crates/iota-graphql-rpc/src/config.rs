@@ -53,7 +53,6 @@ pub struct ServiceConfig {
     pub(crate) limits: Limits,
     pub(crate) disabled_features: BTreeSet<FunctionalGroup>,
     pub(crate) experiments: Experiments,
-    pub(crate) name_service: NameServiceConfig,
     pub(crate) background_tasks: BackgroundTasksConfig,
     pub(crate) zklogin: ZkLoginConfig,
 }
@@ -587,7 +586,6 @@ mod tests {
         let actual = ServiceConfig::read(
             r#" disabled-features = [
                   "coins",
-                  "name-service",
                 ]
             "#,
         )
@@ -595,7 +593,7 @@ mod tests {
 
         use FunctionalGroup as G;
         let expect = ServiceConfig {
-            disabled_features: BTreeSet::from([G::Coins, G::NameService]),
+            disabled_features: BTreeSet::from([G::Coins]),
             ..Default::default()
         };
 

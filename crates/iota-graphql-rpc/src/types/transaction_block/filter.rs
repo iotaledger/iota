@@ -7,9 +7,9 @@ use std::collections::BTreeSet;
 use async_graphql::InputObject;
 use iota_types::base_types::IotaAddress as NativeIotaAddress;
 
-use super::TransactionBlockKindInput;
 use crate::types::{
-    digest::Digest, intersect, iota_address::IotaAddress, type_filter::FqNameFilter, uint53::UInt53,
+    digest::Digest, intersect, iota_address::IotaAddress,
+    transaction_block::TransactionBlockKindInput, type_filter::FqNameFilter, uint53::UInt53,
 };
 
 #[derive(InputObject, Debug, Default, Clone)]

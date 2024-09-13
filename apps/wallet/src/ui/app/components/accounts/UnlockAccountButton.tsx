@@ -1,37 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/ZkLoginAccount';
-
-import { Button } from '../../shared/ButtonUI';
-import { SocialButton } from '../../shared/SocialButton';
 import { useUnlockAccount } from './UnlockAccountContext';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
 
-export type UnlockAccountButtonProps = {
-	account: SerializedUIAccount;
-	title?: string;
-};
+export interface UnlockAccountButtonProps {
+    account: SerializedUIAccount;
+    title?: string;
+}
+
 export function UnlockAccountButton({
-	account,
-	title = 'Unlock Account',
+    account,
+    title = 'Unlock your Account',
 }: UnlockAccountButtonProps) {
-	const { isPasswordUnlockable } = account;
-	const { unlockAccount, isPending } = useUnlockAccount();
+    const { isPasswordUnlockable } = account;
+    const { unlockAccount } = useUnlockAccount();
 
-	if (isPasswordUnlockable) {
-		return <Button text={title} onClick={() => unlockAccount(account)} />;
-	}
-	if (isZkLoginAccountSerializedUI(account)) {
-		return (
-			<SocialButton
-				provider={account.provider}
-				onClick={() => {
-					unlockAccount(account);
-				}}
-				loading={isPending}
-				showLabel
-			/>
-		);
-	}
+    if (isPasswordUnlockable) {
+        return (
+            <Button
+                text={title}
+                onClick={() => unlockAccount(account)}
+                type={ButtonType.Secondary}
+                fullWidth
+            />
+        );
+    }
 }

@@ -6,6 +6,17 @@ use std::collections::{BTreeMap, HashMap};
 
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
+use crates::types::{
+    address::Address,
+    base64::Base64,
+    cursor::{Page, Target},
+    digest::Digest,
+    epoch::Epoch,
+    gas::GasInput,
+    iota_address::IotaAddress,
+    transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
+    transaction_block_kind::TransactionBlockKind,
+};
 use cursor::TxLookup;
 use diesel::{ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
@@ -25,17 +36,6 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{
-    address::Address,
-    base64::Base64,
-    cursor::{Page, Target},
-    digest::Digest,
-    epoch::Epoch,
-    gas::GasInput,
-    iota_address::IotaAddress,
-    transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
-    transaction_block_kind::TransactionBlockKind,
-};
 use crate::{
     config::ServiceConfig,
     connection::ScanConnection,

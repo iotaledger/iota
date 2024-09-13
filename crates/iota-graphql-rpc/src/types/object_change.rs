@@ -5,7 +5,7 @@
 use async_graphql::*;
 use iota_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
 
-use super::{iota_address::IotaAddress, object::Object};
+use crate::types::{iota_address::IotaAddress, object::Object};
 
 pub(crate) struct ObjectChange {
     pub native: NativeObjectChange,

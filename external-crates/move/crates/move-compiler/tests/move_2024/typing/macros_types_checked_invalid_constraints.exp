@@ -7,7 +7,7 @@ error[E05001]: ability constraint not satisfied
    │                                        ---- 'copy' constraint declared here
    ·
  8 │         $_n: NeedsCopy<$T>,
-   │              ^^^^^^^^^^^^^ 'copy' constraint not satisifed
+   │              ^^^^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 24 │         foo!<None, NeedsCopy<bool>>(0, &mut 1, NeedsCopy {});
    │              ---- The type 'a::m::None' does not have the ability 'copy'
@@ -21,7 +21,7 @@ error[E05001]: ability constraint not satisfied
    │                                        ---- 'copy' constraint declared here
    ·
 10 │         let _: NeedsCopy<$U> = NeedsCopy {};
-   │                ^^^^^^^^^^^^^ 'copy' constraint not satisifed
+   │                ^^^^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 26 │         foo!<u64, None>(0, &mut 1, NeedsCopy {});
    │                   ---- The type 'a::m::None' does not have the ability 'copy'
@@ -35,7 +35,7 @@ error[E05001]: ability constraint not satisfied
    │                                        ---- 'copy' constraint declared here
    ·
 10 │         let _: NeedsCopy<$U> = NeedsCopy {};
-   │                                ^^^^^^^^^^^^ 'copy' constraint not satisifed
+   │                                ^^^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 26 │         foo!<u64, None>(0, &mut 1, NeedsCopy {});
    │                   ---- The type 'a::m::None' does not have the ability 'copy'
@@ -55,7 +55,7 @@ error[E05001]: ability constraint not satisfied
    │                                        ---- 'copy' constraint declared here
    ·
 17 │     macro fun ret2<$T>(): NeedsCopy<$T> {
-   │                           ^^^^^^^^^^^^^ 'copy' constraint not satisifed
+   │                           ^^^^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 28 │         ret2!<None>();
    │               ---- The type 'a::m::None' does not have the ability 'copy'
@@ -69,7 +69,7 @@ error[E05001]: ability constraint not satisfied
    │                                        ---- 'copy' constraint declared here
    ·
 18 │         NeedsCopy {}
-   │         ^^^^^^^^^^^^ 'copy' constraint not satisifed
+   │         ^^^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 28 │         ret2!<None>();
    │               ---- The type 'a::m::None' does not have the ability 'copy'
@@ -87,7 +87,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    │         │    │
    │         │    The type 'a::m::None' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_2024/typing/macros_types_checked_invalid_constraints.move:25:19
@@ -101,7 +101,7 @@ error[E05001]: ability constraint not satisfied
    │                   ^^^^^^^^^^^^^^^
    │                   │         │
    │                   │         The type 'a::m::None' does not have the ability 'copy'
-   │                   'copy' constraint not satisifed
+   │                   'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_2024/typing/macros_types_checked_invalid_constraints.move:27:9

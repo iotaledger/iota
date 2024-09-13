@@ -19,16 +19,22 @@ use iota_types::{
     },
 };
 
-use super::{
-    address::Address, base64::Base64, big_int::BigInt, iota_address::IotaAddress,
-    move_object::MoveObject, object::Object, owner::Owner, uint53::UInt53,
-    validator_credentials::ValidatorCredentials,
-};
 use crate::{
     consistency::ConsistentIndexCursor,
     data::{apys::calculate_apy, DataLoader, Db},
     error::Error,
-    types::cursor::{JsonCursor, Page},
+    types::{
+        address::Address,
+        base64::Base64,
+        big_int::BigInt,
+        cursor::{JsonCursor, Page},
+        iota_address::IotaAddress,
+        move_object::MoveObject,
+        object::Object,
+        owner::Owner,
+        uint53::UInt53,
+        validator_credentials::ValidatorCredentials,
+    },
 };
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
@@ -42,8 +48,6 @@ pub(crate) struct Validator {
     pub requested_for_epoch: u64,
 }
 
-type EpochStakeSubsidyStarted = u64;
-
 /// Loads the exchange rates from the cache and return a tuple (epoch stake
 /// subsidy started, and a BTreeMap holiding the exchange rates for each epoch
 /// for each validator.
@@ -52,23 +56,15 @@ type EpochStakeSubsidyStarted = u64;
 /// the epochs that are less than or equal to the requested epoch.
 #[async_trait::async_trait]
 impl Loader<u64> for Db {
-    type Value = (
-        EpochStakeSubsidyStarted,
-        BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>,
-    );
+    type Value = BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
+
     type Error = Error;
 
     async fn load(
         &self,
         keys: &[u64],
     ) -> Result<
-        HashMap<
-            u64,
-            (
-                EpochStakeSubsidyStarted,
-                BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>,
-            ),
-        >,
+        HashMap<u64, BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>,
         Error,
     > {
         let latest_iota_system_state = self
@@ -120,10 +116,7 @@ impl Loader<u64> for Db {
         };
 
         let mut r = HashMap::new();
-        r.insert(
-            requested_epoch,
-            (latest_iota_system_state.stake_subsidy_start_epoch, results),
-        );
+        r.insert(requested_epoch, results);
 
         Ok(r)
     }
@@ -381,7 +374,7 @@ impl Validator {
     /// To get the APY in percentage, divide by 100.
     async fn apy(&self, ctx: &Context<'_>) -> Result<Option<u64>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
-        let (stake_subsidy_start_epoch, exchange_rates) = loader
+        let exchange_rates = loader
             .load_one(self.requested_for_epoch)
             .await?
             .ok_or_else(|| Error::Internal("DataLoading exchange rates failed".to_string()))?;
@@ -394,7 +387,7 @@ impl Validator {
                 ))
             })?;
 
-        let avg_apy = Some(calculate_apy(stake_subsidy_start_epoch, rates));
+        let avg_apy = Some(calculate_apy(rates));
 
         Ok(avg_apy.map(|x| (x * 10000.0) as u64))
     }

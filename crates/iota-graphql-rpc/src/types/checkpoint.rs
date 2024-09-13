@@ -11,25 +11,26 @@ use async_graphql::{
 };
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
+use futures::Future;
 use iota_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
 use iota_types::messages_checkpoint::CheckpointDigest;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    base64::Base64,
-    cursor::{self, Page, Paginated, ScanLimited, Target},
-    date_time::DateTime,
-    digest::Digest,
-    epoch::Epoch,
-    gas::GasCostSummary,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-    uint53::UInt53,
-};
 use crate::{
     connection::ScanConnection,
     consistency::Checkpointed,
     data::{self, Conn, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
+    types::{
+        base64::Base64,
+        cursor::{self, Page, Paginated, ScanLimited, Target},
+        date_time::DateTime,
+        digest::Digest,
+        epoch::Epoch,
+        gas::GasCostSummary,
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        uint53::UInt53,
+    },
 };
 
 /// Filter either by the digest, or the sequence number, or neither, to get the
@@ -52,8 +53,8 @@ struct SeqNumKey {
     pub checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching a `Checkpoint` by its digest, constrained by a
-/// consistency cursor.
+/// DataLoader key for fetching a `Checkpoint` by its digest, optionally
+/// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct DigestKey {
     pub digest: Digest,

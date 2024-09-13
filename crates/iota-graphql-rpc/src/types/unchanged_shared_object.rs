@@ -5,7 +5,7 @@
 use async_graphql::*;
 use iota_types::effects::InputSharedObject as NativeInputSharedObject;
 
-use super::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53};
+use crate::types::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53};
 
 /// Details pertaining to shared objects that are referenced by but not changed
 /// by a transaction. This information is considered part of the effects,

@@ -1,8 +1,20 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    fmt,
+    mem::size_of,
+    ops::{
+        Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitXor, Div, DivAssign, Mul, MulAssign, Rem,
+        RemAssign, Shl, Shr, Sub, SubAssign,
+    },
+};
 
 use ethnum::U256 as EthnumU256;
 use num::{bigint::Sign, BigInt};
+// This U256 impl was chosen for now but we are open to changing it as needed
+use primitive_types::U256 as PrimitiveU256;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::strategy::BoxedStrategy;
 use rand::{
@@ -12,19 +24,8 @@ use rand::{
     },
     Rng,
 };
-use std::{
-    fmt,
-    mem::size_of,
-    ops::{
-        Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitXor, Div, DivAssign, Mul, MulAssign, Rem,
-        RemAssign, Shl, Shr, Sub, SubAssign,
-    },
-};
-use uint::FromStrRadixErr;
-
-// This U256 impl was chosen for now but we are open to changing it as needed
-use primitive_types::U256 as PrimitiveU256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use uint::FromStrRadixErr;
 
 const NUM_BITS_PER_BYTE: usize = 8;
 const U256_NUM_BITS: usize = 256;
@@ -291,7 +292,8 @@ impl U256 {
         Self(PrimitiveU256::one())
     }
 
-    /// Max value of U256: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+    /// Max value of U256:
+    /// 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     pub const fn max_value() -> Self {
         Self(PrimitiveU256::max_value())
     }
@@ -342,32 +344,38 @@ impl U256 {
     }
 
     // Check arithmetic
-    /// Checked integer addition. Computes self + rhs, returning None if overflow occurred.
+    /// Checked integer addition. Computes self + rhs, returning None if
+    /// overflow occurred.
     pub fn checked_add(self, rhs: Self) -> Option<Self> {
         self.0.checked_add(rhs.0).map(Self)
     }
 
-    /// Checked integer subtraction. Computes self - rhs, returning None if overflow occurred.
+    /// Checked integer subtraction. Computes self - rhs, returning None if
+    /// overflow occurred.
     pub fn checked_sub(self, rhs: Self) -> Option<Self> {
         self.0.checked_sub(rhs.0).map(Self)
     }
 
-    /// Checked integer multiplication. Computes self * rhs, returning None if overflow occurred.
+    /// Checked integer multiplication. Computes self * rhs, returning None if
+    /// overflow occurred.
     pub fn checked_mul(self, rhs: Self) -> Option<Self> {
         self.0.checked_mul(rhs.0).map(Self)
     }
 
-    /// Checked integer division. Computes self / rhs, returning None if rhs == 0.
+    /// Checked integer division. Computes self / rhs, returning None if rhs ==
+    /// 0.
     pub fn checked_div(self, rhs: Self) -> Option<Self> {
         self.0.checked_div(rhs.0).map(Self)
     }
 
-    /// Checked integer remainder. Computes self % rhs, returning None if rhs == 0.
+    /// Checked integer remainder. Computes self % rhs, returning None if rhs ==
+    /// 0.
     pub fn checked_rem(self, rhs: Self) -> Option<Self> {
         self.0.checked_rem(rhs.0).map(Self)
     }
 
-    /// Checked integer remainder. Computes self % rhs, returning None if rhs == 0.
+    /// Checked integer remainder. Computes self % rhs, returning None if rhs ==
+    /// 0.
     pub fn checked_shl(self, rhs: u32) -> Option<Self> {
         if rhs >= U256_NUM_BITS as u32 {
             return None;
@@ -375,7 +383,8 @@ impl U256 {
         Some(Self(self.0.shl(rhs)))
     }
 
-    /// Checked shift right. Computes self >> rhs, returning None if rhs is larger than or equal to the number of bits in self.
+    /// Checked shift right. Computes self >> rhs, returning None if rhs is
+    /// larger than or equal to the number of bits in self.
     pub fn checked_shr(self, rhs: u32) -> Option<Self> {
         if rhs >= U256_NUM_BITS as u32 {
             return None;
@@ -401,20 +410,23 @@ impl U256 {
         }
     }
 
-    /// Wrapping integer addition. Computes self + rhs,  wrapping around at the boundary of the type.
-    /// By definition in std::instrinsics, a.wrapping_add(b) = (a + b) % (2^N), where N is bit width
+    /// Wrapping integer addition. Computes self + rhs,  wrapping around at the
+    /// boundary of the type. By definition in std::instrinsics,
+    /// a.wrapping_add(b) = (a + b) % (2^N), where N is bit width
     pub fn wrapping_add(self, rhs: Self) -> Self {
         Self(self.0.overflowing_add(rhs.0).0)
     }
 
-    /// Wrapping integer subtraction. Computes self - rhs,  wrapping around at the boundary of the type.
-    /// By definition in std::instrinsics, a.wrapping_add(b) = (a - b) % (2^N), where N is bit width
+    /// Wrapping integer subtraction. Computes self - rhs,  wrapping around at
+    /// the boundary of the type. By definition in std::instrinsics,
+    /// a.wrapping_add(b) = (a - b) % (2^N), where N is bit width
     pub fn wrapping_sub(self, rhs: Self) -> Self {
         Self(self.0.overflowing_sub(rhs.0).0)
     }
 
-    /// Wrapping integer multiplication. Computes self * rhs,  wrapping around at the boundary of the type.
-    /// By definition in std::instrinsics, a.wrapping_mul(b) = (a * b) % (2^N), where N is bit width
+    /// Wrapping integer multiplication. Computes self * rhs,  wrapping around
+    /// at the boundary of the type. By definition in std::instrinsics,
+    /// a.wrapping_mul(b) = (a * b) % (2^N), where N is bit width
     pub fn wrapping_mul(self, rhs: Self) -> Self {
         Self(self.0.overflowing_mul(rhs.0).0)
     }
@@ -474,14 +486,16 @@ impl From<u128> for U256 {
     }
 }
 
-/// TODO (ade): Remove conversions and migrate Prover & Move Model code from BigInt
+/// TODO (ade): Remove conversions and migrate Prover & Move Model code from
+/// BigInt
 impl From<&U256> for BigInt {
     fn from(n: &U256) -> Self {
         BigInt::from_bytes_le(Sign::Plus, &n.to_le_bytes())
     }
 }
 
-/// TODO (ade): Remove conversions and migrate Prover & Move Model code from EthnumU256
+/// TODO (ade): Remove conversions and migrate Prover & Move Model code from
+/// EthnumU256
 impl From<&U256> for EthnumU256 {
     fn from(n: &U256) -> EthnumU256 {
         // TODO (ade): use better solution for conversion
@@ -567,7 +581,6 @@ impl Distribution<U256> for Standard {
 // Rand impl below are inspired by u128 impl found in https://rust-random.github.io/rand/src/rand/distributions/uniform.rs.html
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 pub struct UniformU256 {
     low: U256,
     range: U256,
@@ -665,8 +678,8 @@ impl UniformSampler for UniformU256 {
             "UniformSampler::sample_single_inclusive: low > high"
         );
         let range = high.wrapping_sub(low).wrapping_add(U256::one());
-        // If the above resulted in wrap-around to 0, the range is U256::MIN..=U256::MAX,
-        // and any integer will do.
+        // If the above resulted in wrap-around to 0, the range is
+        // U256::MIN..=U256::MAX, and any integer will do.
         if range == U256::zero() {
             return rng.gen();
         }
@@ -707,7 +720,8 @@ impl<'a> arbitrary::Arbitrary<'a> for U256 {
 #[test]
 fn wrapping_add() {
     // a + b overflows U256::MAX by 100
-    // By definition in std::instrinsics, a.wrapping_add(b) = (a + b) % (2^N), where N is bit width
+    // By definition in std::instrinsics, a.wrapping_add(b) = (a + b) % (2^N), where
+    // N is bit width
 
     let a = U256::from(1234u32);
     let b = U256::from_str_radix(

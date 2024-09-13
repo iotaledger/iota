@@ -6,12 +6,11 @@ use async_graphql::*;
 use diesel::{CombineDsl, ExpressionMethods, QueryDsl, QueryResult};
 use iota_indexer::schema::{checkpoints, objects_snapshot};
 
-use super::checkpoint::{Checkpoint, CheckpointId};
 use crate::{
     data::{Conn, Db, DbConnection, QueryExecutor},
     error::Error,
+    types::checkpoint::{Checkpoint, CheckpointId},
 };
-
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) struct AvailableRange {
     pub first: u64,

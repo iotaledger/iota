@@ -1,10 +1,23 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Analysis on partitioning temp variables, struct fields and function parameters according to involved operations (arithmetic or bitwise)
-//
+//! Analysis on partitioning temp variables, struct fields and function
+//! parameters according to involved operations (arithmetic or bitwise)
 // The result of this analysis will be used when generating the boogie code
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    str,
+};
+
+use itertools::Either;
+use move_binary_format::file_format::CodeOffset;
+use move_model::{
+    ast::TempIndex,
+    model::{FunId, GlobalEnv, ModuleId},
+};
 
 use crate::{
     dataflow_analysis::{DataflowAnalysis, TransferFunctions},
@@ -20,16 +33,6 @@ use crate::{
     options::ProverOptions,
     stackless_bytecode::{AttrId, Bytecode, Operation},
     stackless_control_flow_graph::StacklessControlFlowGraph,
-};
-use itertools::Either;
-use move_binary_format::file_format::CodeOffset;
-use move_model::{
-    ast::TempIndex,
-    model::{FunId, GlobalEnv, ModuleId},
-};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    str,
 };
 
 static CONFLICT_ERROR_MSG: &str = "cannot appear in both arithmetic and bitwise operation";
@@ -182,7 +185,8 @@ impl<'a> NumberOperationAnalysis<'a> {
         }
     }
 
-    /// Check whether operation of dest and src conflict, if not propagate the merged operation
+    /// Check whether operation of dest and src conflict, if not propagate the
+    /// merged operation
     fn check_and_propagate(
         &self,
         id: &AttrId,
@@ -339,7 +343,8 @@ impl<'a> TransferFunctions for NumberOperationAnalysis<'a> {
                     baseline_flag,
                 );
             }
-            // Check and update operations of rets in temp_index_operation_map and operations in ret_operation_map
+            // Check and update operations of rets in temp_index_operation_map and operations in
+            // ret_operation_map
             Ret(id, rets) => {
                 let ret_types = self.func_target.get_return_types();
                 for ((i, _), ret) in ret_types.iter().enumerate().zip(rets) {
@@ -414,7 +419,8 @@ impl<'a> TransferFunctions for NumberOperationAnalysis<'a> {
                             let op_dests_0 = global_state
                                 .get_temp_index_oper(cur_mid, cur_fid, dests[0], baseline_flag)
                                 .unwrap();
-                            // If there is conflict among operations, merged will not be used for updating
+                            // If there is conflict among operations, merged will not be used for
+                            // updating
                             num_oper = op_srcs_0.merge(op_srcs_1).merge(op_dests_0);
                         }
                         self.check_and_update_oper(
@@ -464,7 +470,8 @@ impl<'a> TransferFunctions for NumberOperationAnalysis<'a> {
                         let op_dests_0 = global_state
                             .get_temp_index_oper(cur_mid, cur_fid, dests[0], baseline_flag)
                             .unwrap();
-                        // If there is conflict among operations, merged will not be used for updating
+                        // If there is conflict among operations, merged will not be used for
+                        // updating
                         let merged = op_srcs_0.merge(op_srcs_1).merge(op_dests_0);
                         self.check_and_update_oper(
                             id,
@@ -718,7 +725,8 @@ impl<'a> TransferFunctions for NumberOperationAnalysis<'a> {
                                 // Bitwise is specified explicitly in the fun or struct spec
                                 if vector_table_funs_name_propogate_to_dest(&callee_name) {
                                     if *first_oper == Bitwise {
-                                        // Do not consider the method remove_return_key where the first return value is k
+                                        // Do not consider the method remove_return_key where the
+                                        // first return value is k
                                         for dest in dests.iter() {
                                             check_and_update_bitwise(
                                                 dest,

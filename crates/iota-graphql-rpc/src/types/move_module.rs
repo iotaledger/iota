@@ -10,19 +10,19 @@ use iota_package_resolver::Module as ParsedMoveModule;
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Loc;
 
-use super::{
-    base64::Base64,
-    cursor::{JsonCursor, Page},
-    datatype::MoveDatatype,
-    iota_address::IotaAddress,
-    move_enum::MoveEnum,
-    move_function::MoveFunction,
-    move_package::MovePackage,
-    move_struct::MoveStruct,
-};
 use crate::{
     consistency::{ConsistentIndexCursor, ConsistentNamedCursor},
     error::Error,
+    types::{
+        base64::Base64,
+        cursor::{JsonCursor, Page},
+        datatype::MoveDatatype,
+        iota_address::IotaAddress,
+        move_enum::MoveEnum,
+        move_function::MoveFunction,
+        move_package::MovePackage,
+        move_struct::MoveStruct,
+    },
 };
 
 #[derive(Clone)]

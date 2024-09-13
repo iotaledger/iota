@@ -31,27 +31,6 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{
-    available_range::AvailableRange,
-    balance::{self, Balance},
-    big_int::BigInt,
-    coin::Coin,
-    coin_metadata::CoinMetadata,
-    cursor::{self, Page, RawPaginated, ScanLimited, Target},
-    digest::Digest,
-    display::{Display, DisplayEntry},
-    dynamic_field::{DynamicField, DynamicFieldName},
-    iota_address::{addr, IotaAddress},
-    iotans_registration::{DomainFormat, IotaNSRegistration},
-    move_object::MoveObject,
-    move_package::MovePackage,
-    owner::{Owner, OwnerImpl},
-    stake::StakedIota,
-    transaction_block,
-    transaction_block::{TransactionBlock, TransactionBlockFilter},
-    type_filter::{ExactTypeFilter, TypeFilter},
-    uint53::UInt53,
-};
 use crate::{
     connection::ScanConnection,
     consistency::{build_objects_query, Checkpointed, View},
@@ -59,7 +38,28 @@ use crate::{
     error::Error,
     filter, or_filter,
     raw_query::RawQuery,
-    types::{base64::Base64, intersect},
+    types::{
+        available_range::AvailableRange,
+        balance::{self, Balance},
+        base64::Base64,
+        big_int::BigInt,
+        coin::Coin,
+        coin_metadata::CoinMetadata,
+        cursor::{self, Page, RawPaginated, ScanLimited, Target},
+        digest::Digest,
+        display::{Display, DisplayEntry},
+        dynamic_field::{DynamicField, DynamicFieldName},
+        intersect,
+        iota_address::{addr, IotaAddress},
+        move_object::MoveObject,
+        move_package::MovePackage,
+        owner::{Owner, OwnerImpl},
+        stake::StakedIota,
+        transaction_block,
+        transaction_block::{TransactionBlock, TransactionBlockFilter},
+        type_filter::{ExactTypeFilter, TypeFilter},
+        uint53::UInt53,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -302,7 +302,6 @@ pub(crate) enum IObject {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNSRegistration(IotaNSRegistration),
 }
 
 /// `DataLoader` key for fetching an `Object` at a specific version, constrained
@@ -413,31 +412,6 @@ impl Object {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(self)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(self).default_iotans_name(ctx, format).await
-    }
-
-    /// The IotaNSRegistration NFTs owned by this object. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<Cursor>,
-        last: Option<u64>,
-        before: Option<Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        OwnerImpl::from(self)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -869,6 +843,7 @@ impl Object {
         };
 
         let mut conn: Connection<String, T> = Connection::new(prev, next);
+
         for stored in results {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.

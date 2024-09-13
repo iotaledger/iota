@@ -1,29 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::payload_store::PayloadStore;
-use crate::proposer_store::ProposerKey;
-use crate::vote_digest_store::VoteDigestStore;
-use crate::{
-    CertificateStore, CertificateStoreCache, CertificateStoreCacheMetrics, ConsensusStore,
-    ProposerStore,
-};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+
 use config::{AuthorityIdentifier, WorkerId};
 use fastcrypto::groups;
-use fastcrypto_tbls::dkg;
-use fastcrypto_tbls::nodes::PartyId;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::time::Duration;
-use store::metrics::SamplingInterval;
-use store::reopen;
-use store::rocks::{default_db_options, open_cf_opts, DBMap, MetricConf, ReadWriteOptions};
+use fastcrypto_tbls::{dkg, dkg_v0, nodes::PartyId};
+use store::{
+    metrics::SamplingInterval,
+    reopen,
+    rocks::{default_db_options, open_cf_opts, DBMap, MetricConf, ReadWriteOptions},
+};
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, CommittedSubDagShell, ConsensusCommit,
     Header, RandomnessRound, Round, SequenceNumber, VoteInfo,
 };
 
-// A type alias marking the "payload" tokens sent by workers to their primary as batch acknowledgements
+use crate::{
+    payload_store::PayloadStore, proposer_store::ProposerKey, vote_digest_store::VoteDigestStore,
+    CertificateStore, CertificateStoreCache, CertificateStoreCacheMetrics, ConsensusStore,
+    ProposerStore,
+};
+
+// A type alias marking the "payload" tokens sent by workers to their primary as
+// batch acknowledgements
 pub type PayloadToken = u8;
 
 // Types used in deprecated random beacon tables.
@@ -59,15 +60,16 @@ impl NodeStorage {
     pub(crate) const DKG_OUTPUT_CF: &'static str = "dkg_output";
     pub(crate) const RANDOMNESS_ROUND_CF: &'static str = "randomness_round";
 
-    // 100 nodes * 60 rounds (assuming 1 round/sec this will hold data for about the last 1 minute
-    // which should be more than enough for advancing the protocol and also help other nodes)
-    // TODO: take into account committee size instead of having fixed 100.
+    // 100 nodes * 60 rounds (assuming 1 round/sec this will hold data for about the
+    // last 1 minute which should be more than enough for advancing the protocol
+    // and also help other nodes) TODO: take into account committee size instead
+    // of having fixed 100.
     pub(crate) const CERTIFICATE_STORE_CACHE_SIZE: usize = 100 * 60;
 
     /// Open or reopen all the storage of the node.
     pub fn reopen<Path: AsRef<std::path::Path> + Send>(
         store_path: Path,
-        certificate_store_cache_metrics: Option<CertificateStoreCacheMetrics>,
+        certificate_store_cache_metrics: Option<Arc<CertificateStoreCacheMetrics>>,
     ) -> Self {
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
         let mut metrics_conf = MetricConf::new("consensus");
@@ -141,8 +143,8 @@ impl NodeStorage {
             Self::LAST_COMMITTED_CF;<AuthorityIdentifier, Round>,
             Self::SUB_DAG_INDEX_CF;<SequenceNumber, CommittedSubDagShell>,
             Self::COMMITTED_SUB_DAG_INDEX_CF;<SequenceNumber, ConsensusCommit>,
-            Self::PROCESSED_MESSAGES_CF;<PartyId, dkg::ProcessedMessage<PkG, EncG>>,
-            Self::USED_MESSAGES_CF;<u32, dkg::UsedProcessedMessages<PkG, EncG>>,
+            Self::PROCESSED_MESSAGES_CF;<PartyId, dkg_v0::ProcessedMessage<PkG, EncG>>,
+            Self::USED_MESSAGES_CF;<u32, dkg_v0::UsedProcessedMessages<PkG, EncG>>,
             Self::CONFIRMATIONS_CF;<PartyId, dkg::Confirmation<EncG>>,
             Self::DKG_OUTPUT_CF;<u32, dkg::Output<PkG, EncG>>,
             Self::RANDOMNESS_ROUND_CF;<u32, RandomnessRound>

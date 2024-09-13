@@ -56,17 +56,13 @@ impl PgManager {
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await?;
 
-        if let Some(epoch_id) = epoch_id {
-            if epoch_id == latest_iota_system_state.epoch {
-                Ok(latest_iota_system_state)
-            } else {
-                Ok(self
-                    .inner
-                    .spawn_blocking(move |this| this.get_epoch_iota_system_state(Some(epoch_id)))
-                    .await?)
-            }
-        } else {
+        if epoch_id.is_none() || epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch) {
             Ok(latest_iota_system_state)
+        } else {
+            Ok(self
+                .inner
+                .spawn_blocking(move |this| this.get_epoch_iota_system_state(epoch_id))
+                .await?)
         }
     }
 

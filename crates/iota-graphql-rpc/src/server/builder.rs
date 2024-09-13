@@ -38,12 +38,6 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use super::{
-    compatibility_check::check_all_tables,
-    exchange_rates_task::TriggerExchangeRatesTask,
-    system_package_task::SystemPackageTask,
-    watermark_task::{Watermark, WatermarkLock, WatermarkTask},
-};
 use crate::{
     config::{
         ConnectionConfig, ServerConfig, ServiceConfig, Version, MAX_CONCURRENT_REQUESTS,
@@ -64,7 +58,13 @@ use crate::{
     },
     metrics::Metrics,
     mutation::Mutation,
-    server::version::{check_version_middleware, set_version_middleware},
+    server::{
+        compatibility_check::check_all_tables,
+        exchange_rates_task::TriggerExchangeRatesTask,
+        system_package_task::SystemPackageTask,
+        version::{check_version_middleware, set_version_middleware},
+        watermark_task::{Watermark, WatermarkLock, WatermarkTask},
+    },
     types::{
         datatype::IMoveDatatype,
         move_object::IMoveObject,
@@ -79,10 +79,8 @@ use crate::{
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
 
 pub(crate) struct Server {
-    // pub server: HyperServer<HyperAddrIncoming, IntoMakeServiceWithConnectInfo<Router,
-    // SocketAddr>>,
     router: Router,
-    address: String,
+    address: SocketAddr,
     watermark_task: WatermarkTask,
     system_package_task: SystemPackageTask,
     trigger_exchange_rates_task: TriggerExchangeRatesTask,
@@ -131,12 +129,14 @@ impl Server {
         let server_task = {
             info!("Starting graphql service");
             let cancellation_token = self.state.cancellation_token.clone();
+            let address = self.address;
+            let router = self.router;
             spawn_monitored_task!(async move {
-                let listener = tokio::net::TcpListener::bind(&self.address).await.unwrap();
                 axum::serve(
-                    listener,
-                    self.router
-                        .into_make_service_with_connect_info::<SocketAddr>(),
+                    TcpListener::bind(address)
+                        .await
+                        .map_err(|e| Error::Internal(format!("listener bind failed: {}", e)))?,
+                    router.into_make_service_with_connect_info::<SocketAddr>(),
                 )
                 .with_graceful_shutdown(async move {
                     cancellation_token.cancelled().await;
@@ -372,7 +372,9 @@ impl ServerBuilder {
 
         Ok(Server {
             router,
-            address,
+            address: address
+                .parse()
+                .map_err(|_| Error::Internal(format!("Failed to parse address {}", address)))?,
             watermark_task,
             system_package_task,
             trigger_exchange_rates_task,
@@ -423,7 +425,6 @@ impl ServerBuilder {
         );
         let mut builder = ServerBuilder::new(state);
 
-        let name_service_config = config.service.name_service.clone();
         let zklogin_config = config.service.zklogin.clone();
         let reader = PgManager::reader_with_config(
             config.connection.db_url.clone(),

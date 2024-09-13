@@ -3,26 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_json_rpc::name_service::NameServiceConfig;
 use iota_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
 
-use super::{
-    address::Address,
-    coin_metadata::CoinMetadata,
-    cursor::Page,
-    dynamic_field::{DynamicField, DynamicFieldName},
-    iotans_registration::{DomainFormat, IotaNSRegistration, NameService},
-    move_package::MovePackage,
-    stake::StakedIota,
-};
 use crate::{
     data::Db,
     types::{
+        address::Address,
         balance::{self, Balance},
         coin::Coin,
+        coin_metadata::CoinMetadata,
+        cursor::Page,
+        dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
         move_object::MoveObject,
+        move_package::MovePackage,
         object::{self, Object, ObjectFilter},
+        stake::StakedIota,
         type_filter::ExactTypeFilter,
     },
 };
@@ -113,23 +109,6 @@ pub(crate) struct OwnerImpl {
         arg(name = "before", ty = "Option<object::Cursor>"),
         ty = "Connection<String, StakedIota>",
         desc = "The `0x3::staking_pool::StakedIota` objects owned by this object or address."
-    ),
-    field(
-        name = "default_iotans_name",
-        arg(name = "format", ty = "Option<DomainFormat>"),
-        ty = "Option<String>",
-        desc = "The domain explicitly configured as the default domain pointing to this object or \
-                address."
-    ),
-    field(
-        name = "iotans_registrations",
-        arg(name = "first", ty = "Option<u64>"),
-        arg(name = "after", ty = "Option<object::Cursor>"),
-        arg(name = "last", ty = "Option<u64>"),
-        arg(name = "before", ty = "Option<object::Cursor>"),
-        ty = "Connection<String, IotaNSRegistration>",
-        desc = "The IotaNSRegistration NFTs owned by this object or address. These grant the owner \
-                the capability to manage the associated domain."
     )
 )]
 pub(crate) enum IOwner {
@@ -141,7 +120,6 @@ pub(crate) enum IOwner {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNSRegistration(IotaNSRegistration),
 }
 
 /// An Owner is an entity that can own an object. Each Owner is identified by a
@@ -223,31 +201,6 @@ impl Owner {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(self)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object or address.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(self).default_iotans_name(ctx, format).await
-    }
-
-    /// The IotaNSRegistration NFTs owned by this object or address. These grant
-    /// the owner the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        OwnerImpl::from(self)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -426,39 +379,6 @@ impl OwnerImpl {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         StakedIota::paginate(
             ctx.data_unchecked(),
-            page,
-            self.address,
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()
-    }
-
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        Ok(
-            NameService::reverse_resolve_to_name(ctx, self.address, self.checkpoint_viewed_at)
-                .await
-                .extend()?
-                .map(|d| d.format(format.unwrap_or(DomainFormat::Dot).into())),
-        )
-    }
-
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        IotaNSRegistration::paginate(
-            ctx.data_unchecked::<Db>(),
-            ctx.data_unchecked::<NameServiceConfig>(),
             page,
             self.address,
             self.checkpoint_viewed_at,

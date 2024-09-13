@@ -74,8 +74,8 @@ impl ScanLimited for JsonCursor<ConsistentNamedCursor> {}
 
 /// Constructs a `RawQuery` against the `objects_snapshot` and `objects_history`
 /// table to fetch objects that satisfy some filtering criteria `filter_fn`
-/// within the provided checkpoint `range`. The `objects_snapshot` table
-/// contains the latest versions of objects up to a checkpoint sequence
+/// within the provided checkpoint range `lhs` and `rhs`. The `objects_snapshot`
+/// table contains the latest versions of objects up to a checkpoint sequence
 /// number, and `objects_history` captures changes after that, so a query to
 /// both tables is necessary to handle these object states:
 /// 1) In snapshot, not in history - occurs when an object gets snapshotted and

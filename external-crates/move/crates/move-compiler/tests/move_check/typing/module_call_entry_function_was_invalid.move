@@ -1,6 +1,6 @@
 address 0x2 {
 
-// entry functions (previously public(script)) used to have visbility restrictions.
+// entry functions (previously public(script)) used to have visibility restrictions.
 // These have been removed
 
 module X {

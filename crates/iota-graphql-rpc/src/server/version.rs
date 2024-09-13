@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    body::Body,
-    extract::{Path, State},
-    http::{HeaderName, HeaderValue, Request, StatusCode},
+    extract::{Path, Request, State},
+    http::{HeaderName, HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -56,7 +55,7 @@ impl headers::Header for IotaRpcVersion {
 pub(crate) async fn check_version_middleware(
     version: Option<Path<String>>,
     State(service_version): State<Version>,
-    request: Request<Body>,
+    request: Request,
     next: Next,
 ) -> Response {
     let Some(Path(version)) = version else {
@@ -97,7 +96,7 @@ pub(crate) async fn check_version_middleware(
 /// the RPC that was used (including the patch version and sha).
 pub(crate) async fn set_version_middleware(
     State(version): State<Version>,
-    request: Request<Body>,
+    request: Request,
     next: Next,
 ) -> Response {
     let mut response = next.run(request).await;
@@ -134,6 +133,7 @@ mod tests {
 
     use axum::{body::Body, middleware, routing::get, Router};
     use expect_test::expect;
+    use http_body_util::BodyExt;
     use iota_metrics;
     use tokio_util::sync::CancellationToken;
     use tower::ServiceExt;
@@ -201,10 +201,8 @@ mod tests {
     }
 
     async fn response_body(response: Response) -> String {
-        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_slice(bytes.as_ref()).unwrap();
+        let bytes = response.into_body().collect().await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(bytes.to_bytes().as_ref()).unwrap();
         serde_json::to_string_pretty(&value).unwrap()
     }
 

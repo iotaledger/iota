@@ -3,33 +3,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_json_rpc::name_service::NameServiceConfig;
 use iota_types::{
     object::{Data, MoveObject as NativeMoveObject},
     TypeTag,
 };
 
-use super::{
-    balance::{self, Balance},
-    base64::Base64,
-    big_int::BigInt,
-    coin::{Coin, CoinDowncastError},
-    coin_metadata::{CoinMetadata, CoinMetadataDowncastError},
-    cursor::Page,
-    display::DisplayEntry,
-    dynamic_field::{DynamicField, DynamicFieldName},
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotaNSRegistration, IotaNSRegistrationDowncastError},
-    move_type::MoveType,
-    move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
-    owner::OwnerImpl,
-    stake::StakedIotaDowncastError,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-    type_filter::ExactTypeFilter,
-    uint53::UInt53,
+use crate::{
+    connection::ScanConnection,
+    data::Db,
+    error::Error,
+    types::{
+        balance::{self, Balance},
+        base64::Base64,
+        big_int::BigInt,
+        coin::{Coin, CoinDowncastError},
+        coin_metadata::{CoinMetadata, CoinMetadataDowncastError},
+        cursor::Page,
+        display::DisplayEntry,
+        dynamic_field::{DynamicField, DynamicFieldName},
+        iota_address::IotaAddress,
+        move_type::MoveType,
+        move_value::MoveValue,
+        object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
+        owner::OwnerImpl,
+        stake::{StakedIota, StakedIotaDowncastError},
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        type_filter::ExactTypeFilter,
+        uint53::UInt53,
+    },
 };
-use crate::{connection::ScanConnection, data::Db, error::Error, types::stake::StakedIota};
 
 #[derive(Clone)]
 pub(crate) struct MoveObject {
@@ -115,7 +117,6 @@ pub(crate) enum IMoveObject {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNSRegistration(IotaNSRegistration),
 }
 
 /// The representation of an object as a Move Object, which exposes additional
@@ -195,33 +196,6 @@ impl MoveObject {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(&self.super_)
-            .default_iotans_name(ctx, format)
-            .await
-    }
-
-    /// The IotaNSRegistration NFTs owned by this object. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        OwnerImpl::from(&self.super_)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -419,24 +393,6 @@ impl MoveObject {
             Err(CoinMetadataDowncastError::NotCoinMetadata) => Ok(None),
             Err(CoinMetadataDowncastError::Bcs(e)) => Err(Error::Internal(format!(
                 "Failed to deserialize CoinMetadata: {e}"
-            )))
-            .extend(),
-        }
-    }
-
-    /// Attempts to convert the Move object into a `IotaNSRegistration` object.
-    async fn as_iotans_registration(
-        &self,
-        ctx: &Context<'_>,
-    ) -> Result<Option<IotaNSRegistration>> {
-        let cfg: &NameServiceConfig = ctx.data_unchecked();
-        let tag = IotaNSRegistration::type_(cfg.package_address.into());
-
-        match IotaNSRegistration::try_from(self, &tag) {
-            Ok(registration) => Ok(Some(registration)),
-            Err(IotaNSRegistrationDowncastError::NotAnIotaNSRegistration) => Ok(None),
-            Err(IotaNSRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
-                "Failed to deserialize IotaNSRegistration: {e}",
             )))
             .extend(),
         }

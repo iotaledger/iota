@@ -10,23 +10,23 @@ use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
 use iota_types::messages_checkpoint::CheckpointCommitment as EpochCommitment;
 
-use super::{
-    big_int::BigInt,
-    checkpoint::{self, Checkpoint},
-    cursor::Page,
-    date_time::DateTime,
-    protocol_config::ProtocolConfigs,
-    system_state_summary::SystemStateSummary,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-    uint53::UInt53,
-    validator_set::ValidatorSet,
-};
 use crate::{
     connection::ScanConnection,
     context_data::db_data_provider::{convert_to_validators, PgManager},
     data::{DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::watermark_task::Watermark,
+    types::{
+        big_int::BigInt,
+        checkpoint::{self, Checkpoint},
+        cursor::Page,
+        date_time::DateTime,
+        protocol_config::ProtocolConfigs,
+        system_state_summary::SystemStateSummary,
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        uint53::UInt53,
+        validator_set::ValidatorSet,
+    },
 };
 
 #[derive(Clone)]
@@ -140,11 +140,6 @@ impl Epoch {
         self.stored
             .total_stake_rewards_distributed
             .map(BigInt::from)
-    }
-
-    /// The amount added to total gas fees to make up the total stake rewards.
-    async fn total_stake_subsidies(&self) -> Option<BigInt> {
-        self.stored.stake_subsidy_amount.map(BigInt::from)
     }
 
     /// The storage fund available in this epoch.

@@ -1,0 +1,35 @@
+---
+title: Addresses and Keys
+description: Explains how "previous" addresses are treated in the new ledger
+---
+import MigrationWarning from '../../_snippets/migration-warning.mdx';
+
+<MigrationWarning/ >
+
+## Addresses
+
+In IOTA Stardust, addresses were represented in either Bech32 address format (for example, `iota1qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx`), or hex format (for example `0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3`), where the hash is based on the 32 byte BLAKE2b-256 hash of the ed25519 public key of the address owner, or the BLAKE2b-256 hash of the Output ID for a NFT or Alias address. The IOTA Rebased version retains the same hex format for addresses but **deprecates the Bech32 format**. 
+
+### Bech32 to Hex conversion
+
+It's possible to convert a legacy Bech32 address back to hex format by doing the following:
+
+1. Take the part after `iota1` or `smr1`. Using the address from the above paragraph as an example, iota1**qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx**.
+2. Base32 decode it. 
+3. Strip away the last 6 digits containing the checksum. 
+
+You are left with a 33-byte hex string. The first byte represents the address type (`0x00`) and can be stripped. The 32 bytes represent an address in hex format. 
+
+## Keys
+
+Key-pair derivation in IOTA remains similar to what it was before but now supports more signing schemes. The standard signing scheme is still ed25519, and key derivation is still implemented following the SLIP-0010 and BIP-32 standards. 
+
+The following key derivation path is used, for example, to fetch a first keypair for an IOTA wallet using the ed25519 keypair, the same as what it was in Stardust:
+
+`44'/4218'/0'/0'/0'`
+
+The `44` represents ed25519, and the `4218` represents the IOTA Coin Type (`4219` for SMR). The first `0'` is the account, the second is the change, and the last `0'` represents the address index starting at 0, for a new address you could increment the address index or the account. 
+
+You can derive a new key pair using the key derivation path with a 24-word BIP-39 mnemonic (the same as with Stardust). 
+
+Once a key pair has been derived, the public key can be BLAKE2b-256 hashed, leaving you with a 32-byte hex address. This retains full compatibility with existing keys and hex addresses from Stardust. For any other signing scheme, besides the default ed25519, a flag is appended before hashing the public key with BLAKE2b-256. You can find all the details in the [Signatures section](../cryptography/transaction-auth/signatures.mdx) of the documentation.

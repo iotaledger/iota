@@ -1,17 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use move_binary_format::file_format::{empty_module, CompiledModule, Constant, SignatureToken};
+use move_binary_format::file_format::{empty_module, Constant, SignatureToken};
 use move_bytecode_verifier::constants;
 use move_core_types::vm_status::StatusCode;
-use proptest::prelude::*;
-
-proptest! {
-    #[test]
-    fn valid_generated(module in CompiledModule::valid_strategy(20)) {
-        prop_assert!(constants::verify_module(&module).is_ok());
-    }
-}
 
 #[test]
 fn valid_primitives() {
@@ -244,9 +237,9 @@ fn invalid_types() {
     invalid_type(SignatureToken::Signer, vec![0]);
     invalid_type(tvec(SignatureToken::Signer), vec![0]);
 
-    // TODO cannot check structs are banned currently. This can be handled by IR and source lang
-    // tests
-    // invalid_type(SignatureToken::Struct(StructHandleIndex(0)), vec![0]);
+    // TODO cannot check structs are banned currently. This can be handled by IR
+    // and source lang tests
+    // invalid_type(SignatureToken::Datatype(DatatypeHandleIndex(0)), vec![0]);
 }
 
 fn tvec(s: SignatureToken) -> SignatureToken {

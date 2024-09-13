@@ -4,7 +4,6 @@
 
 use std::fmt::Write;
 
-use super::Cursor;
 use crate::{
     data::pg::bytea_literal,
     filter, query,
@@ -12,6 +11,7 @@ use crate::{
     types::{
         cursor::Page,
         digest::Digest,
+        event::Cursor,
         iota_address::IotaAddress,
         type_filter::{ModuleFilter, TypeFilter},
     },

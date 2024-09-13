@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export const ALL_PERMISSION_TYPES = ['viewAccount', 'suggestTransactions'] as const;
@@ -7,9 +8,9 @@ export type PermissionType = AllPermissionsType[number];
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 export function isValidPermissionTypes(types: any): types is PermissionType[] {
-	return (
-		Array.isArray(types) &&
-		!!types.length &&
-		types.every((aType) => ALL_PERMISSION_TYPES.includes(aType))
-	);
+    return (
+        Array.isArray(types) &&
+        !!types.length &&
+        types.every((aType) => ALL_PERMISSION_TYPES.includes(aType))
+    );
 }

@@ -17,7 +17,7 @@ use iota_package_resolver::{
 };
 use move_core_types::account_address::AccountAddress;
 
-use super::{DataLoader, Db, DbConnection, QueryExecutor};
+use crate::data::{DataLoader, Db, DbConnection, QueryExecutor};
 
 const STORE: &str = "PostgresDB";
 

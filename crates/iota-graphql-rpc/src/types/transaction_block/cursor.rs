@@ -11,12 +11,14 @@ use diesel::{
 use iota_indexer::{models::transactions::StoredTransaction, schema::transactions};
 use serde::{Deserialize, Serialize};
 
-use super::Query;
 use crate::{
     consistency::Checkpointed,
     filter,
     raw_query::RawQuery,
-    types::cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
+    types::{
+        cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
+        transaction_block::Query,
+    },
 };
 
 pub(crate) type Cursor = cursor::JsonCursor<TransactionBlockCursor>;

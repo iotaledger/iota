@@ -1,9 +1,12 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::parser::ast::FunctionName;
-use move_ir_types::ast as IR;
 use std::collections::BTreeSet;
+
+use move_ir_types::ast as IR;
+
+use crate::parser::ast::FunctionName;
 
 // Removes any unused locals. Most likely generated from other optimizations
 

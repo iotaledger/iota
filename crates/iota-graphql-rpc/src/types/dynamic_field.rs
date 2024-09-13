@@ -6,11 +6,7 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
-use iota_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
-use move_core_types::annotated_value::{self as A, MoveStruct};
-
-use super::{
+use crates::types::{
     available_range::AvailableRange,
     base64::Base64,
     cursor::{Page, Target},
@@ -20,6 +16,10 @@ use super::{
     object::{self, deserialize_move_struct, Object, ObjectKind},
     type_filter::ExactTypeFilter,
 };
+use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
+use iota_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
+use move_core_types::annotated_value::{self as A, MoveStruct};
+
 use crate::{
     consistency::{build_objects_query, View},
     data::{package_resolver::PackageResolver, Db, QueryExecutor},
@@ -106,7 +106,7 @@ impl DynamicField {
     /// The returned dynamic field is an object if its return type is
     /// `MoveObject`, in which case it is also accessible off-chain via its
     /// address. Its contents will be from the latest version that is at
-    /// most equal to its parent object's version
+    /// most equal to its parent object's version.
     async fn value(&self, ctx: &Context<'_>) -> Result<Option<DynamicFieldValue>> {
         if self.df_kind == DynamicFieldType::DynamicObject {
             // If `df_kind` is a DynamicObject, the object we are currently on is the field

@@ -21,18 +21,18 @@ use iota_types::{
 };
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
-use super::{
-    address::Address,
-    base64::Base64,
-    cursor::{Page, Target},
-    date_time::DateTime,
-    move_module::MoveModule,
-    move_value::MoveValue,
-};
 use crate::{
     data::{self, Db, DbConnection, QueryExecutor},
     error::Error,
     query,
+    types::{
+        address::Address,
+        base64::Base64,
+        cursor::{Page, Target},
+        date_time::DateTime,
+        move_module::MoveModule,
+        move_value::MoveValue,
+    },
 };
 
 mod cursor;

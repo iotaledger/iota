@@ -12,11 +12,16 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{base64::Base64, big_int::BigInt, iota_address::IotaAddress, move_type::MoveType};
 use crate::{
     data::package_resolver::PackageResolver,
     error::Error,
-    types::{json::Json, move_type::unexpected_signer_error},
+    types::{
+        base64::Base64,
+        big_int::BigInt,
+        iota_address::IotaAddress,
+        json::Json,
+        move_type::{unexpected_signer_error, MoveType},
+    },
 };
 
 const STD: AccountAddress = AccountAddress::ONE;
@@ -943,7 +948,7 @@ mod tests {
         .unwrap();
 
         let expect = expect![[
-            r#"{baz: null,qux: [{quy: 44,quz: "Hello, world!",frob: "0x0000000000000000000000000000000000000000000000000000000000000045"},{quy: 46,quz: null,frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
+            r#"{baz: null, qux: [{quy: 44, quz: "Hello, world!", frob: "0x0000000000000000000000000000000000000000000000000000000000000045"}, {quy: 46, quz: null, frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
         ]];
         expect.assert_eq(&format!("{v}"));
     }

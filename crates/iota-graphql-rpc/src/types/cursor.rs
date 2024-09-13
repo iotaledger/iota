@@ -46,7 +46,7 @@ pub(crate) struct Page<C> {
 
     /// In case there are more than `limit` entries in the range described by
     /// `(after, before)`, this field states whether the entries up to limit
-    /// are taken fron the `Front` or `Back` of that range.
+    /// are taken from the `Front` or `Back` of that range.
     end: End,
 }
 

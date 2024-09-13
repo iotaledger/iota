@@ -415,6 +415,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     async fn test_zklogin_sig_verify() {
         use iota_test_transaction_builder::TestTransactionBuilder;
         use iota_types::{

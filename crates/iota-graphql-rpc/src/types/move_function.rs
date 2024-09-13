@@ -5,12 +5,14 @@
 use async_graphql::*;
 use iota_package_resolver::FunctionDef;
 
-use super::{
-    iota_address::IotaAddress,
-    move_module::MoveModule,
-    open_move_type::{abilities, MoveAbility, MoveVisibility, OpenMoveType},
+use crate::{
+    error::Error,
+    types::{
+        iota_address::IotaAddress,
+        move_module::MoveModule,
+        open_move_type::{abilities, MoveAbility, MoveVisibility, OpenMoveType},
+    },
 };
-use crate::error::Error;
 
 pub(crate) struct MoveFunction {
     package: IotaAddress,

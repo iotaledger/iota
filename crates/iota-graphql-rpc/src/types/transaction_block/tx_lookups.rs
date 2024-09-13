@@ -7,7 +7,6 @@ use std::fmt::Write;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::schema::checkpoints;
 
-use super::{Cursor, TransactionBlockFilter};
 use crate::{
     data::{pg::bytea_literal, Conn, DbConnection},
     filter, inner_join, query,
@@ -16,7 +15,7 @@ use crate::{
         cursor::{End, Page},
         digest::Digest,
         iota_address::IotaAddress,
-        transaction_block::TransactionBlockKindInput,
+        transaction_block::{Cursor, TransactionBlockFilter, TransactionBlockKindInput},
         type_filter::{FqNameFilter, ModuleFilter},
     },
 };

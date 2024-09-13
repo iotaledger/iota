@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_package_resolver::Resolver;
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::{annotated_value as A, language_storage::TypeTag};
 use serde::{Deserialize, Serialize};
 
-use super::open_move_type::MoveAbility;
-use crate::{data::package_resolver::PackageResolver, error::Error};
+use crate::{
+    data::package_resolver::PackageResolver, error::Error, types::open_move_type::MoveAbility,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MoveType {
@@ -55,11 +57,11 @@ type MoveTypeLayout =
     }
   | { enum: [{
           type: string,
-          variants: [{ 
+          variants: [{
               name: string,
               fields: [{ name: string, layout: MoveTypeLayout }],
           }]
-      }] 
+      }]
   }"
 );
 

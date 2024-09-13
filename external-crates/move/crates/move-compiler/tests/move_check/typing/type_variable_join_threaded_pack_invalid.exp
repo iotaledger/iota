@@ -20,7 +20,7 @@ error[E05001]: ability constraint not satisfied
    │            --- To satisfy the constraint, the 'drop' ability would need to be added here
    ·
 47 │         let x = Container::get(&v);
-   │                 ^^^^^^^^^^^^^^^^^^ 'drop' constraint not satisifed
+   │                 ^^^^^^^^^^^^^^^^^^ 'drop' constraint not satisfied
 48 │         let b = Box { f1: x, f2: x };
 49 │         Container::put(&mut v, Box {f1: R{}, f2: R{}});
    │                                ---------------------- The type '0x2::M::Box<0x2::M::R>' does not have the ability 'drop'

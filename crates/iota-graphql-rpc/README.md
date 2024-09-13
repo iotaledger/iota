@@ -1,5 +1,14 @@
 # iota-graphql-rpc
 
+## Architecture
+
+The GraphQL server provides read access to the indexer database, and enables
+execution of transaction through the fullnode JSON-RPC API.
+
+Its architecture can thus be visualized as follows:
+
+![GraphQL server architecture](./graphql-rpc-arch.png)
+
 ## Dev setup
 
 Note that we use compilation flags to determine the backend for Diesel. If you're using VS Code, make sure to update settings.json with the appropriate features - there should at least be a "pg_backend" (or other backend.)
@@ -17,30 +26,19 @@ The order is important:
 2. --bin iota-graphql-rpc: This specifies which binary to run.
 3. start-server --db-url: These are arguments to the binary.
 
-## Spinning up locally
+## Steps to run a local GraphQL server
 
-### Setting up local db
+### Using docker compose (recommended)
 
-The graphql service is backed by a db based on the db schema in [iota-indexer](../iota-indexer/src/schema.rs). To spin up a local db, follow the instructions at [iota-indexer](../iota-indexer/README.md) until "Running standalone indexer".
+See [pg-services-local](../../docker/pg-services-local/README.md), which automatically sets up the GraphQL server along with a postgres database and local network.
 
-If you have not created a db yet, you can do so as follows:
+### Using manual setup
 
-```sh
-psql -U postgres
-CREATE DATABASE iota_indexer_v2;
-```
+Before you can run the GraphQL server, you need to have a running postgres instance.
+Follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up the database.
+You should end up with a running postgres instance on port `5432` with the database `iota_indexer` accessible by user `postgres` with password `postgrespw`.
 
-You should be able to refer to the db url now:
-`psql postgres://postgres:postgrespw@localhost:5432/iota_indexer_v2`
-
-With the new db, run the following commands (also under `iota/crates/iota-indexer`):
-
-```sh
-diesel setup --database-url="<DATABASE_URL>" --migration-dir=migrations
-diesel migration run --database-url="<DATABASE_URL>" --migration-dir=migrations
-```
-
-### Launching the server
+## Launching the graphql-rpc server
 
 See [src/commands.rs](src/commands.rs) for all CLI options.
 
@@ -73,16 +71,21 @@ cargo run --bin iota-graphql-rpc start-server [--rpc-url] [--db-url] [--port] [-
 
 ### Launching the server w/ indexer
 
-For local dev, it might be useful to spin up an indexer as well. Instructions are at [Running standalone indexer](../iota-indexer/README.md#running-standalone-indexer).
+For local dev, it might be useful to spin up an indexer as well. You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), part of [iota-test-validator](../../crates/iota-test-validator/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
 
 ## Compatibility with json-rpc
 
-`cargo run --bin iota --features indexer -- start --with-faucet --force-regenesis --with-indexer --pg-port 5432 --pg-db-name iota_indexer_v2 --with-graphql`
+`cargo run --bin iota-test-validator -- --with-indexer --pg-port 5432 --pg-db-name iota_indexer --graphql-host 127.0.0.1 --graphql-port 9125`
 
 `pnpm --filter @iota/graphql-transport test:e2e`
 
-## Testing
+## Running tests
 
-The full gamut of graphql-specific tests are listed in the [rust.yml](../../.github/workflows/rust.yml).
+To run the tests, a running postgres database is required.
+To do so, follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up a database.
 
-To run the tests in `iota-graphql-rpc`, you will need to have postgres running locally.
+Then, run the following command:
+
+```sh
+cargo nextest run -p iota-graphql-rpc --features pg_integration --no-fail-fast --test-threads 1
+```

@@ -5,7 +5,7 @@
 use async_graphql::*;
 use iota_types::base_types::ObjectRef as NativeObjectRef;
 
-use super::{iota_address::IotaAddress, object::Object, uint53::UInt53};
+use crate::types::{iota_address::IotaAddress, object::Object, uint53::UInt53};
 
 // A helper type representing the read of a specific version of an object.
 // Intended to be "flattened" into other GraphQL types.

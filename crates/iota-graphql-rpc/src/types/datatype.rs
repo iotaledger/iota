@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::{
+use crate::types::{
     move_enum::MoveEnum,
     move_module::MoveModule,
     move_struct::{MoveStruct, MoveStructTypeParameter},

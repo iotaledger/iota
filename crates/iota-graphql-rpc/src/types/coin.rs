@@ -9,25 +9,6 @@ use async_graphql::{
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
 use iota_types::{coin::Coin as NativeCoin, TypeTag};
 
-use super::{
-    available_range::AvailableRange,
-    balance::{self, Balance},
-    base64::Base64,
-    big_int::BigInt,
-    cursor::{Page, Target},
-    display::DisplayEntry,
-    dynamic_field::{DynamicField, DynamicFieldName},
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotaNSRegistration},
-    move_object::{MoveObject, MoveObjectImpl},
-    move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
-    owner::OwnerImpl,
-    stake::StakedIota,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-    type_filter::ExactTypeFilter,
-    uint53::UInt53,
-};
 use crate::{
     connection::ScanConnection,
     consistency::{build_objects_query, View},
@@ -35,6 +16,24 @@ use crate::{
     error::Error,
     filter,
     raw_query::RawQuery,
+    types::{
+        available_range::AvailableRange,
+        balance::{self, Balance},
+        base64::Base64,
+        big_int::BigInt,
+        cursor::{Page, Target},
+        display::DisplayEntry,
+        dynamic_field::{DynamicField, DynamicFieldName},
+        iota_address::IotaAddress,
+        move_object::{MoveObject, MoveObjectImpl},
+        move_value::MoveValue,
+        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        owner::OwnerImpl,
+        stake::StakedIota,
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        type_filter::ExactTypeFilter,
+        uint53::UInt53,
+    },
 };
 
 #[derive(Clone)]
@@ -129,33 +128,6 @@ impl Coin {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(&self.super_.super_)
-            .default_iotans_name(ctx, format)
-            .await
-    }
-
-    /// The IotaNSRegistration NFTs owned by this object. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        OwnerImpl::from(&self.super_.super_)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -388,7 +360,7 @@ impl Coin {
             })?;
 
             let coin = Coin::try_from(&move_).map_err(|_| {
-                Error::Internal(format!("Faild to deserialize as Coin: {}", object.address))
+                Error::Internal(format!("Failed to deserialize as Coin: {}", object.address))
             })?;
 
             conn.edges.push(Edge::new(cursor, coin));

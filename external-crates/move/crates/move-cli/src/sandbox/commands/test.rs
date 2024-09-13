@@ -1,8 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
+use std::{
+    collections::{BTreeMap, HashMap},
+    env,
+    fmt::Write as FmtWrite,
+    fs::{self, File},
+    io::{self, BufRead, Write},
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use move_command_line_common::{
     env::read_bool_env_var,
@@ -17,22 +26,15 @@ use move_package::{
     source_package::{layout::SourcePackageLayout, manifest_parser::parse_move_manifest_from_file},
     BuildConfig,
 };
-use std::{
-    collections::{BTreeMap, HashMap},
-    env,
-    fmt::Write as FmtWrite,
-    fs::{self, File},
-    io::{self, BufRead, Write},
-    path::{Path, PathBuf},
-    process::Command,
-};
 use tempfile::tempdir;
 
-/// Basic datatest testing framework for the CLI. The `run_one` entrypoint expects
-/// an `args.txt` file with arguments that the `move` binary understands (one set
-/// of arguments per line). The testing framework runs the commands, compares the
-/// result to the expected output, and runs `move clean` to discard resources,
-/// modules, and event data created by running the test.
+use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
+
+/// Basic datatest testing framework for the CLI. The `run_one` entrypoint
+/// expects an `args.txt` file with arguments that the `move` binary understands
+/// (one set of arguments per line). The testing framework runs the commands,
+/// compares the result to the expected output, and runs `move clean` to discard
+/// resources, modules, and event data created by running the test.
 
 /// If this env var is set, `move clean` will not be run after each test.
 /// this is useful if you want to look at the `storage` or `move_events`
@@ -52,6 +54,9 @@ const MOVE_VM_TRACING_ENV_VAR_NAME: &str = "MOVE_VM_TRACE";
 /// if --track-cov is set. If --track-cov is not set, then no trace file will
 /// be produced.
 const DEFAULT_TRACE_FILE: &str = "trace";
+
+/// The prefix for the stack trace that we want to remove from the stderr output if present.
+const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 
 fn collect_coverage(
     trace_file: &Path,
@@ -119,20 +124,22 @@ fn pad_tmp_path(tmp_dir: &Path, pad_amount: usize) -> anyhow::Result<PathBuf> {
     Ok(tmp_dir)
 }
 
-// We need to copy dependencies over (transitively) and at the same time keep the paths valid in
-// the package. To do this we compute the resolution graph for all possible dependencies (so in dev
-// mode) and then calculate the nesting under `tmp_dir` the we need to copy the root package so
-// that it, and all its dependencies reside under `tmp_dir` with the same paths as in the original
+// We need to copy dependencies over (transitively) and at the same time keep
+// the paths valid in the package. To do this we compute the resolution graph
+// for all possible dependencies (so in dev mode) and then calculate the nesting
+// under `tmp_dir` the we need to copy the root package so that it, and all its
+// dependencies reside under `tmp_dir` with the same paths as in the original
 // package manifest.
 fn copy_deps(tmp_dir: &Path, pkg_dir: &Path) -> anyhow::Result<PathBuf> {
-    // Sometimes we run a test that isn't a package for metatests so if there isn't a package we
-    // don't need to nest at all. Resolution graph diagnostics are only needed for CLI commands so
-    // ignore them by passing a vector as the writer.
+    // Sometimes we run a test that isn't a package for metatests so if there isn't
+    // a package we don't need to nest at all. Resolution graph diagnostics are
+    // only needed for CLI commands so ignore them by passing a vector as the
+    // writer.
     let package_resolution = match (BuildConfig {
         dev_mode: true,
         ..Default::default()
     })
-    .resolution_graph_for_package(pkg_dir, &mut Vec::new())
+    .resolution_graph_for_package(pkg_dir, None, &mut Vec::new())
     {
         Ok(pkg) => pkg,
         Err(_) => return Ok(tmp_dir.to_path_buf()),
@@ -213,7 +220,8 @@ pub fn run_one(
     }
     let mut output = "".to_string();
 
-    // always use the absolute path for the trace file as we may change dirs in the process
+    // always use the absolute path for the trace file as we may change dirs in the
+    // process
     let trace_file = if track_cov {
         Some(wks_dir.canonicalize()?.join(DEFAULT_TRACE_FILE))
     } else {
@@ -273,7 +281,10 @@ pub fn run_one(
         let cmd_output = cli_command_template().args(args_iter).output()?;
         writeln!(&mut output, "Command `{}`:", args_line)?;
         output += std::str::from_utf8(&cmd_output.stdout)?;
-        output += std::str::from_utf8(&cmd_output.stderr)?;
+        let stderr_output = std::str::from_utf8(&cmd_output.stderr)?;
+        // Remove stack traces from the stderr output if they exist
+        let clean_stderr = stderr_output.split(STACK_TRACE_PREFIX).next().unwrap();
+        output += clean_stderr;
     }
 
     // collect coverage information

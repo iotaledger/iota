@@ -1,5 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{fs::File, io::Write};
+
 use clap::Parser;
 use config::{CommitteeBuilder, Epoch, WorkerIndex, WorkerInfo};
 use crypto::{KeyPair, NetworkKeyPair};
@@ -7,10 +11,9 @@ use fastcrypto::{
     hash::Hash,
     traits::{KeyPair as _, Signer},
 };
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use rand::{prelude::StdRng, SeedableRng};
 use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
-use std::{fs::File, io::Write};
 use test_utils::latest_protocol_version;
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, Header, HeaderDigest, HeaderV1Builder,
@@ -25,8 +28,8 @@ fn get_registry() -> Result<Registry> {
     // 1. Record samples for types with custom deserializers.
     // We want to call
     // tracer.trace_value(&mut samples, ...)?;
-    // with all the base types contained in messages, especially the ones with custom serializers;
-    // or involving generics (see [serde_reflection documentation](https://docs.rs/serde-reflection/latest/serde_reflection/)).
+    // with all the base types contained in messages, especially the ones with
+    // custom serializers; or involving generics (see [serde_reflection documentation](https://docs.rs/serde-reflection/latest/serde_reflection/)).
     // Trace the corresponding header
     let mut rng = StdRng::from_seed([0; 32]);
     let (keys, network_keys): (Vec<_>, Vec<_>) = (0..4)
@@ -69,7 +72,8 @@ fn get_registry() -> Result<Registry> {
     // Find the author id inside the committee
     let authority = committee.authority_by_key(kp.public()).unwrap();
 
-    // The values have to be "complete" in a data-centric sense, but not "correct" cryptographically.
+    // The values have to be "complete" in a data-centric sense, but not "correct"
+    // cryptographically.
     let header_builder = HeaderV1Builder::default();
     let header = header_builder
         .author(authority.id())
@@ -178,7 +182,8 @@ fn main() {
         }
         Action::Test => {
             // If this test fails, run the following command from the folder `node`:
-            // cargo -q run --example narwhal-generate-format -- print > tests/staged/narwhal.yaml
+            // cargo -q run --example narwhal-generate-format -- print >
+            // tests/staged/narwhal.yaml
             let reference = std::fs::read_to_string(FILE_PATH).unwrap();
             let reference: Registry = serde_yaml::from_str(&reference).unwrap();
             pretty_assertions::assert_eq!(reference, registry);

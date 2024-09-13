@@ -4,20 +4,21 @@
 
 use async_graphql::{connection::Connection, *};
 
-use super::{
-    balance::{self, Balance},
-    coin::Coin,
-    cursor::Page,
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotaNSRegistration},
-    move_object::MoveObject,
-    object::{self, ObjectFilter},
-    owner::OwnerImpl,
-    stake::StakedIota,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-    type_filter::ExactTypeFilter,
+use crate::{
+    connection::ScanConnection,
+    types::{
+        balance::{self, Balance},
+        coin::Coin,
+        cursor::Page,
+        iota_address::IotaAddress,
+        move_object::MoveObject,
+        object::{self, ObjectFilter},
+        owner::OwnerImpl,
+        stake::StakedIota,
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        type_filter::ExactTypeFilter,
+    },
 };
-use crate::connection::ScanConnection;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) struct Address {
@@ -112,31 +113,6 @@ impl Address {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(self)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// address.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(self).default_iotans_name(ctx, format).await
-    }
-
-    /// The IotaNSRegistration NFTs owned by this address. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNSRegistration>> {
-        OwnerImpl::from(self)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 

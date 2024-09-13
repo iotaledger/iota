@@ -17,8 +17,7 @@ use iota_indexer::{
 };
 use tracing::error;
 
-use super::QueryExecutor;
-use crate::{config::Limits, error::Error, metrics::Metrics};
+use crate::{config::Limits, data::QueryExecutor, error::Error, metrics::Metrics};
 
 #[derive(Clone)]
 pub(crate) struct PgExecutor {

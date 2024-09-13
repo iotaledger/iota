@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::{iota_address::IotaAddress, object::ObjectRef, uint53::UInt53};
+use crate::types::{iota_address::IotaAddress, object::ObjectRef, uint53::UInt53};
 
 /// The optional extra data a user can provide to a transaction dry run.
 /// `sender` defaults to `0x0`. If gasObjects` is not present, or is an empty

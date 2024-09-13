@@ -11,12 +11,14 @@ use diesel::{
 use iota_indexer::{models::events::StoredEvent, schema::events};
 use serde::{Deserialize, Serialize};
 
-use super::Query;
 use crate::{
     consistency::Checkpointed,
     filter,
     raw_query::RawQuery,
-    types::cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
+    types::{
+        cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
+        event::Query,
+    },
 };
 
 /// Contents of an Event's cursor.
