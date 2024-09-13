@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{fs, path::PathBuf, time::Duration};
 
 use iota_config::node::AuthorityStorePruningConfig;
