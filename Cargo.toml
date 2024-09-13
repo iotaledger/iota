@@ -90,7 +90,7 @@ members = [
   "crates/iota-framework-snapshot",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
-  "crates/iota-graphql-config",
+#  "crates/iota-graphql-config", TODO: uncomment when it is merged.
   "crates/iota-graphql-e2e-tests",
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
@@ -158,7 +158,7 @@ members = [
   "crates/typed-store-error",
   "docs/examples/rust",
   "crates/typed-store-workspace-hack",
-  "crates/x",
+#  "crates/x", TODO: uncomment when it is merged or delete.
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
@@ -400,6 +400,7 @@ proptest-derive = "0.3.0"
 prost = "0.13"
 prost-build = "0.13"
 protobuf = { version = "2.28", features = ["with-bytes"] }
+rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
 quinn-proto = "0.11.6"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -662,6 +663,7 @@ test-cluster = { path = "crates/test-cluster" }
 transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-error = { path = "crates/typed-store-error" }
+typed-store-derive = { path = "crates/typed-store-derive" }
 
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
