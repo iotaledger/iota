@@ -7,7 +7,6 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
-import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
@@ -24,9 +23,12 @@ import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/uti
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
-import { generateValidatorsTableData } from '~/lib/ui/utils/generateValidatorsTableData';
+import {
+    generateValidatorsTableData,
+    type ValidatorTableColumn,
+} from '~/lib/ui/utils/generateValidatorsTableData';
 
-export const VALIDATOR_COLUMNS: ColumnDef<object, unknown>[] = [
+export const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
     {
         header: 'Name',
         accessorKey: 'name',
@@ -114,7 +116,7 @@ export default function EpochDetail() {
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableData({
-            validators: epochData.validators,
+            validators: [...epochData.validators].sort(() => 0.5 - Math.random()),
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,

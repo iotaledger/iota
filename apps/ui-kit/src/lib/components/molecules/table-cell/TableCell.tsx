@@ -168,9 +168,10 @@ export function TableCell(props: TableCellProps): JSX.Element {
     }
 
     const Cell = () => {
+        const { noWrap } = props;
         switch (type) {
             case TableCellType.Text:
-                const { supportingLabel, noWrap } = props;
+                const { supportingLabel } = props;
                 return (
                     <div className="flex flex-row items-baseline gap-1">
                         <span
@@ -235,7 +236,9 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         href={to}
                         target={isExternal ? '_blank' : '_self'}
                         rel="noopener noreferrer"
-                        className={cx('text-primary-30 dark:text-primary-80', textSizeClass)}
+                        className={cx('text-primary-30 dark:text-primary-80', textSizeClass, {
+                            'whitespace-nowrap': noWrap,
+                        })}
                     >
                         {label}
                     </a>

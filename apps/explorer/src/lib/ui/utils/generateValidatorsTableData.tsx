@@ -15,7 +15,7 @@ import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '
 import { Link, StakeColumn, AddressLink, ImageIcon } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/dist/cjs/client';
 
-export interface ValidatorTableRow {
+interface ValidatorTableRow {
     name: TableCellProps;
     stake: TableCellProps;
     apy: TableCellProps;
@@ -37,7 +37,57 @@ interface GenerateValidatorsTableDataArgs {
     columns?: ColumnDef<object, unknown>[];
 }
 
-const DEFAULT_COLUMNS: ColumnDef<object, unknown>[] = [
+const ALL_VALIDATOR_COLUMNS = [
+    {
+        header: '#',
+        accessorKey: 'number',
+    },
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+    {
+        header: 'Proposed Next Epoch Gas Price',
+        accessorKey: 'nextEpochGasPrice',
+    },
+    {
+        header: 'Address',
+        accessorKey: 'address',
+    },
+    {
+        header: 'APY',
+        accessorKey: 'apy',
+    },
+    {
+        header: 'Commission',
+        accessorKey: 'commission',
+    },
+    {
+        header: 'Last Epoch Rewards',
+        accessorKey: 'lastReward',
+    },
+    {
+        header: 'Voting Power',
+        accessorKey: 'votingPower',
+    },
+    {
+        header: 'Status',
+        accessorKey: 'atRisk',
+    },
+] as const;
+
+type AccessorKey = (typeof ALL_VALIDATOR_COLUMNS)[number]['accessorKey'];
+
+export interface ValidatorTableColumn {
+    header: string;
+    accessorKey: AccessorKey;
+}
+
+const DEFAULT_COLUMNS: ValidatorTableColumn[] = [
     {
         header: '#',
         accessorKey: 'number',
@@ -76,7 +126,32 @@ const DEFAULT_COLUMNS: ColumnDef<object, unknown>[] = [
     },
 ];
 
-function generateValidatorName(address: string, name: string, imageUrl: string) {
+function generateValidatorAtRisk(atRisk: number | null): TableCellProps {
+    if (atRisk === null) {
+        return {
+            type: TableCellType.Badge,
+            badgeType: BadgeType.PrimarySoft,
+            label: 'Active',
+        };
+    }
+
+    const atRiskText = atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch';
+    return {
+        type: TableCellType.Badge,
+        badgeType: BadgeType.Neutral,
+        label: `At Risk ${atRiskText}`,
+    };
+}
+
+function ValidatorName({
+    address,
+    name,
+    imageUrl,
+}: {
+    address: string;
+    name: string;
+    imageUrl: string;
+}) {
     return (
         <Link
             to={`/validator/${encodeURIComponent(address)}`}
@@ -96,24 +171,15 @@ function generateValidatorName(address: string, name: string, imageUrl: string) 
     );
 }
 
-function generateValidatorAtRisk(atRisk: number | null): TableCellProps {
-    if (atRisk === null) {
-        return {
-            type: TableCellType.Badge,
-            badgeType: BadgeType.Neutral,
-            label: 'Active',
-        };
-    }
-
-    const atRiskText = atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch';
-    return {
-        type: TableCellType.Badge,
-        badgeType: BadgeType.PrimarySolid,
-        label: `At Risk ${atRiskText}`,
-    };
-}
-
-function generateValidatorAddress(address: string, name: string, limit?: number) {
+function ValidatorAddress({
+    address,
+    name,
+    limit,
+}: {
+    address: string;
+    name: string;
+    limit?: number;
+}) {
     return (
         <div className="whitespace-nowrap">
             <AddressLink
@@ -144,95 +210,93 @@ export function generateValidatorsTableData({
     columns: ColumnDef<object, unknown>[];
 } {
     return {
-        data: [...validators]
-            .sort(() => 0.5 - Math.random())
-            .map((validator, i) => {
-                const validatorName = validator.name;
-                const totalStake = validator.stakingPoolIotaBalance;
+        data: validators.map((validator, i) => {
+            const validatorName = validator.name;
+            const totalStake = validator.stakingPoolIotaBalance;
 
-                const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
-                    pool_staking_reward?: string;
-                };
+            const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
+                pool_staking_reward?: string;
+            };
 
-                const atRiskValidator = atRiskValidators.find(
-                    ([address]) => address === validator.iotaAddress,
-                );
-                const isAtRisk = !!atRiskValidator;
-                const lastReward = event?.pool_staking_reward ?? null;
-                const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
-                    apy: null,
-                };
+            const atRiskValidator = atRiskValidators.find(
+                ([address]) => address === validator.iotaAddress,
+            );
+            const isAtRisk = !!atRiskValidator;
+            const lastReward = event?.pool_staking_reward ?? null;
+            const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
+                apy: null,
+            };
 
-                return {
-                    number: {
-                        type: TableCellType.Text,
-                        label: `${i + 1}`,
-                        textColor: TableCellTextColor.Dark,
-                    },
-                    name: showValidatorIcon
+            return {
+                number: {
+                    type: TableCellType.Text,
+                    label: `${i + 1}`,
+                    textColor: TableCellTextColor.Dark,
+                },
+                name: showValidatorIcon
+                    ? {
+                          type: TableCellType.Children,
+                          children: (
+                              <ValidatorName
+                                  address={validator.iotaAddress}
+                                  name={validatorName}
+                                  imageUrl={validator.imageUrl}
+                              />
+                          ),
+                      }
+                    : {
+                          type: TableCellType.Text,
+                          label: validatorName,
+                          textColor: TableCellTextColor.Dark,
+                      },
+                stake: {
+                    type: TableCellType.Children,
+                    children: <StakeColumn stake={totalStake} />,
+                    noWrap: true,
+                },
+                nextEpochGasPrice: {
+                    type: TableCellType.Children,
+                    children: <StakeColumn stake={validator.nextEpochGasPrice} inNano />,
+                    noWrap: true,
+                },
+                apy: {
+                    type: TableCellType.Text,
+                    label: formatPercentageDisplay(apy, '--', isApyApproxZero),
+                },
+                commission: {
+                    type: TableCellType.Text,
+                    label: `${Number(validator.commissionRate) / 100}%`,
+                },
+                lastReward:
+                    lastReward !== null
                         ? {
                               type: TableCellType.Children,
-                              children: generateValidatorName(
-                                  validator.iotaAddress,
-                                  validatorName,
-                                  validator.imageUrl,
-                              ),
+                              children: <StakeColumn stake={Number(lastReward)} />,
+                              noWrap: true,
                           }
                         : {
                               type: TableCellType.Text,
-                              label: validatorName,
-                              textColor: TableCellTextColor.Dark,
+                              label: '--',
                           },
-                    stake: {
-                        type: TableCellType.Children,
-                        children: <StakeColumn stake={totalStake} />,
-                        noWrap: true,
-                    },
-                    nextEpochGasPrice: {
-                        type: TableCellType.Children,
-                        children: <StakeColumn stake={validator.nextEpochGasPrice} inNano />,
-                        noWrap: true,
-                    },
-                    apy: {
-                        type: TableCellType.Text,
-                        label: formatPercentageDisplay(apy, '--', isApyApproxZero),
-                    },
-                    commission: {
-                        type: TableCellType.Text,
-                        label: `${Number(validator.commissionRate) / 100}%`,
-                    },
-                    lastReward:
-                        lastReward !== null
-                            ? {
-                                  type: TableCellType.Children,
-                                  children: <StakeColumn stake={Number(lastReward)} />,
-                                  noWrap: true,
-                              }
-                            : {
-                                  type: TableCellType.Text,
-                                  label: '--',
-                              },
-                    votingPower: {
-                        type: TableCellType.Text,
-                        label: validator.votingPower
-                            ? Number(validator.votingPower) / 100 + '%'
-                            : '--',
-                    },
-                    atRisk: generateValidatorAtRisk(
-                        isAtRisk
-                            ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
-                            : null,
+                votingPower: {
+                    type: TableCellType.Text,
+                    label: validator.votingPower ? Number(validator.votingPower) / 100 + '%' : '--',
+                },
+                atRisk: generateValidatorAtRisk(
+                    isAtRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1]) : null,
+                ),
+                address: {
+                    type: TableCellType.Children,
+                    children: (
+                        <ValidatorAddress
+                            address={validator.iotaAddress}
+                            name={validatorName}
+                            limit={limit}
+                        />
                     ),
-                    address: {
-                        type: TableCellType.Children,
-                        children: generateValidatorAddress(
-                            validator.iotaAddress,
-                            validatorName,
-                            limit,
-                        ),
-                    },
-                };
-            }),
+                },
+            };
+        }),
         columns: columns,
     };
 }

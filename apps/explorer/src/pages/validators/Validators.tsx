@@ -75,7 +75,7 @@ function ValidatorPageResult(): JSX.Element {
     const validatorsTable = useMemo(() => {
         if (!data || !validatorEvents) return null;
         return generateValidatorsTableData({
-            validators: data.activeValidators,
+            validators: [...data.activeValidators].sort(() => 0.5 - Math.random()),
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
