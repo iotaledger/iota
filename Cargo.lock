@@ -6039,6 +6039,7 @@ dependencies = [
  "simulacrum",
  "tap",
  "telemetry-subscribers",
+ "test-cluster",
  "thiserror",
  "tokio",
  "tracing",

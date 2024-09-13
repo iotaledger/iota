@@ -25,8 +25,9 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
+    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
+    error::IotaError,
     event::EventID,
     iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
     is_system_package,
@@ -1049,12 +1050,19 @@ impl IndexerReader {
         &self,
         digest: TransactionDigest,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
-        let (timestamp_ms, serialized_events) = self.run_query(|conn| {
+        let Some((timestamp_ms, serialized_events)) = self.run_query(|conn| {
             transactions::table
                 .filter(transactions::transaction_digest.eq(digest.into_inner().to_vec()))
                 .select((transactions::timestamp_ms, transactions::events))
                 .first::<(i64, Vec<Option<Vec<u8>>>)>(conn)
-        })?;
+                .optional()
+        })?
+        else {
+            return Err(IotaError::TransactionEventsNotFound {
+                digest: TransactionEventsDigest::new(digest.into_inner()),
+            }
+            .into());
+        };
 
         let events = serialized_events
             .into_iter()

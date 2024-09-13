@@ -52,6 +52,8 @@ diesel_migrations = "2.2"
 
 [features]
 pg_integration = []
+rpc_tests = []
+all_tests = ["pg_integration", "rpc_tests"]
 
 [dev-dependencies]
 iota-config.workspace = true
@@ -61,6 +63,7 @@ iota-move-build.workspace = true
 iota-swarm-config.workspace = true
 rand.workspace = true
 simulacrum.workspace = true
+test-cluster.workspace = true
 
 [[bin]]
 name = "iota-indexer"

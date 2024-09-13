@@ -1,0 +1,114 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::time::Duration;
+
+use iota_config::node::RunWithRange;
+use iota_indexer::{
+    indexer::Indexer,
+    store::{indexer_store::IndexerStore, PgIndexerStore},
+    test_utils::{start_test_indexer, ReaderWriterConfig},
+    IndexerConfig,
+};
+use iota_metrics::init_metrics;
+use jsonrpsee::{
+    http_client::{HttpClient, HttpClientBuilder},
+    types::ErrorObject,
+};
+use test_cluster::{TestCluster, TestClusterBuilder};
+
+const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
+const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
+const DEFAULT_INDEXER_PORT: u16 = 9005;
+
+/// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` & `Write`
+/// indexer
+pub async fn start_test_cluster_with_read_write_indexer(
+    stop_cluster_after_checkpoint_seq: Option<u64>,
+) -> (TestCluster, PgIndexerStore, HttpClient) {
+    let mut builder = TestClusterBuilder::new();
+
+    // run the cluster until the declared checkpoint sequence number
+    if let Some(stop_cluster_after_checkpoint_seq) = stop_cluster_after_checkpoint_seq {
+        builder = builder.with_fullnode_run_with_range(Some(RunWithRange::Checkpoint(
+            stop_cluster_after_checkpoint_seq,
+        )));
+    };
+
+    let cluster = builder.build().await;
+
+    // start indexer in write mode
+    let (pg_store, _pg_store_handle) = start_test_indexer(
+        Some(DEFAULT_DB_URL.to_owned()),
+        cluster.rpc_url().to_string(),
+        ReaderWriterConfig::writer_mode(None),
+    )
+    .await;
+
+    // start indexer in read mode
+    start_indexer_reader(cluster.rpc_url().to_owned());
+
+    // create an RPC client by using the indexer url
+    let rpc_client = HttpClientBuilder::default()
+        .build(format!(
+            "http://{DEFAULT_INDEXER_IP}:{DEFAULT_INDEXER_PORT}"
+        ))
+        .unwrap();
+
+    (cluster, pg_store, rpc_client)
+}
+
+/// Wait for the indexer to catch up to the given checkpoint sequence number
+pub async fn indexer_wait_for_checkpoint(
+    pg_store: &PgIndexerStore,
+    checkpoint_sequence_number: u64,
+) {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while {
+            let cp_opt = pg_store
+                .get_latest_tx_checkpoint_sequence_number()
+                .await
+                .unwrap();
+            cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
+        } {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    })
+    .await
+    .expect("Timeout waiting for indexer to catchup to checkpoint");
+}
+
+/// Start an Indexer instance in `Read` mode
+fn start_indexer_reader(fullnode_rpc_url: impl Into<String>) {
+    let config = IndexerConfig {
+        db_url: Some(DEFAULT_DB_URL.to_owned()),
+        rpc_client_url: fullnode_rpc_url.into(),
+        reset_db: true,
+        rpc_server_worker: true,
+        rpc_server_url: DEFAULT_INDEXER_IP.to_owned(),
+        rpc_server_port: DEFAULT_INDEXER_PORT,
+        ..Default::default()
+    };
+
+    let registry = prometheus::Registry::default();
+    init_metrics(&registry);
+
+    tokio::spawn(async move {
+        Indexer::start_reader(&config, &registry, DEFAULT_DB_URL.to_owned()).await
+    });
+}
+
+/// Asserts if provided error message does match with
+/// the [`jsonrpsee::core::ClientError::Call`] Error variant
+pub fn assert_rpc_call_error_msg<T>(
+    result: Result<T, jsonrpsee::core::ClientError>,
+    raw_msg: &str,
+) {
+    let err_obj: ErrorObject = serde_json::from_str(raw_msg).unwrap();
+
+    assert!(result.is_err_and(|err| match err {
+        jsonrpsee::core::ClientError::Call(owned_obj) =>
+            owned_obj.message() == ErrorObject::into_owned(err_obj).message(),
+        _ => false,
+    }));
+}
