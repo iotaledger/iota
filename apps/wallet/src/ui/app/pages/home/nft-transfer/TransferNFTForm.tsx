@@ -9,7 +9,6 @@ import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { createNftSendValidationSchema, useGetKioskContents } from '@iota/core';
-import { useIotaClient } from '@iota/dapp-kit';
 import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
@@ -26,8 +25,7 @@ interface TransferNFTFormProps {
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
-    const rpc = useIotaClient();
-    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId, rpc);
+    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();

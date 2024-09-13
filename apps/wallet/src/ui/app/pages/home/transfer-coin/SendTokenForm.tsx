@@ -155,7 +155,7 @@ export function SendTokenForm({
     );
 
     const validationSchemaStepOne = useMemo(
-        () => createValidationSchemaStepOne(client, coinBalance, symbol, coinDecimals),
+        () => createValidationSchemaStepOne(coinBalance, symbol, coinDecimals),
         [client, coinBalance, symbol, coinDecimals],
     );
 

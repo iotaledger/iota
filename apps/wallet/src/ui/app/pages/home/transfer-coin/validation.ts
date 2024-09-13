@@ -4,15 +4,11 @@
 
 import { createIotaAddressValidation } from '@iota/core';
 import { createTokenValidation } from '_src/shared/validation';
-import { type IotaClient } from '@iota/iota-sdk/client';
 import * as Yup from 'yup';
 
-export function createValidationSchemaStepOne(
-    client: IotaClient,
-    ...args: Parameters<typeof createTokenValidation>
-) {
+export function createValidationSchemaStepOne(...args: Parameters<typeof createTokenValidation>) {
     return Yup.object({
-        to: createIotaAddressValidation(client),
+        to: createIotaAddressValidation(),
         amount: createTokenValidation(...args),
     });
 }
