@@ -13,13 +13,7 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
 
     return (
         <CollapsibleCard title="Changes">
-            <CollapsibleSection
-                title={
-                    <Text variant="body/semibold" color="success-dark">
-                        Updated
-                    </Text>
-                }
-            >
+            <CollapsibleSection title="Updated">
                 <div className="flex flex-col gap-2">
                     {data.map((object) => {
                         const { objectId } = object.reference;

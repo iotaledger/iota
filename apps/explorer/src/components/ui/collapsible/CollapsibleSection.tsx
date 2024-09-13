@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
 import { type ReactNode, useState } from 'react';
-import clsx from 'clsx';
 
 interface CollapsibleSectionProps {
     children: ReactNode;

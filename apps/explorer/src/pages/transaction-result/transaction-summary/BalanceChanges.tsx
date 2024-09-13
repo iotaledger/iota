@@ -11,7 +11,7 @@ import {
     useFormatCoin,
     useResolveIotaNSName,
 } from '@iota/core';
-import { Heading, Text } from '@iota/ui';
+import { Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 

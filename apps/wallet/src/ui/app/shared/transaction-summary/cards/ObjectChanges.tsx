@@ -14,7 +14,6 @@ import {
 import { ChevronDown12, ChevronRight12 } from '@iota/icons';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
-
 import { ExpandableList } from '../../ExpandableList';
 import { Card } from '../Card';
 import { OwnerFooter } from '../OwnerFooter';
