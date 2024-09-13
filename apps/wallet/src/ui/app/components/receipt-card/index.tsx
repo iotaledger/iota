@@ -14,7 +14,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionSummary } from '../../shared/transaction-summary';
 import { StakeTxn } from './StakeTxn';
 import { UnStakeTxn } from './UnstakeTxn';
-import { Card, CardBody, CardType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { CheckmarkFilled } from '@iota/ui-icons';
 import cl from 'clsx';
 import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
