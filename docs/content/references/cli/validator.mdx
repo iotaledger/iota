@@ -211,11 +211,11 @@ $ iota validator display-metadata 0x8359fff1dc629bad933cf1781564a6d98a7277ac391e
 ### Update validator metadata
 
 ```shell
-$ iota validator update-metadata <key> <new-value>
+iota validator update-metadata <key> <new-value>
 ```
 
 ```shell
-$ iota validator update-metadata name new-validator-name
+iota validator update-metadata name new-validator-name
 ```
 
 
@@ -423,9 +423,9 @@ $ iota validator report-validator  0xf...3d9
 </details>
 
 
-### Generate the payload to create PoP
+### Generate the Payload To Create PoP
 
-Serialize the payload that is used to generate Proof of Possession. This is allows the signer to take the payload offline for an Authority protocol BLS keypair to sign.
+Serialize the payload that is used to generate Proof of Possession. This allows the signer to take the payload offline for an Authority protocol BLS keypair to sign.
 ```shell
 $ iota validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --protocol-public-key $BLS_PUBKEY
 ```
@@ -434,10 +434,10 @@ $ iota validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --prot
 Serialized payload: BQAAgAGZ8l72H4AyuRRjZGCYLFzG8TTvHdrnZlfyy/7B6/yNCXN0CA32/PDcuLxLDY4K9dgOu/8rTFmfVPQtYxLfwxQnYHjBzDR+u77FGYviWFE/OGuTDQLCdJqAPiMwlV69GhARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQAAAAAAAAAA
 ```
 
-### Display-gas-price-update-raw-txn
+### `Display-gas-price-update-raw-txn`
 
 ```shell
-$ iota validator display-gas-price-update-raw-txn --sender-address 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --operation-cap-id 0x8f337a037af62bfe31b7119eefdbdfa38159c37460c59a4e4fa730f9b22671c4 --new-gas-price 1000
+iota validator display-gas-price-update-raw-txn --sender-address 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --operation-cap-id 0x8f337a037af62bfe31b7119eefdbdfa38159c37460c59a4e4fa730f9b22671c4 --new-gas-price 1000
 ```
 
 <details>
