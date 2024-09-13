@@ -9,7 +9,6 @@ import { ValidationError } from 'yup';
 export { ValidationError };
 
 export function createIotaAddressValidation() {
-
     return Yup.string()
         .ensure()
         .trim()

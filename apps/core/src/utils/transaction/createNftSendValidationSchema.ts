@@ -6,10 +6,7 @@ import * as Yup from 'yup';
 import { createIotaAddressValidation } from '../validation';
 import { ValidationError } from 'yup';
 
-export function createNftSendValidationSchema(
-    senderAddress: string,
-    objectId: string,
-) {
+export function createNftSendValidationSchema(senderAddress: string, objectId: string) {
     return Yup.object({
         to: createIotaAddressValidation()
             .test(
