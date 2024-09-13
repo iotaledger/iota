@@ -161,7 +161,6 @@ function ObjectChangeEntries({
     type,
     isDisplay,
 }: ObjectChangeEntriesProps): JSX.Element {
-    const title = ObjectChangeLabels[type];
     let expandableItems = [];
 
     if (type === 'published') {

@@ -63,10 +63,10 @@ export function CollapsibleCard({
             {footer && <div className={clsx('rounded-b-2xl bg-iota/10 py-2.5')}>{footer}</div>}
         </div>
     ) : (
-        <Panel>
+        <Panel hasBorder={!hideBorder}>
             <Title size={titleSize} title={title ?? ''} />
             <div>{children}</div>
-            {footer && <div className="mt-4">{footer}</div>}
+            {footer && <>{footer}</>}
         </Panel>
     );
 }
