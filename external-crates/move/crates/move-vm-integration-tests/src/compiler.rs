@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{fs::File, io::Write, path::Path};
 
 use anyhow::Result;
 use move_binary_format::file_format::CompiledModule;
 use move_compiler::{compiled_unit::AnnotatedCompiledUnit, Compiler as MoveCompiler};
-use std::{fs::File, io::Write, path::Path};
 use tempfile::tempdir;
 
 pub fn compile_units(s: &str) -> Result<Vec<AnnotatedCompiledUnit>> {
@@ -18,6 +20,7 @@ pub fn compile_units(s: &str) -> Result<Vec<AnnotatedCompiledUnit>> {
     }
 
     let (_, units) = MoveCompiler::from_files(
+        None,
         vec![file_path.to_str().unwrap().to_string()],
         vec![],
         move_stdlib::move_stdlib_named_addresses(),
@@ -39,6 +42,7 @@ pub fn expect_modules(
 
 pub fn compile_modules_in_file(path: &Path) -> Result<Vec<CompiledModule>> {
     let (_, units) = MoveCompiler::from_files(
+        None,
         vec![path.to_str().unwrap().to_string()],
         vec![],
         std::collections::BTreeMap::<String, _>::new(),

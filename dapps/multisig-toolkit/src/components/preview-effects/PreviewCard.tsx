@@ -1,63 +1,64 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ObjectOwner } from '@mysten/sui.js/src/client';
+import { ObjectOwner } from '@iota/iota-sdk/src/client';
 import { ReactNode } from 'react';
 
 import { ObjectLink } from './ObjectLink';
 
 type HeaderProps = {
-	children?: ReactNode;
+    children?: ReactNode;
 };
 type RootProps = {
-	children: ReactNode;
-	className?: string;
+    children: ReactNode;
+    className?: string;
 };
 
 type BodyProps = {
-	children: ReactNode;
+    children: ReactNode;
 };
 
 type FooterProps = {
-	children?: ReactNode;
+    children?: ReactNode;
 };
 
 function Root({ children, className }: RootProps) {
-	return (
-		<div className={`border flex flex-col  rounded-lg shadow overflow-hidden ${className}`}>
-			{children}
-		</div>
-	);
+    return (
+        <div className={`border flex flex-col  rounded-lg shadow overflow-hidden ${className}`}>
+            {children}
+        </div>
+    );
 }
 
 function Body({ children }: BodyProps) {
-	return <div className="p-3 overflow-x-auto">{children}</div>;
+    return <div className="p-3 overflow-x-auto">{children}</div>;
 }
 
 function Header({ children }: HeaderProps) {
-	return (
-		<div className="bg-gray-900 py-3 px-2 text-sm overflow-x-auto break-words">{children}</div>
-	);
+    return (
+        <div className="bg-gray-900 py-3 px-2 text-sm overflow-x-auto break-words">{children}</div>
+    );
 }
 function Footer({ children, owner }: FooterProps & { owner?: ObjectOwner }) {
-	return (
-		<div className="mt-auto bg-gray-900 py-3 px-2 text-sm overflow-x-auto break-words">
-			{children}
-			{owner && (
-				<div className="flex items-center ">
-					<div>Owner</div>
-					<div className="col-span-3 text-right flex items-center gap-1 ml-auto">
-						<ObjectLink owner={owner} />
-					</div>
-				</div>
-			)}
-		</div>
-	);
+    return (
+        <div className="mt-auto bg-gray-900 py-3 px-2 text-sm overflow-x-auto break-words">
+            {children}
+            {owner && (
+                <div className="flex items-center ">
+                    <div>Owner</div>
+                    <div className="col-span-3 text-right flex items-center gap-1 ml-auto">
+                        <ObjectLink owner={owner} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 export const PreviewCard = {
-	Root,
-	Header,
-	Body,
-	Footer,
+    Root,
+    Header,
+    Body,
+    Footer,
 };

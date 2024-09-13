@@ -1,0 +1,26 @@
+:::info 
+
+See [Publish a Package](/developer/getting-started/first-app/publish.mdx) for a more detailed guide on publishing packages or [IOTA Client CLI](/references/cli/client.mdx) for a complete reference of `client` commands in the IOTA CLI.
+
+:::
+
+Before publishing your code, you must first initialize the IOTA Client CLI, if you haven't already. To do so, in a terminal or console at the root directory of the project enter `iota client`. If you receive the following response, complete the remaining instructions:
+
+```
+Config file ["<FILE-PATH>/.iota/iota_config/client.yaml"] doesn't exist, do you want to connect to a IOTA Full node server [y/N]?
+```
+
+Enter `y` to proceed. You receive the following response:
+
+```
+IOTA Full node server URL (Defaults to IOTA Devnet if not specified) :
+```
+
+Leave this blank (press Enter). You receive the following response:
+
+```
+Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):
+```
+
+Select `0`. Now you should have a IOTA address set up.
+

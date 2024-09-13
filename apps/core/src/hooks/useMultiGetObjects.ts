@@ -1,32 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { SuiObjectDataOptions, SuiObjectResponse } from '@mysten/sui.js/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { IotaObjectDataOptions, IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 
 import { chunkArray } from '../utils/chunkArray';
 
 export function useMultiGetObjects(
-	ids: string[],
-	options: SuiObjectDataOptions,
-	queryOptions?: Omit<UseQueryOptions<SuiObjectResponse[]>, 'queryKey' | 'queryFn'>,
+    ids: string[],
+    options: IotaObjectDataOptions,
+    queryOptions?: Omit<UseQueryOptions<IotaObjectResponse[]>, 'queryKey' | 'queryFn'>,
 ) {
-	const client = useSuiClient();
-	return useQuery({
-		...queryOptions,
-		queryKey: ['multiGetObjects', ids],
-		queryFn: async () => {
-			const responses = await Promise.all(
-				chunkArray(ids, 50).map((chunk) =>
-					client.multiGetObjects({
-						ids: chunk,
-						options,
-					}),
-				),
-			);
-			return responses.flat();
-		},
-		enabled: !!ids?.length,
-	});
+    const client = useIotaClient();
+    return useQuery({
+        ...queryOptions,
+        queryKey: ['multiGetObjects', ids],
+        queryFn: async () => {
+            const responses = await Promise.all(
+                chunkArray(ids, 50).map((chunk) =>
+                    client.multiGetObjects({
+                        ids: chunk,
+                        options,
+                    }),
+                ),
+            );
+            return responses.flat();
+        },
+        enabled: !!ids?.length,
+    });
 }

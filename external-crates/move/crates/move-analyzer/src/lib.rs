@@ -1,13 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[macro_use(sp)]
 extern crate move_ir_types;
 
+pub mod analysis;
+pub mod analyzer;
+pub mod compiler_info;
 pub mod completion;
 pub mod context;
 pub mod diagnostics;
+pub mod inlay_hints;
 pub mod symbols;
 pub mod utils;
 pub mod vfs;

@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::{Debug, Display};
 
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use types::Batch;
 
-/// Defines the validation procedure for receiving either a new single transaction (from a client)
-/// of a batch of transactions (from another validator). Invalid transactions will not receive
-/// further processing.
+/// Defines the validation procedure for receiving either a new single
+/// transaction (from a client) of a batch of transactions (from another
+/// validator). Invalid transactions will not receive further processing.
 pub trait TransactionValidator: Clone + Send + Sync + 'static {
     type Error: Display + Debug + Send + Sync + 'static;
-    /// Determines if a transaction valid for the worker to consider putting in a batch
+    /// Determines if a transaction valid for the worker to consider putting in
+    /// a batch
     fn validate(&self, t: &[u8]) -> Result<(), Self::Error>;
     /// Determines if this batch can be voted on
     fn validate_batch(

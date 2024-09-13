@@ -1,84 +1,52 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { Heading } from '_app/shared/heading';
-import { Text } from '_app/shared/text';
-import Loading from '_components/loading';
-import Logo from '_components/logo';
-import { useFullscreenGuard, useInitializedGuard } from '_hooks';
-import WelcomeSplash from '_src/ui/assets/images/WelcomeSplash.svg';
-import { toast } from 'react-hot-toast';
+import { Loading } from '_components';
 import { useNavigate } from 'react-router-dom';
+import { useFullscreenGuard, useInitializedGuard } from '_hooks';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { IotaLogoWeb } from '@iota/ui-icons';
 
-import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
-import { ZkLoginButtons } from '../../components/accounts/ZkLoginButtons';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 
 export function WelcomePage() {
-	const createAccountsMutation = useCreateAccountsMutation();
-	const isFullscreenGuardLoading = useFullscreenGuard(true);
-	const isInitializedLoading = useInitializedGuard(
-		false,
-		!(createAccountsMutation.isPending || createAccountsMutation.isSuccess),
-	);
-	const [, setAccountsFormValues] = useAccountsFormContext();
-	const navigate = useNavigate();
-	return (
-		<Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
-			<div className="rounded-20 bg-sui-lightest shadow-wallet-content flex flex-col items-center px-7 py-6 h-full overflow-auto">
-				<div className="shrink-0">
-					<Logo />
-				</div>
-				<div className="text-center mx-auto mt-2">
-					<Heading variant="heading2" color="gray-90" as="h1" weight="bold">
-						Welcome to Sui Wallet
-					</Heading>
-					<div className="mt-2">
-						<Text variant="pBody" color="steel-dark" weight="medium">
-							Connecting you to the decentralized web and Sui network.
-						</Text>
-					</div>
-				</div>
-				<div className="w-full h-full mt-3.5 flex justify-center items-center">
-					<WelcomeSplash role="img" />
-				</div>
-				<div className="flex flex-col gap-3 mt-3.5 w-full items-center">
-					<Text variant="pBody" color="steel-dark" weight="medium">
-						Sign in with your preferred service
-					</Text>
-					<ZkLoginButtons
-						layout="row"
-						buttonsDisabled={createAccountsMutation.isSuccess}
-						sourceFlow="Onboarding"
-						onButtonClick={async (provider) => {
-							setAccountsFormValues({ type: 'zkLogin', provider });
-							await createAccountsMutation.mutateAsync(
-								{
-									type: 'zkLogin',
-								},
-								{
-									onSuccess: () => {
-										navigate('/tokens');
-									},
-									onError: (error) => {
-										toast.error(
-											(error as Error)?.message || 'Failed to create account. (Unknown error)',
-										);
-									},
-								},
-							);
-						}}
-					/>
-					<Button
-						to="/accounts/add-account?sourceFlow=Onboarding"
-						size="tall"
-						variant="secondary"
-						text="More Options"
-						disabled={createAccountsMutation.isPending || createAccountsMutation.isSuccess}
-					/>
-				</div>
-			</div>
-		</Loading>
-	);
+    const createAccountsMutation = useCreateAccountsMutation();
+    const isFullscreenGuardLoading = useFullscreenGuard(true);
+    const isInitializedLoading = useInitializedGuard(
+        false,
+        !(createAccountsMutation.isPending || createAccountsMutation.isSuccess),
+    );
+    const navigate = useNavigate();
+    const CURRENT_YEAR = new Date().getFullYear();
+
+    return (
+        <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
+            <div className="flex h-full w-full flex-col items-center justify-between bg-white px-md py-2xl shadow-wallet-content">
+                <IotaLogoWeb width={130} height={32} />
+                <div className="flex flex-col items-center gap-8 text-center">
+                    <div className="flex flex-col items-center gap-4">
+                        <span className="text-headline-sm text-neutral-40">Welcome to</span>
+                        <h1 className="text-display-lg text-neutral-10">IOTA Wallet</h1>
+                        <span className="text-title-lg text-neutral-40">
+                            Connecting you to the decentralized web and IOTA network
+                        </span>
+                    </div>
+                    <Button
+                        type={ButtonType.Primary}
+                        text="Add Profile"
+                        onClick={() => {
+                            navigate('/accounts/add-account?sourceFlow=Onboarding');
+                        }}
+                        disabled={
+                            createAccountsMutation.isPending || createAccountsMutation.isSuccess
+                        }
+                    />
+                </div>
+                <div className="text-body-lg text-neutral-60">
+                    &copy; IOTA Foundation {CURRENT_YEAR}
+                </div>
+            </div>
+        </Loading>
+    );
 }

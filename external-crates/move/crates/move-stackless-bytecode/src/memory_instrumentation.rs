@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
@@ -91,7 +92,7 @@ impl<'a> Instrumenter<'a> {
         use Type::*;
         let env = self.builder.global_env();
         match ty.skip_reference() {
-            Struct(mid, sid, inst) => {
+            Datatype(mid, sid, inst) => {
                 self.is_pack_ref_struct(&env.get_struct_qid(mid.qualified(*sid)))
                     || inst.iter().any(|t| self.is_pack_ref_ty(t))
             }
@@ -116,7 +117,8 @@ impl<'a> Instrumenter<'a> {
             .any(|fe| self.is_pack_ref_ty(&fe.get_type()))
     }
 
-    /// Calculate the differentiating factor for a particular write-back chain (among the tree)
+    /// Calculate the differentiating factor for a particular write-back chain
+    /// (among the tree)
     fn get_differentiation_factors(tree: &[Vec<WriteBackAction>], index: usize) -> BTreeSet<usize> {
         // utility function to first the first different action among two chains
         fn index_of_first_different_action(
@@ -285,10 +287,12 @@ impl<'a> Instrumenter<'a> {
 
                 // issue a chain of write-back actions
                 for action in chain {
-                    // decide if we need a pre-writeback pack-ref (i.e., data structure invariant checking)
+                    // decide if we need a pre-writeback pack-ref (i.e., data structure invariant
+                    // checking)
                     let pre_writeback_check_opt = match &action.dst {
                         BorrowNode::LocalRoot(..) | BorrowNode::GlobalRoot(..) => {
-                            // On write-back to a root, "pack" the reference, i.e. validate all its invariants.
+                            // On write-back to a root, "pack" the reference, i.e. validate all its
+                            // invariants.
                             let target = self.builder.get_target();
                             let ty = target.get_local_type(action.src);
                             if self.is_pack_ref_ty(ty) {

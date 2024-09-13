@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Activity } from '../../components/Activity';
-import { ErrorBoundary } from '../../components/error-boundary/ErrorBoundary';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
+import { Activity, ErrorBoundary, PageLayout } from '~/components';
+import { useSearchParamsMerged } from '~/components/ui';
 
 const TRANSACTIONS_LIMIT = 20;
 
-export function Recent() {
-	const [searchParams] = useSearchParamsMerged();
+export function Recent(): JSX.Element {
+    const [searchParams] = useSearchParamsMerged();
 
-	return (
-		<PageLayout
-			content={
-				<div data-testid="transaction-page" id="transaction" className="mx-auto">
-					<ErrorBoundary>
-						<Activity initialLimit={TRANSACTIONS_LIMIT} initialTab={searchParams.get('tab')} />
-					</ErrorBoundary>
-				</div>
-			}
-		/>
-	);
+    return (
+        <PageLayout
+            content={
+                <div data-testid="transaction-page" id="transaction" className="mx-auto">
+                    <ErrorBoundary>
+                        <Activity
+                            initialLimit={TRANSACTIONS_LIMIT}
+                            initialTab={searchParams.get('tab')}
+                        />
+                    </ErrorBoundary>
+                </div>
+            }
+        />
+    );
 }

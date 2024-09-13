@@ -1,13 +1,15 @@
 // Copyright(C) Facebook, Inc. and its affiliates.
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::*;
-use crate::consensus::LeaderSwapTable;
-use crate::NUM_SHUTDOWN_RECEIVERS;
+
 use indexmap::IndexMap;
 use prometheus::Registry;
 use test_utils::{fixture_payload, latest_protocol_version, CommitteeFixture};
 use types::PreSubscribedBroadcastSender;
+
+use super::*;
+use crate::{consensus::LeaderSwapTable, NUM_SHUTDOWN_RECEIVERS};
 
 #[tokio::test]
 async fn propose_empty() {
@@ -32,15 +34,22 @@ async fn propose_empty() {
         committee.clone(),
         &latest_protocol_version(),
         ProposerStore::new_for_tests(),
-        /* header_num_of_batches_threshold */ 32,
-        /* max_header_num_of_batches */ 100,
-        /* max_header_delay */ Duration::from_millis(20),
-        /* min_header_delay */ Duration::from_millis(20),
+        // header_num_of_batches_threshold
+        32,
+        // max_header_num_of_batches
+        100,
+        // max_header_delay
+        Duration::from_millis(20),
+        // min_header_delay
+        Duration::from_millis(20),
         None,
         tx_shutdown.subscribe(),
-        /* rx_core */ rx_parents,
-        /* rx_workers */ rx_our_digests,
-        /* tx_core */ tx_headers,
+        // rx_core
+        rx_parents,
+        // rx_workers
+        rx_our_digests,
+        // tx_core
+        tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
         metrics,
@@ -80,17 +89,22 @@ async fn propose_payload_and_repropose_after_n_seconds() {
         committee.clone(),
         &latest_protocol_version(),
         ProposerStore::new_for_tests(),
-        /* header_num_of_batches_threshold */ 1,
-        /* max_header_num_of_batches */ max_num_of_batches,
-        /* max_header_delay */
+        // header_num_of_batches_threshold
+        1,
+        // max_header_num_of_batches
+        max_num_of_batches,
+        // max_header_delay
         Duration::from_millis(1_000_000), // Ensure it is not triggered.
-        /* min_header_delay */
+        // min_header_delay
         Duration::from_millis(1_000_000), // Ensure it is not triggered.
         Some(header_resend_delay),
         tx_shutdown.subscribe(),
-        /* rx_core */ rx_parents,
-        /* rx_workers */ rx_our_digests,
-        /* tx_core */ tx_headers,
+        // rx_core
+        rx_parents,
+        // rx_workers
+        rx_our_digests,
+        // tx_core
+        tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
         metrics,
@@ -203,17 +217,22 @@ async fn equivocation_protection() {
         committee.clone(),
         &latest_protocol_version(),
         proposer_store.clone(),
-        /* header_num_of_batches_threshold */ 1,
-        /* max_header_num_of_batches */ 10,
-        /* max_header_delay */
+        // header_num_of_batches_threshold
+        1,
+        // max_header_num_of_batches
+        10,
+        // max_header_delay
         Duration::from_millis(1_000_000), // Ensure it is not triggered.
-        /* min_header_delay */
+        // min_header_delay
         Duration::from_millis(1_000_000), // Ensure it is not triggered.
         None,
         tx_shutdown.subscribe(),
-        /* rx_core */ rx_parents,
-        /* rx_workers */ rx_our_digests,
-        /* tx_core */ tx_headers,
+        // rx_core
+        rx_parents,
+        // rx_workers
+        rx_our_digests,
+        // tx_core
+        tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
         metrics,
@@ -276,17 +295,22 @@ async fn equivocation_protection() {
         committee.clone(),
         &latest_protocol_version(),
         proposer_store,
-        /* header_num_of_batches_threshold */ 1,
-        /* max_header_num_of_batches */ 10,
-        /* max_header_delay */
+        // header_num_of_batches_threshold
+        1,
+        // max_header_num_of_batches
+        10,
+        // max_header_delay
         Duration::from_millis(1_000_000), // Ensure it is not triggered.
-        /* min_header_delay */
+        // min_header_delay
         Duration::from_millis(1_000_000), // Ensure it is not triggered.
         None,
         tx_shutdown.subscribe(),
-        /* rx_core */ rx_parents,
-        /* rx_workers */ rx_our_digests,
-        /* tx_core */ tx_headers,
+        // rx_core
+        rx_parents,
+        // rx_workers
+        rx_our_digests,
+        // tx_core
+        tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
         metrics,

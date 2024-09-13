@@ -1,0 +1,26 @@
+[package]
+name = "iota-metric-checker"
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+backoff.workspace = true
+base64.workspace = true
+chrono.workspace = true
+clap.workspace = true
+humantime.workspace = true
+once_cell.workspace = true
+prometheus-http-query = { version = "0.8", default-features = false, features = [
+    "rustls-tls",
+] }
+reqwest.workspace = true
+serde.workspace = true
+serde_yaml = "0.9"
+strum.workspace = true
+telemetry-subscribers.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true

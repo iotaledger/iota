@@ -1,0 +1,27 @@
+---
+title: One-Time Witness
+description: An overview of the One-Time Witness (OTW) type in Move, which ensures actions occur only once within a module.
+---
+
+# Understanding One-Time Witness in Move
+
+A One-Time Witness (OTW) is a unique type in Move, specifically designed to ensure that certain actions within a module can only occur once. This type is particularly useful for scenarios where you need to limit an operation, such as the creation of a coin, to a single instance. A type qualifies as a OTW in Move if it meets the following criteria:
+
+- **Naming Convention:** The type's name matches its module's name, fully uppercased.
+- **Abilities:** The type has the `drop` ability and no other abilities.
+- **Structure:** The type contains either no fields or a single `bool` field.
+
+The only instance of this type is automatically passed to the module’s `init` function during the package’s publication, ensuring it cannot be created or instantiated elsewhere.
+
+To verify if a type can be used as a OTW,
+you can pass an instance of it to [`iota::types::is_one_time_witness`](../../../references/framework/iota-framework/types.mdx#function-is_one_time_witness).
+
+
+
+## Example
+
+The following example demonstrates how to implement and utilize a OTW in a Move module:
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/otw.move
+```

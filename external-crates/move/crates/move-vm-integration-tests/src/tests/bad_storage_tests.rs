@@ -1,8 +1,8 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::compiler::{as_module, compile_units};
 use move_binary_format::errors::{Location, PartialVMError, VMError};
 use move_core_types::{
     account_address::AccountAddress,
@@ -14,6 +14,8 @@ use move_core_types::{
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
+
+use crate::compiler::{as_module, compile_units};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 
@@ -54,8 +56,8 @@ fn test_malformed_module() {
     }
 
     // Start over with a fresh storage and publish a corrupted version of M.
-    // A fresh VM needs to be used whenever the storage has been modified or otherwise the
-    // loader cache gets out of sync.
+    // A fresh VM needs to be used whenever the storage has been modified or
+    // otherwise the loader cache gets out of sync.
     //
     // Try to call M::foo again and the module should fail to load, causing an
     // invariant violation error.
@@ -263,7 +265,8 @@ fn test_malformed_module_dependency() {
         .unwrap();
     }
 
-    // Publish N and a corrupted version of M and try to call N::bar, the VM should fail to load M.
+    // Publish N and a corrupted version of M and try to call N::bar, the VM should
+    // fail to load M.
     {
         blob_m[0] = 0xde;
         blob_m[1] = 0xad;
@@ -340,7 +343,8 @@ fn test_unverifiable_module_dependency() {
         .unwrap();
     }
 
-    // Publish N and an unverifiable version of M and try to call N::bar, the VM should fail to load M.
+    // Publish N and an unverifiable version of M and try to call N::bar, the VM
+    // should fail to load M.
     {
         let mut m = m;
         m.function_defs[0].code.as_mut().unwrap().code = vec![];
@@ -376,7 +380,8 @@ struct BogusStorage {
 impl LinkageResolver for BogusStorage {
     type Error = VMError;
 
-    /// Don't do any relocation so module and resource loading can produce errors
+    /// Don't do any relocation so module and resource loading can produce
+    /// errors
     fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, Self::Error> {
         Ok(module_id.clone())
     }

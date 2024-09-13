@@ -1,0 +1,13 @@
+[Unit]
+Description=Iota Node
+
+[Service]
+User=iota
+WorkingDirectory=/opt/iota/
+Environment=RUST_BACKTRACE=1
+Environment=RUST_LOG=info,iota_core=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+ExecStart=/opt/iota/bin/iota-node --config-path /opt/iota/config/validator.yaml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

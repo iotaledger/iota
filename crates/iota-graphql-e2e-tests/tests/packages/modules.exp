@@ -1,0 +1,285 @@
+processed 6 tasks
+
+task 1 'publish'. lines 7-32:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 6019200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'create-checkpoint'. lines 34-34:
+Checkpoint created: 1
+
+task 3 'run-graphql'. lines 36-66:
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "outputState": {
+                    "address": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x96b4320bfeca59c10cf86b4a59ded16c89eaf6aedb9f0684193d6f8f5590a4c7",
+                    "asMovePackage": {
+                      "module": {
+                        "name": "m",
+                        "package": {
+                          "address": "0x96b4320bfeca59c10cf86b4a59ded16c89eaf6aedb9f0684193d6f8f5590a4c7"
+                        },
+                        "fileFormatVersion": 6,
+                        "bytes": "oRzrCwYAAAAIAQAGAgYKAxARBCEEBSUfB0QkCGhADKgBMAAGAQMBBQEADAEAAQIBAgAABAABAQIAAgIBAAEHBQEBAAIEAAYCAwYLAAEJAAEDAQYLAAEIAQABCQABBgsAAQkAAQgBBENvaW4ESU9UQQNiYXIEY29pbgNmb28EaW90YQFtBXZhbHVllrQyC/7KWcEM+GtKWd7RbInq9q7bnwaEGT1vj1WQpMcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgABAAADBQsBOAALABYCAQEAAAMIBioAAAAAAAAACgA4AQYrAAAAAAAAAAsAOAEYAgA=",
+                        "disassembly": "// Move bytecode v6\nmodule 96b4320bfeca59c10cf86b4a59ded16c89eaf6aedb9f0684193d6f8f5590a4c7.m {\nuse 0000000000000000000000000000000000000000000000000000000000000002::coin;\nuse 0000000000000000000000000000000000000000000000000000000000000002::iota;\n\n\n\n\npublic foo<Ty0: drop>(Arg0: u64, Arg1: &Coin<Ty0>): u64 {\nB0:\n\t0: MoveLoc[1](Arg1: &Coin<Ty0>)\n\t1: Call coin::value<Ty0>(&Coin<Ty0>): u64\n\t2: MoveLoc[0](Arg0: u64)\n\t3: Add\n\t4: Ret\n}\npublic bar(Arg0: &Coin<IOTA>): u64 {\nB0:\n\t0: LdU64(42)\n\t1: CopyLoc[0](Arg0: &Coin<IOTA>)\n\t2: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t3: LdU64(43)\n\t4: MoveLoc[0](Arg0: &Coin<IOTA>)\n\t5: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t6: Mul\n\t7: Ret\n}\n}"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 4 'run-graphql'. lines 68-105:
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "outputState": {
+                    "address": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x96b4320bfeca59c10cf86b4a59ded16c89eaf6aedb9f0684193d6f8f5590a4c7",
+                    "asMovePackage": {
+                      "all": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibSIsImMiOjF9",
+                            "node": {
+                              "name": "m"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibyIsImMiOjF9",
+                            "node": {
+                              "name": "o"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": false
+                        }
+                      },
+                      "after": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibyIsImMiOjF9",
+                            "node": {
+                              "name": "o"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": true
+                        }
+                      },
+                      "before": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibSIsImMiOjF9",
+                            "node": {
+                              "name": "m"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": true,
+                          "hasPreviousPage": false
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 5 'run-graphql'. lines 107-147:
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "outputState": {
+                    "address": "0x34161d2af9918b34587c53942f523284396aee9f3cb786e44e11e453c2f18e28",
+                    "asMovePackage": null
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x96b4320bfeca59c10cf86b4a59ded16c89eaf6aedb9f0684193d6f8f5590a4c7",
+                    "asMovePackage": {
+                      "prefix": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": true,
+                          "hasPreviousPage": true
+                        }
+                      },
+                      "prefixAll": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibyIsImMiOjF9",
+                            "node": {
+                              "name": "o"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": true
+                        }
+                      },
+                      "prefixExcess": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibyIsImMiOjF9",
+                            "node": {
+                              "name": "o"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": true
+                        }
+                      },
+                      "suffix": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": true,
+                          "hasPreviousPage": true
+                        }
+                      },
+                      "suffixAll": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibSIsImMiOjF9",
+                            "node": {
+                              "name": "m"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": true,
+                          "hasPreviousPage": false
+                        }
+                      },
+                      "suffixExcess": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibSIsImMiOjF9",
+                            "node": {
+                              "name": "m"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": true,
+                          "hasPreviousPage": false
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

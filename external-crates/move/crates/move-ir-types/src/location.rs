@@ -1,9 +1,8 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_command_line_common::files::FileHash;
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fmt,
@@ -11,20 +10,24 @@ use std::{
     ops::Range,
 };
 
+use move_command_line_common::files::FileHash;
+use serde::{Deserialize, Serialize};
+
 //**************************************************************************************************
 // Loc
 //**************************************************************************************************
 
 /// An index into a file.
-/// Much like the `codespan` crate, a `u32` is used here to for space efficiency.
-/// However, this assumes no file is larger than 4GB, so this might become a `usize` in the future
-/// if the space concerns turn out to not be an issue.
+/// Much like the `codespan` crate, a `u32` is used here to for space
+/// efficiency. However, this assumes no file is larger than 4GB, so this might
+/// become a `usize` in the future if the space concerns turn out to not be an
+/// issue.
 pub type ByteIndex = u32;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
-/// The `Loc` struct is used to define a location in a file; where the file is considered to be a
-/// vector of bytes, and the range for a given `Loc` is defined by start and end index into that
-/// byte vector
+/// The `Loc` struct is used to define a location in a file; where the file is
+/// considered to be a vector of bytes, and the range for a given `Loc` is
+/// defined by start and end index into that byte vector
 pub struct Loc {
     /// The file the location points to
     file_hash: FileHash,
@@ -68,6 +71,20 @@ impl Loc {
             start: self.start as usize,
             end: self.end as usize,
         }
+    }
+
+    pub fn size(&self) -> u32 {
+        self.end - self.start
+    }
+
+    /// Indicates this this location contains the provided location
+    pub fn contains(&self, other: &Loc) -> bool {
+        self.file_hash == other.file_hash && self.start <= other.start && other.end <= self.end
+    }
+
+    /// Indicates this this location overlaps the provided location
+    pub fn overlaps(&self, other: &Loc) -> bool {
+        self.file_hash == other.file_hash && !(self.end < other.start || other.end < self.start)
     }
 }
 

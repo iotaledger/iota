@@ -1,59 +1,51 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { useAppSelector } from '_hooks';
-import { API_ENV } from '_shared/api-env';
-import { Heading } from '_src/ui/app/shared/heading';
-import { Text } from '_src/ui/app/shared/text';
-import { useBalanceInUSD, useFormatCoin } from '@mysten/core';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useBalanceInUSD, useFormatCoin } from '@iota/core';
+import { Network } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 
-export type CoinProps = {
-	type: string;
-	amount: bigint;
-};
+export interface CoinProps {
+    type: string;
+    amount: bigint;
+}
 
-function WalletBalanceUsd({ amount: walletBalance }: { amount: bigint }) {
-	const isDefiWalletEnabled = useIsWalletDefiEnabled();
-	const formattedWalletBalance = useBalanceInUSD(SUI_TYPE_ARG, walletBalance);
+interface WalletBalanceUsdProps {
+    amount: bigint;
+}
 
-	const walletBalanceInUsd = useMemo(() => {
-		if (!formattedWalletBalance) return null;
+function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
+    const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance);
 
-		return `~${formattedWalletBalance.toLocaleString('en', {
-			style: 'currency',
-			currency: 'USD',
-		})} USD`;
-	}, [formattedWalletBalance]);
+    const walletBalanceInUsd = useMemo(() => {
+        if (!formattedWalletBalance) return null;
 
-	if (!walletBalanceInUsd) {
-		return null;
-	}
+        return `~${formattedWalletBalance.toLocaleString('en', {
+            style: 'currency',
+            currency: 'USD',
+        })} USD`;
+    }, [formattedWalletBalance]);
 
-	return (
-		<Text variant="caption" weight="medium" color={isDefiWalletEnabled ? 'hero-darkest' : 'steel'}>
-			{walletBalanceInUsd}
-		</Text>
-	);
+    if (!walletBalanceInUsd) {
+        return null;
+    }
+
+    return <div className="text-label-md text-neutral-40">{walletBalanceInUsd}</div>;
 }
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
-	const { apiEnv } = useAppSelector((state) => state.app);
-	const [formatted, symbol] = useFormatCoin(walletBalance, type);
+    const network = useAppSelector((state) => state.app.network);
+    const [formatted, symbol] = useFormatCoin(walletBalance, type);
 
-	return (
-		<div className="flex flex-col gap-1 items-center justify-center">
-			<div className="flex items-center justify-center gap-2">
-				<Heading leading="none" variant="heading1" weight="bold" color="gray-90">
-					{formatted}
-				</Heading>
-
-				<Heading variant="heading6" weight="medium" color="steel">
-					{symbol}
-				</Heading>
-			</div>
-			<div>{apiEnv === API_ENV.mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}</div>
-		</div>
-	);
+    return (
+        <>
+            <div className="flex items-baseline gap-0.5">
+                <div className="text-headline-lg text-neutral-10">{formatted}</div>
+                <div className="text-label-md text-neutral-40">{symbol}</div>
+            </div>
+            {network === Network.Mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}
+        </>
+    );
 }

@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::reroot_path;
@@ -10,7 +11,7 @@ use move_coverage::{
 };
 use move_disassembler::disassembler::Disassembler;
 use move_package::BuildConfig;
-use std::path::PathBuf;
+use std::path::Path;
 
 #[derive(Parser)]
 pub enum CoverageSummaryOptions {
@@ -30,7 +31,8 @@ pub enum CoverageSummaryOptions {
         #[clap(long = "module")]
         module_name: String,
     },
-    /// Display coverage information about the module against disassembled bytecode
+    /// Display coverage information about the module against disassembled
+    /// bytecode
     #[clap(name = "bytecode")]
     Bytecode {
         #[clap(long = "module")]
@@ -38,8 +40,8 @@ pub enum CoverageSummaryOptions {
     },
 }
 
-/// Inspect test coverage for this package. A previous test run with the `--coverage` flag must
-/// have previously been run.
+/// Inspect test coverage for this package. A previous test run with the
+/// `--coverage` flag must have previously been run.
 #[derive(Parser)]
 #[clap(name = "coverage")]
 pub struct Coverage {
@@ -48,7 +50,7 @@ pub struct Coverage {
 }
 
 impl Coverage {
-    pub fn execute(self, path: Option<PathBuf>, config: BuildConfig) -> anyhow::Result<()> {
+    pub fn execute(self, path: Option<&Path>, config: BuildConfig) -> anyhow::Result<()> {
         let path = reroot_path(path)?;
         let coverage_map = CoverageMap::from_binary_file(path.join(".coverage_map.mvcov"))?;
         let package = config.compile_package(&path, &mut Vec::new())?;

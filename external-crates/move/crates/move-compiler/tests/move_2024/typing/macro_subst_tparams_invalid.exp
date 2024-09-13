@@ -7,7 +7,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 10 │     macro fun useless<$U>($x: X<$U>): X<$U> {
-   │                               ^^^^^ 'copy' constraint not satisifed
+   │                               ^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -21,7 +21,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 10 │     macro fun useless<$U>($x: X<$U>): X<$U> {
-   │                                       ^^^^^ 'copy' constraint not satisifed
+   │                                       ^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -35,7 +35,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 12 │         freeze<X<$U>>(&mut X());
-   │                ^^^^^ 'copy' constraint not satisifed
+   │                ^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -49,7 +49,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 12 │         freeze<X<$U>>(&mut X());
-   │                            ^^^ 'copy' constraint not satisifed
+   │                            ^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -64,7 +64,7 @@ error[E05001]: ability constraint not satisfied
    │                     ---- 'copy' constraint declared here
    ·
 13 │         f<$U>(X());
-   │         ^^^^^^^^^^ 'copy' constraint not satisifed
+   │         ^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -78,7 +78,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 13 │         f<$U>(X());
-   │               ^^^ 'copy' constraint not satisifed
+   │               ^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -92,7 +92,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 14 │         X<$U>();
-   │         ^^^^^^^ 'copy' constraint not satisifed
+   │         ^^^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -107,7 +107,7 @@ error[E05001]: ability constraint not satisfied
    │                     ---- 'copy' constraint declared here
    ·
 15 │         x.f<$U>();
-   │         ^^^^^^^^^ 'copy' constraint not satisifed
+   │         ^^^^^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -121,7 +121,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 16 │         apply!(x, |_: X<$U>| ());
-   │                       ^^^^^ 'copy' constraint not satisifed
+   │                       ^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -135,7 +135,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 17 │         X<$U>() = x;
-   │         ^^^^^^^ 'copy' constraint not satisifed
+   │         ^^^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -149,7 +149,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 18 │         let _: X<$U> = x;
-   │                ^^^^^ 'copy' constraint not satisifed
+   │                ^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -163,7 +163,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 19 │         let X<$U>() = x;
-   │             ^^^^^^^ 'copy' constraint not satisifed
+   │             ^^^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -186,7 +186,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 21 │         (x: X<$U>);
-   │             ^^^^^ 'copy' constraint not satisifed
+   │             ^^^^^ 'copy' constraint not satisfied
    ·
 27 │         useless!<None>(X());
    │                  ---- The type 'a::m::None' does not have the ability 'copy'
@@ -200,7 +200,7 @@ error[E05001]: ability constraint not satisfied
    │                                ---- 'copy' constraint declared here
    ·
 27 │         useless!<None>(X());
-   │                  ----  ^^^ 'copy' constraint not satisifed
+   │                  ----  ^^^ 'copy' constraint not satisfied
    │                  │      
    │                  The type 'a::m::None' does not have the ability 'copy'
 
