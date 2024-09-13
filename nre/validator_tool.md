@@ -195,3 +195,80 @@ Serialize the payload that is used to generate Proof of Possession. This is allo
 $IOTA_BINARY validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --protocol-public-key $BLS_PUBKEY
 Serialized payload: $PAYLOAD_TO_SIGN
 ```
+
+## Test becoming a validator in a local network
+
+#### Modify faucet code
+
+Change the faucet in iota-test-validator `crates/iota-cluster-test/src/faucet.rs`, so a single faucet request provides enough coins to become a validator.
+In the `request_iota_coins()` function, change the value `200_000_000_000` to `2_600_000_000_000_000`.
+
+```bash
+sed -i 's/200_000_000_000/2_600_000_000_000_000/g' crates/iota-cluster-test/src/faucet.rs
+```
+
+#### Build and run the iota-test-validator
+
+```bash
+cargo run --release --bin iota-test-validator
+```
+
+#### Request coins from the faucet
+
+First switch to the local network:
+
+```bash
+iota client switch --env localnet
+```
+
+Then request funds:
+
+```bash
+iota client faucet --url http://127.0.0.1:9123/gas
+```
+
+#### Make validator info
+
+```bash
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+```
+
+#### Become a validator
+
+```bash
+iota validator become-candidate validator.info
+```
+
+#### Stake funds
+
+Get an object id for a gas coin to stake and the address to stake to:
+
+```bash
+iota client gas && iota client active-address
+```
+
+Stake the coin object:
+
+```bash
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 <gas-coin-id> <validator-address> --gas-budget 10000000
+```
+
+Example where 0xfff7... is a coin object id, 0x111... is the validator address:
+
+```bash
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 0xfff7d5a924a599e811e307c3eeb65d69906054466ac098a2715a19ab802ddf15 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --gas-budget 10000000
+```
+
+All in one:
+
+```bash
+coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
+validatorAddress=$(iota client active-address)
+iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
+```
+
+#### Finally, join the committee
+
+```bash
+iota validator join-committee
+```
