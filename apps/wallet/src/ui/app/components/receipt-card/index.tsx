@@ -61,16 +61,17 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
+    const renderExplorerLinkCard = () => (
+        <ExplorerLinkCard digest={summary?.digest} timestamp={summary?.timestamp ?? undefined} />
+    );
+
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)
         return (
             <div className="flex h-full w-full flex-col justify-between">
                 {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
                 {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
-                <ExplorerLinkCard
-                    digest={summary?.digest}
-                    timestamp={summary?.timestamp ?? undefined}
-                />
+                {renderExplorerLinkCard()}
             </div>
         );
 
@@ -84,10 +85,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 <TransactionSummary summary={summary} />
                 {isSender && <GasFees gasSummary={summary?.gas} />}
             </div>
-            <ExplorerLinkCard
-                digest={summary?.digest}
-                timestamp={summary?.timestamp ?? undefined}
-            />
+            {renderExplorerLinkCard()}
         </div>
     );
 }
