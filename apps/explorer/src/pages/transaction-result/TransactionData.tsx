@@ -7,8 +7,6 @@ import {
     type ProgrammableTransaction,
     type IotaTransactionBlockResponse,
 } from '@iota/iota-sdk/client';
-
-import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
 import { GasBreakdown } from '~/components';
 import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
@@ -32,15 +30,8 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
     const programmableTxn = transaction.transaction!.data.transaction as ProgrammableTransaction;
 
     return (
-        <div className="flex flex-wrap gap-3 pl-1 pr-2 md:gap-6">
-            <section className="flex w-96 flex-1 flex-col gap-3 max-md:min-w-[50%] md:gap-6">
-                <TransactionDetailCard
-                    timestamp={summary?.timestamp}
-                    sender={summary?.sender}
-                    checkpoint={transaction.checkpoint}
-                    executedEpoch={transaction.effects?.executedEpoch}
-                />
-
+        <div className="flex w-full flex-col gap-3 pl-1 pr-2 md:gap-6">
+            <section className="flex w-full flex-1 flex-col gap-3  md:gap-6">
                 {isProgrammableTransaction && (
                     <div data-testid="inputs-card">
                         <InputsCard inputs={programmableTxn.inputs} />
@@ -49,7 +40,7 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
             </section>
 
             {isProgrammableTransaction && (
-                <section className="flex w-96 flex-1 flex-col gap-3 md:min-w-transactionColumn md:gap-6">
+                <section className="flex w-full flex-1 flex-col gap-3 md:min-w-transactionColumn md:gap-6">
                     <div data-testid="transactions-card">
                         <TransactionsCard transactions={programmableTxn.transactions} />
                     </div>
