@@ -85,8 +85,8 @@ pub async fn main() -> Result<(), IndexerError> {
     let expected_transactions = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
     let expected_effects = bcs::to_bytes(&db_txn.effects).unwrap();
 
-    let pg_store = create_pg_store(DEFAULT_DB_URL.to_owned(), None);
-    reset_database(&mut pg_store.blocking_cp().get().unwrap(), true).unwrap();
+    let pg_store = create_pg_store(DEFAULT_DB_URL.to_string().into(), None);
+    reset_database(&mut pg_store.blocking_cp().get().unwrap()).unwrap();
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
     let mut conn = db::get_pg_pool_connection(&pg_store.blocking_cp())?;

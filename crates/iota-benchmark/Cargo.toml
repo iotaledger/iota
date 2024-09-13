@@ -6,13 +6,16 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 comfy-table.workspace = true
-duration-str = "0.11"
+duration-str.workspace = true
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 hdrhistogram.workspace = true
@@ -25,6 +28,7 @@ iota-network.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
 iota-storage.workspace = true
+iota-surfer.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
@@ -36,6 +40,7 @@ roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
+strum_macros.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
@@ -44,7 +49,7 @@ tracing.workspace = true
 iota-metrics.workspace = true
 move-core-types.workspace = true
 narwhal-node.workspace = true
-sysinfo = "0.31"
+sysinfo.workspace = true
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]

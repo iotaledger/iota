@@ -76,6 +76,7 @@ use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
 ///     - epoch_1/
 ///        - 101000.chk
 ///        - ...
+///
 /// Blob File Disk Format
 /// ┌──────────────────────────────┐
 /// │       magic <4 byte>         │

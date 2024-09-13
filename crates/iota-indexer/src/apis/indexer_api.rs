@@ -3,6 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use diesel::r2d2::R2D2Connection;
+use iota_json_rpc::{
+    name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
+    IotaRpcModule,
+};
+use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
+use iota_json_rpc_types::{
+    DynamicFieldPage, EventFilter, EventPage, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{cap_page_limit, internal_error, IndexerApiServer};
 use iota_json_rpc_types::{
@@ -14,23 +23,36 @@ use iota_open_rpc::Module;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::DynamicFieldName,
+    dynamic_field::{DynamicFieldName, Field},
     error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
     TypeTag,
 };
+use jsonrpsee::{
+    core::RpcResult,
+    types::{SubscriptionEmptyError, SubscriptionResult},
+    RpcModule, SubscriptionSink,
+};
+use tap::TapFallible;
+
+use crate::{indexer_reader::IndexerReader, IndexerError};
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, RpcModule};
 
 use crate::indexer_reader::IndexerReader;
 
-pub(crate) struct IndexerApi {
-    inner: IndexerReader,
+
+pub(crate) struct IndexerApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
+    name_service_config: NameServiceConfig,
 }
 
-impl IndexerApi {
-    pub fn new(inner: IndexerReader) -> Self {
-        Self { inner }
+impl<T: R2D2Connection + 'static> IndexerApi<T> {
+    pub fn new(inner: IndexerReader<T>, name_service_config: NameServiceConfig) -> Self {
+        Self {
+            inner,
+            name_service_config,
+        }
     }
 
     async fn get_owned_objects_internal(
@@ -46,15 +68,24 @@ impl IndexerApi {
             .inner
             .get_owned_objects_in_blocking_task(address, filter, cursor, limit + 1)
             .await?;
-        let mut objects = self
-            .inner
-            .spawn_blocking(move |this| {
-                objects
-                    .into_iter()
-                    .map(|object| object.try_into_object_read(&this))
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .await?;
+
+        let mut object_futures = vec![];
+        for object in objects {
+            object_futures.push(tokio::task::spawn(
+                object.try_into_object_read(self.inner.package_resolver()),
+            ));
+        }
+        let mut objects = futures::future::join_all(object_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                tracing::error!("Error joining object read futures.");
+                jsonrpsee::core::Error::Custom(format!("Error joining object read futures. {}", e))
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Error converting object to object read: {}", e))?;
         let has_next_page = objects.len() > limit;
         objects.truncate(limit);
 
@@ -128,7 +159,7 @@ impl IndexerApi {
 }
 
 #[async_trait]
-impl IndexerApiServer for IndexerApi {
+impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
     async fn get_owned_objects(
         &self,
         address: IotaAddress,
@@ -289,17 +320,21 @@ impl IndexerApiServer for IndexerApi {
         ))
     }
 
-    async fn subscribe_event(&self, _sink: PendingSubscriptionSink, _filter: EventFilter) {}
-
-    async fn subscribe_transaction(
-        &self,
-        _sink: PendingSubscriptionSink,
-        _filter: TransactionFilter,
-    ) {
+    fn subscribe_event(&self, _sink: SubscriptionSink, _filter: EventFilter) -> SubscriptionResult {
+        Err(SubscriptionEmptyError)
     }
+
+    fn subscribe_transaction(
+        &self,
+        _sink: SubscriptionSink,
+        _filter: TransactionFilter,
+    ) -> SubscriptionResult {
+        Err(SubscriptionEmptyError)
+    }
+
 }
 
-impl IotaRpcModule for IndexerApi {
+impl<T: R2D2Connection> IotaRpcModule for IndexerApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

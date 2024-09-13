@@ -13,7 +13,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{legacy_test_cost, object_runtime::ObjectRuntime, NativesCostTable};
 
 #[derive(Clone, Debug)]
 pub struct EventEmitCostParams {
@@ -28,12 +28,12 @@ pub struct EventEmitCostParams {
 /// drop>(event: T)` Adds an event to the transaction's event log
 ///   gas cost: event_emit_cost_base                  |  covers various fixed
 /// costs in the oper
-///              + event_emit_value_size_derivation_cost_per_byte * event_size |
-///                derivation of size
-///              + event_emit_tag_size_derivation_cost_per_byte * tag_size |
-///                converting type
-///              + event_emit_output_cost_per_byte * (tag_size + event_size) |
-///                emitting the actual event
+///              + event_emit_value_size_derivation_cost_per_byte * event_size
+///                | derivation of size
+///              + event_emit_tag_size_derivation_cost_per_byte * tag_size
+///                | converting type
+///              + event_emit_output_cost_per_byte * (tag_size + event_size)
+///                | emitting the actual event
 /// ****************************************************************************
 /// *******************
 pub fn emit(
@@ -124,4 +124,48 @@ pub fn emit(
 
     obj_runtime.emit_event(ty, *tag, event_value)?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+}
+
+/// Get the all emitted events of type `T`, starting at the specified index
+pub fn num_events(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    assert!(ty_args.is_empty());
+    assert!(args.is_empty());
+    let object_runtime_ref: &ObjectRuntime = context.extensions().get();
+    let num_events = object_runtime_ref.state.events().len();
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::u32(num_events as u32)],
+    ))
+}
+
+/// Get the all emitted events of type `T`, starting at the specified index
+pub fn get_events_by_type(
+    context: &mut NativeContext,
+    mut ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    assert_eq!(ty_args.len(), 1);
+    let specified_ty = ty_args.pop().unwrap();
+    assert!(args.is_empty());
+    let object_runtime_ref: &ObjectRuntime = context.extensions().get();
+    let matched_events = object_runtime_ref
+        .state
+        .events()
+        .iter()
+        .filter_map(|(ty, _, event)| {
+            if specified_ty == *ty {
+                Some(event.copy_value().unwrap())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::vector_for_testing_only(matched_events)],
+    ))
 }
