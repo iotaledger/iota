@@ -208,6 +208,119 @@ $ iota validator display-metadata 0x8359fff1dc629bad933cf1781564a6d98a7277ac391e
 ```
 </details>
 
+### Update validator metadata
+
+```shell
+$ iota validator update-metadata <key> <new-value>
+```
+
+```shell
+$ iota validator update-metadata name new-validator-name
+```
+
+
+<details>
+  <summary>
+  Toggle output
+  </summary>
+
+```shell
+----- Transaction Digest ----
+HyVwvTSdHVFibs3du6S89mQ5kNC6FvaMeczAPguNYjss
+
+----- Transaction Data ----
+╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215                      │
+│ Gas Owner: 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215                   │
+│ Gas Budget: 200000000 NANOS                                                                     │
+│ Gas Price: 1000 NANOS                                                                           │
+│ Gas Payment:                                                                                    │
+│  ┌──                                                                                            │
+│  │ ID: 0x2ed4692a6b32266c21955db5fe4ed85fa1478c17cee9744c68cebdc034344181                       │
+│  │ Version: 26                                                                                  │
+│  │ Digest: 7EWayTrApAUjaGNTvS77H7tUPeuHxQ1RFZ4rnxpej633                                         │
+│  └──                                                                                            │
+│                                                                                                 │
+│ Transaction Kind: Programmable                                                                  │
+│ ╭─────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Input Objects                                                                               │ │
+│ ├─────────────────────────────────────────────────────────────────────────────────────────────┤ │
+│ │ 0   Shared Object    ID: 0x0000000000000000000000000000000000000000000000000000000000000005 │ │
+│ │ 1   Pure Arg: Type: vector<u8>, Value: "new-validator-name"                                 │ │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ ╭──────────────────────────────────────────────────────────────────────────────────╮            │
+│ │ Commands                                                                         │            │
+│ ├──────────────────────────────────────────────────────────────────────────────────┤            │
+│ │ 0  MoveCall:                                                                     │            │
+│ │  ┌                                                                               │            │
+│ │  │ Function:  update_validator_name                                              │            │
+│ │  │ Module:    iota_system                                                        │            │
+│ │  │ Package:   0x0000000000000000000000000000000000000000000000000000000000000003 │            │
+│ │  │ Arguments:                                                                    │            │
+│ │  │   Input  0                                                                    │            │
+│ │  │   Input  1                                                                    │            │
+│ │  └                                                                               │            │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯            │
+│                                                                                                 │
+│ Signatures:                                                                                     │
+│    79tpsgiXFX65rUIFHhqlhBTj6Us59adQXfTdKhhCLuo1OvG6oyJkXzx4VEA17u/yqSVxFkaGYp1LuMbFL4cNCQ==     │
+│                                                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
+----- Transaction Effects ----
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: HyVwvTSdHVFibs3du6S89mQ5kNC6FvaMeczAPguNYjss                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 39                                                                                │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000005                         │
+│  │ Owner: Shared                                                                                  │
+│  │ Version: 112                                                                                   │
+│  │ Digest: 5BoJQhssNo5smzUddV8rRvaDCGiWvZotVmx3cbh26q4K                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x2ed4692a6b32266c21955db5fe4ed85fa1478c17cee9744c68cebdc034344181                         │
+│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
+│  │ Version: 112                                                                                   │
+│  │ Digest: DNZiGcn27ByW5QY3ZbSpX2CjwQyRkVxX6R7i8CKTZ55h                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1                         │
+│  │ Owner: Object ID: ( 0x0000000000000000000000000000000000000000000000000000000000000005 )       │
+│  │ Version: 112                                                                                   │
+│  │ Digest: 3aYHFk32MvmVmC3EoBkxFCxUAQaoNUd2LNRBYy4DYTDq                                           │
+│  └──                                                                                              │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000005                         │
+│  │ Version: 111                                                                                   │
+│  │ Digest: 7BxrwgHL3v2WEzt1Fxa93HL27n7e5fhckCMmuhdeHra7                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x2ed4692a6b32266c21955db5fe4ed85fa1478c17cee9744c68cebdc034344181                         │
+│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
+│  │ Version: 112                                                                                   │
+│  │ Digest: DNZiGcn27ByW5QY3ZbSpX2CjwQyRkVxX6R7i8CKTZ55h                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 35697200 NANOS                                                                   │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Storage Rebate: 35636400 NANOS                                                                 │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    2QvVh6TYRBLgsB2PT3388hEvAoRmNsYkLsjyz2KnG6fH                                                   │
+│    6grSKcoWbjpzH8xD1rrqPzLqkccf5NW9t1nV4McEsXbE                                                   │
+│    HHRccKiYZ9HP9dDdDv4bNQRUtuw8P9e3ZFPpr3X6c9Zb                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+</details>
+
 ### Report a bad / non-performant validator
 
 ```shell
@@ -309,6 +422,34 @@ $ iota validator report-validator  0xf...3d9
 
 </details>
 
+
+### Generate the payload to create PoP
+
+Serialize the payload that is used to generate Proof of Possession. This is allows the signer to take the payload offline for an Authority protocol BLS keypair to sign.
+```shell
+$ iota validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --protocol-public-key $BLS_PUBKEY
+```
+
+```shell
+Serialized payload: BQAAgAGZ8l72H4AyuRRjZGCYLFzG8TTvHdrnZlfyy/7B6/yNCXN0CA32/PDcuLxLDY4K9dgOu/8rTFmfVPQtYxLfwxQnYHjBzDR+u77FGYviWFE/OGuTDQLCdJqAPiMwlV69GhARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQAAAAAAAAAA
+```
+
+### Display-gas-price-update-raw-txn
+
+```shell
+$ iota validator display-gas-price-update-raw-txn --sender-address 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --operation-cap-id 0x8f337a037af62bfe31b7119eefdbdfa38159c37460c59a4e4fa730f9b22671c4 --new-gas-price 1000
+```
+
+<details>
+  <summary>
+  Toggle output
+  </summary>
+
+```shell
+Transaction: V1(TransactionDataV1 { kind: ProgrammableTransaction(ProgrammableTransaction { inputs: [Object(SharedObject { id: 0x0000000000000000000000000000000000000000000000000000000000000005, initial_shared_version: SequenceNumber(1), mutable: true }), Object(ImmOrOwnedObject((0x8f337a037af62bfe31b7119eefdbdfa38159c37460c59a4e4fa730f9b22671c4, SequenceNumber(26), o#5XwiVLt4h46Na4BjjHWyuohU8DqqZ68DvFfGGgTHP2xg))), Pure([232, 3, 0, 0, 0, 0, 0, 0])], commands: [MoveCall(ProgrammableMoveCall { package: 0x0000000000000000000000000000000000000000000000000000000000000003, module: Identifier("iota_system"), function: Identifier("request_set_gas_price"), type_arguments: [], arguments: [Input(0), Input(1), Input(2)] })] }), sender: 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215, gas_data: GasData { payment: [(0x2ed4692a6b32266c21955db5fe4ed85fa1478c17cee9744c68cebdc034344181, SequenceNumber(112), o#DNZiGcn27ByW5QY3ZbSpX2CjwQyRkVxX6R7i8CKTZ55h)], owner: 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215, price: 1000, budget: 200000000 }, expiration: None }), 
+Serialized transaction: "AAADAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABQEAAAAAAAAAAQEAjzN6A3r2K/4xtxGe79vfo4FZw3RgxZpOT6cw+bImccQaAAAAAAAAACBDXAnuGQCvycBcBmo4dLuKWzyqw1BhqUVK2Yg/gbjYsQAI6AMAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADC2lvdGFfc3lzdGVtFXJlcXVlc3Rfc2V0X2dhc19wcmljZQADAQAAAQEAAQIAERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshUBLtRpKmsyJmwhlV21/k7YX6FHjBfO6XRMaM69wDQ0QYFwAAAAAAAAACC30m1aeN9+ac3WojduzLcSD32BTEtFHrpe6BPieOiuwBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIV6AMAAAAAAAAAwusLAAAAAAA="
+```
+</details>
 
 ## Help
 
