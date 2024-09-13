@@ -130,7 +130,7 @@ pub enum IotaValidatorCommand {
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Report or un-report a validator.
+    /// Report or un-report a validator as bad or non-performant.
     #[clap(name = "report-validator")]
     ReportValidator {
         /// Optional when sender is reporter validator itself and it holds the
