@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Title } from '@iota/apps-ui-kit';
+import { Divider, Title } from '@iota/apps-ui-kit';
 import {
     CoinFormat,
     type TransactionSummary,
@@ -10,15 +10,11 @@ import {
     useResolveIotaNSName,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Heading, Text } from '@iota/ui';
-
 import {
     AddressLink,
     CollapsibleCard,
     CollapsibleSection,
     CopyToClipboard,
-    DescriptionItem,
-    Divider,
     ObjectLink,
 } from '~/components/ui';
 
@@ -34,20 +30,13 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
     }
 
     return (
-        <div className="flex flex-wrap gap-1">
-            <div className="flex flex-wrap items-center gap-1">
-                <Text variant="pBody/medium" color="steel-darker">
-                    {formattedAmount}
-                </Text>
-                <Text variant="subtitleSmall/medium" color="steel-darker">
-                    {symbol}
-                </Text>
-            </div>
-
-            <div className="flex flex-wrap items-center text-body font-medium text-steel">
-                ({BigInt(amount)?.toLocaleString()}
-                <div className="ml-0.5 text-subtitleSmall font-medium text-steel">nano</div>)
-            </div>
+        <div className="flex flex-wrap gap-xxs">
+            <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                {formattedAmount} {symbol}
+            </span>
+            <span className="flex flex-wrap items-center text-body font-medium text-neutral-70">
+                {BigInt(amount)?.toLocaleString()} nano
+            </span>
         </div>
     );
 }
@@ -122,73 +111,98 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
             )}
         >
             <CollapsibleSection hideBorder>
-                {isSponsored && owner && (
-                    <div className="mb-4 flex items-center gap-2 rounded-xl bg-iota/10 px-3 py-2">
-                        <Text variant="pBody/medium" color="steel-darker">
-                            Paid by
-                        </Text>
-                        <AddressLink label={iotansDomainName || undefined} address={owner} />
-                    </div>
-                )}
-
-                <div className="flex flex-col gap-3">
-                    <Divider />
-
-                    <div className="flex flex-col gap-2 md:flex-row md:gap-10">
-                        <div className="w-full flex-shrink-0 md:w-40">
-                            <Text variant="pBody/semibold" color="steel-darker">
+                <div className="flex flex-col gap-xs">
+                    {isSponsored && owner && (
+                        <div className="flex items-center gap-md rounded-lg bg-neutral-92 p-xs dark:bg-neutral-12">
+                            <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                                Paid by
+                            </span>
+                            <AddressLink label={iotansDomainName || undefined} address={owner} />
+                        </div>
+                    )}
+                    <div className="flex flex-col gap-3">
+                        <Divider />
+                        <div className="flex flex-col gap-2 md:flex-row md:gap-10">
+                            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
                                 Gas Payment
-                            </Text>
+                            </span>
+                            {gasPayment?.length ? (
+                                <GasPaymentLinks
+                                    objectIds={gasPayment.map((gas) => gas.objectId)}
+                                />
+                            ) : (
+                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                    --
+                                </span>
+                            )}
                         </div>
-                        {gasPayment?.length ? (
-                            <GasPaymentLinks objectIds={gasPayment.map((gas) => gas.objectId)} />
-                        ) : null}
+                        <div className="flex flex-col gap-2 md:flex-row md:gap-10">
+                            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                Gas Budget
+                            </span>
+                            {gasBudget ? (
+                                <GasAmount amount={BigInt(gasBudget)} />
+                            ) : (
+                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                    --
+                                </span>
+                            )}
+                        </div>
                     </div>
-
-                    <DescriptionItem
-                        align="start"
-                        title={<Text variant="pBody/semibold">Gas Budget</Text>}
-                    >
-                        {gasBudget ? <GasAmount amount={BigInt(gasBudget)} /> : null}
-                    </DescriptionItem>
-                </div>
-
-                <div className="mt-4 flex flex-col gap-3">
-                    <Divider />
-
-                    <DescriptionItem
-                        align="start"
-                        title={<Text variant="pBody/semibold">Computation Fee</Text>}
-                    >
-                        <GasAmount amount={Number(gasUsed?.computationCost)} />
-                    </DescriptionItem>
-
-                    <DescriptionItem
-                        align="start"
-                        title={<Text variant="pBody/semibold">Storage Fee</Text>}
-                    >
-                        <GasAmount amount={Number(gasUsed?.storageCost)} />
-                    </DescriptionItem>
-
-                    <DescriptionItem
-                        align="start"
-                        title={<Text variant="pBody/semibold">Storage Rebate</Text>}
-                    >
-                        <div className="-ml-1.5 min-w-0 flex-1 leading-none">
-                            <GasAmount amount={-Number(gasUsed?.storageRebate)} />
+                    <div className="mt-4 flex flex-col gap-3">
+                        <Divider />
+                        <div className="flex flex-col gap-2 md:flex-row md:gap-10">
+                            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                Computation Fee
+                            </span>
+                            {gasUsed?.computationCost ? (
+                                <GasAmount amount={Number(gasUsed?.computationCost)} />
+                            ) : (
+                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                    --
+                                </span>
+                            )}
                         </div>
-                    </DescriptionItem>
-                </div>
-
-                <div className="mt-6 flex flex-col gap-6">
-                    <Divider />
-
-                    <DescriptionItem
-                        align="start"
-                        title={<Text variant="pBody/semibold">Gas Price</Text>}
-                    >
-                        <GasAmount amount={BigInt(gasPrice)} />
-                    </DescriptionItem>
+                        <div className="flex flex-col gap-2 md:flex-row md:gap-10">
+                            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                Storage Fee
+                            </span>
+                            {gasUsed?.storageCost ? (
+                                <GasAmount amount={Number(gasUsed?.storageCost)} />
+                            ) : (
+                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                    --
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-2 md:flex-row md:gap-10">
+                            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                Storage Rebate
+                            </span>
+                            {gasUsed?.storageRebate ? (
+                                <GasAmount amount={-Number(gasUsed?.storageRebate)} />
+                            ) : (
+                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                    --
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="mt-6 flex flex-col gap-6">
+                        <Divider />
+                        <div className="flex flex-col gap-2 md:flex-row md:gap-10">
+                            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                Gas Price
+                            </span>
+                            {gasPrice ? (
+                                <GasAmount amount={BigInt(gasPrice)} />
+                            ) : (
+                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
+                                    --
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </CollapsibleSection>
         </CollapsibleCard>
