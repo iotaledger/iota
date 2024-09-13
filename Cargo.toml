@@ -158,7 +158,6 @@ members = [
   "crates/typed-store-error",
   "docs/examples/rust",
   "crates/typed-store-workspace-hack",
-#  "crates/x", TODO: uncomment when it is merged or delete.
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
