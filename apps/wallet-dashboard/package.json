@@ -1,0 +1,40 @@
+{
+    "name": "wallet-dashboard",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint && pnpm run prettier:check",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "test": "jest"
+    },
+    "engines": {
+        "node": ">= v18.17.0"
+    },
+    "dependencies": {
+        "@iota/core": "workspace:*",
+        "@iota/dapp-kit": "workspace:*",
+        "@iota/icons": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
+        "@tanstack/react-query": "^5.0.0",
+        "@tanstack/react-virtual": "^3.5.0",
+        "next": "14.2.3",
+        "react": "^18.3.1",
+        "zustand": "^4.4.1"
+    },
+    "devDependencies": {
+        "@types/jest": "^29.5.2",
+        "@types/node": "^20.4.2",
+        "@types/react": "^18.3.3",
+        "eslint": "^8.45.0",
+        "eslint-config-next": "14.2.3",
+        "jest": "^29.5.0",
+        "postcss": "^8.4.31",
+        "tailwindcss": "^3.3.3",
+        "ts-jest": "^29.1.0",
+        "typescript": "^5.3.3"
+    }
+}

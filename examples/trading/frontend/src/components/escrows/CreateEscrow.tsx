@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { ApiLockedObject } from "@/types/types";
-import { useCurrentAccount, useSuiClientInfiniteQuery } from "@mysten/dapp-kit";
-import { formatAddress } from "@mysten/sui.js/utils";
+import { useCurrentAccount, useIotaClientInfiniteQuery } from "@iota/dapp-kit";
+import { formatAddress } from "@iota/iota-sdk/utils";
 import { Avatar, Button, Select } from "@radix-ui/themes";
 import { InfiniteScrollArea } from "@/components/InfiniteScrollArea";
 import { useState } from "react";
@@ -21,7 +22,7 @@ export function CreateEscrow({ locked }: { locked: ApiLockedObject }) {
   const { mutate: createEscrowMutation, isPending } = useCreateEscrowMutation();
 
   const { data, fetchNextPage, isFetchingNextPage, hasNextPage, refetch } =
-    useSuiClientInfiniteQuery(
+    useIotaClientInfiniteQuery(
       "getOwnedObjects",
       {
         owner: account?.address!,
@@ -80,7 +81,7 @@ export function CreateEscrow({ locked }: { locked: ApiLockedObject }) {
                     <Select.Item
                       key={object.data?.objectId!}
                       value={object.data?.objectId!}
-                      className="h-auto w-full data-[state=checked]:bg-blue-50 whitespace-pre-wrap overlfow-hidden break-words hover:bg-blue-50 bg-white text-black cursor-pointer"
+                      className="h-auto w-full data-[state=checked]:bg-blue-50 whitespace-pre-wrap overflow-hidden break-words hover:bg-blue-50 bg-white text-black cursor-pointer"
                     >
                       <div className="flex items-center break-words">
                         <Avatar

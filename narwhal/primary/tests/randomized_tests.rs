@@ -1,55 +1,55 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    num::NonZeroUsize,
+    ops::RangeInclusive,
+    sync::Arc,
+};
+
 use config::{Authority, AuthorityIdentifier, Committee, Stake};
-use fastcrypto::hash::Hash;
-use fastcrypto::hash::HashFunction;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use fastcrypto::hash::{Hash, HashFunction};
+use futures::{stream::FuturesUnordered, StreamExt};
+use iota_protocol_config::ProtocolConfig;
 use narwhal_primary::consensus::{
     make_consensus_store, Bullshark, ConsensusMetrics, ConsensusState, LeaderSchedule,
     LeaderSwapTable,
 };
 use prometheus::Registry;
-use rand::distributions::Bernoulli;
-use rand::distributions::Distribution;
-use rand::prelude::SliceRandom;
-use rand::rngs::StdRng;
-use rand::Rng;
-use rand::SeedableRng;
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
-use std::num::NonZeroUsize;
-use std::ops::RangeInclusive;
-use std::sync::Arc;
+use rand::{
+    distributions::{Bernoulli, Distribution},
+    prelude::SliceRandom,
+    rngs::StdRng,
+    Rng, SeedableRng,
+};
 use storage::ConsensusStore;
-use sui_protocol_config::ProtocolConfig;
-use test_utils::latest_protocol_version;
-use test_utils::mock_certificate_with_rand;
-use test_utils::CommitteeFixture;
+use test_utils::{latest_protocol_version, mock_certificate_with_rand, CommitteeFixture};
 #[allow(unused_imports)]
 use tokio::sync::mpsc::channel;
-use types::CertificateAPI;
-use types::HeaderAPI;
-use types::Round;
-use types::{Certificate, CertificateDigest};
+use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
 
 #[derive(Copy, Clone, Debug)]
 pub struct FailureModes {
-    // The probability of having failures per round. As a failure is defined a node that does not produce
-    // a certificate for a round (because is crashed, temporary failure or has just been slow). The failures should
-    // be <=f , otherwise no DAG could be created. The provided number gives the probability of having
-    // failures up to f. Ex for input `failures_probability = 0.2` it means we'll have 20% chance of
-    // having failures up to 33% of the nodes.
+    // The probability of having failures per round. As a failure is defined a node that does not
+    // produce a certificate for a round (because is crashed, temporary failure or has just
+    // been slow). The failures should be <=f , otherwise no DAG could be created. The provided
+    // number gives the probability of having failures up to f. Ex for input
+    // `failures_probability = 0.2` it means we'll have 20% chance of having failures up to 33%
+    // of the nodes.
     pub nodes_failure_probability: f64,
 
-    // The percentage of slow nodes we want to introduce to our sample. Basically a slow node is one
-    // that might be able to produce certificates, but these certificates never get referenced by others.
-    // Consequently when those nodes are leaders they might also not get enough support - or no support at all.
-    // For example, a value of 0.2 means that we want up to 20% of our nodes to behave as slow nodes.
+    // The percentage of slow nodes we want to introduce to our sample. Basically a slow node is
+    // one that might be able to produce certificates, but these certificates never get
+    // referenced by others. Consequently when those nodes are leaders they might also not get
+    // enough support - or no support at all. For example, a value of 0.2 means that we want up
+    // to 20% of our nodes to behave as slow nodes.
     pub slow_nodes_percentage: f64,
 
-    // The probability of failing to include a slow node certificate to from the certificates of next
-    // round. For example a value of 0.1 means that 10% of the time fail get referenced by the
-    // certificates of the next round.
+    // The probability of failing to include a slow node certificate to from the certificates of
+    // next round. For example a value of 0.1 means that 10% of the time fail get referenced by
+    // the certificates of the next round.
     pub slow_nodes_failure_probability: f64,
 
     // The minimum committee size to apply the failure modes. If None then the failure mode will be
@@ -75,8 +75,9 @@ impl ExecutionPlan {
 #[ignore]
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn bullshark_randomised_tests() {
-    // Configuration regarding the randomized tests. The tests will run for different values
-    // on the below parameters to increase the different cases we can generate.
+    // Configuration regarding the randomized tests. The tests will run for
+    // different values on the below parameters to increase the different cases
+    // we can generate.
 
     // gc_depth to be used
     const GC_DEPTH: [Round; 3] = [6, 7, 10];
@@ -84,9 +85,11 @@ async fn bullshark_randomised_tests() {
     const COMMITTEE_SIZE: [usize; 3] = [4, 7, 10];
     // Rounds for which we will create DAGs
     const DAG_ROUNDS: [Round; 4] = [8, 10, 12, 15];
-    // The number of different execution plans to be created and tested against for every generated DAG
+    // The number of different execution plans to be created and tested against for
+    // every generated DAG
     const EXECUTION_PLANS: u64 = 500;
-    // The number of DAGs that should be generated and tested against for every set of properties.
+    // The number of DAGs that should be generated and tested against for every set
+    // of properties.
     const DAGS_PER_SETUP: u64 = 400;
     // DAGs will be created for these failure modes
     let failure_modes: Vec<FailureModes> = vec![
@@ -97,8 +100,10 @@ async fn bullshark_randomised_tests() {
             nodes_failure_probability: 0.10,     // 10%
             slow_nodes_percentage: 0.10,         // 10%
             slow_nodes_failure_probability: 0.3, // 30%
-            minimum_committee_size: Some(7), // no reason to test this failure mode for smaller committee size, as we'll end up to similar
-                                             // failures as the "severe failures" section
+            minimum_committee_size: Some(7),     /* no reason to test this failure mode for
+                                                  * smaller committee size, as we'll end up to
+                                                  * similar
+                                                  * failures as the "severe failures" section */
         },
         // Severe failures
         FailureModes {
@@ -110,7 +115,7 @@ async fn bullshark_randomised_tests() {
     ];
 
     let mut config: ProtocolConfig = latest_protocol_version();
-    config.set_consensus_bad_nodes_stake_threshold(33);
+    config.set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
     let mut test_execution_list = FuturesUnordered::new();
     let (tx, mut rx) = channel(1000);
@@ -158,8 +163,8 @@ async fn bullshark_randomised_tests() {
         }
     });
 
-    // Create a single store to be re-used across Bullshark instances to avoid hitting
-    // a "too many files open" issue.
+    // Create a single store to be re-used across Bullshark instances to avoid
+    // hitting a "too many files open" issue.
     let store = make_consensus_store(&test_utils::temp_dir());
 
     // Run the actual tests via separate tasks
@@ -211,10 +216,10 @@ async fn bullshark_randomised_tests() {
     }
 }
 
-/// Ensures that the methods to generate the DAGs and the execution plans are random but can be
-/// reproduced by providing the same seed number - so practically they behave deterministically.
-/// If that test breaks then we have no reassurance that we can reproduce the tests in case of
-/// failure.
+/// Ensures that the methods to generate the DAGs and the execution plans are
+/// random but can be reproduced by providing the same seed number - so
+/// practically they behave deterministically. If that test breaks then we have
+/// no reassurance that we can reproduce the tests in case of failure.
 #[ignore]
 #[test]
 fn test_determinism() {
@@ -262,9 +267,9 @@ fn test_determinism() {
 // * missing leaders
 // * missing certificates
 
-// Note: the slow nodes precede of the failures_probability - meaning that first we calculate the
-// failures per round and then the behaviour of the slow nodes to ensure that we'll always produce
-// 2f+1 certificates per round.
+// Note: the slow nodes precede of the failures_probability - meaning that first
+// we calculate the failures per round and then the behaviour of the slow nodes
+// to ensure that we'll always produce 2f+1 certificates per round.
 fn generate_randomised_dag(
     committee_size: usize,
     number_of_rounds: Round,
@@ -295,11 +300,12 @@ fn generate_randomised_dag(
     (original_certificates, committee)
 }
 
-/// This method is creating DAG using the following quality properties under consideration:
+/// This method is creating DAG using the following quality properties under
+/// consideration:
 /// * nodes that don't create certificates at all for some rounds (failures)
 /// * leaders that don't get enough support (f+1) for their immediate round
-/// * slow nodes - nodes that create certificates but those might not referenced by nodes of
-/// subsequent rounds.
+/// * slow nodes - nodes that create certificates but those might not referenced
+///   by nodes of subsequent rounds.
 pub fn make_certificates_with_parameters(
     seed: u64,
     committee: &Committee,
@@ -311,7 +317,10 @@ pub fn make_certificates_with_parameters(
     let mut rand = StdRng::seed_from_u64(seed);
 
     // Pick the slow nodes - ensure we don't have more than 33% of slow nodes
-    assert!(modes.slow_nodes_percentage <= 0.33, "Slow nodes can't be more than 33% of total nodes - otherwise we'll basically simulate a consensus stall");
+    assert!(
+        modes.slow_nodes_percentage <= 0.33,
+        "Slow nodes can't be more than 33% of total nodes - otherwise we'll basically simulate a consensus stall"
+    );
 
     let mut authorities: Vec<Authority> = committee.authorities().cloned().collect();
 
@@ -362,8 +371,8 @@ pub fn make_certificates_with_parameters(
             let current_parents = parents.clone();
 
             // Step 2 -- introduce failures (assuming those are enabled)
-            // We disable the failure probability if we have already reached the maximum number
-            // of allowed failures (f)
+            // We disable the failure probability if we have already reached the maximum
+            // number of allowed failures (f)
             let should_fail = if committee.reached_validity(total_failures + 1) {
                 false
             } else {
@@ -376,8 +385,8 @@ pub fn make_certificates_with_parameters(
                 continue;
             }
 
-            // Step 3 -- to form the certificate we need to figure out the certificate's parents
-            // we are going to pick taking into account the slow nodes.
+            // Step 3 -- to form the certificate we need to figure out the certificate's
+            // parents we are going to pick taking into account the slow nodes.
             let ids: Vec<(AuthorityIdentifier, f64)> = slow_nodes
                 .iter()
                 .map(|(a, inclusion_probability)| (a.id(), *inclusion_probability))
@@ -392,8 +401,8 @@ pub fn make_certificates_with_parameters(
                     committee,
                 );
 
-            // We want to ensure that we always refer to "our" certificate of the previous round -
-            // assuming that exist, so we can re-add it later.
+            // We want to ensure that we always refer to "our" certificate of the previous
+            // round - assuming that exist, so we can re-add it later.
             let my_parent_digest = if let Some(my_previous_round) = current_parents
                 .iter()
                 .find(|c| c.origin() == authority.id())
@@ -407,8 +416,9 @@ pub fn make_certificates_with_parameters(
             let mut parent_digests: Vec<CertificateDigest> = parent_digests.into_iter().collect();
 
             // Step 4 -- references to previous round
-            // Now from the rest of current_parents, pick a random number - uniform - to how many
-            // should create references to. It should strictly be between [2f+1..3f+1].
+            // Now from the rest of current_parents, pick a random number - uniform - to how
+            // many should create references to. It should strictly be between
+            // [2f+1..3f+1].
             let num_of_parents_to_pick =
                 rand.gen_range(committee.quorum_threshold()..=committee.total_stake());
 
@@ -485,8 +495,9 @@ pub fn make_certificates_with_parameters(
     (certificates, next_parents)
 }
 
-/// Creates various execution plans (`test_iterations` in total) by permuting the order we feed the
-/// DAG certificates to consensus and compare the output to ensure is the same.
+/// Creates various execution plans (`test_iterations` in total) by permuting
+/// the order we feed the DAG certificates to consensus and compare the output
+/// to ensure is the same.
 fn generate_and_run_execution_plans(
     original_certificates: VecDeque<Certificate>,
     test_iterations: u64,
@@ -499,13 +510,13 @@ fn generate_and_run_execution_plans(
     protocol_config: &ProtocolConfig,
 ) {
     println!(
-            "Running execution plans for run_id {} for rounds={}, committee={}, gc_depth={}, modes={:?}",
-            run_id,
-            dag_rounds,
-            committee.size(),
-            gc_depth,
-            modes
-        );
+        "Running execution plans for run_id {} for rounds={}, committee={}, gc_depth={}, modes={:?}",
+        run_id,
+        dag_rounds,
+        committee.size(),
+        gc_depth,
+        modes
+    );
 
     let mut executed_plans = HashSet::new();
     let mut committed_certificates = Vec::new();
@@ -560,32 +571,33 @@ fn generate_and_run_execution_plans(
             committed_certificates = plan_committed_certificates.clone();
         } else {
             assert_eq!(
-                    committed_certificates,
-                    plan_committed_certificates,
-                    "Fork detected in plans for run_id={}, seed={}, rounds={}, committee={}, gc_depth={}, modes={:?}",
-                    run_id,
-                    seed,
-                    dag_rounds,
-                    committee.size(),
-                    gc_depth,
-                    modes
-                );
+                committed_certificates,
+                plan_committed_certificates,
+                "Fork detected in plans for run_id={}, seed={}, rounds={}, committee={}, gc_depth={}, modes={:?}",
+                run_id,
+                seed,
+                dag_rounds,
+                committee.size(),
+                gc_depth,
+                modes
+            );
         }
     }
 
     println!("Successfully run {}", run_id);
 }
 
-/// This method is accepting a list of certificates that have been created to represent a valid
-/// DAG and puts them in a causally valid order to be sent to consensus but different than just
-/// sending them round by round, so we can simulate more real life scenarios.
-/// Basically it is creating an execution plan. A seed value is provided to be used in a random
-/// function in order to perform random permutations when creating the sequence to help construct
+/// This method is accepting a list of certificates that have been created to
+/// represent a valid DAG and puts them in a causally valid order to be sent to
+/// consensus but different than just sending them round by round, so we can
+/// simulate more real life scenarios. Basically it is creating an execution
+/// plan. A seed value is provided to be used in a random function in order to
+/// perform random permutations when creating the sequence to help construct
 /// different paths.
-/// Using Kahn's DAG topological sort algorithm, we basically try to sort the certificate DAG
-/// <https://en.wikipedia.org/wiki/Topological_sorting> always respecting the causal order of
-/// certificates - meaning for every certificate on round R, we must first have  submitted all
-/// parent certificates of round R-1.
+/// Using Kahn's DAG topological sort algorithm, we basically try to sort the
+/// certificate DAG <https://en.wikipedia.org/wiki/Topological_sorting> always respecting the causal order of
+/// certificates - meaning for every certificate on round R, we must first have
+/// submitted all parent certificates of round R-1.
 fn create_execution_plan(
     certificates: impl IntoIterator<Item = Certificate> + Clone,
     seed: u64,
@@ -600,21 +612,23 @@ fn create_execution_plan(
         .map(|c| (c.digest(), c))
         .collect();
 
-    // To model the DAG in form of edges and vertexes build an adjacency matrix.
-    // The matrix will capture the dependencies between the parent certificates --> children certificates.
-    // This is important because the algorithm ensures that no children will be added to the final list
-    // unless all their dependencies (parent certificates) have first been added earlier - so we
+    // To model the DAG in form of edges and vertices build an adjacency matrix.
+    // The matrix will capture the dependencies between the parent certificates -->
+    // children certificates. This is important because the algorithm ensures
+    // that no children will be added to the final list unless all their
+    // dependencies (parent certificates) have first been added earlier - so we
     // respect the causal order.
     let mut adjacency_parent_to_children: HashMap<CertificateDigest, Vec<CertificateDigest>> =
         HashMap::new();
 
-    // The nodes that have no incoming edges/dependencies (parent certificates) - initially are the certificates of
-    // round 1 (we have no parents)
+    // The nodes that have no incoming edges/dependencies (parent certificates) -
+    // initially are the certificates of round 1 (we have no parents)
     let mut nodes_without_dependencies = Vec::new();
 
     for certificate in certificates {
-        // for the first round of certificates we don't want to include their parents, as we won't
-        // have them available anyways - so we want those to be our roots.
+        // for the first round of certificates we don't want to include their parents,
+        // as we won't have them available anyways - so we want those to be our
+        // roots.
         if certificate.round() > 1 {
             for parent in certificate.header().parents() {
                 adjacency_parent_to_children
@@ -637,14 +651,16 @@ fn create_execution_plan(
         let node = nodes_without_dependencies.remove(index);
         sorted.push(node);
 
-        // now get their children references - if they have none then this is a certificate of last round
+        // now get their children references - if they have none then this is a
+        // certificate of last round
         if let Some(mut children) = adjacency_parent_to_children.remove(&node) {
             // shuffle the children here again to create a different execution plan
             children.shuffle(&mut rand);
 
             while let Some(c) = children.pop() {
-                // has this children any other dependencies (certificate parents that have not been
-                // already sorted)? If not, then add it to the candidate of nodes without incoming edges.
+                // has this children any other dependencies (certificate parents that have not
+                // been already sorted)? If not, then add it to the candidate of
+                // nodes without incoming edges.
                 let has_more_dependencies = adjacency_parent_to_children
                     .iter()
                     .any(|(_, entries)| entries.contains(&c));

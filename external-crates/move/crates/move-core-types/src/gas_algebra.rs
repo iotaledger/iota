@@ -1,7 +1,7 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
     convert::From,
@@ -10,12 +10,15 @@ use std::{
     ops::{Add, AddAssign, Mul},
 };
 
+use serde::{Deserialize, Serialize};
+
 // TODO(Gas): deprecate the concept of abstract memory size
 
-/***************************************************************************************************
- * Units of Measurement
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Units of Measurement
+///
+/// ****************************************************************************
+/// *******************
 /// Unit of internal gas.
 pub enum InternalGasUnit {}
 
@@ -45,12 +48,14 @@ pub struct UnitDiv<U1, U2> {
     phantom: PhantomData<(U1, U2)>,
 }
 
-/***************************************************************************************************
- * Gas Quantities
- *
- **************************************************************************************************/
-/// An opaque representation of a certain quantity, with the unit being encoded in the type.
-/// This type implements checked addition and subtraction, and only permits type-safe multiplication.
+/// ****************************************************************************
+/// ********************* Gas Quantities
+///
+/// ****************************************************************************
+/// *******************
+/// An opaque representation of a certain quantity, with the unit being encoded
+/// in the type. This type implements checked addition and subtraction, and only
+/// permits type-safe multiplication.
 #[derive(Serialize, Deserialize)]
 pub struct GasQuantity<U> {
     val: u64,
@@ -63,11 +68,11 @@ pub type NumBytes = GasQuantity<Byte>;
 
 pub type NumArgs = GasQuantity<Arg>;
 
-/// An abstract measurement of the memory footprint of some Move concept (e.g. value, type etc.)
-/// in the Move VM.
+/// An abstract measurement of the memory footprint of some Move concept (e.g.
+/// value, type etc.) in the Move VM.
 ///
-/// This is a legacy concept that is not well defined and will be deprecated very soon.
-/// New applications should not be using this.
+/// This is a legacy concept that is not well defined and will be deprecated
+/// very soon. New applications should not be using this.
 pub type AbstractMemorySize = GasQuantity<AbstractMemoryUnit>;
 
 pub type InternalGasPerByte = GasQuantity<UnitDiv<InternalGasUnit, Byte>>;
@@ -84,10 +89,11 @@ pub const BOX_ABSTRACT_SIZE: AbstractMemorySize = AbstractMemorySize::new(16);
 /// Base abstract size of Rust enum
 pub const ENUM_BASE_ABSTRACT_SIZE: AbstractMemorySize = AbstractMemorySize::new(8);
 
-/***************************************************************************************************
- * Constructors
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Constructors
+///
+/// ****************************************************************************
+/// *******************
 impl<U> GasQuantity<U> {
     pub const fn new(val: u64) -> Self {
         Self {
@@ -109,29 +115,31 @@ impl<U> GasQuantity<U> {
     }
 }
 
-/***************************************************************************************************
- * Conversion
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Conversion
+///
+/// ****************************************************************************
+/// *******************
 impl<U> From<u64> for GasQuantity<U> {
     fn from(val: u64) -> Self {
         Self::new(val)
     }
 }
 
-// TODO(Gas): This allows the gas value to escape the monad, which weakens the type-level
-//            protection it provides. It's currently needed for practical reasons but
-//            we should look for ways to get rid of it.
+// TODO(Gas): This allows the gas value to escape the monad, which weakens the
+// type-level            protection it provides. It's currently needed for
+// practical reasons but            we should look for ways to get rid of it.
 impl<U> From<GasQuantity<U>> for u64 {
     fn from(gas: GasQuantity<U>) -> Self {
         gas.val
     }
 }
 
-/***************************************************************************************************
- * Clone & Copy
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Clone & Copy
+///
+/// ****************************************************************************
+/// *******************
 #[allow(clippy::non_canonical_clone_impl)]
 impl<U> Clone for GasQuantity<U> {
     fn clone(&self) -> Self {
@@ -141,10 +149,11 @@ impl<U> Clone for GasQuantity<U> {
 
 impl<U> Copy for GasQuantity<U> {}
 
-/***************************************************************************************************
- * Display & Debug
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Display & Debug
+///
+/// ****************************************************************************
+/// *******************
 impl<U> Display for GasQuantity<U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.val)
@@ -157,10 +166,11 @@ impl<U> Debug for GasQuantity<U> {
     }
 }
 
-/***************************************************************************************************
- * Comparison
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Comparison
+///
+/// ****************************************************************************
+/// *******************
 impl<U> GasQuantity<U> {
     fn cmp_impl(&self, other: &Self) -> Ordering {
         self.val.cmp(&other.val)
@@ -187,10 +197,11 @@ impl<U> Ord for GasQuantity<U> {
     }
 }
 
-/***************************************************************************************************
- * Addition & Subtraction
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Addition & Subtraction
+///
+/// ****************************************************************************
+/// *******************
 impl<U> Add<GasQuantity<U>> for GasQuantity<U> {
     type Output = Self;
 
@@ -215,10 +226,11 @@ impl<U> GasQuantity<U> {
     }
 }
 
-/***************************************************************************************************
- * Multiplication
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* Multiplication
+///
+/// ****************************************************************************
+/// *******************
 fn mul_impl<U1, U2>(x: GasQuantity<U2>, y: GasQuantity<UnitDiv<U1, U2>>) -> GasQuantity<U1> {
     GasQuantity::new(x.val.saturating_mul(y.val))
 }
@@ -239,10 +251,11 @@ impl<U1, U2> Mul<GasQuantity<U2>> for GasQuantity<UnitDiv<U1, U2>> {
     }
 }
 
-/***************************************************************************************************
- * To Unit
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* To Unit
+///
+/// ****************************************************************************
+/// *******************
 fn apply_ratio_round_down(val: u64, nominator: u64, denominator: u64) -> u64 {
     assert_ne!(nominator, 0);
     assert_ne!(denominator, 0);
@@ -270,14 +283,14 @@ fn apply_ratio_round_up(val: u64, nominator: u64, denominator: u64) -> u64 {
     }
 }
 
-/// Trait that defines a conversion from one unit to another, with a statically-determined
-/// integral conversion rate.
+/// Trait that defines a conversion from one unit to another, with a
+/// statically-determined integral conversion rate.
 pub trait ToUnit<U> {
     const MULTIPLIER: u64;
 }
 
-/// Trait that defines a conversion from one unit to another, with a statically-determined
-/// fractional conversion rate.
+/// Trait that defines a conversion from one unit to another, with a
+/// statically-determined fractional conversion rate.
 pub trait ToUnitFractional<U> {
     const NOMINATOR: u64;
     const DENOMINATOR: u64;
@@ -295,8 +308,9 @@ impl<U> GasQuantity<U> {
         GasQuantity::new(self.val.saturating_mul(U::MULTIPLIER))
     }
 
-    /// Convert the quantity to another unit, with the resulting scalar value being rounded down.
-    /// A ratio must have been defined via the `ToUnitFractional` trait.
+    /// Convert the quantity to another unit, with the resulting scalar value
+    /// being rounded down. A ratio must have been defined via the
+    /// `ToUnitFractional` trait.
     pub fn to_unit_round_down<T>(self) -> GasQuantity<T>
     where
         U: ToUnitFractional<T>,
@@ -308,8 +322,9 @@ impl<U> GasQuantity<U> {
         ))
     }
 
-    /// Convert the quantity to another unit, with the resulting scalar value being rounded up.
-    /// A ratio must have been defined via the `ToUnitFractional` trait.
+    /// Convert the quantity to another unit, with the resulting scalar value
+    /// being rounded up. A ratio must have been defined via the
+    /// `ToUnitFractional` trait.
     pub fn to_unit_round_up<T>(self) -> GasQuantity<T>
     where
         U: ToUnitFractional<T>,
@@ -372,20 +387,21 @@ impl ToUnitFractional<GibiByte> for Byte {
     const DENOMINATOR: u64 = 1024 * 1024 * 1024;
 }
 
-/***************************************************************************************************
- * To Unit With Params
- *
- **************************************************************************************************/
-/// Trait that defines a conversion from one unit to another, with an integral conversion rate
-/// determined from the parameters dynamically.
+/// ****************************************************************************
+/// ********************* To Unit With Params
+///
+/// ****************************************************************************
+/// *******************
+/// Trait that defines a conversion from one unit to another, with an integral
+/// conversion rate determined from the parameters dynamically.
 pub trait ToUnitWithParams<U> {
     type Params;
 
     fn multiplier(params: &Self::Params) -> u64;
 }
 
-/// Trait that defines a conversion from one unit to another, with a fractional conversion rate
-/// determined from the parameters dynamically.
+/// Trait that defines a conversion from one unit to another, with a fractional
+/// conversion rate determined from the parameters dynamically.
 pub trait ToUnitFractionalWithParams<U> {
     type Params;
 
@@ -394,7 +410,8 @@ pub trait ToUnitFractionalWithParams<U> {
 
 impl<U> GasQuantity<U> {
     /// Convert the quantity to another unit.
-    /// An integral multiplier must have been defined via the `ToUnitWithParams` trait.
+    /// An integral multiplier must have been defined via the `ToUnitWithParams`
+    /// trait.
     pub fn to_unit_with_params<T>(
         self,
         params: &<U as ToUnitWithParams<T>>::Params,
@@ -407,8 +424,9 @@ impl<U> GasQuantity<U> {
         GasQuantity::new(self.val.saturating_mul(multiplier))
     }
 
-    /// Convert the quantity to another unit, with the resulting scalar value being rounded down.
-    /// A ratio must have been defined via the `ToUnitFractionalWithParams` trait.
+    /// Convert the quantity to another unit, with the resulting scalar value
+    /// being rounded down. A ratio must have been defined via the
+    /// `ToUnitFractionalWithParams` trait.
     pub fn to_unit_round_down_with_params<T>(
         self,
         params: &<U as ToUnitFractionalWithParams<T>>::Params,
@@ -420,8 +438,9 @@ impl<U> GasQuantity<U> {
         GasQuantity::new(apply_ratio_round_down(self.val, n, d))
     }
 
-    /// Convert the quantity to another unit, with the resulting scalar value being rounded up.
-    /// A ratio must have been defined via the `ToUnitFractionalWithParams` trait.
+    /// Convert the quantity to another unit, with the resulting scalar value
+    /// being rounded up. A ratio must have been defined via the
+    /// `ToUnitFractionalWithParams` trait.
     pub fn to_unit_round_up_with_params<T>(
         self,
         params: &<U as ToUnitFractionalWithParams<T>>::Params,

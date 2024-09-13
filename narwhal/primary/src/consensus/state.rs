@@ -1,28 +1,30 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(clippy::mutable_key_type)]
 
-use crate::consensus::bullshark::Bullshark;
-use crate::consensus::utils::gc_round;
-use crate::consensus::{metrics::ConsensusMetrics, ConsensusError};
-use config::{AuthorityIdentifier, Committee};
-use fastcrypto::hash::Hash;
-use mysten_metrics::metered_channel;
-use mysten_metrics::spawn_logged_monitored_task;
-use std::fmt::Debug;
 use std::{
     cmp::{max, Ordering},
     collections::{BTreeMap, BTreeSet, HashMap},
+    fmt::Debug,
     sync::Arc,
 };
+
+use config::{AuthorityIdentifier, Committee};
+use fastcrypto::hash::Hash;
+use iota_metrics::{metered_channel, spawn_logged_monitored_task};
 use storage::{CertificateStore, ConsensusStore};
 use tokio::{sync::watch, task::JoinHandle};
 use tracing::{debug, info, instrument};
 use types::{
     Certificate, CertificateAPI, CertificateDigest, CommittedSubDag, ConditionalBroadcastReceiver,
     ConsensusCommit, HeaderAPI, Round, SequenceNumber, Timestamp,
+};
+
+use crate::consensus::{
+    bullshark::Bullshark, metrics::ConsensusMetrics, utils::gc_round, ConsensusError,
 };
 
 #[cfg(test)]
@@ -34,17 +36,21 @@ pub type Dag = BTreeMap<Round, HashMap<AuthorityIdentifier, (CertificateDigest, 
 
 /// The state that needs to be persisted for crash-recovery.
 pub struct ConsensusState {
-    /// The information about the last committed round and corresponding GC round.
+    /// The information about the last committed round and corresponding GC
+    /// round.
     pub last_round: ConsensusRound,
     /// The chosen gc_depth
     pub gc_depth: Round,
-    /// Keeps the last committed round for each authority. This map is used to clean up the dag and
-    /// ensure we don't commit twice the same certificate.
+    /// Keeps the last committed round for each authority. This map is used to
+    /// clean up the dag and ensure we don't commit twice the same
+    /// certificate.
     pub last_committed: HashMap<AuthorityIdentifier, Round>,
-    /// The last committed sub dag. If value is None, it means that we haven't committed any sub dag yet.
+    /// The last committed sub dag. If value is None, it means that we haven't
+    /// committed any sub dag yet.
     pub last_committed_sub_dag: Option<CommittedSubDag>,
-    /// Keeps the latest committed certificate (and its parents) for every authority. Anything older
-    /// must be regularly cleaned up through the function `update`.
+    /// Keeps the latest committed certificate (and its parents) for every
+    /// authority. Anything older must be regularly cleaned up through the
+    /// function `update`.
     pub dag: Dag,
     /// Metrics handler
     pub metrics: Arc<ConsensusMetrics>,
@@ -171,8 +177,8 @@ impl ConsensusState {
         }
         Self::check_parents(certificate, dag, gc_round);
 
-        // Always insert the certificate even if it is below last committed round of its origin,
-        // to allow verifying parent existence.
+        // Always insert the certificate even if it is below last committed round of its
+        // origin, to allow verifying parent existence.
         if let Some((_, existing_certificate)) = dag.entry(certificate.round()).or_default().insert(
             certificate.origin(),
             (certificate.digest(), certificate.clone()),
@@ -253,9 +259,10 @@ impl ConsensusState {
     }
 }
 
-/// Holds information about a committed round in consensus. When a certificate gets committed then
-/// the corresponding certificate's round is considered a "committed" round. It bears both the
-/// committed round and the corresponding garbage collection round.
+/// Holds information about a committed round in consensus. When a certificate
+/// gets committed then the corresponding certificate's round is considered a
+/// "committed" round. It bears both the committed round and the corresponding
+/// garbage collection round.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ConsensusRound {
     pub committed_round: Round,
@@ -279,9 +286,9 @@ impl ConsensusRound {
         }
     }
 
-    /// Calculates the latest CommittedRound by providing a new committed round and the gc_depth.
-    /// The method will compare against the existing committed round and return
-    /// the updated instance.
+    /// Calculates the latest CommittedRound by providing a new committed round
+    /// and the gc_depth. The method will compare against the existing
+    /// committed round and return the updated instance.
     fn update(&self, new_committed_round: Round, gc_depth: Round) -> Self {
         let last_committed_round = max(self.committed_round, new_committed_round);
         let last_gc_round = gc_round(last_committed_round, gc_depth);
@@ -299,12 +306,14 @@ pub struct Consensus {
 
     /// Receiver for shutdown.
     rx_shutdown: ConditionalBroadcastReceiver,
-    /// Receives new certificates from the primary. The primary should send us new certificates only
-    /// if it already sent us its whole history.
+    /// Receives new certificates from the primary. The primary should send us
+    /// new certificates only if it already sent us its whole history.
     rx_new_certificates: metered_channel::Receiver<Certificate>,
-    /// Outputs the sequence of ordered certificates to the primary (for cleanup and feedback).
+    /// Outputs the sequence of ordered certificates to the primary (for cleanup
+    /// and feedback).
     tx_committed_certificates: metered_channel::Sender<(Round, Vec<Certificate>)>,
-    /// Outputs the highest committed round & corresponding gc_round in the consensus.
+    /// Outputs the highest committed round & corresponding gc_round in the
+    /// consensus.
     tx_consensus_round_updates: watch::Sender<ConsensusRound>,
     /// Outputs the sequence of ordered certificates to the application layer.
     tx_sequence: metered_channel::Sender<CommittedSubDag>,

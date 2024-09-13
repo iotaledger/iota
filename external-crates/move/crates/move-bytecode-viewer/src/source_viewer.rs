@@ -1,18 +1,20 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
+use std::{cmp, fs, path::Path};
+
 use anyhow::Result;
+use move_binary_format::file_format::CompiledModule;
 use move_bytecode_source_map::source_map::SourceMap;
 
 use crate::{
     bytecode_viewer::{BytecodeInfo, BytecodeViewer},
     interfaces::{RightScreen, SourceContext},
 };
-use move_binary_format::file_format::CompiledModule;
-use std::{cmp, fs, path::Path};
 
 const CONTEXT_SIZE: usize = 1000;
 
@@ -57,10 +59,11 @@ impl<'a> RightScreen<BytecodeViewer<'a>> for ModuleViewer {
         let source_span_end = source.len();
 
         // Determine the context around the span that we want to show.
-        // Show either from the start of the file, or back `CONTEXT_SIZE` number of characters.
+        // Show either from the start of the file, or back `CONTEXT_SIZE` number of
+        // characters.
         let context_start = loc_start.saturating_sub(CONTEXT_SIZE);
-        // Show either to the end of the file, or `CONTEXT_SIZE` number of characters after the
-        // span end.
+        // Show either to the end of the file, or `CONTEXT_SIZE` number of characters
+        // after the span end.
         let context_end = cmp::min(loc_end.checked_add(CONTEXT_SIZE).unwrap(), source_span_end);
 
         // Create the contexts

@@ -1,10 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Contains AST definitions for the specification language fragments of the Move language.
-//! Note that in this crate, specs are represented in AST form, whereas code is represented
-//! as bytecodes. Therefore we do not need an AST for the Move code itself.
+//! Contains AST definitions for the specification language fragments of the
+//! Move language. Note that in this crate, specs are represented in AST form,
+//! whereas code is represented as bytecodes. Therefore we do not need an AST
+//! for the Move code itself.
 
 use std::{
     fmt,
@@ -32,8 +34,9 @@ pub enum TraceKind {
     /// An automatically generated trace
     Auto,
     /// A trace for a sub-expression of an assert or assume. The location of a
-    /// Call(.., Trace(SubAuto)) expression identifies the context of the assume or assert.
-    /// A backend may print those traces only if the assertion failed.
+    /// Call(.., Trace(SubAuto)) expression identifies the context of the assume
+    /// or assert. A backend may print those traces only if the assertion
+    /// failed.
     SubAuto,
 }
 
@@ -111,8 +114,9 @@ impl ModuleName {
         self.1
     }
 
-    /// Determine whether this is a script. The move-compiler infrastructure uses MAX_ADDR
-    /// for pseudo modules created from scripts, so use this address to check.
+    /// Determine whether this is a script. The move-compiler infrastructure
+    /// uses MAX_ADDR for pseudo modules created from scripts, so use this
+    /// address to check.
     pub fn is_script(&self) -> bool {
         static MAX_ADDR: Lazy<BigUint> =
             Lazy::new(|| BigUint::from_str_radix(MAX_ADDR_STRING, 16).expect("valid hex"));
@@ -177,8 +181,8 @@ impl QualifiedSymbol {
         }
     }
 
-    /// Creates a value implementing the Display trait which shows this qualified symbol,
-    /// excluding module name.
+    /// Creates a value implementing the Display trait which shows this
+    /// qualified symbol, excluding module name.
     pub fn display_simple<'a>(&'a self, pool: &'a SymbolPool) -> QualifiedSymbolDisplay<'a> {
         QualifiedSymbolDisplay {
             sym: self,

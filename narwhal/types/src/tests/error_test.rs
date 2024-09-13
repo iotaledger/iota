@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{future, time::Duration};
+
 use futures::{stream::FuturesUnordered, StreamExt};
+use iota_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
 use prometheus::IntGauge;
 
 use super::DagError;
-use mysten_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
-use std::{future, time::Duration};
 
 pub struct Processor {
     input: Receiver<usize>,
@@ -62,8 +64,8 @@ async fn with_permit_unhappy_case() {
     });
 
     tokio::time::sleep(Duration::from_secs(1)).await;
-    // by now, the outbound channel should fail to deliver permits on each loop pass,
-    // whereas the inbound channel is full
+    // by now, the outbound channel should fail to deliver permits on each loop
+    // pass, whereas the inbound channel is full
 
     // we now try to receive all the things we can from the outbound channel
     let mut recvd = vec![];

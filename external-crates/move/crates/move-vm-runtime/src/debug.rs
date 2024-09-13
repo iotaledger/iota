@@ -1,17 +1,20 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    interpreter::Interpreter,
-    loader::{Function, Loader},
-};
-use move_binary_format::file_format::Bytecode;
-use move_vm_types::values::{self, Locals};
 use std::{
     collections::BTreeSet,
     io::{self, Write},
     str::FromStr,
+};
+
+use move_binary_format::file_format::Bytecode;
+use move_vm_types::values::{self, Locals};
+
+use crate::{
+    interpreter::Interpreter,
+    loader::{Function, Loader},
 };
 
 #[derive(Debug)]

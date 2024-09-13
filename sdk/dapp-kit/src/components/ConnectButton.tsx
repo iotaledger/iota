@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
@@ -10,23 +11,23 @@ import { StyleMarker } from './styling/StyleMarker.js';
 import { Button } from './ui/Button.js';
 
 type ConnectButtonProps = {
-	connectText?: ReactNode;
+    connectText?: ReactNode;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function ConnectButton({
-	connectText = 'Connect Wallet',
-	...buttonProps
+    connectText = 'Connect Wallet',
+    ...buttonProps
 }: ConnectButtonProps) {
-	const currentAccount = useCurrentAccount();
-	return currentAccount ? (
-		<AccountDropdownMenu currentAccount={currentAccount} />
-	) : (
-		<ConnectModal
-			trigger={
-				<StyleMarker>
-					<Button {...buttonProps}>{connectText}</Button>
-				</StyleMarker>
-			}
-		/>
-	);
+    const currentAccount = useCurrentAccount();
+    return currentAccount ? (
+        <AccountDropdownMenu currentAccount={currentAccount} />
+    ) : (
+        <ConnectModal
+            trigger={
+                <StyleMarker>
+                    <Button {...buttonProps}>{connectText}</Button>
+                </StyleMarker>
+            }
+        />
+    );
 }

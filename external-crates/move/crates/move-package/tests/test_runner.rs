@@ -1,6 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    ffi::OsStr,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{anyhow, bail};
 use move_command_line_common::testing::{
@@ -11,18 +18,12 @@ use move_package::{
         build_plan::BuildPlan, compiled_package::CompiledPackageInfo, model_builder::ModelBuilder,
     },
     package_hooks,
-    package_hooks::PackageHooks,
-    package_hooks::PackageIdentifier,
+    package_hooks::{PackageHooks, PackageIdentifier},
     resolution::resolution_graph::Package,
     source_package::parsed_manifest::{CustomDepInfo, PackageDigest, SourceManifest},
     BuildConfig, ModelConfig,
 };
 use move_symbol_pool::Symbol;
-use std::{
-    ffi::OsStr,
-    fs,
-    path::{Path, PathBuf},
-};
 use tempfile::{tempdir, TempDir};
 
 const EXTENSIONS: &[&str] = &[
@@ -133,7 +134,8 @@ impl Test<'_> {
         };
 
         let mut progress = Vec::new();
-        let resolved_package = config.resolution_graph_for_package(self.toml_path, &mut progress);
+        let resolved_package =
+            config.resolution_graph_for_package(self.toml_path, None, &mut progress);
 
         Ok(match ext {
             "progress" => String::from_utf8(progress)?,

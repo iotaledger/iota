@@ -1,5 +1,8 @@
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
-import { isValidSuiObjectId } from "@mysten/sui.js/utils";
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { ConnectButton, useCurrentAccount } from "@iota/dapp-kit";
+import { isValidIotaObjectId } from "@iota/iota-sdk/utils";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
 import { useState } from "react";
 import { Counter } from "./Counter";
@@ -9,7 +12,7 @@ function App() {
   const currentAccount = useCurrentAccount();
   const [counterId, setCounter] = useState(() => {
     const hash = window.location.hash.slice(1);
-    return isValidSuiObjectId(hash) ? hash : null;
+    return isValidIotaObjectId(hash) ? hash : null;
   });
 
   return (

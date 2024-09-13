@@ -2,17 +2,17 @@ version: "3"
 services:
   tempo:
     image: grafana/tempo:latest
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ${TMPDIR}/tempo-data:/tmp/tempo
     ports:
-      - "14268:14268"  # jaeger ingest
-      - "3200:3200"   # tempo
+      - "14268:14268" # jaeger ingest
+      - "3200:3200" # tempo
       - "9095:9095" # tempo grpc
-      - "4317:4317"  # otlp grpc
-      - "4318:4318"  # otlp http
-      - "9411:9411"   # zipkin
+      - "4317:4317" # otlp grpc
+      - "4318:4318" # otlp http
+      - "9411:9411" # zipkin
 
   prometheus:
     image: prom/prometheus:latest
@@ -47,9 +47,9 @@ services:
       - /sys:/host/sys:ro
       - /:/rootfs:ro
     command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
     ports:
       - "9100:9100"
