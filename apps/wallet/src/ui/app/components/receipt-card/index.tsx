@@ -26,7 +26,7 @@ interface TransactionStatusProps {
 }
 
 function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
-    const txnDate = formatDate(Number(timestamp) ?? '');
+    const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
     return (
         <Card type={CardType.Filled}>
             <CheckmarkFilled
