@@ -262,13 +262,23 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
     totalRemainderAmount: bigint,
 ): GroupedTimelockObject[] {
     let foundSplit = false;
-    for (const timelockedObject of groupedTimelockObjects) {
-        const amountToSplit = timelockedObject.totalLockedAmount - totalRemainderAmount;
+    let remainderAmount = totalRemainderAmount;
 
-        if (amountToSplit >= MIN_STAKING_THRESHOLD) {
-            timelockedObject.splitAmount = amountToSplit;
+    for (const timelockedObject of groupedTimelockObjects) {
+        const amountAvailableToUseAsRemainder =
+            timelockedObject.totalLockedAmount - BigInt(MIN_STAKING_THRESHOLD);
+        if (amountAvailableToUseAsRemainder <= 0) {
+            continue;
+        }
+
+        if (amountAvailableToUseAsRemainder >= remainderAmount) {
+            timelockedObject.splitAmount = timelockedObject.totalLockedAmount - remainderAmount;
             foundSplit = true;
             break;
+        } else {
+            remainderAmount -= amountAvailableToUseAsRemainder;
+            timelockedObject.splitAmount =
+                timelockedObject.totalLockedAmount - amountAvailableToUseAsRemainder;
         }
     }
     if (!foundSplit) {
