@@ -14,9 +14,5 @@ export function publicKeyFromIotaBytes(publicKey: string | Uint8Array) {
 
     const signatureScheme = SIGNATURE_FLAG_TO_SCHEME[bytes[0] as SignatureFlag];
 
-    if (signatureScheme === 'ZkLogin') {
-        throw new Error('ZkLogin publicKey is not supported');
-    }
-
     return publicKeyFromRawBytes(signatureScheme, bytes.slice(1));
 }

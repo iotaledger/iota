@@ -95,13 +95,6 @@ export function Signatures({ transaction }: SignaturesProps) {
             if (parsed.signatureScheme === 'MultiSig') {
                 return parsePartialSignatures(parsed.multisig);
             }
-            if (parsed.signatureScheme === 'ZkLogin') {
-                return {
-                    signatureScheme: parsed.signatureScheme,
-                    address: parsed.zkLogin.address,
-                    signature: parsed.signature,
-                };
-            }
 
             return {
                 ...parsed,

@@ -18,7 +18,6 @@ import type { SerializedSignature } from '../cryptography/signature.js';
 import { normalizeIotaAddress } from '../utils/iota-types.js';
 // eslint-disable-next-line import/no-cycle
 import { publicKeyFromRawBytes } from '../verify/index.js';
-import { toZkLoginPublicIdentifier } from '../zklogin/publickey.js';
 
 type CompressedSignature =
     | { ED25519: number[] }
@@ -249,16 +248,8 @@ export class MultiSigPublicKey extends PublicKey {
                 throw new Error('MultiSig is not supported inside MultiSig');
             }
 
-            let publicKey;
-            if (parsed.signatureScheme === 'ZkLogin') {
-                publicKey = toZkLoginPublicIdentifier(
-                    parsed.zkLogin?.addressSeed,
-                    parsed.zkLogin?.iss,
-                ).toRawBytes();
-            } else {
-                publicKey = parsed.publicKey;
-            }
-
+            let publicKey = parsed.publicKey;
+            
             compressedSignatures[i] = {
                 [parsed.signatureScheme]: Array.from(
                     parsed.signature.map((x: number) => Number(x)),
