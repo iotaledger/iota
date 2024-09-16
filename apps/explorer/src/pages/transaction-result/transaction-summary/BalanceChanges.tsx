@@ -82,7 +82,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
             title="Balance Changes"
             footer={
                 owner ? (
-                    <div className="flex flex-wrap justify-between px-md--rs pb-sm--rs">
+                    <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
                         <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                             Owner
                         </span>
