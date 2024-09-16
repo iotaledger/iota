@@ -5,11 +5,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { FilterList, TabHeader } from '~/components/ui';
+import { FilterList } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { TopPackagesTable } from './TopPackagesTable';
-import { Chip, Panel, Title } from '@iota/apps-ui-kit';
+import { Panel, Title } from '@iota/apps-ui-kit';
 
 type DateFilter = '3D' | '7D' | '30D';
 type ApiDateFilter = 'rank3Days' | 'rank7Days' | 'rank30Days';
