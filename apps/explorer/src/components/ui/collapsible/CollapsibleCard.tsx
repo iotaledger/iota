@@ -6,6 +6,7 @@ import {
     Accordion,
     AccordionContent,
     AccordionHeader,
+    Divider,
     Panel,
     Title,
     TitleSize,
@@ -59,14 +60,24 @@ export function CollapsibleCard({
                     )}
                 </AccordionHeader>
                 <AccordionContent isExpanded={open}>{children}</AccordionContent>
-                {footer && <div className={clsx('rounded-b-2xl')}>{footer}</div>}
+                {footer && (
+                    <>
+                        <Divider />
+                        <div className={clsx('rounded-b-2xl')}>{footer}</div>
+                    </>
+                )}
             </Accordion>
         </div>
     ) : (
         <Panel hasBorder={!hideBorder}>
             <Title size={titleSize} title={title ?? ''} />
             <div>{children}</div>
-            {footer && <>{footer}</>}
+            {footer && (
+                <>
+                    <Divider />
+                    {footer}
+                </>
+            )}
         </Panel>
     );
 }
