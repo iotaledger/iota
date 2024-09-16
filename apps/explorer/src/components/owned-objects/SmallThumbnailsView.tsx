@@ -25,7 +25,7 @@ interface OwnObjectContainerProps {
 function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
         <div className="w-full min-w-[150px] basis-1/2 md:min-w-[210px] md:basis-1/3">
-            <div className="rounded-xl p-xs hover:bg-shader-primary-light-8">
+            <div className="rounded-xl p-xs hover:bg-neutral-92">
                 <ObjectLink display="block" objectId={id} label={children} />
             </div>
         </div>

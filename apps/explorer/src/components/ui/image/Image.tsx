@@ -92,7 +92,7 @@ function BaseImage({
             ref={scope}
             className={cx(
                 imageStyles({ size, rounded, aspect }),
-                'relative flex items-center justify-center bg-shader-primary-light-12 text-neutral-40 dark:text-neutral-60',
+                'relative flex items-center justify-center bg-neutral-96 text-neutral-40 dark:bg-neutral-10 dark:text-neutral-60',
                 animateFadeIn && 'opacity-0',
             )}
         >
