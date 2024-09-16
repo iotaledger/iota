@@ -4,7 +4,7 @@
 
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaLoadedChildObjectsResponse, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectDataOptions, IotaObjectResponse,
     IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     ProtocolConfigResponse,
 };

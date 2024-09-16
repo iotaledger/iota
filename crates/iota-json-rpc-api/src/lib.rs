@@ -304,7 +304,7 @@ pub const TRANSACTION_EXECUTION_CLIENT_ERROR_CODE: i32 = -32002;
 /// Convert a jsonrpsee client error into a generic error object.
 pub fn error_object_from_rpc(rpc_err: ClientError) -> ErrorObjectOwned {
     match rpc_err {
-        ClientError::Call(e) => ErrorObjectOwned::owned(e.code(), e.message().to_owned(), e.data()),
+        ClientError::Call(e) => e.into(),
         _ => ErrorObjectOwned::owned::<()>(UNKNOWN_ERROR_CODE, rpc_err.to_string(), None),
     }
 }
