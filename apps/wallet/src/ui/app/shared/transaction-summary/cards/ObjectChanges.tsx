@@ -1,9 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ExplorerLink, ExplorerLinkType } from '_components';
-import { Text } from '_src/ui/app/shared/text';
-import { Disclosure } from '@headlessui/react';
+import { ExplorerLinkType } from '_components';
 import {
     getObjectChangeLabel,
     type ObjectChangesByOwner,
@@ -11,26 +9,26 @@ import {
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
 } from '@iota/core';
-import { ChevronDown12, ChevronRight12 } from '@iota/icons';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
 
 import { ExpandableList } from '../../ExpandableList';
-import { Card } from '../Card';
-import { OwnerFooter } from '../OwnerFooter';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
-
-interface ChevronDownProps {
-    expanded: boolean;
-}
-
-function ChevronDown({ expanded }: ChevronDownProps) {
-    return expanded ? (
-        <ChevronDown12 className="text-gray-45" />
-    ) : (
-        <ChevronRight12 className="text-gray-45" />
-    );
-}
+import { Collapsible } from '../../collapse';
+import {
+    Badge,
+    BadgeType,
+    Divider,
+    KeyValueInfo,
+    Panel,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
+import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
+import { useState } from 'react';
+import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
+import { Link } from 'react-router-dom';
+import { TriangleDown } from '@iota/ui-icons';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
@@ -42,95 +40,80 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
+    const [open, setOpen] = useState(false);
+
+    const objectLink = useExplorerLink({
+        type: ExplorerLinkType.Object,
+        objectID: change.objectId || '',
+    });
 
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
+    const packageIdLink = useExplorerLink({
+        type: ExplorerLinkType.Object,
+        objectID: packageId || '',
+    });
+    const moduleLink = useExplorerLink({
+        type: ExplorerLinkType.Object,
+        objectID: packageId || '',
+        moduleName,
+    });
 
     return (
-        <Disclosure>
-            {({ open }) => (
-                <div className="flex flex-col gap-1">
-                    <div className="grid cursor-pointer grid-cols-2 overflow-auto">
-                        <Disclosure.Button className="ouline-none text-steel-dark hover:text-steel-darker flex cursor-pointer select-none items-center gap-1 border-none bg-transparent p-0">
-                            <Text variant="pBody" weight="medium">
-                                Object
-                            </Text>
-                            {open ? (
-                                <ChevronDown12 className="text-gray-45" />
-                            ) : (
-                                <ChevronRight12 className="text-gray-45" />
-                            )}
-                        </Disclosure.Button>
-                        {change.objectId && (
-                            <div className="justify-self-end">
-                                <ExplorerLink
-                                    type={ExplorerLinkType.Object}
-                                    objectID={change.objectId}
-                                    className="text-hero-dark no-underline"
-                                >
-                                    <Text variant="body" weight="medium" truncate mono>
-                                        {formatAddress(change.objectId)}
-                                    </Text>
-                                </ExplorerLink>
-                            </div>
-                        )}
+        <Collapsible
+            hideBorder
+            onOpenChange={(isOpen) => setOpen(isOpen)}
+            hideArrow
+            render={() => (
+                <div className="flex w-full flex-row items-center justify-between">
+                    <Title
+                        size={TitleSize.Small}
+                        title="Object"
+                        trailingElement={
+                            <TriangleDown
+                                className={cx(
+                                    'ml-xxxs h-5 w-5 text-neutral-60',
+                                    open
+                                        ? 'rotate-0 transition-transform ease-linear'
+                                        : '-rotate-90 transition-transform ease-linear',
+                                )}
+                            />
+                        }
+                    />
+                    <div className="flex flex-row items-center gap-xxs pr-md">
+                        <Badge type={BadgeType.PrimarySoft} label={typeName} />
+                        <Link
+                            to={objectLink || ''}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-body-md text-primary-30 dark:text-primary-80"
+                        >
+                            {formatAddress(change.objectId)}
+                        </Link>
                     </div>
-                    <Disclosure.Panel>
-                        <div className="flex flex-col gap-1">
-                            <div className="relative grid grid-cols-2 overflow-auto">
-                                <Text variant="pBody" weight="medium" color="steel-dark">
-                                    Package
-                                </Text>
-                                <div className="flex justify-end">
-                                    <ExplorerLink
-                                        type={ExplorerLinkType.Object}
-                                        objectID={packageId}
-                                        className="text-hero-dark justify-self-end overflow-auto text-captionSmall no-underline"
-                                    >
-                                        <Text variant="pBody" weight="medium" truncate mono>
-                                            {packageId}
-                                        </Text>
-                                    </ExplorerLink>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 overflow-auto">
-                                <Text variant="pBody" weight="medium" color="steel-dark">
-                                    Module
-                                </Text>
-                                <div className="flex justify-end">
-                                    <ExplorerLink
-                                        type={ExplorerLinkType.Object}
-                                        objectID={packageId}
-                                        moduleName={moduleName}
-                                        className="text-hero-dark justify-self-end overflow-auto no-underline"
-                                    >
-                                        <Text variant="pBody" weight="medium" truncate mono>
-                                            {moduleName}
-                                        </Text>
-                                    </ExplorerLink>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 overflow-auto">
-                                <Text variant="pBody" weight="medium" color="steel-dark">
-                                    Type
-                                </Text>
-                                <div className="flex justify-end">
-                                    <ExplorerLink
-                                        type={ExplorerLinkType.Object}
-                                        objectID={packageId}
-                                        moduleName={moduleName}
-                                        className="text-hero-dark justify-self-end overflow-auto no-underline"
-                                    >
-                                        <Text variant="pBody" weight="medium" truncate mono>
-                                            {typeName}
-                                        </Text>
-                                    </ExplorerLink>
-                                </div>
-                            </div>
-                        </div>
-                    </Disclosure.Panel>
                 </div>
             )}
-        </Disclosure>
+        >
+            <div className="flex flex-col gap-y-sm px-md">
+                <KeyValueInfo
+                    keyText="Package"
+                    valueText={formatAddress(packageId)}
+                    valueLink={packageIdLink || ''}
+                    fullwidth
+                />
+                <KeyValueInfo
+                    keyText="Module"
+                    valueText={moduleName}
+                    valueLink={moduleLink || ''}
+                    fullwidth
+                />
+                <KeyValueInfo
+                    keyText="Type"
+                    valueText={typeName}
+                    valueLink={moduleLink || ''}
+                    fullwidth
+                />
+            </div>
+        </Collapsible>
     );
 }
 
@@ -143,77 +126,77 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
     return (
         <>
             {Object.entries(changes).map(([owner, changes]) => {
-                return (
-                    <Card
-                        footer={<OwnerFooter owner={owner} ownerType={changes.ownerType} />}
-                        key={`${type}-${owner}`}
-                        heading="Changes"
-                    >
-                        <Disclosure defaultOpen>
-                            {({ open }) => (
-                                <div className={cx({ 'gap-4': open }, 'flex flex-col pb-3')}>
-                                    <Disclosure.Button
-                                        as="div"
-                                        className="flex w-full cursor-pointer flex-col gap-2"
-                                    >
-                                        <div className="flex w-full items-center gap-2">
-                                            <Text
-                                                variant="body"
-                                                weight="semibold"
-                                                color={
-                                                    type === 'created'
-                                                        ? 'success-dark'
-                                                        : 'steel-darker'
-                                                }
-                                            >
-                                                {getObjectChangeLabel(type)}
-                                            </Text>
-                                            <div className="bg-gray-40 h-px w-full" />
-                                            <ChevronDown expanded={open} />
-                                        </div>
-                                    </Disclosure.Button>
-                                    <Disclosure.Panel as="div" className="flex flex-col gap-4">
-                                        <>
-                                            {!!changes.changesWithDisplay.length && (
-                                                <div className="flex gap-2 overflow-y-auto">
-                                                    <ExpandableList
-                                                        defaultItemsToShow={5}
-                                                        items={
-                                                            open
-                                                                ? changes.changesWithDisplay.map(
-                                                                      (change) => (
-                                                                          <ObjectChangeDisplay
-                                                                              change={change}
-                                                                          />
-                                                                      ),
-                                                                  )
-                                                                : []
-                                                        }
-                                                    />
-                                                </div>
-                                            )}
+                const ownerAddress = useAddressLink(owner);
+                const label = getObjectChangeLabel(type);
+                const [open, setOpen] = useState(true);
 
-                                            <div className="flex w-full flex-col gap-2">
-                                                <ExpandableList
-                                                    defaultItemsToShow={5}
-                                                    items={
-                                                        open
-                                                            ? changes.changes.map((change) => (
-                                                                  <ObjectDetail
-                                                                      ownerKey={owner}
+                return (
+                    <Panel key={`${type}-${owner}`} hasBorder>
+                        <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
+                            <Collapsible
+                                hideBorder
+                                defaultOpen
+                                onOpenChange={(isOpen) => setOpen(isOpen)}
+                                render={() => (
+                                    <Title
+                                        size={TitleSize.Small}
+                                        title="Object Changes"
+                                        trailingElement={
+                                            <div className="ml-1 flex">
+                                                <Badge type={BadgeType.PrimarySoft} label={label} />
+                                            </div>
+                                        }
+                                    />
+                                )}
+                            >
+                                <>
+                                    {!!changes.changesWithDisplay.length && (
+                                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+                                            <ExpandableList
+                                                defaultItemsToShow={5}
+                                                items={
+                                                    open
+                                                        ? changes.changesWithDisplay.map(
+                                                              (change) => (
+                                                                  <ObjectChangeDisplay
                                                                       change={change}
                                                                   />
-                                                              ))
-                                                            : []
-                                                    }
-                                                />
-                                            </div>
-                                        </>
-                                    </Disclosure.Panel>
-                                </div>
-                            )}
-                        </Disclosure>
-                    </Card>
+                                                              ),
+                                                          )
+                                                        : []
+                                                }
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="flex w-full flex-col gap-2">
+                                        <ExpandableList
+                                            defaultItemsToShow={5}
+                                            items={
+                                                open
+                                                    ? changes.changes.map((change) => (
+                                                          <ObjectDetail
+                                                              ownerKey={owner}
+                                                              change={change}
+                                                          />
+                                                      ))
+                                                    : []
+                                            }
+                                        />
+                                    </div>
+                                </>
+                            </Collapsible>
+                            <div className="flex flex-col gap-y-sm px-md pb-md">
+                                <Divider />
+                                <KeyValueInfo
+                                    keyText="Owner"
+                                    valueText={ownerAddress.address}
+                                    valueLink={ownerAddress.explorerHref}
+                                    fullwidth
+                                />
+                            </div>
+                        </div>
+                    </Panel>
                 );
             })}
         </>
