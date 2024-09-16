@@ -124,7 +124,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: always() && !cancelled() && success()
+    if: always() && !cancelled() && !failure()
     runs-on: [self-hosted]
     steps:
       - name: Is cancelled
