@@ -54,7 +54,7 @@ jobs:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     needs: diff
-    if: ${{ !cancelled() && needs.diff.outputs.isRust == 'true' }}
+    if: (!cancelled() && needs.diff.outputs.isRust == 'true')
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -63,12 +63,12 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: ${{ !cancelled() && needs.diff.outputs.isDoc == 'true' && github.event.pull_request.draft == false }}
+    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && !github.event.pull_request.draft)
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: ${{ !cancelled() && needs.diff.outputs.isDoc == 'true' }}
+    if: (!cancelled() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docs_lint.yml
 
   release-notes-description-check:
@@ -77,7 +77,7 @@ jobs:
       group: release-notes-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     needs: diff
-    if: ${{ !cancelled() && needs.diff.outputs.isReleaseNotesEligible == 'true' }}
+    if: (!cancelled() && needs.diff.outputs.isReleaseNotesEligible == 'true')
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -111,31 +111,11 @@ jobs:
       - license-check
       - typos
     if: |
-      !cancelled() &&
-      success() &&
+      !cancelled() && !failure() &&
       needs.diff.outputs.isRust == 'false' &&
       needs.diff.outputs.isMove == 'true' &&
       github.event.pull_request.draft == false
     uses: ./.github/workflows/_move_tests.yml
-
-  debug-rust:
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-    if: (!cancelled() && !failure())
-    runs-on: [self-hosted]
-    steps:
-      - name: Is cancelled
-        if: cancelled()
-        run: echo "cancelled() == true"
-      - name: Is success()
-        if: success()
-        run: echo "success() == true"
-      - name: Is failure()
-        if: failure()
-        run: echo "failure() == true"
 
   rust:
     needs:
@@ -143,14 +123,14 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: ${{ !cancelled() && success() }}
+    if: (!cancelled() && !failure())
     uses: ./.github/workflows/_rust.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
     secrets: inherit
 
   e2e:
-    if: success() && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft)
     needs:
       - diff
       - dprint-format
