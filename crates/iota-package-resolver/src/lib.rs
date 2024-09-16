@@ -2221,7 +2221,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enums() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let a0 = cache
             .fetch(AccountAddress::from_str("0xa0").unwrap())
             .await
@@ -2711,9 +2711,9 @@ mod tests {
         use TypeTag as T;
 
         let (_, cache) = package_cache([
-            (1, build_package("std"), std_types()),
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("e0"), e0_types()),
+            (1, build_package("std").unwrap(), std_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("e0").unwrap(), e0_types()),
         ]);
 
         let resolver = Resolver::new(cache);
@@ -3005,7 +3005,7 @@ mod tests {
     fn build_package(dir: &str) -> IotaResult<CompiledPackage> {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.extend(["tests", "packages", dir]);
-        BuildConfig::new_for_testing().build(path)
+        BuildConfig::new_for_testing().build(&path)
     }
 
     fn addr(a: &str) -> AccountAddress {

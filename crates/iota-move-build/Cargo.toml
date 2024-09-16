@@ -10,6 +10,7 @@ description = "Logic for building Iota Move Packages"
 [dependencies]
 anyhow.workspace = true
 fastcrypto.workspace = true
+serde-reflection.workspace = true
 tempfile.workspace = true
 
 iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }

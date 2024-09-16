@@ -30,4 +30,6 @@ pub enum Error {
     },
     #[error("Insufficient fund for address [{address}], requested amount: {amount}")]
     InsufficientFund { address: IotaAddress, amount: u128 },
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }
