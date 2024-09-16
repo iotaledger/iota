@@ -205,7 +205,6 @@ cd validators-6
 
 docker compose up -d
 docker compose logs -f
-
 ```
 
 Note within the validators-#/ directory that the `committee.json` file is generated.

@@ -1,14 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::production_config;
 use move_binary_format::file_format::{
     empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
     Visibility::Public,
 };
-use move_bytecode_verifier::meter::BoundMeter;
+use move_bytecode_verifier_meter::bound::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
+
+use crate::unit_tests::production_config;
 
 const MAX_BASIC_BLOCKS: u16 = 1024;
 const MAX_LOCALS: u8 = 255;
@@ -46,6 +48,7 @@ fn many_backedges() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::LdTrue, Bytecode::LdU8(0), Bytecode::Ret],
+            jump_tables: vec![],
         }),
     });
 
@@ -68,6 +71,7 @@ fn many_backedges() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(1),
                 code: vec![],
+                jump_tables: vec![],
             }),
         });
 
@@ -85,11 +89,11 @@ fn many_backedges() {
         code.push(Bytecode::Ret);
     }
 
-    let config = production_config();
-    let mut meter = BoundMeter::new(&config);
+    let (verifier_config, meter_config) = production_config();
+    let mut meter = BoundMeter::new(meter_config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "many_backedges",
-        &config,
+        &verifier_config,
         &m,
         &mut meter,
     );

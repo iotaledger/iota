@@ -1,14 +1,15 @@
 [package]
 name = "narwhal-node"
 version = "0.1.0"
-license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
 arc-swap.workspace = true
 async-trait.workspace = true
+axum.workspace = true
 bytes.workspace = true
 cfg-if.workspace = true
 # clap.workspace = true
@@ -21,32 +22,33 @@ tokio-stream.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
-axum.workspace = true
 
 config = { path = "../config", package = "narwhal-config" }
-fastcrypto.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 executor = { path = "../executor", package = "narwhal-executor" }
+eyre.workspace = true
+fastcrypto.workspace = true
+iota-keys.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 network = { path = "../network", package = "narwhal-network" }
 primary = { path = "../primary", package = "narwhal-primary" }
 prometheus.workspace = true
 storage = { path = "../storage", package = "narwhal-storage" }
 types = { path = "../types", package = "narwhal-types" }
 worker = { path = "../worker", package = "narwhal-worker" }
-eyre.workspace = true
-sui-keys.workspace = true
-sui-types.workspace = true
-sui-protocol-config.workspace = true
 
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 telemetry-subscribers.workspace = true
 
 anemo.workspace = true
-reqwest.workspace = true
 
 [dev-dependencies]
+move-bytecode-utils.workspace = true
 pretty_assertions.workspace = true
+reqwest.workspace = true
+serde.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }

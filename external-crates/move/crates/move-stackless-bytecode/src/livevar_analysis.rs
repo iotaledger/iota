@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Live variable analysis with subsequent dead assignment elimination and
@@ -8,7 +9,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use itertools::Itertools;
-
 use move_binary_format::file_format::CodeOffset;
 use move_model::{ast::TempIndex, model::FunctionEnv, ty::Type};
 
@@ -21,9 +21,9 @@ use crate::{
     stackless_control_flow_graph::StacklessControlFlowGraph,
 };
 
-/// The annotation for live variable analysis. For each code position, we have a set of local
-/// variable indices that are live just before the code offset, i.e. these variables are used
-/// before being overwritten.
+/// The annotation for live variable analysis. For each code position, we have a
+/// set of local variable indices that are live just before the code offset,
+/// i.e. these variables are used before being overwritten.
 #[derive(Debug, Default, Clone)]
 pub struct LiveVarInfoAtCodeOffset {
     pub before: BTreeSet<TempIndex>,
@@ -43,7 +43,8 @@ impl LiveVarAnnotation {
 }
 
 pub struct LiveVarAnalysisProcessor {
-    /// Whether the processor should attach `LiveVarAnnotation` to the function data.
+    /// Whether the processor should attach `LiveVarAnnotation` to the function
+    /// data.
     annotate: bool,
 }
 
@@ -96,7 +97,8 @@ impl FunctionTargetProcessor for LiveVarAnalysisProcessor {
             let func_target = FunctionTarget::new(func_env, &data);
             let offset_to_live_refs = LiveVarAnnotation(Self::analyze(&func_target, &data.code));
             // Annotate function target with computed life variable data.
-            // TODO(mengxu): verify that recursion does not affect how live-var analysis is done
+            // TODO(mengxu): verify that recursion does not affect how live-var analysis is
+            // done
             data.annotations
                 .set::<LiveVarAnnotation>(offset_to_live_refs, true);
         }
@@ -226,7 +228,8 @@ impl<'a> LiveVarAnalysis<'a> {
         let num_args = self.func_target.get_parameter_count();
         if let Some(info) = annotations.get(&0) {
             for index in &info.before {
-                // only mark the mutable references conditionally defined in function body as uninit
+                // only mark the mutable references conditionally defined in function body as
+                // uninit
                 if *index >= num_args
                     && self
                         .func_target
@@ -295,10 +298,12 @@ impl<'a> LiveVarAnalysis<'a> {
                     // Copy propagation cannot catch this case because it does not have the
                     // livevar information about $t.
                     //
-                    // With one exception: if the called operation is a BorrowLocal or BorrowGlobal (i.e., an operation
-                    // that creates a root mutable reference), do not optimize it away as we need this local/global root
-                    // reference for our IsParent test. An alternative (i.e., one way to get rid of this exception) is
-                    // to support IsParent test against local and global directly, but that is more complicated.
+                    // With one exception: if the called operation is a BorrowLocal or BorrowGlobal
+                    // (i.e., an operation that creates a root mutable
+                    // reference), do not optimize it away as we need this local/global root
+                    // reference for our IsParent test. An alternative (i.e., one way to get rid of
+                    // this exception) is to support IsParent test against local
+                    // and global directly, but that is more complicated.
                     let next_code_offset = code_offset + 1;
                     if let Bytecode::Assign(_, dest, src, _) = &code[next_code_offset] {
                         let annotation_at = &annotations[&(next_code_offset as CodeOffset)];

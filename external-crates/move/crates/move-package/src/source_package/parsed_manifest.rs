@@ -1,16 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Result};
-
-use move_compiler::editions::{Edition, Flavor};
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::symbol::Symbol;
 use std::{
     collections::BTreeMap,
     path::{Component, Path, PathBuf},
 };
+
+use anyhow::{bail, Result};
+use move_compiler::editions::{Edition, Flavor};
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::symbol::Symbol;
 
 pub type NamedAddress = Symbol;
 pub type PackageName = Symbol;
@@ -46,7 +47,8 @@ pub struct PackageInfo {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Dependency {
-    /// Parametrised by the binary that will resolve packages for this dependency.
+    /// Parametrised by the binary that will resolve packages for this
+    /// dependency.
     External(Symbol),
     Internal(InternalDependency),
 }
@@ -102,13 +104,15 @@ pub enum SubstOrRename {
 }
 
 impl DependencyKind {
-    /// Given a dependency `self` assumed to be defined relative to a `parent` dependency which can
-    /// itself be defined in terms of some grandparent dependency (not provided), update `self` to
-    /// be defined relative to its grandparent.
+    /// Given a dependency `self` assumed to be defined relative to a `parent`
+    /// dependency which can itself be defined in terms of some grandparent
+    /// dependency (not provided), update `self` to be defined relative to
+    /// its grandparent.
     ///
-    /// Fails if the resulting dependency cannot be described relative to the grandparent, because
-    /// its path is not valid (does not point to a valid location in the filesystem for local
-    /// dependencies, or within the repository for remote dependencies).
+    /// Fails if the resulting dependency cannot be described relative to the
+    /// grandparent, because its path is not valid (does not point to a
+    /// valid location in the filesystem for local dependencies, or within
+    /// the repository for remote dependencies).
     pub fn reroot(&mut self, parent: &DependencyKind) -> Result<()> {
         let mut parent = parent.clone();
 
@@ -139,20 +143,22 @@ impl DependencyKind {
     }
 }
 
-/// Default `DependencyKind` is the one that acts as the left and right identity to
-/// `DependencyKind::rerooted` (modulo path normalization).
+/// Default `DependencyKind` is the one that acts as the left and right identity
+/// to `DependencyKind::rerooted` (modulo path normalization).
 impl Default for DependencyKind {
     fn default() -> Self {
         DependencyKind::Local(PathBuf::new())
     }
 }
 
-/// Normalize the representation of `path` by eliminating redundant `.` components and applying `..`
-/// component.  Does not access the filesystem (e.g. to resolve symlinks or test for file
-/// existence), unlike `std::fs::canonicalize`.
+/// Normalize the representation of `path` by eliminating redundant `.`
+/// components and applying `..` component.  Does not access the filesystem
+/// (e.g. to resolve symlinks or test for file existence), unlike
+/// `std::fs::canonicalize`.
 ///
-/// Fails if the normalized path attempts to access the parent of a root directory or volume prefix,
-/// or is prefixed by accesses to parent directories when `allow_cwd_parent` is false.
+/// Fails if the normalized path attempts to access the parent of a root
+/// directory or volume prefix, or is prefixed by accesses to parent directories
+/// when `allow_cwd_parent` is false.
 ///
 /// Returns the normalized path on success.
 pub fn normalize_path(path: impl AsRef<Path>, allow_cwd_parent: bool) -> Result<PathBuf> {

@@ -1,13 +1,17 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::consensus::ConsensusState;
+
 use std::collections::HashSet;
+
 use tracing::debug;
 use types::{Certificate, CertificateAPI, HeaderAPI, Round};
 
-/// Flatten the dag referenced by the input certificate. This is a classic depth-first search (pre-order):
-/// <https://en.wikipedia.org/wiki/Tree_traversal#Pre-order>
+use crate::consensus::ConsensusState;
+
+/// Flatten the dag referenced by the input certificate. This is a classic
+/// depth-first search (pre-order): <https://en.wikipedia.org/wiki/Tree_traversal#Pre-order>
 pub fn order_dag(leader: &Certificate, state: &ConsensusState) -> Vec<Certificate> {
     debug!("Processing sub-dag of {:?}", leader);
     assert!(leader.round() > 0);
@@ -34,8 +38,9 @@ pub fn order_dag(leader: &Certificate, state: &ConsensusState) -> Vec<Certificat
                 None => panic!("Parent digest {parent:?} not found for {x:?}!"),
             };
 
-            // We skip the certificate if we (1) already processed it or (2) we reached a round that we already
-            // committed or will never commit for this authority.
+            // We skip the certificate if we (1) already processed it or (2) we reached a
+            // round that we already committed or will never commit for this
+            // authority.
             let mut skip = already_ordered.contains(&digest);
             skip |= state
                 .last_committed
@@ -48,7 +53,8 @@ pub fn order_dag(leader: &Certificate, state: &ConsensusState) -> Vec<Certificat
         }
     }
 
-    // Ordering the output by round is not really necessary but it makes the commit sequence prettier.
+    // Ordering the output by round is not really necessary but it makes the commit
+    // sequence prettier.
     ordered.sort_by_key(|x| x.round());
     ordered
 }

@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod remove_fallthrough_jumps;
@@ -6,9 +7,11 @@ mod remove_nop_store;
 mod remove_unused_locals;
 mod remove_write_back;
 
-use crate::parser::ast::FunctionName;
-use move_ir_types::ast::{self as IR};
 use std::collections::{BTreeSet, HashMap};
+
+use move_ir_types::ast::{self as IR};
+
+use crate::parser::ast::FunctionName;
 
 pub type Optimization = fn(
     &FunctionName,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Context;
@@ -8,8 +9,8 @@ use aya::BpfLoader;
 use aya_log::BpfLogger;
 use clap::{Parser, ValueEnum};
 use nodefw::fwmap::{ttl_watcher, Firewall};
-use nodefw::server;
 use nodefw::time::get_ktime_get_ns;
+use nodefw::{drainer, server};
 use nodefw_common::Meta;
 use std::sync::{Arc, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -21,6 +22,8 @@ struct Opt {
     iface: String,
     #[clap(short, long, value_enum, default_value_t=Mode::Default)]
     mode: Mode,
+    #[clap(short, long)]
+    drain_file: String,
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -99,11 +102,22 @@ async fn main() -> Result<(), anyhow::Error> {
     .unwrap();
     info!("Listening for signal to terminate...");
     let sc = server::ServerConfig {
-        ctx,
+        ctx: ctx.clone(),
         listener,
         router,
     };
-    let _ = server::serve(sc).await;
+    loop {
+        tokio::select! {
+            _ = server::serve(sc) => {
+                ctx.cancel();
+                break;
+            },
+            _ = drainer::watch(ctx.clone(), &opt.drain_file) => {
+                ctx.cancel();
+                break;
+            },
+        }
+    }
     info!("firewall has stopped, exiting.");
     Ok(())
 }

@@ -1,16 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use move_command_line_common::testing::{
     add_update_baseline_fix, format_diff, read_env_update_baseline, EXP_EXT,
 };
 use move_unit_test::{self, UnitTestingConfig};
 use regex::RegexBuilder;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
 
 fn run_test_with_modifiers(
     unit_test_config: UnitTestingConfig,
@@ -46,6 +48,7 @@ fn run_test_impl(path: &Path) -> anyhow::Result<()> {
             .into_iter()
             .collect(),
         report_stacktrace_on_abort: true,
+        deterministic_generation: true,
 
         ..UnitTestingConfig::default_with_bound(None)
     };

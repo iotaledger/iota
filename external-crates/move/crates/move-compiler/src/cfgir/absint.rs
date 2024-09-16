@@ -1,13 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
 
 use super::cfg::CFG;
 use crate::{diagnostics::Diagnostics, hlir::ast::*};
-use std::collections::BTreeMap;
 
-/// Trait for finite-height abstract domains. Infinite height domains would require a more complex
-/// trait with widening and a partial order.
+/// Trait for finite-height abstract domains. Infinite height domains would
+/// require a more complex trait with widening and a partial order.
 pub trait AbstractDomain: Clone + Sized {
     fn join(&mut self, other: &Self) -> JoinResult;
 }
@@ -36,7 +38,8 @@ struct BlockInvariant<State> {
     post: BlockPostcondition,
 }
 
-/// A map from block id's to the pre/post of each block after a fixed point is reached.
+/// A map from block id's to the pre/post of each block after a fixed point is
+/// reached.
 type InvariantMap<State> = BTreeMap<Label, BlockInvariant<State>>;
 
 fn collect_states_and_diagnostics<State>(
@@ -60,16 +63,17 @@ fn collect_states_and_diagnostics<State>(
 pub trait TransferFunctions {
     type State: AbstractDomain;
 
-    /// Execute local@instr found at index local@index in the current basic block from pre-state
-    /// local@pre.
-    /// Should return an AnalysisError if executing the instruction is unsuccessful, and () if
-    /// the effects of successfully executing local@instr have been reflected by mutatating
-    /// local@pre.
-    /// Auxilary data from the analysis that is not part of the abstract state can be collected by
-    /// mutating local@self.
-    /// The last instruction index in the current block is local@last_index. Knowing this
-    /// information allows clients to detect the end of a basic block and special-case appropriately
-    /// (e.g., normalizing the abstract state before a join).
+    /// Execute local@instr found at index local@index in the current basic
+    /// block from pre-state local@pre.
+    /// Should return an AnalysisError if executing the instruction is
+    /// unsuccessful, and () if the effects of successfully executing
+    /// local@instr have been reflected by mutatating local@pre.
+    /// Auxiliary data from the analysis that is not part of the abstract state
+    /// can be collected by mutating local@self.
+    /// The last instruction index in the current block is local@last_index.
+    /// Knowing this information allows clients to detect the end of a basic
+    /// block and special-case appropriately (e.g., normalizing the abstract
+    /// state before a join).
     fn execute(
         &mut self,
         pre: &mut Self::State,
@@ -80,7 +84,8 @@ pub trait TransferFunctions {
 }
 
 pub trait AbstractInterpreter: TransferFunctions {
-    /// Analyze procedure local@function_view starting from pre-state local@initial_state.
+    /// Analyze procedure local@function_context starting from pre-state
+    /// local@initial_state.
     fn analyze_function(
         &mut self,
         cfg: &dyn CFG,
@@ -116,7 +121,8 @@ pub trait AbstractInterpreter: TransferFunctions {
                         };
                         match join_result {
                             JoinResult::Unchanged => {
-                                // Pre is the same after join. Reanalyzing this block would produce
+                                // Pre is the same after join. Reanalyzing this
+                                // block would produce
                                 // the same post
                             }
                             JoinResult::Changed => {

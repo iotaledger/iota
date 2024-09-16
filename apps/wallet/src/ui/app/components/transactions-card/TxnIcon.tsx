@@ -1,52 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-	Account24,
-	ArrowRight16,
-	Info16,
-	Sui,
-	Swap16,
-	Unstaked,
-	WalletActionStake24,
-} from '@mysten/icons';
-import cl from 'clsx';
+import { LoadingIndicator } from '_components';
+import { ArrowBottomLeft, ArrowTopRight, Info, IotaLogoMark, Person, Stake } from '@iota/ui-icons';
 
-import LoadingIndicator from '../loading/LoadingIndicator';
+const ICON_COLORS = {
+    primary: 'text-primary-30',
+    error: 'text-error-30',
+};
 
 const icons = {
-	Send: (
-		<ArrowRight16 fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
-	),
-	Receive: (
-		<ArrowRight16 fill="currentColor" className="text-gradient-blue-start text-body rotate-135" />
-	),
-	Transaction: (
-		<ArrowRight16 fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
-	),
-	Staked: <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />,
-	Unstaked: <Unstaked className="text-gradient-blue-start text-heading3" />,
-	Rewards: <Sui className="text-gradient-blue-start text-body" />,
-	Swapped: <Swap16 className="text-gradient-blue-start text-heading6" />,
-	Failed: <Info16 className="text-issue-dark text-heading6" />,
-	Loading: <LoadingIndicator />,
-	PersonalMessage: <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />,
+    Send: <ArrowTopRight className={ICON_COLORS.primary} />,
+    Receive: <ArrowBottomLeft className={ICON_COLORS.primary} />,
+    Transaction: <ArrowTopRight className={ICON_COLORS.primary} />,
+    Staked: <Stake className={ICON_COLORS.primary} />,
+    Unstaked: <Stake className={ICON_COLORS.primary} />,
+    Rewards: <IotaLogoMark className={ICON_COLORS.primary} />,
+    Failed: <Info className={ICON_COLORS.error} />,
+    Loading: <LoadingIndicator />,
+    PersonalMessage: <Person className={ICON_COLORS.primary} />,
 };
 
 interface TxnItemIconProps {
-	txnFailed?: boolean;
-	variant: keyof typeof icons;
+    txnFailed?: boolean;
+    variant: keyof typeof icons;
 }
 
 export function TxnIcon({ txnFailed, variant }: TxnItemIconProps) {
-	return (
-		<div
-			className={cl([
-				txnFailed ? 'bg-issue-light' : 'bg-gray-40',
-				'w-7.5 h-7.5 flex justify-center items-center rounded-2lg',
-			])}
-		>
-			{icons[txnFailed ? 'Failed' : variant]}
-		</div>
-	);
+    return <div className="[&_svg]:h-5 [&_svg]:w-5">{icons[txnFailed ? 'Failed' : variant]}</div>;
 }

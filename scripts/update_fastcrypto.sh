@@ -1,9 +1,10 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # shellcheck disable=SC2181
-# This script attempts to update the Fastcrypto pointer in Sui
+# This script attempts to update the Fastcrypto pointer in Iota
 # It is expected to fail in some cases, notably when those updates require code changes 
 set -e
 set -eo pipefail
@@ -53,7 +54,7 @@ function current_fc_revision() {
 	    fi
 	done
 
-	[[ -n "$not_equal" ]] && echo "Different values found for the current Fastcrypto revision in Sui, aborting" && exit 1
+	[[ -n "$not_equal" ]] && echo "Different values found for the current Fastcrypto revision in Iota, aborting" && exit 1
 	echo "$watermark"
 }
 
@@ -64,7 +65,7 @@ check_gnu_grep
 CURRENT_FC=$(current_fc_revision)
 LATEST_FC=$(latest_fc_revision)
 if [[ "$CURRENT_FC" != "$LATEST_FC" ]]; then
-	echo "About to replace $CURRENT_FC with $LATEST_FC as the Narwhal pointer in Sui"
+	echo "About to replace $CURRENT_FC with $LATEST_FC as the Narwhal pointer in Iota"
 else
 	exit 0
 fi

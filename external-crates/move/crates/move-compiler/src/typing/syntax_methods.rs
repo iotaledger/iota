@@ -1,10 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module verifies the usage of the "syntax method" functions. These functions are declared
-//! as 'syntax' but have not been ensured to be type-compatible or otherwise adhere to our
-//! trait-like constraints around their definitions. We process them here, using typing machinery
+//! This module verifies the usage of the "syntax method" functions. These
+//! functions are declared as 'syntax' but have not been ensured to be
+//! type-compatible or otherwise adhere to our trait-like constraints around
+//! their definitions. We process them here, using typing machinery
 //! to ensure the are.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use move_ir_types::location::*;
 
 use crate::{
     diag,
@@ -14,8 +20,6 @@ use crate::{
     naming::ast::{self as N, IndexSyntaxMethods, SyntaxMethod},
     typing::core::{self, Context},
 };
-use move_ir_types::location::*;
-use std::collections::{BTreeMap, BTreeSet};
 
 //-------------------------------------------------------------------------------------------------
 // Validation
@@ -32,8 +36,8 @@ pub fn validate_syntax_methods(
             let IndexSyntaxMethods { index, index_mut } = &mut **index;
             if let (Some(index_defn), Some(index_mut_defn)) = (index.as_ref(), index_mut.as_ref()) {
                 if !validate_index_syntax_methods(context, index_defn, index_mut_defn) {
-                    // If we didn't validate they wre comptaible, we remove the mut one to avoid more
-                    // typing issues later.
+                    // If we didn't validate they wre comptaible, we remove the mut one to avoid
+                    // more typing issues later.
                     assert!(context.env.has_errors());
                     *index_mut = None;
                 }
@@ -148,12 +152,14 @@ fn validate_index_syntax_methods(
         }
     }
 
-    // Now we simply want to make the types the same w/r/t type parameters. To do this, we
-    // instantiate the type parameters of the index one and ground them to the type parameters of
-    // the mutable one. Finally, we walk both types and make sure they agree.
+    // Now we simply want to make the types the same w/r/t type parameters. To do
+    // this, we instantiate the type parameters of the index one and ground them
+    // to the type parameters of the mutable one. Finally, we walk both types
+    // and make sure they agree.
 
-    // make_function_type updates the subst on the context, and we also don't want to leave
-    // lingering constraints, so we preserve the current versions here to reinstate at the end.
+    // make_function_type updates the subst on the context, and we also don't want
+    // to leave lingering constraints, so we preserve the current versions here
+    // to reinstate at the end.
     let prev_constraints = std::mem::take(&mut context.constraints);
     let prev_subst = std::mem::replace(&mut context.subst, core::Subst::empty());
 
@@ -164,13 +170,16 @@ fn validate_index_syntax_methods(
         .map(|tp| sp(tp.user_specified_name.loc, N::Type_::Param(tp.clone())))
         .collect::<Vec<_>>();
 
-    let index_ty = core::make_function_type(
+    // NOTE: This calls the version of `make_function_type_` that does not check function
+    // visibility, since that is not relevant here.
+    let index_ty = core::make_function_type_no_visibility_check(
         context,
         index_ann_loc,
         index_module,
         index_fn,
         Some(mut_tparam_types),
     );
+    context.current_module = None;
 
     let index_params = index_ty.params.iter().map(|(_, t1)| t1);
     let mut_params = mut_finfo.signature.parameters.iter().map(|(_, _, ty)| ty);
@@ -178,9 +187,9 @@ fn validate_index_syntax_methods(
 
     let mut subst = std::mem::replace(&mut context.subst, core::Subst::empty());
 
-    // The first one is a subtype because we want to ensure the `&mut` param is a subtype of the
-    // `&` param. We already ensured they were both references of the appropriate shape in naming,
-    // so this is a bit redundant.
+    // The first one is a subtype because we want to ensure the `&mut` param is a
+    // subtype of the `&` param. We already ensured they were both references of
+    // the appropriate shape in naming, so this is a bit redundant.
     if let Some((ndx, (subject_ref_type, subject_mut_ref_type))) = param_tys.next() {
         if let Ok((subst_, _)) =
             core::subtype(subst.clone(), subject_mut_ref_type, subject_ref_type)
@@ -189,7 +198,8 @@ fn validate_index_syntax_methods(
         } else {
             let (_, _, index_type) = &index_finfo.signature.parameters[ndx];
             let (_, _, mut_type) = &mut_finfo.signature.parameters[ndx];
-            // This case shouldn't really be reachable, but we might as well provide an error.
+            // This case shouldn't really be reachable, but we might as well provide an
+            // error.
             let index_msg = format!(
                 "This index function subject has type {}",
                 ty_str(index_type)
@@ -264,9 +274,9 @@ fn validate_index_syntax_methods(
         }
     }
 
-    // Similar to the subject type, we ensure the return types are the same. We already checked
-    // that they are appropriately-shaped references, and now we ensure they refer to the same type
-    // under the reference.
+    // Similar to the subject type, we ensure the return types are the same. We
+    // already checked that they are appropriately-shaped references, and now we
+    // ensure they refer to the same type under the reference.
     if core::subtype(
         subst.clone(),
         &mut_finfo.signature.return_type,

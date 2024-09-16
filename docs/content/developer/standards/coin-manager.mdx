@@ -1,0 +1,184 @@
+---
+title: Coin Manager
+description: The Coin Manager Standard provides additional assurances and functionality when it comes to managing Coin supply and metadata.
+sidebar_label: Coin Manager
+---
+
+The [Coin Standard](./coin.mdx) is a simple standard that ensures consistent and predictable behavior for custom assets, allowing dApps to support every asset made with it in a similar matter. It is, however, lacking some functionality and assurances for both the deployer of the `Coin` and the end-users:
+
+- There is no option to set a maximum supply for an asset.
+- End users can not query the full supply of a Coin on-chain, only the holder of the `TreasuryCap` can.
+- Metadata and Supply management are handled by a single `TreasuryCap`, you can not split that permission up.
+- There is no clear insight when it comes to immutability; as long as there's a `TreasuryCap` that hasn't explicitly been destroyed, there is the option that more assets can be minted or metadata can be changed.
+- To see the metadata of a `Coin` you would need to keep track of the corresponding `Metadata` object for that `Coin`.
+- There is no way to easily attach custom metadata to a `Coin`.
+
+To resolve these shortcomings elegantly, we recommend handing over the `TreasuryCap` and `Metadata` objects of a `Coin` to a `CoinManager` shared object, which will provide benefits for the party managing the `Coin` in terms of extra functionality and for the end-users in terms of transparency and functionality. 
+
+By having your `Coin` managed by a `CoinManager`, you gain the following functionalities:
+
+- Management functionality is split up into 2 new Caps, a `CoinManagerTreasuryCap` and a `CoinManagerMetadataCap`; 2 different entities can now be assigned to individually take care of the supply adjustments and metadata. 
+- Both management caps can transparently be renounced through the `CoinManager` so that everyone on-chain can know that the supply and metadata are immutable, Offering end-users clarity and assurance.
+- A `CoinManagerTreasuryCap`-owned object will allow you to set a maximum supply for a coin. This will ensure that once set (a one-time, irrevocable action), there will never be any more tokens minted as the provided maximum supply. This offers assurances to the end-user about the asset they are interested in.
+- A custom additional Metadata object can be provided, allowing coins to have more data than just the standard fields provided by the default `Metadata` object. The existing metadata object will stay the same and remain fully compatible.
+- The total supply of a given `Coin` type, the maximum supply, and the metadata can be transparently queried through the `CoinManager` by anyone interested, not just the `TreasuryCap` owner.
+
+With a `CoinManager` in place, you can offer assurances to whoever uses your `Coin` that can not be offered with just a regular `Coin` and `TreasuryCap`. We recommend every new coin utilize the `CoinManager`. Any existing coin can be managed by a `CoinManager` as long as the `TreasuryCap` object for that `Coin` is still in possession.
+
+## How To Manage a `Coin` With a `CoinManager`
+
+### New `Coin` Assets
+
+When you are creating a new `Coin` type and wish to use the `CoinManager` you can use the `CoinManager` directly to create this `Coin`. You will receive back the `CoinManagerTreasuryCap` and a `CoinManagerMetadataCap` to perform any follow-up management actions:
+
+```move
+module example::exclusive_coin {
+    use iota::coin_manager;
+
+    public struct EXCLUSIVE_COIN has drop {}
+
+    fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
+        // Create a `Coin` type and have it managed.
+        let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
+            witness,
+            0, 
+            b"EXCL",
+            b"Exclusive Coin",
+            b"There are only 100, never any more.",
+            option::none(),
+            ctx
+        );
+
+        // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+        transfer::public_transfer(cm_treasury_cap, ctx.sender());
+        
+        // Transfer the `CoinManagerMetadataCap` to the creator of the `Coin`.
+        transfer::public_transfer(cm_meta_cap, ctx.sender());
+
+        // Publicly share the `CoinManager` object for convenient usage by anyone interested.
+        transfer::public_share_object(manager);
+    }
+}
+```
+
+### Existing `Coin` assets
+
+If you already have an existing `Coin`, you can create the `CoinManager` object and migrate the `TreasuryCap` into it. There are two ways to do this, depending on whether the `Metadata` is already frozen. 
+
+#### With frozen metadata
+
+If you already froze the `Metadata` object you can only migrate to a `CoinManager` that has immutable metadata from the start. You will not receive a `CoinManagerMetadataCap` in return, but you will get a `CoinManagerTreasuryCap`:
+
+```move
+let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, &meta, ctx);
+
+// Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+transfer::public_transfer(cm_treasury_cap, ctx.sender());
+
+// Publicly share the `CoinManager` object for convenient usage by anyone interested.
+transfer::public_share_object(manager);
+```
+#### With mutable metadata
+
+If the metadata object is still owned, you can take advantage of the full functionality of the `CoinManager` with mutable `Metadata`:
+
+```move
+let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::new(cap, meta, ctx);
+
+// Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+transfer::public_transfer(cm_treasury_cap, ctx.sender());
+
+// Transfer the `CoinManagerMetadataCap` to the creator of the `Coin`.
+transfer::public_transfer(cm_meta_cap, ctx.sender());
+
+// Publicly share the `CoinManager` object for convenient usage by anyone interested.
+transfer::public_share_object(manager);
+```
+
+## Additional functionality
+
+Once the `CoinManager` has been created and publicly shared you can make use of the additional functionality offered by it. 
+
+### Retrieving metadata
+
+```move
+/// Get the decimals for the `Coin` of this manager, without needing the Metadata object.
+let decimals = manager.decimals();
+
+/// See if the Metadata is immutable or if it can still be changed later.
+let immutabe = manager.metadata_is_immutable();
+```
+
+### Retrieving the Supply Data
+
+```move
+let total_supply = manager.total_supply();
+let max_supply = manager.maximum_supply();
+let remaining_supply = manager.available_supply();
+let has_maximum_supply = manager.has_maximum_supply();
+let supply_reference = manager.supply_immut();
+let supply_is_immutable = manager.supply_is_immutable();
+```
+
+### Minting
+
+```move
+/// Mint more coins, if allowed.
+let coin = coin_manager_treasury_cap.mint(&mut manager, 100, ctx);
+```
+
+Next to minting, the same functionality is available that usually is available on the `TreasuryCap` like `burn`, `mint_balance` and `mint_and_transfer`.
+
+### Updating Metadata
+
+```move
+/// Changes the Name and Symbol in the embedded Metadata object
+coin_manager_metadata_cap.update_name(&mut manager, "New Name");
+coin_manager_metadata_cap.update_symbol(&mut manager, "NEW");
+```
+
+### Renouncing Ownership
+
+By renouncing ownership (handing in your cap(s)), you provide assurances for your `Coin` type to its users. Users can check if a `Coin` type has an immutable supply or metadata on-chain.
+
+```move
+/// Turns the supply immutable. No more minting or maximum supply changes.
+coin_manager_treasury_cap.renounce_ownership(&mut manager); 
+
+/// Turns the metadata immutable.
+coin_manager_metadata_cap.renounce_ownership(&mut manager); 
+```
+
+### Adding Custom Metadata
+
+You can add a Custom Metadata object to a type of your liking:
+
+```move
+
+public struct CustomMetadata has store {
+    version: u8
+}
+
+coin_manager_metadata_cap.add_additional_metadata(&mut manager, CustomMetadata{ version: 1}); 
+let version = wrapper.additional_metadata<T, CustomMetadata>().version;
+```
+
+### Replacing Custom Metadata
+
+If you wish to update or replace your custom Metadata object with a new one (of the same type or another), you can do so using the `replace_additional_metadata` function, which returns the old Metadata object:
+
+```move
+public struct NewCustomMetadata has store {
+    website: Url,
+    is_amazing: bool
+}
+
+let new_meta = NewCustomMetadata {
+    website: url::new_unsafe(string(b"https://iota.org")),
+    is_amazing: true
+};
+
+let oldmeta = metacap.replace_additional_metadata<COIN_TYPE, NewCustomMetadata, CustomMetadata>(&mut wrapper, new_meta);
+
+let CustomMetadata { version: _ } = oldmeta;
+```

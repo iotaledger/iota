@@ -1,0 +1,61 @@
+---
+description: A guide to the `entry` and `public` modifiers in Move, its uses and comparison.
+---
+
+# Public and Entry Functions
+
+The `entry` modifier in Move is a powerful tool that designates a function as an "entrypoint" within a module,
+allowing it to be directly invoked from a programmable transaction block.
+However, its usage comes with specific constraints designed to ensure security and proper module interaction.
+
+## How `entry` Functions Work
+
+When a function is marked with the `entry` modifier,
+it can only be called with parameters that are direct inputs to the transaction block.
+These parameters cannot be the results of previous transactions within the same block,
+nor can they be altered by preceding transactions.
+Additionally, `entry` functions can only return types that possess the `drop` ability.
+
+These restrictions are in place to prevent third-party modules
+from exploiting the programmable nature of transaction blocks 
+to circumvent the intended limitations on `entry` functions.
+Essentially, this ensures that `entry` functions are not called from other modules,
+maintaining their integrity and the module's security.
+
+## `public` vs `entry` Functions
+
+The `public` modifier also permits functions to be called from programmable transaction blocks,
+but with fewer restrictions:
+
+- **Inter-Module Accessibility:** Functions marked as `public` can be called from other modules, whereas `entry` functions cannot.
+- **Parameter Flexibility:** `public` functions do not have the same limitations on parameter origins, allowing more flexibility in how they are used within transaction blocks.
+- **Return Types:** Unlike `entry` functions, `public` functions are not restricted to returning types with the `drop` ability.
+
+In many cases, using the `public` modifier is the right choice for exposing your function to the outside world. However, there are specific scenarios where `entry` functions are preferable:
+
+## Preventing Unintended Interactions
+
+If you need to ensure that your function does not interact with other third-party module functions within a transaction block,
+the `entry` modifier is ideal.
+For example, in a swap protocol, using `entry` functions can prevent the protocol from interacting with a flash loan provider. Since a flash loaned `Coin` would be the output of a previous transaction, it cannot be passed into an `entry` function, maintaining the integrity of the swap protocol.
+
+## Avoiding ABI Exposure
+
+Functions marked as `public` have their signatures included in the module's ABI and must be maintained across upgrades.
+In contrast, `entry` functions do not have this requirement,
+making them useful for functions that you want to keep out of the ABI.
+
+### `public entry` Functions
+
+You can also create a `public entry` function,
+which combines the characteristics of both `public` and `entry` modifiers.
+Such functions can be called by other modules and programmable transaction blocks
+but are restricted like an `entry` function when invoked within transaction blocks.
+This combination is rarely necessary,
+as in most cases, you will want to choose either `public` or `entry` based on the specific needs of your module.
+
+
+## Example Code
+
+```move file=<rootDir>/docs/examples/move/move-overview/entry.move
+```

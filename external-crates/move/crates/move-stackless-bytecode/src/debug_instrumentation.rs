@@ -1,14 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Transformation which injects trace instructions which are used to visualize execution.
+//! Transformation which injects trace instructions which are used to visualize
+//! execution.
 //!
-//! This transformation should run before copy propagation and any other bytecode modifications.
-//! It emits instructions of the form `trace_local[original_idx](idx)`. Initially
-//! `original_idx == idx`, where the temp `idx` is a named variable from the Move
-//! compiler. Later transformations may replace `idx` but `original_idx` will be preserved so
-//! the user sees the value of their named variable.
+//! This transformation should run before copy propagation and any other
+//! bytecode modifications. It emits instructions of the form
+//! `trace_local[original_idx](idx)`. Initially `original_idx == idx`, where the
+//! temp `idx` is a named variable from the Move compiler. Later transformations
+//! may replace `idx` but `original_idx` will be preserved so the user sees the
+//! value of their named variable.
 
 use std::collections::BTreeSet;
 

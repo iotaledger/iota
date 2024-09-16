@@ -1,17 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
-use proptest::prelude::*;
-use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
     crypto::{get_key_pair, AccountKeyPair},
     object::Object,
 };
+use proptest::prelude::*;
 
 use crate::executor::Executor;
 
@@ -21,7 +20,7 @@ pub const NUM_GAS_OBJECTS: usize = 1;
 
 #[derive(Debug)]
 pub struct Account {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     pub key: AccountKeyPair,
 }
 
@@ -87,9 +86,9 @@ impl AccountCurrent {
         }
     }
 
-    // TODO: Use this to get around the fact that we need to update object refs in the
-    // executor..figure out a better way to do this other than just creating a gas object for each
-    // transaction.
+    // TODO: Use this to get around the fact that we need to update object refs in
+    // the executor..figure out a better way to do this other than just creating
+    // a gas object for each transaction.
     pub fn new_gas_object(&mut self, exec: &mut Executor) -> Object {
         // We just create a new gas object for this transaction
         let gas_object_id = ObjectID::random();

@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeSet, sync::Arc};
+
 use bytes::Bytes;
 use fastcrypto::hash::Hash;
-use narwhal_executor::get_restored_consensus_output;
-use narwhal_executor::MockExecutionState;
-use primary::consensus::{
-    Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
+use narwhal_executor::{get_restored_consensus_output, MockExecutionState};
+use primary::{
+    consensus::{
+        Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
+    },
+    NUM_SHUTDOWN_RECEIVERS,
 };
-use primary::NUM_SHUTDOWN_RECEIVERS;
 use prometheus::Registry;
-use std::collections::BTreeSet;
-use std::sync::Arc;
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
-use test_utils::latest_protocol_version;
-use test_utils::{cluster::Cluster, temp_dir, CommitteeFixture};
+use test_utils::{cluster::Cluster, latest_protocol_version, temp_dir, CommitteeFixture};
 use tokio::sync::watch;
-
 use types::{Certificate, PreSubscribedBroadcastSender, Round, TransactionProto};
 
 #[tokio::test]
@@ -99,8 +100,8 @@ async fn test_recovery() {
     );
     tokio::spawn(async move { while rx_primary.recv().await.is_some() {} });
 
-    // Feed all certificates to the consensus. Only the last certificate should trigger
-    // commits, so the task should not block.
+    // Feed all certificates to the consensus. Only the last certificate should
+    // trigger commits, so the task should not block.
     while let Some(certificate) = certificates.pop_front() {
         // we store the certificates so we can enable the recovery
         // mechanism later.
@@ -108,8 +109,9 @@ async fn test_recovery() {
         tx_waiter.send(certificate).await.unwrap();
     }
 
-    // Ensure the first 4 ordered certificates are from round 1 (they are the parents of the committed
-    // leader); then the leader's certificate should be committed.
+    // Ensure the first 4 ordered certificates are from round 1 (they are the
+    // parents of the committed leader); then the leader's certificate should be
+    // committed.
     let consensus_index_counter = 4;
     let num_of_committed_certificates = 5;
 
@@ -125,9 +127,10 @@ async fn test_recovery() {
         }
     }
 
-    // Now assume that we want to recover from a crash. We are testing all the recovery cases
-    // from having executed no certificates at all (or certificate with index = 0), up to
-    // have executed the last committed certificate
+    // Now assume that we want to recover from a crash. We are testing all the
+    // recovery cases from having executed no certificates at all (or
+    // certificate with index = 0), up to have executed the last committed
+    // certificate
     for last_executed_certificate_index in 0..consensus_index_counter {
         let mut execution_state = MockExecutionState::new();
         execution_state
@@ -143,8 +146,8 @@ async fn test_recovery() {
         .await
         .unwrap();
 
-        // we expect to have recovered all the certificates from the last commit. The Sui executor engine
-        // will not execute twice the same certificate.
+        // we expect to have recovered all the certificates from the last commit. The
+        // Iota executor engine will not execute twice the same certificate.
         assert_eq!(consensus_output.len(), 1);
         assert!(
             consensus_output[0].len()
@@ -187,7 +190,7 @@ async fn test_internal_consensus_output() {
         // serialise and send
         let tr = bcs::to_bytes(&tx).unwrap();
         let txn = TransactionProto {
-            transaction: Bytes::from(tr),
+            transactions: vec![Bytes::from(tr)],
         };
         client.submit_transaction(txn).await.unwrap();
 
@@ -226,7 +229,9 @@ fn setup_tracing() -> TelemetryGuards {
     let tracing_level = "debug";
     let network_tracing_level = "info";
 
-    let log_filter = format!("{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level}");
+    let log_filter = format!(
+        "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level}"
+    );
 
     telemetry_subscribers::TelemetryConfig::new()
         // load env variables

@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::new_registry;
-use crate::{try_join_all, FuturesUnordered, NodeError};
+use std::{collections::HashMap, sync::Arc, time::Instant};
+
 use anemo::PeerId;
 use arc_swap::{ArcSwap, ArcSwapOption};
 use config::{Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{NetworkKeyPair, PublicKey};
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::{RegistryID, RegistryService};
+use iota_protocol_config::ProtocolConfig;
 use network::client::NetworkClient;
 use prometheus::Registry;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Instant;
 use storage::NodeStorage;
-use sui_protocol_config::ProtocolConfig;
-use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
+use tokio::{sync::RwLock, task::JoinHandle};
 use tracing::{info, instrument};
 use types::PreSubscribedBroadcastSender;
-use worker::metrics::{initialise_metrics, Metrics};
-use worker::{TransactionValidator, Worker, NUM_SHUTDOWN_RECEIVERS};
+use worker::{
+    metrics::{initialise_metrics, Metrics},
+    TransactionValidator, Worker, NUM_SHUTDOWN_RECEIVERS,
+};
+
+use crate::{metrics::new_registry, try_join_all, FuturesUnordered, NodeError};
 
 pub struct WorkerNodeInner {
     // The worker's id
@@ -42,8 +43,8 @@ pub struct WorkerNodeInner {
 }
 
 impl WorkerNodeInner {
-    // Starts the worker node with the provided info. If the node is already running then this
-    // method will return an error instead.
+    // Starts the worker node with the provided info. If the node is already running
+    // then this method will return an error instead.
     #[instrument(level = "info", skip_all)]
     async fn start(
         &mut self,
@@ -120,9 +121,9 @@ impl WorkerNodeInner {
         Ok(())
     }
 
-    // Will shutdown the worker node and wait until the node has shutdown by waiting on the
-    // underlying components handles. If the node was not already running then the
-    // method will return immediately.
+    // Will shutdown the worker node and wait until the node has shutdown by waiting
+    // on the underlying components handles. If the node was not already running
+    // then the method will return immediately.
     #[instrument(level = "info", skip_all)]
     async fn shutdown(&mut self) {
         if !self.is_running().await {
@@ -149,8 +150,8 @@ impl WorkerNodeInner {
         );
     }
 
-    // If any of the underlying handles haven't still finished, then this method will return
-    // true, otherwise false will returned instead.
+    // If any of the underlying handles haven't still finished, then this method
+    // will return true, otherwise false will returned instead.
     async fn is_running(&self) -> bool {
         self.handles.iter().any(|h| !h.is_finished())
     }
@@ -160,10 +161,11 @@ impl WorkerNodeInner {
         try_join_all(&mut self.handles).await.unwrap();
     }
 
-    // Accepts an Option registry. If it's Some, then the new registry will be added in the
-    // registry service and the registry_id will be updated. Also, any previous registry will
-    // be removed. If None is passed, then the registry_id is updated to None and any old
-    // registry is removed from the RegistryService.
+    // Accepts an Option registry. If it's Some, then the new registry will be added
+    // in the registry service and the registry_id will be updated. Also, any
+    // previous registry will be removed. If None is passed, then the
+    // registry_id is updated to None and any old registry is removed from the
+    // RegistryService.
     fn swap_registry(&mut self, registry: Option<Registry>) {
         if let Some((registry_id, _registry)) = self.registry.as_ref() {
             self.registry_service.remove(*registry_id);
@@ -344,7 +346,8 @@ impl WorkerNodes {
         let registry_id = self.registry_service.add(registry);
 
         if let Some(old_registry_id) = self.registry_id.swap(Some(Arc::new(registry_id))) {
-            // a little of defensive programming - ensure that we always clean up the previous registry
+            // a little of defensive programming - ensure that we always clean up the
+            // previous registry
             self.registry_service.remove(*old_registry_id.as_ref());
         }
 
@@ -365,7 +368,8 @@ impl WorkerNodes {
 
         // now remove the registry id
         if let Some(old_registry_id) = self.registry_id.swap(None) {
-            // a little of defensive programming - ensure that we always clean up the previous registry
+            // a little of defensive programming - ensure that we always clean up the
+            // previous registry
             self.registry_service.remove(*old_registry_id.as_ref());
         }
 

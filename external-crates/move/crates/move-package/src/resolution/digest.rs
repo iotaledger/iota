@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use move_command_line_common::files::MOVE_EXTENSION;
 use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
 
 use crate::source_package::{layout::SourcePackageLayout, parsed_manifest::PackageDigest};
 

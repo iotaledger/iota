@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Simplifies logic around re-using ModuleIds.
 #![allow(clippy::redundant_clone)]
 
-use crate::compiler::{compile_modules_in_file, expect_modules};
+use std::{collections::BTreeMap, path::PathBuf, str::FromStr, sync::Arc, thread};
+
 use move_binary_format::{
     file_format::{
         empty_module, AddressIdentifierIndex, IdentifierIndex, ModuleHandle, TableIndex,
@@ -27,10 +29,10 @@ use move_vm_runtime::{move_vm::MoveVM, session::SerializedReturnValues};
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::{
     gas::UnmeteredGasMeter,
-    loaded_data::runtime_types::{DepthFormula, StructType, Type},
+    loaded_data::runtime_types::{CachedDatatype, DepthFormula, Type},
 };
 
-use std::{collections::BTreeMap, path::PathBuf, str::FromStr, sync::Arc, thread};
+use crate::compiler::{compile_modules_in_file, expect_modules};
 
 const DEFAULT_ACCOUNT: AccountAddress = AccountAddress::TWO;
 const UPGRADE_ACCOUNT: AccountAddress = {
@@ -136,7 +138,7 @@ impl Adapter {
                 .publish_module(binary, DEFAULT_ACCOUNT, &mut UnmeteredGasMeter)
                 .unwrap_or_else(|e| panic!("failure publishing module: {e:?}\n{:#?}", module));
         }
-        let (changeset, _) = session.finish().0.expect("failure getting write set");
+        let changeset = session.finish().0.expect("failure getting write set");
         self.store
             .apply(changeset)
             .expect("failure applying write set");
@@ -173,7 +175,7 @@ impl Adapter {
             .publish_module_bundle(binaries, DEFAULT_ACCOUNT, &mut UnmeteredGasMeter)
             .unwrap_or_else(|e| panic!("failure publishing module bundle: {e:?}"));
 
-        let (changeset, _) = session.finish().0.expect("failure getting write set");
+        let changeset = session.finish().0.expect("failure getting write set");
         self.store
             .apply(changeset)
             .expect("failure applying write set");
@@ -204,10 +206,10 @@ impl Adapter {
             .expect("Loading type should succeed")
     }
 
-    fn load_struct(&self, module_id: &ModuleId, struct_name: &IdentStr) -> Arc<StructType> {
+    fn load_datatype(&self, module_id: &ModuleId, struct_name: &IdentStr) -> Arc<CachedDatatype> {
         let session = self.vm.new_session(&self.store);
         session
-            .load_struct(module_id, struct_name)
+            .load_datatype(module_id, struct_name)
             .expect("Loading struct should succeed")
             .1
     }
@@ -328,8 +330,8 @@ impl LinkageResolver for RelinkingStore {
         self.context
     }
 
-    /// Remaps `module_id` if it exists in the current linkage table, or returns it unchanged
-    /// otherwise.
+    /// Remaps `module_id` if it exists in the current linkage table, or returns
+    /// it unchanged otherwise.
     fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, Self::Error> {
         Ok(self.linkage.get(module_id).unwrap_or(module_id).clone())
     }
@@ -395,6 +397,7 @@ fn get_relinker_tests_modules_with_deps<'s>(
     }
 
     let (_, units) = Compiler::from_files(
+        None,
         vec![fixture_string_path(module)],
         deps.into_iter().map(fixture_string_path).collect(),
         BTreeMap::<String, _>::new(),
@@ -607,14 +610,14 @@ fn test_depth() {
     ];
     adapter.publish_modules(modules);
     // loads all structs sequentially
-    for (module_name, struct_name, expected_depth) in structs.iter() {
+    for (module_name, type_name, expected_depth) in structs.iter() {
         let computed_depth = &adapter
-            .load_struct(
+            .load_datatype(
                 &ModuleId::new(
                     DEFAULT_ACCOUNT,
                     Identifier::new(module_name.to_string()).unwrap(),
                 ),
-                ident_str!(struct_name),
+                ident_str!(type_name),
             )
             .depth;
         assert_eq!(computed_depth, expected_depth);
@@ -667,16 +670,18 @@ fn relink() {
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT,
-        /* linkage */ BTreeMap::from_iter([(c0.clone(), c1.clone())]),
-        /* type origin */
+        // linkage
+        BTreeMap::from_iter([(c0.clone(), c1.clone())]),
+        // type origin
         BTreeMap::from_iter([
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
             ((c1.clone(), ident_str!("R").to_owned()), c1.clone()),
         ]),
     );
 
-    // Publish the next version of C, and then A which depends on the new version of C, but also B.
-    // B will be relinked to use C when executed in the adapter relinking against A.
+    // Publish the next version of C, and then A which depends on the new version of
+    // C, but also B. B will be relinked to use C when executed in the adapter
+    // relinking against A.
     adapter.publish_modules(c1_modules);
     adapter.publish_modules(a0_modules);
 
@@ -694,8 +699,8 @@ fn relink_publish_err() {
     let c0_modules = get_relinker_tests_modules_with_deps("c_v0", []).unwrap();
     let b1_modules = get_relinker_tests_modules_with_deps("b_v1", ["c_v1"]).unwrap();
 
-    // B was built against the later version of C but published against the earlier version,
-    // which should fail because a function is missing.
+    // B was built against the later version of C but published against the earlier
+    // version, which should fail because a function is missing.
     adapter.publish_modules(c0_modules);
     adapter.publish_modules_with_error(b1_modules);
 }
@@ -726,9 +731,9 @@ fn relink_load_err() {
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT,
-        /* linkage */
+        // linkage
         BTreeMap::from_iter([(b0.clone(), b1.clone()), (c0.clone(), c1.clone())]),
-        /* type origin */
+        // type origin
         BTreeMap::from_iter([
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
             ((c0.clone(), ident_str!("R").to_owned()), c1.clone()),
@@ -746,9 +751,9 @@ fn relink_load_err() {
 
     let adapter = adapter.relink(
         UPGRADE_ACCOUNT,
-        /* linkage */
+        // linkage
         BTreeMap::from_iter([(b0.clone(), b1.clone()), (c0.clone(), c0.clone())]),
-        /* type origin */
+        // type origin
         BTreeMap::from_iter([
             ((b0.clone(), ident_str!("S").to_owned()), b1.clone()),
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
@@ -777,9 +782,9 @@ fn relink_type_identity() {
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT,
-        /* linkage */
+        // linkage
         BTreeMap::from_iter([(b0.clone(), b1.clone()), (c0.clone(), c1.clone())]),
-        /* type origin */
+        // type origin
         BTreeMap::from_iter([
             ((b0.clone(), ident_str!("S").to_owned()), b1.clone()),
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
@@ -799,7 +804,8 @@ fn relink_type_identity() {
 
 #[test]
 fn relink_defining_module_successive() {
-    // This test simulates building up a sequence of upgraded packages over a number of publishes
+    // This test simulates building up a sequence of upgraded packages over a number
+    // of publishes
     let data_store = InMemoryStorage::new();
     let mut adapter = Adapter::new(data_store);
 
@@ -816,8 +822,9 @@ fn relink_defining_module_successive() {
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT,
-        /* linkage */ BTreeMap::from_iter([(c0.clone(), c1.clone())]),
-        /* type origin */
+        // linkage
+        BTreeMap::from_iter([(c0.clone(), c1.clone())]),
+        // type origin
         BTreeMap::from_iter([
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
             ((c0.clone(), ident_str!("R").to_owned()), c1.clone()),
@@ -830,8 +837,9 @@ fn relink_defining_module_successive() {
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT_2,
-        /* linkage */ BTreeMap::from_iter([(c0.clone(), c2.clone())]),
-        /* type origin */
+        // linkage
+        BTreeMap::from_iter([(c0.clone(), c2.clone())]),
+        // type origin
         BTreeMap::from_iter([
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
             ((c0.clone(), ident_str!("R").to_owned()), c1.clone()),
@@ -869,10 +877,11 @@ fn relink_defining_module_successive() {
 
 #[test]
 fn relink_defining_module_oneshot() {
-    // Simulates the loader being made aware of the final package in a sequence of upgrades (perhaps
-    // a previous instance of the VM and loader participated in the publishing of previous versions)
-    // but still needing to correctly set-up the defining modules for the types in the latest
-    // version of the package, based on the linkage table at the time of loading/publishing:
+    // Simulates the loader being made aware of the final package in a sequence of
+    // upgrades (perhaps a previous instance of the VM and loader participated
+    // in the publishing of previous versions) but still needing to correctly
+    // set-up the defining modules for the types in the latest version of the
+    // package, based on the linkage table at the time of loading/publishing:
 
     let data_store = InMemoryStorage::new();
 
@@ -884,8 +893,9 @@ fn relink_defining_module_oneshot() {
 
     let mut adapter = Adapter::new(data_store).relink(
         UPGRADE_ACCOUNT_2,
-        /* linkage */ BTreeMap::from_iter([(c0.clone(), c2.clone())]),
-        /* type origin */
+        // linkage
+        BTreeMap::from_iter([(c0.clone(), c2.clone())]),
+        // type origin
         BTreeMap::from_iter([
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
             ((c0.clone(), ident_str!("R").to_owned()), c1.clone()),
@@ -917,8 +927,8 @@ fn relink_defining_module_oneshot() {
 
 #[test]
 fn relink_defining_module_cleanup() {
-    // If loading fails for a module that pulls in a module that was defined at an earlier version
-    // of the package, roll-back should occur cleanly.
+    // If loading fails for a module that pulls in a module that was defined at an
+    // earlier version of the package, roll-back should occur cleanly.
     let data_store = InMemoryStorage::new();
 
     let c0 = ModuleId::new(DEFAULT_ACCOUNT, ident_str!("c").to_owned());
@@ -927,9 +937,9 @@ fn relink_defining_module_cleanup() {
 
     let mut adapter = Adapter::new(data_store).relink(
         UPGRADE_ACCOUNT,
-        /* linkage */
+        // linkage
         BTreeMap::from_iter([(b0.clone(), b1.clone()), (c0.clone(), c0.clone())]),
-        /* type origin */
+        // type origin
         BTreeMap::from_iter([
             ((c0.clone(), ident_str!("S").to_owned()), c0.clone()),
             ((b0.clone(), ident_str!("S").to_owned()), b1.clone()),
@@ -939,8 +949,8 @@ fn relink_defining_module_cleanup() {
     let c0_modules = get_relinker_tests_modules_with_deps("c_v0", []).unwrap();
     let b1_modules = get_relinker_tests_modules_with_deps("b_v1", ["c_v1"]).unwrap();
 
-    // B was built against the later version of C but published against the earlier version,
-    // which should fail because a function is missing.
+    // B was built against the later version of C but published against the earlier
+    // version, which should fail because a function is missing.
     adapter.publish_modules(c0_modules);
 
     // Somehow dependency verification fails, and the publish succeeds.
@@ -1002,8 +1012,8 @@ fn publish_bundle_with_err_retry() {
     modules.extend(b0_modules);
     modules.extend(a0_modules);
 
-    // Try again and everything should publish successfully (in particular, the failed publish
-    // will not leave behind modules in the loader).
+    // Try again and everything should publish successfully (in particular, the
+    // failed publish will not leave behind modules in the loader).
     adapter.publish_module_bundle(modules);
 
     assert_eq!(

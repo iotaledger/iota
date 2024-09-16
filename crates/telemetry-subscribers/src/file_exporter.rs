@@ -1,15 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    fs::OpenOptions,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
+
 use futures::{future::BoxFuture, FutureExt};
-use opentelemetry::sdk::export::trace::{ExportResult, SpanData, SpanExporter};
-use opentelemetry::trace::TraceError;
+use opentelemetry::{
+    sdk::export::trace::{ExportResult, SpanData, SpanExporter},
+    trace::TraceError,
+};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use prost::Message;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub(crate) struct CachedOpenFile {
@@ -88,7 +94,10 @@ impl SpanExporter for FileExporter {
                 .with_file(|maybe_file| {
                     if let Some(file) = maybe_file {
                         let request = ExportTraceServiceRequest {
-                            resource_spans: batch.into_iter().map(Into::into).collect(),
+                            resource_spans: group_spans_by_resource_and_scope(
+                                batch,
+                                &ResourceAttributesWithSchema::default(),
+                            ),
                         };
 
                         let buf = request.encode_length_delimited_to_vec();

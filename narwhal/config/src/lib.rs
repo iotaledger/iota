@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -9,10 +10,6 @@
 )]
 #![allow(clippy::mutable_key_type)]
 
-use crypto::{NetworkPublicKey, PublicKey};
-use fastcrypto::traits::EncodeDecodeBase64;
-use mysten_network::Multiaddr;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, OpenOptions},
@@ -20,6 +17,11 @@ use std::{
     num::NonZeroU32,
     time::Duration,
 };
+
+use crypto::{NetworkPublicKey, PublicKey};
+use fastcrypto::traits::EncodeDecodeBase64;
+use iota_network_stack::Multiaddr;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
 use utils::get_available_port;
@@ -33,7 +35,7 @@ pub mod utils;
 pub type Epoch = u64;
 
 // Opaque bytes uniquely identifying the current chain. Analogue of the
-// type in `sui-types` crate.
+// type in `iota-types` crate.
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct ChainIdentifier([u8; 32]);
 
@@ -99,7 +101,11 @@ impl<D: DeserializeOwned> Import for D {}
 pub trait Export: Serialize {
     fn export(&self, path: &str) -> Result<(), ConfigError> {
         let writer = || -> Result<(), std::io::Error> {
-            let file = OpenOptions::new().create(true).write(true).open(path)?;
+            let file = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path)?;
             let mut writer = BufWriter::new(file);
             let data = serde_json::to_string_pretty(self).unwrap();
             writer.write_all(data.as_ref())?;
@@ -115,8 +121,8 @@ pub trait Export: Serialize {
 
 impl<S: Serialize> Export for S {}
 
-// TODO: This actually represents voting power (out of 10,000) and not amount staked.
-// Consider renaming to `VotingPower`.
+// TODO: This actually represents voting power (out of 10,000) and not amount
+// staked. Consider renaming to `VotingPower`.
 pub type Stake = u64;
 pub type WorkerId = u32;
 
@@ -126,8 +132,8 @@ pub type WorkerId = u32;
 /// milliseconds or seconds (e.x 5s, 10ms , 2000ms).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Parameters {
-    /// When the primary has `header_num_of_batches_threshold` num of batch digests available,
-    /// then it can propose a new header.
+    /// When the primary has `header_num_of_batches_threshold` num of batch
+    /// digests available, then it can propose a new header.
     #[serde(default = "Parameters::default_header_num_of_batches_threshold")]
     pub header_num_of_batches_threshold: usize,
 
@@ -135,15 +141,17 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_header_num_of_batches")]
     pub max_header_num_of_batches: usize,
 
-    /// The maximum delay that the primary should wait between generating two headers, even if
-    /// other conditions are not satisfied besides having enough parent stakes.
+    /// The maximum delay that the primary should wait between generating two
+    /// headers, even if other conditions are not satisfied besides having
+    /// enough parent stakes.
     #[serde(
         with = "duration_format",
         default = "Parameters::default_max_header_delay"
     )]
     pub max_header_delay: Duration,
-    /// When the delay from last header reaches `min_header_delay`, a new header can be proposed
-    /// even if batches have not reached `header_num_of_batches_threshold`.
+    /// When the delay from last header reaches `min_header_delay`, a new header
+    /// can be proposed even if batches have not reached
+    /// `header_num_of_batches_threshold`.
     #[serde(
         with = "duration_format",
         default = "Parameters::default_min_header_delay"
@@ -153,28 +161,30 @@ pub struct Parameters {
     /// The depth of the garbage collection (Denominated in number of rounds).
     #[serde(default = "Parameters::default_gc_depth")]
     pub gc_depth: u64,
-    /// The delay after which the synchronizer retries to send sync requests. Denominated in ms.
+    /// The delay after which the synchronizer retries to send sync requests.
+    /// Denominated in ms.
     #[serde(
         with = "duration_format",
         default = "Parameters::default_sync_retry_delay"
     )]
     pub sync_retry_delay: Duration,
-    /// Determine with how many nodes to sync when re-trying to send sync-request. These nodes
-    /// are picked at random from the committee.
+    /// Determine with how many nodes to sync when re-trying to send
+    /// sync-request. These nodes are picked at random from the committee.
     #[serde(default = "Parameters::default_sync_retry_nodes")]
     pub sync_retry_nodes: usize,
-    /// The preferred batch size. The workers seal a batch of transactions when it reaches this size.
-    /// Denominated in bytes.
+    /// The preferred batch size. The workers seal a batch of transactions when
+    /// it reaches this size. Denominated in bytes.
     #[serde(default = "Parameters::default_batch_size")]
     pub batch_size: usize,
-    /// The delay after which the workers seal a batch of transactions, even if `max_batch_size`
-    /// is not reached.
+    /// The delay after which the workers seal a batch of transactions, even if
+    /// `max_batch_size` is not reached.
     #[serde(
         with = "duration_format",
         default = "Parameters::default_max_batch_delay"
     )]
     pub max_batch_delay: Duration,
-    /// The maximum number of concurrent requests for messages accepted from an un-trusted entity
+    /// The maximum number of concurrent requests for messages accepted from an
+    /// un-trusted entity
     #[serde(default = "Parameters::default_max_concurrent_requests")]
     pub max_concurrent_requests: usize,
     /// Properties for the prometheus metrics
@@ -270,8 +280,9 @@ pub struct AnemoParameters {
     pub report_batch_rate_limit: Option<NonZeroU32>,
     pub request_batches_rate_limit: Option<NonZeroU32>,
 
-    /// Size in bytes above which network messages are considered excessively large. Excessively
-    /// large messages will still be handled, but logged and reported in metrics for debugging.
+    /// Size in bytes above which network messages are considered excessively
+    /// large. Excessively large messages will still be handled, but logged
+    /// and reported in metrics for debugging.
     ///
     /// If unspecified, this will default to 8 MiB.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -475,7 +486,8 @@ impl WorkerCache {
         self.epoch
     }
 
-    /// Returns the addresses of a specific worker (`id`) of a specific authority (`to`).
+    /// Returns the addresses of a specific worker (`id`) of a specific
+    /// authority (`to`).
     pub fn worker(&self, to: &PublicKey, id: &WorkerId) -> Result<WorkerInfo, ConfigError> {
         self.workers
             .iter()
@@ -517,8 +529,8 @@ impl WorkerCache {
             .collect()
     }
 
-    /// Returns the addresses of all workers with a specific id except the ones of the authority
-    /// specified by `myself`.
+    /// Returns the addresses of all workers with a specific id except the ones
+    /// of the authority specified by `myself`.
     pub fn others_workers_by_id(
         &self,
         myself: &PublicKey,
@@ -542,9 +554,9 @@ impl WorkerCache {
             .collect()
     }
 
-    /// Return the network addresses that are present in the current worker cache
-    /// that are from a primary key that are no longer in the committee. Current
-    /// committee keys provided as an argument.
+    /// Return the network addresses that are present in the current worker
+    /// cache that are from a primary key that are no longer in the
+    /// committee. Current committee keys provided as an argument.
     pub fn network_diff(&self, keys: Vec<&PublicKey>) -> HashSet<&Multiaddr> {
         self.workers
             .iter()

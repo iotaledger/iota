@@ -1,11 +1,11 @@
 global:
-  scrape_interval:     15s
+  scrape_interval: 15s
   evaluation_interval: 15s
 
   # Attach these labels to any time series or alerts when communicating with
   # external systems (federation, remote storage, Alertmanager).
   external_labels:
-      monitor: 'docker-host-alpha'
+    monitor: "docker-host-alpha"
 
 # Load and evaluate rules in this file every 'evaluation_interval' seconds.
 # rule_files:
@@ -13,10 +13,10 @@ global:
 
 # A scrape configuration containing exactly one endpoint to scrape.
 scrape_configs:
-  - job_name: 'nodeexporter'
+  - job_name: "nodeexporter"
     scrape_interval: 5s
     static_configs:
-      - targets: ['nodeexporter:9100']
+      - targets: ["nodeexporter:9100"]
 
   # Busted on MacOS currently. -allan
   # - job_name: 'cadvisor'
@@ -24,17 +24,17 @@ scrape_configs:
   #   static_configs:
   #     - targets: ['cadvisor:8080']
 
-  - job_name: 'prometheus'
+  - job_name: "prometheus"
     scrape_interval: 10s
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]
 
-  - job_name: 'loki-read'
+  - job_name: "loki-read"
     scrape_interval: 10s
     static_configs:
-      - targets: ['read:3100']
+      - targets: ["read:3100"]
 
-  - job_name: 'loki-write'
+  - job_name: "loki-write"
     scrape_interval: 10s
     static_configs:
-      - targets: ['write:3100']
+      - targets: ["write:3100"]

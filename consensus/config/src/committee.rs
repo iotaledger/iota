@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -6,7 +7,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use serde::{Deserialize, Serialize};
 
 use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};
@@ -14,13 +15,13 @@ use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};
 /// Committee of the consensus protocol is updated each epoch.
 pub type Epoch = u64;
 
-/// Voting power of an authority, roughly proportional to the actual amount of Sui staked
-/// by the authority.
+/// Voting power of an authority, roughly proportional to the actual amount of
+/// Iota staked by the authority.
 /// Total stake / voting power of all authorities should sum to 10,000.
 pub type Stake = u64;
 
-/// Committee is the set of authorities that participate in the consensus protocol for this epoch.
-/// Its configuration is stored and computed on chain.
+/// Committee is the set of authorities that participate in the consensus
+/// protocol for this epoch. Its configuration is stored and computed on chain.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Committee {
     /// The epoch number of this committee
@@ -127,8 +128,8 @@ impl Committee {
 
 /// Represents one authority in the committee.
 ///
-/// NOTE: this is intentionally un-cloneable, to encourage only copying relevant fields.
-/// AuthorityIndex should be used to reference an authority instead.
+/// NOTE: this is intentionally un-cloneable, to encourage only copying relevant
+/// fields. AuthorityIndex should be used to reference an authority instead.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Authority {
     /// Voting power of the authority in the committee.
@@ -137,7 +138,7 @@ pub struct Authority {
     pub address: Multiaddr,
     /// The authority's hostname, for metrics and logging.
     pub hostname: String,
-    /// The authority's public key as Sui identity.
+    /// The authority's public key as Iota identity.
     pub authority_key: AuthorityPublicKey,
     /// The authority's public key for verifying blocks.
     pub protocol_key: ProtocolPublicKey,
@@ -145,12 +146,13 @@ pub struct Authority {
     pub network_key: NetworkPublicKey,
 }
 
-/// Each authority is uniquely identified by its AuthorityIndex in the Committee.
-/// AuthorityIndex is between 0 (inclusive) and the total number of authorities (exclusive).
+/// Each authority is uniquely identified by its AuthorityIndex in the
+/// Committee. AuthorityIndex is between 0 (inclusive) and the total number of
+/// authorities (exclusive).
 ///
-/// NOTE: for safety, invalid AuthorityIndex should be impossible to create. So AuthorityIndex
-/// should not be created or incremented outside of this file. AuthorityIndex received from peers
-/// should be validated before use.
+/// NOTE: for safety, invalid AuthorityIndex should be impossible to create. So
+/// AuthorityIndex should not be created or incremented outside of this file.
+/// AuthorityIndex received from peers should be validated before use.
 #[derive(
     Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug, Default, Hash, Serialize, Deserialize,
 )]
@@ -158,7 +160,11 @@ pub struct AuthorityIndex(u32);
 
 impl AuthorityIndex {
     // Minimum committee size is 1, so 0 index is always valid.
-    pub const ZERO: AuthorityIndex = AuthorityIndex(0);
+    pub const ZERO: Self = Self(0);
+
+    // Only for scanning rows in the database. Invalid elsewhere.
+    pub const MIN: Self = Self::ZERO;
+    pub const MAX: Self = Self(u32::MAX);
 
     pub fn value(&self) -> usize {
         self.0 as usize
@@ -213,7 +219,8 @@ impl<T> IndexMut<AuthorityIndex> for Vec<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{local_committee_and_keys, Stake};
+    use super::*;
+    use crate::local_committee_and_keys;
 
     #[test]
     fn committee_basic() {

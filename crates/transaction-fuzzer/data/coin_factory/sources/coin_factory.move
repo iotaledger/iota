@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 module coiner::coin_factory {
     use std::option;
-    use sui::coin::{Self, Coin, TreasuryCap};
-    use sui::transfer;
+    use iota::coin::{Self, Coin, TreasuryCap};
+    use iota::transfer;
     use std::vector;
-    use sui::tx_context::{Self, TxContext};
+    use iota::tx_context::{Self, TxContext};
 
-    struct COIN_FACTORY has drop {}
+    public struct COIN_FACTORY has drop {}
 
     fun init(witness: COIN_FACTORY, ctx: &mut TxContext) {
         let (treasury, metadata) = coin::create_currency(witness, 6, b"COIN_FACTORY", b"", b"", option::none(), ctx);
@@ -24,8 +25,8 @@ module coiner::coin_factory {
         size: u64,
         ctx: &mut TxContext
     ): vector<Coin<COIN_FACTORY>> {
-        let v = vector::empty<Coin<COIN_FACTORY>>();
-        let i = 0;
+        let mut v = vector::empty<Coin<COIN_FACTORY>>();
+        let mut i = 0;
         while (i < size) {
             vector::push_back(&mut v, coin::mint(cap, value, ctx));
             i = i + 1;

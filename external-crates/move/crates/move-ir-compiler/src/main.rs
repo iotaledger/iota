@@ -1,8 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
+
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use clap::Parser;
@@ -13,11 +20,6 @@ use move_command_line_common::files::{
 };
 use move_ir_compiler::util;
 use move_ir_to_bytecode::parser::parse_module;
-use std::{
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -27,7 +29,8 @@ struct Args {
     pub no_verify: bool,
     /// Path to the Move IR source to compile
     pub source_path: PathBuf,
-    /// Instead of compiling the source, emit a dependency list of the compiled source
+    /// Instead of compiling the source, emit a dependency list of the compiled
+    /// source
     #[clap(short = 'l', long = "list-dependencies")]
     pub list_dependencies: bool,
     /// Path to the list of modules that we want to link with
@@ -127,7 +130,7 @@ fn main() {
 
     let mut module = vec![];
     compiled_module
-        .serialize(&mut module)
+        .serialize_with_version(compiled_module.version, &mut module)
         .expect("Unable to serialize module");
     write_output(&source_path.with_extension(mv_extension), &module);
 }

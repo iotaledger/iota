@@ -1,8 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
+
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    io::{BufRead, BufReader, Read, Write},
+    path::Path,
+};
 
 use anyhow::{format_err, Result};
 use move_binary_format::file_format::{CodeOffset, CompiledModule};
@@ -11,12 +19,6 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::{BufRead, BufReader, Read, Write},
-    path::Path,
-};
 
 pub type FunctionCoverage = BTreeMap<u64, u64>;
 
@@ -58,7 +60,8 @@ pub struct TraceMap {
 }
 
 impl CoverageMap {
-    /// Takes in a file containing a raw VM trace, and returns an updated coverage map.
+    /// Takes in a file containing a raw VM trace, and returns an updated
+    /// coverage map.
     pub fn update_coverage_from_trace_file<P: AsRef<Path> + std::fmt::Debug>(
         mut self,
         filename: P,
@@ -97,7 +100,8 @@ impl CoverageMap {
         empty_module_map.update_coverage_from_trace_file(filename)
     }
 
-    /// Takes in a file containing a serialized coverage map and returns a coverage map.
+    /// Takes in a file containing a serialized coverage map and returns a
+    /// coverage map.
     pub fn from_binary_file<P: AsRef<Path> + std::fmt::Debug>(filename: P) -> Result<Self> {
         let mut bytes = Vec::new();
         File::open(&filename)
@@ -265,7 +269,8 @@ impl ExecCoverageMapWithModules {
 }
 
 impl TraceMap {
-    /// Takes in a file containing a raw VM trace, and returns an updated coverage map.
+    /// Takes in a file containing a raw VM trace, and returns an updated
+    /// coverage map.
     pub fn update_from_trace_file<P: AsRef<Path>>(mut self, filename: P) -> Self {
         let file = File::open(filename).unwrap();
         for line in BufReader::new(file).lines() {

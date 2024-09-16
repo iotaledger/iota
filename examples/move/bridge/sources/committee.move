@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_use)]
 module bridge::committee {
     use std::vector;
 
-    use sui::address;
-    use sui::ecdsa_k1;
-    use sui::hex;
-    use sui::tx_context::{Self, TxContext};
-    use sui::vec_map::{Self, VecMap};
-    use sui::vec_set;
+    use iota::address;
+    use iota::ecdsa_k1;
+    use iota::hex;
+    use iota::tx_context::{Self, TxContext};
+    use iota::vec_map::{Self, VecMap};
+    use iota::vec_set;
 
     use bridge::message::{Self, BridgeMessage};
     use bridge::message_types;
@@ -22,18 +23,18 @@ module bridge::committee {
     const EInvalidSignature: u64 = 2;
     // const ENotSystemAddress: u64 = 3;
 
-    const SUI_MESSAGE_PREFIX: vector<u8> = b"SUI_BRIDGE_MESSAGE";
+    const IOTA_MESSAGE_PREFIX: vector<u8> = b"IOTA_BRIDGE_MESSAGE";
 
     struct BridgeCommittee has store {
-        // commitee pub key and weight
+        // committee pub key and weight
         members: VecMap<vector<u8>, CommitteeMember>,
         // threshold for each message type
         thresholds: VecMap<u8, u64>
     }
 
     struct CommitteeMember has drop, store {
-        /// The Sui Address of the validator
-        sui_address: address,
+        /// The Iota Address of the validator
+        iota_address: address,
         /// The public key bytes of the bridge key
         bridge_pubkey_bytes: vector<u8>,
         /// Voting power
@@ -48,13 +49,13 @@ module bridge::committee {
     public(friend) fun create(_ctx: &TxContext): BridgeCommittee {
         // assert!(tx_context::sender(ctx) == @0x0, ENotSystemAddress);
         // Hardcoded genesis committee
-        // TODO: change this to real committe members
+        // TODO: change this to real committee members
         let members = vec_map::empty<vector<u8>, CommitteeMember>();
 
         let bridge_pubkey_bytes = hex::decode(b"02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
-            // TODO: why do we need sui_address?
-            sui_address: address::from_u256(1),
+            // TODO: why do we need iota_address?
+            iota_address: address::from_u256(1),
             bridge_pubkey_bytes,
             voting_power: 2500,
             http_rest_url: b"http://127.0.0.1:9191",
@@ -63,7 +64,7 @@ module bridge::committee {
 
         let bridge_pubkey_bytes = hex::decode(b"027f1178ff417fc9f5b8290bd8876f0a157a505a6c52db100a8492203ddd1d4279");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
-            sui_address: address::from_u256(2),
+            iota_address: address::from_u256(2),
             bridge_pubkey_bytes,
             voting_power: 2500,
             http_rest_url: b"http://127.0.0.1:9192",
@@ -72,7 +73,7 @@ module bridge::committee {
 
         let bridge_pubkey_bytes = hex::decode(b"026f311bcd1c2664c14277c7a80e4857c690626597064f89edc33b8f67b99c6bc0");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
-            sui_address: address::from_u256(3),
+            iota_address: address::from_u256(3),
             bridge_pubkey_bytes,
             voting_power: 2500,
             http_rest_url: b"http://127.0.0.1:9193",
@@ -81,7 +82,7 @@ module bridge::committee {
 
         let bridge_pubkey_bytes = hex::decode(b"03a57b85771aedeb6d31c808be9a6e73194e4b70e679608f2bca68bcc684773736");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
-            sui_address: address::from_u256(4),
+            iota_address: address::from_u256(4),
             bridge_pubkey_bytes,
             voting_power: 2500,
             http_rest_url: b"http://127.0.0.1:9194",
@@ -103,7 +104,7 @@ module bridge::committee {
         let required_threshold = *vec_map::get(&self.thresholds, &message::message_type(&message));
 
         // add prefix to the message bytes
-        let message_bytes = SUI_MESSAGE_PREFIX;
+        let message_bytes = IOTA_MESSAGE_PREFIX;
         vector::append(&mut message_bytes, message::serialize_message(message));
 
         let threshold = 0;
@@ -138,9 +139,9 @@ module bridge::committee {
             &committee,
             msg,
             vector[hex::decode(
-                b"8ba030a450cb1e36f61e572645fc9da1dea5f79b6db663a21ab63286d7fc29af447433abdd0c0b35ab751154ac5b612ae64d3be810f0d9e10ff68e764514ced300"
+                b"1b32b99de249d2f0075246b72c9a7fb9359cc20f79c7d3568221dff401f4427b1fa4b8317adae7232542707c9de6d9f007bf8be58f5f49397d3c7ad5be387b1a01"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
 
@@ -161,9 +162,9 @@ module bridge::committee {
             &committee,
             msg,
             vector[hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
         abort 0
@@ -195,7 +196,7 @@ module bridge::committee {
             &committee,
             msg,
             vector[hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
         abort 0
@@ -205,18 +206,18 @@ module bridge::committee {
     fun setup_test(): BridgeCommittee {
         let members = vec_map::empty<vector<u8>, CommitteeMember>();
 
-        let bridge_pubkey_bytes = hex::decode(b"029bef8d556d80e43ae7e0becb3a7e6838b95defe45896ed6075bb9035d06c9964");
+        let bridge_pubkey_bytes = hex::decode(b"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
-            sui_address: address::from_u256(1),
+            iota_address: address::from_u256(1),
             bridge_pubkey_bytes,
             voting_power: 100,
             http_rest_url: b"https://127.0.0.1:9191",
             blocklisted: false
         });
 
-        let bridge_pubkey_bytes = hex::decode(b"033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a62");
+        let bridge_pubkey_bytes = hex::decode(b"02708023b69a1c3a460c4c16ba36976fde0333c81eec253db9ae825782210f0d66");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
-            sui_address: address::from_u256(2),
+            iota_address: address::from_u256(2),
             bridge_pubkey_bytes,
             voting_power: 100,
             http_rest_url: b"https://127.0.0.1:9192",

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::cell::RefCell;
@@ -13,7 +14,7 @@ pub enum VMState {
 }
 
 thread_local! {
-    static STATE: RefCell<VMState> = RefCell::new(VMState::OTHER);
+    static STATE: RefCell<VMState> = const { RefCell::new(VMState::OTHER) };
 }
 
 pub fn set_state(state: VMState) -> VMState {

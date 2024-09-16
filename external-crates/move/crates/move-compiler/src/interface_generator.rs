@@ -1,20 +1,20 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::shared::{NumberFormat, NumericalAddress};
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Result};
-use move_binary_format::{
-    access::ModuleAccess,
-    file_format::{
-        Ability, AbilitySet, CompiledModule, FunctionDefinition, ModuleHandle, SignatureToken,
-        StructDefinition, StructFieldInformation, StructHandleIndex, StructTypeParameter,
-        TypeParameterIndex, Visibility,
-    },
+use move_binary_format::file_format::{
+    Ability, AbilitySet, CompiledModule, DatatypeHandleIndex, DatatypeTyParameter,
+    FunctionDefinition, ModuleHandle, SignatureToken, StructDefinition, StructFieldInformation,
+    TypeParameterIndex, Visibility,
 };
 use move_core_types::language_storage::ModuleId;
-use std::collections::BTreeMap;
 use vfs::VfsPath;
+
+use crate::shared::{NumberFormat, NumericalAddress};
 
 pub const NATIVE_INTERFACE: &str = "native_interface";
 
@@ -30,9 +30,10 @@ macro_rules! push {
     }};
 }
 
-/// Generate the text for the "interface" file of a compiled module. This "interface" is the
-/// publically visible contents of the CompiledModule, represented in source language syntax
-/// Additionally, it returns the module id (address+name) of the module that was deserialized
+/// Generate the text for the "interface" file of a compiled module. This
+/// "interface" is the publically visible contents of the CompiledModule,
+/// represented in source language syntax Additionally, it returns the module id
+/// (address+name) of the module that was deserialized
 pub fn write_file_to_string(
     named_address_mapping: &BTreeMap<ModuleId, impl AsRef<str>>,
     compiled_module_file_input_path: &VfsPath,
@@ -187,7 +188,7 @@ fn write_friend_decl(ctx: &mut Context, fdecl: &ModuleHandle) -> String {
 fn write_struct_def(ctx: &mut Context, sdef: &StructDefinition) -> String {
     let mut out = String::new();
 
-    let shandle = ctx.module.struct_handle_at(sdef.struct_handle);
+    let shandle = ctx.module.datatype_handle_at(sdef.struct_handle);
 
     push_line!(
         out,
@@ -282,7 +283,7 @@ fn write_ability(ab: Ability) -> String {
     .to_string()
 }
 
-fn write_struct_type_parameters(tps: &[StructTypeParameter]) -> String {
+fn write_struct_type_parameters(tps: &[DatatypeTyParameter]) -> String {
     if tps.is_empty() {
         return "".to_string();
     }
@@ -358,10 +359,10 @@ fn write_signature_token(ctx: &mut Context, t: &SignatureToken) -> String {
         SignatureToken::Address => "address".to_string(),
         SignatureToken::Signer => "signer".to_string(),
         SignatureToken::Vector(inner) => format!("vector<{}>", write_signature_token(ctx, inner)),
-        SignatureToken::Struct(idx) => write_struct_handle_type(ctx, *idx),
-        SignatureToken::StructInstantiation(struct_inst) => {
-            let (idx, types) = &**struct_inst;
-            let n = write_struct_handle_type(ctx, *idx);
+        SignatureToken::Datatype(idx) => write_datatype_handle_type(ctx, *idx),
+        SignatureToken::DatatypeInstantiation(inst) => {
+            let (idx, types) = &**inst;
+            let n = write_datatype_handle_type(ctx, *idx);
             let tys = types
                 .iter()
                 .map(|ty| write_signature_token(ctx, ty))
@@ -377,16 +378,16 @@ fn write_signature_token(ctx: &mut Context, t: &SignatureToken) -> String {
     }
 }
 
-fn write_struct_handle_type(ctx: &mut Context, idx: StructHandleIndex) -> String {
-    let struct_handle = ctx.module.struct_handle_at(idx);
-    let struct_module_handle = ctx.module.module_handle_at(struct_handle.module);
+fn write_datatype_handle_type(ctx: &mut Context, idx: DatatypeHandleIndex) -> String {
+    let datatype_handle = ctx.module.datatype_handle_at(idx);
+    let struct_module_handle = ctx.module.module_handle_at(datatype_handle.module);
     let struct_module_id = ctx.module.module_id_for_handle(struct_module_handle);
     let module_alias = ctx.module_alias(struct_module_id).clone();
 
     format!(
         "{}::{}",
         module_alias,
-        ctx.module.identifier_at(struct_handle.name)
+        ctx.module.identifier_at(datatype_handle.name)
     )
 }
 

@@ -1,12 +1,12 @@
 {
     "key": {
-        "name": "aws-sui",
-        "path": "/Users/username/.ssh/aws-sui.pem"
+        "name": "aws-iota",
+        "path": "/Users/username/.ssh/aws-iota.pem"
     },
     "port": 5000,
     "repo": {
-        "name": "sui",
-        "url": "https://github.com/mystenlabs/sui",
+        "name": "iota",
+        "url": "https://github.com/iotaledger/iota",
         "branch": "main"
     },
     "instances": {

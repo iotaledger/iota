@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
 
 use move_binary_format::{
     errors::{offset_out_of_bounds, PartialVMError},
@@ -8,14 +11,14 @@ use move_binary_format::{
         Bytecode, CodeOffset, CompiledModule, ConstantPoolIndex, FieldHandleIndex,
         FieldInstantiationIndex, FunctionDefinitionIndex, FunctionHandleIndex,
         FunctionInstantiationIndex, LocalIndex, SignatureIndex, StructDefInstantiationIndex,
-        StructDefinitionIndex, TableIndex,
+        StructDefinitionIndex, TableIndex, VariantHandleIndex, VariantInstantiationHandleIndex,
+        VariantJumpTableIndex,
     },
     internals::ModuleIndex,
     IndexKind,
 };
 use move_core_types::vm_status::StatusCode;
 use proptest::{prelude::*, sample::Index as PropIndex};
-use std::collections::BTreeMap;
 
 /// Represents a single mutation onto a code unit to make it out of bounds.
 #[derive(Debug)]
@@ -175,13 +178,15 @@ impl<'a> ApplyCodeUnitBoundsContext<'a> {
         fidx: usize,
         mutations: Vec<CodeUnitBoundsMutation>,
     ) -> Vec<PartialVMError> {
-        // For this function def, find all the places where a bounds mutation can be applied.
+        // For this function def, find all the places where a bounds mutation can be
+        // applied.
         let func_def = &mut self.module.function_defs[fidx];
         let current_fdef = FunctionDefinitionIndex(fidx as TableIndex);
         let func_handle = &self.module.function_handles[func_def.function.into_index()];
         let code = func_def.code.as_mut().unwrap();
         let locals_len = self.module.signatures[func_handle.parameters.into_index()].len()
             + self.module.signatures[code.locals.into_index()].len();
+        let jump_table_len = code.jump_tables.len();
         let code = &mut code.code;
         let code_len = code.len();
 
@@ -199,6 +204,8 @@ impl<'a> ApplyCodeUnitBoundsContext<'a> {
         let function_inst_len = self.module.function_instantiations.len();
         let field_inst_len = self.module.field_instantiations.len();
         let signature_pool_len = self.module.signatures.len();
+        let variant_handle_len = self.module.variant_handles.len();
+        let variant_inst_len = self.module.variant_instantiation_handles.len();
 
         mutations
             .iter()
@@ -395,6 +402,78 @@ impl<'a> ApplyCodeUnitBoundsContext<'a> {
                         SignatureIndex,
                         VecSwap
                     ),
+                    PackVariant(_) => new_bytecode! {
+                        variant_handle_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantHandleIndex,
+                        PackVariant
+                    },
+                    PackVariantGeneric(_) => new_bytecode! {
+                        variant_inst_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantInstantiationHandleIndex,
+                       PackVariantGeneric
+                    },
+                    UnpackVariant(_) => new_bytecode! {
+                        variant_handle_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantHandleIndex,
+                        UnpackVariant
+                    },
+                    UnpackVariantImmRef(_) => new_bytecode! {
+                        variant_handle_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantHandleIndex,
+                        UnpackVariantImmRef
+                    },
+                    UnpackVariantMutRef(_) => new_bytecode! {
+                        variant_handle_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantHandleIndex,
+                        UnpackVariantMutRef
+                    },
+                    UnpackVariantGeneric(_) => new_bytecode! {
+                        variant_inst_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantInstantiationHandleIndex,
+                       UnpackVariantGeneric
+                    },
+                    UnpackVariantGenericImmRef(_) => new_bytecode! {
+                        variant_inst_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantInstantiationHandleIndex,
+                        UnpackVariantGenericImmRef
+                    },
+                    UnpackVariantGenericMutRef(_) => new_bytecode! {
+                        variant_inst_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantInstantiationHandleIndex,
+                        UnpackVariantGenericMutRef
+                    },
+                    VariantSwitch(_) => new_bytecode! {
+                        jump_table_len,
+                        current_fdef,
+                        bytecode_idx,
+                        offset,
+                        VariantJumpTableIndex,
+                        VariantSwitch
+                    },
 
                     // List out the other options explicitly so there's a compile error if a new
                     // bytecode gets added.
@@ -457,7 +536,16 @@ fn is_interesting(bytecode: &Bytecode) -> bool {
         | VecPushBack(_)
         | VecPopBack(_)
         | VecUnpack(..)
-        | VecSwap(_) => true,
+        | VecSwap(_)
+        | PackVariant(_)
+        | PackVariantGeneric(_)
+        | UnpackVariant(_)
+        | UnpackVariantImmRef(_)
+        | UnpackVariantMutRef(_)
+        | UnpackVariantGeneric(_)
+        | UnpackVariantGenericImmRef(_)
+        | UnpackVariantGenericMutRef(_)
+        | VariantSwitch(_) => true,
         // Deprecated bytecodes
         ExistsDeprecated(_)
         | ExistsGenericDeprecated(_)
@@ -469,6 +557,7 @@ fn is_interesting(bytecode: &Bytecode) -> bool {
         | MoveFromGenericDeprecated(_)
         | MoveToDeprecated(_)
         | MoveToGenericDeprecated(_) => false,
+
         // List out the other options explicitly so there's a compile error if a new
         // bytecode gets added.
         FreezeRef | Pop | Ret | LdU8(_) | LdU16(_) | LdU32(_) | LdU64(_) | LdU128(_)

@@ -1,0 +1,12 @@
+[package]
+name = "IotaSystem"
+version = "0.0.1"
+published-at = "0x3"
+edition = "2024.beta"
+
+[dependencies]
+MoveStdlib = { local = "../move-stdlib" }
+Iota = { local = "../iota-framework" }
+
+[addresses]
+iota_system = "0x3"

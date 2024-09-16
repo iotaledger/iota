@@ -1,0 +1,9 @@
+[package]
+name = "tto"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+tto = "0x0"
