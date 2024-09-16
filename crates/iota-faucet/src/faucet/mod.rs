@@ -11,7 +11,7 @@ use crate::FaucetError;
 
 mod simple_faucet;
 mod write_ahead_log;
-use std::{net::Ipv4Addr, path::PathBuf};
+use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
 
 use clap::Parser;
 
@@ -47,6 +47,17 @@ pub enum BatchSendStatusType {
     INPROGRESS,
     SUCCEEDED,
     DISCARDED,
+}
+
+pub struct AppState<F = Arc<SimpleFaucet>> {
+    pub faucet: F,
+    pub config: FaucetConfig,
+}
+
+impl<F> AppState<F> {
+    pub fn new(faucet: F, config: FaucetConfig) -> Self {
+        Self { faucet, config }
+    }
 }
 
 #[async_trait]

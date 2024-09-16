@@ -13,9 +13,8 @@ use tracing::info;
 use typed_store::{
     rocks::DBMap,
     traits::{TableSummary, TypedStoreDebug},
-    Map, TypedStoreError,
+    DBMapUtils, Map, TypedStoreError,
 };
-use typed_store_derive::DBMapUtils;
 use uuid::Uuid;
 
 /// Persistent log of transactions paying out iota from the faucet, keyed by the

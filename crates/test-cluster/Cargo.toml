@@ -6,8 +6,13 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
+bcs.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
@@ -15,6 +20,7 @@ rand.workspace = true
 tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
 tracing.workspace = true
 
+iota-bridge.workspace = true
 iota-config.workspace = true
 iota-core = { workspace = true, features = ["test-utils"] }
 iota-framework.workspace = true
