@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::PathBuf,
 };
 
 use ethers::{
@@ -21,17 +20,19 @@ use fastcrypto::{
 };
 use hex_literal::hex;
 use iota_config::local_ip_utils;
-use iota_json_rpc_types::ObjectChange;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    crypto::get_key_pair,
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    bridge::{BridgeChainId, BridgeCommitteeSummary, MoveTypeCommitteeMember, TOKEN_ID_USDC},
+    crypto::{get_key_pair, ToFromBytes},
     digests::TransactionDigest,
     object::Owner,
     transaction::{CallArg, ObjectArg},
-    IOTA_FRAMEWORK_PACKAGE_ID,
+    BRIDGE_PACKAGE_ID, IOTA_BRIDGE_OBJECT_ID,
 };
+use move_core_types::language_storage::TypeTag;
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -39,14 +40,19 @@ use crate::{
     crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKey, BridgeAuthoritySignInfo},
     eth_mock_provider::EthMockProvider,
     events::{EmittedIotaToEthTokenBridgeV1, IotaBridgeEvent},
-    iota_transaction_builder::{
-        get_bridge_package_id, get_iota_token_type_tag, get_root_bridge_object_arg,
-    },
+    iota_transaction_builder::build_iota_transaction,
     server::mock_handler::{run_mock_server, BridgeRequestMockHandler},
     types::{
-        BridgeAction, BridgeAuthority, BridgeChainId, BridgeInnerDynamicField,
-        EthToIotaBridgeAction, IotaToEthBridgeAction, SignedBridgeAction, TokenId,
+        BridgeAction, BridgeAuthority, BridgeCommittee, BridgeCommitteeValiditySignInfo,
+        CertifiedBridgeAction, EthToIotaBridgeAction, IotaToEthBridgeAction, SignedBridgeAction,
+        VerifiedCertifiedBridgeAction,
     },
+};
+
+pub const DUMMY_MUTALBE_BRIDGE_OBJECT_ARG: ObjectArg = ObjectArg::SharedObject {
+    id: IOTA_BRIDGE_OBJECT_ID,
+    initial_shared_version: SequenceNumber::from_u64(1),
+    mutable: true,
 };
 
 pub fn get_test_authority_and_key(
@@ -69,23 +75,48 @@ pub fn get_test_authority_and_key(
     (authority, pubkey, kp)
 }
 
+// TODO: make a builder for this
 pub fn get_test_iota_to_eth_bridge_action(
     iota_tx_digest: Option<TransactionDigest>,
     iota_tx_event_index: Option<u16>,
     nonce: Option<u64>,
-    amount: Option<u64>,
+    amount_iota_adjusted: Option<u64>,
+    sender_address: Option<IotaAddress>,
+    recipient_address: Option<EthAddress>,
+    token_id: Option<u8>,
 ) -> BridgeAction {
     BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
         iota_tx_digest: iota_tx_digest.unwrap_or_else(TransactionDigest::random),
         iota_tx_event_index: iota_tx_event_index.unwrap_or(0),
         iota_bridge_event: EmittedIotaToEthTokenBridgeV1 {
             nonce: nonce.unwrap_or_default(),
-            iota_chain_id: BridgeChainId::IotaLocalTest,
-            iota_address: IotaAddress::random_for_testing_only(),
-            eth_chain_id: BridgeChainId::EthLocalTest,
+            iota_chain_id: BridgeChainId::IotaCustom,
+            iota_address: sender_address.unwrap_or_else(IotaAddress::random_for_testing_only),
+            eth_chain_id: BridgeChainId::EthCustom,
+            eth_address: recipient_address.unwrap_or_else(EthAddress::random),
+            token_id: token_id.unwrap_or(TOKEN_ID_USDC),
+            amount_iota_adjusted: amount_iota_adjusted.unwrap_or(100_000),
+        },
+    })
+}
+
+pub fn get_test_eth_to_iota_bridge_action(
+    nonce: Option<u64>,
+    amount: Option<u64>,
+    iota_address: Option<IotaAddress>,
+    token_id: Option<u8>,
+) -> BridgeAction {
+    BridgeAction::EthToIotaBridgeAction(EthToIotaBridgeAction {
+        eth_tx_hash: TxHash::random(),
+        eth_event_index: 0,
+        eth_bridge_event: EthToIotaTokenBridgeV1 {
+            eth_chain_id: BridgeChainId::EthCustom,
+            nonce: nonce.unwrap_or_default(),
+            iota_chain_id: BridgeChainId::IotaCustom,
+            token_id: token_id.unwrap_or(TOKEN_ID_USDC),
+            iota_adjusted_amount: amount.unwrap_or(100_000),
+            iota_address: iota_address.unwrap_or_else(IotaAddress::random_for_testing_only),
             eth_address: EthAddress::random(),
-            token_id: TokenId::Iota,
-            amount: amount.unwrap_or(100_000),
         },
     })
 }
@@ -194,16 +225,16 @@ pub fn get_test_log_and_action(
     tx_hash: TxHash,
     event_index: u16,
 ) -> (Log, BridgeAction) {
-    let token_code = 3u8;
-    let amount = 10000000u64;
+    let token_id = 3u8;
+    let iota_adjusted_amount = 10000000u64;
     let source_address = EthAddress::random();
     let iota_address: IotaAddress = IotaAddress::random_for_testing_only();
     let target_address = Hex::decode(&iota_address.to_string()).unwrap();
     // Note: must use `encode` rather than `encode_packaged`
     let encoded = ethers::abi::encode(&[
-        // u8 is encoded as u256 in abi standard
-        ethers::abi::Token::Uint(ethers::types::U256::from(token_code)),
-        ethers::abi::Token::Uint(ethers::types::U256::from(amount)),
+        // u8/u64 is encoded as u256 in abi standard
+        ethers::abi::Token::Uint(ethers::types::U256::from(token_id)),
+        ethers::abi::Token::Uint(ethers::types::U256::from(iota_adjusted_amount)),
         ethers::abi::Token::Address(source_address),
         ethers::abi::Token::Bytes(target_address.clone()),
     ]);
@@ -211,7 +242,7 @@ pub fn get_test_log_and_action(
         address: contract_address,
         topics: vec![
             long_signature(
-                "TokensBridgedToIota",
+                "TokensDeposited",
                 &[
                     ParamType::Uint(8),
                     ParamType::Uint(64),
@@ -243,8 +274,8 @@ pub fn get_test_log_and_action(
             eth_chain_id: BridgeChainId::try_from(topic_1[topic_1.len() - 1]).unwrap(),
             nonce: u64::from_be_bytes(log.topics[2].as_ref()[24..32].try_into().unwrap()),
             iota_chain_id: BridgeChainId::try_from(topic_3[topic_3.len() - 1]).unwrap(),
-            token_id: TokenId::try_from(token_code).unwrap(),
-            amount,
+            token_id,
+            iota_adjusted_amount,
             iota_address,
             eth_address: source_address,
         },
@@ -252,191 +283,143 @@ pub fn get_test_log_and_action(
     (log, bridge_action)
 }
 
-pub async fn publish_bridge_package(context: &WalletContext) -> BTreeMap<TokenId, ObjectRef> {
-    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
-    let gas_price = context.get_reference_gas_price().await.unwrap();
-
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["..", "..", "examples", "move", "bridge"]);
-
-    let txn = context.sign_transaction(
-        &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .publish(path)
-            .build(),
-    );
-    let resp = context.execute_transaction_must_succeed(txn).await;
-    let object_changes = resp.object_changes.unwrap();
-    let package_id = object_changes
-        .iter()
-        .find(|change| matches!(change, ObjectChange::Published { .. }))
-        .map(|change| change.object_id())
-        .unwrap();
-
-    let mut treasury_caps = BTreeMap::new();
-    object_changes.iter().for_each(|change| {
-        if let ObjectChange::Created { object_type, .. } = change {
-            let object_type_str = object_type.to_string();
-            if object_type_str.contains("TreasuryCap") {
-                if object_type_str.contains("BTC") {
-                    treasury_caps.insert(TokenId::BTC, change.object_ref());
-                } else if object_type_str.contains("ETH") {
-                    treasury_caps.insert(TokenId::ETH, change.object_ref());
-                } else if object_type_str.contains("USDC") {
-                    treasury_caps.insert(TokenId::USDC, change.object_ref());
-                } else if object_type_str.contains("USDT") {
-                    treasury_caps.insert(TokenId::USDT, change.object_ref());
-                }
-            }
-        }
-    });
-
-    let root_bridge_object_ref = object_changes
-        .iter()
-        .find(|change| match change {
-            ObjectChange::Created {
-                object_type, owner, ..
-            } => {
-                object_type.to_string().contains("Bridge") && matches!(owner, Owner::Shared { .. })
-            }
-            _ => false,
-        })
-        .map(|change| change.object_ref())
-        .unwrap();
-
-    let bridge_inner_object_ref = object_changes
-        .iter()
-        .find(|change| match change {
-            ObjectChange::Created { object_type, .. } => {
-                object_type.to_string().contains("BridgeInner")
-            }
-            _ => false,
-        })
-        .map(|change| change.object_ref())
-        .unwrap();
-
-    let client = context.get_client().await.unwrap();
-    let bcs_bytes = client
-        .read_api()
-        .get_move_object_bcs(bridge_inner_object_ref.0)
-        .await
-        .unwrap();
-    let bridge_inner_object: BridgeInnerDynamicField = bcs::from_bytes(&bcs_bytes).unwrap();
-    let bridge_record_id = bridge_inner_object.value.bridge_records.id;
-
-    // TODO: remove once we don't rely on env var to get package id
-    std::env::set_var("BRIDGE_PACKAGE_ID", package_id.to_string());
-    std::env::set_var("BRIDGE_RECORD_ID", bridge_record_id.to_string());
-    std::env::set_var(
-        "ROOT_BRIDGE_OBJECT_ID",
-        root_bridge_object_ref.0.to_string(),
-    );
-    std::env::set_var(
-        "ROOT_BRIDGE_OBJECT_INITIAL_SHARED_VERSION",
-        u64::from(root_bridge_object_ref.1).to_string(),
-    );
-    std::env::set_var("BRIDGE_OBJECT_ID", bridge_inner_object_ref.0.to_string());
-
-    treasury_caps
-}
-
-pub async fn mint_tokens(
-    context: &mut WalletContext,
-    treasury_cap_ref: ObjectRef,
-    amount: u64,
-    token_id: TokenId,
-) -> (ObjectRef, ObjectRef) {
-    let rgp = context.get_reference_gas_price().await.unwrap();
-    let sender = context.active_address().unwrap();
-    let gas_obj_ref = context.get_one_gas_object().await.unwrap().unwrap().1;
-    let tx = TestTransactionBuilder::new(sender, gas_obj_ref, rgp)
-        .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            "coin",
-            "mint_and_transfer",
-            vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury_cap_ref)),
-                CallArg::Pure(bcs::to_bytes(&amount).unwrap()),
-                CallArg::Pure(sender.to_vec()),
-            ],
-        )
-        .with_type_args(vec![get_iota_token_type_tag(token_id)])
-        .build();
-    let signed_tn = context.sign_transaction(&tx);
-    let resp = context.execute_transaction_must_succeed(signed_tn).await;
-    let object_changes = resp.object_changes.unwrap();
-
-    let treasury_cap_obj_ref = object_changes
-        .iter()
-        .find(|change| matches!(change, ObjectChange::Mutated { object_type, .. } if object_type.to_string().contains("TreasuryCap")))
-        .map(|change| change.object_ref())
-        .unwrap();
-
-    let minted_coin_obj_ref = object_changes
-        .iter()
-        .find(|change| matches!(change, ObjectChange::Created { .. }))
-        .map(|change| change.object_ref())
-        .unwrap();
-
-    (treasury_cap_obj_ref, minted_coin_obj_ref)
-}
-
-pub async fn transfer_treasury_cap(
-    context: &mut WalletContext,
-    treasury_cap_ref: ObjectRef,
-    token_id: TokenId,
-) {
-    let rgp = context.get_reference_gas_price().await.unwrap();
-    let sender = context.active_address().unwrap();
-    let gas_object = context.get_one_gas_object().await.unwrap().unwrap().1;
-    let tx = TestTransactionBuilder::new(sender, gas_object, rgp)
-        .move_call(
-            *get_bridge_package_id(),
-            "bridge",
-            "add_treasury_cap",
-            vec![
-                CallArg::Object(*get_root_bridge_object_arg()),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury_cap_ref)),
-            ],
-        )
-        .with_type_args(vec![get_iota_token_type_tag(token_id)])
-        .build();
-    let signed_tn = context.sign_transaction(&tx);
-    context.execute_transaction_must_succeed(signed_tn).await;
-}
-
 pub async fn bridge_token(
     context: &mut WalletContext,
     recv_address: EthAddress,
     token_ref: ObjectRef,
-    token_id: TokenId,
+    token_type: TypeTag,
+    bridge_object_arg: ObjectArg,
 ) -> EmittedIotaToEthTokenBridgeV1 {
     let rgp = context.get_reference_gas_price().await.unwrap();
     let sender = context.active_address().unwrap();
     let gas_object = context.get_one_gas_object().await.unwrap().unwrap().1;
     let tx = TestTransactionBuilder::new(sender, gas_object, rgp)
         .move_call(
-            *get_bridge_package_id(),
+            BRIDGE_PACKAGE_ID,
             "bridge",
             "send_token",
             vec![
-                CallArg::Object(*get_root_bridge_object_arg()),
-                CallArg::Pure(bcs::to_bytes(&(BridgeChainId::EthLocalTest as u8)).unwrap()),
+                CallArg::Object(bridge_object_arg),
+                CallArg::Pure(bcs::to_bytes(&(BridgeChainId::EthCustom as u8)).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&recv_address.as_bytes()).unwrap()),
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(token_ref)),
             ],
         )
-        .with_type_args(vec![get_iota_token_type_tag(token_id)])
+        .with_type_args(vec![token_type])
         .build();
     let signed_tn = context.sign_transaction(&tx);
     let resp = context.execute_transaction_must_succeed(signed_tn).await;
     let events = resp.events.unwrap();
-    let mut bridge_events = events
+    let bridge_events = events
         .data
         .iter()
         .filter_map(|event| IotaBridgeEvent::try_from_iota_event(event).unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(bridge_events.len(), 1);
-    match bridge_events.remove(0) {
-        IotaBridgeEvent::IotaToEthTokenBridgeV1(event) => event,
+    bridge_events
+        .iter()
+        .find_map(|e| match e {
+            IotaBridgeEvent::IotaToEthTokenBridgeV1(event) => Some(event.clone()),
+            _ => None,
+        })
+        .unwrap()
+}
+
+/// Returns a VerifiedCertifiedBridgeAction with signatures from the given
+/// BridgeAction and BridgeAuthorityKeyPair
+pub fn get_certified_action_with_validator_secrets(
+    action: BridgeAction,
+    secrets: &Vec<BridgeAuthorityKeyPair>,
+) -> VerifiedCertifiedBridgeAction {
+    let mut sigs = BTreeMap::new();
+    for secret in secrets {
+        let signed_action = sign_action_with_key(&action, secret);
+        sigs.insert(secret.public().into(), signed_action.into_sig().signature);
+    }
+    let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
+        action,
+        BridgeCommitteeValiditySignInfo { signatures: sigs },
+    );
+    VerifiedCertifiedBridgeAction::new_from_verified(certified_action)
+}
+
+/// Approve a bridge action with the given validator secrets. Return the
+/// newly created token object reference if `expected_token_receiver` is Some
+/// (only relevant when the action is eth -> Iota transfer),
+/// Otherwise return None.
+/// Note: for iota -> eth transfers, the actual deposit needs to be recorded.
+/// Use `bridge_token` to do it.
+// TODO(bridge): It appears this function is very slow (particularly,
+// `execute_transaction_must_succeed`). Investigate why.
+pub async fn approve_action_with_validator_secrets(
+    wallet_context: &mut WalletContext,
+    bridge_obj_org: ObjectArg,
+    // TODO: add `token_recipient()` for `BridgeAction` so we don't need `expected_token_receiver`
+    action: BridgeAction,
+    validator_secrets: &Vec<BridgeAuthorityKeyPair>,
+    // Only relevant for eth -> iota transfers when token will be dropped to the recipient
+    expected_token_receiver: Option<IotaAddress>,
+    id_token_map: &HashMap<u8, TypeTag>,
+) -> Option<ObjectRef> {
+    let action_certificate = get_certified_action_with_validator_secrets(action, validator_secrets);
+    let rgp = wallet_context.get_reference_gas_price().await.unwrap();
+    let iota_address = wallet_context.active_address().unwrap();
+    let gas_obj_ref = wallet_context
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap()
+        .1;
+    let tx_data = build_iota_transaction(
+        iota_address,
+        &gas_obj_ref,
+        action_certificate,
+        bridge_obj_org,
+        id_token_map,
+        rgp,
+    )
+    .unwrap();
+    let signed_tx = wallet_context.sign_transaction(&tx_data);
+    let resp = wallet_context
+        .execute_transaction_must_succeed(signed_tx)
+        .await;
+
+    // If `expected_token_receiver` is None, return
+    expected_token_receiver?;
+
+    let expected_token_receiver = expected_token_receiver.unwrap();
+    for created in resp.effects.unwrap().created() {
+        if created.owner == Owner::AddressOwner(expected_token_receiver) {
+            return Some(created.reference.to_object_ref());
+        }
+    }
+    panic!(
+        "Didn't find the created object owned by {}",
+        expected_token_receiver
+    );
+}
+
+pub fn bridge_committee_to_bridge_committee_summary(
+    committee: BridgeCommittee,
+) -> BridgeCommitteeSummary {
+    BridgeCommitteeSummary {
+        members: committee
+            .members()
+            .iter()
+            .map(|(k, v)| {
+                let bytes = k.as_bytes().to_vec();
+                (
+                    bytes.clone(),
+                    MoveTypeCommitteeMember {
+                        iota_address: IotaAddress::random_for_testing_only(),
+                        bridge_pubkey_bytes: bytes,
+                        voting_power: v.voting_power,
+                        http_rest_url: v.base_url.as_bytes().to_vec(),
+                        blocklisted: v.is_blocklisted,
+                    },
+                )
+            })
+            .collect(),
+        member_registration: vec![],
+        last_committee_update_epoch: 0,
     }
 }

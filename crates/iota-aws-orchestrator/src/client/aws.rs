@@ -7,7 +7,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use aws_runtime::env_config::file::{EnvConfigFileKind, EnvConfigFiles};
+use aws_config::profile::profile_file::{ProfileFileKind, ProfileFiles};
 use aws_sdk_ec2::{
     config::Region,
     primitives::Blob,

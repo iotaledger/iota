@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::hash_map::RandomState,
     env,
     io::{stderr, Write},
     path::PathBuf,
@@ -15,14 +16,18 @@ use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
-    Context, KeyValue,
+    sdk::{
+        self, runtime,
+        trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
+        Resource,
+    },
+    trace::TracerProvider as _,
+};
+use opentelemetry_api::{
+    trace::{Link, SamplingResult, SpanKind, TraceId},
+    Context, Key, OrderMap, Value,
 };
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{
-    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
-    Resource,
-};
 use span_latency_prom::PrometheusSpanLatencyLayer;
 use tracing::{error, info, metadata::LevelFilter, Level};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -380,6 +385,7 @@ impl TelemetryConfig {
         let mut file_output = CachedOpenFile::new::<&str>(None).unwrap();
         let mut provider = None;
         let sampler = SamplingFilter::new(config.sample_rate);
+        let service_name = env::var("OTEL_SERVICE_NAME").unwrap_or("iota-node".to_owned());
 
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
@@ -387,7 +393,7 @@ impl TelemetryConfig {
             let config = opentelemetry_sdk::trace::Config::default()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
-                    "iota-node",
+                    service_name.clone(),
                 )]))
                 .with_sampler(Sampler::ParentBased(Box::new(sampler.clone())));
 
@@ -406,7 +412,7 @@ impl TelemetryConfig {
                     .with_span_processor(processor)
                     .build();
 
-                let tracer = p.tracer("iota-node");
+                let tracer = p.tracer(service_name);
                 provider = Some(p);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
