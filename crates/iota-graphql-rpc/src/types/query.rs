@@ -321,7 +321,7 @@ impl Query {
     }
 
     /// The checkpoints that exist in the network.
-    async fn checkpoints(
+    async fn `checkpoints`(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
