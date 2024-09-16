@@ -58,6 +58,7 @@ export function Address({
             return;
         }
 
+        event?.stopPropagation();
         try {
             await navigator.clipboard.writeText(copyText);
             onCopySuccess?.(event, copyText);
@@ -68,6 +69,7 @@ export function Address({
     }
 
     function handleOpenClick(event: React.MouseEvent<HTMLButtonElement>) {
+        event?.stopPropagation();
         if (externalLink) {
             const newWindow = window.open(externalLink, '_blank', 'noopener,noreferrer');
             if (newWindow) newWindow.opener = null;
