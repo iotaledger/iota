@@ -114,8 +114,8 @@ export function PkgModulesWrapper({
         }
     }
     return (
-        <div className="flex h-full flex-col gap-5 border-b border-gray-45 md:flex-row md:flex-nowrap">
-            <div className="w-full md:w-1/5">
+        <div className="flex h-full flex-col items-stretch gap-md--rs md:flex-row md:flex-nowrap">
+            <div className="flex w-full flex-col md:w-1/5">
                 <div className="relative z-[1]">
                     <Search
                         onKeyDown={handleSearchKeyDown}
@@ -141,7 +141,7 @@ export function PkgModulesWrapper({
                         )}
                     />
                 </div>
-                <div className="h-full min-h-[13rem] overflow-auto pt-3 md:min-h-[30rem]">
+                <div className="flex-1 overflow-auto pt-3">
                     <VerticalList>
                         <div className="flex flex-col gap-sm">
                             {moduleNames.map((name) => (

@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { TabContent } from '../tabs';
 
 export function TabbedContentWrapper({ children }: React.PropsWithChildren): React.ReactNode {
-    return <div className="h-full grow overflow-auto border-gray-45 md:pl-7">{children}</div>;
+    return <div className="h-full grow overflow-auto md:pl-lg">{children}</div>;
 }
 
 interface ListTabContentProps {
