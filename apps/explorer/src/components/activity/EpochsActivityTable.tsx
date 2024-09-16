@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
-import { generateTableDataFromEpochsData } from '~/lib/ui';
+import { generateEpochTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
 
 const DEFAULT_EPOCHS_LIMIT = 20;
@@ -39,7 +39,7 @@ export function EpochsActivityTable({
     const { data, isFetching, pagination, isPending, isError } =
         useCursorPagination(epochMetricsQuery);
 
-    const cardData = data ? generateTableDataFromEpochsData(data) : undefined;
+    const tableColumns = generateEpochTableColumns();
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">
@@ -48,7 +48,7 @@ export function EpochsActivityTable({
                     Failed to load Epochs
                 </div>
             )}
-            {isPending || isFetching || !cardData ? (
+            {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={limit}
                     rowHeight="16px"
@@ -63,8 +63,8 @@ export function EpochsActivityTable({
                 />
             ) : (
                 <TableCard
-                    data={cardData.data}
-                    columns={cardData.columns}
+                    data={data.data}
+                    columns={tableColumns}
                     totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
                     viewAll={!disablePagination ? '/recent?tab=epochs' : undefined}
                     paginationOptions={!disablePagination ? pagination : undefined}

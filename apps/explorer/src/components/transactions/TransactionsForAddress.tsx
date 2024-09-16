@@ -8,7 +8,7 @@ import { LoadingIndicator, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 
 import { Banner, TableCard } from '~/components/ui';
-import { genTableDataFromTxData } from './TxCardUtils';
+import { generateTransactionsTableColumns } from './generateTransactionsTableColumns';
 
 interface TransactionsForAddressProps {
     address: string;
@@ -44,7 +44,8 @@ export function TransactionsForAddressTable({
         );
     }
 
-    const tableData = genTableDataFromTxData(data);
+    const tableColumns = generateTransactionsTableColumns();
+    console.log("FINISHED RUN")
     const hasTxns = data?.length > 0;
 
     if (!hasTxns) {
@@ -56,8 +57,9 @@ export function TransactionsForAddressTable({
             </div>
         );
     }
+    console.log("real table", tableColumns)
 
-    return <TableCard data={tableData.data} columns={tableData.columns} />;
+    return <TableCard data={data} columns={tableColumns} />;
 }
 
 export function TransactionsForAddress({

@@ -15,6 +15,7 @@ import {
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
+    flexRender,
     getCoreRowModel,
     getSortedRowModel,
     type SortingState,
@@ -48,22 +49,10 @@ export function TableCard<DataType extends object>({
     const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
-    // Use Columns to create a table
-    const processedcol = useMemo<ColumnDef<DataType>[]>(
-        () =>
-            columns.map((column) => ({
-                ...column,
-                // cell renderer for each column from react-table
-                // cell should be in the column definition
-                //TODO: move cell to column definition
-                ...(!sortTable && { cell: ({ getValue }) => getValue() }),
-            })),
-        [columns, sortTable],
-    );
-
+    console.log("bfore", data, columns)
     const table = useReactTable({
         data,
-        columns: processedcol,
+        columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
@@ -76,6 +65,7 @@ export function TableCard<DataType extends object>({
             sorting,
         },
     });
+    console.log("after")
 
     return (
         <div className={clsx('w-full overflow-x-auto', refetching && 'opacity-50')}>
@@ -115,7 +105,9 @@ export function TableCard<DataType extends object>({
                     {table.getRowModel().rows.map((row) => (
                         <TableBodyRow key={row.id} rowIndex={row.index}>
                             {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
+                                <td key={cell.id}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </td>
                             ))}
                         </TableBodyRow>
                     ))}

@@ -10,7 +10,7 @@ import {
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { ObjectFilterValue } from '~/lib/enums';
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
+import { generateTransactionsTableColumns } from '../transactions/generateTransactionsTableColumns';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -112,7 +112,7 @@ export function TransactionBlocksForAddress({
     const currentPage = currentPageState[filterValue];
     const cardData =
         data && data.pages[currentPage]
-            ? genTableDataFromTxData(data.pages[currentPage].data)
+            ? generateTransactionsTableColumns(data.pages[currentPage].data)
             : undefined;
 
     return (

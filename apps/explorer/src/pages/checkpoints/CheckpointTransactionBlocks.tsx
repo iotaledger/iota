@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 
-import { genTableDataFromTxData } from '~/components';
+import { generateTransactionsTableColumns } from '~/components';
 import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
@@ -22,7 +22,7 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
 
     const { data, isFetching, pagination, isPending } = useCursorPagination(transactions);
 
-    const cardData = data ? genTableDataFromTxData(data.data) : undefined;
+    const cardData = data ? generateTransactionsTableColumns(data.data) : undefined;
 
     return (
         <div className="flex flex-col space-y-5 text-left xl:pr-10">

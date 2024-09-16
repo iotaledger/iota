@@ -3,4 +3,4 @@
 
 export * from './ProgTxnBlockCard';
 export * from './TransactionsForAddress';
-export * from './TxCardUtils';
+export * from './generateTransactionsTableColumns';
