@@ -1,9 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use regex::Regex;
 use std::{fs::File, io::Read, path::Path};
+
+use regex::Regex;
 
 pub mod baseline_test;
 
@@ -15,9 +17,9 @@ pub const DEFAULT_SENDER: &str = "0x8675309";
 // =================================================================================================
 // Extract test annotations out of sources
 
-// Extracts lines out of some text file where each line starts with `start` which can be a regular
-// expressions. Returns the list of such lines with `start` stripped. Use as in
-// `extract_test_directives(file, "// dep:")`.
+// Extracts lines out of some text file where each line starts with `start`
+// which can be a regular expressions. Returns the list of such lines with
+// `start` stripped. Use as in `extract_test_directives(file, "// dep:")`.
 pub fn extract_test_directives(path: &Path, start: &str) -> anyhow::Result<Vec<String>> {
     let rex = Regex::new(&format!("(?m)^{}(?P<ann>.*?)$", start)).unwrap();
     let mut content = String::new();

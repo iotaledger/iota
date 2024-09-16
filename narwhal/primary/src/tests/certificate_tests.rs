@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test file tests the validity of the 'certificates' implementation.
+
+use std::num::NonZeroUsize;
 
 use config::AuthorityIdentifier;
 use crypto::KeyPair;
@@ -10,7 +13,6 @@ use rand::{
     rngs::{OsRng, StdRng},
     SeedableRng,
 };
-use std::num::NonZeroUsize;
 use test_utils::{get_protocol_config, latest_protocol_version, CommitteeFixture};
 use types::{Certificate, CertificateAPI, SignatureVerificationState, Vote, VoteAPI};
 
@@ -20,46 +22,28 @@ fn test_empty_certificate_verification() {
 
     let committee = fixture.committee();
     let header = fixture.header(&latest_protocol_version());
-    // You should not be allowed to create a certificate that does not satisfying quorum requirements
-    assert!(Certificate::new_unverified(
-        &latest_protocol_version(),
-        &committee,
-        header.clone(),
-        Vec::new()
-    )
-    .is_err());
+    // You should not be allowed to create a certificate that does not satisfying
+    // quorum requirements
+    assert!(
+        Certificate::new_unverified(
+            &latest_protocol_version(),
+            &committee,
+            header.clone(),
+            Vec::new()
+        )
+        .is_err()
+    );
 
     let certificate =
         Certificate::new_unsigned(&latest_protocol_version(), &committee, header, Vec::new())
             .unwrap();
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_err());
+    assert!(
+        certificate
+            .verify(&committee, &fixture.worker_cache())
+            .is_err()
+    );
 }
 
-#[test]
-fn test_valid_certificate_v1_verification() {
-    let fixture = CommitteeFixture::builder().build();
-    let cert_v1_protocol_config = get_protocol_config(28);
-    let committee = fixture.committee();
-    let header = fixture.header(&cert_v1_protocol_config);
-
-    let mut signatures = Vec::new();
-
-    // 3 Signers satisfies the 2F + 1 signed stake requirement
-    for authority in fixture.authorities().take(3) {
-        let vote = authority.vote(&header);
-        signatures.push((vote.author(), vote.signature().clone()));
-    }
-
-    let certificate =
-        Certificate::new_unverified(&cert_v1_protocol_config, &committee, header, signatures)
-            .unwrap();
-
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_ok());
-}
 
 #[test]
 fn test_valid_certificate_v2_verification() {
@@ -102,21 +86,25 @@ fn test_certificate_insufficient_signatures() {
         signatures.push((vote.author(), vote.signature().clone()));
     }
 
-    assert!(Certificate::new_unverified(
-        &latest_protocol_version(),
-        &committee,
-        header.clone(),
-        signatures.clone()
-    )
-    .is_err());
+    assert!(
+        Certificate::new_unverified(
+            &latest_protocol_version(),
+            &committee,
+            header.clone(),
+            signatures.clone()
+        )
+        .is_err()
+    );
 
     let certificate =
         Certificate::new_unsigned(&latest_protocol_version(), &committee, header, signatures)
             .unwrap();
 
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_err());
+    assert!(
+        certificate
+            .verify(&committee, &fixture.worker_cache())
+            .is_err()
+    );
 }
 
 #[test]
@@ -130,7 +118,8 @@ fn test_certificate_validly_repeated_public_keys() {
     // 3 Signers satisfies the 2F + 1 signed stake requirement
     for authority in fixture.authorities().take(3) {
         let vote = authority.vote(&header);
-        // We double every (pk, signature) pair - these should be ignored when forming the certificate.
+        // We double every (pk, signature) pair - these should be ignored when forming
+        // the certificate.
         signatures.push((vote.author(), vote.signature().clone()));
         signatures.push((vote.author(), vote.signature().clone()));
     }
@@ -140,9 +129,11 @@ fn test_certificate_validly_repeated_public_keys() {
     assert!(certificate_res.is_ok());
     let certificate = certificate_res.unwrap();
 
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_ok());
+    assert!(
+        certificate
+            .verify(&committee, &fixture.worker_cache())
+            .is_ok()
+    );
 }
 
 #[test]
@@ -165,13 +156,10 @@ fn test_unknown_signature_in_certificate() {
     let vote = Vote::new_with_signer(&header, &malicious_id, &malicious_key);
     signatures.push((vote.author(), vote.signature().clone()));
 
-    assert!(Certificate::new_unverified(
-        &latest_protocol_version(),
-        &committee,
-        header,
-        signatures
-    )
-    .is_err());
+    assert!(
+        Certificate::new_unverified(&latest_protocol_version(), &committee, header, signatures)
+            .is_err()
+    );
 }
 
 proptest::proptest! {

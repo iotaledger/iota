@@ -1,37 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { getAllNetworks } from '@iota/iota-sdk/client';
 import type { IdentifierString } from '@wallet-standard/core';
 
-/** Sui Devnet */
-export const SUI_DEVNET_CHAIN = 'sui:devnet';
-
-/** Sui Testnet */
-export const SUI_TESTNET_CHAIN = 'sui:testnet';
-
-/** Sui Localnet */
-export const SUI_LOCALNET_CHAIN = 'sui:localnet';
-
-/** Sui Mainnet */
-export const SUI_MAINNET_CHAIN = 'sui:mainnet';
-
-export const SUI_CHAINS = [
-	SUI_DEVNET_CHAIN,
-	SUI_TESTNET_CHAIN,
-	SUI_LOCALNET_CHAIN,
-	SUI_MAINNET_CHAIN,
-] as const;
-
-export type SuiChain =
-	| typeof SUI_DEVNET_CHAIN
-	| typeof SUI_TESTNET_CHAIN
-	| typeof SUI_LOCALNET_CHAIN
-	| typeof SUI_MAINNET_CHAIN;
+export const SUPPORTED_CHAINS = Object.values(getAllNetworks()).map((network) => network.chain);
 
 /**
- * Utility that returns whether or not a chain identifier is a valid Sui chain.
+ * Utility that returns whether or not a chain identifier is a supported chain.
  * @param chain a chain identifier in the form of `${string}:{$string}`
  */
-export function isSuiChain(chain: IdentifierString): chain is SuiChain {
-	return SUI_CHAINS.includes(chain as SuiChain);
+export function isSupportedChain(chain: IdentifierString): boolean {
+    return SUPPORTED_CHAINS.includes(chain) || chain.split(':')[0] === 'iota';
 }

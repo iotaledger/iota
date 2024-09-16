@@ -1,13 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An example of a Rule for the Closed Loop Token which limits the amount per
 /// operation. Can be used to limit any action (eg transfer, toCoin, fromCoin).
 module examples::limiter_rule {
     use std::string::String;
-    use sui::vec_map::{Self, VecMap};
-    use sui::tx_context::TxContext;
-    use sui::token::{
+    use iota::vec_map::{Self, VecMap};
+    use iota::token::{
         Self,
         TokenPolicy,
         TokenPolicyCap,
@@ -18,10 +18,10 @@ module examples::limiter_rule {
     const ELimitExceeded: u64 = 0;
 
     /// The Rule witness.
-    struct Limiter has drop {}
+    public struct Limiter has drop {}
 
     /// The Config object for the `lo
-    struct Config has store, drop {
+    public struct Config has store, drop {
         /// Mapping of Action -> Limit
         limits: VecMap<String, u64>
     }
@@ -76,9 +76,9 @@ module examples::limiter_rule {
 module examples::limiter_rule_tests {
     use std::string::utf8;
     use std::option::{none, /* some */};
-    use sui::token;
-    use sui::vec_map;
-    use sui::token_test_utils::{Self as test, TEST};
+    use iota::token;
+    use iota::vec_map;
+    use iota::token_test_utils::{Self as test, TEST};
 
     use examples::limiter_rule::{Self as limiter, Limiter};
 
@@ -86,12 +86,12 @@ module examples::limiter_rule_tests {
     // Scenario: add a limiter rule for 100 tokens per operation, verify that
     // the request with 100 tokens is confirmed
     fun add_limiter_default() {
-        let ctx = &mut sui::tx_context::dummy();
-        let (policy, cap) = test::get_policy(ctx);
+        let ctx = &mut iota::tx_context::dummy();
+        let (mut policy, cap) = test::get_policy(ctx);
 
         token::add_rule_for_action<TEST, Limiter>(&mut policy, &cap, utf8(b"action"), ctx);
 
-        let request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
+        let mut request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
 
         limiter::verify(&policy, &mut request, ctx);
 
@@ -104,17 +104,17 @@ module examples::limiter_rule_tests {
     // the request with 100 tokens is confirmed; then remove the rule and verify
     // that the request with 100 tokens is not confirmed and repeat step (1)
     fun add_remove_limiter() {
-        let ctx = &mut sui::tx_context::dummy();
-        let (policy, cap) = test::get_policy(ctx);
+        let ctx = &mut iota::tx_context::dummy();
+        let (mut policy, cap) = test::get_policy(ctx);
 
-        let config = vec_map::empty();
+        let mut config = vec_map::empty();
         vec_map::insert(&mut config, utf8(b"action"), 100);
         limiter::set_config(&mut policy, &cap, config, ctx);
 
         // adding limiter - confirmation required
         token::add_rule_for_action<TEST, Limiter>(&mut policy, &cap, utf8(b"action"), ctx);
         {
-            let request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
+            let mut request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
             limiter::verify(&policy, &mut request, ctx);
             token::confirm_request(&policy, request, ctx);
         };
@@ -130,7 +130,7 @@ module examples::limiter_rule_tests {
         limiter::set_config(&mut policy, &cap, vec_map::empty(), ctx);
         token::add_rule_for_action<TEST, Limiter>(&mut policy, &cap, utf8(b"action"), ctx);
         {
-            let request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
+            let mut request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
             limiter::verify(&policy, &mut request, ctx);
             token::confirm_request(&policy, request, ctx);
         };
@@ -142,16 +142,16 @@ module examples::limiter_rule_tests {
     // Scenario: add a limiter rule for 100 tokens per operation, verify that
     // the request with 101 tokens aborts with `ELimitExceeded`
     fun add_limiter_limit_exceeded_fail() {
-        let ctx = &mut sui::tx_context::dummy();
-        let (policy, cap) = test::get_policy(ctx);
+        let ctx = &mut iota::tx_context::dummy();
+        let (mut policy, cap) = test::get_policy(ctx);
 
-        let config = vec_map::empty();
+        let mut config = vec_map::empty();
         vec_map::insert(&mut config, utf8(b"action"), 100);
         limiter::set_config(&mut policy, &cap, config, ctx);
 
         token::add_rule_for_action<TEST, Limiter>(&mut policy, &cap, utf8(b"action"), ctx);
 
-        let request = token::new_request(utf8(b"action"), 101, none(), none(), ctx);
+        let mut request = token::new_request(utf8(b"action"), 101, none(), none(), ctx);
         limiter::verify(&policy, &mut request, ctx);
 
         abort 1337

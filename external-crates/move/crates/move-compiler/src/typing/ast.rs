@@ -1,31 +1,35 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeSet, VecDeque},
+    fmt,
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     debug_display,
     diagnostics::WarningFilters,
     expansion::ast::{
-        Address, Attributes, Fields, Friend, ModuleIdent, Mutability, Value, Visibility,
+        Address, Attributes, Fields, Friend, ModuleIdent, Mutability, TargetKind, Value, Visibility,
     },
     ice,
     naming::ast::{
-        BlockLabel, FunctionSignature, Neighbor, StructDefinition, SyntaxMethods, Type, TypeName_,
-        Type_, UseFuns, Var,
+        BlockLabel, EnumDefinition, FunctionSignature, Neighbor, StructDefinition, SyntaxMethods,
+        Type, TypeName_, Type_, UseFuns, Var,
     },
     parser::ast::{
-        BinOp, ConstantName, Field, FunctionName, StructName, UnaryOp, ENTRY_MODIFIER,
-        MACRO_MODIFIER, NATIVE_MODIFIER,
+        BinOp, ConstantName, DatatypeName, Field, FunctionName, UnaryOp, VariantName,
+        ENTRY_MODIFIER, MACRO_MODIFIER, NATIVE_MODIFIER,
     },
     shared::{
         ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, CompilationEnv, Name,
     },
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeSet, VecDeque},
-    fmt,
 };
 
 //**************************************************************************************************
@@ -34,12 +38,7 @@ use std::{
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub info: TypingProgramInfo,
-    pub inner: Program_,
-}
-
-#[derive(Debug, Clone)]
-pub struct Program_ {
+    pub info: Arc<TypingProgramInfo>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }
 
@@ -54,16 +53,18 @@ pub struct ModuleDefinition {
     // package name metadata from compiler arguments, not used for any language rules
     pub package_name: Option<Symbol>,
     pub attributes: Attributes,
-    pub is_source_module: bool,
-    /// `dependency_order` is the topological order/rank in the dependency graph.
-    /// `dependency_order` is initialized at `0` and set in the uses pass
+    pub target_kind: TargetKind,
+    /// `dependency_order` is the topological order/rank in the dependency
+    /// graph. `dependency_order` is initialized at `0` and set in the uses
+    /// pass
     pub dependency_order: usize,
     pub immediate_neighbors: UniqueMap<ModuleIdent, Neighbor>,
     pub used_addresses: BTreeSet<Address>,
     pub use_funs: UseFuns,
     pub syntax_methods: SyntaxMethods,
     pub friends: UniqueMap<ModuleIdent, Friend>,
-    pub structs: UniqueMap<StructName, StructDefinition>,
+    pub structs: UniqueMap<DatatypeName, StructDefinition>,
+    pub enums: UniqueMap<DatatypeName, EnumDefinition>,
     pub constants: UniqueMap<ConstantName, Constant>,
     pub functions: UniqueMap<FunctionName, Function>,
 }
@@ -88,8 +89,9 @@ pub struct Function {
     pub attributes: Attributes,
     /// The original, declared visibility as defined in the source file
     pub visibility: Visibility,
-    /// We sometimes change the visibility of functions, e.g. `entry` is marked as `public` in
-    /// test_mode. This is the visibility we will actually emit in the compiled module
+    /// We sometimes change the visibility of functions, e.g. `entry` is marked
+    /// as `public` in test_mode. This is the visibility we will actually
+    /// emit in the compiled module
     pub compiled_visibility: Visibility,
     pub entry: Option<Loc>,
     pub macro_: Option<Loc>,
@@ -126,11 +128,26 @@ pub enum LValue_ {
         ty: Box<Type>,
         unused_binding: bool,
     },
-    Unpack(ModuleIdent, StructName, Vec<Type>, Fields<(Type, LValue)>),
+    Unpack(ModuleIdent, DatatypeName, Vec<Type>, Fields<(Type, LValue)>),
     BorrowUnpack(
         bool,
         ModuleIdent,
-        StructName,
+        DatatypeName,
+        Vec<Type>,
+        Fields<(Type, LValue)>,
+    ),
+    UnpackVariant(
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
+        Vec<Type>,
+        Fields<(Type, LValue)>,
+    ),
+    BorrowUnpackVariant(
+        bool,
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
         Vec<Type>,
         Fields<(Type, LValue)>,
     ),
@@ -179,6 +196,12 @@ pub enum UnannotatedExp_ {
     Vector(Loc, usize, Box<Type>, Box<Exp>),
 
     IfElse(Box<Exp>, Box<Exp>, Box<Exp>),
+    Match(Box<Exp>, Spanned<Vec<MatchArm>>),
+    VariantMatch(
+        Box<Exp>,
+        (ModuleIdent, DatatypeName),
+        Vec<(VariantName, Exp)>,
+    ),
     While(BlockLabel, Box<Exp>, Box<Exp>),
     Loop {
         name: BlockLabel,
@@ -198,7 +221,14 @@ pub enum UnannotatedExp_ {
     UnaryExp(UnaryOp, Box<Exp>),
     BinopExp(Box<Exp>, BinOp, Box<Type>, Box<Exp>),
 
-    Pack(ModuleIdent, StructName, Vec<Type>, Fields<(Type, Exp)>),
+    Pack(ModuleIdent, DatatypeName, Vec<Type>, Fields<(Type, Exp)>),
+    PackVariant(
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
+        Vec<Type>,
+        Fields<(Type, Exp)>,
+    ),
     ExpList(Vec<ExpListItem>),
 
     Borrow(bool, Box<Exp>, Field),
@@ -207,8 +237,10 @@ pub enum UnannotatedExp_ {
 
     Cast(Box<Exp>, Box<Type>),
     Annotate(Box<Exp>, Box<Type>),
-
-    ErrorConstant(Option<ConstantName>),
+    ErrorConstant {
+        line_number_loc: Loc,
+        error_constant: Option<ConstantName>,
+    },
     UnresolvedError,
 }
 pub type UnannotatedExp = Spanned<UnannotatedExp_>;
@@ -227,6 +259,65 @@ pub enum SequenceItem_ {
 }
 pub type SequenceItem = Spanned<SequenceItem_>;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchArm_ {
+    pub pattern: MatchPattern,
+    pub binders: Vec<(Var, Type)>,
+    pub guard: Option<Box<Exp>>,
+    pub guard_binders: UniqueMap<Var, Var>, // pattern binder name -> guard var name
+    pub rhs_binders: BTreeSet<Var>,         // pattern binders used in the right-hand side
+    pub rhs: Box<Exp>,
+}
+
+pub type MatchArm = Spanned<MatchArm_>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnannotatedPat_ {
+    Variant(
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
+        Vec<Type>,
+        Fields<(Type, MatchPattern)>,
+    ),
+    BorrowVariant(
+        bool,
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
+        Vec<Type>,
+        Fields<(Type, MatchPattern)>,
+    ),
+    Struct(
+        ModuleIdent,
+        DatatypeName,
+        Vec<Type>,
+        Fields<(Type, MatchPattern)>,
+    ),
+    BorrowStruct(
+        bool,
+        ModuleIdent,
+        DatatypeName,
+        Vec<Type>,
+        Fields<(Type, MatchPattern)>,
+    ),
+    Constant(ModuleIdent, ConstantName),
+    Binder(Mutability, Var),
+    Literal(Value),
+    Wildcard,
+    Or(Box<MatchPattern>, Box<MatchPattern>),
+    At(Var, Box<MatchPattern>),
+    ErrorPat,
+}
+
+pub type UnannotatedPat = Spanned<UnannotatedPat_>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchPattern {
+    pub ty: Type,
+    pub pat: Spanned<UnannotatedPat_>,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExpListItem {
     Single(Exp, Box<Type>),
@@ -239,8 +330,9 @@ pub enum ExpListItem {
 
 impl BuiltinFunction_ {
     pub fn display_name(&self) -> &'static str {
-        use crate::naming::ast::BuiltinFunction_ as NB;
         use BuiltinFunction_ as B;
+
+        use crate::naming::ast::BuiltinFunction_ as NB;
         match self {
             B::Freeze(_) => NB::FREEZE,
             B::Assert(_) => NB::ASSERT_MACRO,
@@ -288,6 +380,10 @@ pub fn splat_item(env: &mut CompilationEnv, splat_loc: Loc, e: Exp) -> ExpListIt
     ExpListItem::Splat(splat_loc, e, ss)
 }
 
+pub fn pat(ty: Type, pat: UnannotatedPat) -> MatchPattern {
+    MatchPattern { ty, pat }
+}
+
 //**************************************************************************************************
 // Display
 //**************************************************************************************************
@@ -304,13 +400,7 @@ impl fmt::Display for BuiltinFunction_ {
 
 impl AstDebug for Program {
     fn ast_debug(&self, w: &mut AstWriter) {
-        self.inner.ast_debug(w)
-    }
-}
-
-impl AstDebug for Program_ {
-    fn ast_debug(&self, w: &mut AstWriter) {
-        let Program_ { modules } = self;
+        let Program { modules, info: _ } = self;
 
         for (m, mdef) in modules.key_cloned_iter() {
             w.write(&format!("module {}", m));
@@ -327,7 +417,7 @@ impl AstDebug for ModuleDefinition {
             warning_filter,
             package_name,
             attributes,
-            is_source_module,
+            target_kind,
             dependency_order,
             immediate_neighbors,
             used_addresses,
@@ -335,6 +425,7 @@ impl AstDebug for ModuleDefinition {
             syntax_methods,
             friends,
             structs,
+            enums,
             constants,
             functions,
         } = self;
@@ -343,11 +434,15 @@ impl AstDebug for ModuleDefinition {
             w.writeln(&format!("{}", n))
         }
         attributes.ast_debug(w);
-        if *is_source_module {
-            w.writeln("library module")
-        } else {
-            w.writeln("source module")
-        }
+        w.writeln(match target_kind {
+            TargetKind::Source {
+                is_root_package: true,
+            } => "root module",
+            TargetKind::Source {
+                is_root_package: false,
+            } => "dependency module",
+            TargetKind::External => "external module",
+        });
         w.writeln(&format!("dependency order #{}", dependency_order));
         for (mident, neighbor) in immediate_neighbors.key_cloned_iter() {
             w.write(&format!("{mident} is"));
@@ -366,6 +461,10 @@ impl AstDebug for ModuleDefinition {
         }
         for sdef in structs.key_cloned_iter() {
             sdef.ast_debug(w);
+            w.new_line();
+        }
+        for edef in enums.key_cloned_iter() {
+            edef.ast_debug(w);
             w.new_line();
         }
         for cdef in constants.key_cloned_iter() {
@@ -557,6 +656,21 @@ impl AstDebug for UnannotatedExp_ {
                 });
                 w.write("}");
             }
+            E::PackVariant(m, e, v, tys, fields) => {
+                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_e)| {
+                    let (idx, (bt, e)) = idx_bt_e;
+                    w.write(&format!("({}#{}:", idx, f));
+                    bt.ast_debug(w);
+                    w.write("): ");
+                    e.ast_debug(w);
+                });
+                w.write("}");
+            }
             E::IfElse(b, t, f) => {
                 w.write("if (");
                 b.ast_debug(w);
@@ -564,6 +678,34 @@ impl AstDebug for UnannotatedExp_ {
                 t.ast_debug(w);
                 w.write(" else ");
                 f.ast_debug(w);
+            }
+            E::Match(esubject, arms) => {
+                w.write("match (");
+                esubject.ast_debug(w);
+                w.write(") ");
+                w.block(|w| {
+                    w.comma(&arms.value, |w, sp!(_, arm)| {
+                        arm.pattern.ast_debug(w);
+                        if let Some(guard) = &arm.guard {
+                            w.write(" if ");
+                            guard.ast_debug(w);
+                        }
+                        w.write(" => ");
+                        arm.rhs.ast_debug(w);
+                    })
+                });
+            }
+            E::VariantMatch(esubject, (m, enum_name), arms) => {
+                w.write("variant_switch (");
+                esubject.ast_debug(w);
+                w.write(format!(" : {m}::{enum_name} ) "));
+                w.block(|w| {
+                    w.comma(arms.iter(), |w, (variant, rhs)| {
+                        w.write(format!("{} =>", variant));
+                        rhs.ast_debug(w);
+                        println!();
+                    })
+                });
             }
             E::While(name, b, e) => {
                 name.ast_debug(w);
@@ -685,9 +827,12 @@ impl AstDebug for UnannotatedExp_ {
                 w.write(")");
             }
             E::UnresolvedError => w.write("_|_"),
-            E::ErrorConstant(constant) => {
+            E::ErrorConstant {
+                line_number_loc: _,
+                error_constant,
+            } => {
                 w.write("ErrorConstant");
-                if let Some(c) = constant {
+                if let Some(c) = error_constant {
                     w.write(&format!("({})", c))
                 }
             }
@@ -732,8 +877,9 @@ impl AstDebug for ModuleCall {
 
 impl AstDebug for BuiltinFunction_ {
     fn ast_debug(&self, w: &mut AstWriter) {
-        use crate::naming::ast::BuiltinFunction_ as NF;
         use BuiltinFunction_ as F;
+
+        use crate::naming::ast::BuiltinFunction_ as NF;
         let (n, bt_opt) = match self {
             F::Freeze(bt) => (NF::FREEZE, Some(bt)),
             F::Assert(_) => (NF::ASSERT_MACRO, None),
@@ -755,6 +901,118 @@ impl AstDebug for ExpListItem {
                 w.write("~");
                 w.annotate(|w| e.ast_debug(w), ss)
             }
+        }
+    }
+}
+
+impl AstDebug for MatchArm_ {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        self.pattern.ast_debug(w);
+        if let Some(guard) = &self.guard {
+            w.write(" if ");
+            guard.ast_debug(w);
+        }
+        w.write(" => ");
+        self.rhs.ast_debug(w);
+    }
+}
+
+impl AstDebug for MatchPattern {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let MatchPattern { ty, pat } = self;
+        w.annotate(|w| pat.value.ast_debug(w), ty)
+    }
+}
+
+impl AstDebug for UnannotatedPat_ {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        match self {
+            UnannotatedPat_::BorrowVariant(mut_, m, e, v, tys, fields) => {
+                w.write("&");
+                if *mut_ {
+                    w.write("mut ");
+                }
+                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_a)| {
+                    let (idx, (bt, a)) = idx_bt_a;
+                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.write(": ");
+                    a.ast_debug(w);
+                });
+                w.write("}");
+            }
+            UnannotatedPat_::Variant(m, e, v, tys, fields) => {
+                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_a)| {
+                    let (idx, (bt, a)) = idx_bt_a;
+                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.write(": ");
+                    a.ast_debug(w);
+                });
+                w.write("}");
+            }
+            UnannotatedPat_::BorrowStruct(mut_, m, s, tys, fields) => {
+                w.write("&");
+                if *mut_ {
+                    w.write("mut ");
+                }
+                w.write(&format!("{}::{}", m, s));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_a)| {
+                    let (idx, (bt, a)) = idx_bt_a;
+                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.write(": ");
+                    a.ast_debug(w);
+                });
+                w.write("}");
+            }
+            UnannotatedPat_::Struct(m, e, tys, fields) => {
+                w.write(&format!("{}::{}", m, e));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_a)| {
+                    let (idx, (bt, a)) = idx_bt_a;
+                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.write(": ");
+                    a.ast_debug(w);
+                });
+                w.write("}");
+            }
+            UnannotatedPat_::Constant(m, c) => {
+                w.write(&format!("{}::{}", m, c));
+            }
+            UnannotatedPat_::Or(lhs, rhs) => {
+                w.write("(");
+                lhs.ast_debug(w);
+                w.write("|");
+                rhs.ast_debug(w);
+                w.write(")");
+            }
+            UnannotatedPat_::At(x, inner) => {
+                x.ast_debug(w);
+                w.write(" @ ");
+                inner.ast_debug(w);
+            }
+            UnannotatedPat_::Binder(mut_, x) => {
+                mut_.ast_debug(w);
+                x.ast_debug(w)
+            }
+            UnannotatedPat_::Literal(v) => v.ast_debug(w),
+            UnannotatedPat_::Wildcard => w.write("_"),
+            UnannotatedPat_::ErrorPat => w.write("<err>"),
         }
     }
 }
@@ -823,6 +1081,38 @@ impl AstDebug for LValue_ {
                     w.write("mut ");
                 }
                 w.write(&format!("{}::{}", m, s));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_a)| {
+                    let (idx, (bt, a)) = idx_bt_a;
+                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.write(": ");
+                    a.ast_debug(w);
+                });
+                w.write("}");
+            }
+            L::UnpackVariant(m, e, v, tys, fields) => {
+                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_bt_a)| {
+                    let (idx, (bt, a)) = idx_bt_a;
+                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.write(": ");
+                    a.ast_debug(w);
+                });
+                w.write("}");
+            }
+            L::BorrowUnpackVariant(mut_, m, e, v, tys, fields) => {
+                w.write("&");
+                if *mut_ {
+                    w.write("mut ");
+                }
+                w.write(&format!("{}::{}::{}", m, e, v));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");

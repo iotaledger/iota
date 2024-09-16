@@ -1,20 +1,21 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{str::FromStr, sync::Arc, time::SystemTime};
+
 use bytes::Bytes;
 use clap::*;
 use eyre::Context;
 use futures::future::join_all;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use narwhal_node::metrics::NarwhalBenchMetrics;
 use prometheus::Registry;
 use rand::{
     rngs::{SmallRng, StdRng},
     Rng, RngCore, SeedableRng,
 };
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::SystemTime;
 use tokio::{
     net::TcpStream,
     time::{interval, sleep, Duration, Instant},
@@ -29,18 +30,21 @@ use worker::LazyNarwhalClient;
 ///
 /// To run the benchmark client following are required:
 /// * the size of the transactions via the --size property
-/// * the worker address <ADDR> to send the transactions to. A url format is expected ex http://127.0.0.1:7000
+/// * the worker address `<ADDR>` to send the transactions to. A url format is expected ex http://127.0.0.1:7000
 /// * the rate of sending transactions via the --rate parameter
-/// Optionally the --nodes parameter can be passed where a list of worker addresses
-/// should be passed. The benchmarking client will first try to connect to all of those nodes before start sending
-/// any transactions. That confirms the system is up and running and ready to start processing the transactions.
+///
+/// Optionally the --nodes parameter can be passed where a list of worker
+/// addresses should be passed. The benchmarking client will first try to
+/// connect to all of those nodes before start sending any transactions. That
+/// confirms the system is up and running and ready to start processing the
+/// transactions.
 #[derive(Parser)]
 #[clap(name = "Narwhal Stress Testing Framework")]
 struct App {
     /// The network address of the node where to send txs. A url format is expected ex 'http://127.0.0.1:7000'
     #[clap(long, value_parser = parse_url, global = true)]
     addr: Url,
-    /// The size of each transaciton in bytes
+    /// The size of each transaction in bytes
     #[clap(long, default_value = "512", global = true)]
     size: usize,
     /// The rate (txs/s) at which to send the transactions
@@ -49,7 +53,8 @@ struct App {
     /// Network addresses that must be reachable before starting the benchmark.
     #[clap(long, value_delimiter = ',', value_parser = parse_url, global = true)]
     nodes: Vec<Url>,
-    /// Optional duration of the benchmark in seconds. If not provided the benchmark will run forever.
+    /// Optional duration of the benchmark in seconds. If not provided the
+    /// benchmark will run forever.
     #[clap(long, global = true)]
     duration: Option<u64>,
     #[clap(long, default_value = "0.0.0.0", global = true)]
@@ -102,13 +107,13 @@ async fn main() -> Result<(), eyre::Report> {
 
     set_global_default(subscriber).expect("Failed to set subscriber");
 
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!("{}:{}", app.client_metric_host, app.client_metric_port)
             .parse()
             .unwrap(),
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let metrics = NarwhalBenchMetrics::new(&registry);
 
     let target = app.addr;
@@ -169,7 +174,8 @@ impl Client {
     }
 
     pub async fn send(&self) -> Result<(), eyre::Report> {
-        // The transaction size must be at least 100 bytes to ensure all txs are different.
+        // The transaction size must be at least 100 bytes to ensure all txs are
+        // different.
         if self.size < 100 {
             return Err(eyre::Report::msg(
                 "Transaction size must be at least 100 bytes",
@@ -250,7 +256,7 @@ impl Client {
                         }
                     } else {
                         let tx_proto = TransactionProto {
-                            transaction: Bytes::from(transaction),
+                            transactions: vec![Bytes::from(transaction)],
                         };
                         if let Err(e) = grpc_client.submit_transaction(tx_proto).await {
                             submission_error = Some(eyre::Report::msg(format!("{e}")));
@@ -268,8 +274,9 @@ impl Client {
                         metrics_clone.narwhal_client_num_error.inc();
                     } else {
                         metrics_clone.narwhal_client_num_success.inc();
-                        // TODO: properly compute the latency from submission to consensus output and successful commits
-                        // record client latencies per transaction
+                        // TODO: properly compute the latency from submission to consensus output
+                        // and successful commits record client latencies
+                        // per transaction
                         let latency_s = now.elapsed().as_secs_f64();
                         let latency_squared_s = latency_s.powf(2.0);
                         metrics_clone.narwhal_client_latency_s.observe(latency_s);
@@ -390,7 +397,7 @@ async fn submit_to_consensus(
     };
     let client = client.as_ref().unwrap().load();
     client
-        .submit_transaction(transaction)
+        .submit_transactions(vec![transaction])
         .await
         .map_err(|e| eyre::Report::msg(format!("Failed to submit to consensus: {:?}", e)))?;
     Ok(())

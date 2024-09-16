@@ -1,0 +1,27 @@
+[package]
+name = "iota-package-resolver"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+async-trait.workspace = true
+bcs.workspace = true
+eyre.workspace = true
+iota-types.workspace = true
+lru.workspace = true
+move-binary-format.workspace = true
+move-core-types.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+hyper.workspace = true
+insta.workspace = true
+iota-move-build.workspace = true
+move-compiler.workspace = true
+serde_json.workspace = true
+tower.workspace = true

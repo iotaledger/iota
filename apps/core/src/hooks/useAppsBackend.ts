@@ -1,36 +1,40 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { getAppsBackend } from '@iota/iota-sdk/client';
 import { useCallback } from 'react';
 
-const backendUrl =
-	process.env.NODE_ENV === 'development' ? 'http://localhost:3003' : 'https://apps-backend.sui.io';
-
 export function useAppsBackend() {
-	const request = useCallback(
-		async <T>(
-			path: string,
-			queryParams?: Record<string, any>,
-			options?: RequestInit,
-		): Promise<T> => {
-			const res = await fetch(formatRequestURL(`${backendUrl}/${path}`, queryParams), options);
+    const backendUrl = getAppsBackend();
 
-			if (!res.ok) {
-				throw new Error('Unexpected response');
-			}
+    const request = useCallback(
+        async <T>(
+            path: string,
+            queryParams?: Record<string, string>,
+            options?: RequestInit,
+        ): Promise<T> => {
+            const res = await fetch(
+                formatRequestURL(`${backendUrl}/${path}`, queryParams),
+                options,
+            );
 
-			return res.json();
-		},
-		[],
-	);
+            if (!res.ok) {
+                throw new Error('Unexpected response');
+            }
 
-	return { request };
+            return res.json();
+        },
+        [],
+    );
+
+    return { request };
 }
 
-function formatRequestURL(url: string, queryParams?: Record<string, any>) {
-	if (queryParams && Object.keys(queryParams).length > 0) {
-		const searchParams = new URLSearchParams(queryParams);
-		return `${url}?${searchParams}`;
-	}
-	return url;
+function formatRequestURL(url: string, queryParams?: Record<string, string>) {
+    if (queryParams && Object.keys(queryParams).length > 0) {
+        const searchParams = new URLSearchParams(queryParams);
+        return `${url}?${searchParams}`;
+    }
+    return url;
 }

@@ -1,0 +1,139 @@
+processed 23 tasks
+
+init:
+C: object(0,0), validator_0: object(0,1)
+
+task 1 'create-checkpoint'. lines 11-11:
+Checkpoint created: 1
+
+task 2 'advance-epoch'. lines 13-13:
+Epoch advanced: 0
+
+task 3 'programmable'. lines 15-17:
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 4 'run'. lines 19-19:
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [230, 127, 50, 174, 236, 10, 62, 11, 6, 198, 48, 197, 117, 194, 241, 148, 22, 185, 220, 225, 239, 16, 53, 10, 80, 37, 112, 23, 207, 234, 109, 157, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+created: object(4,0)
+mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, storage_cost: 14789600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+
+task 5 'create-checkpoint'. lines 21-21:
+Checkpoint created: 3
+
+task 6 'advance-epoch'. lines 23-23:
+Epoch advanced: 1
+
+task 7 'create-checkpoint'. lines 25-25:
+Checkpoint created: 5
+
+task 8 'advance-epoch'. lines 27-27:
+Epoch advanced: 2
+
+task 9 'programmable'. lines 29-31:
+created: object(9,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 10 'create-checkpoint'. lines 33-33:
+Checkpoint created: 7
+
+task 11 'advance-epoch'. lines 35-35:
+Epoch advanced: 3
+
+task 12 'run'. lines 37-37:
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("UnstakingRequestEvent"), type_params: [] }, contents: [230, 127, 50, 174, 236, 10, 62, 11, 6, 198, 48, 197, 117, 194, 241, 148, 22, 185, 220, 225, 239, 16, 53, 10, 80, 37, 112, 23, 207, 234, 109, 157, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0, 12, 33, 189, 38, 1, 0, 0, 0] }
+created: object(12,0)
+mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+deleted: object(4,0)
+gas summary: computation_cost: 1000000, storage_cost: 14485600,  storage_rebate: 14789600, non_refundable_storage_fee: 0
+
+task 13 'create-checkpoint'. lines 39-39:
+Checkpoint created: 9
+
+task 14 'advance-epoch'. lines 41-41:
+Epoch advanced: 4
+
+task 15 'programmable'. lines 43-45:
+created: object(15,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 16 'create-checkpoint'. lines 47-47:
+Checkpoint created: 11
+
+task 17 'advance-epoch'. lines 49-49:
+Epoch advanced: 5
+
+task 18 'run-graphql'. lines 51-61:
+Response: {
+  "data": {
+    "epoch": {
+      "epochId": 4,
+      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "15473600",
+        "nonRefundableBalance": "0"
+      }
+    }
+  }
+}
+
+task 19 'run-graphql'. lines 63-73:
+Response: {
+  "data": {
+    "epoch": {
+      "epochId": 3,
+      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "15777600",
+        "nonRefundableBalance": "0"
+      }
+    }
+  }
+}
+
+task 20 'run-graphql'. lines 75-85:
+Response: {
+  "data": {
+    "epoch": {
+      "epochId": 2,
+      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "14789600",
+        "nonRefundableBalance": "0"
+      }
+    }
+  }
+}
+
+task 21 'run-graphql'. lines 87-97:
+Response: {
+  "data": {
+    "epoch": {
+      "epochId": 1,
+      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "14789600",
+        "nonRefundableBalance": "0"
+      }
+    }
+  }
+}
+
+task 22 'run-graphql'. lines 99-109:
+Response: {
+  "data": {
+    "epoch": {
+      "epochId": 4,
+      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "15473600",
+        "nonRefundableBalance": "0"
+      }
+    }
+  }
+}

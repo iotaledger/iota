@@ -1,0 +1,38 @@
+# Epochs and Reconfiguration
+
+## Epoch
+
+In IOTA, an epoch is a set period, around 24 hours, during which the
+IOTA [validator](../tokenomics/validators-staking.mdx) set and their stakes remain constant. This stable period allows
+validators to handle transactions smoothly without unexpected changes.
+
+Epoch values are part of the transaction data on the IOTA network, but regular users don't need to worry about them.
+Users only need to know about epochs if they are dealing with
+expiring [transactions](../../developer/iota-101/transactions/transactions.mdx), which must be completed before a
+specific epoch ends.
+
+## Reconfiguration
+
+Reconfiguration is an important process that happens at the end of each epoch to prepare the network for the next one.
+It includes these key steps:
+
+### 1. Finalizing Transactions and Checkpoints
+
+The network agrees on the final set of transactions and checkpoints for the current epoch, ensuring all validators have
+the same information. This is the only time the network is fully synchronized, known as a _synchronous moment_, which is
+essential for consistency.
+
+### 2. Distribution of Gas Rewards
+
+Computation gas fees are distributed to the validator staking reward pool, allowing stakers to withdraw their rewards.
+
+### 3. Validator Set Change
+
+Any pending staking and unstaking requests are finalized and reflected in the validators' stake distribution. Any
+pending changes to the validator set, such as adding or removing validators, are processed. This is the only time the
+validator set and stake distribution can be altered.
+
+### 4. Protocol Upgrade
+
+If 2f+1 validators agree, the network may upgrade to a new protocol version, which includes new features, bug fixes, and
+updates to the Move framework libraries.

@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module coin_metadata::test {
     use std::option;
-    use sui::coin;
-    use sui::transfer;
-    use sui::url;
-    use sui::tx_context::{Self, TxContext};
+    use iota::coin;
+    use iota::transfer;
+    use iota::url;
+    use iota::tx_context::{Self, TxContext};
 
     struct TEST has drop {}
 
@@ -17,7 +18,7 @@ module coin_metadata::test {
             b"TEST",
             b"Test Coin",
             b"Test coin metadata",
-            option::some(url::new_unsafe_from_bytes(b"http://sui.io")),
+            option::some(url::new_unsafe_from_bytes(b"http://iota.io")),
             ctx
         );
 

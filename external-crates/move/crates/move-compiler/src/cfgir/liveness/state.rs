@@ -1,13 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //**************************************************************************************************
 // Abstract state
 //**************************************************************************************************
 
-use crate::{cfgir::absint::*, hlir::ast::Var};
 use std::{cmp::Ordering, collections::BTreeSet};
+
+use crate::{cfgir::absint::*, hlir::ast::Var};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LivenessState(pub BTreeSet<Var>);

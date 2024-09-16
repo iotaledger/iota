@@ -1,0 +1,63 @@
+# Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+query getLatestIotaSystemState {
+    epoch {
+        epochId
+        startTimestamp
+        endTimestamp
+        referenceGasPrice
+        safeMode {
+            enabled
+            gasSummary {
+                computationCost
+                nonRefundableStorageFee
+                storageCost
+                storageRebate
+            }
+        }
+
+        storageFund {
+            nonRefundableBalance
+            totalObjectStorageRebates
+        }
+        systemStateVersion
+        iotaTotalSupply
+        systemParameters {
+            minValidatorCount
+            maxValidatorCount
+            minValidatorJoiningStake
+            durationMs
+            validatorLowStakeThreshold
+            validatorLowStakeGracePeriod
+            validatorVeryLowStakeThreshold
+        }
+        protocolConfigs {
+            protocolVersion
+        }
+        validatorSet {
+            activeValidators {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    ...RPC_VALIDATOR_FIELDS
+                }
+            }
+
+            inactivePoolsSize
+            pendingActiveValidatorsSize
+            stakingPoolMappingsSize
+            validatorCandidatesSize
+            pendingRemovals
+            totalStake
+
+            # inactivePoolsId
+            # validatorCandidatesId
+            # pendingActiveValidatorsId
+            # stakingPoolMappingsId
+        }
+    }
+}

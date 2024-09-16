@@ -12,29 +12,70 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
+bigdecimal = "0.4"
 camino.workspace = true
+clap.workspace = true
 fastcrypto.workspace = true
-move-binary-format.workspace = true
-move-core-types.workspace = true
+flate2.workspace = true
+fs_extra = "1.3"
+iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
+itertools.workspace = true
+packable = { version = "0.8", default-features = false, features = ["io"] }
+prefix-hex = "0.7"
 prometheus.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["std_rng"] }
+rand_pcg = "0.3"
+rand_seeder = "0.3"
+regex.workspace = true
+reqwest.workspace = true
+schemars.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
+shared-crypto.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
+tracing-subscriber = "0.3"
 
+# TODO: change to the v0 cut version when it is created
+iota-adapter-v0 = { path = "../../iota-execution/latest/iota-adapter/", package = "iota-adapter-latest" }
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
+iota-move-build.workspace = true
+# TODO: change to the v0 cut version when it is created
+iota-move-natives-v0 = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
+move-binary-format.workspace = true
+move-compiler.workspace = true
+move-core-types.workspace = true
+move-package.workspace = true
+# TODO: change to the v0 cut version when it is created
+move-vm-runtime-v0 = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
+
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
+iota-swarm-config.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+
+[features]
+test-outputs = ["iota-sdk/client"]
+
+[[example]]
+name = "snapshot_add_test_outputs"
+path = "examples/snapshot_add_test_outputs.rs"
+required-features = ["test-outputs"]
+
+[[example]]
+name = "snapshot_only_test_outputs"
+path = "examples/snapshot_only_test_outputs.rs"
+required-features = ["test-outputs"]

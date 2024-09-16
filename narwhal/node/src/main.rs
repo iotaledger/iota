@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -8,6 +9,13 @@
     rust_2021_compatibility
 )]
 mod benchmark_client;
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
 use benchmark_client::{parse_url, url_to_multiaddr, Client, OperatingMode};
 use clap::{Parser, Subcommand};
 use config::{
@@ -18,11 +26,22 @@ use crypto::{KeyPair, NetworkKeyPair};
 use eyre::{Context, Result};
 use fastcrypto::traits::{EncodeDecodeBase64, KeyPair as _};
 use futures::join;
-use mysten_metrics::start_prometheus_server;
+use iota_keys::keypair_file::{
+    read_authority_keypair_from_file, read_network_keypair_from_file,
+    write_authority_keypair_to_file, write_keypair_to_file,
+};
+use iota_metrics::start_prometheus_server;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::{
+    crypto::{
+        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey,
+    },
+    multiaddr::Multiaddr,
+};
 use narwhal_node as node;
-use narwhal_node::metrics::NarwhalBenchMetrics;
-use narwhal_node::primary_node::PrimaryNode;
-use narwhal_node::worker_node::WorkerNode;
+use narwhal_node::{
+    metrics::NarwhalBenchMetrics, primary_node::PrimaryNode, worker_node::WorkerNode,
+};
 use network::client::NetworkClient;
 use node::{
     execution_state::SimpleExecutionState,
@@ -30,35 +49,16 @@ use node::{
 };
 use prometheus::Registry;
 use rand::{rngs::StdRng, SeedableRng};
-use std::sync::Arc;
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
-use sui_keys::keypair_file::{
-    read_authority_keypair_from_file, read_network_keypair_from_file,
-    write_authority_keypair_to_file, write_keypair_to_file,
-};
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_types::{
-    crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, SuiKeyPair,
-    },
-    multiaddr::Multiaddr,
-};
 use telemetry_subscribers::TelemetryGuards;
-use tokio::sync::mpsc::channel;
-use tokio::time::Duration;
-use url::Url;
-
+use tokio::{sync::mpsc::channel, time::Duration};
 // TODO: remove when old benchmark code is removed
 // #[cfg(feature = "benchmark")]
 // use tracing::subscriber::set_global_default;
 // #[cfg(feature = "benchmark")]
 // use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing::{info, warn};
+use url::Url;
 use worker::{LazyNarwhalClient, TrivialTransactionValidator};
 
 #[derive(Parser)]
@@ -75,8 +75,9 @@ struct App {
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate a committee, workers and the parameters config files of all validators
-    /// from a list of initial peers. This is only suitable for benchmarks as it exposes all keys.
+    /// Generate a committee, workers and the parameters config files of all
+    /// validators from a list of initial peers. This is only suitable for
+    /// benchmarks as it exposes all keys.
     BenchmarkGenesis {
         #[clap(
             long,
@@ -102,7 +103,8 @@ enum Commands {
         #[arg(long)]
         filename: PathBuf,
     },
-    /// Save an encoded ed25519 network keypair (Base64 encoded `flag || privkey`) to file
+    /// Save an encoded ed25519 network keypair (Base64 encoded `flag ||
+    /// privkey`) to file
     GenerateNetworkKeys {
         /// The file where to save the encoded network key pair
         #[arg(long)]
@@ -166,10 +168,12 @@ enum NodeType {
         /// The rate (txs/s) at which to send the transactions
         #[clap(long, default_value = "100", global = true)]
         rate: u64,
-        /// Optional duration of the benchmark in seconds. If not provided the benchmark will run forever.
+        /// Optional duration of the benchmark in seconds. If not provided the
+        /// benchmark will run forever.
         #[clap(long, global = true)]
         duration: Option<u64>,
-        /// Network addresses that must be reachable before starting the benchmark.
+        /// Network addresses that must be reachable before starting the
+        /// benchmark.
         #[clap(long, value_delimiter = ',', value_parser = parse_url, global = true)]
         nodes: Vec<Url>,
     },
@@ -211,7 +215,7 @@ async fn main() -> Result<(), eyre::Report> {
         }
         Commands::GenerateNetworkKeys { filename } => {
             let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-            write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+            write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), filename).unwrap();
         }
         Commands::GetPubKey { filename } => {
             match read_network_keypair_from_file(filename) {
@@ -272,15 +276,16 @@ async fn main() -> Result<(), eyre::Report> {
                 ),
             };
 
-            // TODO: re-enable telemetry if needed, otherwise remove when old benchmark code is removed
-            // In benchmarks, transactions are not deserializable => many errors at the debug level
-            // Moreover, we need RFC 3339 timestamps to parse properly => we use a custom subscriber.
+            // TODO: re-enable telemetry if needed, otherwise remove when old benchmark code
+            // is removed In benchmarks, transactions are not deserializable =>
+            // many errors at the debug level Moreover, we need RFC 3339
+            // timestamps to parse properly => we use a custom subscriber.
             // cfg_if::cfg_if! {
             //     if #[cfg(feature = "benchmark")] {
             //         setup_benchmark_telemetry(tracing_level, network_tracing_level)?;
             //     } else {
-            //         let _guard = setup_telemetry(tracing_level, network_tracing_level, Some(&registry));
-            //     }
+            //         let _guard = setup_telemetry(tracing_level, network_tracing_level,
+            // Some(&registry));     }
             // }
             run(
                 subcommand,
@@ -303,7 +308,7 @@ async fn main() -> Result<(), eyre::Report> {
 
 /// Generate all the genesis files required for benchmarks.
 fn benchmark_genesis(
-    ips: &Vec<String>,
+    ips: &[String],
     working_directory: &PathBuf,
     num_workers: usize,
     base_port: usize,
@@ -314,7 +319,8 @@ fn benchmark_genesis(
         working_directory.display()
     ))?;
 
-    // Use rng seed so that runs across multiple instances generate the same configs.
+    // Use rng seed so that runs across multiple instances generate the same
+    // configs.
     let mut rng = StdRng::seed_from_u64(0);
 
     // Generate primary keys
@@ -347,7 +353,7 @@ fn benchmark_genesis(
     for filename in primary_network_key_files {
         let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
         let pk = network_keypair.public().to_string();
-        write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+        write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), filename).unwrap();
         primary_network_names.push(pk);
     }
 
@@ -399,7 +405,7 @@ fn benchmark_genesis(
     for filename in worker_key_files {
         let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
         let pk = network_keypair.public().to_string();
-        write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+        write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), filename).unwrap();
         worker_names.push(pk);
     }
 
@@ -472,7 +478,9 @@ fn setup_telemetry(
     network_tracing_level: &str,
     prom_registry: Option<&Registry>,
 ) -> TelemetryGuards {
-    let log_filter = format!("{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},quinn={network_tracing_level}");
+    let log_filter = format!(
+        "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},quinn={network_tracing_level}"
+    );
 
     let config = telemetry_subscribers::TelemetryConfig::new()
         // load env variables
@@ -490,8 +498,8 @@ fn setup_telemetry(
     guard
 }
 
-// TODO: re-enable telemetry if needed, otherwise remove when old benchmark code is removed
-// #[cfg(feature = "benchmark")]
+// TODO: re-enable telemetry if needed, otherwise remove when old benchmark code
+// is removed #[cfg(feature = "benchmark")]
 // fn setup_benchmark_telemetry(
 //     tracing_level: &str,
 //     network_tracing_level: &str,
@@ -510,7 +518,8 @@ fn setup_telemetry(
 //         .with_env_filter(env_filter)
 //         .with_timer(timer)
 //         .with_ansi(false);
-//     let subscriber = subscriber_builder.with_writer(std::io::stderr).finish();
+//     let subscriber =
+// subscriber_builder.with_writer(std::io::stderr).finish();
 //     set_global_default(subscriber).expect("Failed to set subscriber");
 //     Ok(())
 // }
@@ -554,7 +563,7 @@ async fn run(
 
     // Make the data store.
     let certificate_store_cache_metrics =
-        CertificateStoreCacheMetrics::new(&registry_service.default_registry());
+        Arc::new(CertificateStoreCacheMetrics::new(registry_service.clone()));
     let store = NodeStorage::reopen(store_path, Some(certificate_store_cache_metrics.clone()));
 
     let client = NetworkClient::new_from_keypair(&primary_network_keypair);
@@ -661,7 +670,7 @@ async fn run(
                 .await?;
 
             let registry: Registry = registry_service.default_registry();
-            mysten_metrics::init_metrics(&registry);
+            iota_metrics::init_metrics(&registry);
             let metrics = NarwhalBenchMetrics::new(&registry);
 
             let target = addr;
@@ -697,12 +706,12 @@ async fn run(
     };
 
     if let Some(registry) = worker_registry {
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         registry_service.add(registry);
     }
 
     if let Some(registry) = primary_registry {
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         registry_service.add(registry);
     }
 
@@ -725,6 +734,7 @@ async fn run(
         }
     }
 
-    // If this expression is reached, the program ends and all other tasks terminate.
+    // If this expression is reached, the program ends and all other tasks
+    // terminate.
     Ok(())
 }

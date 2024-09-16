@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod bullshark;
@@ -9,24 +10,26 @@ mod metrics;
 mod state;
 mod utils;
 
-pub use crate::consensus::bullshark::Bullshark;
-#[cfg(test)]
-pub use crate::consensus::consensus_utils::{make_certificate_store, NUM_SUB_DAGS_PER_SCHEDULE};
-pub use crate::consensus::leader_schedule::{LeaderSchedule, LeaderSwapTable};
-pub use crate::consensus::metrics::{ChannelMetrics, ConsensusMetrics};
-pub use crate::consensus::state::{Consensus, ConsensusRound, ConsensusState, Dag};
-pub use crate::consensus::utils::gc_round;
 pub use consensus_utils::make_consensus_store;
-
 use store::StoreError;
 use thiserror::Error;
-
 use types::Certificate;
+
+#[cfg(test)]
+pub use crate::consensus::consensus_utils::{make_certificate_store, NUM_SUB_DAGS_PER_SCHEDULE};
+pub use crate::consensus::{
+    bullshark::Bullshark,
+    leader_schedule::{LeaderSchedule, LeaderSwapTable},
+    metrics::{ChannelMetrics, ConsensusMetrics},
+    state::{Consensus, ConsensusRound, ConsensusState, Dag},
+    utils::gc_round,
+};
 
 /// The default channel size used in the consensus and subscriber logic.
 pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 
-/// The number of shutdown receivers to create on startup. We need one per component loop.
+/// The number of shutdown receivers to create on startup. We need one per
+/// component loop.
 pub const NUM_SHUTDOWN_RECEIVERS: u64 = 25;
 
 #[derive(Clone, Debug, Error, PartialEq)]

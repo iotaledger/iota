@@ -1,19 +1,21 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Provides a builder for `FunctionData`, including building expressions and rewriting
-//! bytecode.
+//! Provides a builder for `FunctionData`, including building expressions and
+//! rewriting bytecode.
 
-use crate::{
-    function_target::{FunctionData, FunctionTarget},
-    stackless_bytecode::{AttrId, Bytecode, Label},
-};
 use move_model::{
     ast::TempIndex,
     exp_generator::ExpGenerator,
     model::{FunctionEnv, Loc},
     ty::Type,
+};
+
+use crate::{
+    function_target::{FunctionData, FunctionTarget},
+    stackless_bytecode::{AttrId, Bytecode, Label},
 };
 
 #[derive(Default)]
@@ -87,8 +89,8 @@ impl<'env> FunctionDataBuilder<'env> {
         Self::new_with_options(fun_env, data, FunctionDataBuilderOptions::default())
     }
 
-    /// Gets a function target viewpoint on this builder. This locks the data for mutation
-    /// until the returned value dies.
+    /// Gets a function target viewpoint on this builder. This locks the data
+    /// for mutation until the returned value dies.
     pub fn get_target(&self) -> FunctionTarget<'_> {
         FunctionTarget::new(self.fun_env, &self.data)
     }
@@ -100,8 +102,9 @@ impl<'env> FunctionDataBuilder<'env> {
         idx
     }
 
-    /// Sets the default location as well as information about the verification condition
-    /// message associated with the next instruction generated with `emit_with`.
+    /// Sets the default location as well as information about the verification
+    /// condition message associated with the next instruction generated
+    /// with `emit_with`.
     pub fn set_loc_and_vc_info(&mut self, loc: Loc, message: &str) {
         self.next_vc_info = Some(message.to_string());
         self.set_loc(loc);
@@ -166,7 +169,8 @@ impl<'env> FunctionDataBuilder<'env> {
         }
     }
 
-    /// Emits a bytecode via a function which takes a freshly generated attribute id.
+    /// Emits a bytecode via a function which takes a freshly generated
+    /// attribute id.
     pub fn emit_with<F>(&mut self, f: F)
     where
         F: FnOnce(AttrId) -> Bytecode,
@@ -181,13 +185,14 @@ impl<'env> FunctionDataBuilder<'env> {
         self.emit(f(attr_id))
     }
 
-    /// Sets the debug comment which should be associated with the next instruction
-    /// emitted with `self.emit_with(|id| ..)`.
+    /// Sets the debug comment which should be associated with the next
+    /// instruction emitted with `self.emit_with(|id| ..)`.
     pub fn set_next_debug_comment(&mut self, comment: String) {
         self.next_debug_comment = Some(comment);
     }
 
-    /// This will clear the state that the next `self.emit_with(..)` will add a debug comment.
+    /// This will clear the state that the next `self.emit_with(..)` will add a
+    /// debug comment.
     pub fn clear_next_debug_comment(&mut self) {
         self.next_debug_comment = None;
     }
