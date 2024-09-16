@@ -90,7 +90,7 @@ members = [
   "crates/iota-framework-snapshot",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
-#  "crates/iota-graphql-config", TODO: uncomment when it is merged.
+  "crates/iota-graphql-config",
   "crates/iota-graphql-e2e-tests",
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
