@@ -145,6 +145,8 @@ export type TableCellProps = TableCellBaseProps &
         | TableCellChildren
     );
 
+const CELL_TEXT_SIZE = 'text-body-md';
+
 export function TableCell(props: TableCellProps): JSX.Element {
     const {
         type,
@@ -154,8 +156,6 @@ export function TableCell(props: TableCellProps): JSX.Element {
         textColor: textColorClass = TableCellTextColor.Default,
         noWrap,
     } = props;
-
-    const textSizeClass = 'text-body-md';
 
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
         if (props.type === TableCellType.TextToCopy) {
@@ -174,14 +174,11 @@ export function TableCell(props: TableCellProps): JSX.Element {
             case TableCellType.Text:
                 const { supportingLabel } = props;
                 return (
-                    <div className="flex flex-row items-baseline gap-1">
-                        <span className={cx(textColorClass, textSizeClass)}>{label}</span>
-                        {supportingLabel && (
-                            <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
-                                {supportingLabel}
-                            </span>
-                        )}
-                    </div>
+                    <CellText
+                        label={label}
+                        supportingLabel={supportingLabel}
+                        textColor={textColorClass}
+                    />
                 );
             case TableCellType.TextToCopy:
                 return (
@@ -189,7 +186,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         className={cx(
                             'flex items-center space-x-2 [&_svg]:h-4 [&_svg]:w-4',
                             textColorClass,
-                            textSizeClass,
+                            CELL_TEXT_SIZE,
                         )}
                     >
                         <span>{label}</span>
@@ -231,7 +228,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         href={to}
                         target={isExternal ? '_blank' : '_self'}
                         rel="noopener noreferrer"
-                        className={cx('text-primary-30 dark:text-primary-80', textSizeClass)}
+                        className={cx('text-primary-30 dark:text-primary-80', CELL_TEXT_SIZE)}
                     >
                         {label}
                     </a>
@@ -255,5 +252,26 @@ export function TableCell(props: TableCellProps): JSX.Element {
         >
             <Cell />
         </td>
+    );
+}
+
+export function CellText({
+    label,
+    supportingLabel,
+    textColor = TableCellTextColor.Default,
+}: {
+    label?: string;
+    supportingLabel?: string;
+    textColor?: TableCellTextColor;
+}): React.JSX.Element {
+    return (
+        <div className="flex flex-row items-baseline gap-1">
+            <span className={cx(textColor, CELL_TEXT_SIZE)}>{label}</span>
+            {supportingLabel && (
+                <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
+                    {supportingLabel}
+                </span>
+            )}
+        </div>
     );
 }
