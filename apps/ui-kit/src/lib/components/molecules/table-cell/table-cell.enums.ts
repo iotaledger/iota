@@ -9,7 +9,7 @@ export enum TableCellType {
     Checkbox = 'checkbox',
     Placeholder = 'placeholder',
     Link = 'link',
-    Custom = 'custom',
+    Children = 'children',
 }
 
 export enum TableCellTextColor {

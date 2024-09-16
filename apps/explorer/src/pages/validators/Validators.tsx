@@ -2,26 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
+import React, { type JSX, useMemo } from 'react';
 import { roundFloat, useFormatCoin, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useMemo } from 'react';
-import { generateValidatorsTableData } from '~/lib/ui/utils';
-
-import { ErrorBoundary, PageLayout } from '~/components';
-import { Banner, PlaceholderTable, TableCard, TableHeader } from '~/components/ui';
 import {
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import {
+    ErrorBoundary,
+    PageLayout,
+    Banner,
+    PlaceholderTable,
+    TableCard,
+    TableHeader,
+} from '~/components';
+import { generateValidatorsTableData } from '~/lib/ui/utils/generateValidatorsTableData';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-
     const numberOfValidators = data?.activeValidators.length || 0;
 
     const {
@@ -73,7 +75,7 @@ function ValidatorPageResult(): JSX.Element {
     const validatorsTable = useMemo(() => {
         if (!data || !validatorEvents) return null;
         return generateValidatorsTableData({
-            validators: data.activeValidators,
+            validators: [...data.activeValidators].sort(() => 0.5 - Math.random()),
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,

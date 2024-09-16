@@ -4,24 +4,15 @@
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
-import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 import { useMemo } from 'react';
+
 import { Banner, Link, PlaceholderTable, TableCard } from '~/components/ui';
-import { generateValidatorsTableData } from '~/lib/ui';
+import { generateValidatorsTableData, type ValidatorTableColumn } from '~/lib/ui';
 
 const NUMBER_OF_VALIDATORS = 10;
 
-export function processValidators(set: IotaValidatorSummary[]) {
-    return set.map((av) => ({
-        name: av.name,
-        address: av.iotaAddress,
-        stake: av.stakingPoolIotaBalance,
-        logo: av.imageUrl,
-    }));
-}
-
-const tableColumns = [
+const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
     {
         header: 'Name',
         accessorKey: 'name',
@@ -48,10 +39,13 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         () =>
             data
                 ? generateValidatorsTableData({
-                      validators: data.activeValidators,
+                      validators: [...data.activeValidators].sort(() => 0.5 - Math.random()),
+                      atRiskValidators: [],
+                      validatorEvents: [],
+                      rollingAverageApys: null,
                       limit,
                       showValidatorIcon: showIcon,
-                      columns: tableColumns,
+                      columns: VALIDATOR_COLUMNS,
                   })
                 : null,
         [data, limit, showIcon],

@@ -23,7 +23,45 @@ import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/uti
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
-import { generateValidatorsTableData } from '~/lib/ui';
+import {
+    generateValidatorsTableData,
+    type ValidatorTableColumn,
+} from '~/lib/ui/utils/generateValidatorsTableData';
+
+export const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+    {
+        header: 'Proposed next Epoch gas price',
+        accessorKey: 'nextEpochGasPrice',
+    },
+    {
+        header: 'APY',
+        accessorKey: 'apy',
+    },
+    {
+        header: 'Commission',
+        accessorKey: 'commission',
+    },
+    {
+        header: 'Last Epoch Reward',
+        accessorKey: 'lastReward',
+    },
+    {
+        header: 'Voting Power',
+        accessorKey: 'votingPower',
+    },
+    {
+        header: 'Status',
+        accessorKey: 'atRisk',
+    },
+];
 
 function IotaStats({
     amount,
@@ -82,6 +120,8 @@ export default function EpochDetail() {
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
+            columns: VALIDATOR_COLUMNS,
+            showValidatorIcon: true,
         });
     }, [epochData]);
 
@@ -191,7 +231,6 @@ export default function EpochDetail() {
                                 <TableCard
                                     data={validatorsTable.data}
                                     columns={validatorsTable.columns}
-                                    sortTable
                                 />
                             ) : null}
                         </div>

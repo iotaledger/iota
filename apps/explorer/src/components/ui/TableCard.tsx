@@ -17,14 +17,15 @@ import {
     type ColumnDef,
     getCoreRowModel,
     getSortedRowModel,
+    type RowData,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigateWithQuery } from './LinkWithQuery';
 
-export interface TableCardProps<DataType extends object> {
+export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
     data: DataType[];
     columns: ColumnDef<DataType>[];
@@ -50,22 +51,9 @@ export function TableCard<DataType extends object>({
     const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
-    // Use Columns to create a table
-    const processedcol = useMemo<ColumnDef<DataType>[]>(
-        () =>
-            columns.map((column) => ({
-                ...column,
-                // cell renderer for each column from react-table
-                // cell should be in the column definition
-                //TODO: move cell to column definition
-                ...(!sortTable && { cell: ({ getValue }) => getValue() }),
-            })),
-        [columns, sortTable],
-    );
-
     const table = useReactTable({
         data,
-        columns: processedcol,
+        columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
