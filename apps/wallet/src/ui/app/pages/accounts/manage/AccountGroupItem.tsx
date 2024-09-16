@@ -84,6 +84,7 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
                 <Account
                     isLocked={account.isLocked}
                     isCopyable
+                    copyText={account.address}
                     isExternal
                     onOpen={handleOpen}
                     avatarContent={() => <AccountAvatar account={account} />}
