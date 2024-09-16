@@ -157,6 +157,9 @@ request_add_stake
 request_add_stake_at_genesis
 	public(package) fun
 	0x3::validator
+request_add_stake_at_genesis_with_receipt
+	public(package) fun
+	0x3::validator
 request_withdraw_stake
 	public(package) fun
 	0x3::validator
@@ -628,18 +631,6 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
-StakeSubsidy
-	public struct
-	0x3::stake_subsidy
-create
-	public(package) fun
-	0x3::stake_subsidy
-advance_epoch
-	public(package) fun
-	0x3::stake_subsidy
-current_epoch_subsidy_amount
-	public fun
-	0x3::stake_subsidy
 SystemParameters
 	public struct
 	0x3::iota_system_state_inner
@@ -769,6 +760,9 @@ update_candidate_validator_network_pubkey
 advance_epoch
 	public(package) fun
 	0x3::iota_system_state_inner
+match_computation_reward_to_target_reward
+	fun
+	0x3::iota_system_state_inner
 epoch
 	public(package) fun
 	0x3::iota_system_state_inner
@@ -794,6 +788,9 @@ validator_staking_pool_id
 	public(package) fun
 	0x3::iota_system_state_inner
 validator_staking_pool_mappings
+	public(package) fun
+	0x3::iota_system_state_inner
+get_total_iota_supply
 	public(package) fun
 	0x3::iota_system_state_inner
 get_reporters_of
@@ -940,9 +937,84 @@ load_system_state_mut
 load_inner_maybe_upgrade
 	fun
 	0x3::iota_system
+load_system_timelock_cap
+	public(package) fun
+	0x3::iota_system
 validator_voting_powers
 	fun
 	0x3::iota_system
+get_total_iota_supply
+	public fun
+	0x3::iota_system
+TimelockedStakedIota
+	public struct
+	0x3::timelocked_staking
+request_add_stake
+	public entry fun
+	0x3::timelocked_staking
+request_add_stake_mul_bal
+	public entry fun
+	0x3::timelocked_staking
+request_withdraw_stake
+	public entry fun
+	0x3::timelocked_staking
+request_add_stake_non_entry
+	public fun
+	0x3::timelocked_staking
+request_add_stake_mul_bal_non_entry
+	public fun
+	0x3::timelocked_staking
+request_withdraw_stake_non_entry
+	public fun
+	0x3::timelocked_staking
+split
+	public fun
+	0x3::timelocked_staking
+split_staked_iota
+	public entry fun
+	0x3::timelocked_staking
+join_staked_iota
+	public entry fun
+	0x3::timelocked_staking
+transfer_to_sender
+	public fun
+	0x3::timelocked_staking
+transfer_to_sender_multiple
+	public fun
+	0x3::timelocked_staking
+is_equal_staking_metadata
+	public fun
+	0x3::timelocked_staking
+pool_id
+	public fun
+	0x3::timelocked_staking
+staked_iota_amount
+	public fun
+	0x3::timelocked_staking
+stake_activation_epoch
+	public fun
+	0x3::timelocked_staking
+expiration_timestamp_ms
+	public fun
+	0x3::timelocked_staking
+label
+	public fun
+	0x3::timelocked_staking
+is_labeled_with
+	public fun
+	0x3::timelocked_staking
+unpack
+	fun
+	0x3::timelocked_staking
+transfer
+	fun
+	0x3::timelocked_staking
+transfer_multiple
+	fun
+	0x3::timelocked_staking
+request_add_stake_at_genesis
+	public(package) fun
+	0x3::timelocked_staking
 GenesisValidatorMetadata
 	public struct
 	0x3::genesis
@@ -1406,6 +1478,9 @@ create_staking_rewards
 	fun
 	0x2::balance
 destroy_storage_rebates
+	fun
+	0x2::balance
+destroy_genesis_supply
 	fun
 	0x2::balance
 destroy_supply
@@ -2137,6 +2212,120 @@ deny_list_remove
 deny_list_contains
 	public fun
 	0x2::coin
+CoinManager
+	public struct
+	0x2::coin_manager
+CoinManagerTreasuryCap
+	public struct
+	0x2::coin_manager
+CoinManagerMetadataCap
+	public struct
+	0x2::coin_manager
+ImmutableCoinMetadata
+	public struct
+	0x2::coin_manager
+CoinManaged
+	public struct
+	0x2::coin_manager
+TreasuryOwnershipRenounced
+	public struct
+	0x2::coin_manager
+MetadataOwnershipRenounced
+	public struct
+	0x2::coin_manager
+new
+	public fun
+	0x2::coin_manager
+new_with_immutable_metadata
+	public fun
+	0x2::coin_manager
+create
+	public fun
+	0x2::coin_manager
+add_additional_metadata
+	public fun
+	0x2::coin_manager
+replace_additional_metadata
+	public fun
+	0x2::coin_manager
+additional_metadata
+	public fun
+	0x2::coin_manager
+enforce_maximum_supply
+	public fun
+	0x2::coin_manager
+renounce_treasury_ownership
+	public fun
+	0x2::coin_manager
+renounce_metadata_ownership
+	public fun
+	0x2::coin_manager
+supply_is_immutable
+	public fun
+	0x2::coin_manager
+metadata_is_immutable
+	public fun
+	0x2::coin_manager
+metadata
+	public fun
+	0x2::coin_manager
+immutable_metadata
+	public fun
+	0x2::coin_manager
+total_supply
+	public fun
+	0x2::coin_manager
+maximum_supply
+	public fun
+	0x2::coin_manager
+available_supply
+	public fun
+	0x2::coin_manager
+has_maximum_supply
+	public fun
+	0x2::coin_manager
+supply_immut
+	public fun
+	0x2::coin_manager
+mint
+	public fun
+	0x2::coin_manager
+mint_balance
+	public fun
+	0x2::coin_manager
+burn
+	public entry fun
+	0x2::coin_manager
+mint_and_transfer
+	public fun
+	0x2::coin_manager
+update_name
+	public fun
+	0x2::coin_manager
+update_symbol
+	public fun
+	0x2::coin_manager
+update_description
+	public fun
+	0x2::coin_manager
+update_icon_url
+	public fun
+	0x2::coin_manager
+decimals
+	public fun
+	0x2::coin_manager
+name
+	public fun
+	0x2::coin_manager
+symbol
+	public fun
+	0x2::coin_manager
+description
+	public fun
+	0x2::coin_manager
+icon_url
+	public fun
+	0x2::coin_manager
 VecMap
 	public struct
 	0x2::vec_map
@@ -2335,11 +2524,29 @@ add_internal
 IOTA
 	public struct
 	0x2::iota
+IotaTreasuryCap
+	public struct
+	0x2::iota
 new
 	fun
 	0x2::iota
 transfer
 	public entry fun
+	0x2::iota
+mint
+	public fun
+	0x2::iota
+mint_balance
+	public fun
+	0x2::iota
+burn
+	public fun
+	0x2::iota
+burn_balance
+	public fun
+	0x2::iota
+total_supply
+	public fun
 	0x2::iota
 TransferRequest
 	public struct
@@ -2614,6 +2821,15 @@ extension
 extension_mut
 	fun
 	0x2::kiosk_extension
+LabelerCap
+	public struct
+	0x2::labeler
+create_labeler_cap
+	public fun
+	0x2::labeler
+destroy_labeler_cap
+	public fun
+	0x2::labeler
 LinkedTable
 	public struct
 	0x2::linked_table
@@ -2929,6 +3145,15 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SMR
+	public struct
+	0x2::smr
+init
+	fun
+	0x2::smr
+transfer
+	public entry fun
+	0x2::smr
 TableVec
 	public struct
 	0x2::table_vec
@@ -2968,6 +3193,84 @@ swap
 swap_remove
 	public fun
 	0x2::table_vec
+TimeLock
+	public struct
+	0x2::timelock
+SystemTimelockCap
+	public struct
+	0x2::timelock
+lock
+	public fun
+	0x2::timelock
+lock_with_label
+	public fun
+	0x2::timelock
+lock_and_transfer
+	public fun
+	0x2::timelock
+lock_with_label_and_transfer
+	public fun
+	0x2::timelock
+unlock
+	public fun
+	0x2::timelock
+join
+	public fun
+	0x2::timelock
+join_vec
+	public fun
+	0x2::timelock
+split
+	public fun
+	0x2::timelock
+split_balance
+	public entry fun
+	0x2::timelock
+transfer_to_sender
+	public fun
+	0x2::timelock
+system_pack
+	public fun
+	0x2::timelock
+system_unpack
+	public fun
+	0x2::timelock
+type_name
+	public fun
+	0x2::timelock
+expiration_timestamp_ms
+	public fun
+	0x2::timelock
+is_locked
+	public fun
+	0x2::timelock
+remaining_time
+	public fun
+	0x2::timelock
+locked
+	public fun
+	0x2::timelock
+label
+	public fun
+	0x2::timelock
+is_labeled_with
+	public fun
+	0x2::timelock
+pack
+	fun
+	0x2::timelock
+unpack
+	fun
+	0x2::timelock
+transfer
+	fun
+	0x2::timelock
+check_expiration_timestamp_ms
+	fun
+	0x2::timelock
+new_system_timelock_cap
+	fun
+	0x2::timelock
 Token
 	public struct
 	0x2::token
@@ -4603,3 +4906,213 @@ get_module
 into_string
 	public fun
 	0x1::type_name
+STARDUST_UPGRADE_LABEL
+	public struct
+	0x107a::stardust_upgrade_label
+TimelockUnlockCondition
+	public struct
+	0x107a::timelock_unlock_condition
+unlock
+	public fun
+	0x107a::timelock_unlock_condition
+is_timelocked
+	public fun
+	0x107a::timelock_unlock_condition
+unix_time
+	public fun
+	0x107a::timelock_unlock_condition
+StorageDepositReturnUnlockCondition
+	public struct
+	0x107a::storage_deposit_return_unlock_condition
+unlock
+	public fun
+	0x107a::storage_deposit_return_unlock_condition
+return_address
+	public fun
+	0x107a::storage_deposit_return_unlock_condition
+return_amount
+	public fun
+	0x107a::storage_deposit_return_unlock_condition
+Irc27Metadata
+	public struct
+	0x107a::irc27
+version
+	public fun
+	0x107a::irc27
+media_type
+	public fun
+	0x107a::irc27
+uri
+	public fun
+	0x107a::irc27
+name
+	public fun
+	0x107a::irc27
+collection_name
+	public fun
+	0x107a::irc27
+royalties
+	public fun
+	0x107a::irc27
+issuer_name
+	public fun
+	0x107a::irc27
+description
+	public fun
+	0x107a::irc27
+attributes
+	public fun
+	0x107a::irc27
+non_standard_fields
+	public fun
+	0x107a::irc27
+destroy
+	public fun
+	0x107a::irc27
+NFT
+	public struct
+	0x107a::nft
+Nft
+	public struct
+	0x107a::nft
+init
+	fun
+	0x107a::nft
+destroy
+	public fun
+	0x107a::nft
+legacy_sender
+	public fun
+	0x107a::nft
+metadata
+	public fun
+	0x107a::nft
+tag
+	public fun
+	0x107a::nft
+immutable_issuer
+	public fun
+	0x107a::nft
+immutable_metadata
+	public fun
+	0x107a::nft
+id
+	public(package) fun
+	0x107a::nft
+ExpirationUnlockCondition
+	public struct
+	0x107a::expiration_unlock_condition
+unlock
+	public fun
+	0x107a::expiration_unlock_condition
+can_be_unlocked_by
+	public fun
+	0x107a::expiration_unlock_condition
+owner
+	public fun
+	0x107a::expiration_unlock_condition
+return_address
+	public fun
+	0x107a::expiration_unlock_condition
+unix_time
+	public fun
+	0x107a::expiration_unlock_condition
+NftOutput
+	public struct
+	0x107a::nft_output
+extract_assets
+	public fun
+	0x107a::nft_output
+load_nft
+	fun
+	0x107a::nft_output
+attach_nft
+	public fun
+	0x107a::nft_output
+receive
+	public(package) fun
+	0x107a::nft_output
+BasicOutput
+	public struct
+	0x107a::basic_output
+extract_assets
+	public fun
+	0x107a::basic_output
+receive
+	public(package) fun
+	0x107a::basic_output
+Alias
+	public struct
+	0x107a::alias
+destroy
+	public fun
+	0x107a::alias
+legacy_state_controller
+	public fun
+	0x107a::alias
+state_index
+	public fun
+	0x107a::alias
+state_metadata
+	public fun
+	0x107a::alias
+sender
+	public fun
+	0x107a::alias
+metadata
+	public fun
+	0x107a::alias
+immutable_issuer
+	public fun
+	0x107a::alias
+immutable_metadata
+	public fun
+	0x107a::alias
+id
+	public(package) fun
+	0x107a::alias
+AliasOutput
+	public struct
+	0x107a::alias_output
+extract_assets
+	public fun
+	0x107a::alias_output
+receive
+	public(package) fun
+	0x107a::alias_output
+attach_alias
+	public fun
+	0x107a::alias_output
+load_alias
+	fun
+	0x107a::alias_output
+unlock_alias_address_owned_basic
+	public fun
+	0x107a::address_unlock_condition
+unlock_alias_address_owned_nft
+	public fun
+	0x107a::address_unlock_condition
+unlock_alias_address_owned_alias
+	public fun
+	0x107a::address_unlock_condition
+unlock_alias_address_owned_coinmanager_treasury
+	public fun
+	0x107a::address_unlock_condition
+unlock_nft_address_owned_basic
+	public fun
+	0x107a::address_unlock_condition
+unlock_nft_address_owned_nft
+	public fun
+	0x107a::address_unlock_condition
+unlock_nft_address_owned_alias
+	public fun
+	0x107a::address_unlock_condition
+extract_and_send_to
+	public fun
+	0x107a::utilities
+extract
+	public fun
+	0x107a::utilities
+extract_
+	fun
+	0x107a::utilities

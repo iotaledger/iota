@@ -52,6 +52,7 @@ module iota_system::iota_system {
     use iota_system::iota_system_state_inner::{Self, SystemParameters, IotaSystemStateInner, IotaSystemStateInnerV2};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
+    use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
     #[test_only] use iota_system::validator_set::ValidatorSet;
