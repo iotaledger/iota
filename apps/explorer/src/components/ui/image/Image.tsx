@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { EyeClose16, NftTypeImage24 } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
+import { PlaceholderReplace, VisibilityOff } from '@iota/ui-icons';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useAnimate } from 'framer-motion';
@@ -92,7 +92,7 @@ function BaseImage({
             ref={scope}
             className={cx(
                 imageStyles({ size, rounded, aspect }),
-                'relative flex items-center justify-center bg-gray-40 text-gray-65',
+                'relative flex items-center justify-center bg-shader-primary-light-12 text-neutral-40 dark:text-neutral-60',
                 animateFadeIn && 'opacity-0',
             )}
         >
@@ -102,17 +102,17 @@ function BaseImage({
                 isBlurred && (
                     <div
                         className={clsx(
-                            'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-gray-100/30 text-center text-white backdrop-blur-md',
+                            'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-neutral-10/30 text-center text-white backdrop-blur-md',
                             visibility === ImageVisibility.Hide &&
                                 'pointer-events-none cursor-not-allowed',
                         )}
                         onClick={() => setIsBlurred(!isBlurred)}
                     >
-                        <EyeClose16 />
+                        <VisibilityOff />
                     </div>
                 )
             ) : status === 'failed' ? (
-                <NftTypeImage24 />
+                <PlaceholderReplace />
             ) : null}
             {status === 'loaded' && (
                 <img
