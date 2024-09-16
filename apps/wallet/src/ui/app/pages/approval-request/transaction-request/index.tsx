@@ -100,13 +100,18 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                             isDryRun
                             isLoading={isDryRunLoading}
                             isError={isDryRunError}
-                            showGasSummary={false}
                             summary={summary}
                         />
                     </div>
                     <section className=" -mx-6 bg-white">
                         <div className="flex flex-col gap-4 p-6">
-                            <GasFees sender={addressForTransaction} transaction={transaction} />
+                            <GasFees
+                                sender={addressForTransaction}
+                                gasSummary={summary?.gas}
+                                isEstimate
+                                isError={isError}
+                                isPending={isDryRunLoading}
+                            />
                             <TransactionDetails
                                 sender={addressForTransaction}
                                 transaction={transaction}
