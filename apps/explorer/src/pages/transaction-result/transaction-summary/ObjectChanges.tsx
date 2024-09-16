@@ -243,17 +243,12 @@ function ObjectChangeEntriesCardFooter({
     const { data: iotansDomainName } = useResolveIotaNSName(ownerAddress);
 
     return (
-        <div className="flex flex-wrap items-center justify-between">
-            <Text variant="pBody/medium" color="steel-dark">
-                Owner
-            </Text>
-
+        <div className="flex flex-wrap justify-between px-md--rs pb-sm--rs">
+            <span className="text-body-md text-neutral-40 dark:text-neutral-60">Owner</span>
             {ownerType === 'AddressOwner' && (
                 <AddressLink label={iotansDomainName || undefined} address={ownerAddress} />
             )}
-
             {ownerType === 'ObjectOwner' && <ObjectLink objectId={ownerAddress} />}
-
             {ownerType === 'Shared' && <ObjectLink objectId={ownerAddress} label="Shared" />}
         </div>
     );

@@ -59,8 +59,8 @@ export function CollapsibleCard({
                     )}
                 </AccordionHeader>
                 <AccordionContent isExpanded={open}>{children}</AccordionContent>
+                {footer && <div className={clsx('rounded-b-2xl')}>{footer}</div>}
             </Accordion>
-            {footer && <div className={clsx('rounded-b-2xl bg-iota/10 py-2.5')}>{footer}</div>}
         </div>
     ) : (
         <Panel hasBorder={!hideBorder}>
