@@ -124,48 +124,38 @@ body,
         }
     }
 
-    @screen lg {
-        .address-grid-container-top {
-            @apply grid grid-cols-1 grid-rows-[67px,1fr,1fr,1fr] gap-4;
-            grid-template-areas:
-                'heroImage'
-                'description'
-                'owner'
-                'links';
-        }
-    }
-
     .address-grid-container-top {
         @apply grid grid-cols-2 gap-4;
         grid-template-areas:
-            'heroImage heroImage'
-            'description description'
-            'version version'
-            'owner owner';
+            'heroImage name'
+            'heroImage description'
+            'heroImage objectId'
+            'heroImage type'
+            'owner storageRebate'
+            'version lastTxBlock';
     }
 
     @screen md {
         .address-grid-container-top {
+            @apply grid-cols-[300px,1fr,1fr] grid-rows-2 gap-md;
             grid-template-areas:
-                'heroImage description'
-                'heroImage description'
-                'heroImage version'
-                'owner owner';
+                'heroImage name owner'
+                'heroImage description storageRebate'
+                'heroImage objectId version'
+                'heroImage type lastTxBlock';
         }
-
+        .address-grid-container-top.no-description.no-image {
+            @apply grid grid-cols-3 grid-rows-2;
+            grid-template-areas:
+                'objectId version owner'
+                'type lastTxBlock storageRebate';
+        }
         .address-grid-container-top.no-image {
-            @apply grid grid-cols-3 grid-rows-1;
-            grid-template-areas: 'description version owner';
-        }
-    }
-
-    @screen lg {
-        .address-grid-container-top {
-            @apply grid-cols-[360px,1fr,1fr] grid-rows-3 gap-6;
+            @apply grid grid-cols-3 grid-rows-3;
             grid-template-areas:
-                'heroImage description owner'
-                'heroImage description owner'
-                'heroImage version version';
+                'name description type'
+                'objectId version type'
+                'owner lastTxBlock storageRebate';
         }
     }
 }
