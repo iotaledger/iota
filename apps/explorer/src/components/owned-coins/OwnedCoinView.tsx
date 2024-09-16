@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { CoinIcon } from './CoinIcon';
 import { type CoinBalanceVerified } from './OwnedCoins';
 import CoinsPanel from './OwnedCoinsPanel';
-import { Card, CardBody, CardImage, Chip, ImageShape, ImageType, Tooltip } from '@iota/apps-ui-kit';
+import { Card, CardBody, Chip, Tooltip } from '@iota/apps-ui-kit';
 import { ArrowUp, Warning } from '@iota/ui-icons';
 
 type OwnedCoinViewProps = {
@@ -35,9 +35,9 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
     return (
         <div>
             <Card>
-                <CardImage type={ImageType.BgTransparent} shape={ImageShape.Rounded}>
+                <div className="rounded-full border border-neutral-92 dark:border-neutral-10">
                     <CoinIcon coinType={coin.coinType} size="lg" />
-                </CardImage>
+                </div>
                 <div className="mr-auto flex flex-row items-center gap-md">
                     <CardBody {...CARD_BODY} />
                     {!coin.isRecognized && (
