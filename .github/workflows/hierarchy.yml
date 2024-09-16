@@ -116,7 +116,7 @@ jobs:
       - typos
     if: |
       !cancelled() &&
-      (success('dprint-format', 'license-check', 'typos') || (success('dprint-format', 'typos') && needs.license-check.result == 'skipped')) &&
+      success() &&
       needs.diff.outputs.isRust == 'false' &&
       needs.diff.outputs.isMove == 'true' &&
       !github.event.pull_request.draft
@@ -129,8 +129,7 @@ jobs:
       - license-check
       - typos
     if: |
-      !cancelled() &&
-      (success('dprint-format', 'license-check', 'typos') || (success('dprint-format', 'typos') && needs.license-check.result == 'skipped'))
+      !cancelled() && success()
     uses: ./.github/workflows/_rust.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
@@ -138,8 +137,7 @@ jobs:
 
   e2e:
     if: |
-      !github.event.pull_request.draft &&
-      (success('dprint-format', 'license-check', 'typos') || (success('dprint-format', 'typos') && needs.license-check.result == 'skipped'))
+      !github.event.pull_request.draft && success()
     needs:
       - diff
       - dprint-format

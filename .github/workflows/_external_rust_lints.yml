@@ -49,7 +49,7 @@ jobs:
 
   clippy:
     if: |
-      !cancelled() && success('rustfmt', 'cargo-deny') && inputs.isRust
+      !cancelled() && success() && inputs.isRust
     needs:
       - rustfmt
       - cargo-deny
