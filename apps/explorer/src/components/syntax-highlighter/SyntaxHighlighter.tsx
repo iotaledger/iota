@@ -4,9 +4,7 @@
 
 import { useOnScreen } from '@iota/core';
 import { useRef, useEffect, useState } from 'react';
-import { Highlight } from 'prism-react-renderer';
-import 'prism-themes/themes/prism-one-light.css';
-
+import { Highlight, themes } from 'prism-react-renderer';
 import type { Language } from 'prism-react-renderer';
 
 interface SyntaxHighlighterProps {
@@ -26,12 +24,12 @@ export function SyntaxHighlighter({ code, language }: SyntaxHighlighterProps): J
     }, [isIntersecting]);
     return (
         <div className="overflow-auto whitespace-pre font-mono text-sm">
-            <Highlight code={code} language={language} theme={undefined}>
+            <Highlight code={code} language={language} theme={themes.github}>
                 {({ style, tokens, getLineProps, getTokenProps }) => (
-                    <pre className="overflow-auto bg-transparent !p-0 font-medium" style={style}>
+                    <pre className="overflow-auto bg-transparent p-xs font-medium" style={style}>
                         {tokens.slice(0, loadedLines).map((line, i) => (
                             <div {...getLineProps({ line, key: i })} key={i} className="table-row">
-                                <div className="table-cell select-none pr-4 text-left opacity-50">
+                                <div className="table-cell select-none pr-4 text-left text-primary-30 opacity-50">
                                     {i + 1}
                                 </div>
 

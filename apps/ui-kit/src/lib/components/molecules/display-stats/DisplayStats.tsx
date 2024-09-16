@@ -48,6 +48,18 @@ interface DisplayStatsProps {
      * Add icon to the right of the label.
      */
     icon?: React.ReactNode;
+    /**
+     * The value link of the stats.
+     */
+    valueLink?: string;
+    /**
+     * The value link is external.
+     */
+    isExternalLink?: boolean;
+    /**
+     * The value is truncated
+     */
+    isTruncated?: boolean;
 }
 
 export function DisplayStats({
@@ -59,6 +71,9 @@ export function DisplayStats({
     type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
     icon,
+    valueLink,
+    isExternalLink = false,
+    isTruncated = false,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
@@ -66,10 +81,15 @@ export function DisplayStats({
     const valueTextClass = VALUE_TEXT_CLASSES[size];
     const labelTextClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
+    function truncate(value: string, startLength: number, endLength: number): string {
+        return value.length > startLength + endLength && isTruncated
+            ? `${value.slice(0, startLength)}...${value.slice(-endLength)}`
+            : value;
+    }
     return (
         <div
             className={cx(
-                'flex w-full flex-col justify-between rounded-2xl p-md--rs',
+                'flex h-full w-full flex-col justify-between rounded-2xl p-md--rs',
                 backgroundClass,
                 sizeClass,
                 textClass,
@@ -90,12 +110,25 @@ export function DisplayStats({
                 </div>
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
-            <div className="flex flex-row items-baseline gap-xxs">
-                <span className={cx(valueTextClass)}>{value}</span>
-                {supportingLabel && (
-                    <span className={cx('opacity-40', supportingLabelTextClass)}>
-                        {supportingLabel}
-                    </span>
+            <div className="flex w-full flex-row items-baseline gap-xxs">
+                {valueLink ? (
+                    <a
+                        href={valueLink}
+                        target={isExternalLink ? '_blank' : '_self'}
+                        rel="noreferrer"
+                        className={cx('text-primary-30 dark:text-primary-80', valueTextClass)}
+                    >
+                        {truncate(value, 6, 6)}
+                    </a>
+                ) : (
+                    <>
+                        <span className={cx(valueTextClass)}>{truncate(value, 6, 6)}</span>
+                        {supportingLabel && (
+                            <span className={cx('opacity-40', supportingLabelTextClass)}>
+                                {supportingLabel}
+                            </span>
+                        )}
+                    </>
                 )}
             </div>
         </div>
