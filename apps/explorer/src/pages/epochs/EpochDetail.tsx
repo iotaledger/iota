@@ -120,13 +120,7 @@ export default function EpochDetail() {
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
-            columns: [
-                {
-                    header: '#',
-                    accessorKey: 'number',
-                },
-                ...VALIDATOR_COLUMNS,
-            ],
+            columns: VALIDATOR_COLUMNS,
             showValidatorIcon: true,
         });
     }, [epochData]);

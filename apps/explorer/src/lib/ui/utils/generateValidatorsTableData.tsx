@@ -244,6 +244,7 @@ export function generateValidatorsTableData({
                                   address={validator.iotaAddress}
                                   name={validatorName}
                                   imageUrl={validator.imageUrl}
+                                  accentValidatorName={accentValidatorName}
                               />
                           ),
                       }
