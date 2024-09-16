@@ -1,12 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import {
     BadgeType,
     type TableCellProps,
     TableCellType,
     TableCellTextColor,
+    CellAvatarText,
 } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay } from '@iota/core';
@@ -35,6 +35,7 @@ interface GenerateValidatorsTableDataArgs {
     limit?: number;
     showValidatorIcon?: boolean;
     columns?: ColumnDef<object, unknown>[];
+    accentValidatorName?: boolean;
 }
 
 const ALL_VALIDATOR_COLUMNS = [
@@ -143,15 +144,13 @@ function generateValidatorAtRisk(atRisk: number | null): TableCellProps {
     };
 }
 
-function ValidatorName({
-    address,
-    name,
-    imageUrl,
-}: {
+interface ValidatorNameProps {
     address: string;
     name: string;
     imageUrl: string;
-}) {
+    accentValidatorName?: boolean;
+}
+function ValidatorName({ address, name, imageUrl, accentValidatorName }: ValidatorNameProps) {
     return (
         <Link
             to={`/validator/${encodeURIComponent(address)}`}
@@ -163,10 +162,13 @@ function ValidatorName({
                 })
             }
         >
-            <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
-                <ImageIcon src={imageUrl} size="sm" label={name} fallback={name} />
-                <span className="text-label-lg">{name}</span>
-            </div>
+            <CellAvatarText
+                leadingElement={<ImageIcon src={imageUrl} size="sm" label={name} fallback={name} />}
+                label={name}
+                textColor={
+                    accentValidatorName ? TableCellTextColor.Dark : TableCellTextColor.Default
+                }
+            />
         </Link>
     );
 }
@@ -205,6 +207,7 @@ export function generateValidatorsTableData({
     rollingAverageApys = null,
     showValidatorIcon = true,
     columns = DEFAULT_COLUMNS,
+    accentValidatorName,
 }: GenerateValidatorsTableDataArgs): {
     data: ValidatorTableRow[];
     columns: ColumnDef<object, unknown>[];

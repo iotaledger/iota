@@ -153,7 +153,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
         label,
         hasLastBorderNoneClass,
         isContentCentered,
-        textColor: textColorClass = TableCellTextColor.Default,
+        textColor = TableCellTextColor.Default,
         noWrap,
     } = props;
 
@@ -177,7 +177,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     <CellText
                         label={label}
                         supportingLabel={supportingLabel}
-                        textColor={textColorClass}
+                        textColor={textColor}
                     />
                 );
             case TableCellType.TextToCopy:
@@ -185,7 +185,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     <div
                         className={cx(
                             'flex items-center space-x-2 [&_svg]:h-4 [&_svg]:w-4',
-                            textColorClass,
+                            textColor,
                             CELL_TEXT_SIZE,
                         )}
                     >
@@ -202,10 +202,11 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 const { leadingElement } = props;
 
                 return (
-                    <div className={cx('flex items-center gap-x-2.5', textColorClass)}>
-                        {leadingElement}
-                        <span className="text-label-lg">{label}</span>
-                    </div>
+                    <CellAvatarText
+                        leadingElement={leadingElement}
+                        label={label}
+                        textColor={textColor}
+                    />
                 );
             case TableCellType.Checkbox:
                 const { isChecked, onChange, isIndeterminate } = props;
@@ -255,15 +256,16 @@ export function TableCell(props: TableCellProps): JSX.Element {
     );
 }
 
+interface CellTextProps {
+    label?: string;
+    supportingLabel?: string;
+    textColor?: TableCellTextColor;
+}
 export function CellText({
     label,
     supportingLabel,
     textColor = TableCellTextColor.Default,
-}: {
-    label?: string;
-    supportingLabel?: string;
-    textColor?: TableCellTextColor;
-}): React.JSX.Element {
+}: CellTextProps): React.JSX.Element {
     return (
         <div className="flex flex-row items-baseline gap-1">
             <span className={cx(textColor, CELL_TEXT_SIZE)}>{label}</span>
@@ -272,6 +274,24 @@ export function CellText({
                     {supportingLabel}
                 </span>
             )}
+        </div>
+    );
+}
+
+interface CellAvatarTextProps {
+    label?: string;
+    leadingElement: React.ReactNode;
+    textColor?: TableCellTextColor;
+}
+export function CellAvatarText({
+    leadingElement,
+    label,
+    textColor = TableCellTextColor.Default,
+}: CellAvatarTextProps) {
+    return (
+        <div className={cx('flex items-center gap-x-2.5', textColor)}>
+            {leadingElement}
+            <span className="text-label-lg">{label}</span>
         </div>
     );
 }

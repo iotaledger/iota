@@ -79,6 +79,7 @@ function ValidatorPageResult(): JSX.Element {
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
+            accentValidatorName: true,
         });
     }, [data, validatorEvents, validatorsApy]);
 
