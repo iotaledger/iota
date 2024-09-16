@@ -118,6 +118,25 @@ jobs:
       github.event.pull_request.draft == false
     uses: ./.github/workflows/_move_tests.yml
 
+  debug-rust:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: always()
+    runs-on: [self-hosted]
+    steps:
+      - name: Is cancelled
+        if: cancelled()
+        run: echo "cancelled() == true"
+      - name: Is success()
+        if: success()
+        run: echo "success() == true"
+      - name: Is failure()
+        if: failure()
+        run: echo "failure() == true"
+
   rust:
     needs:
       - diff
