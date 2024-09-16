@@ -3,48 +3,58 @@ processed 11 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 11-66:
+task 1, lines 10-65:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 9317600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 68-68:
+task 2, line 67:
+//# run a::m::create --sender A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 70-70:
+task 3, line 69:
+//# run a::m::create --sender A
 created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4 'run'. lines 72-72:
+task 4, line 71:
+//# run a::m::add_counter --sender A --args object(2,0)
 created: object(4,0), object(4,1)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 5981200,  storage_rebate: 2211600, non_refundable_storage_fee: 0
 
-task 5 'run'. lines 74-74:
+task 5, line 73:
+//# run a::m::obj_bump --sender A --args object(2,0)
 mutated: object(0,0), object(2,0), object(4,0)
 gas summary: computation_cost: 1000000, storage_cost: 3526400,  storage_rebate: 3526400, non_refundable_storage_fee: 0
 
-task 6 'run'. lines 76-76:
+task 6, line 75:
+//# run a::m::assert_count --sender A --args object(2,0) 1
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 2211600, non_refundable_storage_fee: 0
 
-task 7 'run'. lines 78-78:
+task 7, line 77:
+//# run a::m::transfer --sender A --args object(2,0) object(3,0)
 created: object(7,0)
 mutated: object(0,0), object(2,0), object(3,0), object(4,0)
 deleted: object(4,1)
 gas summary: computation_cost: 1000000, storage_cost: 7204800,  storage_rebate: 7204800, non_refundable_storage_fee: 0
 
-task 8 'run'. lines 80-80:
+task 8, line 79:
+//# run a::m::obj_bump --sender A --args object(3,0)
 mutated: object(0,0), object(3,0), object(4,0)
 gas summary: computation_cost: 1000000, storage_cost: 3526400,  storage_rebate: 3526400, non_refundable_storage_fee: 0
 
-task 9 'run'. lines 82-82:
+task 9, line 81:
+//# run a::m::assert_count --sender A --args object(3,0) 2
 mutated: object(0,0), object(3,0)
 gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 2211600, non_refundable_storage_fee: 0
 
-task 10 'run'. lines 84-84:
+task 10, line 83:
+//# run a::m::obj_bump --sender A --args object(2,0)
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object_mut (function index 12) at offset 0, Abort Code: 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 12, instruction: 0, function_name: Some("borrow_child_object_mut") }, 1), source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("dynamic_field") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
