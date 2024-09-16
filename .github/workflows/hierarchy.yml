@@ -124,7 +124,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: always()
+    if: ${{ !cancelled() && success() }}
     runs-on: [self-hosted]
     steps:
       - name: Is cancelled
