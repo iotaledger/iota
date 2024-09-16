@@ -249,7 +249,7 @@ export class MultiSigPublicKey extends PublicKey {
             }
 
             let publicKey = parsed.publicKey;
-            
+
             compressedSignatures[i] = {
                 [parsed.signatureScheme]: Array.from(
                     parsed.signature.map((x: number) => Number(x)),
