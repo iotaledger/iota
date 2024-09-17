@@ -7622,6 +7622,7 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-service",
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
