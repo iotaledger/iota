@@ -13,7 +13,7 @@ GIT_REVISION="$(git describe --always --abbrev=12 --dirty --exclude '*')"
 BUILD_DATE="$(date -u +'%Y-%m-%d')"
 
 echo
-echo "Building iota-rosetta docker image"
+echo "Building iota-indexer-tidb docker image"
 echo "Dockerfile: \t$DOCKERFILE"
 echo "docker context: $REPO_ROOT"
 echo "build date: \t$BUILD_DATE"
@@ -22,7 +22,6 @@ echo
 
 # TODO: Remove "--ssh default" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 docker build --ssh default -f "$DOCKERFILE" "$REPO_ROOT" \
-	-t iotaledger/iota-rosetta-devnet \
 	--build-arg GIT_REVISION="$GIT_REVISION" \
 	--build-arg BUILD_DATE="$BUILD_DATE" \
 	"$@"

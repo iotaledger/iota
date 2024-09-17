@@ -7,6 +7,7 @@ ARG PROFILE=release
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "$WORKDIR/iota"
+
 RUN apt-get update && apt-get install -y cmake clang libpq5 libpq-dev
 
 # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
@@ -33,6 +34,7 @@ COPY narwhal narwhal
 COPY external-crates external-crates
 COPY docs docs
 
+# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin iota-test-validator
 RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-test-validator ./
 

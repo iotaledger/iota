@@ -10,6 +10,9 @@ WORKDIR "$WORKDIR/iota"
 
 RUN apt-get update && apt-get install -y cmake clang
 
+# bridge-indexer needs postgres libpq5 and ca-certificates
+RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql
+
 # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh <<EOT
@@ -35,10 +38,10 @@ COPY external-crates external-crates
 COPY docs docs
 
 # TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin iota-node
+RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin bridge-indexer
 
 # Copy the built binary to the working directory depending on the profile, so we can copy it to the runtime image
-RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-node ./
+RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/bridge-indexer ./
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
@@ -48,12 +51,8 @@ RUN apt-get update && apt-get install -y libjemalloc-dev ca-certificates curl
 ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libjemalloc.so
 
 WORKDIR "$WORKDIR/iota"
-
-# Both bench and release profiles copy from release dir
-COPY --from=builder /iota/iota-node /opt/iota/bin/iota-node
-
-# Support legacy usages of /usr/local/bin/iota-node
-COPY --from=builder /iota/iota-node /usr/local/bin
+COPY --from=builder /iota/bridge-indexer /usr/local/bin
+RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql
 
 ARG BUILD_DATE
 ARG GIT_REVISION
