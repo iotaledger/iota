@@ -1,17 +1,20 @@
 processed 7 tasks
 
-task 1 'create-checkpoint'. lines 7-7:
+task 1, line 6:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 2 'advance-epoch'. lines 9-9:
+task 2, line 8:
+//# advance-epoch --create-random-state
 Epoch advanced: 0
 
-task 3 'run-graphql'. lines 11-47:
+task 3, lines 10-46:
+//# run-graphql
 Response: {
   "data": {
     "epoch": {
       "protocolConfigs": {
-        "protocolVersion": 1,
+        "protocolVersion": 51,
         "randomBeacon": {
           "value": true
         }
@@ -28,7 +31,7 @@ Response: {
           "json": {
             "id": "0x0000000000000000000000000000000000000000000000000000000000000008",
             "inner": {
-              "id": "0x045d785393de37379954535d3c98c98c4067f88b8fb6bd94289b2c3f14f5767f",
+              "id": "0xeab190dea45779ed5f2cdd9191c485333236b441d7488fb0676dac4959fbd383",
               "version": "1"
             }
           }
@@ -63,10 +66,12 @@ Response: {
   }
 }
 
-task 5 'create-checkpoint'. lines 53-53:
+task 5, line 52:
+//# create-checkpoint
 Checkpoint created: 3
 
-task 6 'run-graphql'. lines 55-70:
+task 6, lines 54-69:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {

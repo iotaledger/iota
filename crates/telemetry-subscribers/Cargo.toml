@@ -17,32 +17,22 @@ console-subscriber = { version = "0.4", optional = true }
 crossterm.workspace = true
 futures.workspace = true
 once_cell.workspace = true
-opentelemetry = { version = "0.20.0", features = ["rt-tokio"], optional = true }
-opentelemetry-otlp = { version = "0.13.0", features = ["grpc-tonic"], optional = true }
-opentelemetry-proto = { version = "0.3", optional = true }
-opentelemetry_api = { version = "0.20.0", optional = true }
+opentelemetry = "0.24"
+opentelemetry-otlp = { version = "0.17", features = ["grpc-tonic"] }
+opentelemetry-proto = "0.7"
+opentelemetry_sdk = { version = "0.24", features = ["rt-tokio"] }
 prometheus.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-appender.workspace = true
-tracing-opentelemetry = { version = "0.21.0", optional = true }
+tracing-opentelemetry = "0.25"
 tracing-subscriber.workspace = true
-
-# must use same version as opentelemetry for tonic and prost, so we can't use from
-# workspace
-prost = "0.11.9"
-tonic = { version = "0.9" }
+prost.workspace = true
+tonic.workspace = true
 
 [features]
 default = []
 tokio-console = ["console-subscriber"]
-otlp = [
-  "tracing-opentelemetry",
-  "opentelemetry",
-  "opentelemetry-otlp",
-  "opentelemetry-proto",
-  "opentelemetry_api",
-]
 
 [dev-dependencies]
 camino.workspace = true
