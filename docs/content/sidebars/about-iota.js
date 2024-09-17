@@ -39,24 +39,5 @@ const aboutIota = [
             'about-iota/tokenomics/gas-pricing',
         ],
     },
-    {
-        type: 'category',
-        label: 'Expert topics',
-        items: [
-            {
-                type: 'category',
-                label: 'Execution Architecture',
-                link: {
-                    type: 'doc',
-                    id: 'about-iota/execution-architecture/execution-layer',
-                },
-                items: [
-                    'about-iota/execution-architecture/iota-execution',
-                    'about-iota/execution-architecture/adapter',
-                    'about-iota/execution-architecture/natives',
-                ],
-            },
-        ],
-    },
 ];
 module.exports = aboutIota;

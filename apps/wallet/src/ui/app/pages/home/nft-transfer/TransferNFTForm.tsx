@@ -8,13 +8,7 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import {
-    createNftSendValidationSchema,
-    isIotaNSName,
-    useGetKioskContents,
-    useIotaNSEnabled,
-} from '@iota/core';
-import { useIotaClient } from '@iota/dapp-kit';
+import { createNftSendValidationSchema, useGetKioskContents } from '@iota/core';
 import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
@@ -31,14 +25,7 @@ interface TransferNFTFormProps {
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
-    const rpc = useIotaClient();
-    const iotaNSEnabled = useIotaNSEnabled();
-    const validationSchema = createNftSendValidationSchema(
-        activeAddress || '',
-        objectId,
-        rpc,
-        iotaNSEnabled,
-    );
+    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
@@ -57,16 +44,6 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
 
             if (isContainedInKiosk) {
                 return transferKioskItem.mutateAsync({ to });
-            }
-
-            if (iotaNSEnabled && isIotaNSName(to)) {
-                const address = await rpc.resolveNameServiceAddress({
-                    name: to,
-                });
-                if (!address) {
-                    throw new Error('IotaNS name not found.');
-                }
-                to = address;
             }
 
             const tx = new TransactionBlock();

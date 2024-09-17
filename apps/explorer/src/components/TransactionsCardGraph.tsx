@@ -85,7 +85,6 @@ export function TransactionsCardGraph() {
                             size={LabelTextSize.Large}
                             label="Total"
                             text={totalTransactions ? formatBalance(totalTransactions, 0) : '--'}
-                            showSupportingLabel={false}
                         />
                     </div>
 
@@ -98,7 +97,6 @@ export function TransactionsCardGraph() {
                                     ? lastEpochTotalTransactions.toString()
                                     : '--'
                             }
-                            showSupportingLabel={false}
                         />
                     </div>
                 </div>
