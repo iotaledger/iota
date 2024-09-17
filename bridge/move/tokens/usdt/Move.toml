@@ -1,0 +1,11 @@
+[package]
+name = "BridgedUSDT"
+version = "0.0.1"
+edition = "legacy"
+
+[dependencies]
+MoveStdlib = { local = "../../../../crates/iota-framework/packages/move-stdlib" }
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+bridged_usdt = "0x0"

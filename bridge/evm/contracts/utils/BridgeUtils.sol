@@ -1,15 +1,13 @@
-// SPDX-License-Identifier: MIT
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title BridgeMessage
+/// @title BridgeUtils
 /// @notice This library defines the message format and constants for the Iota native bridge. It also
 /// provides functions to encode and decode bridge messages and their payloads.
 /// @dev This library only utilizes internal functions to enable upgradeability via the OpenZeppelin
 /// UUPS proxy pattern (external libraries are not supported).
-library BridgeMessage {
+library BridgeUtils {
     /* ========== STRUCTS ========== */
 
     /// @dev A struct that represents a bridge message
@@ -53,6 +51,7 @@ library BridgeMessage {
     uint8 public constant UPDATE_BRIDGE_LIMIT = 3;
     uint8 public constant UPDATE_TOKEN_PRICE = 4;
     uint8 public constant UPGRADE = 5;
+    uint8 public constant ADD_EVM_TOKENS = 7;
 
     // Message type stake requirements
     uint32 public constant TRANSFER_STAKE_REQUIRED = 3334;
@@ -61,7 +60,8 @@ library BridgeMessage {
     uint32 public constant UPGRADE_STAKE_REQUIRED = 5001;
     uint16 public constant BLOCKLIST_STAKE_REQUIRED = 5001;
     uint32 public constant BRIDGE_LIMIT_STAKE_REQUIRED = 5001;
-    uint32 public constant TOKEN_PRICE_STAKE_REQUIRED = 5001;
+    uint32 public constant UPDATE_TOKEN_PRICE_STAKE_REQUIRED = 5001;
+    uint32 public constant ADD_EVM_TOKENS_STAKE_REQUIRED = 5001;
 
     // token Ids
     uint8 public constant IOTA = 0;
@@ -108,12 +108,68 @@ library BridgeMessage {
         } else if (_message.messageType == UPDATE_BRIDGE_LIMIT) {
             return BRIDGE_LIMIT_STAKE_REQUIRED;
         } else if (_message.messageType == UPDATE_TOKEN_PRICE) {
-            return TOKEN_PRICE_STAKE_REQUIRED;
+            return UPDATE_TOKEN_PRICE_STAKE_REQUIRED;
         } else if (_message.messageType == UPGRADE) {
             return UPGRADE_STAKE_REQUIRED;
+        } else if (_message.messageType == ADD_EVM_TOKENS) {
+            return ADD_EVM_TOKENS_STAKE_REQUIRED;
         } else {
-            revert("BridgeMessage: Invalid message type");
+            revert("BridgeUtils: Invalid message type");
         }
+    }
+
+    /// @notice Converts the provided token amount to the Iota decimal adjusted amount.
+    /// @param erc20Decimal The erc20 decimal value for the token.
+    /// @param iotaDecimal The iota decimal value for the token.
+    /// @param amount The ERC20 amount of the tokens to convert to Iota.
+    /// @return Iota converted amount.
+    function convertERC20ToIotaDecimal(uint8 erc20Decimal, uint8 iotaDecimal, uint256 amount)
+        internal
+        pure
+        returns (uint64)
+    {
+        if (erc20Decimal == iotaDecimal) {
+            // ensure provided amount is greater than 0
+            require(amount > 0, "BridgeUtils: Insufficient amount provided");
+            // Ensure converted amount fits within uint64
+            require(amount <= type(uint64).max, "BridgeUtils: Amount too large for uint64");
+            return uint64(amount);
+        }
+
+        require(erc20Decimal > iotaDecimal, "BridgeUtils: Invalid Iota decimal");
+
+        // Difference in decimal places
+        uint256 factor = 10 ** (erc20Decimal - iotaDecimal);
+        amount = amount / factor;
+
+        // Ensure the converted amount fits within uint64
+        require(amount <= type(uint64).max, "BridgeUtils: Amount too large for uint64");
+
+        // Ensure the converted amount is greater than 0
+        require(amount > 0, "BridgeUtils: Insufficient amount provided");
+
+        return uint64(amount);
+    }
+
+    /// @notice Converts the provided Iota decimal adjusted amount to the ERC20 token amount.
+    /// @param erc20Decimal The erc20 decimal value for the token.
+    /// @param iotaDecimal The iota decimal value for the token.
+    /// @param amount The Iota amount of the tokens to convert to ERC20.
+    /// @return ERC20 converted amount.
+    function convertIotaToERC20Decimal(uint8 erc20Decimal, uint8 iotaDecimal, uint64 amount)
+        internal
+        pure
+        returns (uint256)
+    {
+        if (iotaDecimal == erc20Decimal) {
+            return uint256(amount);
+        }
+
+        require(erc20Decimal > iotaDecimal, "BridgeUtils: Invalid Iota decimal");
+
+        // Difference in decimal places
+        uint256 factor = 10 ** (erc20Decimal - iotaDecimal);
+        return uint256(amount * factor);
     }
 
     /// @notice Decodes a token transfer payload from bytes to a TokenTransferPayload struct.
@@ -131,15 +187,15 @@ library BridgeMessage {
     function decodeTokenTransferPayload(bytes memory _payload)
         internal
         pure
-        returns (BridgeMessage.TokenTransferPayload memory)
+        returns (TokenTransferPayload memory)
     {
-        require(_payload.length == 64, "BridgeMessage: TokenTransferPayload must be 64 bytes");
+        require(_payload.length == 64, "BridgeUtils: TokenTransferPayload must be 64 bytes");
 
         uint8 senderAddressLength = uint8(_payload[0]);
 
         require(
             senderAddressLength == 32,
-            "BridgeMessage: Invalid sender address length, Iota address must be 32 bytes"
+            "BridgeUtils: Invalid sender address length, Iota address must be 32 bytes"
         );
 
         // used to offset already read bytes
@@ -161,7 +217,7 @@ library BridgeMessage {
         uint8 recipientAddressLength = uint8(_payload[offset++]);
         require(
             recipientAddressLength == 20,
-            "BridgeMessage: Invalid target address length, EVM address must be 20 bytes"
+            "BridgeUtils: Invalid target address length, EVM address must be 20 bytes"
         );
 
         // extract target address from payload (35-54)
@@ -225,7 +281,7 @@ library BridgeMessage {
         uint8 membersLength = uint8(_payload[1]);
         address[] memory members = new address[](membersLength);
         uint8 offset = 2;
-        require((_payload.length - offset) % 20 == 0, "BridgeMessage: Invalid payload length");
+        require((_payload.length - offset) % 20 == 0, "BridgeUtils: Invalid payload length");
         for (uint8 i; i < membersLength; i++) {
             // Calculate the starting index for each address
             offset += i * 20;
@@ -249,9 +305,9 @@ library BridgeMessage {
     /// @param _payload The payload to be decoded.
     /// @return The emergency operation type.
     function decodeEmergencyOpPayload(bytes memory _payload) internal pure returns (bool) {
-        require(_payload.length == 1, "BridgeMessage: Invalid payload length");
+        require(_payload.length == 1, "BridgeUtils: Invalid payload length");
         uint8 emergencyOpCode = uint8(_payload[0]);
-        require(emergencyOpCode <= 1, "BridgeMessage: Invalid op code");
+        require(emergencyOpCode <= 1, "BridgeUtils: Invalid op code");
         return emergencyOpCode == 0;
     }
 
@@ -268,7 +324,7 @@ library BridgeMessage {
         pure
         returns (uint8 senderChainID, uint64 newLimit)
     {
-        require(_payload.length == 9, "BridgeMessage: Invalid payload length");
+        require(_payload.length == 9, "BridgeUtils: Invalid payload length");
         senderChainID = uint8(_payload[0]);
 
         // Extracts the uint64 value by loading 32 bytes starting just after the first byte.
@@ -276,6 +332,24 @@ library BridgeMessage {
         assembly {
             newLimit := shr(192, mload(add(add(_payload, 0x20), 1)))
         }
+    }
+
+    /// @notice Decodes an upgrade payload from bytes to a proxy address, an implementation address,
+    /// and call data.
+    /// @dev The function will revert if the payload length is invalid. The payload is expected to be
+    /// abi encoded.
+    /// @param _payload The payload to be decoded.
+    /// @return proxy the address of the proxy to be upgraded.
+    /// @return implementation the address of the new implementation contract.
+    /// @return callData the call data to be used in the upgrade.
+    function decodeUpgradePayload(bytes memory _payload)
+        internal
+        pure
+        returns (address, address, bytes memory)
+    {
+        (address proxy, address implementation, bytes memory callData) =
+            abi.decode(_payload, (address, address, bytes));
+        return (proxy, implementation, callData);
     }
 
     /// @notice Decodes an update token price payload from bytes to a token ID and a new price.
@@ -301,21 +375,78 @@ library BridgeMessage {
         }
     }
 
-    /// @notice Decodes an upgrade payload from bytes to a proxy address, an implementation address,
-    /// and call data.
-    /// @dev The function will revert if the payload length is invalid. The payload is expected to be
-    /// abi encoded.
+    /// @notice Decodes an add token payload from bytes to a token ID, a token address, and a token price.
+    /// @dev The function will revert if the payload length is invalid.
+    ///     Add token payload is 5 + 2n + 20n + 8n bytes (assuming all arrays are of length n).
+    ///     byte 0           : is native
+    ///     byte 1           : number of token IDs
+    ///     byte 2 -> n      : token IDs
+    ///     byte n + 1       : number of addresses
+    ///     bytes n + 2 -> m : addresses
+    ///     byte m + 1       : number of iota decimals
+    ///     bytes m + 2 -> i : iota decimals
+    ///     byte i + 1       : number of prices
+    ///     bytes i + 2 -> j : prices (uint64)
     /// @param _payload The payload to be decoded.
-    /// @return proxy the address of the proxy to be upgraded.
-    /// @return implementation the address of the new implementation contract.
-    /// @return callData the call data to be used in the upgrade.
-    function decodeUpgradePayload(bytes memory _payload)
+    /// @return native whether the token is native to the chain.
+    /// @return tokenIDs the token ID to be added.
+    /// @return tokenAddresses the address of the token to be added.
+    /// @return iotaDecimals the Iota decimal places of the tokens to be added.
+    /// @return tokenPrices the price of the tokens to be added.
+    function decodeAddTokensPayload(bytes memory _payload)
         internal
         pure
-        returns (address, address, bytes memory)
+        returns (
+            bool native,
+            uint8[] memory tokenIDs,
+            address[] memory tokenAddresses,
+            uint8[] memory iotaDecimals,
+            uint64[] memory tokenPrices
+        )
     {
-        (address proxy, address implementation, bytes memory callData) =
-            abi.decode(_payload, (address, address, bytes));
-        return (proxy, implementation, callData);
+        native = _payload[0] != bytes1(0);
+
+        uint8 tokenCount = uint8(_payload[1]);
+
+        // Calculate the starting index for each token ID
+        uint8 offset = 2;
+        tokenIDs = new uint8[](tokenCount);
+        for (uint8 i; i < tokenCount; i++) {
+            tokenIDs[i] = uint8(_payload[offset++]);
+        }
+
+        uint8 addressCount = uint8(_payload[offset++]);
+        tokenAddresses = new address[](addressCount);
+        for (uint8 i; i < addressCount; i++) {
+            // Calculate the starting index for each address
+            address tokenAddress;
+            // Extract each address
+            assembly {
+                tokenAddress := mload(add(add(_payload, 20), offset))
+            }
+            offset += 20;
+            // Store the extracted address
+            tokenAddresses[i] = tokenAddress;
+        }
+
+        uint8 decimalCount = uint8(_payload[offset++]);
+        iotaDecimals = new uint8[](decimalCount);
+        for (uint8 i; i < decimalCount; i++) {
+            iotaDecimals[i] = uint8(_payload[offset++]);
+        }
+
+        uint8 priceCount = uint8(_payload[offset++]);
+        tokenPrices = new uint64[](priceCount);
+        for (uint8 i; i < priceCount; i++) {
+            // Calculate the starting index for each price
+            uint64 tokenPrice;
+            // Extract each price
+            assembly {
+                tokenPrice := shr(192, mload(add(add(_payload, 0x20), offset)))
+            }
+            offset += 8;
+            // Store the extracted price
+            tokenPrices[i] = tokenPrice;
+        }
     }
 }

@@ -1,13 +1,115 @@
-// SPDX-License-Identifier: MIT
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "./BridgeBaseTest.t.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract BridgeMessageTest is BridgeBaseTest {
+contract BridgeUtilsTest is BridgeBaseTest {
+    // This function is called before each unit test
+    function setUp() public {
+        setUpBridgeTest();
+    }
+
+    function testConvertERC20ToIotaDecimalAmountTooLargeForUint64() public {
+        vm.expectRevert(bytes("BridgeUtils: Amount too large for uint64"));
+        BridgeUtils.convertERC20ToIotaDecimal(18, 8, type(uint256).max);
+    }
+
+    function testConvertERC20ToIotaDecimalInvalidIotaDecimal() public {
+        vm.expectRevert(bytes("BridgeUtils: Invalid Iota decimal"));
+        BridgeUtils.convertERC20ToIotaDecimal(10, 11, 100);
+    }
+
+    function testconvertIotaToERC20DecimalInvalidIotaDecimal() public {
+        vm.expectRevert(bytes("BridgeUtils: Invalid Iota decimal"));
+        BridgeUtils.convertIotaToERC20Decimal(10, 11, 100);
+    }
+
+    function testConvertERC20ToIotaDecimal() public {
+        // ETH
+        assertEq(IERC20Metadata(wETH).decimals(), 18);
+        uint256 ethAmount = 10 ether;
+        uint64 iotaAmount = BridgeUtils.convertERC20ToIotaDecimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.ETH)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.ETH),
+            ethAmount
+        );
+        assertEq(iotaAmount, 10_000_000_00); // 10 * 10 ^ 8
+
+        // USDC
+        assertEq(IERC20Metadata(USDC).decimals(), 6);
+        ethAmount = 50_000_000; // 50 USDC
+        iotaAmount = BridgeUtils.convertERC20ToIotaDecimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.USDC)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.USDC),
+            ethAmount
+        );
+        assertEq(iotaAmount, ethAmount);
+
+        // USDT
+        assertEq(IERC20Metadata(USDT).decimals(), 6);
+        ethAmount = 60_000_000; // 60 USDT
+        iotaAmount = BridgeUtils.convertERC20ToIotaDecimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.USDT)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.USDT),
+            ethAmount
+        );
+        assertEq(iotaAmount, ethAmount);
+
+        // BTC
+        assertEq(IERC20Metadata(wBTC).decimals(), 8);
+        ethAmount = 2_00_000_000; // 2 BTC
+        iotaAmount = BridgeUtils.convertERC20ToIotaDecimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.BTC)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.BTC),
+            ethAmount
+        );
+        assertEq(iotaAmount, ethAmount);
+    }
+
+    function testconvertIotaToERC20Decimal() public {
+        // ETH
+        assertEq(IERC20Metadata(wETH).decimals(), 18);
+        uint64 iotaAmount = 11_000_000_00; // 11 eth
+        uint256 ethAmount = BridgeUtils.convertIotaToERC20Decimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.ETH)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.ETH),
+            iotaAmount
+        );
+        assertEq(ethAmount, 11 ether);
+
+        // USDC
+        assertEq(IERC20Metadata(USDC).decimals(), 6);
+        iotaAmount = 50_000_000; // 50 USDC
+        ethAmount = BridgeUtils.convertIotaToERC20Decimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.USDC)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.USDC),
+            iotaAmount
+        );
+        assertEq(iotaAmount, ethAmount);
+
+        // USDT
+        assertEq(IERC20Metadata(USDT).decimals(), 6);
+        iotaAmount = 50_000_000; // 50 USDT
+        ethAmount = BridgeUtils.convertIotaToERC20Decimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.USDT)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.USDT),
+            iotaAmount
+        );
+        assertEq(iotaAmount, ethAmount);
+
+        // BTC
+        assertEq(IERC20Metadata(wBTC).decimals(), 8);
+        iotaAmount = 3_000_000_00; // 3 BTC
+        ethAmount = BridgeUtils.convertIotaToERC20Decimal(
+            IERC20Metadata(config.tokenAddressOf(BridgeUtils.BTC)).decimals(),
+            config.tokenIotaDecimalOf(BridgeUtils.BTC),
+            iotaAmount
+        );
+        assertEq(iotaAmount, ethAmount);
+    }
+
     function testEncodeMessage() public {
         bytes memory moveEncodedMessage = abi.encodePacked(
             hex"5355495f4252494447455f4d45535341474500010000000000000000012080ab1ee086210a3a37355300ca24672e81062fcdb5ced6618dab203f6a3b291c0b14b18f79fe671db47393315ffdb377da4ea1b7af96010084d71700000000"
@@ -20,9 +122,9 @@ contract BridgeMessageTest is BridgeBaseTest {
             hex"2080ab1ee086210a3a37355300ca24672e81062fcdb5ced6618dab203f6a3b291c0b14b18f79fe671db47393315ffdb377da4ea1b7af96010084d71700000000"
         );
 
-        bytes memory abiEncodedMessage = BridgeMessage.encodeMessage(
-            BridgeMessage.Message({
-                messageType: BridgeMessage.TOKEN_TRANSFER,
+        bytes memory abiEncodedMessage = BridgeUtils.encodeMessage(
+            BridgeUtils.Message({
+                messageType: BridgeUtils.TOKEN_TRANSFER,
                 version: 1,
                 nonce: nonce,
                 chainID: iotaChainId,
@@ -48,8 +150,8 @@ contract BridgeMessageTest is BridgeBaseTest {
         bytes memory payload =
             hex"2080ab1ee086210a3a37355300ca24672e81062fcdb5ced6618dab203f6a3b291c0b14b18f79fe671db47393315ffdb377da4ea1b7af9602000000c70432b1dd";
 
-        BridgeMessage.TokenTransferPayload memory _payload =
-            BridgeMessage.decodeTokenTransferPayload(payload);
+        BridgeUtils.TokenTransferPayload memory _payload =
+            BridgeUtils.decodeTokenTransferPayload(payload);
 
         assertEq(_payload.senderAddressLength, uint8(32));
         assertEq(
@@ -59,15 +161,14 @@ contract BridgeMessageTest is BridgeBaseTest {
         assertEq(_payload.targetChain, uint8(11));
         assertEq(_payload.recipientAddressLength, uint8(20));
         assertEq(_payload.recipientAddress, 0xb18f79Fe671db47393315fFDB377Da4Ea1B7AF96);
-        assertEq(_payload.tokenID, BridgeMessage.ETH);
+        assertEq(_payload.tokenID, BridgeUtils.ETH);
         assertEq(_payload.amount, uint64(854768923101));
     }
 
     function testDecodeBlocklistPayload() public {
         bytes memory payload =
             hex"010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5";
-        (bool blocklisting, address[] memory members) =
-            BridgeMessage.decodeBlocklistPayload(payload);
+        (bool blocklisting, address[] memory members) = BridgeUtils.decodeBlocklistPayload(payload);
 
         assertEq(members.length, 2);
         assertEq(members[0], 0x68B43fD906C0B8F024a18C56e06744F7c6157c65);
@@ -77,21 +178,22 @@ contract BridgeMessageTest is BridgeBaseTest {
 
     function testDecodeUpdateLimitPayload() public {
         bytes memory payload = hex"0c00000002540be400";
-        (uint8 sourceChainID, uint64 newLimit) = BridgeMessage.decodeUpdateLimitPayload(payload);
+        (uint8 sourceChainID, uint64 newLimit) = BridgeUtils.decodeUpdateLimitPayload(payload);
         assertEq(sourceChainID, 12);
-        assertEq(newLimit, 1_000_000_0000);
+        assertEq(newLimit, 100 * USD_VALUE_MULTIPLIER);
     }
 
-    function testdecodeUpdateTokenPricePayload() public {
+    function testDecodeUpdateTokenPricePayload() public {
         bytes memory payload = hex"01000000003b9aca00";
-        (uint8 tokenID, uint64 newPrice) = BridgeMessage.decodeUpdateTokenPricePayload(payload);
-        assertEq(tokenID, 1);
-        assertEq(newPrice, 100_000_0000);
+        (uint8 _tokenID, uint64 _newPrice) = BridgeUtils.decodeUpdateTokenPricePayload(payload);
+
+        assertEq(_tokenID, 1);
+        assertEq(_newPrice, 10 * USD_VALUE_MULTIPLIER);
     }
 
     function testDecodeEmergencyOpPayload() public {
         bytes memory payload = hex"01";
-        bool pausing = BridgeMessage.decodeEmergencyOpPayload(payload);
+        bool pausing = BridgeUtils.decodeEmergencyOpPayload(payload);
         assertFalse(pausing);
     }
 
@@ -103,7 +205,7 @@ contract BridgeMessageTest is BridgeBaseTest {
         );
 
         (address proxy, address newImp, bytes memory _calldata) =
-            BridgeMessage.decodeUpgradePayload(payload);
+            BridgeUtils.decodeUpgradePayload(payload);
 
         assertEq(proxy, address(100));
         assertEq(newImp, address(200));
@@ -120,19 +222,19 @@ contract BridgeMessageTest is BridgeBaseTest {
         bytes4 initV2CallData = bytes4(keccak256(bytes("initializeV2()")));
 
         // Create upgrade message
-        BridgeMessage.Message memory message = BridgeMessage.Message({
-            messageType: BridgeMessage.UPGRADE,
+        BridgeUtils.Message memory message = BridgeUtils.Message({
+            messageType: BridgeUtils.UPGRADE,
             version: 1,
             nonce: 123,
             chainID: 12,
             payload: initV2Payload
         });
-        bytes memory encodedMessage = BridgeMessage.encodeMessage(message);
+        bytes memory encodedMessage = BridgeUtils.encodeMessage(message);
 
         assertEq(encodedMessage, initV2Message);
 
         (address proxy, address newImp, bytes memory _calldata) =
-            BridgeMessage.decodeUpgradePayload(initV2Payload);
+            BridgeUtils.decodeUpgradePayload(initV2Payload);
 
         assertEq(proxy, address(0x0606060606060606060606060606060606060606));
         assertEq(newImp, address(0x0909090909090909090909090909090909090909));
@@ -149,19 +251,19 @@ contract BridgeMessageTest is BridgeBaseTest {
         bytes4 newMockFunc1CallData = bytes4(keccak256(bytes("newMockFunction(bool)")));
 
         // Create upgrade message
-        BridgeMessage.Message memory message = BridgeMessage.Message({
-            messageType: BridgeMessage.UPGRADE,
+        BridgeUtils.Message memory message = BridgeUtils.Message({
+            messageType: BridgeUtils.UPGRADE,
             version: 1,
             nonce: 123,
             chainID: 12,
             payload: newMockFunc1Payload
         });
-        bytes memory encodedMessage = BridgeMessage.encodeMessage(message);
+        bytes memory encodedMessage = BridgeUtils.encodeMessage(message);
 
         assertEq(encodedMessage, newMockFunc1Message);
 
         (address proxy, address newImp, bytes memory _calldata) =
-            BridgeMessage.decodeUpgradePayload(newMockFunc1Payload);
+            BridgeUtils.decodeUpgradePayload(newMockFunc1Payload);
 
         assertEq(proxy, address(0x0606060606060606060606060606060606060606));
         assertEq(newImp, address(0x0909090909090909090909090909090909090909));
@@ -178,19 +280,19 @@ contract BridgeMessageTest is BridgeBaseTest {
         bytes4 newMockFunc2CallData = bytes4(keccak256(bytes("newMockFunction(bool,uint8)")));
 
         // Create upgrade message
-        BridgeMessage.Message memory message = BridgeMessage.Message({
-            messageType: BridgeMessage.UPGRADE,
+        BridgeUtils.Message memory message = BridgeUtils.Message({
+            messageType: BridgeUtils.UPGRADE,
             version: 1,
             nonce: 123,
             chainID: 12,
             payload: newMockFunc2Payload
         });
-        bytes memory encodedMessage = BridgeMessage.encodeMessage(message);
+        bytes memory encodedMessage = BridgeUtils.encodeMessage(message);
 
         assertEq(encodedMessage, newMockFunc2Message);
 
         (address proxy, address newImp, bytes memory _calldata) =
-            BridgeMessage.decodeUpgradePayload(newMockFunc2Payload);
+            BridgeUtils.decodeUpgradePayload(newMockFunc2Payload);
 
         assertEq(proxy, address(0x0606060606060606060606060606060606060606));
         assertEq(newImp, address(0x0909090909090909090909090909090909090909));
@@ -205,19 +307,19 @@ contract BridgeMessageTest is BridgeBaseTest {
             hex"0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000";
 
         // Create upgrade message
-        BridgeMessage.Message memory message = BridgeMessage.Message({
-            messageType: BridgeMessage.UPGRADE,
+        BridgeUtils.Message memory message = BridgeUtils.Message({
+            messageType: BridgeUtils.UPGRADE,
             version: 1,
             nonce: 123,
             chainID: 12,
             payload: emptyCalldataPayload
         });
-        bytes memory encodedMessage = BridgeMessage.encodeMessage(message);
+        bytes memory encodedMessage = BridgeUtils.encodeMessage(message);
 
         assertEq(encodedMessage, emptyCalldataMessage);
 
         (address proxy, address newImp, bytes memory _calldata) =
-            BridgeMessage.decodeUpgradePayload(emptyCalldataPayload);
+            BridgeUtils.decodeUpgradePayload(emptyCalldataPayload);
 
         assertEq(proxy, address(0x0606060606060606060606060606060606060606));
         assertEq(newImp, address(0x0909090909090909090909090909090909090909));
@@ -226,7 +328,7 @@ contract BridgeMessageTest is BridgeBaseTest {
 
     function testrequiredStakeInvalidType() public {
         uint8 invalidType = 100;
-        vm.expectRevert("BridgeMessage: Invalid message type");
-        BridgeMessage.requiredStake(BridgeMessage.Message(invalidType, 0, 0, 1, bytes(hex"00")));
+        vm.expectRevert("BridgeUtils: Invalid message type");
+        BridgeUtils.requiredStake(BridgeUtils.Message(invalidType, 0, 0, 1, bytes(hex"00")));
     }
 }

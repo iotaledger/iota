@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: MIT
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 /// @title IBridgeConfig
@@ -13,6 +11,7 @@ interface IBridgeConfig {
     struct Token {
         address tokenAddress;
         uint8 iotaDecimal;
+        bool native;
     }
 
     /* ========== VIEW FUNCTIONS ========== */
@@ -20,30 +19,17 @@ interface IBridgeConfig {
     /// @notice Returns the address of the token with the given ID.
     /// @param tokenID The ID of the token.
     /// @return address of the provided token.
-    function getTokenAddress(uint8 tokenID) external view returns (address);
+    function tokenAddressOf(uint8 tokenID) external view returns (address);
 
     /// @notice Returns the iota decimal places of the token with the given ID.
     /// @param tokenID The ID of the token.
     /// @return amount of iota decimal places of the provided token.
-    function getIotaDecimal(uint8 tokenID) external view returns (uint8);
+    function tokenIotaDecimalOf(uint8 tokenID) external view returns (uint8);
 
-    /// @notice Converts the provided token amount to the Iota decimal adjusted amount.
-    /// @param tokenID The ID of the token to convert.
-    /// @param amount The ERC20 amount of the tokens to convert to Iota.
-    /// @return Iota converted amount.
-    function convertERC20ToIotaDecimal(uint8 tokenID, uint256 amount)
-        external
-        view
-        returns (uint64);
-
-    /// @notice Converts the provided token amount to the ERC20 decimal adjusted amount.
-    /// @param tokenID The ID of the token to convert.
-    /// @param amount The Iota amount of the tokens to convert to ERC20 amount.
-    /// @return ERC20 converted amount.
-    function convertIotaToERC20Decimal(uint8 tokenID, uint64 amount)
-        external
-        view
-        returns (uint256);
+    /// @notice Returns the price of the token with the given ID.
+    /// @param tokenID The ID of the token.
+    /// @return price of the provided token.
+    function tokenPriceOf(uint8 tokenID) external view returns (uint64);
 
     /// @notice Returns the supported status of the token with the given ID.
     /// @param tokenID The ID of the token.
@@ -57,4 +43,7 @@ interface IBridgeConfig {
 
     /// @notice Returns the chain ID of the bridge.
     function chainID() external view returns (uint8);
+
+    event TokenAdded(uint8 tokenID, address tokenAddress, uint8 iotaDecimal, uint64 tokenPrice);
+    event TokenPriceUpdated(uint8 tokenID, uint64 tokenPrice);
 }
