@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
-  '@mysten/sui.js':
+  '@iota/iota-sdk':
     specifier: ^0.50.1
     version: 0.50.1
   '@prisma/client':
@@ -92,18 +92,18 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
 
-  /@mysten/bcs@0.11.1:
+  /@iota/bcs@0.11.1:
     resolution: {integrity: sha512-xP85isNSYUCHd3O/g+TmZYmg4wK6cU8q/n/MebkIGP4CYVJZz2wU/G24xIZ3wI+0iTop4dfgA5kYrg/DQKCUzA==}
     dependencies:
       bs58: 5.0.0
     dev: false
 
-  /@mysten/sui.js@0.50.1:
+  /@iota/iota-sdk@0.50.1:
     resolution: {integrity: sha512-AY0wb4n6PMTRsDGygzrrTHUK/m5KwKZ4aQcN9cayiwsq2iIhfjGo7uuqMA7Y5UiqvLCoF+z7Ig14Q5qejQ/S/w==}
     engines: {node: '>=16'}
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.1)
-      '@mysten/bcs': 0.11.1
+      '@iota/bcs': 0.11.1
       '@noble/curves': 1.3.0
       '@noble/hashes': 1.3.3
       '@scure/bip32': 1.3.3

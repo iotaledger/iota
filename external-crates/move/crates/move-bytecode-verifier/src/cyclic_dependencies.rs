@@ -1,15 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains verification of usage of dependencies for modules
+use std::collections::BTreeSet;
+
 use move_binary_format::{
-    access::ModuleAccess,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::CompiledModule,
 };
 use move_core_types::{language_storage::ModuleId, vm_status::StatusCode};
-use std::collections::BTreeSet;
 
 pub fn verify_module<D>(module: &CompiledModule, imm_deps: D) -> VMResult<()>
 where
@@ -18,10 +19,11 @@ where
     verify_module_impl(module, imm_deps).map_err(|e| e.finish(Location::Module(module.self_id())))
 }
 
-/// This function performs a depth-first traversal in the module graph, starting at `module` and
-/// recursively exploring immediate dependencies.  During the DFS,
-/// - If `module.self_id()` is encountered (again), a dependency cycle is detected and an error is
-///   returned.
+/// This function performs a depth-first traversal in the module graph, starting
+/// at `module` and recursively exploring immediate dependencies.  During the
+/// DFS,
+/// - If `module.self_id()` is encountered (again), a dependency cycle is
+///   detected and an error is returned.
 /// - Otherwise terminates without an error.
 fn verify_module_impl<D>(module: &CompiledModule, imm_deps: D) -> PartialVMResult<()>
 where

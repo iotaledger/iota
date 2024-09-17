@@ -6,7 +6,7 @@
 // Also tests that fetching events filtered on a tx digest that has events returns the correct
 // number of page-limit-bound nodes.
 
-//# init --protocol-version 48 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 1 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {

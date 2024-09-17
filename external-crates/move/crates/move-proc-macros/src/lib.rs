@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
@@ -7,8 +8,8 @@ use syn::{parse_macro_input, Data, DataEnum, DeriveInput, ItemFn};
 
 /// This macro generates a function `order_to_variant_map` which returns a map
 /// of the position of each variant to the name of the variant.
-/// It is intended to catch changes in enum order when backward compat is required.
-/// A test is also generated which enforces the enum order.
+/// It is intended to catch changes in enum order when backward compat is
+/// required. A test is also generated which enforces the enum order.
 ///
 /// ```rust,ignore
 ///    /// Example for this enum
@@ -85,14 +86,14 @@ pub fn test_variant_order(attr: TokenStream, item: TokenStream) -> TokenStream {
 const RED_ZONE: usize = 1024 * 1024; // 1MB
 const STACK_PER_CALL: usize = 1024 * 1024 * 8; // 8MB
 
-/// This macro uses `stacker` to grow the stack of any function annotated with it. It does this by
-/// rewriting the function body to bump the stack pointer up by 1MB per call. The intent it to use
-/// this in the compiler to avoid stack overflows in many places that Rust was previously
-/// destroying the stack.
+/// This macro uses `stacker` to grow the stack of any function annotated with
+/// it. It does this by rewriting the function body to bump the stack pointer up
+/// by 1MB per call. The intent it to use this in the compiler to avoid stack
+/// overflows in many places that Rust was previously destroying the stack.
 ///
-/// The `grow_stack` call takes two arguments, `RED_ZONE` and `STACK_SIZE`. It then checks to see
-/// if we're within `RED_ZONE` bytes of the end of the stack, and will allocate a new stack of at
-/// least `STACK_SIZE` bytes if so.
+/// The `grow_stack` call takes two arguments, `RED_ZONE` and `STACK_SIZE`. It
+/// then checks to see if we're within `RED_ZONE` bytes of the end of the stack,
+/// and will allocate a new stack of at least `STACK_SIZE` bytes if so.
 #[proc_macro_attribute]
 pub fn growing_stack(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);

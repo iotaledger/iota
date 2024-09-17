@@ -1,20 +1,23 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
   useCurrentAccount,
   useSignAndExecuteTransactionBlock,
-  useSuiClient,
-  useSuiClientQuery,
-} from "@mysten/dapp-kit";
-import type { SuiObjectData } from "@mysten/sui.js/client";
-import { TransactionBlock } from "@mysten/sui.js/transactions";
+  useIotaClient,
+  useIotaClientQuery,
+} from "@iota/dapp-kit";
+import type { IotaObjectData } from "@iota/iota-sdk/client";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { Button, Flex, Heading, Text } from "@radix-ui/themes";
 import { useNetworkVariable } from "./networkConfig";
 
 export function Counter({ id }: { id: string }) {
-  const client = useSuiClient();
+  const client = useIotaClient();
   const currentAccount = useCurrentAccount();
   const counterPackageId = useNetworkVariable("counterPackageId");
   const { mutate: signAndExecute } = useSignAndExecuteTransactionBlock();
-  const { data, isPending, error, refetch } = useSuiClientQuery("getObject", {
+  const { data, isPending, error, refetch } = useIotaClientQuery("getObject", {
     id,
     options: {
       showContent: true,
@@ -82,7 +85,7 @@ export function Counter({ id }: { id: string }) {
     </>
   );
 }
-function getCounterFields(data: SuiObjectData) {
+function getCounterFields(data: IotaObjectData) {
   if (data.content?.dataType !== "moveObject") {
     return null;
   }

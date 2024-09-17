@@ -1,6 +1,7 @@
 #!/bin/bash
 # Copyright (c) The Diem Core Contributors
 # Copyright (c) The Move Contributors
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # Check that the test directory and report path arguments are provided

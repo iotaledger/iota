@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -29,8 +30,9 @@ const BROADCAST_CONCURRENCY: usize = 10;
 
 /// Broadcaster sends newly created blocks to each peer over the network.
 ///
-/// For a peer that lags behind or is disconnected, blocks are buffered and retried until
-/// a limit is reached, then old blocks will get dropped from the buffer.
+/// For a peer that lags behind or is disconnected, blocks are buffered and
+/// retried until a limit is reached, then old blocks will get dropped from the
+/// buffer.
 pub(crate) struct Broadcaster {
     // Background tasks listening for new blocks and pushing them to peers.
     senders: JoinSet<()>,
@@ -67,8 +69,8 @@ impl Broadcaster {
         self.senders.abort_all();
     }
 
-    /// Runs a loop that continously pushes new blocks received from the rx_block_broadcast
-    /// channel to the target peer.
+    /// Runs a loop that continously pushes new blocks received from the
+    /// rx_block_broadcast channel to the target peer.
     ///
     /// The loop does not exit until the validator is shutting down.
     async fn push_blocks<C: NetworkClient>(
@@ -77,11 +79,12 @@ impl Broadcaster {
         mut rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
         peer: AuthorityIndex,
     ) {
-        let peer_hostname = context.committee.authority(peer).hostname.clone();
+        let peer_hostname = &context.committee.authority(peer).hostname;
 
-        // Record the last block to be broadcasted, to retry in case no new block is produced for awhile.
-        // Even if the peer has acknowledged the last block, the block might have been dropped afterwards
-        // if the peer crashed.
+        // Record the last block to be broadcasted, to retry in case no new block is
+        // produced for awhile. Even if the peer has acknowledged the last
+        // block, the block might have been dropped afterwards if the peer
+        // crashed.
         let mut last_block: Option<VerifiedBlock> = None;
 
         // Retry last block with an interval.
@@ -89,9 +92,10 @@ impl Broadcaster {
         retry_timer.reset_after(Self::LAST_BLOCK_RETRY_INTERVAL);
         retry_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-        // Use a simple exponential-decay RTT estimator to adjust the timeout for each block sent.
-        // The estimation logic will be removed once the underlying transport switches to use
-        // streaming and the streaming implementation can be relied upon for retries.
+        // Use a simple exponential-decay RTT estimator to adjust the timeout for each
+        // block sent. The estimation logic will be removed once the underlying
+        // transport switches to use streaming and the streaming implementation
+        // can be relied upon for retries.
         const RTT_ESTIMATE_DECAY: f64 = 0.95;
         const TIMEOUT_THRESHOLD_MULTIPLIER: f64 = 2.0;
         const TIMEOUT_RTT_INCREMENT_FACTOR: f64 = 1.6;
@@ -107,7 +111,8 @@ impl Broadcaster {
         ) -> (Result<ConsensusResult<()>, Elapsed>, Instant, VerifiedBlock) {
             let start = Instant::now();
             let req_timeout = rtt_estimate.mul_f64(TIMEOUT_THRESHOLD_MULTIPLIER);
-            // Use a minimum timeout of 5s so the receiver does not terminate the request too early.
+            // Use a minimum timeout of 5s so the receiver does not terminate the request
+            // too early.
             let network_timeout =
                 std::cmp::max(req_timeout, Broadcaster::MIN_SEND_BLOCK_NETWORK_TIMEOUT);
             let resp = timeout(
@@ -179,7 +184,7 @@ impl Broadcaster {
                 .metrics
                 .node_metrics
                 .broadcaster_rtt_estimate_ms
-                .with_label_values(&[&peer_hostname])
+                .with_label_values(&[peer_hostname])
                 .set(rtt_estimate.as_millis() as i64);
         }
     }
@@ -197,7 +202,10 @@ mod test {
     use super::*;
     use crate::{
         block::{BlockRef, TestBlock},
+        commit::CommitRange,
         core::CoreSignals,
+        network::BlockStream,
+        Round,
     };
 
     struct FakeNetworkClient {
@@ -221,6 +229,8 @@ mod test {
 
     #[async_trait]
     impl NetworkClient for FakeNetworkClient {
+        const SUPPORT_STREAMING: bool = false;
+
         async fn send_block(
             &self,
             peer: AuthorityIndex,
@@ -233,10 +243,38 @@ mod test {
             Ok(())
         }
 
+        async fn subscribe_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
         async fn fetch_blocks(
             &self,
             _peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_latest_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -275,7 +313,7 @@ mod test {
             if index == context.own_index {
                 continue;
             }
-            assert!(blocks_sent.get(&index).is_none());
+            assert!(!blocks_sent.contains_key(&index));
         }
 
         // ... until LAST_BLOCK_RETRY_INTERVAL

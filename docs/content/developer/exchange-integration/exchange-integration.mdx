@@ -1,0 +1,244 @@
+---
+title: IOTA Exchange Integration Guide
+description: Learn the primary tasks necessary to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange.
+---
+
+import AlphaNet from "../../_snippets/alphanet.mdx";
+
+
+This topic describes how to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange. The specific requirements and processes to implement an integration vary between exchanges. Rather than provide a step-by-step guide, this topic provides information about the primary tasks necessary to complete an integration. After the guidance about how to configure an integration, you can also find information and code samples related to staking on the IOTA network.
+
+## Requirements to configure a IOTA integration
+
+The requirements to configure a IOTA integration include:
+ - A IOTA Full node. You can operate your own IOTA Full node or use a Full node from a node operator.
+ - Suggested hardware requirements to run a IOTA Full node:
+    - CPU: 8 physical cores / 16 vCPUs
+    - RAM: 128 GB
+    - Storage (SSD): 4 TB NVMe drive
+
+For best results, run IOTA Full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also fun a Full node on macOS.
+
+## Local testing
+
+You can develop and test your integration using a local development server. It will spin up a local network with some test nodes, an indexer, and a faucet. You can find detailed instructions in the [local development guide](../getting-started/local-network.mdx).
+
+## Configure a IOTA Full node
+
+You can set up and configure a [IOTA Full node](../../operator/iota-full-node.mdx) using Docker or directly from source code in the IOTA GitHub repository.
+
+## Set up IOTA addresses
+
+IOTA addresses do not require on-chain initialization, you can spend from an address if it corresponds to your private key. You can derive a 32-byte IOTA address by hashing the signature scheme flag byte concatenated with public key bytes `flag || pubkey` using the [BLAKE2b](https://www.blake2.net/) (256 bits output) hashing function. The flag is only appended if it's not the default `0x00` flag.
+
+Currently, IOTA address supports these signature schemes: pure Ed25519, Secp256k1, Secp256r1 and multisig. The corresponding flag bytes are 0x00, 0x01, 0x02, 0x03 respectively.
+
+:::info Default Signature Scheme
+
+The default signature scheme is ED25519 (flag `0x00`).  For this option, you only need to hash the `pubkey`, without prepending the `flag`. So, for flag `0x00` it's a hash of `pubkey`. For every other signature scheme, it's `flag || pubkey`. This is done to retain backward compatibility with addresses used on a previous version of the protocol.
+
+:::
+
+### Derive An ED25519 Address
+
+The following code sample demonstrates how to derive an ED25519 (default) IOTA address in Rust:
+
+```rust
+let mut hasher = iota_types::crypto::DefaultHash::default();
+let pk: &str = "Your ED25519 public key here";
+hasher.update(pk);
+let arr = hasher.finalize();
+let iota_address_string = hex::encode(arr);
+println!("Address: 0x{}", iota_address_string);
+```
+
+### Derive An `Secp256k1` Address
+
+This example uses a alternative `Secp256k1` signature scheme:
+
+```rust
+let flag = 0x01; // 0x01 = Secp256k1, 0x02 = Secp256r1, 0x03 = multiSig
+// Hash the [flag, public key] bytearray using Blake2b
+let mut hasher = iota_types::crypto::DefaultHash::default();
+let pk: &str = "Your public key here";
+hasher.update([flag]);
+hasher.update(pk);
+let arr = hasher.finalize();
+let iota_address_string = hex::encode(arr);
+println!("Address: 0x{}", iota_address_string);
+```
+
+### Generate an ED25519 Address With the Typescript SDK
+
+This example generates a new address with the TypeScript SDK:
+
+```ts
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+ 
+const keypair = new Ed25519Keypair();
+const address = keypair.getPublicKey().toIotaAddress();
+console.log(address);
+```
+
+## Displaying addresses
+
+IOTA supports both addresses with and without a `0x` prefix. We recommend that you always include the `0x` prefix in API calls and when you display user addresses.
+
+:::warning
+
+In previous versions of the protocol, we defaulted to a Bech32 human-readable representation of addresses. This representation (recognizable by addresses starting with `iota1`) is no longer available in this new version of the protocol and should no longer be used.
+
+:::
+
+## Track balance changes for an address
+
+You can track balance changes by calling `iotax_getBalance` at predefined intervals. This call returns the total balance for an address. If no argument for coin type is passed, the IOTA token balance is returned. You can track changes in the total balance for an address between subsequent `iotax_getBalance` requests.
+
+### Using cURL
+
+The following bash example demonstrates how to use `iotax_getBalance` for address `0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3`. If you use a network other than Devnet, replace the value for `rpc` with the URL to the appropriate Full node.
+
+<AlphaNet />
+
+```bash
+rpc="https://fullnode.devnet.iota.org:443"
+address="0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3"
+data="{\"jsonrpc\": \"2.0\", \"method\": \"iotax_getBalance\", \"id\": 1, \"params\": [\"$address\"]}"
+curl -X POST -H 'Content-type: application/json' --data-raw "$data" $rpc
+```
+
+The response is a JSON object that includes the `totalBalance` for the address:
+```json
+{
+  "jsonrpc":"2.0",
+  "result":{
+     "coinType":"0x2::iota::IOTA",
+     "coinObjectCount":40,
+     "totalBalance":10000000000,
+     "lockedBalance":{}
+  },
+  "id":1
+}
+```
+
+For another token, like SMR, you can pass the Coin Type as an additional argument:
+
+```bash
+rpc="https://fullnode.devnet.iota.org:443"
+address="0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3"
+coin="0x2::smr::SMR"
+data="{\"jsonrpc\": \"2.0\", \"method\": \"iotax_getBalance\", \"id\": 1, \"params\": [\"$address\", \"$coin\"]}"
+curl -X POST -H 'Content-type: application/json' --data-raw "$data" $rpc
+```
+
+### Using Rust
+
+<AlphaNet />
+
+The following example demonstrates using `iotax_getBalance` in Rust:
+```rust
+use std::str::FromStr;
+use iota_sdk::types::base_types::IotaAddress;
+use iota_sdk::IotaClientBuilder;
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+   let iota = IotaClientBuilder::default().build(
+      "https://fullnode.devnet.iota.org:443",
+   ).await.unwrap();
+   let address = IotaAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
+   let objects = iota.coin_read_api().get_balance(address, None).await?;
+   println!("{:?}", objects);
+   Ok(())
+}
+```
+
+
+### Using TypeScript
+
+This example does the same with TypeScript:
+
+```ts
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+
+const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
+
+const MY_ADDRESS = '0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3';
+
+const balance = await iotaClient.getBalance({
+    owner: MY_ADDRESS,
+   // Optional CoinType can be added for other coins besides IOTA:
+   //coinType: "0x2::smr::SMR"
+});
+
+console.log('Balance in Nano (1_000_000_000 Nano = 1 IOTA): ', balance.totalBalance);
+```
+
+:::info Event Tracking
+
+It's also possible to use event tracking to monitor addresses for incoming transactions. For more information on how events work and how to use them see the ["Using Events"](../iota-101/using-events.mdx) guide.
+
+:::
+
+## Blocks vs Checkpoints and Finality
+
+IOTA is a DAG-based blockchain and uses checkpoints for node synchronization and global transaction ordering. Checkpoints differ from blocks in the following ways:
+ - IOTA creates checkpoints and adds finalized transactions. Note that transactions are finalized even before they are included in a checkpoint.
+ - Checkpoints do not fork, roll back, or reorganize.
+ - IOTA creates one checkpoint about every 3 seconds.
+
+For more information about confirming finality, see the [Verifying Finality](../../about-iota/iota-architecture/transaction-lifecycle.mdx#verifying-finality) section in the IOTA Architecture documentation.
+
+### Checkpoint API operations
+
+IOTA Checkpoint API operations include:
+ - [iota_getCheckpoint](/iota-api-ref#iota_getcheckpoint) - Retrieves the specified checkpoint.
+ - [iota_getLatestCheckpointSequenceNumber](/iota-api-ref#iota_getlatestcheckpointsequencenumber) - Retrieves the sequence number of the most recently executed checkpoint.
+ - [iota_getCheckpoints](/iota-api-ref#iota_getcheckpoints) - Retrieves a paginated list of checkpoints that occurred during the specified interval. Pending a future release.
+
+## IOTA balance transfer
+
+To transfer a specific amount of IOTA between addresses, you need an IOTA token object with that specific value. In IOTA, everything is an object, including IOTA tokens. The amount of IOTA in each IOTA token object varies. For example, an address could own 3 IOTA tokens with different values: one of 0.1 IOTA, a second of 1.0 IOTA, and a third with 0.005 IOTA. The total balance for the address equals the sum of the values of the individual IOTA token objects, in this case, 1.105 IOTA.
+
+You can merge and split IOTA token objects to create token objects with specific values. To create a IOTA token worth .6 IOTA, split the token worth 1 IOTA into two token objects worth .6 IOTA and .4 IOTA.
+
+To transfer a specific amount of IOTA, you need a IOTA token worth that specific amount. To get a IOTA token with that specific value, you might need to split or merge existing IOTA tokens. IOTA supports several methods to accomplish this, including some that do not require you to manually split or merge coins.
+
+Keep in mind that to execute a transaction, including a normal transfer, you need to provide some IOTA for gas as well. This can not be the same IOTA object as the one you are trying to transfer. The [SDKs](../../references/iota-sdks.mdx) can automatically find another owned IOTA Coin object to use for gas if you don't manually select one. If you only have a single IOTA coin object, you might need to split some off first to have an object to transfer and an object to pay for gas (these can not be the same).
+
+## IOTA API operations for transfers
+
+:::warning
+
+While it's possible to directly call the JSON-RPC API to integrate, we highly recommend using on of our [SDKs](../../references/iota-sdks.mdx) instead. This will abstract away boilerplate complexity, makes integration easier, and avoids common mistakes.
+
+:::
+
+IOTA supports the following API operations related to transferring IOTA between addresses:
+
+ - [unsafe_transferObject](/iota-api-ref#unsafe_transferobject)
+   Because IOTA tokens are objects, you can transfer IOTA tokens just like any other object. This method requires a gas token. For transfering tokens there are better alternatives, as listed below.
+
+ - [unsafe_payAllIota](/iota-api-ref#unsafe_payalliota)
+   This method accepts an array of IOTA token IDs. It merges all existing tokens into one, deducts the gas fee, then sends the merged token to the recipient address.
+
+   The method is especially useful if you want to transfer all IOTA from an address. To merge together all coins for an address, set the recipient as the same address. This is a native IOTA method so is not considered a transaction in IOTA.
+
+ - [unsafe_payIota](/iota-api-ref#unsafe_payiota)
+   This operation accepts an array of IOTA token IDs, an array of amounts, and an array of recipient addresses.
+
+   The amounts and recipients array map one to one. Even if you use only one recipient address, you must include it for each amount in the amount array.
+
+   The operation merges all of the tokens provided into one token object and settles the gas fees. It then splits the token according to the amounts in the amounts array and sends the first token to the first recipient, the second token to the second recipient, and so on. Any remaining IOTA on the token stays in the source address.
+
+   The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `unsafe_payIota` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA. You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
+
+ - [unsafe_pay](/iota-api-ref#unsafe_pay)
+   This method is similar to `unsafe_payIota`, but it accepts any kind of coin or token instead of only IOTA (for example, SMR). You must include a IOTA gas token, and all of the coins or tokens must be the same type.
+
+ - [unsafe_transferIota](/iota-api-ref#unsafe_transferiota)
+    This method accepts only one IOTA token object and an amount to send to the recipient. It uses the same token for gas fees, so the amount to transfer must be strictly less than the value of the IOTA token used.
+
+## Signing transactions
+
+Refer to [IOTA Signatures](../cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.

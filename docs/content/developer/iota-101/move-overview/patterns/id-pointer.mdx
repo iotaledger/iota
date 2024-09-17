@@ -1,0 +1,27 @@
+---
+description: Overview of the ID pointer technique in Move and its practical applications.
+---
+# ID Pointer
+
+The ID pointer is a technique used in Move to separate the main data (an object) 
+from its accessors or capabilities by linking these accessors back to the original object.
+This pattern can be applied in several ways:
+
+- Implementing transferable capabilities for shared objects, such as a `TransferCap` that updates the 'owner' field of a shared object.
+- Separating dynamic data from static data, for instance, distinguishing between an NFT and its collection information.
+- Avoiding unnecessary type linking (and witness requirements) in generic applications, like a Liquidity Pool (LP) token for a `LiquidityPool`.
+
+The following example demonstrates basic `Lock` and `Key` mechanics on IOTA,
+where a `Lock<T>` is a shared object that can hold any content, 
+and a `Key` is an owned object that is necessary to access the contents of the lock.
+
+The `Key` is connected to its `Lock` through an `ID` field. 
+This setup enables off-chain discovery of the target, 
+while also separating the dynamic transferable capability from the 'static' contents. 
+An additional benefit is that the target asset remains discoverable even when its `Key` is wrapped within another object,
+such as a marketplace listing.
+
+```move file=<rootDir>/docs/examples/move/move-overview/patterns/id-pointer.move
+```
+
+This pattern is demonstrated in the [Hero](https://github.com/iotaledger/iota/blob/main/examples/move/hero/sources/example.move) example.

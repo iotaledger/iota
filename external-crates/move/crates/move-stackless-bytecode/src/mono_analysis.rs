@@ -1,9 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Analysis which computes information needed in backends for monomorphization. This
-//! computes the distinct type instantiations in the model for structs and inlined functions.
+//! Analysis which computes information needed in backends for monomorphization.
+//! This computes the distinct type instantiations in the model for structs and
+//! inlined functions.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,9 +14,8 @@ use std::{
 };
 
 use itertools::Itertools;
-
 use move_model::{
-    model::{FunId, GlobalEnv, ModuleId, QualifiedId, StructEnv, StructId},
+    model::{DatatypeId, FunId, GlobalEnv, ModuleId, QualifiedId, StructEnv},
     ty::{Type, TypeDisplayContext},
     well_known::{TYPE_INFO_MOVE, TYPE_NAME_GET_MOVE, TYPE_NAME_MOVE},
 };
@@ -28,11 +29,11 @@ use crate::{
 /// The environment extension computed by this analysis.
 #[derive(Clone, Default, Debug)]
 pub struct MonoInfo {
-    pub structs: BTreeMap<QualifiedId<StructId>, BTreeSet<Vec<Type>>>,
+    pub structs: BTreeMap<QualifiedId<DatatypeId>, BTreeSet<Vec<Type>>>,
     pub funs: BTreeMap<(QualifiedId<FunId>, FunctionVariant), BTreeSet<Vec<Type>>>,
     pub type_params: BTreeSet<u16>,
     pub vec_inst: BTreeSet<Type>,
-    pub table_inst: BTreeMap<QualifiedId<StructId>, BTreeSet<(Type, Type)>>,
+    pub table_inst: BTreeMap<QualifiedId<DatatypeId>, BTreeSet<(Type, Type)>>,
     pub native_inst: BTreeMap<ModuleId, BTreeSet<Vec<Type>>>,
     pub all_types: BTreeSet<Type>,
 }
@@ -155,7 +156,8 @@ struct Analyzer<'a> {
 impl<'a> Analyzer<'a> {
     fn analyze_funs(&mut self) {
         // Analyze top-level, verified functions. Any functions they call will be queued
-        // in self.todo_targets for later analysis. During this phase, self.inst_opt is None.
+        // in self.todo_targets for later analysis. During this phase, self.inst_opt is
+        // None.
         for module in self.env.get_modules() {
             for fun in module.get_functions() {
                 for (variant, target) in self.targets.get_targets(&fun) {
@@ -249,11 +251,13 @@ impl<'a> Analyzer<'a> {
             }
             Call(_, _, WriteBack(_, edge), ..) => {
                 // In very rare occasions, not all types used in the function can appear in
-                // function parameters, locals, and return values. Types hidden in the write-back
-                // chain of a hyper edge is one such case. Therefore, we need an extra processing
-                // to collect types used in borrow edges.
+                // function parameters, locals, and return values. Types hidden in the
+                // write-back chain of a hyper edge is one such case. Therefore,
+                // we need an extra processing to collect types used in borrow
+                // edges.
                 //
-                // TODO(mengxu): need to revisit this once the modeling for dynamic borrow is done
+                // TODO(mengxu): need to revisit this once the modeling for dynamic borrow is
+                // done
                 self.add_types_in_borrow_edge(edge)
             }
             _ => {}
@@ -288,7 +292,7 @@ impl<'a> Analyzer<'a> {
             Type::Vector(et) => {
                 self.info.vec_inst.insert(et.as_ref().clone());
             }
-            Type::Struct(mid, sid, targs) => {
+            Type::Datatype(mid, sid, targs) => {
                 self.add_struct(self.env.get_module(*mid).into_struct(*sid), targs)
             }
             Type::TypeParameter(idx) => {

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
@@ -46,22 +47,24 @@ pub const EXECUTE_UNVERIFIED_MODULE: bool = false;
 /// Default is `true`
 pub const GAS_METERING: bool = true;
 
-/// Call stack height limit. This is defined in the VM, and is replicated here. This should track
-/// that constant.
+/// Call stack height limit. This is defined in the VM, and is replicated here.
+/// This should track that constant.
 pub const CALL_STACK_LIMIT: usize = 1024;
 
-/// The value stack size limit. This is defined in the VM and is replicated here. This should
-/// remain in sync with the constant for this defined in the VM.
+/// The value stack size limit. This is defined in the VM and is replicated
+/// here. This should remain in sync with the constant for this defined in the
+/// VM.
 pub const VALUE_STACK_LIMIT: usize = 1024;
 
-/// Certain randomly generated types can lead to extremely long instruction sequences. This can
-/// lead to test generation taking quite a while in order to handle all of these. This parameter
-/// bounds the maximum allowable instruction length for a type. If the instruction sequence is
-/// larger then this, a new module and bytecode generation will be attempted.
+/// Certain randomly generated types can lead to extremely long instruction
+/// sequences. This can lead to test generation taking quite a while in order to
+/// handle all of these. This parameter bounds the maximum allowable instruction
+/// length for a type. If the instruction sequence is larger then this, a new
+/// module and bytecode generation will be attempted.
 pub const INHABITATION_INSTRUCTION_LIMIT: usize = 1000;
 
-/// The module generation settings that are used for generation module scaffolding for bytecode
-/// generation.
+/// The module generation settings that are used for generation module
+/// scaffolding for bytecode generation.
 pub fn module_generation_settings() -> ModuleGeneratorOptions {
     ModuleGeneratorOptions {
         min_table_size: 10,
@@ -85,8 +88,8 @@ pub fn module_generation_settings() -> ModuleGeneratorOptions {
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
 pub struct Args {
-    /// The optional number of programs that will be generated. If not specified, program
-    /// generation will run infinitely.
+    /// The optional number of programs that will be generated. If not
+    /// specified, program generation will run infinitely.
     #[clap(short = 'i', long = "iterations")]
     pub num_iterations: Option<u64>,
 

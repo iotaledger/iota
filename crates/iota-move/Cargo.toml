@@ -1,0 +1,68 @@
+[package]
+name = "iota-move"
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+bin-version.workspace = true
+clap.workspace = true
+colored.workspace = true
+const-str.workspace = true
+git-version.workspace = true
+once_cell = { workspace = true, optional = true }
+prometheus.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tracing.workspace = true
+
+move-binary-format.workspace = true
+move-cli.workspace = true
+move-compiler.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true
+move-package.workspace = true
+move-prover = { path = "../../external-crates/move/crates/move-prover" }
+move-unit-test.workspace = true
+telemetry-subscribers.workspace = true
+tokio = { workspace = true, features = ["full"] }
+
+iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
+move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
+
+better_any = "0.1.1"
+iota-move-build.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemalloc-ctl.workspace = true
+
+[dev-dependencies]
+futures.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+
+move-package.workspace = true
+
+iota-core.workspace = true
+iota-macros.workspace = true
+iota-metrics.workspace = true
+iota-node.workspace = true
+iota-simulator.workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["jemalloc-ctl"]
+
+[features]
+default = []
+build = []
+coverage = []
+disassemble = []
+prove = []
+unit_test = ["build", "dep:once_cell"]
+calibrate = []
+all = ["build", "coverage", "disassemble", "prove", "unit_test", "calibrate"]

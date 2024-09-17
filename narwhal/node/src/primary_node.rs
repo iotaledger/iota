@@ -1,28 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::metrics::new_registry;
-use crate::{try_join_all, FuturesUnordered, NodeError};
+
+use std::{sync::Arc, time::Instant};
+
 use anemo::PeerId;
 use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::{get_restored_consensus_output, ExecutionState, Executor, SubscriberResult};
 use fastcrypto::traits::{KeyPair as _, VerifyingKey};
-use mysten_metrics::metered_channel;
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::{metered_channel, RegistryID, RegistryService};
+use iota_protocol_config::ProtocolConfig;
 use network::client::NetworkClient;
-use primary::consensus::{
-    Bullshark, ChannelMetrics, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule,
+use primary::{
+    consensus::{
+        Bullshark, ChannelMetrics, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule,
+    },
+    Primary, PrimaryChannelMetrics, NUM_SHUTDOWN_RECEIVERS,
 };
-use primary::{Primary, PrimaryChannelMetrics, NUM_SHUTDOWN_RECEIVERS};
 use prometheus::{IntGauge, Registry};
-use std::sync::Arc;
-use std::time::Instant;
 use storage::NodeStorage;
-use sui_protocol_config::ProtocolConfig;
-use tokio::sync::{watch, RwLock};
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::{watch, RwLock},
+    task::JoinHandle,
+};
 use tracing::{info, instrument};
 use types::{Certificate, ConditionalBroadcastReceiver, PreSubscribedBroadcastSender, Round};
+
+use crate::{metrics::new_registry, try_join_all, FuturesUnordered, NodeError};
 
 struct PrimaryNodeInner {
     // The configuration parameters.
@@ -42,13 +47,13 @@ struct PrimaryNodeInner {
 }
 
 impl PrimaryNodeInner {
-    /// The window where the schedule change takes place in consensus. It represents number
-    /// of committed sub dags.
+    /// The window where the schedule change takes place in consensus. It
+    /// represents number of committed sub dags.
     /// TODO: move this to node properties
     const CONSENSUS_SCHEDULE_CHANGE_SUB_DAGS: u64 = 300;
 
-    // Starts the primary node with the provided info. If the node is already running then this
-    // method will return an error instead.
+    // Starts the primary node with the provided info. If the node is already
+    // running then this method will return an error instead.
     #[instrument(level = "info", skip_all)]
     async fn start<State>(
         &mut self, // The private-public key pair of this authority.
@@ -110,9 +115,9 @@ impl PrimaryNodeInner {
         Ok(())
     }
 
-    // Will shutdown the primary node and wait until the node has shutdown by waiting on the
-    // underlying components handles. If the node was not already running then the
-    // method will return immediately.
+    // Will shutdown the primary node and wait until the node has shutdown by
+    // waiting on the underlying components handles. If the node was not already
+    // running then the method will return immediately.
     #[instrument(level = "info", skip_all)]
     async fn shutdown(&mut self) {
         if !self.is_running().await {
@@ -150,16 +155,17 @@ impl PrimaryNodeInner {
         try_join_all(&mut self.handles).await.unwrap();
     }
 
-    // If any of the underlying handles haven't still finished, then this method will return
-    // true, otherwise false will returned instead.
+    // If any of the underlying handles haven't still finished, then this method
+    // will return true, otherwise false will returned instead.
     async fn is_running(&self) -> bool {
         self.handles.iter().any(|h| !h.is_finished())
     }
 
-    // Accepts an Option registry. If it's Some, then the new registry will be added in the
-    // registry service and the registry_id will be updated. Also, any previous registry will
-    // be removed. If None is passed, then the registry_id is updated to None and any old
-    // registry is removed from the RegistryService.
+    // Accepts an Option registry. If it's Some, then the new registry will be added
+    // in the registry service and the registry_id will be updated. Also, any
+    // previous registry will be removed. If None is passed, then the
+    // registry_id is updated to None and any old registry is removed from the
+    // RegistryService.
     fn swap_registry(&mut self, registry: Option<Registry>) {
         if let Some((registry_id, _registry)) = self.registry.as_ref() {
             self.registry_service.remove(*registry_id);
@@ -172,7 +178,8 @@ impl PrimaryNodeInner {
         }
     }
 
-    /// Spawn a new primary. Optionally also spawn the consensus and a client executing transactions.
+    /// Spawn a new primary. Optionally also spawn the consensus and a client
+    /// executing transactions.
     pub async fn spawn_primary<State>(
         // The private-public key pair of this authority.
         keypair: KeyPair,
@@ -199,8 +206,10 @@ impl PrimaryNodeInner {
     where
         State: ExecutionState + Send + Sync + 'static,
     {
-        // These gauge is porcelain: do not modify it without also modifying `primary::metrics::PrimaryChannelMetrics::replace_registered_new_certificates_metric`
-        // This hack avoids a cyclic dependency in the initialization of consensus and primary
+        // These gauge is porcelain: do not modify it without also modifying
+        // `primary::metrics::PrimaryChannelMetrics::replace_registered_new_certificates_metric`
+        // This hack avoids a cyclic dependency in the initialization of consensus and
+        // primary
         let new_certificates_counter = IntGauge::new(
             PrimaryChannelMetrics::NAME_NEW_CERTS,
             PrimaryChannelMetrics::DESC_NEW_CERTS,
@@ -303,7 +312,8 @@ impl PrimaryNodeInner {
         let (tx_sequence, rx_sequence) =
             metered_channel::channel(primary::CHANNEL_CAPACITY, &channel_metrics.tx_sequence);
 
-        // Check for any sub-dags that have been sent by consensus but were not processed by the executor.
+        // Check for any sub-dags that have been sent by consensus but were not
+        // processed by the executor.
         let restored_consensus_output = get_restored_consensus_output(
             store.consensus_store.clone(),
             store.certificate_store.clone(),

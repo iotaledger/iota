@@ -1,0 +1,32 @@
+[package]
+name = "iota-simulator"
+version = "0.7.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+move-package.workspace = true
+
+anemo.workspace = true
+anemo-tower.workspace = true
+bcs.workspace = true
+fastcrypto = { workspace = true, features = ["copy_key"] }
+iota-framework.workspace = true
+iota-move-build.workspace = true
+iota-types.workspace = true
+lru.workspace = true
+narwhal-network.workspace = true
+rand.workspace = true
+serde.workspace = true
+telemetry-subscribers.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+tracing.workspace = true
+
+[target.'cfg(msim)'.dependencies]
+msim.workspace = true

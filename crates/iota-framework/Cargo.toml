@@ -1,0 +1,30 @@
+[package]
+name = "iota-framework"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Move framework for iota platform"
+
+[dependencies]
+bcs.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+iota-types.workspace = true
+
+move-binary-format.workspace = true
+move-core-types.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+bcs.workspace = true
+regex.workspace = true
+tempfile.workspace = true
+
+iota-move-build.workspace = true
+move-binary-format.workspace = true
+move-compiler.workspace = true
+move-package.workspace = true

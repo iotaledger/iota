@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 51 --addresses P0=0x0 P1=0x0 --accounts A --simulator
+//# init --protocol-version 1 --addresses P0=0x0 P1=0x0 --accounts A --simulator
 
 //# run-graphql
 
@@ -86,7 +86,7 @@ fragment Functions on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 2,1 --sender A
+//# upgrade --package P0 --upgrade-capability 2,0 --sender A
 
 module P0::m {
     public fun f<T: drop>(_: T): (u64, u64) { (42, 43) }

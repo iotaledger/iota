@@ -1,8 +1,12 @@
 # Move Bytecode Template
 
-Move Bytecode Template allows updating a pre-compiled bytecode, so that a standard template could be customized and used to publish new modules on Sui directly in the browser. Hence, removing the need for a backend to compile new modules.
+Move Bytecode Template allows updating a pre-compiled bytecode, so that a standard template could be
+customized and used to publish new modules on Iota directly in the browser. Hence, removing the need
+for a backend to compile new modules.
 
-This crate builds a WASM binary for the `move-language/move-binary-format` allowing bytecode serialization and deserialization in various environments. The main target for this package is "web".
+This crate builds a WASM binary for the `move-language/move-binary-format` allowing bytecode
+serialization and deserialization in various environments. The main target for this package is
+"web".
 
 ## Applications
 
@@ -14,14 +18,15 @@ This package is a perfect fit for the following applications:
 
 ## Example of a Template Module
 
-The following code is a close-copy of the `Coin` example from the [Move by Example](https://examples.sui.io/samples/coin.html) book.
+The following code is a close-copy of the `Coin` example from the
+[Move by Example](https://examples.iota.io/samples/coin.html) book.
 
 ```move
 module 0x0::template {
     use std::option;
-    use sui::coin;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::coin;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     /// The OTW for the Coin
     struct TEMPLATE has drop {}
@@ -46,7 +51,7 @@ module 0x0::template {
 To update the identifiers, you can use the `update_identifiers` function.
 
 ```ts
-import { fromHEX, update_identifiers } from '@mysten/move-bytecode-template';
+import { fromHEX, update_identifiers } from '@iota/move-bytecode-template';
 
 let bytecode = /* ... */;
 let updated = update_identifiers(bytecode, {
@@ -57,11 +62,13 @@ let updated = update_identifiers(bytecode, {
 console.assert(updated != bytecode, 'identifiers were not updated!');
 ```
 
-To update constants in the bytecode, you can use the `update_constants` function. For each constant you need to supply new value as BCS bytes, existing value as BCS, and the type of the constant (as a string: `U8`, `U16` ... `U256`, `Address`, `Vector(U8)` and so on).
+To update constants in the bytecode, you can use the `update_constants` function. For each constant
+you need to supply new value as BCS bytes, existing value as BCS, and the type of the constant (as a
+string: `U8`, `U16` ... `U256`, `Address`, `Vector(U8)` and so on).
 
 ```ts
-import * as template from '@mysten/move-bytecode-template';
-import { bcs } from '@mysten/bcs';
+import * as template from '@iota/move-bytecode-template';
+import { bcs } from '@iota/bcs';
 
 // please, manually scan the existing values, this operation is very sensitive
 console.log(template.get_constants(bytecode));
@@ -73,7 +80,7 @@ updated = update_constants(
     bytecode,
     bcs.u8().serialize(3).toBytes(), // new value
     bcs.u8().serialize(6).toBytes(), // current value
-    'U8',                            // type of the constant
+    'U8', // type of the constant
 );
 
 // Update SYMBOL
@@ -95,10 +102,12 @@ updated = update_constants(
 
 ## Usage in Web applications
 
-The package consists of code and a wasm binary. While the former can be imported directly, the latter should be made available in static / public assets as a Web application. Initialization needs to be performed via a URL, and once completed, other functions become available.
+The package consists of code and a wasm binary. While the former can be imported directly, the
+latter should be made available in static / public assets as a Web application. Initialization needs
+to be performed via a URL, and once completed, other functions become available.
 
 ```ts
-import init, initSync, * as template from '@mysten/move-bytecode-template';
+import init, initSync, * as template from '@iota/move-bytecode-template';
 
 await init('path/to/move_binary_format_bg.wasm');
 // alternatively initSync(...);
@@ -115,8 +124,8 @@ console.assert(json == bytes, '(de)serialization failed!');
 To use this package with Vite, you need to import the source file and the wasm binary.
 
 ```ts
-import init, * as template from "@mysten/move-bytecode-template";
-import url from '@mysten/move-bytecode-template/move_bytecode_template_bg.wasm?url';
+import init, * as template from '@iota/move-bytecode-template';
+import url from '@iota/move-bytecode-template/move_bytecode_template_bg.wasm?url';
 ```
 
 Later, you can initialize the package with the URL.
@@ -125,29 +134,33 @@ Later, you can initialize the package with the URL.
 await init(url);
 ```
 
-Lastly, once the package is initialized, you can use the functions as described in the previous section.
+Lastly, once the package is initialized, you can use the functions as described in the previous
+section.
 
 ```ts
-const templateBytecode = fromHEX("a11ceb0b06....");
+const templateBytecode = fromHEX('a11ceb0b06....');
 
 template.deserialize(templateBytecode);
 template.version();
 template.update_identifiers(templateBytecode, {
-    "TEMPLATE": "MY_MODULE",
-    "template": "my_module"
+    TEMPLATE: 'MY_MODULE',
+    template: 'my_module',
 });
 ```
 
 ## Build locally
 
-To build the binary, you need to have Rust installed and then the `wasm-pack`. The installation script [can be found here](https://rustwasm.github.io/wasm-pack/).
+To build the binary, you need to have Rust installed and then the `wasm-pack`. The installation
+script [can be found here](https://rustwasm.github.io/wasm-pack/).
 
 Building for test (nodejs) environment - required for tests.
+
 ```
 pnpm build:dev
 ```
 
 Building for web environment.
+
 ```
 pnpm build:release
 ```

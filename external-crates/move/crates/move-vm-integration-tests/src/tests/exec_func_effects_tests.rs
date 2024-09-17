@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::convert::TryInto;
 
-use crate::compiler::{as_module, compile_units};
 use move_binary_format::errors::VMResult;
 use move_core_types::{
     account_address::AccountAddress,
-    effects::{ChangeSet, Event},
+    effects::ChangeSet,
     identifier::Identifier,
     language_storage::ModuleId,
     runtime_value::{serialize_values, MoveValue},
@@ -18,6 +18,8 @@ use move_core_types::{
 use move_vm_runtime::{move_vm::MoveVM, session::SerializedReturnValues};
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
+
+use crate::compiler::{as_module, compile_units};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 const TEST_MODULE_ID: &str = "M";
@@ -52,12 +54,13 @@ fn fail_arg_deserialize() {
     }
 }
 
-// check happy path for writing to mut ref args - may be unecessary / covered by other tests
+// check happy path for writing to mut ref args - may be unnecessary / covered
+// by other tests
 #[test]
 fn mutref_output_success() {
     let mod_code = setup_module();
     let result = run(&mod_code, USE_MUTREF_LABEL, MoveValue::U64(1));
-    let (_, _, ret_values) = result.unwrap();
+    let (_, ret_values) = result.unwrap();
     assert_eq!(1, ret_values.mutable_reference_outputs.len());
     let parsed = parse_u64_arg(&ret_values.mutable_reference_outputs.first().unwrap().1);
     assert_eq!(EXPECT_MUTREF_OUT_VALUE, parsed);
@@ -67,7 +70,8 @@ fn mutref_output_success() {
 // that would allow us to test error paths for outputs as well
 
 fn setup_module() -> ModuleCode {
-    // first function takes a mutable ref & writes to it, the other takes immutable ref, so we exercise both paths
+    // first function takes a mutable ref & writes to it, the other takes immutable
+    // ref, so we exercise both paths
     let code = format!(
         r#"
         module 0x{}::{} {{
@@ -86,7 +90,7 @@ fn run(
     module: &ModuleCode,
     fun_name: &str,
     arg_val0: MoveValue,
-) -> VMResult<(ChangeSet, Vec<Event>, SerializedReturnValues)> {
+) -> VMResult<(ChangeSet, SerializedReturnValues)> {
     let module_id = &module.0;
     let modules = vec![module.clone()];
     let (vm, storage) = setup_vm(&modules);
@@ -103,14 +107,15 @@ fn run(
             &mut UnmeteredGasMeter,
         )
         .and_then(|ret_values| {
-            let (change_set, events) = session.finish().0?;
-            Ok((change_set, events, ret_values))
+            let change_set = session.finish().0?;
+            Ok((change_set, ret_values))
         })
 }
 
 type ModuleCode = (ModuleId, String);
 
-// TODO - move some utility functions to where test infra lives, see about unifying with similar code
+// TODO - move some utility functions to where test infra lives, see about
+// unifying with similar code
 fn setup_vm(modules: &[ModuleCode]) -> (MoveVM, InMemoryStorage) {
     let mut storage = InMemoryStorage::new();
     compile_modules(&mut storage, modules);

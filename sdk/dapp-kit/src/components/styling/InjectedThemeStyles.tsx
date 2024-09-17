@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { assignInlineVars } from '@vanilla-extract/dynamic';
@@ -8,42 +9,44 @@ import { themeVars } from '../../themes/themeContract.js';
 import type { DynamicTheme, Theme, ThemeVars } from '../../themes/themeContract.js';
 
 type InjectedThemeStylesProps = {
-	theme: Theme;
+    theme: Theme;
 };
 
 export function InjectedThemeStyles({ theme }: InjectedThemeStylesProps) {
-	const themeStyles = Array.isArray(theme)
-		? getDynamicThemeStyles(theme)
-		: getStaticThemeStyles(theme);
+    const themeStyles = Array.isArray(theme)
+        ? getDynamicThemeStyles(theme)
+        : getStaticThemeStyles(theme);
 
-	return (
-		<style
-			dangerouslySetInnerHTML={{
-				__html: themeStyles,
-			}}
-		/>
-	);
+    return (
+        <style
+            dangerouslySetInnerHTML={{
+                __html: themeStyles,
+            }}
+        />
+    );
 }
 
 function getDynamicThemeStyles(themes: DynamicTheme[]) {
-	return themes
-		.map(({ mediaQuery, selector, variables }) => {
-			const themeStyles = getStaticThemeStyles(variables);
-			const themeStylesWithSelectorPrefix = selector ? `${selector} ${themeStyles}` : themeStyles;
+    return themes
+        .map(({ mediaQuery, selector, variables }) => {
+            const themeStyles = getStaticThemeStyles(variables);
+            const themeStylesWithSelectorPrefix = selector
+                ? `${selector} ${themeStyles}`
+                : themeStyles;
 
-			return mediaQuery
-				? `@media ${mediaQuery}{${themeStylesWithSelectorPrefix}}`
-				: themeStylesWithSelectorPrefix;
-		})
-		.join(' ');
+            return mediaQuery
+                ? `@media ${mediaQuery}{${themeStylesWithSelectorPrefix}}`
+                : themeStylesWithSelectorPrefix;
+        })
+        .join(' ');
 }
 
 function getStaticThemeStyles(theme: ThemeVars) {
-	return `${styleDataAttributeSelector} {${cssStringFromTheme(theme)}}`;
+    return `${styleDataAttributeSelector} {${cssStringFromTheme(theme)}}`;
 }
 
 function cssStringFromTheme(theme: ThemeVars) {
-	return Object.entries(assignInlineVars(themeVars, theme))
-		.map(([key, value]) => `${key}:${value};`)
-		.join('');
+    return Object.entries(assignInlineVars(themeVars, theme))
+        .map(([key, value]) => `${key}:${value};`)
+        .join('');
 }

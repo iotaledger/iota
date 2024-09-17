@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
-use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+use std::{env, io::IsTerminal};
 
+use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use move_prover::{cli::Options, run_move_prover};
-use std::env;
-use std::io::IsTerminal;
 
 fn main() {
     if let Err(e) = run() {

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // #![forbid(unsafe_code)]
@@ -23,7 +24,7 @@ pub mod linters;
 pub mod naming;
 pub mod parser;
 pub mod shared;
-pub mod sui_mode;
+pub mod iota_mode;
 mod to_bytecode;
 pub mod typing;
 pub mod unit_test;

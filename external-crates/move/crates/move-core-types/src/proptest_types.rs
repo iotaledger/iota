@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use proptest::{collection::vec, prelude::*};
 
 use crate::{
     account_address::AccountAddress,
@@ -8,7 +11,6 @@ use crate::{
     language_storage::{StructTag, TypeTag},
     transaction_argument::TransactionArgument,
 };
-use proptest::{collection::vec, prelude::*};
 impl Arbitrary for TypeTag {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;

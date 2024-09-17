@@ -1,11 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Transformation which mutates code for mutation testing in various ways
 //!
-//! This transformation should run after code is translated to bytecode, but before any
-//!  other bytecode modification
+//! This transformation should run after code is translated to bytecode, but
+//! before any  other bytecode modification
 //! It emits instructions in bytecode format, but with changes made
 //! Note that this mutation does nothing if mutation flags are not enabled
 

@@ -1,0 +1,71 @@
+{
+    "name": "@iota/apps-ui-kit",
+    "private": true,
+    "version": "0.0.1-rc.1",
+    "repository": {
+        "type": "git",
+        "url": "github.com:iotaledger/iota.git"
+    },
+    "license": "Apache-2.0",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "storybook": "storybook dev -p 6006",
+        "build-storybook": "storybook build",
+        "build-package": "tsc --project tsconfig.package.json && vite build",
+        "build": "cross-env BUILD_ENV=package pnpm run build-package",
+        "dev": "pnpm run storybook"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.es.js",
+            "require": "./dist/index.umd.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./styles": "./dist/style.css"
+    },
+    "types": "./dist/index.d.ts",
+    "dependencies": {
+        "@fontsource/inter": "^5.0.17",
+        "@iota/ui-icons": "workspace:*",
+        "@radix-ui/react-dialog": "^1.0.4",
+        "classnames": "^2.5.1",
+        "lodash.merge": "^4.6.2",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-number-format": "^5.2.2"
+    },
+    "devDependencies": {
+        "@chromatic-com/storybook": "^1.6.0",
+        "@storybook/addon-essentials": "^7.1.0",
+        "@storybook/addon-interactions": "^7.1.0",
+        "@storybook/addon-links": "^7.1.0",
+        "@storybook/addon-onboarding": "^8.1.11",
+        "@storybook/blocks": "^7.1.0",
+        "@storybook/react": "^7.1.0",
+        "@storybook/react-vite": "^7.1.0",
+        "@storybook/test": "^8.1.11",
+        "@types/lodash.merge": "^4.6.9",
+        "@types/node": "^20.4.2",
+        "@types/react": "^18.3.3",
+        "@vitejs/plugin-react-swc": "^3.3.2",
+        "autoprefixer": "^10.4.14",
+        "cross-env": "^7.0.3",
+        "memfs": "^4.11.1",
+        "postcss": "^8.4.31",
+        "storybook": "^7.1.0",
+        "storybook-dark-mode": "^4.0.2",
+        "tailwindcss": "^3.3.3",
+        "typescript": "^5.3.3",
+        "vite": "^4.4.4",
+        "vite-plugin-dts": "^3.9.1",
+        "vite-tsconfig-paths": "^4.2.0"
+    }
+}

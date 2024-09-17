@@ -1,46 +1,45 @@
 :root {
-  --sui-cards-border-color: transparent;
-  --sui-cards-background: #F5F8FA;
-  --sui-cards-header: #4DA2FF;
-  --sui-cards-copy: #91A3B1;
-  --sui-cards-background-hover: #EBF1F5;
+  --iota-cards-border-color: transparent;
+  --iota-cards-background: #f5f8fa;
+  --iota-cards-header: #4da2ff;
+  --iota-cards-copy: #91a3b1;
+  --iota-cards-background-hover: #ebf1f5;
 }
 
-[data-theme='dark'] {
-    --sui-cards-border-color: rgba(247, 247, 248, 0.05);
-    --sui-cards-background: rgba(247, 247, 248, 0.05);
-    --sui-cards-background-hover: rgba(247, 247, 248, 0.15);
-    --sui-cards-header: #4DA2FF;
-    --sui-cards-copy: #ABBDCC;
+[data-theme="dark"] {
+  --iota-cards-border-color: rgba(247, 247, 248, 0.05);
+  --iota-cards-background: black;
+  --iota-cards-background-hover: rgba(247, 247, 248, 0.15);
+  --iota-cards-header: #4da2ff;
+  --iota-cards-copy: #abbdcc;
 }
 
 .card {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    row-gap: .75rem;
-    border-radius: 20px;
-    padding: 1.25rem;
-    padding-bottom: 1.5rem;
-    background: var(--sui-cards-background);
-    cursor: pointer;
-    transition: background .25s ease-in-out;
-    border: solid 1px var(--sui-cards-border-color);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  row-gap: 0.75rem;
+  border-radius: 20px;
+  padding: 1.25rem;
+  padding-bottom: 1.5rem;
+  background: var(--iota-cards-background);
+  cursor: pointer;
+  transition: background 0.25s ease-in-out;
+  border: solid 1px var(--iota-cards-border-color);
 }
 .card:hover {
-    background: var(--sui-cards-background-hover);
+  background: var(--iota-cards-background-hover);
 }
 
 .card__header__copy {
-    margin: 0;
-    font-size: 1.125rem;
-    line-height: 1.25rem;
-    color: var(--sui-cards-header);
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.25rem;
+  color: var(--iota-cards-header);
 }
 
 .card__copy {
-    font-size: .8125rem;
-    line-height: 1.3125rem;
-    color: var(--sui-cards-copy);
+  font-size: 0.8125rem;
+  line-height: 1.3125rem;
+  color: var(--iota-cards-copy);
 }
-

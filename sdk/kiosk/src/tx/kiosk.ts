@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/sui.js/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 import type {
-	TransactionArgument,
-	TransactionBlock,
-	TransactionObjectArgument,
-} from '@mysten/sui.js/transactions';
+    TransactionArgument,
+    TransactionBlock,
+    TransactionObjectArgument,
+} from '@iota/iota-sdk/transactions';
 
 import type { ObjectArgument } from '../types/index.js';
 import { KIOSK_MODULE, KIOSK_TYPE } from '../types/index.js';
@@ -15,13 +16,13 @@ import { KIOSK_MODULE, KIOSK_TYPE } from '../types/index.js';
  * Create a new shared Kiosk and returns the [kiosk, kioskOwnerCap] tuple.
  */
 export function createKiosk(
-	tx: TransactionBlock,
+    tx: TransactionBlock,
 ): [TransactionObjectArgument, TransactionObjectArgument] {
-	const [kiosk, kioskOwnerCap] = tx.moveCall({
-		target: `${KIOSK_MODULE}::new`,
-	});
+    const [kiosk, kioskOwnerCap] = tx.moveCall({
+        target: `${KIOSK_MODULE}::new`,
+    });
 
-	return [kiosk, kioskOwnerCap];
+    return [kiosk, kioskOwnerCap];
 }
 
 /**
@@ -29,20 +30,20 @@ export function createKiosk(
  * Returns the `kioskOwnerCap` object.
  */
 export function createKioskAndShare(tx: TransactionBlock): TransactionObjectArgument {
-	const [kiosk, kioskOwnerCap] = createKiosk(tx);
-	shareKiosk(tx, kiosk);
-	return kioskOwnerCap;
+    const [kiosk, kioskOwnerCap] = createKiosk(tx);
+    shareKiosk(tx, kiosk);
+    return kioskOwnerCap;
 }
 
 /**
  * Converts Transfer Policy to a shared object.
  */
 export function shareKiosk(tx: TransactionBlock, kiosk: TransactionArgument) {
-	tx.moveCall({
-		target: `0x2::transfer::public_share_object`,
-		typeArguments: [KIOSK_TYPE],
-		arguments: [kiosk],
-	});
+    tx.moveCall({
+        target: `0x2::transfer::public_share_object`,
+        typeArguments: [KIOSK_TYPE],
+        arguments: [kiosk],
+    });
 }
 
 /**
@@ -50,17 +51,17 @@ export function shareKiosk(tx: TransactionBlock, kiosk: TransactionArgument) {
  * Place an item to the Kiosk.
  */
 export function place(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	item: ObjectArgument,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    item: ObjectArgument,
 ): void {
-	tx.moveCall({
-		target: `${KIOSK_MODULE}::place`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.object(item)],
-	});
+    tx.moveCall({
+        target: `${KIOSK_MODULE}::place`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.object(item)],
+    });
 }
 
 /**
@@ -72,18 +73,18 @@ export function place(
  * locked without an option to take it out.
  */
 export function lock(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	policy: ObjectArgument,
-	item: ObjectArgument,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    policy: ObjectArgument,
+    item: ObjectArgument,
 ): void {
-	tx.moveCall({
-		target: `${KIOSK_MODULE}::lock`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.object(policy), tx.object(item)],
-	});
+    tx.moveCall({
+        target: `${KIOSK_MODULE}::lock`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.object(policy), tx.object(item)],
+    });
 }
 
 /**
@@ -91,19 +92,19 @@ export function lock(
  * Take an item from the Kiosk.
  */
 export function take(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	itemId: string,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    itemId: string,
 ): TransactionObjectArgument {
-	const [item] = tx.moveCall({
-		target: `${KIOSK_MODULE}::take`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId)],
-	});
+    const [item] = tx.moveCall({
+        target: `${KIOSK_MODULE}::take`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId)],
+    });
 
-	return item;
+    return item;
 }
 
 /**
@@ -111,18 +112,18 @@ export function take(
  * List an item for sale.
  */
 export function list(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	itemId: string,
-	price: string | bigint,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    itemId: string,
+    price: string | bigint,
 ): void {
-	tx.moveCall({
-		target: `${KIOSK_MODULE}::list`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId), tx.pure.u64(price)],
-	});
+    tx.moveCall({
+        target: `${KIOSK_MODULE}::list`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId), tx.pure.u64(price)],
+    });
 }
 
 /**
@@ -130,17 +131,17 @@ export function list(
  * List an item for sale.
  */
 export function delist(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	itemId: string,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    itemId: string,
 ): void {
-	tx.moveCall({
-		target: `${KIOSK_MODULE}::delist`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId)],
-	});
+    tx.moveCall({
+        target: `${KIOSK_MODULE}::delist`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId)],
+    });
 }
 
 /**
@@ -148,58 +149,58 @@ export function delist(
  * Place an item to the Kiosk and list it for sale.
  */
 export function placeAndList(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	item: ObjectArgument,
-	price: string | bigint,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    item: ObjectArgument,
+    price: string | bigint,
 ): void {
-	tx.moveCall({
-		target: `${KIOSK_MODULE}::place_and_list`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.object(item), tx.pure.u64(price)],
-	});
+    tx.moveCall({
+        target: `${KIOSK_MODULE}::place_and_list`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.object(item), tx.pure.u64(price)],
+    });
 }
 
 /**
- * Call the `kiosk::purchase<T>(Kiosk, ID, Coin<SUI>)` function and receive an Item and
+ * Call the `kiosk::purchase<T>(Kiosk, ID, Coin<IOTA>)` function and receive an Item and
  * a TransferRequest which needs to be dealt with (via a matching TransferPolicy).
  */
 export function purchase(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	itemId: string,
-	payment: ObjectArgument,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    itemId: string,
+    payment: ObjectArgument,
 ): [TransactionObjectArgument, TransactionObjectArgument] {
-	const [item, transferRequest] = tx.moveCall({
-		target: `${KIOSK_MODULE}::purchase`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.pure.id(itemId), tx.object(payment)],
-	});
+    const [item, transferRequest] = tx.moveCall({
+        target: `${KIOSK_MODULE}::purchase`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.pure.id(itemId), tx.object(payment)],
+    });
 
-	return [item, transferRequest];
+    return [item, transferRequest];
 }
 
 /**
- * Call the `kiosk::withdraw(Kiosk, KioskOwnerCap, Option<u64>)` function and receive a Coin<SUI>.
+ * Call the `kiosk::withdraw(Kiosk, KioskOwnerCap, Option<u64>)` function and receive a Coin<IOTA>.
  * If the amount is null, then the entire balance will be withdrawn.
  */
 export function withdrawFromKiosk(
-	tx: TransactionBlock,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	amount?: string | bigint | number,
+    tx: TransactionBlock,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    amount?: string | bigint | number,
 ): TransactionObjectArgument {
-	const amountArg = bcs.option(bcs.u64()).serialize(amount);
+    const amountArg = bcs.option(bcs.u64()).serialize(amount);
 
-	const [coin] = tx.moveCall({
-		target: `${KIOSK_MODULE}::withdraw`,
-		arguments: [tx.object(kiosk), tx.object(kioskCap), amountArg],
-	});
+    const [coin] = tx.moveCall({
+        target: `${KIOSK_MODULE}::withdraw`,
+        arguments: [tx.object(kiosk), tx.object(kioskCap), amountArg],
+    });
 
-	return coin;
+    return coin;
 }
 
 /**
@@ -209,19 +210,19 @@ export function withdrawFromKiosk(
  * Requires calling `returnValue` to return the item.
  */
 export function borrowValue(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	kioskCap: ObjectArgument,
-	itemId: string,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    kioskCap: ObjectArgument,
+    itemId: string,
 ): [TransactionArgument, TransactionArgument] {
-	const [item, promise] = tx.moveCall({
-		target: `${KIOSK_MODULE}::borrow_val`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId)],
-	});
+    const [item, promise] = tx.moveCall({
+        target: `${KIOSK_MODULE}::borrow_val`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), tx.object(kioskCap), tx.pure.id(itemId)],
+    });
 
-	return [item, promise];
+    return [item, promise];
 }
 
 /**
@@ -229,15 +230,15 @@ export function borrowValue(
  * Return an item to the Kiosk after it was `borrowValue`-d.
  */
 export function returnValue(
-	tx: TransactionBlock,
-	itemType: string,
-	kiosk: ObjectArgument,
-	item: TransactionArgument,
-	promise: TransactionArgument,
+    tx: TransactionBlock,
+    itemType: string,
+    kiosk: ObjectArgument,
+    item: TransactionArgument,
+    promise: TransactionArgument,
 ): void {
-	tx.moveCall({
-		target: `${KIOSK_MODULE}::return_val`,
-		typeArguments: [itemType],
-		arguments: [tx.object(kiosk), item, promise],
-	});
+    tx.moveCall({
+        target: `${KIOSK_MODULE}::return_val`,
+        typeArguments: [itemType],
+        arguments: [tx.object(kiosk), item, promise],
+    });
 }

@@ -1,91 +1,110 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getTotalGasUsed } from '@mysten/core';
-import { X12, Dot12 } from '@mysten/icons';
-import { type SuiClient, type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { getTotalGasUsed } from '@iota/core';
+import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { SuiAmount } from '../Table/SuiAmount';
-import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
-import { AddressLink, TransactionLink } from '~/ui/InternalLink';
+import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
+import { addressToLink, transactionToLink } from '../ui';
+
+interface TransactionData {
+    date: TableCellProps;
+    digest: TableCellProps;
+    txns: TableCellProps;
+    gas: TableCellProps;
+    sender: TableCellProps;
+}
+
+interface TableColumn {
+    header: string;
+    accessorKey: keyof TransactionData;
+}
 
 // Generate table data from the transaction data
-export const genTableDataFromTxData = (results: SuiTransactionBlockResponse[]) => ({
-	data: results.map((transaction) => {
-		const status = transaction.effects?.status.status;
-		const sender = transaction.transaction?.data.sender;
 
-		return {
-			date: (
-				<HighlightedTableCol>
-					<TxTimeType timestamp={Number(transaction.timestampMs || 0)} />
-				</HighlightedTableCol>
-			),
-			digest: (
-				<HighlightedTableCol first>
-					<TransactionLink
-						digest={transaction.digest}
-						before={
-							status === 'success' ? (
-								<Dot12 className="text-success" />
-							) : (
-								<X12 className="text-issue-dark" />
-							)
-						}
-					/>
-				</HighlightedTableCol>
-			),
-			txns: (
-				<div>
-					{transaction.transaction?.data.transaction.kind === 'ProgrammableTransaction'
-						? transaction.transaction.data.transaction.transactions.length
-						: '--'}
-				</div>
-			),
-			gas: <SuiAmount amount={transaction.effects && getTotalGasUsed(transaction.effects!)} />,
-			sender: (
-				<HighlightedTableCol>{sender ? <AddressLink address={sender} /> : '-'}</HighlightedTableCol>
-			),
-		};
-	}),
-	columns: [
-		{
-			header: 'Digest',
-			accessorKey: 'digest',
-		},
-		{
-			header: 'Sender',
-			accessorKey: 'sender',
-		},
-		{
-			header: 'Txns',
-			accessorKey: 'txns',
-		},
-		{
-			header: 'Gas',
-			accessorKey: 'gas',
-		},
-		{
-			header: 'Time',
-			accessorKey: 'date',
-		},
-	],
-});
+export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]): {
+    data: TransactionData[];
+    columns: TableColumn[];
+} {
+    return {
+        data: results.map((transaction) => {
+            const sender = transaction.transaction?.data.sender;
+
+            return {
+                date: { type: TableCellType.Text, label: transaction.timestampMs?.toString() },
+                digest: {
+                    type: TableCellType.Link,
+                    label: transaction.digest,
+                    to: transactionToLink({ digest: transaction.digest }),
+                },
+                txns: {
+                    type: TableCellType.Text,
+                    label:
+                        transaction.transaction?.data.transaction.kind === 'ProgrammableTransaction'
+                            ? transaction.transaction.data.transaction.transactions.length.toString()
+                            : '--',
+                },
+                gas: {
+                    type: TableCellType.Text,
+                    label: transaction.effects
+                        ? getTotalGasUsed(transaction.effects)?.toString()
+                        : '0',
+                },
+                sender: sender
+                    ? {
+                          type: TableCellType.Link,
+                          label: sender,
+                          to: addressToLink({ address: sender }),
+                      }
+                    : {
+                          type: TableCellType.Text,
+                          label: '--',
+                      },
+            };
+        }),
+        columns: [
+            {
+                header: 'Digest',
+                accessorKey: 'digest',
+            },
+            {
+                header: 'Sender',
+                accessorKey: 'sender',
+            },
+            {
+                header: 'Txns',
+                accessorKey: 'txns',
+            },
+            {
+                header: 'Gas',
+                accessorKey: 'gas',
+            },
+            {
+                header: 'Time',
+                accessorKey: 'date',
+            },
+        ],
+    };
+}
 
 const dedupe = (arr: string[]) => Array.from(new Set(arr));
 
-export const getDataOnTxDigests = (client: SuiClient, transactions: string[]) =>
-	client
-		.multiGetTransactionBlocks({
-			digests: dedupe(transactions),
-			options: {
-				showInput: true,
-				showEffects: true,
-				showEvents: true,
-			},
-		})
-		.then((transactions) =>
-			// Remove failed transactions
-			transactions.filter((item) => item),
-		);
+export function getDataOnTxDigests(
+    client: IotaClient,
+    transactions: string[],
+): Promise<IotaTransactionBlockResponse[]> {
+    return client
+        .multiGetTransactionBlocks({
+            digests: dedupe(transactions),
+            options: {
+                showInput: true,
+                showEffects: true,
+                showEvents: true,
+            },
+        })
+        .then((transactions) =>
+            // Remove failed transactions
+            transactions.filter((item) => item),
+        );
+}

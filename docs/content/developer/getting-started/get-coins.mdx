@@ -1,0 +1,63 @@
+---
+description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
+tags: [how-to, cli, typescript, sdk, faucet]
+---
+
+import AlphaNet from "../../_snippets/alphanet.mdx";
+
+# Get Test Tokens
+
+You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-iota/tokenomics/gas-in-iota.mdx) on the IOTA Devnet and Testnet networks. These test tokens have no real-world value.
+
+## Using the IOTA CLI
+
+You can use the [IOTA CLI client](../../references/cli/client.mdx) to request tokens for your [address](get-address.mdx) by using the `iota client faucet` command. By default, the command will use the active network and address, but you can specify any values for these using the following parameters:
+
+- `--address` argument to provide a specific address (or its alias),
+- `--url` argument to provide a custom faucet endpoint.
+
+## Request test tokens through wallet
+
+You can request test tokens within IOTA Wallet.
+
+## Using cURL
+
+You can use the following cURL command to request tokens directly from the faucet server:
+
+```
+curl --location --request POST 'https://faucet.iota-rebased-alphanet.iota.cafe/gas' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "FixedAmountRequest": {
+        "recipient": "<YOUR IOTA ADDRESS>"
+    }
+}'
+```
+
+<AlphaNet />
+
+:::tip Test tokens on a local network
+
+If you're working with a local network, replace `'https://faucet.iota-rebased-alphanet.iota.cafe/gas'` with the appropriate value based on which package runs your network:
+
+- `iota-faucet`: `http://127.0.0.1:5003/gas`
+- `iota-test-validator`: `http://127.0.0.1:9123/gas`
+
+You can also get tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
+
+:::
+
+## Using the TypeScript SDK
+
+You can also access the faucet using the IOTA TypeScript-SDK, as shown in the example below:
+
+```typescript
+import { requestIOTAFromFaucetV0, getFaucetHost } from '@iota/iota-sdk/faucet';
+
+// get tokens from the Devnet faucet server
+await requestIOTAFromFaucetV0({
+  // connect to Devnet
+	host: getFaucetHost('devnet'),
+	recipient: '<YOUR IOTA ADDRESS>',
+});
+```

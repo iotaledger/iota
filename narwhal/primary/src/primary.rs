@@ -1,63 +1,57 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    certificate_fetcher::CertificateFetcher,
-    certifier::Certifier,
-    consensus::{ConsensusRound, LeaderSchedule},
-    metrics::{initialise_metrics, PrimaryMetrics},
-    proposer::{OurDigestMessage, Proposer},
-    state_handler::StateHandler,
-    synchronizer::Synchronizer,
-};
-
-use anemo::{
-    codegen::InboundRequestLayer,
-    types::{response::StatusCode, Address},
-};
-use anemo::{types::PeerInfo, Network, PeerId};
-use anemo_tower::auth::RequireAuthorizationLayer;
-use anemo_tower::set_header::SetResponseHeaderLayer;
-use anemo_tower::{
-    auth::AllowedPeers,
-    callback::CallbackLayer,
-    inflight_limit, rate_limit,
-    set_header::SetRequestHeaderLayer,
-    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
-};
-use async_trait::async_trait;
-use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache};
-use crypto::traits::EncodeDecodeBase64;
-use crypto::{KeyPair, NetworkKeyPair, NetworkPublicKey, Signature};
-use fastcrypto::{
-    hash::Hash,
-    signature_service::SignatureService,
-    traits::{KeyPair as _, ToFromBytes},
-};
-use mysten_metrics::metered_channel::{channel_with_total, Receiver, Sender};
-use mysten_metrics::monitored_scope;
-use mysten_network::{multiaddr::Protocol, Multiaddr};
-use network::{
-    client::NetworkClient,
-    epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
-};
-use network::{failpoints::FailpointsMakeCallbackHandler, metrics::MetricsMakeCallbackHandler};
-use parking_lot::Mutex;
-use prometheus::Registry;
-use std::collections::{btree_map::Entry, BTreeMap, HashMap};
 use std::{
     cmp::Reverse,
-    collections::{BTreeSet, BinaryHeap},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap},
     net::Ipv4Addr,
     sync::Arc,
     thread::sleep,
     time::Duration,
 };
+
+use anemo::{
+    codegen::InboundRequestLayer,
+    types::{response::StatusCode, Address, PeerInfo},
+    Network, PeerId,
+};
+use anemo_tower::{
+    auth::{AllowedPeers, RequireAuthorizationLayer},
+    callback::CallbackLayer,
+    inflight_limit, rate_limit,
+    set_header::{SetRequestHeaderLayer, SetResponseHeaderLayer},
+    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
+};
+use async_trait::async_trait;
+use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache};
+use crypto::{traits::EncodeDecodeBase64, KeyPair, NetworkKeyPair, NetworkPublicKey, Signature};
+use fastcrypto::{
+    hash::Hash,
+    signature_service::SignatureService,
+    traits::{KeyPair as _, ToFromBytes},
+};
+use iota_metrics::{
+    metered_channel::{channel_with_total, Receiver, Sender},
+    monitored_scope,
+};
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
+use iota_protocol_config::ProtocolConfig;
+use network::{
+    client::NetworkClient,
+    epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
+    failpoints::FailpointsMakeCallbackHandler,
+    metrics::MetricsMakeCallbackHandler,
+};
+use parking_lot::Mutex;
+use prometheus::Registry;
 use storage::{CertificateStore, PayloadStore, ProposerStore, VoteDigestStore};
-use sui_protocol_config::ProtocolConfig;
-use tokio::{sync::oneshot, time::Instant};
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+    time::Instant,
+};
 use tower::ServiceBuilder;
 use tracing::{debug, error, info, instrument, warn};
 use types::{
@@ -70,6 +64,16 @@ use types::{
     WorkerOthersBatchMessage, WorkerOwnBatchMessage, WorkerToPrimary, WorkerToPrimaryServer,
 };
 
+use crate::{
+    certificate_fetcher::CertificateFetcher,
+    certifier::Certifier,
+    consensus::{ConsensusRound, LeaderSchedule},
+    metrics::{initialise_metrics, PrimaryMetrics},
+    proposer::{OurDigestMessage, Proposer},
+    state_handler::StateHandler,
+    synchronizer::Synchronizer,
+};
+
 #[cfg(test)]
 #[path = "tests/primary_tests.rs"]
 pub mod primary_tests;
@@ -77,7 +81,8 @@ pub mod primary_tests;
 /// The default channel capacity for each channel of the primary.
 pub const CHANNEL_CAPACITY: usize = 10_000;
 
-/// The number of shutdown receivers to create on startup. We need one per component loop.
+/// The number of shutdown receivers to create on startup. We need one per
+/// component loop.
 pub const NUM_SHUTDOWN_RECEIVERS: u64 = 27;
 
 /// Maximum duration to fetch certificates from local storage.
@@ -86,7 +91,8 @@ const FETCH_CERTIFICATES_MAX_HANDLER_TIME: Duration = Duration::from_secs(10);
 pub struct Primary;
 
 impl Primary {
-    // Spawns the primary and returns the JoinHandles of its tasks, as well as a metered receiver for the Consensus.
+    // Spawns the primary and returns the JoinHandles of its tasks, as well as a
+    // metered receiver for the Consensus.
     #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         authority: Authority,
@@ -154,8 +160,9 @@ impl Primary {
             &primary_channel_metrics.tx_committed_own_headers_total,
         );
 
-        // we need to hack the gauge from this consensus channel into the primary registry
-        // This avoids a cyclic dependency in the initialization of consensus and primary
+        // we need to hack the gauge from this consensus channel into the primary
+        // registry This avoids a cyclic dependency in the initialization of
+        // consensus and primary
         let committed_certificates_gauge = tx_committed_certificates.gauge().clone();
         primary_channel_metrics.replace_registered_committed_certificates_metric(
             registry,
@@ -195,7 +202,6 @@ impl Primary {
         let mut primary_service = PrimaryToPrimaryServer::new(PrimaryReceiverHandler {
             authority_id: authority.id(),
             committee: committee.clone(),
-            protocol_config: protocol_config.clone(),
             worker_cache: worker_cache.clone(),
             synchronizer: synchronizer.clone(),
             signature_service: signature_service.clone(),
@@ -320,8 +326,8 @@ impl Primary {
             quic_config.keep_alive_interval_ms = Some(5_000);
             let mut config = anemo::Config::default();
             config.quic = Some(quic_config);
-            // Set the max_frame_size to be 1 GB to work around the issue of there being too many
-            // delegation events in the epoch change txn.
+            // Set the max_frame_size to be 1 GB to work around the issue of there being too
+            // many delegation events in the epoch change txn.
             config.max_frame_size = Some(1 << 30);
             // Set a default timeout of 300s for all RPC requests
             config.inbound_request_timeout_ms = Some(300_000);
@@ -440,12 +446,11 @@ impl Primary {
             network.clone(),
         );
 
-        // The `CertificateFetcher` waits to receive all the ancestors of a certificate before looping it back to the
-        // `Synchronizer` for further processing.
+        // The `CertificateFetcher` waits to receive all the ancestors of a certificate
+        // before looping it back to the `Synchronizer` for further processing.
         let certificate_fetcher_handle = CertificateFetcher::spawn(
             authority.id(),
             committee.clone(),
-            protocol_config.clone(),
             network.clone(),
             certificate_store,
             rx_consensus_round_updates,
@@ -455,12 +460,12 @@ impl Primary {
             node_metrics.clone(),
         );
 
-        // When the `Synchronizer` collects enough parent certificates, the `Proposer` generates
-        // a new header with new batch digests from our workers and sends it to the `Certifier`.
+        // When the `Synchronizer` collects enough parent certificates, the `Proposer`
+        // generates a new header with new batch digests from our workers and
+        // sends it to the `Certifier`.
         let proposer_handle = Proposer::spawn(
             authority.id(),
             committee.clone(),
-            &protocol_config,
             proposer_store,
             parameters.header_num_of_batches_threshold,
             parameters.max_header_num_of_batches,
@@ -485,7 +490,8 @@ impl Primary {
         ];
         handles.extend(admin_handles);
 
-        // Keeps track of the latest consensus round and allows other tasks to clean up their their internal state
+        // Keeps track of the latest consensus round and allows other tasks to clean up
+        // their their internal state
         let state_handler_handle = StateHandler::spawn(
             authority.id(),
             rx_committed_certificates,
@@ -529,20 +535,20 @@ struct PrimaryReceiverHandler {
     /// The id of this primary.
     authority_id: AuthorityIdentifier,
     committee: Committee,
-    protocol_config: ProtocolConfig,
     worker_cache: WorkerCache,
     synchronizer: Arc<Synchronizer>,
     /// Service to sign headers.
     signature_service: SignatureService<Signature, { crypto::INTENT_MESSAGE_LENGTH }>,
     certificate_store: CertificateStore,
-    /// The store to persist the last voted round per authority, used to ensure idempotence.
+    /// The store to persist the last voted round per authority, used to ensure
+    /// idempotence.
     vote_digest_store: VoteDigestStore,
     /// Get a signal when the round changes.
     rx_narwhal_round_updates: watch::Receiver<Round>,
     /// Known parent digests that are being fetched from header proposers.
     /// Values are where the digests are first known from.
-    /// TODO: consider limiting maximum number of digests from one authority, allow timeout
-    /// and retries from other authorities.
+    /// TODO: consider limiting maximum number of digests from one authority,
+    /// allow timeout and retries from other authorities.
     parent_digests: Arc<Mutex<BTreeMap<(Round, CertificateDigest), AuthorityIdentifier>>>,
     metrics: Arc<PrimaryMetrics>,
 }
@@ -624,13 +630,14 @@ impl PrimaryReceiverHandler {
             header.round()
         );
 
-        // Request missing parent certificates from the header proposer, to reduce voting latency
-        // when some certificates are not broadcasted to many primaries.
-        // This is only a latency optimization, and not required for liveness.
+        // Request missing parent certificates from the header proposer, to reduce
+        // voting latency when some certificates are not broadcasted to many
+        // primaries. This is only a latency optimization, and not required for
+        // liveness.
         let parents = request.body().parents.clone();
         if parents.is_empty() {
-            // If any parent is still unknown, ask the header proposer to include them with another
-            // vote request.
+            // If any parent is still unknown, ask the header proposer to include them with
+            // another vote request.
             let unknown_digests = self.get_unknown_parent_digests(header).await?;
             if !unknown_digests.is_empty() {
                 debug!(
@@ -646,25 +653,25 @@ impl PrimaryReceiverHandler {
             let mut validated_received_parents = vec![];
             for parent in parents {
                 validated_received_parents.push(
-                    validate_received_certificate_version(parent, &self.protocol_config).map_err(
-                        |err| {
-                            error!("request vote parents processing error: {err}");
-                            DagError::InvalidCertificateVersion
-                        },
-                    )?,
+                    validate_received_certificate_version(parent).map_err(|err| {
+                        error!("request vote parents processing error: {err}");
+                        DagError::InvalidCertificateVersion
+                    })?,
                 );
             }
             // If requester has provided parent certificates, try to accept them.
-            // It is ok to not check for additional unknown digests, because certificates can
-            // become available asynchronously from broadcast or certificate fetching.
+            // It is ok to not check for additional unknown digests, because certificates
+            // can become available asynchronously from broadcast or certificate
+            // fetching.
             self.try_accept_unknown_parents(header, validated_received_parents)
                 .await?;
         }
 
-        // Ensure the header has all parents accepted. If some are missing, waits until they become
-        // available from broadcast or certificate fetching. If no certificate becomes available
-        // for a digest, this request will time out or get cancelled by the requestor eventually.
-        // This check is necessary for correctness.
+        // Ensure the header has all parents accepted. If some are missing, waits until
+        // they become available from broadcast or certificate fetching. If no
+        // certificate becomes available for a digest, this request will time
+        // out or get cancelled by the requestor eventually. This check is
+        // necessary for correctness.
         let parents = self
             .synchronizer
             .notify_read_parent_certificates(header)
@@ -701,8 +708,9 @@ impl PrimaryReceiverHandler {
             .sync_header_batches(header, /* max_age */ 0)
             .await?;
 
-        // Check that the time of the header is smaller than the current time. If not but the difference is
-        // small, just wait. Otherwise reject with an error.
+        // Check that the time of the header is smaller than the current time. If not
+        // but the difference is small, just wait. Otherwise reject with an
+        // error.
         const TOLERANCE_MS: u64 = 1_000;
         let current_time = now();
         if current_time < *header.created_at() {
@@ -727,12 +735,13 @@ impl PrimaryReceiverHandler {
         // Check if we can vote for this header.
         // Send the vote when:
         // 1. when there is no existing vote for this publicKey & epoch/round
-        // 2. when there is a vote for this publicKey & epoch/round, and the vote is the same
+        // 2. when there is a vote for this publicKey & epoch/round, and the vote is the
+        //    same
         // Taking the inverse of these two, the only time we don't want to vote is when:
-        // there is a digest for the publicKey & epoch/round, and it does not match the digest
-        // of the vote we create for this header.
-        // Also when the header is older than one we've already voted for, it is useless to vote,
-        // so we don't.
+        // there is a digest for the publicKey & epoch/round, and it does not match the
+        // digest of the vote we create for this header.
+        // Also when the header is older than one we've already voted for, it is useless
+        // to vote, so we don't.
         let result = self
             .vote_digest_store
             .read(&header.author())
@@ -799,10 +808,10 @@ impl PrimaryReceiverHandler {
         })
     }
 
-    // Tries to accept certificates if they have been requested from the header author.
-    // The filtering is to avoid overload from unrequested certificates. It is ok that this
-    // filter may result in a certificate never arriving via header proposals, because
-    // liveness is guaranteed by certificate fetching.
+    // Tries to accept certificates if they have been requested from the header
+    // author. The filtering is to avoid overload from unrequested certificates.
+    // It is ok that this filter may result in a certificate never arriving via
+    // header proposals, because liveness is guaranteed by certificate fetching.
     async fn try_accept_unknown_parents(
         &self,
         header: &Header,
@@ -825,22 +834,24 @@ impl PrimaryReceiverHandler {
     }
 
     /// Gets parent certificate digests not known before.
-    /// Digests that are in storage, suspended, or being requested from other proposers
-    /// are considered to be known.
+    /// Digests that are in storage, suspended, or being requested from other
+    /// proposers are considered to be known.
     async fn get_unknown_parent_digests(
         &self,
         header: &Header,
     ) -> DagResult<Vec<CertificateDigest>> {
-        // Get digests not known by the synchronizer, in storage or among suspended certificates.
+        // Get digests not known by the synchronizer, in storage or among suspended
+        // certificates.
         let mut digests = self.synchronizer.get_unknown_parent_digests(header).await?;
 
-        // Maximum header age is chosen to strike a balance between allowing for slightly older
-        // certificates to still have a chance to be included in the DAG while not wasting
-        // resources on very old vote requests. This value affects performance but not correctness
-        // of the algorithm.
+        // Maximum header age is chosen to strike a balance between allowing for
+        // slightly older certificates to still have a chance to be included in
+        // the DAG while not wasting resources on very old vote requests. This
+        // value affects performance but not correctness of the algorithm.
         const HEADER_AGE_LIMIT: Round = 3;
 
-        // Lock to ensure consistency between limit_round and where parent_digests are gc'ed.
+        // Lock to ensure consistency between limit_round and where parent_digests are
+        // gc'ed.
         let mut parent_digests = self.parent_digests.lock();
 
         // Check that the header is not too old.
@@ -853,7 +864,8 @@ impl PrimaryReceiverHandler {
 
         // Drop old entries from parent_digests.
         while let Some(((round, _digest), _authority)) = parent_digests.first_key_value() {
-            // Minimum header round is limit_round, so minimum parent round is limit_round - 1.
+            // Minimum header round is limit_round, so minimum parent round is limit_round -
+            // 1.
             if *round < limit_round.saturating_sub(1) {
                 parent_digests.pop_first();
             } else {
@@ -883,16 +895,13 @@ impl PrimaryToPrimary for PrimaryReceiverHandler {
         request: anemo::Request<SendCertificateRequest>,
     ) -> Result<anemo::Response<SendCertificateResponse>, anemo::rpc::Status> {
         let _scope = monitored_scope("PrimaryReceiverHandler::send_certificate");
-        let certificate = validate_received_certificate_version(
-            request.into_body().certificate,
-            &self.protocol_config,
-        )
-        .map_err(|err| {
-            anemo::rpc::Status::new_with_message(
-                StatusCode::BadRequest,
-                format!("Invalid certifcate: {err}"),
-            )
-        })?;
+        let certificate = validate_received_certificate_version(request.into_body().certificate)
+            .map_err(|err| {
+                anemo::rpc::Status::new_with_message(
+                    StatusCode::BadRequest,
+                    format!("Invalid certifcate: {err}"),
+                )
+            })?;
 
         match self.synchronizer.try_accept_certificate(certificate).await {
             Ok(()) => Ok(anemo::Response::new(SendCertificateResponse {
@@ -953,10 +962,12 @@ impl PrimaryToPrimary for PrimaryReceiverHandler {
             return Ok(anemo::Response::new(response));
         }
 
-        // Use a min-queue for (round, authority) to keep track of the next certificate to fetch.
+        // Use a min-queue for (round, authority) to keep track of the next certificate
+        // to fetch.
         //
-        // Compared to fetching certificates iteratatively round by round, using a heap is simpler,
-        // and avoids the pathological case of iterating through many missing rounds of a downed authority.
+        // Compared to fetching certificates iteratatively round by round, using a heap
+        // is simpler, and avoids the pathological case of iterating through
+        // many missing rounds of a downed authority.
         let (lower_bound, skip_rounds) = request.get_bounds();
         debug!(
             "Fetching certificates after round {lower_bound} for peer {:?}, elapsed = {}ms",
@@ -986,9 +997,10 @@ impl PrimaryToPrimary for PrimaryReceiverHandler {
             time_start.elapsed().as_millis(),
         );
 
-        // Iteratively pop the next smallest (Round, Authority) pair, and push to min-heap the next
-        // higher round of the same authority that should not be skipped.
-        // The process ends when there are no more pairs in the min-heap.
+        // Iteratively pop the next smallest (Round, Authority) pair, and push to
+        // min-heap the next higher round of the same authority that should not
+        // be skipped. The process ends when there are no more pairs in the
+        // min-heap.
         while let Some(Reverse((round, origin))) = fetch_queue.pop() {
             // Allow the request handler to be stopped after timeout.
             tokio::task::yield_now().await;
@@ -1026,8 +1038,8 @@ impl PrimaryToPrimary for PrimaryReceiverHandler {
             assert!(response.certificates.len() < request.max_items);
         }
 
-        // The requestor should be able to process certificates returned in this order without
-        // any missing parents.
+        // The requestor should be able to process certificates returned in this order
+        // without any missing parents.
         Ok(anemo::Response::new(response))
     }
 }

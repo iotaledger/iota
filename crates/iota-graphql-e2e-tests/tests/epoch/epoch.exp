@@ -71,7 +71,6 @@ Response: {
       },
       "totalGasFees": "1000000",
       "totalStakeRewards": "1000000",
-      "totalStakeSubsidies": "0",
       "fundSize": "15098160",
       "fundInflow": "1976000",
       "fundOutflow": "978120",

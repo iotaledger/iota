@@ -1,18 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
 
-use crate::traits::{PrimaryToPrimaryRpc, WorkerRpc};
-use crate::{traits::ReliableNetwork, CancelOnDropHandler, RetryConfig};
 use anemo::PeerId;
-use anyhow::format_err;
-use anyhow::Result;
+use anyhow::{format_err, Result};
 use async_trait::async_trait;
 use crypto::NetworkPublicKey;
 use types::{
     FetchCertificatesRequest, FetchCertificatesResponse, PrimaryToPrimaryClient,
     RequestBatchesRequest, RequestBatchesResponse, WorkerBatchMessage, WorkerToWorkerClient,
+};
+
+use crate::{
+    traits::{PrimaryToPrimaryRpc, ReliableNetwork, WorkerRpc},
+    CancelOnDropHandler, RetryConfig,
 };
 
 fn send<F, R, Fut>(
@@ -26,7 +29,8 @@ where
     Fut: std::future::Future<Output = Result<anemo::Response<R>, anemo::rpc::Status>> + Send,
 {
     // Safety
-    // Since this spawns an unbounded task, this should be called in a time-restricted fashion.
+    // Since this spawns an unbounded task, this should be called in a
+    // time-restricted fashion.
 
     let peer_id = PeerId(peer.0.to_bytes());
     let message_send = move || {
@@ -57,7 +61,6 @@ where
     CancelOnDropHandler(task)
 }
 
-//
 // Primary-to-Primary
 //
 

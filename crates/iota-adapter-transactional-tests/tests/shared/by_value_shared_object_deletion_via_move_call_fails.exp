@@ -1,0 +1,68 @@
+processed 16 tasks
+
+task 1 'publish'. lines 7-58:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 8884400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 60-60:
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 3 'run'. lines 62-62:
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 4 'view-object'. lines 64-64:
+Owner: Shared
+Version: 3
+Contents: t2::o2::Obj2 {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}}
+
+task 5 'view-object'. lines 66-68:
+Owner: Shared
+Version: 4
+Contents: t2::o2::Obj2 {id: iota::object::UID {id: iota::object::ID {bytes: fake(3,0)}}}
+
+task 6 'programmable'. lines 69-73:
+Error: Transaction Effects Status: The shared object operation is not allowed.
+Debug of error: SharedObjectOperationNotAllowed at command None
+
+task 7 'programmable'. lines 74-78:
+Error: Transaction Effects Status: The shared object operation is not allowed.
+Debug of error: SharedObjectOperationNotAllowed at command None
+
+task 8 'programmable'. lines 79-83:
+Error: Transaction Effects Status: The shared object operation is not allowed.
+Debug of error: SharedObjectOperationNotAllowed at command None
+
+task 9 'programmable'. lines 84-86:
+Error: Transaction Effects Status: The shared object operation is not allowed.
+Debug of error: SharedObjectOperationNotAllowed at command None
+
+task 10 'run'. lines 88-88:
+created: object(10,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 11 'view-object'. lines 90-92:
+Owner: Shared
+Version: 9
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(10,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 12 'programmable'. lines 93-99:
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(3)
+
+task 13 'programmable'. lines 100-106:
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(3)
+
+task 14 'programmable'. lines 107-113:
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
+Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(3)
+
+task 15 'programmable'. lines 114-118:
+Error: Transaction Effects Status: The shared object operation is not allowed.
+Debug of error: SharedObjectOperationNotAllowed at command None
