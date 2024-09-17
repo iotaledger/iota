@@ -11,13 +11,22 @@ import {
     PageLayout,
     TransactionsForAddress,
 } from '~/components';
-import { Divider, SplitPanes } from '~/components/ui';
+import { Divider, PageHeader, SplitPanes } from '~/components/ui';
 
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider as DividerUI } from '@iota/apps-ui-kit';
+import { TotalStaked } from './TotalStaked';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
+
+interface AddressResultPageHeaderProps {
+    address: string;
+}
+
+function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): JSX.Element {
+    return <PageHeader type="Address" title={address} after={<TotalStaked address={address} />} />;
+}
 
 function AddressResult({ address }: { address: string }): JSX.Element {
     return (
@@ -47,6 +56,7 @@ export default function AddressResultPage(): JSX.Element {
         <PageLayout
             content={
                 <div className="flex flex-col gap-2xl">
+                    <AddressResultPageHeader address={id!} />
                     <AddressResult address={id!} />
                 </div>
             }
