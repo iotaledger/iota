@@ -16,18 +16,11 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
     IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
-    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlock,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange, ProtocolConfigResponse,
+    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, ProtocolConfigResponse,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
-    IotaEvent, IotaGetPastObjectRequest, IotaLoadedChildObject, IotaLoadedChildObjectsResponse,
-    IotaMoveStruct, IotaMoveValue, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
-    IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    ProtocolConfigResponse,
-};
-use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
@@ -62,7 +55,7 @@ use crate::{
     error::{Error, IotaRpcInputError, RpcInterimResult},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing as _,
-    IotaRpcModule, ObjectProviderCache,
+    IotaRpcModule, ObjectProvider, ObjectProviderCache,
 };
 
 const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
