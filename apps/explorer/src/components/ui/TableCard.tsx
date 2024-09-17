@@ -16,6 +16,7 @@ import {
     flexRender,
     getCoreRowModel,
     getSortedRowModel,
+    type RowData,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
@@ -23,12 +24,13 @@ import clsx from 'clsx';
 import { Fragment, useState } from 'react';
 import { Link } from './Link';
 
-export interface TableCardProps<DataType extends object> {
+export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
     data: DataType[];
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
+    areHeadersCentered?: boolean;
     paginationOptions?: TablePaginationOptions;
     totalLabel?: string;
     viewAll?: string;
@@ -40,6 +42,7 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    areHeadersCentered,
     paginationOptions,
     totalLabel,
     viewAll,
@@ -90,6 +93,7 @@ export function TableCard<DataType extends object>({
                                             ? column.getToggleSortingHandler()
                                             : undefined
                                     }
+                                    isContentCentered={areHeadersCentered}
                                 />
                             ))}
                         </TableRow>

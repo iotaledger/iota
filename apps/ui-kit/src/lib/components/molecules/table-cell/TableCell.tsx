@@ -16,6 +16,10 @@ interface TableCellBaseProps {
      * Whether the cell content should be centered.
      */
     isContentCentered?: boolean;
+    /**
+     * Whether to not wrap the text in the cell.
+     */
+    noWrap?: boolean;
 }
 
 export function TableCellBase({

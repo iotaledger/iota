@@ -20,10 +20,10 @@ import { CheckpointsTable, PageLayout } from '~/components';
 import { Banner, Stats, type StatsProps, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
-import { validatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
+import { generateValidatorsTableColumns } from '~/lib/ui/utils/generateValidatorsTableColumns';
 
 function IotaStats({
     amount,
@@ -73,16 +73,18 @@ export default function EpochDetail() {
         [systemState, epochData],
     );
 
-    const validatorsTable = useMemo(() => {
-        if (!epochData?.validators) return null;
+    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
+
+    const tableColumns = useMemo(() => {
+        if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData(
-            [...epochData.validators].sort(() => 0.5 - Math.random()),
-            [],
-            [],
-            null,
-        );
+        return generateValidatorsTableColumns({
+            atRiskValidators: [],
+            validatorEvents: [],
+            rollingAverageApys: null,
+            showValidatorIcon: true,
+        });
     }, [epochData]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
@@ -187,12 +189,8 @@ export default function EpochDetail() {
                                     initialLimit={20}
                                 />
                             ) : null}
-                            {activeTabId === EpochTabs.Validators && validatorsTable ? (
-                                <TableCard
-                                    data={validatorsTable.data}
-                                    columns={validatorsTable.columns}
-                                    sortTable
-                                />
+                            {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
+                                <TableCard data={tableData} columns={tableColumns} />
                             ) : null}
                         </div>
                     </div>
