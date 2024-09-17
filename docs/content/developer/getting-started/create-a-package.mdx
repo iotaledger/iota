@@ -31,7 +31,7 @@ In `.toml` files, use the hash mark (`#`) to denote a comment.
 ```toml title="my_first_package/Move.toml"
 [package]
 name = "my_first_package"
-edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+edition = "2024.beta" # edition
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
@@ -43,7 +43,7 @@ Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-f
 # MyRemotePackage = { git = "https://some.remote/host.git", subdir = "remote/path", rev = "main" }
 
 # For local dependencies use `local = path`. Path is relative to the package root
-# Local = { local = "../path/to" }
+# Iota = { local = "../path/to/iota/crates/iota-framework/packages/iota-framework" }
 
 # To resolve a version conflict and force a specific version for dependency
 # override use `override = true`
@@ -67,6 +67,12 @@ my_first_package = "0x0"
 # alice = "0xB0B"
 ```
 
+:::tip Using a local version of IOTA
+
+For local testnet development and testing it is recommended to use the local dependency of the `Iota` framework for faster and more reliable builds. See the commented line in the example above as an example pointing towards your local checkout of the `iota` repository.
+
+:::
+
 ### Package
 
 The `[package]` section describes the package. By default, the `iota move new` command populates only the `name` value
@@ -83,13 +89,13 @@ repository URL or a path to the local directory.
 
 ```rust
 # git repository
-iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 
 # local directory
 MyPackage = { local = "../my-package" }
 ```
 
-Packages also import addresses from other packages. For example, the IOTA dependency adds the `std` and `iota` addresses
+Packages also import addresses from other packages. For example, the `Iota` dependency adds the `std` and `iota` addresses
 to the project. These addresses can be used in the code as aliases for the addresses.
 
 ### Resolving Version Conflicts with `override`
@@ -100,7 +106,7 @@ the `[dependencies]` section will be used instead of the one specified in the de
 
 ```rust
 [dependencies]
-iota = { override = true, git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+Iota = { override = true, git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 ```
 
 ### Dev-dependencies
