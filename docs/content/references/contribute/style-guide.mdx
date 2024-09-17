@@ -6,7 +6,7 @@ toc_max_heading_level: 2
 
 # Style Guide
 
-This document defines the styles, word and term usage, and content formatting for Sui documentation. Entries are in alphabetical order. A style guide is never finished. Expect continued iterations to add additional styles, additional information to existing styles, and infrequently a change to an existing style.
+This document defines the styles, word and term usage, and content formatting for IOTA documentation. Entries are in alphabetical order. A style guide is never finished. Expect continued iterations to add additional styles, additional information to existing styles, and infrequently a change to an existing style.
 
 ## Accessibility {#accessibility}
 
@@ -37,7 +37,7 @@ Spell out a term or phrase on first use in a topic, followed by the acronym in p
 
 **Example**
 
-> You can mint non-fungible tokens (NFTs) using your Sui Wallet. To view an NFT after you mint it, click the NFTs tab of your wallet.
+> You can mint non-fungible tokens (NFTs) using your IOTA Wallet. To view an NFT after you mint it, click the NFTs tab of your wallet.
 
 ## Alerts {#alerts}
 
@@ -199,7 +199,7 @@ Initiate a codeblock in markdown with three backticks (\`\`\`).
 **Example**
 
 ```
-module sui::display {
+module iota::display {
 /// Sets multiple fields at once
 public fun add*multiple(
 self: &mut Display,
@@ -238,9 +238,9 @@ Use imperative verbs for tasks, procedures, and instructions.
 
 **Example**
 
-- **Indicative –** Sui network explorers display transactions on the network.
-- **Imperative –** Open a Sui network explorer to view transactions on the network.
-- **Subjunctive –** We suggest that you view your transaction in a Sui network explorer after you complete a transfer.
+- **Indicative –** IOTA network explorers display transactions on the network.
+- **Imperative –** Open a IOTA network explorer to view transactions on the network.
+- **Subjunctive –** We suggest that you view your transaction in a IOTA network explorer after you complete a transfer.
 
 ### Person {#person}
 
@@ -248,11 +248,11 @@ Use second person in most cases.
 
 **Example**
 
-> You used to could view transaction history in Sui Explorer.
+> You used to could view transaction history in IOTA Explorer.
 
 **Rather than:**
 
-> We used to could view transaction history in Sui Explorer.
+> We used to could view transaction history in IOTA Explorer.
 
 ### Present tense {#present-tense}
 
@@ -292,7 +292,7 @@ Do use serial commas.
 
 **Example**
 
-> You must install Cargo, Rust, Docker, and the Sui CLI to create a Sui node.
+> You must install Cargo, Rust, Docker, and the IOTA CLI to create a IOTA node.
 
 ## Headings and titles {#headings-titles}
 
@@ -306,7 +306,7 @@ Use enough words in headings and titles to make it easy to know which link to cl
 
 Users search for information to complete a specific task, so help them identify the topic that helps them by using descriptive titles. For example, _Get Started_. Get started with what? If there are multiple products or programs available it could be anything.
 
-_Get Started with Sui_ is better, but users want to get started with a specific task or user journey with Sui. Instead of _Get Started with Sui_, describe the specific task or journey, such as _Create a Sui Full Node_ or _Sui Validator Guide_. Use Get Started as a heading on the Documentation landing page to categorize tasks for new users.
+_Get Started with IOTA_ is better, but users want to get started with a specific task or user journey with IOTA. Instead of _Get Started with IOTA_, describe the specific task or journey, such as _Create a IOTA Full Node_ or _IOTA Validator Guide_. Use Get Started as a heading on the Documentation landing page to categorize tasks for new users.
 
 <Tabs>
 <TabItem value="example" label="Example" default>
@@ -377,17 +377,17 @@ Use a list for a series of items or steps instead of writing them as a sentence.
 
 **Instead of:**
 
-The Build section of the documentation includes topics about: Building with Sui, Using the CLI to Start a Network, Creating Smart Contracts, Sui Tutorial, and Sui Examples.
+The Build section of the documentation includes topics about: Building with IOTA, Using the CLI to Start a Network, Creating Smart Contracts, IOTA Tutorial, and IOTA Examples.
 
 **Use:**
 
 The Build section of the documentation includes the following topics:
 
-- Building with Sui
+- Building with IOTA
 - Using the CLI to Start a Network
 - Creating Smart Contracts
-- Sui Tutorial
-- Sui Examples
+- IOTA Tutorial
+- IOTA Examples
 
 ### Numbered or ordered lists {#numbered-ordered-lists}
 
@@ -401,7 +401,7 @@ Use a numbered list when:
 
 1. Create a fork of the repo.
 1. Clone your fork of the repo.
-1. Install Sui.
+1. Install IOTA.
 
 </TabItem>
 <TabItem value="markdown" label="Markdown">
@@ -410,7 +410,7 @@ Use a numbered list when:
 
 1. Create a fork of the repo.
 1. Clone your fork of the repo.
-1. Install Sui.
+1. Install IOTA.
 
 ```
 
@@ -424,7 +424,7 @@ Use bulleted lists to list more than two pieces of related information, such as 
 <Tabs>
 <TabItem value="example" label="Example" default>
 
-Sui Explorer used to support the following browsers:
+IOTA Explorer used to support the following browsers:
 
 - Firefox version X or later
 - Chrome version X or later
@@ -435,7 +435,7 @@ Sui Explorer used to support the following browsers:
 
 ```
 
-Sui Explorer used to support the following browsers:
+IOTA Explorer used to support the following browsers:
 
 - Firefox version X or later
 - Chrome version X or later
@@ -556,41 +556,25 @@ Measurements should be written as numerals.
 
 ## Links {#links}
 
-Always use relative links when linking to topics on docs.sui.io.
+Always use relative links when linking to topics on docs.iota.io.
 
 Include the `.mdx` extension when creating internal links so that they also work from the source file in GitHub.
 
 Use the topic title of the target topic as the link text for the link in a list or "Learn more" sentences. Do not use a URL as the link text.
-
-<Tabs>
-<TabItem value="example" label="Example" default>
-
-> To learn more, see [Examples of Sui Smart Contracts](/guides/developer/app-examples.mdx).
-
-</TabItem>
-<TabItem value="markdown" label="Markdown">
-
-```markdown
-To learn more, see [Examples of Sui Smart Contracts](/guides/developer/app-examples.mdx).
-
-```
-
-</TabItem>
-</Tabs>
 
 Use keywords from the target topic title when using links inline.
 
 <Tabs>
 <TabItem value="example" label="Example" default>
 
-> Before you install Sui, make sure to install the [prerequisites](/guides/developer/getting-started/sui-install.mdx#prerequisites).
+> Before you install IOTA, make sure to install the [prerequisites](/developer/getting-started/iota-install.mdx#prerequisites).
 
 </TabItem>
 <TabItem value="markdown" label="Markdown">
 
 ```
 
-Before you install Sui, make sure to install the [prerequisites](/guides/developer/getting-started/sui-install.mdx#prerequisites).
+Before you install IOTA, make sure to install the [prerequisites](/developer/getting-started/iota-install.mdx#prerequisites).
 
 ```
 
@@ -604,22 +588,22 @@ Introduce a procedure with an infinitive verb. Format procedures using a numbere
 <Tabs>
 <TabItem value="example" label="Example" default>
 
-To get the latest version of the Sui Wallet extension:
+To get the latest version of the IOTA Wallet extension:
 
 1. Open Google Chrome.
 1. Click **Extensions**, then click **Manage Extensions**.
-1. Click **Details** for the Sui Wallet extension, then click **View in Chrome Web Store**.
+1. Click **Details** for the IOTA Wallet extension, then click **View in Chrome Web Store**.
 
 </TabItem>
 <TabItem value="markdown" label="Markdown">
 
 ```
 
-To get the latest version of the Sui Wallet extension:
+To get the latest version of the IOTA Wallet extension:
 
 1. Open Google Chrome.
 1. Click **Extensions**, then click **Manage Extensions**.
-1. Click **Details** for the Sui Wallet extension, then click **View in Chrome Web Store**.
+1. Click **Details** for the IOTA Wallet extension, then click **View in Chrome Web Store**.
 
 ```
 
@@ -645,11 +629,11 @@ Proper nouns include:
 
 **Example**
 
-> Sui Wallet
+> IOTA Wallet
 
 ## Product names {#product-names}
 
-Product names are proper nouns. Capitalize all words of a product name. When referring to a product, use only the product name without “the”. When referring specifically to a Sui wallet, use Sui Wallet or Ethos Wallet and not just wallet. Users likely have multiple wallets, and we want to make it clear which wallet. Use wallet generically when referring to the concept of a wallet.
+Product names are proper nouns. Capitalize all words of a product name. When referring to a product, use only the product name without “the”. When referring specifically to a IOTA wallet, use IOTA Wallet or Ethos Wallet and not just wallet. Users likely have multiple wallets, and we want to make it clear which wallet. Use wallet generically when referring to the concept of a wallet.
 
 **Example**
 
@@ -657,19 +641,19 @@ Product names are proper nouns. Capitalize all words of a product name. When ref
 
 > Never share the recovery passphrase for your wallet with anyone.
 
-> The Sui network supports the following wallets:
+> The IOTA network supports the following wallets:
 
-- Sui Wallet
+- IOTA Wallet
 - Ethos Wallet
 - Coinbase Wallet
 
 **Example**
 
-> Sui Wallet
+> IOTA Wallet
 
 **Example**
 
-> You can mint an NFT directly from your Sui Wallet.
+> You can mint an NFT directly from your IOTA Wallet.
 
 ## Slashes {#slashes}
 
@@ -764,7 +748,7 @@ Refer to pages in the documentation set as “topic”s. A “guide” can compr
 
 :::info
 
-You can also just refer to a topic by title where it makes sense. See Installing Sui for more information.
+You can also just refer to a topic by title where it makes sense. See Installing IOTA for more information.
 
 :::
 
@@ -812,7 +796,7 @@ Indented example for the section. (Roboto Mono Light)
 - [SUSE Style Guide](https://documentation.suse.com/en-us/style/current/single-html/docu_styleguide/#sec-techwriting)
 - [Microsoft Style Guide](https://docs.microsoft.com/en-us/style-guide/welcome/)
 - [Google Developer Style Guide](https://developers.google.com/style)
-- [CDN Language and Style Reference](http://cdn.static-economist.com/sites/default/files/pdfs/style_guide_12.pdf)
+- [CDN Language and Style Reference](http://cdn.static-economicros.com/sites/default/files/pdfs/style_guide_12.pdf)
 
 ```
 

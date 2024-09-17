@@ -89,6 +89,7 @@ pub struct ConfigBuilder<R = OsRng> {
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     state_accumulator_v2_enabled_config: Option<StateAccumulatorV2EnabledConfig>,
+    empty_validator_genesis: bool,
 }
 
 impl ConfigBuilder {
@@ -110,6 +111,7 @@ impl ConfigBuilder {
             max_submit_position: None,
             submit_delay_step_override_millis: None,
             state_accumulator_v2_enabled_config: None,
+            empty_validator_genesis: false,
         }
     }
 
@@ -296,6 +298,7 @@ impl<R> ConfigBuilder<R> {
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
+            empty_validator_genesis: self.empty_validator_genesis,
         }
     }
 
@@ -304,6 +307,15 @@ impl<R> ConfigBuilder<R> {
             self.genesis_config = Some(GenesisConfig::for_local_testing());
         }
         self.genesis_config.as_mut().unwrap()
+    }
+
+    /// Avoid initializing validator genesis in memory.
+    ///
+    /// This allows callers to create the genesis blob,
+    /// and use a file pointer to configure the validators.
+    pub fn with_empty_validator_genesis(mut self) -> Self {
+        self.empty_validator_genesis = true;
+        self
     }
 }
 
@@ -376,7 +388,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
         };
 
-        let genesis_config = self
+        let mut genesis_config = self
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
 
@@ -396,11 +408,13 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     recipient_address: address,
                     amount_nanos: DEFAULT_GAS_AMOUNT,
                     staked_with_validator: None,
+                    staked_with_timelock_expiration: None,
                 };
                 let stake = TokenAllocation {
                     recipient_address: address,
                     amount_nanos: validator.stake,
                     staked_with_validator: Some(address),
+                    staked_with_timelock_expiration: None,
                 };
                 builder.add_allocation(gas_coin);
                 builder.add_allocation(stake);
@@ -412,6 +426,9 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
+            for source in std::mem::take(&mut genesis_config.migration_sources) {
+                builder = builder.add_migration_source(source);
+            }
 
             for (i, validator) in validators.iter().enumerate() {
                 let name = validator
@@ -490,7 +507,11 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         builder = builder.with_unpruned_checkpoints();
                     }
                 }
-                builder.build(validator, genesis.clone())
+                if self.empty_validator_genesis {
+                    builder.build_without_genesis(validator)
+                } else {
+                    builder.build(validator, genesis.clone())
+                }
             })
             .collect();
         NetworkConfig {

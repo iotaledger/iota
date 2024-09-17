@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -8,10 +9,10 @@ use std::{
 };
 
 use config::{Authority, AuthorityIdentifier, Committee, Stake};
+use iota_protocol_config::ProtocolConfig;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use storage::ConsensusStore;
-use sui_protocol_config::ProtocolConfig;
 use tracing::{debug, trace};
 use types::{Certificate, ReputationScores, Round};
 
@@ -25,11 +26,13 @@ mod leader_schedule_tests;
 pub struct LeaderSwapTable {
     /// The round on which the leader swap table get into effect.
     round: Round,
-    /// The list of `f` (by stake) authorities with best scores as those defined by the provided `ReputationScores`.
-    /// Those authorities will be used in the position of the `bad_nodes` on the final leader schedule.
+    /// The list of `f` (by stake) authorities with best scores as those defined
+    /// by the provided `ReputationScores`. Those authorities will be used
+    /// in the position of the `bad_nodes` on the final leader schedule.
     good_nodes: Vec<Authority>,
-    /// The set of `f` (by stake) authorities with the worst scores as those defined by the provided `ReputationScores`.
-    /// Every time where such authority is elected as leader on the schedule, it will swapped by one
+    /// The set of `f` (by stake) authorities with the worst scores as those
+    /// defined by the provided `ReputationScores`. Every time where such
+    /// authority is elected as leader on the schedule, it will swapped by one
     /// of the authorities of the `good_nodes`.
     bad_nodes: HashMap<AuthorityIdentifier, Authority>,
 }
@@ -54,17 +57,25 @@ impl Debug for LeaderSwapTable {
 }
 
 impl LeaderSwapTable {
-    // constructs a new table based on the provided reputation scores. The `bad_nodes_stake_threshold` designates the
-    // total (by stake) nodes that will be considered as "bad" based on their scores and will be replaced by good nodes.
-    // The `bad_nodes_stake_threshold` should be in the range of [0 - 33].
+    // constructs a new table based on the provided reputation scores. The
+    // `bad_nodes_stake_threshold` designates the total (by stake) nodes that
+    // will be considered as "bad" based on their scores and will be replaced by
+    // good nodes. The `bad_nodes_stake_threshold` should be in the range of [0
+    // - 33].
     pub fn new(
         committee: &Committee,
         round: Round,
         reputation_scores: &ReputationScores,
         bad_nodes_stake_threshold: u64,
     ) -> Self {
-        assert!((0..=33).contains(&bad_nodes_stake_threshold), "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected");
-        assert!(reputation_scores.final_of_schedule, "Only reputation scores that have been calculated on the end of a schedule are accepted");
+        assert!(
+            (0..=33).contains(&bad_nodes_stake_threshold),
+            "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected"
+        );
+        assert!(
+            reputation_scores.final_of_schedule,
+            "Only reputation scores that have been calculated on the end of a schedule are accepted"
+        );
 
         // calculating the good nodes
         let good_nodes = Self::retrieve_first_nodes(
@@ -74,8 +85,8 @@ impl LeaderSwapTable {
         );
 
         // calculating the bad nodes
-        // we revert the sorted authorities to score ascending so we get the first low scorers
-        // up to the dictated stake threshold.
+        // we revert the sorted authorities to score ascending so we get the first low
+        // scorers up to the dictated stake threshold.
         let bad_nodes = Self::retrieve_first_nodes(
             committee,
             reputation_scores
@@ -121,14 +132,17 @@ impl LeaderSwapTable {
         }
     }
 
-    /// Checks whether the provided leader is a bad performer and needs to be swapped in the schedule
-    /// with a good performer. If not, then the method returns None. Otherwise the leader to swap with
-    /// is returned instead. The `leader_round` represents the DAG round on which the provided AuthorityIdentifier
-    /// is a leader on and is used as a seed to random function in order to calculate the good node that
-    /// will swap in that round with the bad node. We are intentionally not doing weighted randomness as
-    /// we want to give to all the good nodes equal opportunity to get swapped with bad nodes and not
-    /// have one node with enough stake end up swapping bad nodes more frequently than the others on
-    /// the final schedule.
+    /// Checks whether the provided leader is a bad performer and needs to be
+    /// swapped in the schedule with a good performer. If not, then the
+    /// method returns None. Otherwise the leader to swap with is returned
+    /// instead. The `leader_round` represents the DAG round on which the
+    /// provided AuthorityIdentifier is a leader on and is used as a seed to
+    /// random function in order to calculate the good node that
+    /// will swap in that round with the bad node. We are intentionally not
+    /// doing weighted randomness as we want to give to all the good nodes
+    /// equal opportunity to get swapped with bad nodes and not
+    /// have one node with enough stake end up swapping bad nodes more
+    /// frequently than the others on the final schedule.
     pub fn swap(&self, leader: &AuthorityIdentifier, leader_round: Round) -> Option<Authority> {
         if self.bad_nodes.contains_key(leader) {
             let mut seed_bytes = [0u8; 32];
@@ -152,10 +166,12 @@ impl LeaderSwapTable {
         None
     }
 
-    // Retrieves the first nodes provided by the iterator `authorities` until the `stake_threshold` has been
-    // reached. The `stake_threshold` should be between [0, 100] and expresses the percentage of stake that is
-    // considered the cutoff. Basically we keep adding to the response authorities until the sum of the stake
-    // reaches the `stake_threshold`. It's the caller's responsibility to ensure that the elements of the `authorities`
+    // Retrieves the first nodes provided by the iterator `authorities` until the
+    // `stake_threshold` has been reached. The `stake_threshold` should be
+    // between [0, 100] and expresses the percentage of stake that is considered
+    // the cutoff. Basically we keep adding to the response authorities until the
+    // sum of the stake reaches the `stake_threshold`. It's the caller's
+    // responsibility to ensure that the elements of the `authorities`
     // input is already sorted.
     fn retrieve_first_nodes(
         committee: &Committee,
@@ -168,8 +184,8 @@ impl LeaderSwapTable {
         for (authority_id, _score) in authorities {
             stake += committee.stake_by_id(authority_id);
 
-            // if the total accumulated stake has surpassed the stake threshold then we omit this
-            // last authority and we exit the loop.
+            // if the total accumulated stake has surpassed the stake threshold then we omit
+            // this last authority and we exit the loop.
             if stake > (stake_threshold * committee.total_stake()) / 100 as Stake {
                 break;
             }
@@ -180,9 +196,10 @@ impl LeaderSwapTable {
     }
 }
 
-/// The LeaderSchedule is responsible for producing the leader schedule across an epoch. It provides
-/// methods to derive the leader of a round based on the provided leader swap table. This struct can
-/// be cloned and shared freely as the internal parts are atomically updated.
+/// The LeaderSchedule is responsible for producing the leader schedule across
+/// an epoch. It provides methods to derive the leader of a round based on the
+/// provided leader swap table. This struct can be cloned and shared freely as
+/// the internal parts are atomically updated.
 #[derive(Clone)]
 pub struct LeaderSchedule {
     pub committee: Committee,
@@ -197,8 +214,9 @@ impl LeaderSchedule {
         }
     }
 
-    /// Restores the LeaderSchedule by using the storage. It will attempt to retrieve the last committed
-    /// "final" ReputationScores and use them to create build a LeaderSwapTable to use for the LeaderSchedule.
+    /// Restores the LeaderSchedule by using the storage. It will attempt to
+    /// retrieve the last committed "final" ReputationScores and use them to
+    /// create build a LeaderSwapTable to use for the LeaderSchedule.
     pub fn from_store(
         committee: Committee,
         store: Arc<ConsensusStore>,
@@ -218,8 +236,9 @@ impl LeaderSchedule {
         Self::new(committee, table)
     }
 
-    /// Atomically updates the leader swap table with the new provided one. Any leader queried from
-    /// now on will get calculated according to this swap table until a new one is provided again.
+    /// Atomically updates the leader swap table with the new provided one. Any
+    /// leader queried from now on will get calculated according to this
+    /// swap table until a new one is provided again.
     pub fn update_leader_swap_table(&self, table: LeaderSwapTable) {
         trace!("Updating swap table {:?}", table);
 
@@ -227,9 +246,10 @@ impl LeaderSchedule {
         *write = table;
     }
 
-    /// Returns the leader for the provided round. Keep in mind that this method will return a leader
-    /// according to the provided LeaderSwapTable. Providing a different table can potentially produce
-    /// a different leader for the same round.
+    /// Returns the leader for the provided round. Keep in mind that this method
+    /// will return a leader according to the provided LeaderSwapTable.
+    /// Providing a different table can potentially produce a different
+    /// leader for the same round.
     pub fn leader(&self, round: Round) -> Authority {
         assert_eq!(
             round % 2,
@@ -262,17 +282,19 @@ impl LeaderSchedule {
         }
     }
 
-    /// Returns the certificate originated by the leader of the specified round (if any). The Authority
-    /// leader of the round is always returned and that's irrespective of whether the certificate exists
-    /// as that's deterministically determined. The provided `leader_swap_table` is being used to determine
-    /// any overrides that need to be performed to the original schedule.
+    /// Returns the certificate originated by the leader of the specified round
+    /// (if any). The Authority leader of the round is always returned and
+    /// that's irrespective of whether the certificate exists
+    /// as that's deterministically determined. The provided `leader_swap_table`
+    /// is being used to determine any overrides that need to be performed
+    /// to the original schedule.
     pub fn leader_certificate<'a>(
         &self,
         round: Round,
         dag: &'a Dag,
     ) -> (Authority, Option<&'a Certificate>) {
-        // Note: this function is often called with even rounds only. While we do not aim at random selection
-        // yet (see issue https://github.com/MystenLabs/sui/issues/5182), repeated calls to this function
+        // Note: this function is often called with even rounds only. While we do not
+        // aim at random selection yet (see issue https://github.com/iotaledger/iota/issues/5182), repeated calls to this function
         // should still pick from the whole roster of leaders.
         let leader = self.leader(round);
 

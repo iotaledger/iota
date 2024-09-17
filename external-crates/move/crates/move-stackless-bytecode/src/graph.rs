@@ -1,12 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This module implements a technique to compute the natural loops of a graph.
 // The implementation is based on the computation of the dominance relation
 // of a graph using the technique method in this paper:
-// Keith D. Cooper, Timothy J. Harvey, Ken Kennedy, "A Simple, Fast Dominance Algorithm ",
-// Software Practice and Experience, 2001.
+// Keith D. Cooper, Timothy J. Harvey, Ken Kennedy, "A Simple, Fast Dominance
+// Algorithm ", Software Practice and Experience, 2001.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -28,8 +29,8 @@ pub struct Graph<T: Ord + Copy + Debug> {
 }
 
 impl<T: Ord + Copy + Debug> Graph<T> {
-    /// This function creates a graph from a set of nodes (with a unique entry node)
-    /// and a set of edges.
+    /// This function creates a graph from a set of nodes (with a unique entry
+    /// node) and a set of edges.
     pub fn new(entry: T, nodes: Vec<T>, edges: Vec<(T, T)>) -> Self {
         let mut predecessors: BTreeMap<T, BTreeSet<T>> =
             nodes.iter().map(|x| (*x, BTreeSet::new())).collect();
@@ -52,8 +53,8 @@ impl<T: Ord + Copy + Debug> Graph<T> {
         }
     }
 
-    /// This function computes the loop headers and natural loops of a reducible graph.
-    /// If the graph is irreducible, None is returned.
+    /// This function computes the loop headers and natural loops of a reducible
+    /// graph. If the graph is irreducible, None is returned.
     pub fn compute_reducible(&self) -> Option<Vec<NaturalLoop<T>>> {
         let dom_relation = DomRelation::new(self);
         let mut loop_headers = BTreeSet::new();
@@ -157,7 +158,8 @@ impl<T: Ord + Copy + Debug> DomRelation<T> {
         dom_relation
     }
 
-    /// This function returns true iff `x` is reachable from the entry node of the graph.
+    /// This function returns true iff `x` is reachable from the entry node of
+    /// the graph.
     pub fn is_reachable(&self, x: T) -> bool {
         self.node_to_postorder_num.contains_key(&x)
     }

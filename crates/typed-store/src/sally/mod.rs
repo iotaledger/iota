@@ -1,22 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Storage Atomicity Layer Library (aka Sally) is a wrapper around pluggable storage backends
-//! which implement a common key value interface. It enables users to switch storage backends
-//! in their code with simple options. It is also designed to be able to support atomic operations
-//! across different columns of the db even when they are backed by different storage instances.
+//! Storage Atomicity Layer Library (aka Sally) is a wrapper around pluggable
+//! storage backends which implement a common key value interface. It enables
+//! users to switch storage backends in their code with simple options. It is
+//! also designed to be able to support atomic operations across different
+//! columns of the db even when they are backed by different storage instances.
 //!
 //! # Examples
 //!
 //! ```
-//! use typed_store::rocks::*;
-//! use typed_store::*;
-//! use typed_store::test_db::*;
-//! use typed_store::sally::SallyDBOptions;
-//! use typed_store_derive::SallyDB;
-//! use typed_store::sally::SallyColumn;
-//! use typed_store::traits::TypedStoreDebug;
-//! use typed_store::traits::TableSummary;
+//! use typed_store::{
+//!     rocks::*,
+//!     sally::{SallyColumn, SallyDBOptions},
+//!     test_db::*,
+//!     traits::{TableSummary, TypedStoreDebug},
+//!     SallyDB, *,
+//! };
+//!
 //! use crate::typed_store::Map;
 //!
 //! // `ExampleTable` is a sally db instance where each column is first initialized with TestDB
@@ -24,16 +26,18 @@
 //!
 //! #[derive(SallyDB)]
 //! pub struct ExampleTable {
-//!   col1: SallyColumn<String, String>,
-//!   col2: SallyColumn<i32, String>,
+//!     col1: SallyColumn<String, String>,
+//!     col2: SallyColumn<i32, String>,
 //! }
 //!
 //! async fn insert_key_vals(table: &ExampleTable) {
 //!     // create a write batch and do atomic commit across columns in the table
 //!     let keys_vals = (1..100).map(|i| (i, i.to_string()));
 //!     let mut wb = table.col1.batch();
-//!     wb.insert_batch(&table.col2, keys_vals).expect("Failed to batch insert");
-//!     wb.delete_range(&table.col2, &50, &100).expect("Failed to batch delete");
+//!     wb.insert_batch(&table.col2, keys_vals)
+//!         .expect("Failed to batch insert");
+//!     wb.delete_range(&table.col2, &50, &100)
+//!         .expect("Failed to batch delete");
 //!     wb.write().await.expect("Failed to commit batch");
 //! }
 //!
@@ -43,37 +47,45 @@
 //!     let mut table = ExampleTable::init(SallyDBOptions::TestDB);
 //!     insert_key_vals(&table).await;
 //!     // switch to rocksdb backend
-//!     let primary_path = tempfile::tempdir().expect("Failed to open db path").into_path();
-//!     table = ExampleTable::init(SallyDBOptions::RocksDB((primary_path, MetricConf::default(), RocksDBAccessType::Primary, None, None)));
+//!     let primary_path = tempfile::tempdir()
+//!         .expect("Failed to open db path")
+//!         .into_path();
+//!     table = ExampleTable::init(SallyDBOptions::RocksDB((
+//!         primary_path,
+//!         MetricConf::default(),
+//!         RocksDBAccessType::Primary,
+//!         None,
+//!         None,
+//!     )));
 //!     insert_key_vals(&table).await;
 //!     Ok(())
 //! }
 //! ```
-use crate::{
-    rocks::{
-        default_db_options, keys::Keys, values::Values, DBBatch, DBMap, DBOptions,
-        RocksDBAccessType,
-    },
-    test_db::{TestDB, TestDBKeys, TestDBValues, TestDBWriteBatch},
-    traits::{AsyncMap, Map},
-    TypedStoreError,
-};
+use std::{borrow::Borrow, collections::BTreeMap, path::PathBuf};
 
-use crate::rocks::safe_iter::{SafeIter as RocksDBIter, SafeRevIter};
-use crate::rocks::{DBMapTableConfigMap, MetricConf};
-use crate::test_db::{TestDBIter, TestDBRevIter};
 use async_trait::async_trait;
 use collectable::TryExtend;
 use rocksdb::Options;
 use serde::{de::DeserializeOwned, Serialize};
-use std::borrow::Borrow;
-use std::{collections::BTreeMap, path::PathBuf};
+
+use crate::{
+    rocks::{
+        default_db_options,
+        keys::Keys,
+        safe_iter::{SafeIter as RocksDBIter, SafeRevIter},
+        values::Values,
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, RocksDBAccessType,
+    },
+    test_db::{TestDB, TestDBIter, TestDBKeys, TestDBRevIter, TestDBValues, TestDBWriteBatch},
+    traits::{AsyncMap, Map},
+    TypedStoreError,
+};
 
 pub enum SallyRunMode {
     // Whether Sally should use its own memtable and wal for read/write or just fallback to
-    // reading/writing directly from the backend db. When columns in the db are backed by different
-    // backend stores, we should never use `FallbackToDB` as that would lose atomicity,
-    // transactions and db recovery
+    // reading/writing directly from the backend db. When columns in the db are backed by
+    // different backend stores, we should never use `FallbackToDB` as that would lose
+    // atomicity, transactions and db recovery
     FallbackToDB,
 }
 
@@ -89,9 +101,10 @@ impl Default for SallyConfig {
     }
 }
 
-/// A Sally column could be anything that implements key value interface. We will eventually have
-/// Sally serve read/writes using its own memtable and wal when columns in the db are backend by more then
-/// one backend store (e.g different rocksdb instances and/or distributed key value stores)
+/// A Sally column could be anything that implements key value interface. We
+/// will eventually have Sally serve read/writes using its own memtable and wal
+/// when columns in the db are backend by more then one backend store (e.g
+/// different rocksdb instances and/or distributed key value stores)
 pub enum SallyColumn<K, V> {
     RocksDB((DBMap<K, V>, SallyConfig)),
     TestDB((TestDB<K, V>, SallyConfig)),
@@ -99,8 +112,9 @@ pub enum SallyColumn<K, V> {
 
 impl<K, V> SallyColumn<K, V> {
     pub fn new_single_rocksdb(db: DBMap<K, V>) -> Self {
-        // When all columns in the db are backed by a single rocksdb instance, we will fallback to
-        // using native rocksdb read and write apis and use default config
+        // When all columns in the db are backed by a single rocksdb instance, we will
+        // fallback to using native rocksdb read and write apis and use default
+        // config
         SallyColumn::RocksDB((db, SallyConfig::default()))
     }
     pub fn new_testdb(db: TestDB<K, V>) -> Self {
@@ -333,9 +347,10 @@ where
     }
 }
 
-/// A Sally write batch provides a mutable struct which holds a collection of db mutation operations and
-/// applies them atomically to the db.
-/// Once sally has its own memtable and wal, atomic commits across multiple db instances will be possible.
+/// A Sally write batch provides a mutable struct which holds a collection of db
+/// mutation operations and applies them atomically to the db.
+/// Once sally has its own memtable and wal, atomic commits across multiple db
+/// instances will be possible.
 pub enum SallyWriteBatch {
     // Write batch for RocksDB backend when `fallback_to_db` is set as true
     RocksDB(DBBatch),
@@ -366,7 +381,8 @@ impl SallyWriteBatch {
             _ => unimplemented!(),
         }
     }
-    /// Deletes a range of keys between `from` (inclusive) and `to` (non-inclusive)
+    /// Deletes a range of keys between `from` (inclusive) and `to`
+    /// (non-inclusive)
     pub fn delete_range<K: Serialize, V>(
         &mut self,
         db: &SallyColumn<K, V>,
@@ -531,7 +547,8 @@ pub enum SallyDBOptions {
     TestDB,
 }
 
-/// Options to configure a sally db instance for performing read only operations at the global level
+/// Options to configure a sally db instance for performing read only operations
+/// at the global level
 pub enum SallyReadOnlyDBOptions {
     // Options when sally db instance is backed by a single rocksdb instance
     RocksDB(Box<(PathBuf, MetricConf, Option<PathBuf>, Option<Options>)>),
@@ -555,7 +572,8 @@ impl SallyColumnOptions {
     }
 }
 
-/// Creates a default RocksDB option, to be used when RocksDB option is not specified..
+/// Creates a default RocksDB option, to be used when RocksDB option is not
+/// specified..
 pub fn default_column_options() -> SallyColumnOptions {
     SallyColumnOptions::RocksDB(default_db_options())
 }

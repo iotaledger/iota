@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 import { CONFIG } from '../config';
-import { ACTIVE_NETWORK, getActiveAddress, signAndExecute } from '../sui-utils';
+import { ACTIVE_NETWORK, getActiveAddress, signAndExecute } from '../iota-utils';
 
 // a simple example of objects by creating N amount of bears.
 const createDemoLockedObjects = async (totalBears: number) => {

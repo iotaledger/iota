@@ -1,79 +1,67 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary } from '_components/error-boundary';
+import { ErrorBoundary, NFTDisplayCard } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useBuyNLargeAsset } from '_src/ui/app/components/buynlarge/useBuyNLargeAsset';
-import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken } from '@mysten/core';
-import { useKioskClient } from '@mysten/core/src/hooks/useKioskClient';
-import { EyeClose16 } from '@mysten/icons';
-import { type SuiObjectData } from '@mysten/sui.js/client';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
-import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
+import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
+import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
+import { VisibilityOff } from '@iota/ui-icons';
 
-export default function VisualAssets({ items }: { items: SuiObjectData[] }) {
-	const { hideAsset } = useHiddenAssets();
-	const kioskClient = useKioskClient();
-	const { objectType } = useBuyNLargeAsset();
+interface VisualAssetsProps {
+    items: IotaObjectData[];
+}
 
-	return (
-		<div className="grid w-full grid-cols-2 gap-x-3.5 gap-y-4">
-			{items.map((object) => (
-				<Link
-					to={
-						isKioskOwnerToken(kioskClient.network, object)
-							? `/kiosk?${new URLSearchParams({
-									kioskId: getKioskIdFromOwnerCap(object),
-							  })}`
-							: `/nft-details?${new URLSearchParams({
-									objectId: object.objectId,
-							  }).toString()}`
-					}
-					onClick={() => {
-						ampli.clickedCollectibleCard({
-							objectId: object.objectId,
-							collectibleType: object.type!,
-						});
-					}}
-					key={object.objectId}
-					className="no-underline relative"
-				>
-					<div className="group">
-						<div className="w-full h-full justify-center z-10 absolute pointer-events-auto text-gray-60 transition-colors duration-200 p-0">
-							{!isKioskOwnerToken(kioskClient.network, object) && object.type !== objectType ? (
-								<div className="absolute top-2 right-3 rounded-md h-8 w-8 opacity-0 group-hover:opacity-100">
-									<Button
-										variant="hidden"
-										size="icon"
-										onClick={(event) => {
-											event.preventDefault();
-											event.stopPropagation();
-											ampli.clickedHideAsset({
-												objectId: object.objectId,
-												collectibleType: object.type!,
-											});
-											hideAsset(object.objectId);
-										}}
-										after={<EyeClose16 />}
-									/>
-								</div>
-							) : null}
-						</div>
-						<ErrorBoundary>
-							<NFTDisplayCard
-								hideLabel={object.type === objectType}
-								objectId={object.objectId}
-								size="lg"
-								animateHover
-								borderRadius="xl"
-							/>
-						</ErrorBoundary>
-					</div>
-				</Link>
-			))}
-		</div>
-	);
+export default function VisualAssets({ items }: VisualAssetsProps) {
+    const { hideAsset } = useHiddenAssets();
+    const kioskClient = useKioskClient();
+
+    function handleHideAsset(event: React.MouseEvent<HTMLButtonElement>, object: IotaObjectData) {
+        event.preventDefault();
+        event.stopPropagation();
+        ampli.clickedHideAsset({
+            objectId: object.objectId,
+            collectibleType: object.type!,
+        });
+        hideAsset(object.objectId);
+    }
+
+    return (
+        <div className="grid w-full grid-cols-2 gap-md">
+            {items.map((object) => (
+                <Link
+                    to={
+                        isKioskOwnerToken(kioskClient.network, object)
+                            ? `/kiosk?${new URLSearchParams({
+                                  kioskId: getKioskIdFromOwnerCap(object),
+                              })}`
+                            : `/nft-details?${new URLSearchParams({
+                                  objectId: object.objectId,
+                              }).toString()}`
+                    }
+                    onClick={() => {
+                        ampli.clickedCollectibleCard({
+                            objectId: object.objectId,
+                            collectibleType: object.type!,
+                        });
+                    }}
+                    key={object.objectId}
+                    className="relative no-underline"
+                >
+                    <ErrorBoundary>
+                        <NFTDisplayCard
+                            objectId={object.objectId}
+                            isHoverable={!isKioskOwnerToken(kioskClient.network, object)}
+                            hideLabel
+                            icon={<VisibilityOff />}
+                            onIconClick={(e) => handleHideAsset(e, object)}
+                        />
+                    </ErrorBoundary>
+                </Link>
+            ))}
+        </div>
+    );
 }

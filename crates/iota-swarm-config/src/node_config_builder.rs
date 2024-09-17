@@ -122,11 +122,7 @@ impl ValidatorConfigBuilder {
         self
     }
 
-    pub fn build(
-        self,
-        validator: ValidatorGenesisConfig,
-        genesis: iota_config::genesis::Genesis,
-    ) -> NodeConfig {
+    pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
         let key_path = get_key_path(&validator.key_pair);
         let config_directory = self
             .config_directory
@@ -208,7 +204,7 @@ impl ValidatorConfigBuilder {
             consensus_config: Some(consensus_config),
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
-            genesis: iota_config::node::Genesis::new(genesis),
+            genesis: iota_config::node::Genesis::new_empty(),
             grpc_load_shed: None,
             grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
             p2p_config,
@@ -216,16 +212,12 @@ impl ValidatorConfigBuilder {
             end_of_epoch_broadcast_channel_capacity:
                 default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
-            metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: Default::default(),
             indirect_objects_threshold: usize::MAX,
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
-            name_service_package_address: None,
-            name_service_registry_id: None,
-            name_service_reverse_registry_id: None,
             transaction_deny_config: Default::default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
@@ -251,6 +243,16 @@ impl ValidatorConfigBuilder {
             enable_soft_bundle: true,
             enable_validator_tx_finalizer: true,
         }
+    }
+
+    pub fn build(
+        self,
+        validator: ValidatorGenesisConfig,
+        genesis: iota_config::genesis::Genesis,
+    ) -> NodeConfig {
+        let mut config = self.build_without_genesis(validator);
+        config.genesis = iota_config::node::Genesis::new(genesis);
+        config
     }
 
     pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
@@ -397,10 +399,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
-        network_config: &NetworkConfig,
+        validator_configs: &[NodeConfig],
+        genesis: iota_config::node::Genesis,
     ) -> NodeConfig {
         // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and
         // addresses, even though this is a fullnode.
@@ -418,8 +421,7 @@ impl FullnodeConfigBuilder {
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
 
         let p2p_config = {
-            let seed_peers = network_config
-                .validator_configs
+            let seed_peers = validator_configs
                 .iter()
                 .map(|config| SeedPeer {
                     peer_id: Some(anemo::PeerId(
@@ -490,9 +492,7 @@ impl FullnodeConfigBuilder {
             consensus_config: None,
             remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
-            genesis: self.genesis.unwrap_or(iota_config::node::Genesis::new(
-                network_config.genesis.clone(),
-            )),
+            genesis,
             grpc_load_shed: None,
             grpc_concurrency_limit: None,
             p2p_config,
@@ -500,16 +500,12 @@ impl FullnodeConfigBuilder {
             end_of_epoch_broadcast_channel_capacity:
                 default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
-            metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
             indirect_objects_threshold: usize::MAX,
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),
-            name_service_package_address: None,
-            name_service_registry_id: None,
-            name_service_reverse_registry_id: None,
             transaction_deny_config: Default::default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
@@ -534,6 +530,20 @@ impl FullnodeConfigBuilder {
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
         }
+    }
+
+    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+        self,
+        rng: &mut R,
+        network_config: &NetworkConfig,
+    ) -> NodeConfig {
+        let genesis = self
+            .genesis
+            .as_ref()
+            .or_else(|| network_config.get_validator_genesis())
+            .cloned()
+            .unwrap_or_else(|| iota_config::node::Genesis::new(network_config.genesis.clone()));
+        self.build_from_parts(rng, network_config.validator_configs(), genesis)
     }
 }
 

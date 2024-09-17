@@ -225,6 +225,7 @@ pub struct GenesisConfig {
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
+    pub migration_sources: Vec<SnapshotSource>,
 }
 
 impl Config for GenesisConfig {}
@@ -257,6 +258,7 @@ impl GenesisConfig {
                     recipient_address: address,
                     amount_nanos: *a,
                     staked_with_validator: None,
+                    staked_with_timelock_expiration: None,
                 });
             });
         }
@@ -408,6 +410,7 @@ impl GenesisConfig {
             validator_config_info: Some(validator_config_info),
             parameters,
             accounts: account_configs,
+            migration_sources: Default::default(),
         }
     }
 

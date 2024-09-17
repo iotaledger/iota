@@ -1,14 +1,17 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "@mysten/dapp-kit/dist/index.css";
+import "@iota/dapp-kit/dist/index.css";
 import "@radix-ui/themes/styles.css";
 
-import { getFullnodeUrl } from "@mysten/sui.js/client";
+import { getFullnodeUrl } from "@iota/iota-sdk/client";
 import {
-  SuiClientProvider,
+  IotaClientProvider,
   WalletProvider,
   createNetworkConfig,
-} from "@mysten/dapp-kit";
+} from "@iota/dapp-kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Theme } from "@radix-ui/themes";
 import App from "./App.tsx";
@@ -26,11 +29,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Theme appearance="dark">
       <QueryClientProvider client={queryClient}>
-        <SuiClientProvider networks={networkConfig} defaultNetwork="devnet">
+        <IotaClientProvider networks={networkConfig} defaultNetwork="devnet">
           <WalletProvider autoConnect>
             <App />
           </WalletProvider>
-        </SuiClientProvider>
+        </IotaClientProvider>
       </QueryClientProvider>
     </Theme>
   </React.StrictMode>,

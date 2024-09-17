@@ -1,14 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The language server must operate upon Move source buffers as they are being edited.
-//! As a result, it is frequently queried about buffers that have not yet (or may never be) saved
-//! to the actual file system.
+//! The language server must operate upon Move source buffers as they are being
+//! edited. As a result, it is frequently queried about buffers that have not
+//! yet (or may never be) saved to the actual file system.
 //!
-//! To manage these buffers, this module provides a "virtual file system" -- in reality, it is
-//! basically just a mapping from file identifier (this could be the file's path were it to be
-//! saved) to its textual contents.
+//! To manage these buffers, this module provides a "virtual file system" -- in
+//! reality, it is basically just a mapping from file identifier (this could be
+//! the file's path were it to be saved) to its textual contents.
 
 use crate::symbols;
 use lsp_server::Notification;
@@ -19,24 +20,26 @@ use lsp_types::{
 use std::{io::Write, path::PathBuf};
 use vfs::VfsPath;
 
-/// A mapping from identifiers (file names, potentially, but not necessarily) to their contents.
+/// A mapping from identifiers (file names, potentially, but not necessarily) to
+/// their contents.
 #[derive(Debug, Default)]
 pub struct VirtualFileSystem {
     files: std::collections::HashMap<PathBuf, String>,
 }
 
 impl VirtualFileSystem {
-    /// Returns a reference to the buffer corresponding to the given identifier, or `None` if it
-    /// is not present in the system.
+    /// Returns a reference to the buffer corresponding to the given identifier,
+    /// or `None` if it is not present in the system.
     pub fn get(&self, identifier: &PathBuf) -> Option<&str> {
         self.files.get(identifier).map(|s| s.as_str())
     }
 
     /// Inserts or overwrites the buffer corresponding to the given identifier.
     ///
-    /// TODO: A far more efficient "virtual file system" would update its buffers with changes sent
-    /// from the client, instead of completely replacing them each time. The rust-analyzer has a
-    /// 'vfs' module that is capable of doing just that, but it is not published on crates.io. If
+    /// TODO: A far more efficient "virtual file system" would update its
+    /// buffers with changes sent from the client, instead of completely
+    /// replacing them each time. The rust-analyzer has a 'vfs' module that
+    /// is capable of doing just that, but it is not published on crates.io. If
     /// we could help get it published, we could use it here.
     pub fn update(&mut self, identifier: PathBuf, content: &str) {
         self.files.insert(identifier, content.to_string());
@@ -48,7 +51,8 @@ impl VirtualFileSystem {
     }
 }
 
-/// Updates the given virtual file system based on the text document sync notification that was sent.
+/// Updates the given virtual file system based on the text document sync
+/// notification that was sent.
 pub fn on_text_document_sync_notification(
     ide_files_root: VfsPath,
     symbolicator_runner: &symbols::SymbolicatorRunner,
@@ -106,7 +110,8 @@ pub fn on_text_document_sync_notification(
             let Some(mut vfs_file) = vfs_file_create(
                 &ide_files_root,
                 file_path.clone(),
-                /* first_access */ true,
+                // first_access
+                true,
             ) else {
                 return;
             };
@@ -132,7 +137,8 @@ pub fn on_text_document_sync_notification(
             let Some(mut vfs_file) = vfs_file_create(
                 &ide_files_root,
                 file_path.clone(),
-                /* first_access */ false,
+                // first_access
+                false,
             ) else {
                 return;
             };
@@ -158,7 +164,8 @@ pub fn on_text_document_sync_notification(
             let Some(mut vfs_file) = vfs_file_create(
                 &ide_files_root,
                 file_path.clone(),
-                /* first_access */ false,
+                // first_access
+                false,
             ) else {
                 return;
             };

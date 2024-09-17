@@ -1,36 +1,37 @@
 {
-	"name": "@mysten/build-scripts",
-	"private": true,
-	"author": "Mysten Labs <build@mystenlabs.com>",
-	"description": "Build scripts for @mysten packages",
-	"version": "0.0.0",
-	"license": "Apache-2.0",
-	"engines": {
-		"node": ">=16"
-	},
-	"bin": {
-		"build-package": "./src/build-package.ts",
-		"build-dapp-kit": "./src/build-dapp-kit.ts"
-	},
-	"scripts": {
-		"prettier:check": "prettier -c --ignore-unknown .",
-		"prettier:fix": "prettier -w --ignore-unknown .",
-		"eslint:check": "eslint --max-warnings=0 .",
-		"eslint:fix": "pnpm run eslint:check --fix",
-		"lint": "pnpm run eslint:check && pnpm run prettier:check",
-		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
-		"build": "tsc --build"
-	},
-	"devDependencies": {
-		"@types/postcss-prefix-selector": "^1.16.1",
-		"@vanilla-extract/esbuild-plugin": "^2.3.0",
-		"autoprefixer": "^10.4.14",
-		"esbuild": "^0.17.6",
-		"postcss": "^8.4.31",
-		"postcss-prefix-selector": "^1.16.0",
-		"typescript": "^5.3.3"
-	},
-	"dependencies": {
-		"@types/node": "^20.4.2"
-	}
+    "name": "@iota/build-scripts",
+    "private": true,
+    "author": "IOTA Foundation <contact@iota.org>",
+    "description": "Build scripts for @iota packages",
+    "version": "0.0.0",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=20"
+    },
+    "bin": {
+        "build-package": "./src/build-package.ts",
+        "build-dapp-kit": "./src/build-dapp-kit.ts"
+    },
+    "scripts": {
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "build": "tsc --build"
+    },
+    "devDependencies": {
+        "@types/postcss-prefix-selector": "^1.16.1",
+        "@vanilla-extract/esbuild-plugin": "^2.3.0",
+        "autoprefixer": "^10.4.14",
+        "dotenv": "^16.4.5",
+        "esbuild": "^0.17.6",
+        "postcss": "^8.4.31",
+        "postcss-prefix-selector": "^1.16.0",
+        "typescript": "^5.3.3"
+    },
+    "dependencies": {
+        "@types/node": "^20.4.2"
+    }
 }

@@ -1,15 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{unique_map::UniqueMap, *};
 use std::{collections::BTreeSet, fmt, iter::IntoIterator};
+
+use super::{unique_map::UniqueMap, *};
 
 //**************************************************************************************************
 // UniqueMap
 //**************************************************************************************************
 
-/// wrapper around `UniqueMap` that remembers which values were asked for in `get`
+/// wrapper around `UniqueMap` that remembers which values were asked for in
+/// `get`
 #[derive(Clone)]
 pub struct RememberingUniqueMap<K: TName + Ord, V> {
     map: UniqueMap<K, V>,

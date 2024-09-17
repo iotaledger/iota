@@ -1,80 +1,55 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppSelector } from '_hooks';
-import { getNavIsVisible } from '_redux/slices/app';
-import { Activity32, Apps32, Nft132, Tokens32 } from '@mysten/icons';
-import cl from 'clsx';
-import { NavLink } from 'react-router-dom';
-
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
-import st from './Navigation.module.scss';
+import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
+import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
+
+type NavbarItemWithPath = NavbarItemWithId & {
+    path: string;
+};
 
 export function Navigation() {
-	const isVisible = useAppSelector(getNavIsVisible);
-	const activeAccount = useActiveAccount();
-	const makeLinkCls = ({ isActive }: { isActive: boolean }) =>
-		cl(st.link, { [st.active]: isActive, [st.disabled]: activeAccount?.isLocked });
-	const makeLinkClsNoDisabled = ({ isActive }: { isActive: boolean }) =>
-		cl(st.link, { [st.active]: isActive });
-	return (
-		<nav
-			className={cl('border-b-0 rounded-tl-md rounded-tr-md shrink-0', st.container, {
-				[st.hidden]: !isVisible,
-			})}
-		>
-			<div id="sui-apps-filters" className="flex whitespace-nowrap w-full justify-center"></div>
-			<div className={st.navMenu}>
-				<NavLink
-					data-testid="nav-tokens"
-					to="./tokens"
-					className={makeLinkClsNoDisabled}
-					title="Home"
-				>
-					<Tokens32 className="w-8 h-8" />
-					<span className={st.title}>Home</span>
-				</NavLink>
-				<NavLink
-					to="./nfts"
-					className={makeLinkCls}
-					title="Assets"
-					onClick={(e) => {
-						if (activeAccount?.isLocked) {
-							e.preventDefault();
-						}
-					}}
-				>
-					<Nft132 className="w-8 h-8" />
-					<span className={st.title}>Assets</span>
-				</NavLink>
-				<NavLink
-					to="./apps"
-					className={makeLinkCls}
-					title="Apps"
-					onClick={(e) => {
-						if (activeAccount?.isLocked) {
-							e.preventDefault();
-						}
-					}}
-				>
-					<Apps32 className="w-8 h-8" />
-					<span className={st.title}>Apps</span>
-				</NavLink>
-				<NavLink
-					data-testid="nav-activity"
-					to="./transactions"
-					className={makeLinkCls}
-					title="Transactions"
-					onClick={(e) => {
-						if (activeAccount?.isLocked) {
-							e.preventDefault();
-						}
-					}}
-				>
-					<Activity32 className="w-8 h-8" />
-					<span className={st.title}>Activity</span>
-				</NavLink>
-			</div>
-		</nav>
-	);
+    const activeAccount = useActiveAccount();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const NAVBAR_ITEMS: NavbarItemWithPath[] = [
+        { id: 'home', icon: <Home />, path: '/tokens' },
+        {
+            id: 'assets',
+            icon: <Assets />,
+            isDisabled: activeAccount?.isLocked,
+            path: '/nfts',
+        },
+        {
+            id: 'apps',
+            icon: <Apps />,
+            isDisabled: activeAccount?.isLocked,
+            path: '/apps',
+        },
+        {
+            id: 'activity',
+            icon: <Activity />,
+            isDisabled: activeAccount?.isLocked,
+            path: '/transactions',
+        },
+    ];
+
+    const activeId = NAVBAR_ITEMS.find((item) => location.pathname.startsWith(item.path))?.id || '';
+
+    function handleItemClick(id: string) {
+        const item = NAVBAR_ITEMS.find((item) => item.id === id);
+        if (item && !item.isDisabled) {
+            navigate(item.path);
+        }
+    }
+
+    return (
+        <div className="sticky bottom-0 w-full shrink-0 border-b-0 bg-white">
+            <Navbar items={NAVBAR_ITEMS} activeId={activeId} onClickItem={handleItemClick} />
+        </div>
+    );
 }

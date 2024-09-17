@@ -1,75 +1,76 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Loading from '_components/loading';
-import { filterAndSortTokenBalances } from '_helpers';
+import { Loading } from '_components';
 import { useCoinsReFetchingConfig } from '_hooks';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
-
 import { CoinItem } from './CoinItem';
+import { filterAndSortTokenBalances } from '@iota/core';
+
+interface ActiveCoinsCardProps {
+    activeCoinType: string;
+    showActiveCoin?: boolean;
+}
 
 export function ActiveCoinsCard({
-	activeCoinType = SUI_TYPE_ARG,
-	showActiveCoin = true,
-}: {
-	activeCoinType: string;
-	showActiveCoin?: boolean;
-}) {
-	const selectedAddress = useActiveAddress();
+    activeCoinType = IOTA_TYPE_ARG,
+    showActiveCoin = true,
+}: ActiveCoinsCardProps) {
+    const selectedAddress = useActiveAddress();
 
-	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-	const { data: coins, isPending } = useSuiClientQuery(
-		'getAllBalances',
-		{ owner: selectedAddress! },
-		{
-			enabled: !!selectedAddress,
-			refetchInterval,
-			staleTime,
-			select: filterAndSortTokenBalances,
-		},
-	);
+    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
+    const { data: coins, isPending } = useIotaClientQuery(
+        'getAllBalances',
+        { owner: selectedAddress! },
+        {
+            enabled: !!selectedAddress,
+            refetchInterval,
+            staleTime,
+            select: filterAndSortTokenBalances,
+        },
+    );
 
-	const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType);
+    const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType);
 
-	return (
-		<Loading loading={isPending}>
-			<div className="flex w-full">
-				{showActiveCoin ? (
-					activeCoin && (
-						<Link
-							to={`/send/select?${new URLSearchParams({
-								type: activeCoin.coinType,
-							}).toString()}`}
-							className="border-solid border border-gray-45 rounded-2lg no-underline flex gap-2 items-center w-full overflow-hidden"
-						>
-							<CoinItem
-								coinType={activeCoin.coinType}
-								balance={BigInt(activeCoin.totalBalance)}
-								isActive
-							/>
-						</Link>
-					)
-				) : (
-					<div className="flex flex-col w-full">
-						<div className="flex flex-col justify-between items-center mt-2 divide-y divide-solid divide-gray-45 divide-x-0">
-							{coins?.map(({ coinType, totalBalance }) => (
-								<Link
-									to={`/send?${new URLSearchParams({
-										type: coinType,
-									}).toString()}`}
-									key={coinType}
-									className="no-underline w-full"
-								>
-									<CoinItem coinType={coinType} balance={BigInt(totalBalance)} />
-								</Link>
-							))}
-						</div>
-					</div>
-				)}
-			</div>
-		</Loading>
-	);
+    return (
+        <Loading loading={isPending}>
+            <div className="flex w-full">
+                {showActiveCoin ? (
+                    activeCoin && (
+                        <Link
+                            to={`/send/select?${new URLSearchParams({
+                                type: activeCoin.coinType,
+                            }).toString()}`}
+                            className="border-gray-45 flex w-full items-center gap-2 overflow-hidden rounded-2lg border border-solid no-underline"
+                        >
+                            <CoinItem
+                                coinType={activeCoin.coinType}
+                                balance={BigInt(activeCoin.totalBalance)}
+                            />
+                        </Link>
+                    )
+                ) : (
+                    <div className="flex w-full flex-col">
+                        <div className="divide-gray-45 mt-2 flex flex-col items-center justify-between divide-x-0 divide-y divide-solid">
+                            {coins?.map(({ coinType, totalBalance }) => (
+                                <Link
+                                    to={`/send?${new URLSearchParams({
+                                        type: coinType,
+                                    }).toString()}`}
+                                    key={coinType}
+                                    className="w-full no-underline"
+                                >
+                                    <CoinItem coinType={coinType} balance={BigInt(totalBalance)} />
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </Loading>
+    );
 }

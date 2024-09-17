@@ -1,0 +1,16 @@
+[package]
+name = "iota-graphql-rpc-client"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
+axum.workspace = true
+hyper.workspace = true
+iota-graphql-rpc-headers.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

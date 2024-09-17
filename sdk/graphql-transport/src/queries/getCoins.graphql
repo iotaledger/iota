@@ -1,28 +1,34 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query getCoins($owner: SuiAddress!, $first: Int, $cursor: String, $type: String = "0x2::sui::SUI") {
-	address(address: $owner) {
-		address
-		coins(first: $first, after: $cursor, type: $type) {
-			pageInfo {
-				hasNextPage
-				endCursor
-			}
-			nodes {
-				coinBalance
-				contents {
-					type {
-						repr
-					}
-				}
-				address
-				version
-				digest
-				previousTransactionBlock {
-					digest
-				}
-			}
-		}
-	}
+query getCoins(
+    $owner: IotaAddress!
+    $first: Int
+    $cursor: String
+    $type: String = "0x2::iota::IOTA"
+) {
+    address(address: $owner) {
+        address
+        coins(first: $first, after: $cursor, type: $type) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            nodes {
+                coinBalance
+                contents {
+                    type {
+                        repr
+                    }
+                }
+                address
+                version
+                digest
+                previousTransactionBlock {
+                    digest
+                }
+            }
+        }
+    }
 }

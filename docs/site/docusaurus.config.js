@@ -1,22 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { themes } from "prism-react-renderer";
 import path from "path";
 import math from "remark-math";
 import katex from "rehype-katex";
+import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: "Sui Documentation",
+  title: "IOTA Documentation",
   tagline:
-    "Sui is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
+    "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
   favicon: "/img/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.sui.io",
+  url: "https://docs.iota.io",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -25,7 +27,8 @@ const config = {
   },
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "warn",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -53,18 +56,12 @@ const config = {
       "@graphql-markdown/docusaurus",
       {
         schema:
-          "../../crates/sui-graphql-rpc/schema/current_progress_schema.graphql",
+          "../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/sui-api/sui-graphql/reference",
+        baseURL: "references/iota-api/iota-graphql/reference",
         loaders: {
           GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
         },
-      },
-    ],
-    [
-      "docusaurus-plugin-includes",
-      {
-        postBuildDeletedFolders: ["../snippets"],
       },
     ],
     async function myPlugin(context, options) {
@@ -79,7 +76,6 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
-    path.resolve(__dirname, `./src/plugins/framework`),
   ],
   presets: [
     [
@@ -91,7 +87,9 @@ const config = {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/MystenLabs/sui/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
+          onInlineTags: "throw",
+          
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -110,6 +108,7 @@ const config = {
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
             ],
+            [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
           rehypePlugins: [katex],
         },
@@ -139,95 +138,83 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid", "docusaurus-theme-frontmatter"],
+  themes: ["@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      algolia: {
-        // The application ID provided by Algolia
-        appId: "ZF283DJAYX",
-
-        // Public API key: it is safe to commit it
-        apiKey: "7f24db6c4ec06d6905592deb228f4460",
-
-        indexName: "sui",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-
-        // Optional: Specify domains where the navigation should occur through window.location instead on history.push. Useful when our Algolia config crawls multiple documentation sites and we want to navigate with window.location.href to them.
-        // externalUrlRegex: "external\\.com|domain\\.com",
-
-        // Optional: Replace parts of the item URLs from Algolia. Useful when using the same search index for multiple deployments using a different baseUrl. You can use regexp or string in the `from` param. For example: localhost:3000 vs myCompany.com/docs
-        //replaceSearchResultPathname: {
-        //from: "/docs/", // or as RegExp: /\/docs\//
-        //to: "/",
-        //},
-
-        // Optional: Algolia search parameters
-        //searchParameters: {},
-
-        // Optional: path for search page that enabled by default (`false` to disable it)
-        searchPagePath: "search",
-
-        //... other Algolia params
+      typesense: {
+        // Replace this with the name of your index/collection.
+        // It should match the "index_name" entry in the scraper's "config.json" file.
+        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseServerConfig: {
+          nodes: [
+            {
+              host: 'docs-search.iota.org',
+              port: '',
+              protocol: 'https',
+            },
+          ],
+          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
+        },
+        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
+        typesenseSearchParameters: {},
+        // Optional
+        contextualSearch: true,
       },
-      image: "img/sui-doc-og.png",
+      image: "img/iota-doc-og.png",
       docs: {
         sidebar: {
           autoCollapseCategories: false,
         },
       },
+      colorMode: {
+        defaultMode: "dark",
+      },
+      announcementBar: {
+        id: "integrate_your_exchange",
+        content:
+          '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+        isCloseable: false,
+        backgroundColor: "#0101ff",
+        textColor: "#FFFFFF",
+      },
       navbar: {
-        title: "Sui Documentation",
+        title: "",
         logo: {
-          alt: "Sui Docs Logo",
-          src: "img/sui-logo.svg",
+          alt: "IOTA Docs Logo",
+          src: "img/iota-logo.svg",
         },
         items: [
           {
-            label: "Guides",
-            to: "guides",
+            label: "About IOTA",
+            to: "about-iota",
           },
           {
-            label: "Concepts",
-            to: "concepts",
+            label: "Developers",
+            to: "developer",
           },
           {
-            label: "Standards",
-            to: "standards",
+            label: "Node Operators",
+            to: "operator",
           },
           {
             label: "References",
             to: "references",
           },
-
-          /*
-          {
-            type: "docsVersionDropdown",
-            position: "right",
-            dropdownActiveClassDisabled: true,
-          },
-          {
-            type: "localeDropdown",
-            position: "right",
-          },
-          */
         ],
       },
       footer: {
         logo: {
-          alt: "Sui Logo",
-          src: "img/sui-logo-footer.svg",
-          href: "https://sui.io",
+          alt: "IOTA Wiki Logo",
+          src: "img/iota-logo.svg",
         },
-        style: "dark",
-        copyright: `© ${new Date().getFullYear()} Sui Foundation | Documentation distributed under <a href="https://github.com/sui-foundation/sui-docs/blob/main/LICENSE">CC BY 4.0</a>`,
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+                    The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
       prism: {
         theme: themes.github,
-        darkTheme: themes.nightOwl,
-        additionalLanguages: ["rust", "typescript", "toml"],
+        darkTheme: themes.jettwaveDark,
+        additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
     }),
 };

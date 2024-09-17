@@ -1,39 +1,47 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file contains an abstraction of concrete *access paths*, which are canonical names for a particular cell in
-//! memory. Some examples of concrete paths are:
-//! * `0x7/M::T/f` (i.e., the field `f` of the `M::T` resource stored at address `0x7`
-//! * `Formal(0)/[2]` (i.e., the value stored at index 2 of the array bound the 0th formal of the current procedure)
+//! This file contains an abstraction of concrete *access paths*, which are
+//! canonical names for a particular cell in memory. Some examples of concrete
+//! paths are:
+//! * `0x7/M::T/f` (i.e., the field `f` of the `M::T` resource stored at address
+//!   `0x7`
+//! * `Formal(0)/[2]` (i.e., the value stored at index 2 of the array bound the
+//!   0th formal of the current procedure)
+//!
 //! An abstract path is similar; it consists of the following components:
 //! * A *root*, which is either an abstract address or a local
-//! * Zero or more *offsets*, where an offset is a field, an unknown vector index, or an abstract struct type
+//! * Zero or more *offsets*, where an offset is a field, an unknown vector
+//!   index, or an abstract struct type
 //!
-//! Abstract addresses are a set containing constants and abstract access paths read from the environment. For example,
-//! in the following Move code:
-//!```ignore
+//! Abstract addresses are a set containing constants and abstract access paths
+//! read from the environment. For example, in the following Move code:
+//! ```ignore
 //! struct S { f: u64 }
 //!
 //! fun foo(x: S) {
 //!   let a = if (*) { 0x1 } else { *&x.f }
 //!    ... // program point 1
 //! }
-//!```
-//!, the value of `a` will be `{ 0x1, Footprint(x/f) }` at program point 1.
+//! ```
+//! , the value of `a` will be `{ 0x1, Footprint(x/f) }` at program point 1.
 
-use crate::dataflow_domains::{AbstractDomain, SetDomain};
-use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
-use move_model::{
-    ast::TempIndex,
-    model::{FunctionEnv, GlobalEnv, ModuleId, QualifiedId, StructId},
-    ty::{PrimitiveType, Type, TypeDisplayContext},
-};
-use num::BigUint;
 use std::{
     fmt,
     fmt::{Debug, Formatter},
 };
+
+use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+use move_model::{
+    ast::TempIndex,
+    model::{DatatypeId, FunctionEnv, GlobalEnv, ModuleId, QualifiedId},
+    ty::{PrimitiveType, Type, TypeDisplayContext},
+};
+use num::BigUint;
+
+use crate::dataflow_domains::{AbstractDomain, SetDomain};
 
 type Address = BigUint;
 
@@ -44,7 +52,7 @@ type Address = BigUint;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AbsStructType {
     /// Module ID and struct ID
-    base: QualifiedId<StructId>,
+    base: QualifiedId<DatatypeId>,
     /// Instantiation of generic type parameters
     types: Vec<Type>,
 }
@@ -54,12 +62,13 @@ pub struct AbsStructType {
 pub enum Addr {
     /// Account address constant
     Constant(Address),
-    /// Account address read from given access path. This represents the value read from the given path at the beginning of
-    /// the current function
+    /// Account address read from given access path. This represents the value
+    /// read from the given path at the beginning of the current function
     Footprint(AccessPath),
 }
 
-/// Abstraction of an address: non-empty set of constant or footprint address values
+/// Abstraction of an address: non-empty set of constant or footprint address
+/// values
 pub type AbsAddr = SetDomain<Addr>;
 
 /// Abstraction of a key of type `addr`::`ty` in global storage
@@ -91,7 +100,8 @@ pub enum Offset {
     Field(usize),
     /// Unknown index into a vector
     VectorIndex,
-    /// A type index into global storage. Only follows a field or vector index of type address
+    /// A type index into global storage. Only follows a field or vector index
+    /// of type address
     Global(AbsStructType),
 }
 
@@ -105,8 +115,8 @@ pub struct AccessPath {
 // =================================================================================================
 // Abstract domain operations
 
-/// Trait for a domain that can be viewed as a partial map from access paths to values
-/// and values can be deleted using their access paths
+/// Trait for a domain that can be viewed as a partial map from access paths to
+/// values and values can be deleted using their access paths
 pub trait AccessPathMap<T: AbstractDomain> {
     fn get_access_path(&self, ap: AccessPath) -> Option<&T>;
     fn remove_access_path(&mut self, ap: AccessPath) -> Option<T>;
@@ -146,8 +156,14 @@ impl Addr {
         }
     }
 
-    /// Convert this address-typed abstract value A into an access path A/mid::sid::types
-    pub fn add_struct_offset(self, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> AccessPath {
+    /// Convert this address-typed abstract value A into an access path
+    /// A/mid::sid::types
+    pub fn add_struct_offset(
+        self,
+        mid: &ModuleId,
+        sid: DatatypeId,
+        types: Vec<Type>,
+    ) -> AccessPath {
         match self {
             Self::Footprint(mut ap) => {
                 // TODO: assert type address?
@@ -158,8 +174,8 @@ impl Addr {
         }
     }
 
-    /// Convert `self` into a concrete `AccountAddress` if it is a constant. Returns `None`
-    /// otherwise.
+    /// Convert `self` into a concrete `AccountAddress` if it is a constant.
+    /// Returns `None` otherwise.
     pub fn get_concrete_address(&self) -> Option<AccountAddress> {
         match self {
             Addr::Constant(a) => Some(move_model::big_uint_to_addr(a)),
@@ -208,8 +224,8 @@ impl AbsAddr {
         true
     }
 
-    /// Substitute all occurrences of Footprint(ap) in `self` by resolving the access path
-    /// `ap` in `sub_map`
+    /// Substitute all occurrences of Footprint(ap) in `self` by resolving the
+    /// access path `ap` in `sub_map`
     pub fn substitute_footprint(
         &mut self,
         actuals: &[TempIndex],
@@ -231,9 +247,9 @@ impl AbsAddr {
         *self = acc
     }
 
-    /// Return a new abstract address by adding the offset `mid::sid<types>` to each element
-    /// of `self`
-    pub fn add_struct_offset(self, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
+    /// Return a new abstract address by adding the offset `mid::sid<types>` to
+    /// each element of `self`
+    pub fn add_struct_offset(self, mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
         let mut acc = Self::default();
         for v in self.into_iter() {
             acc.insert(Addr::Footprint(v.add_struct_offset(
@@ -245,7 +261,8 @@ impl AbsAddr {
         acc
     }
 
-    /// Return a new abstract address by adding the offset `offset` to each element of `self`
+    /// Return a new abstract address by adding the offset `offset` to each
+    /// element of `self`
     pub fn add_offset(&self, offset: Offset) -> Self {
         let mut extended_aps: AbsAddr = AbsAddr::default();
         for p in self.iter() {
@@ -266,8 +283,8 @@ impl AbsAddr {
         extended_aps
     }
 
-    /// Produce a new version of `self` with `prefix` prepended to each footprint
-    /// value
+    /// Produce a new version of `self` with `prefix` prepended to each
+    /// footprint value
     pub fn prepend(self, prefix: AccessPath) -> Self {
         let mut acc = Self::default();
         for v in self.into_iter() {
@@ -321,7 +338,7 @@ impl From<&AccountAddress> for AbsAddr {
 }
 
 impl GlobalKey {
-    pub fn new(addr: AbsAddr, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
+    pub fn new(addr: AbsAddr, mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
         Self {
             addr,
             ty: AbsStructType::new(mid, sid, types),
@@ -346,13 +363,14 @@ impl GlobalKey {
         &self.ty
     }
 
-    /// Return true if the address and type parameters of this global key are known statically
+    /// Return true if the address and type parameters of this global key are
+    /// known statically
     pub fn is_statically_known(&self) -> bool {
         self.addr.is_statically_known() && self.ty.is_closed()
     }
 
-    /// Substitute all occurrences of Footprint(ap) in `self.addr` by resolving the access path
-    /// `ap` in `sub_map`.
+    /// Substitute all occurrences of Footprint(ap) in `self.addr` by resolving
+    /// the access path `ap` in `sub_map`.
     pub fn substitute_footprint(
         &mut self,
         actuals: &[TempIndex],
@@ -453,7 +471,7 @@ impl Root {
 }
 
 impl Offset {
-    pub fn global(mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
+    pub fn global(mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
         Offset::Global(AbsStructType::new(mid, sid, types))
     }
 
@@ -464,7 +482,7 @@ impl Offset {
     /// Get the type of offset `base`/`self` in function `fun`
     pub fn get_type(&self, base: &Type, env: &GlobalEnv) -> Type {
         match (base.skip_reference(), self) {
-            (Type::Struct(mid, sid, types), Offset::Field(f)) => {
+            (Type::Datatype(mid, sid, types), Offset::Field(f)) => {
                 let field_type = env
                     .get_module(*mid)
                     .get_struct(*sid)
@@ -490,8 +508,8 @@ impl Offset {
             | (Type::Tuple(_), Offset::Global(_))
             | (Type::Vector(_), Offset::Field(_))
             | (Type::Vector(_), Offset::Global(_))
-            | (Type::Struct(_, _, _), Offset::VectorIndex)
-            | (Type::Struct(_, _, _), Offset::Global(_))
+            | (Type::Datatype(_, _, _), Offset::VectorIndex)
+            | (Type::Datatype(_, _, _), Offset::Global(_))
             | (Type::TypeParameter(_), Offset::Field(_))
             | (Type::TypeParameter(_), Offset::VectorIndex)
             | (Type::TypeParameter(_), Offset::Global(_))
@@ -530,7 +548,8 @@ impl Offset {
         }
     }
 
-    /// Return true if this offset is the same in all concrete program executions
+    /// Return true if this offset is the same in all concrete program
+    /// executions
     pub fn is_statically_known(&self) -> bool {
         use Offset::*;
         match self {
@@ -564,14 +583,14 @@ impl AccessPath {
         }
     }
 
-    pub fn new_global(addr: AbsAddr, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
+    pub fn new_global(addr: AbsAddr, mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
         Self::new_root(Root::Global(GlobalKey::new(addr, mid, sid, types)))
     }
 
     pub fn new_address_constant(
         addr: BigUint,
         mid: &ModuleId,
-        sid: StructId,
+        sid: DatatypeId,
         types: Vec<Type>,
     ) -> Self {
         Self::new_global(AbsAddr::constant(addr), mid, sid, types)
@@ -623,7 +642,8 @@ impl AccessPath {
         self.offsets.append(&mut suffix_offsets)
     }
 
-    /// Construct a new abstract address by prepending the addresses in `addrs` to `self`
+    /// Construct a new abstract address by prepending the addresses in `addrs`
+    /// to `self`
     pub fn prepend_addrs(&self, addrs: &AbsAddr) -> AbsAddr {
         let mut acc = AbsAddr::default();
         for a in addrs.iter() {
@@ -687,9 +707,10 @@ impl AccessPath {
                 // offsets of the current access path.
                 // When a result is found, we accumulate to results
                 // We need to try with the offsets to handle cases such as
-                // Formal(1): { data: None, children: { Field(0): { data: Footprint(AccessPath { root: Formal(0), offsets: [] }) } }
-                // where simply reading Formal(1) would yield None
-                // but Formal(1)/0 gives the mapping to Formal(0)
+                // Formal(1): { data: None, children: { Field(0): { data: Footprint(AccessPath {
+                // root: Formal(0), offsets: [] }) } } where simply reading
+                // Formal(1) would yield None but Formal(1)/0 gives the mapping
+                // to Formal(0)
                 for i in 0..=new_offsets.len() {
                     let caller_offsets = Vec::from(&new_offsets[0..i]);
                     let ap = AccessPath::new(caller_root.clone(), caller_offsets.clone());
@@ -716,9 +737,10 @@ impl AccessPath {
         }
     }
 
-    /// Return true if `self` can be converted to a compact set of concrete access paths.
-    /// Returns false if (e.g.) `self` contains an global root with an unbound
-    /// address/type parameter, a global offset, or a vector index offset.
+    /// Return true if `self` can be converted to a compact set of concrete
+    /// access paths. Returns false if (e.g.) `self` contains an global root
+    /// with an unbound address/type parameter, a global offset, or a vector
+    /// index offset.
     pub fn is_statically_known(&self) -> bool {
         self.root.is_statically_known() && {
             for offset in &self.offsets {
@@ -730,9 +752,10 @@ impl AccessPath {
         }
     }
 
-    /// Return `true` if `self` has no unbound address or type variables (i.e., the type variables
-    /// and addresses in `self.root` are statically known and `self` has no `Global` offsets.
-    /// This function is the same as `is_statically_known` except that `is_statically_known` returns
+    /// Return `true` if `self` has no unbound address or type variables (i.e.,
+    /// the type variables and addresses in `self.root` are statically known
+    /// and `self` has no `Global` offsets. This function is the same as
+    /// `is_statically_known` except that `is_statically_known` returns
     /// `false` if `self` has `Vector` offsets, but this function will not.
     pub fn all_addresses_types_bound(&self) -> bool {
         self.root.is_statically_known() && {
@@ -752,7 +775,7 @@ impl AccessPath {
 }
 
 impl AbsStructType {
-    pub fn new(mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
+    pub fn new(mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
         AbsStructType {
             base: mid.qualified(sid),
             types,
@@ -761,7 +784,7 @@ impl AbsStructType {
 
     /// Return the concrete type of `self`
     pub fn get_type(&self) -> Type {
-        Type::Struct(self.base.module_id, self.base.id, self.types.clone())
+        Type::Datatype(self.base.module_id, self.base.id, self.types.clone())
     }
 
     /// If this `self` is closed, convert it to a `StructTag`. Return
@@ -783,7 +806,8 @@ impl AbsStructType {
         self.get_type().into_struct_tag(env)
     }
 
-    /// Return `true` if `self` has no type variables or if all of `self`'s type variables are bound
+    /// Return `true` if `self` has no type variables or if all of `self`'s type
+    /// variables are bound
     pub fn is_closed(&self) -> bool {
         for t in &self.types {
             if t.is_open() {
@@ -819,7 +843,7 @@ impl<'a> fmt::Display for AbsStructTypeDisplay<'a> {
                     type_param_names: None,
                 };
                 let dummy_type =
-                    Type::Struct(self.s.base.module_id, self.s.base.id, self.s.types.clone());
+                    Type::Datatype(self.s.base.module_id, self.s.base.id, self.s.types.clone());
                 write!(f, "{}", dummy_type.display(&tctx))
             }
         }
@@ -904,7 +928,7 @@ impl<'a> fmt::Display for OffsetDisplay<'a> {
         use Offset::*;
         match self.offset {
             Field(fld) => match self.base_type.skip_reference() {
-                Type::Struct(mid, sid, _types) => f.write_str(
+                Type::Datatype(mid, sid, _types) => f.write_str(
                     self.env
                         .get_module(*mid)
                         .get_struct(*sid)

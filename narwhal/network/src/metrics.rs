@@ -1,17 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::sync::Arc;
+
 use anemo_tower::callback::{MakeCallbackHandler, ResponseHandler};
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, HistogramTimer,
     HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
-use std::sync::Arc;
 use tracing::warn;
 
 #[derive(Clone)]
 pub struct NetworkConnectionMetrics {
-    /// The connection status of known peers. 0 if not connected, 1 if connected.
+    /// The connection status of known peers. 0 if not connected, 1 if
+    /// connected.
     pub network_peer_connected: IntGaugeVec,
     /// The number of connected peers
     pub network_peers: IntGauge,
@@ -206,8 +210,8 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
 ];
 
-// Arbitrarily chosen buckets for message size, with gradually-lowering exponent to give us
-// better resolution at high sizes.
+// Arbitrarily chosen buckets for message size, with gradually-lowering exponent
+// to give us better resolution at high sizes.
 const SIZE_BYTE_BUCKETS: &[f64] = &[
     2048., 8192., // *4
     16384., 32768., 65536., 131072., 262144., 524288., 1048576., // *2
@@ -301,7 +305,8 @@ impl NetworkMetrics {
 #[derive(Clone)]
 pub struct MetricsMakeCallbackHandler {
     metrics: Arc<NetworkMetrics>,
-    /// Size in bytes above which a request or response message is considered excessively large
+    /// Size in bytes above which a request or response message is considered
+    /// excessively large
     excessive_message_size: usize,
 }
 

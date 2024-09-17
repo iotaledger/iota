@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -6,8 +9,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IBridgeConfig.sol";
 
 /// @title BridgeConfig
-/// @notice This contract manages a registry of supported tokens and supported chain IDs for the SuiBridge.
-/// It also provides functions to convert token amounts to Sui decimal adjusted amounts and vice versa.
+/// @notice This contract manages a registry of supported tokens and supported chain IDs for the IotaBridge.
+/// It also provides functions to convert token amounts to Iota decimal adjusted amounts and vice versa.
 contract BridgeConfig is IBridgeConfig {
     /* ========== STATE VARIABLES ========== */
 
@@ -27,18 +30,18 @@ contract BridgeConfig is IBridgeConfig {
     ) {
         require(_supportedTokens.length == 4, "BridgeConfig: Invalid supported token addresses");
 
-        uint8[] memory _suiDecimals = new uint8[](5);
-        _suiDecimals[0] = 9; // SUI
-        _suiDecimals[1] = 8; // wBTC
-        _suiDecimals[2] = 8; // wETH
-        _suiDecimals[3] = 6; // USDC
-        _suiDecimals[4] = 6; // USDT
+        uint8[] memory _iotaDecimals = new uint8[](5);
+        _iotaDecimals[0] = 9; // IOTA
+        _iotaDecimals[1] = 8; // wBTC
+        _iotaDecimals[2] = 8; // wETH
+        _iotaDecimals[3] = 6; // USDC
+        _iotaDecimals[4] = 6; // USDT
 
-        // Add SUI as the first supported token
-        supportedTokens[0] = Token(address(0), _suiDecimals[0]);
+        // Add IOTA as the first supported token
+        supportedTokens[0] = Token(address(0), _iotaDecimals[0]);
 
         for (uint8 i; i < _supportedTokens.length; i++) {
-            supportedTokens[i + 1] = Token(_supportedTokens[i], _suiDecimals[i + 1]);
+            supportedTokens[i + 1] = Token(_supportedTokens[i], _iotaDecimals[i + 1]);
         }
 
         for (uint8 i; i < _supportedChains.length; i++) {
@@ -58,50 +61,50 @@ contract BridgeConfig is IBridgeConfig {
         return supportedTokens[tokenID].tokenAddress;
     }
 
-    /// @notice Returns the sui decimal places of the token with the given ID.
+    /// @notice Returns the iota decimal places of the token with the given ID.
     /// @param tokenID The ID of the token.
-    /// @return amount of sui decimal places of the provided token.
-    function getSuiDecimal(uint8 tokenID) public view override returns (uint8) {
-        return supportedTokens[tokenID].suiDecimal;
+    /// @return amount of iota decimal places of the provided token.
+    function getIotaDecimal(uint8 tokenID) public view override returns (uint8) {
+        return supportedTokens[tokenID].iotaDecimal;
     }
 
-    /// @notice Returns whether a token is supported in SuiBridge with the given ID.
+    /// @notice Returns whether a token is supported in IotaBridge with the given ID.
     /// @param tokenID The ID of the token.
     /// @return true if the token is supported, false otherwise.
     function isTokenSupported(uint8 tokenID) public view override returns (bool) {
         return supportedTokens[tokenID].tokenAddress != address(0);
     }
 
-    /// @notice Returns whether a chain is supported in SuiBridge with the given ID.
+    /// @notice Returns whether a chain is supported in IotaBridge with the given ID.
     /// @param chainId The ID of the chain.
     /// @return true if the chain is supported, false otherwise.
     function isChainSupported(uint8 chainId) public view override returns (bool) {
         return supportedChains[chainId];
     }
 
-    /// @notice Converts the provided token amount to the Sui decimal adjusted amount.
+    /// @notice Converts the provided token amount to the Iota decimal adjusted amount.
     /// @param tokenID The ID of the token to convert.
-    /// @param amount The ERC20 amount of the tokens to convert to Sui.
-    /// @return Sui converted amount.
-    function convertERC20ToSuiDecimal(uint8 tokenID, uint256 amount)
+    /// @param amount The ERC20 amount of the tokens to convert to Iota.
+    /// @return Iota converted amount.
+    function convertERC20ToIotaDecimal(uint8 tokenID, uint256 amount)
         public
         view
         override
         returns (uint64)
     {
         uint8 ethDecimal = IERC20Metadata(getTokenAddress(tokenID)).decimals();
-        uint8 suiDecimal = getSuiDecimal(tokenID);
+        uint8 iotaDecimal = getIotaDecimal(tokenID);
 
-        if (ethDecimal == suiDecimal) {
+        if (ethDecimal == iotaDecimal) {
             // Ensure converted amount fits within uint64
             require(amount <= type(uint64).max, "BridgeConfig: Amount too large for uint64");
             return uint64(amount);
         }
 
-        require(ethDecimal > suiDecimal, "BridgeConfig: Invalid Sui decimal");
+        require(ethDecimal > iotaDecimal, "BridgeConfig: Invalid Iota decimal");
 
         // Difference in decimal places
-        uint256 factor = 10 ** (ethDecimal - suiDecimal);
+        uint256 factor = 10 ** (ethDecimal - iotaDecimal);
         amount = amount / factor;
 
         // Ensure the converted amount fits within uint64
@@ -110,27 +113,27 @@ contract BridgeConfig is IBridgeConfig {
         return uint64(amount);
     }
 
-    /// @notice Converts the provided Sui decimal adjusted amount to the ERC20 token amount.
+    /// @notice Converts the provided Iota decimal adjusted amount to the ERC20 token amount.
     /// @param tokenID The ID of the token to convert.
-    /// @param amount The Sui amount of the tokens to convert to ERC20.
+    /// @param amount The Iota amount of the tokens to convert to ERC20.
     /// @return ERC20 converted amount.
-    function convertSuiToERC20Decimal(uint8 tokenID, uint64 amount)
+    function convertIotaToERC20Decimal(uint8 tokenID, uint64 amount)
         public
         view
         override
         returns (uint256)
     {
         uint8 ethDecimal = IERC20Metadata(getTokenAddress(tokenID)).decimals();
-        uint8 suiDecimal = getSuiDecimal(tokenID);
+        uint8 iotaDecimal = getIotaDecimal(tokenID);
 
-        if (suiDecimal == ethDecimal) {
+        if (iotaDecimal == ethDecimal) {
             return uint256(amount);
         }
 
-        require(ethDecimal > suiDecimal, "BridgeConfig: Invalid Sui decimal");
+        require(ethDecimal > iotaDecimal, "BridgeConfig: Invalid Iota decimal");
 
         // Difference in decimal places
-        uint256 factor = 10 ** (ethDecimal - suiDecimal);
+        uint256 factor = 10 ** (ethDecimal - iotaDecimal);
         return uint256(amount * factor);
     }
 
