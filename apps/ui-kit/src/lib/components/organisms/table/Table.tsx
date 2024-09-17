@@ -4,13 +4,13 @@
 import { PropsWithChildren, ReactNode } from 'react';
 import cx from 'classnames';
 import { TableRowType, TableProvider, useTableContext, TableProviderProps } from './TableContext';
-import {TableCellBase
+import {
     Button,
     ButtonProps,
     ButtonSize,
     ButtonType,
     Checkbox,
-    TableBaseCell,
+    TableCellBase,
     TableHeaderCell,
 } from '@/lib';
 import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/ui-icons';
@@ -193,9 +193,9 @@ export function TableRowCheckbox({
             />
         );
     }
-TableCellBase
+
     return (
-        <TableBaseCell isContentCentered>
+        <TableCellBase isContentCentered>
             <Checkbox
                 onCheckedChange={(event) => {
                     if (rowIndex !== undefined) {
