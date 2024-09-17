@@ -4,10 +4,18 @@
 
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { Placeholder, Text } from '@iota/ui';
+import { Placeholder } from '@iota/ui';
 import { type ReactNode } from 'react';
-
-import { OwnedObjectsText } from '~/components';
+import {
+    Table,
+    TableCell,
+    TableBodyRow,
+    TableCellType,
+    TableHeader,
+    TableHeaderCell,
+    TableHeaderRow,
+} from '@iota/apps-ui-kit';
+import cx from 'clsx';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
@@ -28,16 +36,40 @@ function ListViewItem({
     loading,
 }: ListViewItemProps): JSX.Element {
     const listViewItemContent = (
-        <div className="group mb-2 flex items-center justify-between rounded-lg p-1 hover:bg-hero/5">
-            <div className="flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5">
+        <div
+            className={cx(
+                'flex items-center justify-around',
+                '[&_td]:flex [&_td]:items-center',
+                loading && 'group mb-2 justify-between rounded-lg p-1 hover:bg-hero/5',
+            )}
+        >
+            <div
+                className={cx(
+                    'w-3/12 basis-3/12',
+                    '[&_td]:flex [&_td]:items-center',
+                    loading &&
+                        'flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5',
+                )}
+            >
                 {loading ? <Placeholder rounded="lg" width="540px" height="20px" /> : assetCell}
             </div>
 
-            <div className="hidden max-w-[50%] basis-6/12 pr-5 md:flex">
+            <div
+                className={cx(
+                    'w-6/12 basis-6/12 [&_td]:flex',
+                    loading && 'hidden max-w-[50%] pr-5 md:flex',
+                )}
+            >
                 {loading ? <Placeholder rounded="lg" width="540px" height="20px" /> : typeCell}
             </div>
 
-            <div className="flex max-w-[34%] basis-3/12">
+            <div
+                className={cx(
+                    'w-3/12 basis-3/12',
+                    '[&_td]:flex [&_td]:items-center',
+                    loading && 'flex max-w-[34%]',
+                )}
+            >
                 {loading ? <Placeholder rounded="lg" width="540px" height="20px" /> : objectIdCell}
             </div>
         </div>
@@ -61,38 +93,24 @@ function ListViewItemContainer({ obj }: { obj: IotaObjectResponse }): JSX.Elemen
         <ListViewItem
             objectId={objectId!}
             assetCell={
-                <>
-                    <ObjectVideoImage
-                        fadeIn
-                        disablePreview
-                        title={name}
-                        subtitle={type}
-                        src={displayMeta?.image_url || ''}
-                        video={video}
-                        variant="xs"
-                    />
-                    <div className="flex flex-col overflow-hidden">
-                        <OwnedObjectsText color="steel-darker" font="semibold">
-                            {name || '--'}
-                        </OwnedObjectsText>
-                        <div className="block md:hidden">
-                            <Text variant="pSubtitle/normal" color="steel-dark" truncate>
-                                {type}
-                            </Text>
-                        </div>
-                    </div>
-                </>
+                <TableCell
+                    type={TableCellType.AvatarText}
+                    leadingElement={
+                        <ObjectVideoImage
+                            fadeIn
+                            disablePreview
+                            title={name}
+                            subtitle={type}
+                            src={displayMeta?.image_url || ''}
+                            video={video}
+                            variant="xs"
+                        />
+                    }
+                    label={name ? `${name} (${type})` : '--'}
+                />
             }
-            typeCell={
-                <OwnedObjectsText color="steel-dark" font="normal">
-                    {type}
-                </OwnedObjectsText>
-            }
-            objectIdCell={
-                <OwnedObjectsText color="steel-dark" font="medium">
-                    {formatAddress(objectId!)}
-                </OwnedObjectsText>
-            }
+            typeCell={<TableCell type={TableCellType.Text} label={type} />}
+            objectIdCell={<TableCell type={TableCellType.Text} label={formatAddress(objectId!)} />}
         />
     );
 }
@@ -105,25 +123,26 @@ interface ListViewProps {
 export function ListView({ data, loading }: ListViewProps): JSX.Element {
     return (
         <div className="flex flex-col overflow-auto">
-            {(!!data?.length || loading) && (
-                <div className="mb-3.5 flex w-full justify-around">
-                    <div className="max-w-[66%] basis-8/12 md:max-w-[25%] md:basis-3/12">
-                        <Text variant="caption/medium" color="steel-dark">
-                            ASSET
-                        </Text>
-                    </div>
-                    <div className="hidden basis-6/12 md:block">
-                        <Text variant="caption/medium" color="steel-dark">
-                            TYPE
-                        </Text>
-                    </div>
-                    <div className="basis-3/12">
-                        <Text variant="caption/medium" color="steel-dark">
-                            OBJECT ID
-                        </Text>
-                    </div>
-                </div>
-            )}
+            <Table rowIndexes={data?.map((obj, index) => index) ?? []}>
+                {(!!data?.length || loading) && (
+                    <TableHeader>
+                        <TableHeaderRow>
+                            <div className="flex">
+                                <div className="w-3/12 basis-3/12 [&_th]:flex [&_th]:items-center">
+                                    <TableHeaderCell columnKey="assets" label="ASSETS" />
+                                </div>
+                                <div className="w-6/12 basis-6/12 [&_th]:flex [&_th]:items-center">
+                                    <TableHeaderCell columnKey="type" label="TYPE" />
+                                </div>
+                                <div className="w-3/12 basis-3/12 [&_th]:flex [&_th]:items-center">
+                                    <TableHeaderCell columnKey="objectId" label="OBJECT ID" />
+                                </div>
+                            </div>
+                        </TableHeaderRow>
+                    </TableHeader>
+                )}
+            </Table>
+
             {loading &&
                 new Array(10)
                     .fill(0)
@@ -132,11 +151,15 @@ export function ListView({ data, loading }: ListViewProps): JSX.Element {
                     ))}
 
             <div className="flex h-full w-full flex-col overflow-auto">
-                {data?.map((obj) => {
+                {data?.map((obj, index) => {
                     if (!obj.data) {
                         return null;
                     }
-                    return <ListViewItemContainer key={obj.data.objectId} obj={obj} />;
+                    return (
+                        <TableBodyRow key={obj.data.objectId} rowIndex={index}>
+                            <ListViewItemContainer obj={obj} />
+                        </TableBodyRow>
+                    );
                 })}
             </div>
         </div>

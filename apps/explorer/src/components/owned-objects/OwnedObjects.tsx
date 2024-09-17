@@ -3,8 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@iota/core';
-import { ThumbnailsOnly16, ViewList16, ViewSmallThumbnails16 } from '@iota/icons';
-import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@iota/ui';
+import {
+    Button,
+    ButtonSize,
+    Divider,
+    DividerType,
+    Title,
+    TitleSize,
+    ButtonType,
+    SegmentedButtonType,
+    ButtonSegmentType,
+    ButtonSegment,
+    SegmentedButton,
+} from '@iota/apps-ui-kit';
+import { ListViewLarge, ListViewMedium, ListViewSmall } from '@iota/ui-icons';
+import { Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -33,9 +46,9 @@ const FILTER_OPTIONS = [
 ];
 
 const VIEW_MODES = [
-    { icon: <ViewList16 />, value: ObjectViewMode.List },
-    { icon: <ViewSmallThumbnails16 />, value: ObjectViewMode.SmallThumbnail },
-    { icon: <ThumbnailsOnly16 />, value: ObjectViewMode.Thumbnail },
+    { icon: <ListViewSmall />, value: ObjectViewMode.List },
+    { icon: <ListViewMedium />, value: ObjectViewMode.SmallThumbnail },
+    { icon: <ListViewLarge />, value: ObjectViewMode.Thumbnail },
 ];
 
 function getItemsRangeFromCurrentPage(
@@ -73,6 +86,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,
         undefined,
     );
+
     const [viewMode, setViewMode] = useLocalStorage(
         OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE,
         ObjectViewMode.Thumbnail,
@@ -154,18 +168,13 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     return (
         <div className={clsx(!noAssets && 'h-coinsAndAssetsContainer md:h-full')}>
-            <div
-                className={clsx('flex h-full overflow-hidden md:pl-10', !showPagination && 'pb-2')}
-            >
+            <div className={clsx('flex h-full overflow-hidden', !showPagination && 'pb-2')}>
                 <div className="relative flex h-full w-full flex-col gap-4">
-                    <div className="flex w-full flex-col items-start gap-3 border-b border-gray-45 max-sm:pb-3 sm:h-14 sm:min-h-14 sm:flex-row sm:items-center">
-                        <Heading color="steel-darker" variant="heading4/semibold">
-                            Assets
-                        </Heading>
-
+                    <div className="flex w-full flex-col items-start sm:min-h-[72px] sm:flex-row sm:items-center sm:justify-between">
+                        <Title size={TitleSize.Medium} title="Assets" />
                         {hasAssets && (
-                            <div className="flex w-full flex-row-reverse justify-between sm:flex-row">
-                                <div className="flex items-center gap-1">
+                            <div className="flex flex-row-reverse justify-between sm:flex-row sm:pr-lg">
+                                <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
                                         const selected = mode.value === viewMode;
                                         return (
@@ -176,98 +185,103 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                                     selected ? 'text-white' : 'text-steel',
                                                 )}
                                             >
-                                                <IconButton
-                                                    className={clsx(
-                                                        'flex h-full w-full items-center justify-center rounded',
-                                                        selected ? 'bg-steel' : 'bg-white',
-                                                    )}
-                                                    aria-label="view-filter"
+                                                <Button
+                                                    icon={mode.icon}
+                                                    size={ButtonSize.Small}
+                                                    type={
+                                                        selected
+                                                            ? ButtonType.Secondary
+                                                            : ButtonType.Ghost
+                                                    }
                                                     onClick={() => {
                                                         setViewMode(mode.value);
                                                     }}
-                                                >
-                                                    {mode.icon}
-                                                </IconButton>
+                                                />
                                             </div>
                                         );
                                     })}
                                 </div>
+                                <div className="pl-md pr-md">
+                                    <Divider type={DividerType.Vertical} />
+                                </div>
 
-                                <RadioGroup
-                                    aria-label="View transactions by a specific filter"
-                                    value={filter}
-                                    onValueChange={setFilter}
+                                <SegmentedButton
+                                    type={SegmentedButtonType.Outlined}
+                                    shape={ButtonSegmentType.Rounded}
                                 >
-                                    {FILTER_OPTIONS.map((filter) => (
-                                        <RadioGroupItem
-                                            key={filter.value}
-                                            value={filter.value}
-                                            label={filter.label}
+                                    {FILTER_OPTIONS.map((f) => (
+                                        <ButtonSegment
+                                            key={f.value}
+                                            type={ButtonSegmentType.Rounded}
+                                            selected={f.value === filter}
+                                            label={f.label}
                                             disabled={
-                                                (filter.value === FilterValue.Kiosks &&
+                                                (f.value === FilterValue.Kiosks &&
                                                     !kioskData?.list?.length) ||
                                                 isPending
                                             }
+                                            onClick={() => setFilter(f.value)}
                                         />
                                     ))}
-                                </RadioGroup>
+                                </SegmentedButton>
                             </div>
                         )}
                     </div>
-
-                    {noAssets && (
-                        <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                            <Text variant="body/medium" color="steel-dark">
-                                No Assets owned
-                            </Text>
-                        </div>
-                    )}
-
-                    {viewMode === ObjectViewMode.List && (
-                        <ListView loading={isPending} data={sortedDataByDisplayImages} />
-                    )}
-                    {viewMode === ObjectViewMode.SmallThumbnail && (
-                        <SmallThumbnailsView
-                            loading={isPending}
-                            data={sortedDataByDisplayImages}
-                            limit={limit}
-                        />
-                    )}
-                    {viewMode === ObjectViewMode.Thumbnail && (
-                        <ThumbnailsView
-                            loading={isPending}
-                            data={sortedDataByDisplayImages}
-                            limit={limit}
-                        />
-                    )}
-                    {showPagination && (
-                        <div className="mt-auto flex flex-row flex-wrap gap-2">
-                            <Pagination {...pagination} />
-                            <div className="ml-auto flex items-center">
-                                {!isPending && (
-                                    <Text variant="body/medium" color="steel">
-                                        Showing {start} - {end}
-                                    </Text>
-                                )}
+                    <div className="p-md">
+                        {noAssets && (
+                            <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
+                                <Text variant="body/medium" color="steel-dark">
+                                    No Assets owned
+                                </Text>
                             </div>
-                            <div className="hidden sm:block">
-                                <select
-                                    className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                    value={limit}
-                                    onChange={(e) => {
-                                        setLimit(Number(e.target.value));
-                                        pagination.onFirst();
-                                    }}
-                                >
-                                    {PAGE_SIZES.map((size) => (
-                                        <option key={size} value={size}>
-                                            {size} Per Page
-                                        </option>
-                                    ))}
-                                </select>
+                        )}
+
+                        {viewMode === ObjectViewMode.List && (
+                            <ListView loading={isPending} data={sortedDataByDisplayImages} />
+                        )}
+                        {viewMode === ObjectViewMode.SmallThumbnail && (
+                            <SmallThumbnailsView
+                                loading={isPending}
+                                data={sortedDataByDisplayImages}
+                                limit={limit}
+                            />
+                        )}
+                        {viewMode === ObjectViewMode.Thumbnail && (
+                            <ThumbnailsView
+                                loading={isPending}
+                                data={sortedDataByDisplayImages}
+                                limit={limit}
+                            />
+                        )}
+                        {showPagination && (
+                            <div className="mt-auto flex flex-row flex-wrap gap-2">
+                                <Pagination {...pagination} />
+                                <div className="ml-auto flex items-center">
+                                    {!isPending && (
+                                        <Text variant="body/medium" color="steel">
+                                            Showing {start} - {end}
+                                        </Text>
+                                    )}
+                                </div>
+                                <div className="hidden sm:block">
+                                    <select
+                                        className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
+                                        value={limit}
+                                        onChange={(e) => {
+                                            setLimit(Number(e.target.value));
+                                            pagination.onFirst();
+                                        }}
+                                    >
+                                        {PAGE_SIZES.map((size) => (
+                                            <option key={size} value={size}>
+                                                {size} Per Page
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
