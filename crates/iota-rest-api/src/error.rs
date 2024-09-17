@@ -57,7 +57,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
             InvalidUserSignature(err) => {
                 let message = {
                     let err = match err {
-                        IotaError::UserInputError { error } => error.to_string(),
+                        IotaError::UserInput { error } => error.to_string(),
                         _ => err.to_string(),
                     };
                     format!("Invalid user signature: {err}")
@@ -114,7 +114,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
                             // So, we take an easier route and consider them non-retryable
                             // at all. Combining this with the sorting above, clients will
                             // see the dominant error first.
-                            IotaError::UserInputError { error } => Some(error.to_string()),
+                            IotaError::UserInput { error } => Some(error.to_string()),
                             _ => {
                                 if err.is_retryable().0 {
                                     None

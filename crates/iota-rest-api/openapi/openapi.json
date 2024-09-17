@@ -858,7 +858,7 @@
       },
       "Address": {
         "title": "Address",
-        "description": "A 32-byte Iota address, encoded as a hex string.",
+        "description": "A 32-byte Sui address, encoded as a hex string.",
         "examples": [
           "0x0000000000000000000000000000000000000000000000000000000000000002"
         ],
@@ -2234,7 +2234,7 @@
             }
           },
           {
-            "description": "Iota Move Bytecode Verification Error.",
+            "description": "Sui Move Bytecode Verification Error.",
             "type": "object",
             "required": [
               "error"
@@ -2243,7 +2243,7 @@
               "error": {
                 "type": "string",
                 "enum": [
-                  "iota_move_verification_error"
+                  "sui_move_verification_error"
                 ]
               }
             }
@@ -2614,7 +2614,7 @@
             }
           },
           {
-            "description": "Iota Move Bytecode verification timed out.",
+            "description": "Sui Move Bytecode verification timed out.",
             "type": "object",
             "required": [
               "error"
@@ -2623,7 +2623,7 @@
               "error": {
                 "type": "string",
                 "enum": [
-                  "iota_move_verification_timedout"
+                  "sui_move_verification_timedout"
                 ]
               }
             }
@@ -2875,7 +2875,7 @@
         "title": "Identifier",
         "description": "A Move Identifier",
         "examples": [
-          "iota"
+          "sui"
         ],
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
@@ -3915,7 +3915,7 @@
         "title": "StructTag",
         "description": "A Move StructTag",
         "examples": [
-          "0x2::coin::Coin<0x2::iota::IOTA>"
+          "0x2::coin::Coin<0x2::sui::SUI>"
         ],
         "type": "string"
       },
@@ -3958,6 +3958,7 @@
           "epoch_start_timestamp_ms",
           "inactive_pools_id",
           "inactive_pools_size",
+          "iota_total_supply",
           "max_validator_count",
           "min_validator_joining_stake",
           "pending_active_validators_id",
@@ -3968,14 +3969,8 @@
           "safe_mode",
           "safe_mode_computation_rewards",
           "safe_mode_non_refundable_storage_fee",
+          "safe_mode_storage_charges",
           "safe_mode_storage_rebates",
-          "safe_mode_storage_rewards",
-          "stake_subsidy_balance",
-          "stake_subsidy_current_distribution_amount",
-          "stake_subsidy_decrease_rate",
-          "stake_subsidy_distribution_counter",
-          "stake_subsidy_period_length",
-          "stake_subsidy_start_epoch",
           "staking_pool_mappings_id",
           "staking_pool_mappings_size",
           "storage_fund_non_refundable_balance",
@@ -4044,6 +4039,11 @@
             "type": "string",
             "format": "u64"
           },
+          "iota_total_supply": {
+            "description": "The current IOTA supply.",
+            "type": "string",
+            "format": "u64"
+          },
           "max_validator_count": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
             "type": "string",
@@ -4100,44 +4100,13 @@
             "type": "string",
             "format": "u64"
           },
+          "safe_mode_storage_charges": {
+            "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
+            "type": "string",
+            "format": "u64"
+          },
           "safe_mode_storage_rebates": {
             "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
-            "type": "string",
-            "format": "u64"
-          },
-          "safe_mode_storage_rewards": {
-            "description": "Amount of storage rewards accumulated (and not yet distributed) during safe mode.",
-            "type": "string",
-            "format": "u64"
-          },
-          "stake_subsidy_balance": {
-            "description": "Balance of IOTA set aside for stake subsidies that will be drawn down over time.",
-            "type": "string",
-            "format": "u64"
-          },
-          "stake_subsidy_current_distribution_amount": {
-            "description": "The amount of stake subsidy to be drawn down per epoch. This amount decays and decreases over time.",
-            "type": "string",
-            "format": "u64"
-          },
-          "stake_subsidy_decrease_rate": {
-            "description": "The rate at which the distribution amount decays at the end of each period. Expressed in basis points.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "stake_subsidy_distribution_counter": {
-            "description": "This counter may be different from the current epoch number if in some epochs we decide to skip the subsidy.",
-            "type": "string",
-            "format": "u64"
-          },
-          "stake_subsidy_period_length": {
-            "description": "Number of distributions to occur before the distribution amount decays.",
-            "type": "string",
-            "format": "u64"
-          },
-          "stake_subsidy_start_epoch": {
-            "description": "The starting epoch in which stake subsidies start being paid out",
             "type": "string",
             "format": "u64"
           },
