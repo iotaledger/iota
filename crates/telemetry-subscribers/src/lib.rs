@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::hash_map::RandomState,
     env,
     io::{stderr, Write},
     path::PathBuf,
@@ -16,18 +15,14 @@ use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    sdk::{
-        self, runtime,
-        trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
-        Resource,
-    },
-    trace::TracerProvider as _,
-};
-use opentelemetry_api::{
-    trace::{Link, SamplingResult, SpanKind, TraceId},
-    Context, Key, OrderMap, Value,
+    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
+    Context, KeyValue,
 };
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{
+    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
+    Resource,
+};
 use span_latency_prom::PrometheusSpanLatencyLayer;
 use tracing::{error, info, metadata::LevelFilter, Level};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};

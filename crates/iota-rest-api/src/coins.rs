@@ -172,9 +172,11 @@ pub struct CoinTreasury {
     pub total_supply: u64,
 }
 
+// TODO: needs to be fixed during the merge, the total IOTA supply should be
+// taken from the related `TreasuryCap`.
 impl CoinTreasury {
     const IOTA: Self = Self {
         id: None,
-        total_supply: iota_types::gas_coin::TOTAL_SUPPLY_NANOS,
+        total_supply: 0,
     };
 }
