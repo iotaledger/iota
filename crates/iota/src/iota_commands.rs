@@ -579,83 +579,6 @@ impl IotaCommand {
     }
 }
 
-// IotaCommand::Start {
-// config_dir,
-// no_full_node,
-// } => {
-// Resolve the configuration directory.
-// let config_dir = config_dir.map_or_else(iota_config_dir, Ok)?;
-//
-// let network_config_path = config_dir.clone().join(IOTA_NETWORK_CONFIG);
-// Auto genesis if no configuration exists in the configuration directory.
-// if !network_config_path.exists() {
-// genesis(
-// None,
-// None,
-// Some(config_dir.clone()),
-// false,
-// None,
-// None,
-// false,
-// DEFAULT_NUMBER_OF_AUTHORITIES,
-// Default::default(),
-// Default::default(),
-// )
-// .await?;
-// }
-//
-// let NetworkConfigLight {
-// validator_configs,
-// account_keys,
-// ..
-// } = PersistedConfig::read(&network_config_path).map_err(|err| {
-// err.context(format!(
-// "Cannot open Iota network config file at {:?}",
-// network_config_path
-// ))
-// })?;
-// let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
-// let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
-// let network_config = NetworkConfig {
-// validator_configs,
-// account_keys,
-// genesis,
-// };
-// let mut swarm_builder = Swarm::builder()
-// .dir(iota_config_dir()?)
-// .with_network_config(network_config);
-// if no_full_node {
-// swarm_builder = swarm_builder.with_fullnode_count(0);
-// } else {
-// swarm_builder = swarm_builder
-// .with_fullnode_count(1)
-// .with_fullnode_rpc_addr(iota_config::node::default_json_rpc_address());
-// }
-// let mut swarm = swarm_builder.build();
-// swarm.launch().await?;
-//
-// let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
-// let mut unhealthy_cnt = 0;
-// loop {
-// for node in swarm.validator_nodes() {
-// if let Err(err) = node.health_check(true).await {
-// unhealthy_cnt += 1;
-// if unhealthy_cnt > 3 {
-// The network could temporarily go down during reconfiguration.
-// If we detect a failed validator 3 times in a row, give up.
-// return Err(err.into());
-// }
-// Break the inner loop so that we could retry latter.
-// break;
-// } else {
-// unhealthy_cnt = 0;
-// }
-// }
-//
-// interval.tick().await;
-// }
-//
-
 /// Starts a local network with the given configuration.
 async fn start(
     config: Option<PathBuf>,
@@ -666,6 +589,27 @@ async fn start(
     fullnode_rpc_port: u16,
     no_full_node: bool,
 ) -> Result<(), anyhow::Error> {
+    // // Resolve the configuration directory.
+    // let config_dir = config_dir.map_or_else(iota_config_dir, Ok)?;
+
+    // let network_config_path = config_dir.clone().join(IOTA_NETWORK_CONFIG);
+    // // Auto genesis if no configuration exists in the configuration directory.
+    // if !network_config_path.exists() {
+    //     genesis(
+    //         None,
+    //         None,
+    //         Some(config_dir.clone()),
+    //         false,
+    //         None,
+    //         None,
+    //         false,
+    //         DEFAULT_NUMBER_OF_AUTHORITIES,
+    //         Default::default(),
+    //         Default::default(),
+    //     )
+    //     .await?;
+    // }
+
     if force_regenesis {
         ensure!(
             config.is_none(),
@@ -741,13 +685,23 @@ async fn start(
                 .unwrap_or(iota_config_dir()?)
                 .join(IOTA_NETWORK_CONFIG)
         };
-        let network_config: NetworkConfig =
-            PersistedConfig::read(&network_config_path).map_err(|err| {
-                err.context(format!(
-                    "Cannot open Iota network config file at {:?}",
-                    network_config_path
-                ))
-            })?;
+        let NetworkConfigLight {
+            validator_configs,
+            account_keys,
+            ..
+        } = PersistedConfig::read(&network_config_path).map_err(|err| {
+            err.context(format!(
+                "Cannot open Iota network config file at {:?}",
+                network_config_path
+            ))
+        })?;
+        let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
+        let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
+        let network_config = NetworkConfig {
+            validator_configs,
+            account_keys,
+            genesis,
+        };
 
         swarm_builder = swarm_builder
             .dir(iota_config_dir()?)
