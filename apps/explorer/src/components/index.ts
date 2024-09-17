@@ -24,7 +24,6 @@ export * from './transactions';
 export * from './tx-time';
 export * from './ui';
 export * from './validator';
-export * from './validator-map';
 
 export * from './AddressesCardGraph';
 export * from './AreaGraph';
