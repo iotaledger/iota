@@ -1,23 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module shared_no_tto::shared_cash_register {
     use common::identified_payment::{Self, IdentifiedPayment};
-    use sui::sui::SUI;
-    use sui::coin::Coin;
-    use sui::object::{Self, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
-    use sui::dynamic_field;
-    use sui::vec_set::{Self, VecSet};
-    use std::vector;
+    use iota::iota::IOTA;
+    use iota::coin::Coin;
+    use iota::dynamic_field;
+    use iota::vec_set::{Self, VecSet};
     use std::string::String;
 
     const EInvalidOwner: u64 = 0;
     const EInvalidPaymentID: u64 = 1;
     const ENotAuthorized: u64 = 2;
 
-    struct CashRegister has key {
+    public struct CashRegister has key {
         id: UID,
         authorized_individuals: VecSet<address>,
         business_name: String,
@@ -28,11 +25,11 @@ module shared_no_tto::shared_cash_register {
     /// business name, and authorized set of individuals that can process
     /// payments.
     public fun create_cash_register(
-        authorized_individuals_vec: vector<address>,
+        mut authorized_individuals_vec: vector<address>,
         business_name: String,
         ctx: &mut TxContext,
     ) {
-        let authorized_individuals = vec_set::empty();
+        let mut authorized_individuals = vec_set::empty();
 
         while (!vector::is_empty(&authorized_individuals_vec)) {
             let addr = vector::pop_back(&mut authorized_individuals_vec);
@@ -81,13 +78,13 @@ module shared_no_tto::shared_cash_register {
             vec_set::remove(&mut register.authorized_individuals, &addr);
         } else {
             vec_set::insert(&mut register.authorized_individuals, addr);
-        } 
+        }
     }
 
     /// Process a payment that has been made, removing it from the register and
     /// returning the coin that can then be combined or sent elsewhere by the authorized individual.
-    /// Payments can ony be processed by either an account in the / `authorized_individuals` set or by the owner of the cash register.
-    public fun process_payment(register: &mut CashRegister, payment_id: u64, ctx: &TxContext): Coin<SUI> {
+    /// Payments can only be processed by either an account in the / `authorized_individuals` set or by the owner of the cash register.
+    public fun process_payment(register: &mut CashRegister, payment_id: u64, ctx: &TxContext): Coin<IOTA> {
         let sender = tx_context::sender(ctx);
         assert!(vec_set::contains(&register.authorized_individuals, &sender) || sender == register.register_owner, ENotAuthorized);
         assert!(dynamic_field::exists_(&register.id, payment_id), EInvalidPaymentID);
@@ -98,7 +95,7 @@ module shared_no_tto::shared_cash_register {
 
     /// Make a payment to the cash register -- this is the function that the
     /// customer will use to make a payment to the cash register.
-    public fun pay(register: &mut CashRegister, payment_id: u64, coin: Coin<SUI>, ctx: &mut TxContext) {
+    public fun pay(register: &mut CashRegister, payment_id: u64, coin: Coin<IOTA>, ctx: &mut TxContext) {
         identified_payment::make_shared_payment(&mut register.id, payment_id, coin, ctx);
     }
 }

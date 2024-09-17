@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { CONSTANTS, QueryKey } from "@/constants";
 import { useTransactionExecution } from "@/hooks/useTransactionExecution";
 import { ApiEscrowObject, ApiLockedObject } from "@/types/types";
-import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
-import { SuiObjectData } from "@mysten/sui.js/client";
-import { TransactionBlock } from "@mysten/sui.js/transactions";
+import { useCurrentAccount, useIotaClient } from "@iota/dapp-kit";
+import { IotaObjectData } from "@iota/iota-sdk/client";
+import { Transaction } from "@iota/iota-sdk/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 /**
@@ -14,7 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
  */
 export function useAcceptEscrowMutation() {
   const currentAccount = useCurrentAccount();
-  const client = useSuiClient();
+  const client = useIotaClient();
   const executeTransaction = useTransactionExecution();
   const queryClient = useQueryClient();
 
@@ -28,7 +29,7 @@ export function useAcceptEscrowMutation() {
     }) => {
       if (!currentAccount?.address)
         throw new Error("You need to connect your wallet!");
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
 
       const escrowObject = await client.multiGetObjects({
         ids: [escrow.itemId, locked.itemId],
@@ -83,19 +84,19 @@ export function useCancelEscrowMutation() {
   return useMutation({
     mutationFn: async ({
       escrow,
-      suiObject,
+      iotaObject,
     }: {
       escrow: ApiEscrowObject;
-      suiObject: SuiObjectData;
+      iotaObject: IotaObjectData;
     }) => {
       if (!currentAccount?.address)
         throw new Error("You need to connect your wallet!");
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
 
       const item = txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::shared::return_to_sender`,
         arguments: [txb.object(escrow.objectId)],
-        typeArguments: [suiObject?.type!],
+        typeArguments: [iotaObject?.type!],
       });
 
       txb.transferObjects([item], txb.pure.address(currentAccount?.address!));
@@ -123,13 +124,13 @@ export function useCreateEscrowMutation() {
       object,
       locked,
     }: {
-      object: SuiObjectData;
+      object: IotaObjectData;
       locked: ApiLockedObject;
     }) => {
       if (!currentAccount?.address)
         throw new Error("You need to connect your wallet!");
 
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
       txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::shared::create`,
         arguments: [

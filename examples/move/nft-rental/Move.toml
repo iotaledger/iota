@@ -1,0 +1,11 @@
+[package]
+name = "nft_rental"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework", override = true }
+Kiosk = { git = "https://github.com/iotaledger/apps.git", subdir = "kiosk", rev = "testnet" }
+
+[addresses]
+nft_rental = "0x0"

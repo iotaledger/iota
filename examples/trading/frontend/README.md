@@ -1,6 +1,6 @@
 # Trading e2e demo - Frontend
 
-This dApp was created using `@mysten/create-dapp` that sets up a basic React
+This dApp was created using `@iota/create-dapp` that sets up a basic React
 Client dApp.
 
 ## First Steps

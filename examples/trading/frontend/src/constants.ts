@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // You can choose a different env (e.g. using a .env file, or a predefined list)
+/** @ts-ignore */
 import demoContract from "../../api/demo-contract.json";
+/** @ts-ignore */
 import escrowContract from "../../api/escrow-contract.json";
 
 export enum QueryKey {

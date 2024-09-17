@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This example demonstrates how to use Closed Loop to create a regulated coin
@@ -25,13 +26,11 @@
 ///
 /// - KYC in this example is represented by an allowlist rule
 module examples::regulated_token {
-    use std::option;
-    use sui::vec_map;
-    use sui::transfer;
-    use sui::coin::{Self, TreasuryCap};
-    use sui::tx_context::{sender, TxContext};
+    use iota::vec_map;
+    use iota::coin::{Self, TreasuryCap};
+    use iota::tx_context::{sender};
 
-    use sui::token::{Self, TokenPolicy, TokenPolicyCap};
+    use iota::token::{Self, TokenPolicy, TokenPolicyCap};
 
     // import rules and use them for this app
     use examples::allowlist_rule::Allowlist;
@@ -39,25 +38,25 @@ module examples::regulated_token {
     use examples::limiter_rule::{Self as limiter, Limiter};
 
     /// OTW and the type for the Token.
-    struct REGULATED_TOKEN has drop {}
+    public struct REGULATED_TOKEN has drop {}
 
     // Most of the magic happens in the initializer for the demonstration
     // purposes; however half of what's happening here could be implemented as
     // a single / set of PTBs.
     fun init(otw: REGULATED_TOKEN, ctx: &mut TxContext) {
         let treasury_cap = create_currency(otw, ctx);
-        let (policy, cap) = token::new_policy(&treasury_cap, ctx);
+        let (mut policy, cap) = token::new_policy(&treasury_cap, ctx);
 
         set_rules(&mut policy, &cap, ctx);
 
-        transfer::public_transfer(treasury_cap, sender(ctx));
-        transfer::public_transfer(cap, sender(ctx));
+        transfer::public_transfer(treasury_cap, ctx.sender());
+        transfer::public_transfer(cap, ctx.sender());
         token::share_policy(policy);
     }
 
     /// Internal: not necessary, but moving this call to a separate function for
     /// better visibility of the Closed Loop setup in `init` and easier testing.
-    public(friend) fun set_rules<T>(
+    public(package) fun set_rules<T>(
         policy: &mut TokenPolicy<T>,
         cap: &TokenPolicyCap<T>,
         ctx: &mut TxContext
@@ -75,7 +74,7 @@ module examples::regulated_token {
         token::add_rule_for_action<T, Limiter>(policy, cap, token::to_coin_action(), ctx);
 
         let config = {
-            let config = vec_map::empty();
+            let mut config = vec_map::empty();
             vec_map::insert(&mut config, token::transfer_action(), 3000_000000);
             vec_map::insert(&mut config, token::to_coin_action(), 1000_000000);
             config
@@ -108,8 +107,6 @@ module examples::regulated_token {
         transfer::public_freeze_object(metadata);
         treasury_cap
     }
-
-    #[test_only] friend examples::regulated_token_tests;
 }
 
 #[test_only]
@@ -117,11 +114,10 @@ module examples::regulated_token {
 /// We don't test the currency itself but rather use the same set of regulations
 /// on a test currency.
 module examples::regulated_token_tests {
-    use sui::coin;
-    use sui::tx_context::TxContext;
+    use iota::coin;
 
-    use sui::token::{Self, TokenPolicy, TokenPolicyCap};
-    use sui::token_test_utils::{Self as test, TEST};
+    use iota::token::{Self, TokenPolicy, TokenPolicyCap};
+    use iota::token_test_utils::{Self as test, TEST};
 
     use examples::regulated_token::set_rules;
 
@@ -142,7 +138,7 @@ module examples::regulated_token_tests {
         let (policy, cap) = policy_with_allowlist(ctx);
 
         let token = test::mint(3000_000000, ctx);
-        let request = token::transfer(token, ALICE, ctx);
+        let mut request = token::transfer(token, ALICE, ctx);
 
         limiter::verify(&policy, &mut request, ctx);
         denylist::verify(&policy, &mut request, ctx);
@@ -159,7 +155,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_allowlist(ctx);
 
         let token = test::mint(3001_000000, ctx);
-        let request = token::transfer(token, ALICE, ctx);
+        let mut request = token::transfer(token, ALICE, ctx);
 
         limiter::verify(&policy, &mut request, ctx);
 
@@ -173,7 +169,7 @@ module examples::regulated_token_tests {
         let (policy, cap) = policy_with_allowlist(ctx);
 
         let token = test::mint(1000_000000, ctx);
-        let (coin, request) = token::to_coin(token, ctx);
+        let (coin, mut request) = token::to_coin(token, ctx);
 
         limiter::verify(&policy, &mut request, ctx);
         denylist::verify(&policy, &mut request, ctx);
@@ -191,7 +187,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_allowlist(ctx);
 
         let token = test::mint(1001_000000, ctx);
-        let (_coin, request) = token::to_coin(token, ctx);
+        let (_coin, mut request) = token::to_coin(token, ctx);
 
         limiter::verify(&policy, &mut request, ctx);
 
@@ -210,7 +206,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_allowlist(ctx);
 
         let token = test::mint(1000_000000, ctx);
-        let request = token::transfer(token, BOB, ctx);
+        let mut request = token::transfer(token, BOB, ctx);
 
         allowlist::verify(&policy, &mut request, ctx);
 
@@ -221,12 +217,12 @@ module examples::regulated_token_tests {
     /// Try to `from_coin` from a not allowed account.
     fun test_allowlist_from_coin_not_allowed_fail() {
         let ctx = &mut test::ctx(ALICE);
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
 
         set_rules(&mut policy, &cap, ctx);
 
         let coin = coin::mint_for_testing(1000_000000, ctx);
-        let (_token, request) = token::from_coin(coin, ctx);
+        let (_token, mut request) = token::from_coin(coin, ctx);
 
         allowlist::verify(&policy, &mut request, ctx);
 
@@ -242,7 +238,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_denylist(ctx);
 
         let token = test::mint(1000_000000, ctx);
-        let request = token::transfer(token, BOB, ctx);
+        let mut request = token::transfer(token, BOB, ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 
@@ -256,7 +252,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_denylist(ctx);
 
         let token = test::mint(1000_000000, ctx);
-        let request = token::transfer(token, BOB, ctx);
+        let mut request = token::transfer(token, BOB, ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 
@@ -267,13 +263,13 @@ module examples::regulated_token_tests {
     /// Try to `spend` from a blocked account.
     fun test_denylist_spend_fail() {
         let ctx = &mut test::ctx(BOB);
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
 
         set_rules(&mut policy, &cap, ctx);
         denylist::add_records(&mut policy, &cap, vector[ BOB ], ctx);
 
         let token = test::mint(1000_000000, ctx);
-        let request = token::spend(token, ctx);
+        let mut request = token::spend(token, ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 
@@ -287,7 +283,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_denylist(ctx);
 
         let token = test::mint(1000_000000, ctx);
-        let (_coin, request) = token::to_coin(token, ctx);
+        let (_coin, mut request) = token::to_coin(token, ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 
@@ -301,7 +297,7 @@ module examples::regulated_token_tests {
         let (policy, _cap) = policy_with_denylist(ctx);
 
         let coin = coin::mint_for_testing(1000_000000, ctx);
-        let (_token, request) = token::from_coin(coin, ctx);
+        let (_token, mut request) = token::from_coin(coin, ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 
@@ -310,7 +306,7 @@ module examples::regulated_token_tests {
 
     /// Internal: prepare a policy with a denylist rule where sender is banned;
     fun policy_with_denylist(ctx: &mut TxContext): (TokenPolicy<TEST>, TokenPolicyCap<TEST>) {
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
         set_rules(&mut policy, &cap, ctx);
 
         denylist::add_records(&mut policy, &cap, vector[ ALICE ], ctx);
@@ -319,7 +315,7 @@ module examples::regulated_token_tests {
 
     /// Internal: prepare a policy with an allowlist rule where sender is allowed;
     fun policy_with_allowlist(ctx: &mut TxContext): (TokenPolicy<TEST>, TokenPolicyCap<TEST>) {
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
         set_rules(&mut policy, &cap, ctx);
 
         allowlist::add_records(&mut policy, &cap, vector[ ALICE ], ctx);
