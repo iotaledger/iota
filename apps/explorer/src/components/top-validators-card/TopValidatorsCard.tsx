@@ -5,7 +5,6 @@
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
-import { useMemo } from 'react';
 
 import { Banner, Link, PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
@@ -20,20 +19,14 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
-    const tableColumns = useMemo(
-        () =>
-            data
-                ? generateValidatorsTableColumns({
-                      atRiskValidators: [],
-                      validatorEvents: [],
-                      rollingAverageApys: null,
-                      limit,
-                      showValidatorIcon: showIcon,
-                      filterColumns: ['Name', 'Address', 'Stake'],
-                  })
-                : null,
-        [data, limit, showIcon],
-    );
+    const tableColumns = generateValidatorsTableColumns({
+        atRiskValidators: [],
+        validatorEvents: [],
+        rollingAverageApys: null,
+        limit,
+        showValidatorIcon: showIcon,
+        filterColumns: ['Name', 'Address', 'Stake'],
+    });
 
     if (isError || (!isPending && !data.activeValidators.length)) {
         return (
