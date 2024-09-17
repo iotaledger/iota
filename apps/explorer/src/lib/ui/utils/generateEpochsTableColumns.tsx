@@ -4,7 +4,7 @@
 
 import { EpochMetrics } from '@iota/iota-sdk/client';
 import { ColumnDef } from '@tanstack/react-table';
-import { TableBaseCell, TableCellText } from '@iota/apps-ui-kit';
+import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointLink, CheckpointSequenceLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 
@@ -19,9 +19,9 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const epoch = getValue<EpochMetrics['epoch']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{epoch}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -31,9 +31,9 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{epochTotalTransactions}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -43,9 +43,9 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const totalStakeRewardsDistributed = getValue<string | undefined>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{totalStakeRewardsDistributed ?? '0'}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -55,13 +55,13 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const firstCheckpointId = getValue<EpochMetrics['firstCheckpointId']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>
                             <CheckpointSequenceLink sequence={firstCheckpointId}>
                                 {firstCheckpointId}
                             </CheckpointSequenceLink>
                         </TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -73,9 +73,9 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                 const storageNetInflow =
                     getEpochStorageFundFlow(endOfEpochInfo).netInflow?.toString() ?? '--';
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{storageNetInflow}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -85,9 +85,9 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const epochEndTimestamp = getValue<string>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{epochEndTimestamp}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },

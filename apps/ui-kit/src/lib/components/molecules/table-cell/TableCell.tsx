@@ -19,7 +19,7 @@ interface TableCellBaseProps {
     isContentCentered?: boolean;
 }
 
-export function TableBaseCell({
+export function TableCellBase({
     children,
     hasLastBorderNoneClass,
     isContentCentered,

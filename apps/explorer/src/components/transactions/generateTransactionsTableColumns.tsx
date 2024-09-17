@@ -5,7 +5,7 @@
 import { getTotalGasUsed } from '@iota/core';
 import { IotaTransactionBlockKind, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { TableBaseCell, TableCellText } from '@iota/apps-ui-kit';
+import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, ObjectLink } from '../ui';
 
@@ -20,12 +20,12 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             cell: ({ getValue }) => {
                 const digest = getValue<string>();
                 return (
-                    <TableBaseCell>
+                    <TableCellBase>
                         <ObjectLink
                             objectId={digest}
                             label={<TableCellText>{digest}</TableCellText>}
                         />
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -35,12 +35,12 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             cell: ({ getValue }) => {
                 const address = getValue<string>();
                 return (
-                    <TableBaseCell>
+                    <TableCellBase>
                         <AddressLink
                             address={address}
                             label={<TableCellText>{address}</TableCellText>}
                         />
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -54,9 +54,9 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                         ? transaction.transactions.length.toString()
                         : '--';
                 return (
-                    <TableBaseCell>
+                    <TableCellBase>
                         <TableCellText>{txns}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -66,11 +66,11 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             cell: ({ getValue }) => {
                 const effects = getValue<IotaTransactionBlockResponse['effects']>();
                 return (
-                    <TableBaseCell>
+                    <TableCellBase>
                         <TableCellText>
                             {effects ? getTotalGasUsed(effects)?.toString() : '0'}
                         </TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -80,9 +80,9 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             cell: ({ getValue }) => {
                 const timestampMs = getValue();
                 return (
-                    <TableBaseCell>
+                    <TableCellBase>
                         <TableCellText>{timestampMs?.toString() ?? '--'}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },

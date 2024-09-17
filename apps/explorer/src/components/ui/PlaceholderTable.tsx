@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 
 import { TableCard } from './TableCard';
-import { TableBaseCell, TableCellPlaceholder } from '@iota/apps-ui-kit';
+import { TableCellBase, TableCellPlaceholder } from '@iota/apps-ui-kit';
 
 export interface PlaceholderTableProps {
     rowCount: number;
@@ -30,9 +30,9 @@ export function PlaceholderTable({
                 header,
                 cell: () => {
                     return (
-                        <TableBaseCell isContentCentered>
+                        <TableCellBase isContentCentered>
                             <TableCellPlaceholder />
-                        </TableBaseCell>
+                        </TableCellBase>
                     );
                 },
             })),

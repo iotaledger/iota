@@ -4,7 +4,7 @@
 import { PropsWithChildren, ReactNode } from 'react';
 import cx from 'classnames';
 import { TableRowType, TableProvider, useTableContext, TableProviderProps } from './TableContext';
-import {
+import {TableCellBase
     Button,
     ButtonProps,
     ButtonSize,
@@ -193,7 +193,7 @@ export function TableRowCheckbox({
             />
         );
     }
-
+TableCellBase
     return (
         <TableBaseCell isContentCentered>
             <Checkbox
@@ -204,6 +204,6 @@ export function TableRowCheckbox({
                 }}
                 isChecked={rowIndex !== undefined && rowsChecked.has(rowIndex)}
             />
-        </TableBaseCell>
+        </TableCellBase>
     );
 }

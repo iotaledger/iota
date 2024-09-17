@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TableBaseCell, TableCellText } from '@iota/apps-ui-kit';
+import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { type Checkpoint, type CheckpointPage } from '@iota/iota-sdk/client';
 import { ColumnDef } from '@tanstack/react-table';
 import { CheckpointSequenceLink } from '~/components';
@@ -18,9 +18,9 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const epoch = getValue<Checkpoint['digest']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{epoch}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -30,13 +30,13 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const sequenceNumber = getValue<Checkpoint['sequenceNumber']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>
                             <CheckpointSequenceLink sequence={sequenceNumber}>
                                 {sequenceNumber}
                             </CheckpointSequenceLink>
                         </TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -46,9 +46,9 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const networkTotalTransactions = getValue<Checkpoint['networkTotalTransactions']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{networkTotalTransactions}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -58,9 +58,9 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const timestampMs = getValue<Checkpoint['timestampMs']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{timestampMs}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },
@@ -70,9 +70,9 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const transactions = getValue<Checkpoint['transactions']>();
                 return (
-                    <TableBaseCell isContentCentered>
+                    <TableCellBase isContentCentered>
                         <TableCellText>{transactions.length}</TableCellText>
-                    </TableBaseCell>
+                    </TableCellBase>
                 );
             },
         },

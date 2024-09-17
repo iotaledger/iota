@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { TableBaseCell, TableCellText } from '@/components';
+import { TableCellBase, TableCellText } from '@/components';
 
 const meta = {
     component: TableCellText,
@@ -12,12 +12,12 @@ const meta = {
             <table>
                 <thead>
                     <tr>
-                        <TableBaseCell>
+                        <TableCellBase>
                             <Avatar />
-                        </TableBaseCell>
-                        <TableBaseCell>
+                        </TableCellBase>
+                        <TableCellBase>
                             <TableCellText>Mr. Crab</TableCellText>
-                        </TableBaseCell>
+                        </TableCellBase>
                     </tr>
                 </thead>
             </table>
