@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
-import { type Checkpoint, type CheckpointPage } from '@iota/iota-sdk/client';
-import { ColumnDef } from '@tanstack/react-table';
+import type { Checkpoint } from '@iota/iota-sdk/client';
+import type { ColumnDef } from '@tanstack/react-table';
 import { CheckpointSequenceLink } from '~/components';
 
 /**

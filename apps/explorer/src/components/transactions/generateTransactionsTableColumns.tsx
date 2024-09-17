@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTotalGasUsed } from '@iota/core';
-import { IotaTransactionBlockKind, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
-import { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, ObjectLink } from '../ui';
 
 /**

@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { EpochMetrics } from '@iota/iota-sdk/client';
-import { ColumnDef } from '@tanstack/react-table';
+import type { EpochMetrics } from '@iota/iota-sdk/client';
+import type { ColumnDef } from '@tanstack/react-table';
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
-import { CheckpointLink, CheckpointSequenceLink } from '~/components';
+import { CheckpointSequenceLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 
 /**

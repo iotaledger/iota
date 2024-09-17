@@ -14,7 +14,7 @@ import {
 } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { PropsWithChildren, ReactNode, useEffect, useState } from 'react';
+import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
@@ -160,25 +160,25 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
             : formatAddress(objOwner.AddressOwner);
     }
 
-    function OwnerLink({
-        children,
-        objOwner,
-    }: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
-        if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
-            if ('ObjectOwner' in objOwner) {
-                return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
-            } else {
-                return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
-            }
-        }
-        return null;
-    }
-
     return (
         <OwnerLink objOwner={objOwner}>
             <DisplayStats label="Owner" value={getOwner(objOwner)} />
         </OwnerLink>
     );
+}
+
+function OwnerLink({
+    children,
+    objOwner,
+}: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
+    if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
+        if ('ObjectOwner' in objOwner) {
+            return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
+        } else {
+            return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
+        }
+    }
+    return null;
 }
 
 interface StorageRebateCardProps {

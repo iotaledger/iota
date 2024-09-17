@@ -13,6 +13,14 @@ export interface PlaceholderTableProps {
     colHeadings: string[];
 }
 
+function PlaceholderCell() {
+    return (
+        <TableCellBase isContentCentered>
+            <TableCellPlaceholder />
+        </TableCellBase>
+    );
+}
+
 export function PlaceholderTable({
     rowCount,
     rowHeight,
@@ -28,13 +36,7 @@ export function PlaceholderTable({
             data: new Array(rowCount).fill(rowEntry),
             columns: colHeadings.map((header) => ({
                 header,
-                cell: () => {
-                    return (
-                        <TableCellBase isContentCentered>
-                            <TableCellPlaceholder />
-                        </TableCellBase>
-                    );
-                },
+                cell: PlaceholderCell,
             })),
         }),
         [rowCount, rowEntry, colHeadings],
