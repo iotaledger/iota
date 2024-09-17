@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import clsx from 'clsx';
-import { lazy, Suspense } from 'react';
 
 import { Network } from '@iota/iota-sdk/client';
 import {
@@ -18,10 +17,8 @@ import {
     TopValidatorsCard,
     TransactionsCardGraph,
 } from '~/components';
-import { Card, TabHeader } from '~/components/ui';
+import { TabHeader } from '~/components/ui';
 import { useNetwork } from '~/hooks';
-
-const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 
 const TRANSACTIONS_LIMIT = 25;
 
@@ -30,12 +27,12 @@ function Home(): JSX.Element {
     const isIotaTokenCardEnabled = network === Network.Mainnet;
     return (
         <PageLayout
-            gradient={{
-                content: (
+            content={
+                <>
                     <div
                         data-testid="home-page"
                         className={clsx(
-                            'home-page-grid-container-top',
+                            'home-page-grid-container-top mb-4',
                             isIotaTokenCardEnabled && 'with-token',
                         )}
                     >
@@ -57,37 +54,30 @@ function Home(): JSX.Element {
                             <AddressesCardGraph />
                         </div>
                     </div>
-                ),
-                size: 'lg',
-            }}
-            content={
-                <div className="home-page-grid-container-bottom">
-                    <div style={{ gridArea: 'activity' }}>
-                        <ErrorBoundary>
-                            <Activity initialLimit={TRANSACTIONS_LIMIT} disablePagination />
-                        </ErrorBoundary>
-                    </div>
-                    <div style={{ gridArea: 'packages' }}>
-                        <TopPackagesCard />
-                    </div>
-                    <div data-testid="validators-table" style={{ gridArea: 'validators' }}>
-                        <TabHeader title="Validators">
+                    <div>
+                        <div className="m-b-12" style={{ gridArea: 'activity' }}>
                             <ErrorBoundary>
-                                <TopValidatorsCard limit={10} showIcon />
+                                <Activity initialLimit={TRANSACTIONS_LIMIT} disablePagination />
                             </ErrorBoundary>
-                        </TabHeader>
+                        </div>
+                        <div className="home-page-grid-container-bottom">
+                            <div className="m-b-12" style={{ gridArea: 'packages' }}>
+                                <TopPackagesCard />
+                            </div>
+                            <div
+                                className="m-b-12"
+                                data-testid="validators-table"
+                                style={{ gridArea: 'validators' }}
+                            >
+                                <TabHeader title="Validators">
+                                    <ErrorBoundary>
+                                        <TopValidatorsCard limit={10} showIcon />
+                                    </ErrorBoundary>
+                                </TabHeader>
+                            </div>
+                        </div>
                     </div>
-                    <div
-                        style={{ gridArea: 'node-map' }}
-                        className="min-h-[320px] sm:min-h-[380px] lg:min-h-[460px] xl:min-h-[520px]"
-                    >
-                        <ErrorBoundary>
-                            <Suspense fallback={<Card height="full" />}>
-                                <ValidatorMap minHeight="100%" />
-                            </Suspense>
-                        </ErrorBoundary>
-                    </div>
-                </div>
+                </>
             }
         />
     );

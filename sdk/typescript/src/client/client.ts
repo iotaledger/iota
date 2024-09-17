@@ -69,9 +69,6 @@ import type {
     ProtocolConfig,
     QueryEventsParams,
     QueryTransactionBlocksParams,
-    ResolvedNameServiceNames,
-    ResolveNameServiceAddressParams,
-    ResolveNameServiceNamesParams,
     SubscribeEventParams,
     SubscribeTransactionParams,
     IotaEvent,
@@ -734,6 +731,13 @@ export class IotaClient {
         });
     }
 
+    async getCheckpointAddressMetrics(input?: { checkpoint: string }): Promise<AddressMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getCheckpointAddressMetrics',
+            params: [input?.checkpoint],
+        });
+    }
+
     /**
      * Return the committee information for the asked epoch
      */
@@ -762,6 +766,14 @@ export class IotaClient {
         return await this.transport.request({ method: 'iotax_getCurrentEpoch', params: [] });
     }
 
+    async getTotalTransactions(): Promise<string> {
+        const resp = await this.transport.request({
+            method: 'iotax_getTotalTransactions',
+            params: [],
+        });
+        return String(resp);
+    }
+
     /**
      * Return the Validators APYs
      */
@@ -774,24 +786,6 @@ export class IotaClient {
         const checkpoint = await this.getCheckpoint({ id: '0' });
         const bytes = fromB58(checkpoint.digest);
         return toHEX(bytes.slice(0, 4));
-    }
-
-    async resolveNameServiceAddress(
-        input: ResolveNameServiceAddressParams,
-    ): Promise<string | null> {
-        return await this.transport.request({
-            method: 'iotax_resolveNameServiceAddress',
-            params: [input.name],
-        });
-    }
-
-    async resolveNameServiceNames(
-        input: ResolveNameServiceNamesParams,
-    ): Promise<ResolvedNameServiceNames> {
-        return await this.transport.request({
-            method: 'iotax_resolveNameServiceNames',
-            params: [input.address, input.cursor, input.limit],
-        });
     }
 
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {
