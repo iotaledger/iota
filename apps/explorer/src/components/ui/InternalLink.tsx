@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isIotaNSName } from '@iota/core';
 import { formatAddress, formatDigest } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 
@@ -41,12 +40,9 @@ function createInternalLink<T extends string>(
 export const EpochLink = createInternalLink('epoch', 'epoch');
 export const CheckpointLink = createInternalLink('checkpoint', 'digest', formatAddress);
 export const CheckpointSequenceLink = createInternalLink('checkpoint', 'sequence');
-export const AddressLink = createInternalLink('address', 'address', (addressOrNs) => {
-    if (isIotaNSName(addressOrNs)) {
-        return addressOrNs;
-    }
-    return formatAddress(addressOrNs);
-});
+export const AddressLink = createInternalLink('address', 'address', (addressOrNs) =>
+    formatAddress(addressOrNs),
+);
 export const ObjectLink = createInternalLink('object', 'objectId', formatAddress);
 export const TransactionLink = createInternalLink('txblock', 'digest', formatDigest);
 export const ValidatorLink = createInternalLink('validator', 'address', formatAddress);

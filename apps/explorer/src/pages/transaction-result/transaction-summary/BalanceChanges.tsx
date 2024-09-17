@@ -9,7 +9,6 @@ import {
     getRecognizedUnRecognizedTokenChanges,
     useCoinMetadata,
     useFormatCoin,
-    useResolveIotaNSName,
 } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
@@ -73,7 +72,6 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
 }
 
 function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner: string }) {
-    const { data: iotansDomainName } = useResolveIotaNSName(owner);
     const { recognizedTokenChanges, unRecognizedTokenChanges } = useMemo(
         () => getRecognizedUnRecognizedTokenChanges(changes),
         [changes],
@@ -97,7 +95,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                             Owner
                         </Text>
                         <Text variant="pBody/medium" color="hero-dark">
-                            <AddressLink label={iotansDomainName || undefined} address={owner} />
+                            <AddressLink address={owner} />
                         </Text>
                     </div>
                 ) : null

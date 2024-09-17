@@ -2,12 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    CoinFormat,
-    type TransactionSummary,
-    useFormatCoin,
-    useResolveIotaNSName,
-} from '@iota/core';
+import { CoinFormat, type TransactionSummary, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Heading, Text } from '@iota/ui';
 
@@ -100,7 +95,6 @@ interface GasBreakdownProps {
 
 export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
     const gasData = summary?.gas;
-    const { data: iotansDomainName } = useResolveIotaNSName(gasData?.owner);
 
     if (!gasData) {
         return null;
@@ -132,7 +126,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                         <Text variant="pBody/medium" color="steel-darker">
                             Paid by
                         </Text>
-                        <AddressLink label={iotansDomainName || undefined} address={owner} />
+                        <AddressLink address={owner} />
                     </div>
                 )}
 
