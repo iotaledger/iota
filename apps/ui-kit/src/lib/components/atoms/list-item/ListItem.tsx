@@ -33,14 +33,14 @@ export function ListItem({
     children,
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
     function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-        if ((event.key === 'Enter' || event.key === ' ') && !isDisabled) {
-            onClick && onClick();
+        if ((event.key === 'Enter' || event.key === ' ') && !isDisabled && onClick) {
+            onClick();
         }
     }
 
     function handleClick() {
-        if (!isDisabled) {
-            onClick && onClick();
+        if (!isDisabled && onClick) {
+            onClick();
         }
     }
 

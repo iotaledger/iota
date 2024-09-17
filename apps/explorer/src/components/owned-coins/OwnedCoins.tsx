@@ -96,7 +96,11 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
 
     const filterOptions: FilterOption[] = useMemo(
         () => [
-            { label: 'All', onClick: () => setFilterValue(CoinFilter.All) },
+            {
+                label: 'All',
+                counter: balances.allBalances.length,
+                onClick: () => setFilterValue(CoinFilter.All),
+            },
             {
                 label: `Recognized`,
                 counter: balances.recognizedBalances.length,
@@ -114,9 +118,9 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     );
 
     const hasCoinsBalance = balances.allBalances.length > 0;
-    const coinBalanceHeader =
-        `${balances.allBalances.length ?? 0} Coin` + (balances.allBalances.length !== 1 ? 's' : '');
     const displayedBalances = useMemo(() => balances[filterValue], [balances, filterValue]);
+    const coinBalanceHeader =
+        `${displayedBalances.length ?? 0} Coin` + (displayedBalances.length !== 1 ? 's' : '');
 
     if (isError) {
         return (
@@ -140,19 +144,19 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
                         }
                     />
-                    <div className="px-md--rs">
-                        {filterValue === CoinFilter.Unrecognized && (
-                            <InfoBox
-                                icon={<Warning />}
-                                supportingText="These coins have not been recognized by the Iota Foundation."
-                                type={InfoBoxType.Default}
-                                style={InfoBoxStyle.Default}
-                            />
-                        )}
-                    </div>
                     {hasCoinsBalance ? (
                         <>
-                            <div className="overflow-y-auto p-sm--rs">
+                            <div className="relative overflow-y-auto p-sm--rs pt-0">
+                                <div className="sticky top-0 z-[1] bg-neutral-100 p-sm dark:bg-neutral-10">
+                                    {filterValue === CoinFilter.Unrecognized && (
+                                        <InfoBox
+                                            icon={<Warning />}
+                                            supportingText="These coins have not been recognized by the Iota Foundation."
+                                            type={InfoBoxType.Default}
+                                            style={InfoBoxStyle.Default}
+                                        />
+                                    )}
+                                </div>
                                 <CoinList coins={visibleCoins} id={id} />
                             </div>
 
