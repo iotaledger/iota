@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCoinMetadata } from '@iota/core';
-import { Iota, Unstaked } from '@iota/icons';
+import { Unstaked } from '@iota/icons';
+import { IotaLogoMark as Iota } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
@@ -25,7 +26,7 @@ const imageStyle = cva(['flex rounded-2xl'], {
 
 function IotaCoin(): JSX.Element {
     return (
-        <Iota className="flex h-full w-full items-center justify-center rounded-2xl bg-iota p-1.5 text-body text-white" />
+        <Iota className="flex h-full w-full rounded-2xl p-xxxs text-neutral-0 dark:text-neutral-100" />
     );
 }
 
@@ -36,7 +37,7 @@ type NonIotaCoinProps = {
 function NonIotaCoin({ coinType }: NonIotaCoinProps): JSX.Element {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gray-40 text-hero-darkest text-opacity-30">
+        <div className="flex h-full w-full items-center justify-center rounded-2xl">
             {coinMeta?.iconUrl ? (
                 <ImageIcon
                     size="sm"
@@ -46,7 +47,7 @@ function NonIotaCoin({ coinType }: NonIotaCoinProps): JSX.Element {
                     circle
                 />
             ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-hero-darkest border-opacity-10">
+                <div className="flex h-full w-full items-center justify-center rounded-2xl">
                     <Unstaked className="h-2.5 w-2.5" />
                 </div>
             )}

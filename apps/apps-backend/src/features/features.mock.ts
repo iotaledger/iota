@@ -12,13 +12,6 @@ const walletDapps = [
         tags: ['Social'],
     },
     {
-        name: 'Iota Name Service (IotaNS)',
-        description: 'Find your .iota name!',
-        link: 'https://iotans.io/',
-        icon: 'https://raw.githubusercontent.com/IotaNSdapp/docs/main/IotaNS-small2.jpg',
-        tags: ['Infra'],
-    },
-    {
         name: 'Wormhole Connect',
         description:
             'Bridge tokens from any Wormhole supported chain into Iota and get dropped off with extra Iota to pay gas fees. Developers can also embed the Connect bridge directly into their own websites and Dapps.',
@@ -159,9 +152,6 @@ export const developmentFeatures = {
             '0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a',
         ],
     },
-    iotans: {
-        defaultValue: false,
-    },
     'team-address-overrides': {
         defaultValue: {
             addresses: [
@@ -215,15 +205,7 @@ export const developmentFeatures = {
         defaultValue: 0.0025,
     },
     'wallet-dapps': {
-        defaultValue: [
-            {
-                name: 'Iota Name Service (IotaNS)',
-                description: 'Find your .iota name!',
-                link: 'https://iotans.io/',
-                icon: 'https://raw.githubusercontent.com/IotaNSdapp/docs/main/IotaNS-small2.jpg',
-                tags: ['Infra'],
-            },
-        ],
+        defaultValue: [],
         rules: [
             {
                 condition: {
@@ -397,83 +379,6 @@ export const developmentFeatures = {
             },
         ],
     },
-    'iotans-enable-okx-wallet': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
-    'iotans-enable-day-one-nft-domain-claim': {
-        defaultValue: false,
-    },
-    'iotans-nft-personalization': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
-    'iotans-front-page-banner': {
-        defaultValue: {
-            enabled: false,
-            dismissKey: 'quests-3-interstitial-live',
-            imageUrl: 'https://fe-assets.iota.org/quests_3_updated_large_corrected.svg',
-            bannerUrl: 'https://tech.iota.org/quest-3/',
-        },
-    },
-    'iotans-enable-coupons': {
-        defaultValue: false,
-    },
-    'iotans-enable-discord': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
-    'iotans-free-claims': {
-        defaultValue: false,
-    },
-    'iotans-banner': {
-        defaultValue: {
-            content:
-                "IotaNS is experiencing some issues. We're working to fix the problem and appreciate your patience.",
-            isActive: false,
-            isDismissable: true,
-        },
-    },
-    'iotans-enable-subname': {
-        defaultValue: false,
-        rules: [
-            {
-                condition: {
-                    network: {
-                        $ne: 'mainnet',
-                    },
-                },
-                force: true,
-            },
-        ],
-    },
     expiration_period: {
         defaultValue: 30,
         rules: [
@@ -484,22 +389,6 @@ export const developmentFeatures = {
                     },
                 },
                 force: 120,
-            },
-        ],
-    },
-    'iotans-name-burn-expired-name': {
-        defaultValue: false,
-        rules: [
-            {
-                force: true,
-            },
-        ],
-    },
-    'iotans-name-enable-v2-design': {
-        defaultValue: false,
-        rules: [
-            {
-                force: true,
             },
         ],
     },
