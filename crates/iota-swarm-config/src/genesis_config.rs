@@ -12,7 +12,10 @@ use iota_config::{
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     Config,
 };
-use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_genesis_builder::{
+    validator_info::{GenesisValidatorInfo, ValidatorInfo},
+    SnapshotSource,
+};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
