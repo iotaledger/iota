@@ -6003,7 +6003,6 @@ dependencies = [
  "backoff",
  "bcs",
  "cached",
- "chrono",
  "clap",
  "diesel",
  "diesel_migrations",

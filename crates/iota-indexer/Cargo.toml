@@ -12,7 +12,6 @@ async-trait.workspace = true
 axum.workspace = true
 backoff.workspace = true
 bcs.workspace = true
-chrono.workspace = true
 clap.workspace = true
 diesel.workspace = true
 futures.workspace = true
@@ -21,7 +20,6 @@ jsonrpsee.workspace = true
 prometheus.workspace = true
 regex.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 serde_with.workspace = true
 tap.workspace = true
 thiserror.workspace = true
@@ -50,20 +48,20 @@ move-core-types.workspace = true
 cached.workspace = true
 diesel_migrations = "2.2"
 
+iota-config = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+simulacrum = { workspace = true, optional = true }
+test-cluster = { workspace = true, optional = true }
+
 [features]
-pg_integration = []
-rpc_tests = []
-all_tests = ["pg_integration", "rpc_tests"]
+pg_integration = ["test-cluster", "serde_json", "simulacrum", "iota-config"]
 
 [dev-dependencies]
-iota-config.workspace = true
 iota-genesis-builder.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-swarm-config.workspace = true
 rand.workspace = true
-simulacrum.workspace = true
-test-cluster.workspace = true
 
 [[bin]]
 name = "iota-indexer"
