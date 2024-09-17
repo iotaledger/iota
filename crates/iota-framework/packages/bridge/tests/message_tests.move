@@ -451,12 +451,12 @@ module bridge::message_tests {
         message_bytes.append(message);
 
         let pubkey = iota::ecdsa_k1::secp256k1_ecrecover(
-            &x"b75e64b040eef6fa510e4b9be853f0d35183de635c6456c190714f9546b163ba12583e615a2e9944ec2d21b520aebd9b14e181dcae0fcc6cdaefc0aa235b3abe00",
+            &x"0827116f333b60598771f535a4094d7886eb372352cc7f850f06733a5852f12611096d9cb1dba69796bbb49b4e4864adeba0065ec7ad4de12f5b342d434a6d1c01",
             &message_bytes,
             0,
         );
 
-        assert_eq(pubkey, x"025a8c385af9a76aa506c395e240735839cb06531301f9b396e5f9ef8eeb0d8879");
+        assert_eq(pubkey, x"037c37864b65ad79b574866b631daa28d7f868b75d088a21a1a92de4497fd9f5a0");
         destroy(treasury);
         test_scenario::end(scenario);
     }
