@@ -37,7 +37,7 @@ function getColorFromGradient({ deg, values }: Gradient): string {
 
 export function RingChartLegend({ data }: RingChartLegendProps): JSX.Element {
     return (
-        <div className="flex flex-col items-start justify-center gap-2">
+        <>
             {data.map(({ color, gradient, label, value }) => {
                 const colorDisplay = gradient ? getColorFromGradient(gradient) : color;
 
@@ -56,7 +56,7 @@ export function RingChartLegend({ data }: RingChartLegendProps): JSX.Element {
                     </div>
                 );
             })}
-        </div>
+        </>
     );
 }
 

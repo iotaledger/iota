@@ -52,16 +52,17 @@ export function ValidatorStatus(): JSX.Element | null {
         <Panel>
             <div className="flex flex-col">
                 <Title title={`Validators in Epoch ${nextEpoch}`} />
-                <div className="flex flex-col items-center gap-sm--rs p-md--rs md:flex-row ">
-                    <div className="flex w-1/2 flex-row gap-x-lg p-md">
-                        <div className="min-h-[96px] min-w-[96px]">
-                            <RingChart data={chartData} />
+                <div className="flex flex-col items-start justify-center gap-x-xl gap-y-sm p-md--rs md:flex-row md:items-center md:justify-between md:gap-sm--rs">
+                    <div className="flex w-auto flex-row gap-x-md p-md md:max-w-[50%]">
+                        <div className="h-[92px] w-[92px]">
+                            <RingChart data={chartData} width={4} />
                         </div>
-
-                        <RingChartLegend data={chartData} />
+                        <div className="flex flex-col items-center justify-center gap-xs lg:items-start">
+                            <RingChartLegend data={chartData} />
+                        </div>
                     </div>
 
-                    <div className="h-full w-1/2">
+                    <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
                         <DisplayStats
                             label="Estimated Next Epoch
                             Reference Gas Price"
