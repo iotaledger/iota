@@ -33,8 +33,8 @@ use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    executable_transaction::VerifiedExecutableTransaction,
     event::SystemEpochInfoEvent,
+    executable_transaction::VerifiedExecutableTransaction,
     gas::GasCostSummary,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
@@ -82,26 +82,6 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransactionKey,
     execution_cache::TransactionCacheRead,
-    stake_aggregator::{InsertResult, MultiStakeAggregator},
-    state_accumulator::StateAccumulator,
-};
-
-pub use crate::checkpoints::{
-    checkpoint_output::{
-        LogCheckpointOutput, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
-    },
-    metrics::CheckpointMetrics,
-};
-use crate::{
-    authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState, EffectsNotifyRead,
-    },
-    authority_client::{make_network_authority_clients_with_network_config, AuthorityAPI},
-    checkpoints::{
-        causal_order::CausalOrder,
-        checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput},
-    },
-    consensus_handler::SequencedConsensusTransactionKey,
     stake_aggregator::{InsertResult, MultiStakeAggregator},
     state_accumulator::StateAccumulator,
 };
@@ -1499,7 +1479,7 @@ impl CheckpointBuilder {
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
                 let epoch_supply_change = system_epoch_info_event.minted_tokens_amount as i64
-                - system_epoch_info_event.burnt_tokens_amount as i64;
+                    - system_epoch_info_event.burnt_tokens_amount as i64;
 
                 let committee = system_state_obj
                     .get_current_epoch_committee()
@@ -1632,7 +1612,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-    ) -> IotaResult<(IotaSystemState, SystemEpochInfoEvent)> {
+    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(

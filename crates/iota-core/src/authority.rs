@@ -1772,7 +1772,7 @@ impl AuthorityState {
             let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
             let gas_object_id = ObjectID::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, MOCK_GAS_COIN_VALUE),
+                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
                 Owner::AddressOwner(sender),
                 TransactionDigest::genesis_marker(),
             );
@@ -3080,9 +3080,8 @@ impl AuthorityState {
             cur_epoch_store.check_all_executed_transactions_in_checkpoint();
         }
 
-        self
-            .get_reconfig_api()
-            .expensive_check_iota_conservation(cur_epoch_store)?;
+        self.get_reconfig_api()
+            .expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))?;
 
         // check for root state hash consistency with live object set
         if expensive_safety_check_config.enable_state_consistency_check() {
@@ -4445,7 +4444,7 @@ impl AuthorityState {
         desired_upgrades.sort();
         desired_upgrades
             .into_iter()
-            .chunk_by(|(packages, _authority)| packages.clone())
+            .group_by(|(packages, _authority)| packages.clone())
             .into_iter()
             .find_map(|(packages, group)| {
                 // should have been filtered out earlier.
@@ -4899,7 +4898,7 @@ impl AuthorityState {
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
-            return Err(IotaError::from(
+            return Err(anyhow::anyhow!(
                 "change epoch tx has already been executed via state sync",
             ));
         }

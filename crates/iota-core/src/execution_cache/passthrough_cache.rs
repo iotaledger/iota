@@ -4,27 +4,14 @@
 
 use std::sync::Arc;
 
-<<<<<<< HEAD
-use either::Either;
-use futures::{
-    future::{join_all, BoxFuture},
-    FutureExt,
-};
-use iota_common::sync::notify_read::NotifyRead;
-use iota_config::node::AuthorityStorePruningConfig;
-=======
 use futures::{future::BoxFuture, FutureExt};
 use iota_common::sync::notify_read::NotifyRead;
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-<<<<<<< HEAD
-=======
     bridge::{get_bridge, Bridge},
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
@@ -55,20 +42,6 @@ use crate::{
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
 };
-use crate::{
-    authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store::{ExecutionLockWriteGuard, IotaLockResult},
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
-        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        AuthorityStore,
-    },
-    checkpoints::CheckpointStore,
-    state_accumulator::AccumulatorStore,
-    transaction_outputs::TransactionOutputs,
-};
 
 pub struct PassthroughCache {
     store: Arc<AuthorityStore>,
@@ -96,30 +69,6 @@ impl PassthroughCache {
         &self.store
     }
 
-<<<<<<< HEAD
-    pub async fn prune_objects_and_compact_for_testing(
-        &self,
-        checkpoint_store: &Arc<CheckpointStore>,
-    ) {
-        let pruning_config = AuthorityStorePruningConfig {
-            num_epochs_to_retain: 0,
-            ..Default::default()
-        };
-        let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
-            &self.store.perpetual_tables,
-            checkpoint_store,
-            &self.store.objects_lock_table,
-            pruning_config,
-            AuthorityStorePruningMetrics::new_for_test(),
-            usize::MAX,
-            EPOCH_DURATION_MS_FOR_TESTING,
-        )
-        .await;
-        let _ = AuthorityStorePruner::compact(&self.store.perpetual_tables);
-    }
-
-=======
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
     fn revert_state_update_impl(&self, digest: &TransactionDigest) -> IotaResult {
         self.store.revert_state_update(digest)
     }
@@ -134,11 +83,7 @@ impl PassthroughCache {
     }
 }
 
-<<<<<<< HEAD
-impl ExecutionCacheRead for PassthroughCache {
-=======
 impl ObjectCacheRead for PassthroughCache {
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
@@ -206,21 +151,12 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_lock(obj_ref, epoch_store)
     }
 
-<<<<<<< HEAD
-    fn _get_latest_lock_for_object_id(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
-        self.store.get_latest_live_version_for_object_id(object_id)
-    }
-
-    fn check_owned_object_locks_exist(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        self.store.check_owned_object_locks_exist(owned_object_refs)
-=======
     fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         self.store.get_latest_live_version_for_object_id(object_id)
     }
 
     fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         self.store.check_owned_objects_are_live(owned_object_refs)
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
     }
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
@@ -284,33 +220,11 @@ impl TransactionCacheRead for PassthroughCache {
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
-<<<<<<< HEAD
-        async move {
-            let registrations = self
-                .executed_effects_digests_notify_read
-                .register_all(digests);
-
-            let executed_effects_digests = self.multi_get_executed_effects_digests(digests)?;
-
-            let results = executed_effects_digests
-                .into_iter()
-                .zip(registrations)
-                .map(|(a, r)| match a {
-                    // Note that Some() clause also drops registration that is already fulfilled
-                    Some(ready) => Either::Left(futures::future::ready(ready)),
-                    None => Either::Right(r),
-                });
-
-            Ok(join_all(results).await)
-        }
-        .boxed()
-=======
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
                 self.multi_get_executed_effects_digests(digests)
             })
             .boxed()
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
     }
 
     fn multi_get_events(
@@ -319,30 +233,6 @@ impl TransactionCacheRead for PassthroughCache {
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         self.store.multi_get_events(event_digests)
     }
-<<<<<<< HEAD
-
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
-        get_iota_system_state(self)
-    }
-
-    fn get_marker_value(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-        epoch_id: EpochId,
-    ) -> IotaResult<Option<MarkerValue>> {
-        self.store.get_marker_value(object_id, &version, epoch_id)
-    }
-
-    fn get_latest_marker(
-        &self,
-        object_id: &ObjectID,
-        epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        self.store.get_latest_marker(object_id, epoch_id)
-    }
-=======
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
 }
 
 impl ExecutionCacheWrite for PassthroughCache {
@@ -444,10 +334,6 @@ impl ExecutionCacheCommit for PassthroughCache {
     fn commit_transaction_outputs<'a>(
         &'a self,
         _epoch: EpochId,
-<<<<<<< HEAD
-        _digest: &TransactionDigest,
-    ) -> BoxFuture<'_, IotaResult> {
-=======
         _digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult> {
         // Nothing needs to be done since they were already committed in
@@ -456,7 +342,6 @@ impl ExecutionCacheCommit for PassthroughCache {
     }
 
     fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, IotaResult> {
->>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-core
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
         async { Ok(()) }.boxed()

@@ -51,19 +51,6 @@ use crate::{
     signature_verifier::SignatureVerifierMetrics,
 };
 
-use crate::{
-    authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::AuthorityPerpetualTables,
-        epoch_start_configuration::EpochStartConfiguration, AuthorityState, AuthorityStore,
-    },
-    checkpoints::CheckpointStore,
-    epoch::{committee_store::CommitteeStore, epoch_metrics::EpochMetrics},
-    execution_cache::ExecutionCache,
-    module_cache_metrics::ResolverMetrics,
-    signature_verifier::SignatureVerifierMetrics,
-};
-
 #[derive(Default, Clone)]
 pub struct TestAuthorityBuilder<'a> {
     store_base_path: Option<PathBuf>,

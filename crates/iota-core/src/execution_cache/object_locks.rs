@@ -136,7 +136,7 @@ impl ObjectLocks {
                 obj_ref,
                 live_object.version()
             );
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::ObjectVersionUnavailableForConsumption {
                     provided_obj_ref: *obj_ref,
                     current_version: live_object.version(),
@@ -147,7 +147,7 @@ impl ObjectLocks {
         let live_digest = live_object.digest();
         if obj_ref.2 != live_digest {
             debug!("object digest mismatch: {:?} vs {:?}", obj_ref, live_digest);
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::InvalidObjectDigest {
                     object_id: obj_ref.0,
                     expected_digest: live_digest,
@@ -188,7 +188,7 @@ impl ObjectLocks {
             if let Some(object) = object {
                 result.push(object);
             } else {
-                return Err(IotaError::UserInputError {
+                return Err(IotaError::UserInput {
                     error: UserInputError::ObjectNotFound {
                         object_id: object_ids[i],
                         version: None,

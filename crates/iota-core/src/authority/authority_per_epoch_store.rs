@@ -121,38 +121,6 @@ use crate::{
     stake_aggregator::{GenericMultiStakeAggregator, StakeAggregator},
 };
 
-use super::{
-    authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
-    epoch_start_configuration::EpochStartConfigTrait,
-};
-use crate::{
-    authority::{
-        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        shared_object_version_manager::{
-            AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
-        },
-        ResolverWrapper,
-    },
-    checkpoints::{
-        BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
-        PendingCheckpoint, PendingCheckpointInfo, PendingCheckpointV2, PendingCheckpointV2Contents,
-    },
-    consensus_handler::{
-        SequencedConsensusTransaction, SequencedConsensusTransactionKey,
-        SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
-    },
-    epoch::{
-        epoch_metrics::EpochMetrics,
-        randomness::{RandomnessManager, RandomnessReporter},
-        reconfiguration::ReconfigState,
-    },
-    execution_cache::{ExecutionCache, ExecutionCacheRead},
-    module_cache_metrics::ResolverMetrics,
-    post_consensus_tx_reorder::PostConsensusTxReorder,
-    signature_verifier::*,
-    stake_aggregator::{GenericMultiStakeAggregator, StakeAggregator},
-};
-
 /// The key where the latest consensus index is stored in the database.
 // TODO: Make a single table (e.g., called `variables`) storing all our lonely
 // variables in one place.

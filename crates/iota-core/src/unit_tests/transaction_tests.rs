@@ -547,7 +547,7 @@ async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
         },
     )
     .await
-    .unwrap();    
+    .unwrap();
 }
 
 #[sim_test]
@@ -954,6 +954,8 @@ async fn do_zklogin_transaction_test(
     assert_eq!(metrics.signature_errors.get(), expected_sig_errors);
 
     check_locks(authority_state, object_ids).await;
+
+    Ok(())
 }
 
 async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectID>) {
@@ -989,7 +991,7 @@ async fn setup_zklogin_network(
     NetworkAuthorityClient,
     Vec<IotaAddress>,
     MultiSigPublicKey,
-) {
+)> {
     let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")?[1];
     let ephemeral_key = match ikp {
@@ -1001,10 +1003,11 @@ async fn setup_zklogin_network(
     let sender = IotaAddress::try_from_unpadded(zklogin)?;
 
     // a 1-out-2 multisig address.
-    let zklogin_pk = PublicKey::ZkLogin(
-        ZkLoginPublicIdentifier::new(zklogin.get_iss(), zklogin.get_address_seed())?,
-    );
-    let regular_pk = skp.public();
+    let zklogin_pk = PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
+        zklogin.get_iss(),
+        zklogin.get_address_seed(),
+    )?);
+    let regular_pk = ikp.public();
     let multisig_pk = MultiSigPublicKey::new(vec![zklogin_pk, regular_pk], vec![1, 1], 1)?;
     let sender_2 = IotaAddress::from(&multisig_pk);
 
@@ -1503,8 +1506,7 @@ async fn test_very_large_certificate() {
     let err = res.err().unwrap();
     // The resulting error should be a RpcError with a message length too large.
     assert!(
-        matches!(err, IotaError::Rpc(..))
-            && err.to_string().contains("message length too large")
+        matches!(err, IotaError::Rpc(..)) && err.to_string().contains("message length too large")
     );
 }
 
@@ -1968,7 +1970,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::TooManyTransactionsInSoftBundle { .. },
             }
         );
@@ -2014,7 +2016,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::NoSharedObjectError { .. },
             }
         );
@@ -2101,7 +2103,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::GasPriceMismatchError { .. },
             }
         );
@@ -2190,7 +2192,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::CeritificateAlreadyProcessed { .. },
             }
         );

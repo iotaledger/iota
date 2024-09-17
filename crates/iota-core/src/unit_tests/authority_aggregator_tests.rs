@@ -704,7 +704,10 @@ fn get_agg_at_epoch<A>(
     authorities: BTreeMap<AuthorityName, StakeUnit>,
     clients: BTreeMap<AuthorityName, A>,
     epoch: EpochId,
-) -> AuthorityAggregator<A> {
+) -> AuthorityAggregator<A>
+where
+    A: Clone,
+{
     let mut agg = get_genesis_agg(authorities.clone(), clients);
     let committee = Committee::new_for_testing_with_normalized_voting_power(epoch, authorities);
     agg.committee_store
@@ -1984,7 +1987,7 @@ async fn test_handle_overload_retry_response() {
         |e| {
             matches!(
                 e,
-                IotaError::ValidatorOverloadedRetryAfter { .. } | IotaError::RpcError(..)
+                IotaError::ValidatorOverloadedRetryAfter { .. } | IotaError::Rpc(..)
             )
         },
     )

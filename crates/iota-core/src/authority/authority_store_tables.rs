@@ -31,16 +31,6 @@ use crate::authority::{
     epoch_start_configuration::EpochStartConfiguration,
 };
 
-use super::*;
-use crate::authority::{
-    authority_store::LockDetailsWrapperDeprecated,
-    authority_store_types::{
-        get_store_object_pair, try_construct_object, ObjectContentDigest, StoreData,
-        StoreMoveObjectWrapper, StoreObject, StoreObjectPair, StoreObjectValue, StoreObjectWrapper,
-    },
-    epoch_start_configuration::EpochStartConfiguration,
-};
-
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
 pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
 const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB";

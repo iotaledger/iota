@@ -33,8 +33,6 @@ use tracing::{debug, error, instrument};
 
 use crate::{authority_client::AuthorityAPI, epoch::committee_store::CommitteeStore};
 
-use crate::{authority_client::AuthorityAPI, epoch::committee_store::CommitteeStore};
-
 macro_rules! check_error {
     ($address:expr, $cond:expr, $msg:expr) => {
         $cond.tap_err(|err| {

@@ -384,8 +384,11 @@ impl ExecutionCacheReconfigAPI for ProxyCache {
     fn expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
+        epoch_supply_change: Option<i64>,
     ) -> IotaResult {
-        delegate_method!(self.expensive_check_iota_conservation(old_epoch_store))
+        delegate_method!(
+            self.expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
+        )
     }
 
     fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {

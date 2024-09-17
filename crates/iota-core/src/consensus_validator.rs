@@ -13,7 +13,7 @@ use iota_types::{
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
-use narwhal_types::{validate_batch_version, BatchAPI};
+use narwhal_types::BatchAPI;
 use narwhal_worker::TransactionValidator;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use tap::TapFallible;
@@ -217,7 +217,6 @@ mod tests {
         crypto::Ed25519IotaSignature, messages_consensus::ConsensusTransaction, object::Object,
         signature::GenericSignature,
     };
-    use narwhal_test_utils::latest_protocol_version;
     use narwhal_types::Batch;
     use narwhal_worker::TransactionValidator;
 

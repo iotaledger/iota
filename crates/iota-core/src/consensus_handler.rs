@@ -910,7 +910,6 @@ mod tests {
         },
     };
     use narwhal_config::AuthorityIdentifier;
-    use narwhal_test_utils::latest_protocol_version;
     use narwhal_types::{Batch, Certificate, CommittedSubDag, HeaderV1Builder, ReputationScores};
     use prometheus::Registry;
 

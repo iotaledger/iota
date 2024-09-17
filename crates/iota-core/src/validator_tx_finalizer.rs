@@ -327,7 +327,7 @@ mod tests {
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleTransactionResponse, IotaError> {
             if self.inject_fault.load(Relaxed) {
-                return Err(IotaError::TimeoutError);
+                return Err(IotaError::Timeout);
             }
             let epoch_store = self.authority.epoch_store_for_testing();
             self.authority

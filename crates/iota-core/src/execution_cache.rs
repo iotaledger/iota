@@ -4,7 +4,6 @@
 
 use std::{collections::HashSet, path::Path, sync::Arc};
 
-use async_trait::async_trait;
 use futures::{future::BoxFuture, FutureExt};
 use iota_config::ExecutionCacheConfig;
 use iota_protocol_config::ProtocolVersion;

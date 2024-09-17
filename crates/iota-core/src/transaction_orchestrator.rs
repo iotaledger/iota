@@ -146,7 +146,7 @@ where
     }
 }
 
-impl<A> TransactiondOrchestrator<A>
+impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
@@ -729,7 +729,7 @@ impl TransactionOrchestratorMetrics {
 }
 
 #[async_trait::async_trait]
-impl<A> iota_types::transaction_executor::TransactionExecutor for TransactiondOrchestrator<A>
+impl<A> iota_types::transaction_executor::TransactionExecutor for TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {

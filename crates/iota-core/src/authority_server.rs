@@ -772,7 +772,7 @@ impl ValidatorService {
         // upgrade the entire network.
         fp_ensure!(
             protocol_config.soft_bundle() && node_config.enable_soft_bundle,
-            IotaError::UnsupportedFeatureError {
+            IotaError::UnsupportedFeature {
                 error: "Soft Bundle".to_string()
             }
             .into()
@@ -785,7 +785,7 @@ impl ValidatorService {
         // - Number of certs must not exceed the max allowed.
         fp_ensure!(
             certificates.len() as u64 <= protocol_config.max_soft_bundle_size(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::TooManyTransactionsInSoftBundle {
                     limit: protocol_config.max_soft_bundle_size()
                 }
@@ -797,14 +797,14 @@ impl ValidatorService {
             let tx_digest = *certificate.digest();
             fp_ensure!(
                 certificate.contains_shared_object(),
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::NoSharedObjectError { digest: tx_digest }
                 }
                 .into()
             );
             fp_ensure!(
                 !self.state.is_tx_already_executed(&tx_digest)?,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::AlreadyExecutedError { digest: tx_digest }
                 }
                 .into()
@@ -812,7 +812,7 @@ impl ValidatorService {
             if let Some(gas) = gas_price {
                 fp_ensure!(
                     gas == certificate.gas_price(),
-                    IotaError::UserInputError {
+                    IotaError::UserInput {
                         error: UserInputError::GasPriceMismatchError {
                             digest: tx_digest,
                             expected: gas,
@@ -833,7 +833,7 @@ impl ValidatorService {
         // already being processed by another actor, and we could not know it.
         fp_ensure!(
             !epoch_store.is_any_tx_certs_consensus_message_processed(certificates.iter())?,
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::CeritificateAlreadyProcessed
             }
             .into()
@@ -1092,7 +1092,7 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
 // TODO: refine error matching here
 fn normalize(err: IotaError) -> Weight {
     match err {
-        IotaError::UserInputError { .. }
+        IotaError::UserInput { .. }
         | IotaError::InvalidSignature { .. }
         | IotaError::SignerSignatureAbsent { .. }
         | IotaError::SignerSignatureNumberMismatch { .. }
