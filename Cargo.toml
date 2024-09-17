@@ -348,7 +348,13 @@ ipnetwork = "0.20.0"
 itertools = "0.10.5"
 jemalloc-ctl = "^0.5"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
-jsonrpsee = { version = "0.24.0", features = ["server", "macros", "client", "ws-client", "http-client"] }
+jsonrpsee = { version = "0.24.0", features = [
+  "server",
+  "macros",
+  "client",
+  "ws-client",
+  "http-client",
+] }
 leb128 = "0.2.5"
 linked-hash-map = "0.5.6"
 lru = "0.10"
@@ -393,7 +399,13 @@ proptest-derive = "0.3.0"
 prost = "0.13"
 prost-build = "0.13"
 protobuf = { version = "2.28", features = ["with-bytes"] }
-rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
+rocksdb = { version = "0.21.0", default-features = false, features = [
+  "snappy",
+  "lz4",
+  "zstd",
+  "zlib",
+  "multi-threaded-cf",
+] }
 quinn-proto = "0.11.6"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -628,6 +640,7 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
+iota-service = { path = "crates/iota-service" }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
