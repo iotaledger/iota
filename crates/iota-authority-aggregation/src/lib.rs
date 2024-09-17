@@ -15,7 +15,6 @@ use iota_types::{
     committee::{CommitteeTrait, StakeUnit},
 };
 use tokio::time::timeout;
-use tracing::instrument::Instrument;
 
 pub type AsyncResult<'a, T, E> = BoxFuture<'a, Result<T, E>>;
 

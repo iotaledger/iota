@@ -51,6 +51,9 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
+ChainIdentifier:
+  NEWTYPESTRUCT:
+    TYPENAME: CheckpointDigest
 ChangeEpoch:
   STRUCT:
   - epoch: U64
@@ -221,6 +224,10 @@ CompressedSignature:
       ZkLogin:
         NEWTYPE:
           TYPENAME: ZkLoginAuthenticatorAsBytes
+CongestedObjects:
+  NEWTYPESTRUCT:
+    SEQ:
+      TYPENAME: ObjectID
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -231,11 +238,34 @@ ConsensusCommitPrologue:
   - commit_timestamp_ms: U64
 ConsensusCommitPrologueV2:
   STRUCT:
-  - epoch: U64
-  - round: U64
-  - commit_timestamp_ms: U64
-  - consensus_commit_digest:
-      TYPENAME: ConsensusCommitDigest
+    - epoch: U64
+    - round: U64
+    - commit_timestamp_ms: U64
+    - consensus_commit_digest:
+        TYPENAME: ConsensusCommitDigest
+ConsensusCommitPrologueV3:
+  STRUCT:
+    - epoch: U64
+    - round: U64
+    - sub_dag_index:
+        OPTION: U64
+    - commit_timestamp_ms: U64
+    - consensus_commit_digest:
+        TYPENAME: ConsensusCommitDigest
+    - consensus_determined_version_assignments:
+        TYPENAME: ConsensusDeterminedVersionAssignments
+ConsensusDeterminedVersionAssignments:
+  ENUM:
+    0:
+      CancelledTransactions:
+        NEWTYPE:
+          SEQ:
+            TUPLE:
+              - TYPENAME: TransactionDigest
+              - SEQ:
+                  TUPLE:
+                    - TYPENAME: ObjectID
+                    - TYPENAME: SequenceNumber
 Data:
   ENUM:
     0:
@@ -302,6 +332,14 @@ EndOfEpochTransactionKind:
       RandomnessStateCreate: UNIT
     4:
       DenyListStateCreate: UNIT
+    5:
+      BridgeStateCreate:
+        NEWTYPE:
+          TYPENAME: ChainIdentifier
+    6:
+      BridgeCommitteeInit:
+        NEWTYPE:
+          TYPENAME: SequenceNumber
 Envelope:
   STRUCT:
   - data:
@@ -435,6 +473,23 @@ ExecutionFailureStatus:
       SharedObjectOperationNotAllowed: UNIT
     32:
       InputObjectDeleted: UNIT
+    33:
+      ExecutionCancelledDueToSharedObjectCongestion:
+        STRUCT:
+          - congested_objects:
+              TYPENAME: CongestedObjects
+    34:
+      AddressDeniedForCoin:
+        STRUCT:
+          - address:
+              TYPENAME: IotaAddress
+          - coin_type: STR
+    35:
+      CoinTypeGlobalPause:
+        STRUCT:
+          - coin_type: STR
+    36:
+      ExecutionCancelledDueToRandomnessUnavailable: UNIT
 ExecutionStatus:
   ENUM:
     0:
@@ -463,16 +518,16 @@ GasCostSummary:
   - nonRefundableStorageFee: U64
 GasData:
   STRUCT:
-  - payment:
-      SEQ:
-        TUPLE:
-        - TYPENAME: ObjectID
-        - TYPENAME: SequenceNumber
-        - TYPENAME: ObjectDigest
-  - owner:
-      TYPENAME: IotaAddress
-  - price: U64
-  - budget: U64
+    - payment:
+        SEQ:
+          TUPLE:
+            - TYPENAME: ObjectID
+            - TYPENAME: SequenceNumber
+            - TYPENAME: ObjectDigest
+    - owner:
+        TYPENAME: IotaAddress
+    - price: U64
+    - budget: U64
 GenericSignature:
   NEWTYPESTRUCT:
     SEQ: U8
@@ -794,15 +849,20 @@ SequenceNumber:
   NEWTYPESTRUCT: U64
 StructTag:
   STRUCT:
-  - address:
-      TYPENAME: AccountAddress
-  - module:
-      TYPENAME: Identifier
-  - name:
-      TYPENAME: Identifier
-  - type_args:
-      SEQ:
-        TYPENAME: TypeTag
+    - address:
+        TYPENAME: AccountAddress
+    - module:
+        TYPENAME: Identifier
+    - name:
+        TYPENAME: Identifier
+    - type_args:
+        SEQ:
+          TYPENAME: TypeTag
+IotaAddress:
+  NEWTYPESTRUCT:
+    TUPLEARRAY:
+      CONTENT: U8
+      SIZE: 32
 TransactionData:
   ENUM:
     0:
@@ -811,14 +871,14 @@ TransactionData:
           TYPENAME: TransactionDataV1
 TransactionDataV1:
   STRUCT:
-  - kind:
-      TYPENAME: TransactionKind
-  - sender:
-      TYPENAME: IotaAddress
-  - gas_data:
-      TYPENAME: GasData
-  - expiration:
-      TYPENAME: TransactionExpiration
+    - kind:
+        TYPENAME: TransactionKind
+    - sender:
+        TYPENAME: IotaAddress
+    - gas_data:
+        TYPENAME: GasData
+    - expiration:
+        TYPENAME: TransactionExpiration
 TransactionDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -987,6 +1047,10 @@ TransactionKind:
       ConsensusCommitPrologueV2:
         NEWTYPE:
           TYPENAME: ConsensusCommitPrologueV2
+    8:
+      ConsensusCommitPrologueV3:
+        NEWTYPE:
+          TYPENAME: ConsensusCommitPrologueV3
 TypeArgumentError:
   ENUM:
     0:
@@ -995,10 +1059,10 @@ TypeArgumentError:
       ConstraintNotSatisfied: UNIT
 TypeOrigin:
   STRUCT:
-  - module_name: STR
-  - struct_name: STR
-  - package:
-      TYPENAME: ObjectID
+    - module_name: STR
+    - datatype_name: STR
+    - package:
+        TYPENAME: ObjectID
 TypeTag:
   ENUM:
     0:
@@ -1060,6 +1124,12 @@ UnchangedSharedKind:
       ReadDeleted:
         NEWTYPE:
           TYPENAME: SequenceNumber
+    3:
+      Cancelled:
+        NEWTYPE:
+          TYPENAME: SequenceNumber
+    4:
+      PerEpochConfig: UNIT
 UpgradeInfo:
   STRUCT:
   - upgraded_id:
