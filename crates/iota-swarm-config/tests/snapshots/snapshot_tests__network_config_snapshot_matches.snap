@@ -99,7 +99,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -107,7 +106,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -115,8 +113,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -244,7 +240,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -252,7 +247,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -260,8 +254,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -389,7 +381,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -397,7 +388,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -405,8 +395,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -534,7 +522,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -542,7 +529,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -550,8 +536,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -679,7 +663,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -687,7 +670,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -695,8 +677,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -824,7 +804,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -832,7 +811,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -840,8 +818,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -969,7 +945,6 @@ validator_configs:
     zklogin-oauth-providers:
       Mainnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -977,7 +952,6 @@ validator_configs:
         - Twitch
       Testnet:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -985,8 +959,6 @@ validator_configs:
         - Twitch
       Unknown:
         - Apple
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
-        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
         - Credenza3
         - Facebook
         - Google
@@ -1025,4 +997,3 @@ account_keys:
   - mfPjCoE6SX0Sl84MnmNS/LS+tfPpkn7I8tziuk2g0WM=
   - 5RWlYF22jS9i76zLl8jP2D3D8GC5ht+IP1dWUBGZxi8=
 genesis: "[fake genesis]"
-
