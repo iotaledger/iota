@@ -3,4 +3,4 @@
 '@iota/dapp-kit': minor
 ---
 
-Deprecate IOTA Nameservice
+Deprecate IOTA Name Service
