@@ -17,13 +17,51 @@ import {
 import { CheckpointsTable, PageLayout } from '~/components';
 import { Banner, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
-import { getEpochStorageFundFlow } from '~/lib/utils';
-import { validatorsTableData } from '../validators/Validators';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
 import cx from 'clsx';
 import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
+import { getEpochStorageFundFlow } from '~/lib/utils';
+import {
+    generateValidatorsTableData,
+    type ValidatorTableColumn,
+} from '~/lib/ui/utils/generateValidatorsTableData';
+
+export const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+    {
+        header: 'Proposed next Epoch gas price',
+        accessorKey: 'nextEpochGasPrice',
+    },
+    {
+        header: 'APY',
+        accessorKey: 'apy',
+    },
+    {
+        header: 'Commission',
+        accessorKey: 'commission',
+    },
+    {
+        header: 'Last Epoch Reward',
+        accessorKey: 'lastReward',
+    },
+    {
+        header: 'Voting Power',
+        accessorKey: 'votingPower',
+    },
+    {
+        header: 'Status',
+        accessorKey: 'atRisk',
+    },
+];
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -52,15 +90,17 @@ export default function EpochDetail() {
     );
 
     const validatorsTable = useMemo(() => {
-        if (!epochData?.validators) return null;
+        if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData(
-            [...epochData.validators].sort(() => 0.5 - Math.random()),
-            [],
-            [],
-            null,
-        );
+        return generateValidatorsTableData({
+            validators: [...epochData.validators].sort(() => 0.5 - Math.random()),
+            atRiskValidators: [],
+            validatorEvents: [],
+            rollingAverageApys: null,
+            columns: VALIDATOR_COLUMNS,
+            showValidatorIcon: true,
+        });
     }, [epochData]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
@@ -178,7 +218,6 @@ export default function EpochDetail() {
                                 <TableCard
                                     data={validatorsTable.data}
                                     columns={validatorsTable.columns}
-                                    sortTable
                                 />
                             ) : null}
                         </div>
