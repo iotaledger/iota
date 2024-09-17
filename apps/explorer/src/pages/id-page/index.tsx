@@ -15,13 +15,14 @@ interface HeaderProps {
 }
 
 function Header({ address }: HeaderProps): JSX.Element {
-    const { data, error: getObjectError } = useGetObject(address!);
+    const { data, isPending, error: getObjectError } = useGetObject(address!);
     const isObject = !!data?.data;
     const errorText = getObjectError?.message;
 
     return (
         <div>
             <PageHeader
+                loading={isPending}
                 error={errorText}
                 type={isObject ? 'Object' : 'Address'}
                 title={address}
