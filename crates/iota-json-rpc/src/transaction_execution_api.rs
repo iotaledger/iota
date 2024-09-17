@@ -77,11 +77,10 @@ impl TransactionExecutionApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         opts: Option<IotaTransactionBlockResponseOptions>,
-        request_type: Option<ExecuteTransactionRequestType>,
     ) -> Result<
         (
+            ExecuteTransactionRequestV3,
             IotaTransactionBlockResponseOptions,
-            ExecuteTransactionRequestType,
             IotaAddress,
             Vec<InputObjectKind>,
             Transaction,

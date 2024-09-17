@@ -23,7 +23,7 @@ use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldName, Field},
+    dynamic_field::DynamicFieldName,
     error::IotaObjectResponseError,
     event::EventID,
 };
@@ -313,7 +313,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     }
 
     #[instrument(skip(self))]
-    async fn subscribe_event(&self, sink: PendingSubscriptionSink, filter: EventFilter) {
+    fn subscribe_event(&self, sink: PendingSubscriptionSink, filter: EventFilter) {
         let permit = self.acquire_subscribe_permit().ok();
         spawn_subscription(
             sink,
@@ -324,11 +324,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         );
     }
 
-    async fn subscribe_transaction(
-        &self,
-        sink: PendingSubscriptionSink,
-        filter: TransactionFilter,
-    ) {
+    fn subscribe_transaction(&self, sink: PendingSubscriptionSink, filter: TransactionFilter) {
         let permit = self.acquire_subscribe_permit().ok();
         spawn_subscription(
             sink,
