@@ -147,6 +147,7 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
         />
     );
 }
+
 interface OwnerCardProps {
     objOwner: ObjectOwner;
 }
