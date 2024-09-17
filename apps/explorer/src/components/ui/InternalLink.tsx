@@ -65,3 +65,4 @@ export const checkpointToLink = createLinkTo('checkpoint', 'digest');
 export const epochToLink = createLinkTo('epoch', 'epoch');
 export const addressToLink = createLinkTo('address', 'address');
 export const checkpointSequenceToLink = createLinkTo('checkpoint', 'sequence');
+export const objectToLink = createLinkTo('object', 'objectId');
