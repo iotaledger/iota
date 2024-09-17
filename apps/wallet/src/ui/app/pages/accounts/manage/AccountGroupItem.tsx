@@ -4,7 +4,6 @@
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useState } from 'react';
 import clsx from 'clsx';
-import { useResolveIotaNSName } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
 import { useNavigate } from 'react-router-dom';
@@ -26,8 +25,7 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
-    const { data: domainName } = useResolveIotaNSName(account?.address);
-    const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+    const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const { unlockAccount, lockAccount } = useUnlockAccount();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
