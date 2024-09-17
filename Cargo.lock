@@ -3081,6 +3081,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "count-min-sketch"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca319fe30d7b68949da20d78b612215708af87157d49665a4545dadcc20fecc7"
+dependencies = [
+ "rand 0.8.5",
+ "siphasher",
+]
+
+[[package]]
 name = "counter"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6426,12 +6436,14 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "async-trait",
+ "axum",
  "bcs",
  "bytes",
  "chrono",
  "clap",
  "consensus-config",
  "consensus-core",
+ "count-min-sketch",
  "criterion",
  "dashmap",
  "diffy",
@@ -6456,6 +6468,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-macros",
  "iota-metrics",
+ "iota-move",
  "iota-move-build",
  "iota-network",
  "iota-network-stack",
@@ -6467,6 +6480,7 @@ dependencies = [
  "iota-transaction-checks",
  "iota-types",
  "itertools 0.10.5",
+ "jsonrpsee",
  "lru 0.10.1",
  "mockall",
  "moka",
@@ -6484,6 +6498,7 @@ dependencies = [
  "narwhal-test-utils",
  "narwhal-types",
  "narwhal-worker",
+ "nonempty",
  "num-bigint 0.4.6",
  "num_cpus",
  "object_store",
@@ -6493,8 +6508,10 @@ dependencies = [
  "pretty_assertions",
  "prometheus",
  "rand 0.8.5",
+ "rayon",
+ "reqwest 0.12.7",
  "roaring",
- "rocksdb",
+ "rstest",
  "scopeguard",
  "serde",
  "serde-reflection",
@@ -8146,6 +8163,7 @@ version = "0.0.0"
 dependencies = [
  "anemo",
  "anyhow",
+ "bcs",
  "fastcrypto",
  "insta",
  "iota-config",
