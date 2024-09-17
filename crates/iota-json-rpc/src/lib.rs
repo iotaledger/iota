@@ -220,7 +220,7 @@ impl JsonRpcServerBuilder {
         self,
         listen_address: SocketAddr,
         custom_runtime: Option<Handle>,
-        server_type: Option<ServerType>,
+        server_type: ServerType,
         cancel: Option<CancellationToken>,
     ) -> Result<ServerHandle, Error> {
         let app = self.to_router(server_type).await?;
@@ -234,10 +234,11 @@ impl JsonRpcServerBuilder {
         let addr = listener.local_addr().map_err(|e| {
             Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
         })?;
+
         let fut = async move {
             axum::serve(listener, app.into_make_service())
                 .await
-                .unwrap()
+                .unwrap();
             if let Some(cancel) = cancel {
                 // Signal that the server is shutting down, so other tasks can clean-up.
                 cancel.cancel();

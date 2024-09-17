@@ -410,7 +410,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
             .map_err(Error::IotaObjectRefFailure)?
             .bcs
             .ok_or_else(|| {
-                Error::DependencyObjectReadFailure(SdkError::DataError(
+                Error::DependencyObjectReadFailure(SdkError::Data(
                     "Bcs field is not found".to_string(),
                 ))
             })?;

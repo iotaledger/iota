@@ -25,7 +25,7 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ReceivingObjectReadResult, ReceivingObjects, TransactionData,
-            TransactionDataAPI, TransactionKind, VersionedProtocolMessage as _,
+            TransactionDataAPI, TransactionKind,
         },
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         IOTA_RANDOMNESS_STATE_OBJECT_ID,
@@ -188,7 +188,6 @@ mod checked {
         gas_override: &[ObjectRef],
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
-        transaction.check_version_supported(protocol_config)?;
         let gas = if gas_override.is_empty() {
             transaction.gas()
         } else {
