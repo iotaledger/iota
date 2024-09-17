@@ -45,7 +45,7 @@ export function TransactionsForAddressTable({
     }
 
     const tableColumns = generateTransactionsTableColumns();
-    console.log("FINISHED RUN")
+    console.log('FINISHED RUN');
     const hasTxns = data?.length > 0;
 
     if (!hasTxns) {
@@ -57,7 +57,7 @@ export function TransactionsForAddressTable({
             </div>
         );
     }
-    console.log("real table", tableColumns)
+    console.log('real table', tableColumns);
 
     return <TableCard data={data} columns={tableColumns} />;
 }

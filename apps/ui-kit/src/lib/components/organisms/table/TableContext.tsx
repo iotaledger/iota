@@ -5,10 +5,6 @@ import { createContext, useCallback, useContext, useState } from 'react';
 
 export interface TableProviderProps {
     /**
-     * Does the table have a checkbox column.
-     */
-    hasCheckboxColumn?: boolean;
-    /**
      * On checkbox change callback.
      */
     onRowCheckboxChange?: (value: boolean, index: number, tableValues: Set<number>) => void;
@@ -23,7 +19,6 @@ export interface TableProviderProps {
 }
 
 type TableContextProps = {
-    hasCheckboxColumn?: boolean;
     onRowCheckboxChange?: (value: boolean, index: number, tableValues: boolean[]) => void;
     isHeaderChecked: boolean;
     toggleHeaderChecked: (checked: boolean) => void;
@@ -38,7 +33,6 @@ export enum TableRowType {
 }
 
 export const TableContext = createContext<TableContextProps>({
-    hasCheckboxColumn: false,
     isHeaderChecked: false,
     toggleHeaderChecked: () => {},
     rowsChecked: new Set(),

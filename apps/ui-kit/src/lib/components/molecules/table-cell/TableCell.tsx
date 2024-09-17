@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { PropsWithChildren } from 'react';
 import cx from 'classnames';
+import { Checkbox } from '../../atoms';
 
 interface TableCellBaseProps {
     /**
@@ -18,8 +19,11 @@ interface TableCellBaseProps {
     isContentCentered?: boolean;
 }
 
-
-export function TableBaseCell({ children, hasLastBorderNoneClass, isContentCentered }: PropsWithChildren<TableCellBaseProps>) {
+export function TableBaseCell({
+    children,
+    hasLastBorderNoneClass,
+    isContentCentered,
+}: PropsWithChildren<TableCellBaseProps>) {
     return (
         <td
             className={cx(
@@ -30,26 +34,31 @@ export function TableBaseCell({ children, hasLastBorderNoneClass, isContentCente
         >
             {children}
         </td>
-    )
+    );
 }
 
 export interface TableCellTextProps {
-    supportingLabel?: string,
-    textColorClass?: string,
-    textSizeClass?: string
+    supportingLabel?: string;
 }
 
-export function TableCellText({ children, supportingLabel, textColorClass, textSizeClass }: PropsWithChildren<TableCellTextProps>) {
+export function TableCellText({
+    children,
+    supportingLabel,
+}: PropsWithChildren<TableCellTextProps>) {
     return (
-        <TableBaseCell>
-            <div className="flex flex-row items-baseline gap-1">
-                <span className={cx(textColorClass, textSizeClass)}>{children}</span>
-                {supportingLabel && (
-                    <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
-                        {supportingLabel}
-                    </span>
-                )}
-            </div>
-        </TableBaseCell>
-    )
+        <div className="flex flex-row items-baseline gap-1">
+            <span>{children}</span>
+            {supportingLabel && (
+                <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
+                    {supportingLabel}
+                </span>
+            )}
+        </div>
+    );
+}
+
+export function TableCellPlaceholder() {
+    return (
+        <div className="h-[1em] w-full animate-shimmer rounded-md bg-placeholderShimmer bg-[length:1000px_100%] dark:bg-placeholderShimmerDark"></div>
+    );
 }

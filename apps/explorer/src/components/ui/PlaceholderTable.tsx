@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 
 import { TableCard } from './TableCard';
+import { TableBaseCell, TableCellPlaceholder } from '@iota/apps-ui-kit';
 
 export interface PlaceholderTableProps {
     rowCount: number;
@@ -18,30 +19,26 @@ export function PlaceholderTable({
     colHeadings,
 }: PlaceholderTableProps): JSX.Element {
     const rowEntry = useMemo(
-        () =>
-            Object.fromEntries(
-                colHeadings.map((header, index) => [
-                    `a${index}`,
-                    0,
-                ]),
-            ),
+        () => Object.fromEntries(colHeadings.map((index) => [`a${index}`, null])),
         [colHeadings, rowHeight],
     );
 
     const loadingTable = useMemo(
         () => ({
             data: new Array(rowCount).fill(rowEntry),
-            columns: colHeadings.map((header, index) => ({
-                header: header,
+            columns: colHeadings.map((header) => ({
+                header,
                 cell: () => {
-                    return <span>loading</span>
-                }
+                    return (
+                        <TableBaseCell isContentCentered>
+                            <TableCellPlaceholder />
+                        </TableBaseCell>
+                    );
+                },
             })),
         }),
         [rowCount, rowEntry, colHeadings],
     );
-
-    console.log("placeholder",loadingTable)
 
     return <TableCard data={loadingTable.data} columns={loadingTable.columns} />;
 }

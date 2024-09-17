@@ -3,71 +3,67 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import {
-    TableCellProps,
-    TableCellType,
-    TableCell,
     TableHeaderCell,
-    BadgeType,
     Table,
     TableBody,
     TableHeader,
-    TableHeaderRow,
-    TableBodyRow,
+    TableRow,
+    TableRowCheckbox,
+    TableCellText,
+    TableActionButton,
 } from '@/lib';
-import { Globe, IotaLogoSmall } from '@iota/ui-icons';
+import { TableRowType } from '@/lib/components/organisms/table/TableContext';
 
-const headersData = [
-    { label: 'Name', columnKey: 2, hasSort: true },
-    { label: 'Age', columnKey: 3, hasSort: true },
-    { label: 'Occupation', columnKey: 4 },
-    { label: 'Email', columnKey: 5 },
-    { label: 'Start Date', columnKey: 6 },
-    { label: 'End Date', columnKey: 7 },
+const HEADERS = [
+    {
+        label: 'Name',
+        columnKey: 2,
+        hasSort: true,
+        cell: ({ text }: { text: string }) => <TableCellText>{text}</TableCellText>,
+    },
+    {
+        label: 'Age',
+        columnKey: 3,
+        hasSort: true,
+        cell: ({ text }: { text: string }) => <TableCellText>{text}</TableCellText>,
+    },
+    {
+        label: 'Occupation',
+        columnKey: 4,
+        cell: ({ text }: { text: string }) => <TableCellText>{text}</TableCellText>,
+    },
+    {
+        label: 'Email',
+        columnKey: 5,
+        cell: ({ text }: { text: string }) => <TableCellText>{text}</TableCellText>,
+    },
+    {
+        label: 'Start Date',
+        columnKey: 6,
+        cell: ({ text }: { text: string }) => <TableCellText>{text}</TableCellText>,
+    },
+    {
+        label: 'End Date',
+        columnKey: 7,
+        cell: ({ text }: { text: string }) => <TableCellText>{text}</TableCellText>,
+    },
 ];
 
-const rowsData: TableCellProps[][] = [
-    [
-        {
-            type: TableCellType.AvatarText,
-            leadingElement: <IotaLogoSmall />,
-            label: 'John Doe',
-        },
-        { type: TableCellType.Badge, badgeType: BadgeType.PrimarySolid, label: '30' },
-        { type: TableCellType.Text, label: 'Software Engineer' },
-        { type: TableCellType.TextToCopy, label: 'test@acme.com', textToCopy: 'test@acme.com' },
-        { type: TableCellType.Text, label: '10.04.2016' },
-        { type: TableCellType.Text, label: '12.03.2019' },
-    ],
-    [
-        { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Jane Smith' },
-        { type: TableCellType.Badge, badgeType: BadgeType.Neutral, label: '25' },
-        { type: TableCellType.Text, label: 'Graphic Designer' },
-        { type: TableCellType.TextToCopy, label: 'test@acme.com', textToCopy: 'test@acme.com' },
-        { type: TableCellType.Text, label: '10.04.2016' },
-        { type: TableCellType.Text, label: '12.03.2019' },
-    ],
-    [
-        { type: TableCellType.Placeholder },
-        { type: TableCellType.Placeholder },
-        { type: TableCellType.Placeholder },
-        { type: TableCellType.Placeholder },
-        { type: TableCellType.Placeholder },
-        { type: TableCellType.Placeholder },
-    ],
-    [
-        { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Sam Johnson' },
-        { type: TableCellType.Badge, badgeType: BadgeType.PrimarySoft, label: '40' },
-        { type: TableCellType.Text, label: 'Project Manager' },
-        { type: TableCellType.TextToCopy, label: 'test@acme.com', textToCopy: 'test@acme.com' },
-        { type: TableCellType.Text, label: '10.04.2016' },
-        { type: TableCellType.Text, label: '12.03.2019' },
-    ],
+const DATA = [
+    {
+        name: 'Jon Doe',
+        age: 30,
+        occupation: 'Software Engineer',
+        email: 'test@acme.com',
+        startDate: '10.04.2016',
+        endDate: '12.03.2019',
+    },
 ];
+
 const meta = {
     component: Table,
     tags: ['autodocs'],
     args: {
-        hasCheckboxColumn: true,
         onRowCheckboxChange: (value, index, values) =>
             console.log(
                 'Checked checkbox at index:',
@@ -85,19 +81,32 @@ const meta = {
             <div className="container mx-auto p-4">
                 <Table {...props}>
                     <TableHeader>
-                        <TableHeaderRow>
-                            {headersData.map((header, index) => (
+                        <TableRow>
+                            {HEADERS.map((header, index) => (
                                 <TableHeaderCell key={index} {...header} />
                             ))}
-                        </TableHeaderRow>
+                        </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {rowsData.map((row, rowIndex) => (
-                            <TableBodyRow key={rowIndex} rowIndex={rowIndex}>
-                                {row.map((cell, cellIndex) => (
-                                    <TableCell key={cellIndex} {...cell} />
-                                ))}
-                            </TableBodyRow>
+                        {DATA.map((row, rowIndex) => (
+                            <TableRow
+                                key={rowIndex}
+                                leading={
+                                    <TableRowCheckbox
+                                        rowIndex={rowIndex}
+                                        type={TableRowType.Body}
+                                    />
+                                }
+                            >
+                                {Object.entries(row).map((cell, columnIndex) => {
+                                    const Cell = HEADERS[columnIndex].cell;
+                                    return (
+                                        <td key={columnIndex}>
+                                            <Cell text={cell[1].toString()} />
+                                        </td>
+                                    );
+                                })}
+                            </TableRow>
                         ))}
                     </TableBody>
                 </Table>
@@ -119,8 +128,7 @@ export const Default: Story = {
             hasFirst: true,
             hasNext: false,
         },
-        actionLabel: 'Action',
-        hasCheckboxColumn: true,
+        action: <TableActionButton text="Action" />,
         rowIndexes: [0, 1, 2],
     },
 };

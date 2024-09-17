@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTotalGasUsed } from '@iota/core';
-import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { IotaTransactionBlockKind, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { TableCellText } from '@iota/apps-ui-kit';
+import { TableBaseCell, TableCellText } from '@iota/apps-ui-kit';
 import { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, ObjectLink } from '../ui';
 
@@ -15,74 +15,76 @@ import { AddressLink, ObjectLink } from '../ui';
 export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlockResponse>[] {
     return [
         {
-            header: 'Date',
-            accessorKey: "timestampMs",
-            cell: ({ getValue }) => {
-                const timestampMs = getValue();
-                return (
-                    <TableCellText>
-                        {timestampMs?.toString()}
-                    </TableCellText>
-                )
-            }
-        },
-        {
             header: 'Digest',
             accessorKey: 'digest',
             cell: ({ getValue }) => {
                 const digest = getValue<string>();
                 return (
-                    <ObjectLink objectId={digest} label={
-                        <TableCellText>
-                            {digest}
-                        </TableCellText>
-                    }/>
-                )
-            }
+                    <TableBaseCell>
+                        <ObjectLink
+                            objectId={digest}
+                            label={<TableCellText>{digest}</TableCellText>}
+                        />
+                    </TableBaseCell>
+                );
+            },
         },
         {
             header: 'Sender',
-            accessorKey: 'transaction',
+            accessorKey: 'transaction.data.sender',
             cell: ({ getValue }) => {
-                const transaction = getValue<IotaTransactionBlockResponse["transaction"]>();
-                const address = transaction?.data.sender.toString() || '';
+                const address = getValue<string>();
                 return (
-                    <AddressLink address={address} label={
-                        <TableCellText>
-                            {address}
-                        </TableCellText>
-                    }/>
-                )
-            }
+                    <TableBaseCell>
+                        <AddressLink
+                            address={address}
+                            label={<TableCellText>{address}</TableCellText>}
+                        />
+                    </TableBaseCell>
+                );
+            },
         },
         {
             header: 'Txns',
-            accessorKey: 'transaction',
+            accessorKey: 'transaction.data.transaction',
             cell: ({ getValue }) => {
-                const transaction = getValue<IotaTransactionBlockResponse["transaction"]>();
+                const transaction = getValue<IotaTransactionBlockKind>();
+                const txns =
+                    transaction.kind === 'ProgrammableTransaction'
+                        ? transaction.transactions.length.toString()
+                        : '--';
                 return (
-                    <TableCellText>
-                        {transaction?.data.transaction.kind === 'ProgrammableTransaction'
-                            ? transaction.data.transaction.transactions.length.toString()
-                            : '--'}
-                    </TableCellText>
-                )
-            }
+                    <TableBaseCell>
+                        <TableCellText>{txns}</TableCellText>
+                    </TableBaseCell>
+                );
+            },
         },
         {
             header: 'Gas',
             accessorKey: 'effects',
             cell: ({ getValue }) => {
-                const effects = getValue<IotaTransactionBlockResponse["effects"]>();
+                const effects = getValue<IotaTransactionBlockResponse['effects']>();
                 return (
-                    <TableCellText>
-                        {effects
-                        ? getTotalGasUsed(effects)?.toString()
-                        : '0'}
-                    </TableCellText>
-                )
-            }
+                    <TableBaseCell>
+                        <TableCellText>
+                            {effects ? getTotalGasUsed(effects)?.toString() : '0'}
+                        </TableCellText>
+                    </TableBaseCell>
+                );
+            },
+        },
+        {
+            header: 'Time',
+            accessorKey: 'timestampMs',
+            cell: ({ getValue }) => {
+                const timestampMs = getValue();
+                return (
+                    <TableBaseCell>
+                        <TableCellText>{timestampMs?.toString() ?? '--'}</TableCellText>
+                    </TableBaseCell>
+                );
+            },
         },
     ];
 }
-

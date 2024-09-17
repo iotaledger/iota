@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
-import { generateEpochTableColumns } from '~/lib/ui';
+import { generateEpochsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
 
 const DEFAULT_EPOCHS_LIMIT = 20;
@@ -39,7 +39,7 @@ export function EpochsActivityTable({
     const { data, isFetching, pagination, isPending, isError } =
         useCursorPagination(epochMetricsQuery);
 
-    const tableColumns = generateEpochTableColumns();
+    const tableColumns = generateEpochsTableColumns();
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">
