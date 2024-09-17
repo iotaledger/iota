@@ -23,7 +23,6 @@ docker run -d --name postgres \
  -p 5432:5432 \
  postgres:15 \
  -c max_connections=1000
->>>>>>> slipstream/develop-v1.32.2
 ```
 
 # Running Locally
