@@ -15,9 +15,16 @@ concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+
 jobs:
   rustfmt:
-    if: always() && inputs.isRust
+    if: |
+      !cancelled() && inputs.isRust
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -27,7 +34,8 @@ jobs:
         run: cargo +nightly ci-fmt
 
   cargo-deny:
-    if: always() && inputs.isRust
+    if: |
+      !cancelled() && inputs.isRust
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: [self-hosted]
     steps:
@@ -39,7 +47,8 @@ jobs:
           use-git-cli: true
 
   clippy:
-    if: always() && inputs.isRust
+    if: |
+      !cancelled() && success('rustfmt', 'cargo-deny') && inputs.isRust
     needs:
       - rustfmt
       - cargo-deny

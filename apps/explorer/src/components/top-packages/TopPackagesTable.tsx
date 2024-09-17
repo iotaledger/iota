@@ -2,44 +2,39 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { TableCellType } from '@iota/apps-ui-kit';
 import { type MoveCallMetric } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
 import { useMemo } from 'react';
 
-import { ObjectLink, PlaceholderTable, TableCard } from '~/components/ui';
+import { createLinkTo, objectToLink, PlaceholderTable, TableCard } from '~/components/ui';
 
 interface TopPackagesTableProps {
     data: MoveCallMetric[];
     isLoading: boolean;
 }
 
-function TxnCountHeader(): JSX.Element {
-    return (
-        <div className="w-full text-right">
-            <Text variant="bodySmall/medium">Transactions</Text>
-        </div>
-    );
-}
-
 export function TopPackagesTable({ data, isLoading }: TopPackagesTableProps) {
     const tableData = useMemo(
         () => ({
             data: data?.map(([item, count]) => ({
-                module: (
-                    <ObjectLink
-                        label={item.module}
-                        objectId={`${item.package}?module=${item.module}`}
-                    />
-                ),
-                function: <Text variant="bodySmall/medium">{item.function}</Text>,
-                package: <ObjectLink objectId={item.package} />,
-                count: (
-                    <div className="text-right">
-                        <Text mono variant="body/medium">
-                            {Number(count).toLocaleString()}
-                        </Text>
-                    </div>
-                ),
+                module: {
+                    type: TableCellType.Link,
+                    label: item.module,
+                    to: createLinkTo(item.package, 'module')({ module: item.module }),
+                },
+                function: {
+                    type: TableCellType.Text,
+                    label: item.function,
+                },
+                package: {
+                    type: TableCellType.Link,
+                    label: item.package,
+                    to: objectToLink({ objectId: item.package }),
+                },
+                count: {
+                    type: TableCellType.Text,
+                    label: Number(count).toLocaleString(),
+                },
             })),
             columns: [
                 {
@@ -55,7 +50,7 @@ export function TopPackagesTable({ data, isLoading }: TopPackagesTableProps) {
                     accessorKey: 'function',
                 },
                 {
-                    header: TxnCountHeader,
+                    header: 'Transactions',
                     accessorKey: 'count',
                 },
             ],
@@ -69,7 +64,6 @@ export function TopPackagesTable({ data, isLoading }: TopPackagesTableProps) {
                 colHeadings={['Module', 'Function', 'Package ID', 'Count']}
                 rowCount={10}
                 rowHeight="15px"
-                colWidths={['100px', '120px', '40px', '204px']}
             />
         );
     }

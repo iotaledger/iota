@@ -24,11 +24,9 @@ export * from './transactions';
 export * from './tx-time';
 export * from './ui';
 export * from './validator';
-export * from './validator-map';
 
 export * from './AddressesCardGraph';
 export * from './AreaGraph';
 export * from './GraphTooltipContent';
-export * from './Icon';
 export * from './IotaTokenCard';
 export * from './TransactionsCardGraph';

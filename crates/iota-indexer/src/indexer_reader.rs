@@ -15,9 +15,10 @@ use diesel::{
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
-    Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo, EventFilter,
-    IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, TransactionFilter,
+    AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
+    EventFilter, IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, MoveCallMetrics,
+    MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_types::{
     balance::Supply,
@@ -39,17 +40,21 @@ use crate::{
     db::{PgConnectionConfig, PgConnectionPoolConfig, PgPoolConnection},
     errors::IndexerError,
     models::{
+        address_metrics::StoredAddressMetrics,
         checkpoints::StoredCheckpoint,
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
+        move_call_metrics::QueriedMoveCallMetrics,
+        network_metrics::StoredNetworkMetrics,
         objects::{CoinBalance, ObjectRefColumn, StoredObject},
         packages::StoredPackage,
         transactions::StoredTransaction,
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        checkpoints, display, epochs, events, objects, objects_snapshot, packages, transactions,
+        address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
+        objects_snapshot, packages, transactions,
     },
     types::{IndexerResult, OwnerType},
 };
@@ -536,7 +541,9 @@ impl IndexerReader {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        stored_txn.try_into_iota_transaction_effects()
+        stored_txn
+            .set_genesis_large_object_as_inner_data(&self.pool)?
+            .try_into_iota_transaction_effects()
     }
 
     fn get_transaction_effects_with_sequence_number(
@@ -549,7 +556,9 @@ impl IndexerReader {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        stored_txn.try_into_iota_transaction_effects()
+        stored_txn
+            .set_genesis_large_object_as_inner_data(&self.pool)?
+            .try_into_iota_transaction_effects()
     }
 
     fn multi_get_transactions(
@@ -560,13 +569,22 @@ impl IndexerReader {
             .iter()
             .map(|digest| digest.inner().to_vec())
             .collect::<Vec<_>>();
+
         self.run_query(|conn| {
             transactions::table
                 .filter(transactions::transaction_digest.eq_any(digests))
                 .load::<StoredTransaction>(conn)
         })
+        .and_then(|transactions| {
+            transactions
+                .into_iter()
+                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                .collect()
+        })
     }
 
+    /// This method tries to transfroms [`StoredTransaction`] values
+    /// into transaction blocks, without any other modification.
     fn stored_transaction_to_transaction_block(
         &self,
         stored_txes: Vec<StoredTransaction>,
@@ -575,7 +593,7 @@ impl IndexerReader {
         stored_txes
             .into_iter()
             .map(|stored_tx| stored_tx.try_into_iota_transaction_block_response(&options, self))
-            .collect::<IndexerResult<Vec<_>>>()
+            .collect()
     }
 
     fn multi_get_transactions_with_sequence_numbers(
@@ -597,6 +615,12 @@ impl IndexerReader {
             None => (),
         }
         self.run_query(|conn| query.load::<StoredTransaction>(conn))
+            .and_then(|transactions| {
+                transactions
+                    .into_iter()
+                    .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                    .collect()
+            })
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -763,8 +787,14 @@ impl IndexerReader {
             query = query.order(transactions::dsl::tx_sequence_number.asc());
         }
 
-        let stored_txes =
-            self.run_query(|conn| query.limit((limit) as i64).load::<StoredTransaction>(conn))?;
+        let stored_txes = self
+            .run_query(|conn| query.limit((limit) as i64).load::<StoredTransaction>(conn))
+            .and_then(|transactions| {
+                transactions
+                    .into_iter()
+                    .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                    .collect()
+            })?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
     }
@@ -1512,6 +1542,119 @@ impl IndexerReader {
             .into_iter()
             .map(|cb| cb.try_into())
             .collect::<IndexerResult<Vec<_>>>()
+    }
+
+    pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
+        let metrics = self.run_query(|conn| {
+            diesel::sql_query("SELECT * FROM network_metrics;")
+                .get_result::<StoredNetworkMetrics>(conn)
+        })?;
+        Ok(metrics.into())
+    }
+
+    pub fn get_latest_move_call_metrics(&self) -> IndexerResult<MoveCallMetrics> {
+        let latest_3d_move_call_metrics = self.run_query(|conn| {
+            move_call_metrics::table
+                .filter(move_call_metrics::dsl::day.eq(3))
+                .order(move_call_metrics::dsl::id.desc())
+                .limit(10)
+                .load::<QueriedMoveCallMetrics>(conn)
+        })?;
+        let latest_7d_move_call_metrics = self.run_query(|conn| {
+            move_call_metrics::table
+                .filter(move_call_metrics::dsl::day.eq(7))
+                .order(move_call_metrics::dsl::id.desc())
+                .limit(10)
+                .load::<QueriedMoveCallMetrics>(conn)
+        })?;
+        let latest_30d_move_call_metrics = self.run_query(|conn| {
+            move_call_metrics::table
+                .filter(move_call_metrics::dsl::day.eq(30))
+                .order(move_call_metrics::dsl::id.desc())
+                .limit(10)
+                .load::<QueriedMoveCallMetrics>(conn)
+        })?;
+
+        let latest_3_days: Vec<(MoveFunctionName, usize)> = latest_3d_move_call_metrics
+            .into_iter()
+            .map(|m| m.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+        let latest_7_days: Vec<(MoveFunctionName, usize)> = latest_7d_move_call_metrics
+            .into_iter()
+            .map(|m| m.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+        let latest_30_days: Vec<(MoveFunctionName, usize)> = latest_30d_move_call_metrics
+            .into_iter()
+            .map(|m| m.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+        // sort by call count desc.
+        let rank_3_days = latest_3_days
+            .into_iter()
+            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .collect::<Vec<_>>();
+        let rank_7_days = latest_7_days
+            .into_iter()
+            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .collect::<Vec<_>>();
+        let rank_30_days = latest_30_days
+            .into_iter()
+            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .collect::<Vec<_>>();
+        Ok(MoveCallMetrics {
+            rank_3_days,
+            rank_7_days,
+            rank_30_days,
+        })
+    }
+
+    pub fn get_latest_address_metrics(&self) -> IndexerResult<AddressMetrics> {
+        let stored_address_metrics = self.run_query(|conn| {
+            address_metrics::table
+                .order(address_metrics::dsl::checkpoint.desc())
+                .first::<StoredAddressMetrics>(conn)
+        })?;
+        Ok(stored_address_metrics.into())
+    }
+
+    pub fn get_checkpoint_address_metrics(
+        &self,
+        checkpoint_seq: u64,
+    ) -> IndexerResult<AddressMetrics> {
+        let stored_address_metrics = self.run_query(|conn| {
+            address_metrics::table
+                .filter(address_metrics::dsl::checkpoint.eq(checkpoint_seq as i64))
+                .first::<StoredAddressMetrics>(conn)
+        })?;
+        Ok(stored_address_metrics.into())
+    }
+
+    pub fn get_all_epoch_address_metrics(
+        &self,
+        descending_order: Option<bool>,
+    ) -> IndexerResult<Vec<AddressMetrics>> {
+        let is_descending = descending_order.unwrap_or_default();
+        let epoch_address_metrics_query = format!(
+            "WITH ranked_rows AS (
+                SELECT
+                  checkpoint, epoch, timestamp_ms, cumulative_addresses, cumulative_active_addresses, daily_active_addresses,
+                  row_number() OVER(PARTITION BY epoch ORDER BY checkpoint DESC) as row_num
+                FROM
+                  address_metrics
+              )
+              SELECT
+                checkpoint, epoch, timestamp_ms, cumulative_addresses, cumulative_active_addresses, daily_active_addresses
+              FROM ranked_rows
+              WHERE row_num = 1 ORDER BY epoch {}",
+            if is_descending { "DESC" } else { "ASC" },
+        );
+        let epoch_address_metrics = self.run_query(|conn| {
+            diesel::sql_query(epoch_address_metrics_query).load::<StoredAddressMetrics>(conn)
+        })?;
+
+        Ok(epoch_address_metrics
+            .into_iter()
+            .map(|stored_address_metrics| stored_address_metrics.into())
+            .collect())
     }
 
     pub(crate) async fn get_display_fields(

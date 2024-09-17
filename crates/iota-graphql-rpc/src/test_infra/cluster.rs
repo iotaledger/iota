@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
+pub use iota_indexer::processors::objects_snapshot_processor::SnapshotLagConfig;
 use iota_indexer::{
     errors::IndexerError,
     store::{indexer_store::IndexerStore, PgIndexerStore},

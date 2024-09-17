@@ -38,7 +38,7 @@ interface FallBackAvatarProps {
 
 function FallBackAvatar({ fallback }: FallBackAvatarProps): JSX.Element {
     return (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-r from-gradient-blue-start to-gradient-blue-end">
+        <div className="flex h-full w-full items-center justify-center bg-neutral-80">
             {fallback?.slice(0, 2)}
         </div>
     );

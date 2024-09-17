@@ -11,7 +11,7 @@ import {
     TEXT_COLOR,
     FOCUS_CLASSES,
 } from './chip.classes';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { ButtonUnstyled } from '../../atoms/button';
 import { Close } from '@iota/ui-icons';
 
 interface ChipProps {
@@ -32,19 +32,37 @@ interface ChipProps {
      */
     onClose?: () => void;
     /**
+     * On Click handler for the chip
+     */
+    onClick?: () => void;
+    /**
      * Avatar to show in the chip.
      */
     avatar?: React.JSX.Element;
     /**
-     * Icon to show in the chip.
+     * Leading element to show in the chip.
      */
-    icon?: React.JSX.Element;
+    leadingElement?: React.JSX.Element;
+    /**
+     * Trailing element to show in the chip.
+     */
+    trailingElement?: React.JSX.Element;
 }
 
-export function Chip({ label, showClose, selected, onClose, avatar, icon }: ChipProps) {
+export function Chip({
+    label,
+    showClose,
+    selected,
+    onClose,
+    onClick,
+    avatar,
+    leadingElement,
+    trailingElement,
+}: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
         <ButtonUnstyled
+            onClick={onClick}
             className={cx(
                 'border',
                 ROUNDED_CLASS,
@@ -57,15 +75,16 @@ export function Chip({ label, showClose, selected, onClose, avatar, icon }: Chip
                 className={cx(
                     'flex h-full w-full flex-row items-center gap-x-2',
                     avatar ? 'py-xxs' : 'py-[6px]',
-                    avatar ? 'pl-xxs' : icon ? 'pl-xs' : 'pl-sm',
+                    avatar ? 'pl-xxs' : leadingElement ? 'pl-xs' : 'pl-sm',
                     ROUNDED_CLASS,
                     STATE_LAYER_CLASSES,
                     showClose ? 'pr-xs' : 'pr-sm',
                     TEXT_COLOR[chipState],
                 )}
             >
-                {avatar ?? icon}
+                {avatar ?? leadingElement}
                 <span className="text-body-md">{label}</span>
+                {trailingElement}
                 {showClose && (
                     <ButtonUnstyled
                         onClick={onClose}
