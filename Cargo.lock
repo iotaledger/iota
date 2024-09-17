@@ -7991,6 +7991,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-service"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "axum",
+ "iota-metrics",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "simple-server-timing-header",
+ "telemetry-subscribers",
+ "tokio",
+ "tower",
+ "tracing",
+]
+
+[[package]]
 name = "iota-simulator"
 version = "0.7.0"
 dependencies = [
