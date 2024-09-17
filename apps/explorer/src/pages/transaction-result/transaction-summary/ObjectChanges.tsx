@@ -47,39 +47,36 @@ enum ItemLabel {
 const DEFAULT_ITEMS_TO_SHOW = 5;
 
 function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Element | null {
-    function getValueText() {
+    function getValueData() {
         switch (label) {
             case ItemLabel.Package:
-                return packageId ? formatAddress(packageId) : '';
+                return {
+                    text: packageId ? formatAddress(packageId) : '',
+                    link: packageId ? `/object/${packageId}` : undefined,
+                };
             case ItemLabel.Module:
-                return moduleName || '';
+                return {
+                    text: moduleName || '',
+                    link:
+                        packageId && moduleName
+                            ? `/object/${packageId}?module=${moduleName}`
+                            : undefined,
+                };
             case ItemLabel.Type:
-                return typeName || '';
+                return {
+                    text: typeName || '',
+                    link: undefined,
+                };
             default:
-                return '';
+                return {
+                    text: '',
+                    link: undefined,
+                };
         }
     }
+    const { text: valueText, link: valueLink } = getValueData();
 
-    function getValueLink() {
-        switch (label) {
-            case ItemLabel.Package:
-                return `/object/${packageId}`;
-            case ItemLabel.Module:
-                return `/object/${packageId}?module=${moduleName}`;
-            case ItemLabel.Type:
-                return undefined;
-            default:
-                return undefined;
-        }
-    }
-    return (
-        <KeyValueInfo
-            keyText={label}
-            valueText={getValueText()}
-            valueLink={getValueLink()}
-            fullwidth
-        />
-    );
+    return <KeyValueInfo keyText={label} valueText={valueText} valueLink={valueLink} fullwidth />;
 }
 
 interface ObjectDetailPanelProps {
