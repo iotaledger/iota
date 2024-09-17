@@ -24,10 +24,7 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
 import { useState } from 'react';
-import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
-import { Link } from 'react-router-dom';
 import { TriangleDown } from '@iota/ui-icons';
 
 interface ObjectDetailProps {

@@ -4,13 +4,10 @@
 
 import { ExternalLink } from '_components';
 import { ArrowUpRight16 } from '@iota/icons';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import type { ReactNode } from 'react';
 
 import { useExplorerLink, type ExplorerLinkConfig } from '../../hooks/useExplorerLink';
-import { Text } from '../../shared/text';
 import st from './ExplorerLink.module.scss';
-import { ExplorerLinkType } from './ExplorerLinkType';
 
 export type ExplorerLinkProps = ExplorerLinkConfig & {
     track?: boolean;

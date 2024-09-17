@@ -6,7 +6,6 @@ import { useFormatCoin, type GasSummaryType } from '@iota/core';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { KeyValueInfo } from '@iota/apps-ui-kit';
-import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
 
@@ -21,7 +20,6 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
     const activeAddress = useActiveAddress();
     const address = sender || activeAddress;
     const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, IOTA_TYPE_ARG);
-    const gasOwnerLink = useAddressLink(gasSummary?.owner || null);
 
     const gasValueText = isPending
         ? 'Estimating...'

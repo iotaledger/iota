@@ -14,7 +14,6 @@ import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { truncateString } from '_src/ui/app/helpers';
-import { Fragment } from 'react/jsx-dev-runtime';
 
 type NftFields = {
     metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
