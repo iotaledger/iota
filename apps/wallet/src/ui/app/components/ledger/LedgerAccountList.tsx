@@ -5,12 +5,11 @@
 import {
     Table,
     TableBody,
-    TableBodyRow,
-    TableCell,
-    TableCellType,
+    TableCellBase,
+    TableCellText,
     TableHeader,
     TableHeaderCell,
-    TableHeaderRow,
+    TableRow,
 } from '@iota/apps-ui-kit';
 import { type DerivedLedgerAccount } from './useDeriveLedgerAccounts';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -51,7 +50,6 @@ export function LedgerAccountList({ accounts, onAccountClick, selectAll }: Ledge
 
     return (
         <Table
-            hasCheckboxColumn={true}
             onRowCheckboxChange={(_, index) => {
                 onAccountClick(accounts[index]);
             }}
@@ -59,19 +57,21 @@ export function LedgerAccountList({ accounts, onAccountClick, selectAll }: Ledge
             rowIndexes={rowsData.map((_, i) => i)}
         >
             <TableHeader>
-                <TableHeaderRow>
+                <TableRow>
                     {headersData.map((header, index) => (
                         <TableHeaderCell key={index} {...header} />
                     ))}
-                </TableHeaderRow>
+                </TableRow>
             </TableHeader>
             <TableBody>
                 {rowsData.map((row, rowIndex) => (
-                    <TableBodyRow key={rowIndex} rowIndex={rowIndex}>
+                    <TableRow key={rowIndex}>
                         {row.map((cell, cellIndex) => (
-                            <TableCell key={cellIndex} type={TableCellType.Text} {...cell} />
+                            <TableCellBase key={cellIndex}>
+                                <TableCellText>{cell.label}</TableCellText>
+                            </TableCellBase>
                         ))}
-                    </TableBodyRow>
+                    </TableRow>
                 ))}
             </TableBody>
         </Table>

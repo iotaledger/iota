@@ -10,7 +10,6 @@ import {
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { ObjectFilterValue } from '~/lib/enums';
-import { generateTransactionsTableColumns } from '../transactions/generateTransactionsTableColumns';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -19,6 +18,7 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
+import { generateTransactionsTableColumns } from '../transactions/generateTransactionsTableColumns';
 
 type TransactionBlocksForAddressProps = {
     address: string;

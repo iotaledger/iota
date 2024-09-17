@@ -4,7 +4,7 @@
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Collapsible } from '_app/shared/collapse';
-import { ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
+import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
@@ -62,10 +62,6 @@ function NFTDetailsPage() {
             'AddressOwner' in objectData.owner &&
             objectData.owner.AddressOwner) ||
         '';
-    const ownerExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.Address,
-        address: ownerAddress,
-    });
     const isGuardLoading = useUnlockedGuard();
     const isPending = isNftLoading || isPendingDisplay || isGuardLoading;
 
@@ -163,12 +159,16 @@ function NFTDetailsPage() {
                                         <Collapsible defaultOpen title="Details">
                                             <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                                 {ownerAddress && (
-                                                    <KeyValueInfo
-                                                        keyText="Owner"
-                                                        valueText={formatAddress(ownerAddress)}
-                                                        valueLink={ownerExplorerLink || ''}
-                                                        fullwidth
-                                                    />
+                                                    <ExplorerLink
+                                                        type={ExplorerLinkType.Address}
+                                                        address={ownerAddress}
+                                                    >
+                                                        <KeyValueInfo
+                                                            keyText="Owner"
+                                                            valueText={formatAddress(ownerAddress)}
+                                                            fullwidth
+                                                        />
+                                                    </ExplorerLink>
                                                 )}
                                                 {nftId && (
                                                     <KeyValueInfo
