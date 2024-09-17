@@ -2,32 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-
+import type { ComponentProps } from 'react';
 import { useCurrentAccount } from '../hooks/wallet/useCurrentAccount.js';
 import { AccountDropdownMenu } from './AccountDropdownMenu.js';
 import { ConnectModal } from './connect-modal/ConnectModal.js';
-import { StyleMarker } from './styling/StyleMarker.js';
-import { Button } from './ui/Button.js';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
 
-type ConnectButtonProps = {
-    connectText?: ReactNode;
-} & ButtonHTMLAttributes<HTMLButtonElement>;
+type ConnectButtonProps = ComponentProps<typeof Button>;
 
 export function ConnectButton({
-    connectText = 'Connect Wallet',
+    text = 'Connect Wallet',
+    type = ButtonType.Primary,
     ...buttonProps
 }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
     return currentAccount ? (
         <AccountDropdownMenu currentAccount={currentAccount} />
     ) : (
-        <ConnectModal
-            trigger={
-                <StyleMarker>
-                    <Button {...buttonProps}>{connectText}</Button>
-                </StyleMarker>
-            }
-        />
+        <ConnectModal trigger={<Button text={text} type={type} {...buttonProps} />} />
     );
 }
