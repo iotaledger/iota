@@ -9,6 +9,7 @@ import { SecondaryText } from '../../atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
 import { ButtonUnstyled } from '../../atoms/button';
 import { ListItem } from '../../atoms';
+import { DropdownPosition } from '../dropdown';
 
 export type SelectOption =
     | string
@@ -56,6 +57,10 @@ interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled
      * The callback to call when the option is clicked.
      */
     onOptionClick?: (id: string) => void;
+    /**
+     * The dropdown position
+     */
+    dropdownPosition?: DropdownPosition;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -72,6 +77,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             onValueChange,
             onOptionClick,
             value,
+            dropdownPosition = DropdownPosition.Bottom,
         },
         ref,
     ) => {
@@ -164,8 +170,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         />
                     )}
                     <div
-                        className={cx('absolute top-full z-50 min-w-full', {
+                        className={cx('absolute z-50 min-w-full', {
                             hidden: !isOpen,
+                            'top-full':
+                                !dropdownPosition || dropdownPosition === DropdownPosition.Bottom,
+                            'bottom-full': dropdownPosition === DropdownPosition.Top,
                         })}
                     >
                         <Dropdown>
