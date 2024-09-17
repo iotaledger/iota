@@ -186,7 +186,7 @@ async fn bullshark_randomised_tests() {
                 let handle = tokio::spawn(async move {
                     // Create a randomized DAG
                     let (certificates, committee) =
-                        generate_randomised_dag(committee_size, dag_rounds, run_id, mode, &config);
+                        generate_randomised_dag(committee_size, dag_rounds, run_id, mode);
 
                     // Now provide the DAG to create execution plans, run them via consensus
                     // and compare output against each other to ensure they are the same.
@@ -231,24 +231,13 @@ fn test_determinism() {
         slow_nodes_failure_probability: 0.5,
         minimum_committee_size: None,
     };
-    let protocol_config = latest_protocol_version();
 
     for seed in 0..=10 {
         // Compare the creation of DAG & committee
-        let (dag_1, committee_1) = generate_randomised_dag(
-            committee_size,
-            number_of_rounds,
-            seed,
-            failure_modes,
-            &protocol_config,
-        );
-        let (dag_2, committee_2) = generate_randomised_dag(
-            committee_size,
-            number_of_rounds,
-            seed,
-            failure_modes,
-            &protocol_config,
-        );
+        let (dag_1, committee_1) =
+            generate_randomised_dag(committee_size, number_of_rounds, seed, failure_modes);
+        let (dag_2, committee_2) =
+            generate_randomised_dag(committee_size, number_of_rounds, seed, failure_modes);
 
         assert_eq!(committee_1, committee_2);
         assert_eq!(dag_1, dag_2);
@@ -275,7 +264,6 @@ fn generate_randomised_dag(
     number_of_rounds: Round,
     seed: u64,
     modes: FailureModes,
-    protocol_config: &ProtocolConfig,
 ) -> (VecDeque<Certificate>, Committee) {
     // Create an RNG to share for the committee creation
     let rand = StdRng::seed_from_u64(seed);
@@ -285,17 +273,11 @@ fn generate_randomised_dag(
         .rng(rand)
         .build();
     let committee: Committee = fixture.committee();
-    let genesis = Certificate::genesis(&latest_protocol_version(), &committee);
+    let genesis = Certificate::genesis(&committee);
 
     // Create a known DAG
-    let (original_certificates, _last_round) = make_certificates_with_parameters(
-        seed,
-        &committee,
-        1..=number_of_rounds,
-        genesis,
-        modes,
-        protocol_config,
-    );
+    let (original_certificates, _last_round) =
+        make_certificates_with_parameters(seed, &committee, 1..=number_of_rounds, genesis, modes);
 
     (original_certificates, committee)
 }
@@ -312,7 +294,6 @@ pub fn make_certificates_with_parameters(
     range: RangeInclusive<Round>,
     initial_parents: Vec<Certificate>,
     modes: FailureModes,
-    protocol_config: &ProtocolConfig,
 ) -> (VecDeque<Certificate>, Vec<Certificate>) {
     let mut rand = StdRng::seed_from_u64(seed);
 
@@ -452,7 +433,6 @@ pub fn make_certificates_with_parameters(
             // Now create the certificate with the provided parents
             let (_, certificate) = mock_certificate_with_rand(
                 committee,
-                protocol_config,
                 authority.id(),
                 round,
                 parents_digests.clone(),

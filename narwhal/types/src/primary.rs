@@ -23,7 +23,6 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
-use iota_protocol_config::ProtocolConfig;
 use iota_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
@@ -100,7 +99,7 @@ pub enum VersionedMetadata {
 }
 
 impl VersionedMetadata {
-    pub fn new(_protocol_config: &ProtocolConfig) -> Self {
+    pub fn new() -> Self {
         Self::V1(MetadataV1 {
             created_at: now(),
             received_at: None,
@@ -158,8 +157,8 @@ pub enum Batch {
 }
 
 impl Batch {
-    pub fn new(transactions: Vec<Transaction>, protocol_config: &ProtocolConfig) -> Self {
-        Self::V2(BatchV2::new(transactions, protocol_config))
+    pub fn new(transactions: Vec<Transaction>) -> Self {
+        Self::V2(BatchV2::new(transactions))
     }
 
     pub fn size(&self) -> usize {
@@ -222,10 +221,10 @@ impl BatchAPI for BatchV2 {
 }
 
 impl BatchV2 {
-    pub fn new(transactions: Vec<Transaction>, protocol_config: &ProtocolConfig) -> Self {
+    pub fn new(transactions: Vec<Transaction>) -> Self {
         Self {
             transactions,
-            versioned_metadata: VersionedMetadata::new(protocol_config),
+            versioned_metadata: VersionedMetadata::new(),
         }
     }
 
@@ -798,7 +797,7 @@ pub enum Certificate {
 }
 
 impl Certificate {
-    pub fn genesis(_protocol_config: &ProtocolConfig, committee: &Committee) -> Vec<Self> {
+    pub fn genesis(committee: &Committee) -> Vec<Self> {
         CertificateV2::genesis(committee)
             .into_iter()
             .map(Self::V2)
@@ -806,7 +805,6 @@ impl Certificate {
     }
 
     pub fn new_unverified(
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         header: Header,
         votes: Vec<(AuthorityIdentifier, Signature)>,
@@ -815,7 +813,6 @@ impl Certificate {
     }
 
     pub fn new_unsigned(
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         header: Header,
         votes: Vec<(AuthorityIdentifier, Signature)>,
@@ -866,7 +863,7 @@ impl Certificate {
     }
 
     // Used for testing
-    pub fn default(_protocol_config: &ProtocolConfig) -> Certificate {
+    pub fn default() -> Certificate {
         Certificate::V2(CertificateV2::default())
     }
 }
@@ -1062,7 +1059,7 @@ impl CertificateV2 {
             AggregateSignature::aggregate::<Signature, Vec<&Signature>>(
                 sigs.iter().map(|(_, sig)| sig).collect(),
             )
-                .map_err(|_| DagError::InvalidSignature)?
+            .map_err(|_| DagError::InvalidSignature)?
         };
 
         let aggregate_signature_bytes = AggregateSignatureBytes::from(&aggregated_signature);
@@ -1189,7 +1186,6 @@ impl CertificateV2 {
 // SignatureVerificationState is why the modified certificate is being returned.
 pub fn validate_received_certificate_version(
     mut certificate: Certificate,
-    protocol_config: &ProtocolConfig,
 ) -> anyhow::Result<Certificate> {
     match certificate {
         Certificate::V2(_) => {
@@ -1523,14 +1519,13 @@ impl From<&Vote> for VoteInfo {
 mod tests {
     use std::time::Duration;
 
-    use test_utils::latest_protocol_version;
     use tokio::time::sleep;
 
     use crate::{Batch, BatchAPI, BatchV2, MetadataAPI, MetadataV1, Timestamp, VersionedMetadata};
 
     #[tokio::test]
     async fn test_elapsed() {
-        let batch = Batch::new(vec![], &latest_protocol_version());
+        let batch = Batch::new(vec![]);
 
         assert!(*batch.versioned_metadata().created_at() > 0);
 

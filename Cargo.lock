@@ -891,26 +891,26 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-derive"
-version = "7.0.7"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e2e26a6b44bc61df3ca8546402cf9204c28e30c06084cc8e75cd5e34d4f150"
+checksum = "a6a7349168b79030e3172a620f4f0e0062268a954604e41475eff082380fe505"
 dependencies = [
  "Inflector",
  "async-graphql-parser",
  "darling 0.20.10",
- "proc-macro-crate 3.1.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
- "strum 0.26.3",
+ "strum 0.25.0",
  "syn 2.0.76",
  "thiserror",
 ]
 
 [[package]]
 name = "async-graphql-parser"
-version = "7.0.7"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f801451484b4977d6fe67b29030f81353cabdcbb754e5a064f39493582dac0cf"
+checksum = "58fdc0adf9f53c2b65bb0ff5170cba1912299f248d0e48266f444b6f005deb1d"
 dependencies = [
  "async-graphql-value",
  "pest",
@@ -920,9 +920,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-value"
-version = "7.0.7"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69117c43c01d81a69890a9f5dd6235f2f027ca8d1ec62d6d3c5e01ca0edb4f2b"
+checksum = "7cf4d4e86208f4f9b81a503943c07e6e7f29ad3505e6c9ce6431fe64dc241681"
 dependencies = [
  "bytes",
  "indexmap 2.4.0",
@@ -2472,12 +2472,6 @@ checksum = "8b96ec4966b5813e2c0507c1f86115c8c5abaadc3980879c3424042a02fd1ad3"
 dependencies = [
  "serde",
 ]
-
-[[package]]
-name = "capitalize"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b5271031022835ee8c7582fe67403bd6cb3d962095787af7921027234bab5bf"
 
 [[package]]
 name = "cargo-platform"
@@ -6239,7 +6233,7 @@ dependencies = [
 
 [[package]]
 name = "iota-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -6247,29 +6241,31 @@ dependencies = [
  "axum",
  "backoff",
  "bcs",
+ "bin-version",
  "clap",
- "const-str",
+ "enum_dispatch",
  "ethers",
  "eyre",
  "fastcrypto",
  "futures",
- "git-version",
  "hex-literal 0.3.4",
- "iota-common",
+ "iota-authority-aggregation",
  "iota-config",
+ "iota-json-rpc-api",
  "iota-json-rpc-types",
+ "iota-keys",
  "iota-metrics",
  "iota-sdk 0.2.0",
  "iota-test-transaction-builder",
  "iota-types",
  "lru 0.10.1",
+ "maplit",
  "move-core-types",
  "num_enum 0.6.1",
  "once_cell",
  "prometheus",
  "rand 0.8.5",
  "reqwest 0.12.7",
- "rocksdb",
  "serde",
  "serde_json",
  "serde_with",
@@ -6281,7 +6277,6 @@ dependencies = [
  "tokio",
  "tracing",
  "typed-store",
- "typed-store-derive",
  "url",
 ]
 
@@ -6766,7 +6761,6 @@ dependencies = [
  "tracing",
  "ttl_cache",
  "typed-store",
- "typed-store-derive",
  "uuid 1.10.0",
 ]
 
@@ -6776,7 +6770,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
- "capitalize",
  "iota-move-build",
  "iota-types",
  "move-binary-format",
@@ -6786,7 +6779,7 @@ dependencies = [
  "once_cell",
  "regex",
  "serde",
- "serde_json",
+ "tempfile",
  "tracing",
 ]
 
@@ -6809,6 +6802,7 @@ dependencies = [
 name = "iota-framework-tests"
 version = "0.1.0"
 dependencies = [
+ "datatest-stable",
  "iota-adapter-latest",
  "iota-framework",
  "iota-move",
@@ -6817,6 +6811,7 @@ dependencies = [
  "iota-types",
  "iota-verifier-latest",
  "move-bytecode-verifier",
+ "move-bytecode-verifier-meter",
  "move-cli",
  "move-package",
  "move-unit-test",
@@ -6895,7 +6890,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc"
-version = "2024.2.0"
+version = "2024.7.0"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6905,24 +6900,25 @@ dependencies = [
  "axum",
  "axum-extra",
  "bcs",
+ "bin-version",
  "chrono",
  "clap",
  "const-str",
  "diesel",
+ "downcast",
  "either",
  "expect-test",
  "fastcrypto",
  "fastcrypto-zkp",
  "futures",
- "git-version",
  "hex",
  "http 1.1.0",
  "http-body-util",
  "hyper 1.4.1",
- "hyper-util",
  "im",
  "insta",
  "iota-framework",
+ "iota-graphql-config",
  "iota-graphql-rpc-client",
  "iota-graphql-rpc-headers",
  "iota-indexer",
@@ -6935,7 +6931,9 @@ dependencies = [
  "iota-rest-api",
  "iota-sdk 0.2.0",
  "iota-swarm-config",
+ "iota-test-transaction-builder",
  "iota-types",
+ "itertools 0.10.5",
  "lru 0.10.1",
  "markdown-gen",
  "move-binary-format",
@@ -6958,6 +6956,7 @@ dependencies = [
  "simulacrum",
  "tap",
  "telemetry-subscribers",
+ "tempfile",
  "test-cluster",
  "thiserror",
  "tokio",
@@ -7324,17 +7323,23 @@ name = "iota-move"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "better_any",
+ "bin-version",
  "clap",
  "colored",
  "const-str",
  "futures",
  "git-version",
+ "iota-core",
  "iota-macros",
  "iota-metrics",
  "iota-move-build",
  "iota-move-natives-latest",
+ "iota-node",
  "iota-protocol-config",
+ "iota-simulator",
  "iota-types",
+ "jemalloc-ctl",
  "move-binary-format",
  "move-cli",
  "move-compiler",
@@ -7700,19 +7705,30 @@ name = "iota-rest-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "bcs",
+ "diffy",
  "fastcrypto",
+ "iota-network-stack",
+ "iota-protocol-config",
  "iota-types",
+ "itertools 0.10.5",
  "mime",
+ "openapiv3",
+ "prometheus",
  "rand 0.8.5",
  "reqwest 0.12.7",
+ "schemars",
  "serde",
  "serde_json",
  "serde_with",
+ "serde_yaml 0.8.26",
+ "sui-sdk",
  "tap",
  "thiserror",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -7884,7 +7900,7 @@ dependencies = [
 
 [[package]]
 name = "iota-single-node-benchmark"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bcs",
@@ -7905,6 +7921,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-package",
+ "move-symbol-pool",
  "once_cell",
  "prometheus",
  "serde",
@@ -7954,6 +7971,7 @@ dependencies = [
  "futures",
  "iota-json-rpc-types",
  "iota-move-build",
+ "iota-package-management",
  "iota-sdk 0.2.0",
  "iota-test-transaction-builder",
  "iota-types",
@@ -7980,6 +7998,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "bin-version",
  "clap",
  "const-str",
  "expect-test",
@@ -8005,7 +8024,7 @@ dependencies = [
  "tempfile",
  "test-cluster",
  "tokio",
- "toml 0.8.19",
+ "toml 0.7.8",
  "tower",
  "tower-http",
  "tracing",
@@ -8207,22 +8226,20 @@ dependencies = [
  "anemo-cli",
  "anyhow",
  "bcs",
+ "bin-version",
  "clap",
  "colored",
  "comfy-table",
- "const-str",
- "diesel",
  "eyre",
  "fastcrypto",
  "futures",
- "git-version",
  "hex",
  "indicatif",
  "iota-archival",
  "iota-config",
  "iota-core",
- "iota-indexer",
  "iota-network",
+ "iota-package-dump",
  "iota-protocol-config",
  "iota-replay",
  "iota-sdk 0.2.0",
@@ -8236,7 +8253,6 @@ dependencies = [
  "num_cpus",
  "object_store",
  "prometheus",
- "rocksdb",
  "ron",
  "serde",
  "serde_json",
@@ -8587,6 +8603,27 @@ name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
+
+[[package]]
+name = "jemalloc-ctl"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cffc705424a344c054e135d12ee591402f4539245e8bbd64e6c9eaa9458b63c"
+dependencies = [
+ "jemalloc-sys",
+ "libc",
+ "paste",
+]
+
+[[package]]
+name = "jemalloc-sys"
+version = "0.5.4+5.3.0-patched"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac6c1946e1cea1788cbfde01c993b52a10e2da07f4bac608228d1bed20bfebf2"
+dependencies = [
+ "cc",
+ "libc",
+]
 
 [[package]]
 name = "jni"
@@ -9280,6 +9317,12 @@ checksum = "75761162ae2b0e580d7e7c390558127e5f01b4194debd6221fd8c207fc80e3f5"
 dependencies = [
  "twox-hash",
 ]
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "markdown-gen"
@@ -11095,6 +11138,17 @@ dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "openapiv3"
+version = "2.0.0"
+source = "git+https://github.com/bmwill/openapiv3.git?rev=ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963#ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963"
+dependencies = [
+ "indexmap 2.4.0",
+ "schemars",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -14940,8 +14994,11 @@ name = "test-cluster"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bcs",
+ "fastcrypto",
  "fastcrypto-zkp",
  "futures",
+ "iota-bridge",
  "iota-config",
  "iota-core",
  "iota-framework",
@@ -15342,7 +15399,6 @@ version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1ed1f98e3fdc28d6d910e6737ae6ab1a93bf1985935a1193e68f93eeb68d24e"
 dependencies = [
- "indexmap 2.4.0",
  "serde",
  "serde_spanned",
  "toml_datetime",

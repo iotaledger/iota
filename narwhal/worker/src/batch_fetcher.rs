@@ -14,7 +14,6 @@ use async_trait::async_trait;
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
-use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use network::WorkerRpc;
 use prometheus::IntGauge;
@@ -26,8 +25,7 @@ use tokio::{
 };
 use tracing::debug;
 use types::{
-    now, Batch, BatchAPI, BatchDigest, MetadataAPI, RequestBatchesRequest,
-    RequestBatchesResponse,
+    now, Batch, BatchAPI, BatchDigest, MetadataAPI, RequestBatchesRequest, RequestBatchesResponse,
 };
 
 use crate::metrics::WorkerMetrics;
@@ -40,7 +38,6 @@ pub struct BatchFetcher {
     network: Arc<dyn RequestBatchesNetwork>,
     batch_store: DBMap<BatchDigest, Batch>,
     metrics: Arc<WorkerMetrics>,
-    protocol_config: ProtocolConfig,
 }
 
 impl BatchFetcher {
@@ -49,14 +46,12 @@ impl BatchFetcher {
         network: Network,
         batch_store: DBMap<BatchDigest, Batch>,
         metrics: Arc<WorkerMetrics>,
-        protocol_config: ProtocolConfig,
     ) -> Self {
         Self {
             name,
             network: Arc::new(RequestBatchesNetworkImpl { network }),
             batch_store,
             metrics,
-            protocol_config,
         }
     }
 
@@ -351,8 +346,6 @@ mod tests {
     use fastcrypto::{hash::Hash, traits::KeyPair};
     use itertools::Itertools;
     use rand::rngs::StdRng;
-    use test_utils::latest_protocol_version;
-    use tokio::time::timeout;
 
     use super::*;
 
@@ -360,8 +353,8 @@ mod tests {
     pub async fn test_fetcher() {
         let mut network = TestRequestBatchesNetwork::new();
         let batch_store = test_utils::create_batch_store();
-        let batch1 = Batch::new(vec![vec![1]], &latest_protocol_version());
-        let batch2 = Batch::new(vec![vec![2]], &latest_protocol_version());
+        let batch1 = Batch::new(vec![vec![1]]);
+        let batch2 = Batch::new(vec![vec![2]]);
         let (digests, known_workers) = (
             HashSet::from_iter(vec![batch1.digest(), batch2.digest()]),
             HashSet::from_iter(test_pks(&[1, 2])),
@@ -373,7 +366,6 @@ mod tests {
             network: Arc::new(network.clone()),
             batch_store: batch_store.clone(),
             metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_version(),
         };
         let mut expected_batches = HashMap::from_iter(vec![
             (batch1.digest(), batch1.clone()),
@@ -406,9 +398,9 @@ mod tests {
         // and ensure another request is sent to get the remaining batches.
         let mut network = TestRequestBatchesNetwork::new();
         let batch_store = test_utils::create_batch_store();
-        let batch1 = Batch::new(vec![vec![1]], &latest_protocol_version());
-        let batch2 = Batch::new(vec![vec![2]], &latest_protocol_version());
-        let batch3 = Batch::new(vec![vec![3]], &latest_protocol_version());
+        let batch1 = Batch::new(vec![vec![1]]);
+        let batch2 = Batch::new(vec![vec![2]]);
+        let batch3 = Batch::new(vec![vec![3]]);
         let (digests, known_workers) = (
             HashSet::from_iter(vec![batch1.digest(), batch2.digest(), batch3.digest()]),
             HashSet::from_iter(test_pks(&[1, 2, 3])),
@@ -424,7 +416,6 @@ mod tests {
             network: Arc::new(network.clone()),
             batch_store,
             metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_version(),
         };
         let expected_batches = HashMap::from_iter(vec![
             (batch1.digest(), batch1.clone()),
@@ -441,9 +432,9 @@ mod tests {
         // and ensure another request is sent to get the remaining batches.
         let mut network = TestRequestBatchesNetwork::new();
         let batch_store = test_utils::create_batch_store();
-        let batch1 = Batch::new(vec![vec![1]], &latest_protocol_version());
-        let batch2 = Batch::new(vec![vec![2]], &latest_protocol_version());
-        let batch3 = Batch::new(vec![vec![3]], &latest_protocol_version());
+        let batch1 = Batch::new(vec![vec![1]]);
+        let batch2 = Batch::new(vec![vec![2]]);
+        let batch3 = Batch::new(vec![vec![3]]);
         let (digests, known_workers) = (
             HashSet::from_iter(vec![batch1.digest(), batch2.digest(), batch3.digest()]),
             HashSet::from_iter(test_pks(&[2, 3, 4])),
@@ -456,7 +447,6 @@ mod tests {
             network: Arc::new(network.clone()),
             batch_store,
             metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_version(),
         };
         let mut expected_batches = HashMap::from_iter(vec![
             (batch1.digest(), batch1.clone()),
@@ -482,9 +472,9 @@ mod tests {
     pub async fn test_fetcher_local_and_remote() {
         let mut network = TestRequestBatchesNetwork::new();
         let batch_store = test_utils::create_batch_store();
-        let batch1 = Batch::new(vec![vec![1]], &latest_protocol_version());
-        let batch2 = Batch::new(vec![vec![2]], &latest_protocol_version());
-        let batch3 = Batch::new(vec![vec![3]], &latest_protocol_version());
+        let batch1 = Batch::new(vec![vec![1]]);
+        let batch2 = Batch::new(vec![vec![2]]);
+        let batch3 = Batch::new(vec![vec![3]]);
         let (digests, known_workers) = (
             HashSet::from_iter(vec![batch1.digest(), batch2.digest(), batch3.digest()]),
             HashSet::from_iter(test_pks(&[1, 2, 3, 4])),
@@ -498,7 +488,6 @@ mod tests {
             network: Arc::new(network.clone()),
             batch_store,
             metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_version(),
         };
         let mut expected_batches = HashMap::from_iter(vec![
             (batch1.digest(), batch1.clone()),
@@ -533,7 +522,7 @@ mod tests {
         let mut local_digests = Vec::new();
         // 6 batches available locally with response size limit of 2
         for i in 0..num_digests / 2 {
-            let batch = Batch::new(vec![vec![i]], &latest_protocol_version());
+            let batch = Batch::new(vec![vec![i]]);
             local_digests.push(batch.digest());
             batch_store.insert(&batch.digest(), &batch).unwrap();
             network.put(&[1, 2, 3], batch.clone());
@@ -541,7 +530,7 @@ mod tests {
         }
         // 6 batches available remotely with response size limit of 2
         for i in (num_digests / 2)..num_digests {
-            let batch = Batch::new(vec![vec![i]], &latest_protocol_version());
+            let batch = Batch::new(vec![vec![i]]);
             network.put(&[1, 2, 3], batch.clone());
             expected_batches.push(batch);
         }
@@ -560,7 +549,6 @@ mod tests {
             network: Arc::new(network.clone()),
             batch_store,
             metrics: Arc::new(WorkerMetrics::default()),
-            protocol_config: latest_protocol_version(),
         };
         let mut fetched_batches = fetcher.fetch(digests, known_workers).await;
 

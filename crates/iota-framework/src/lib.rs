@@ -10,8 +10,8 @@ use iota_types::{
     move_package::MovePackage,
     object::{Object, OBJECT_START_VERSION},
     storage::ObjectStore,
-    DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_binary_format::{
     binary_config::BinaryConfig,
@@ -95,7 +95,7 @@ macro_rules! define_system_packages {
             vec![
                 $(SystemPackage::new(
                     $id,
-                    include_bytes!(concat!(env!("OUT_DIR"), "/", $path)),
+                    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/packages_compiled", "/", $path)),
                     &$deps,
                 )),*
             ]
@@ -127,6 +127,15 @@ impl BuiltInFramework {
                 DEEPBOOK_PACKAGE_ID,
                 "deepbook",
                 [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+            ),
+            (
+                BRIDGE_PACKAGE_ID,
+                "bridge",
+                [
+                    MOVE_STDLIB_PACKAGE_ID,
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID
+                ]
             ),
             (
                 STARDUST_PACKAGE_ID,
@@ -227,8 +236,8 @@ pub async fn compare_system_package<S: ObjectStore>(
     }
 
     let compatibility = Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
+        check_datatype_and_pub_function_linking: true,
+        check_datatype_layout: true,
         check_friend_linking: false,
         // Checking `entry` linkage is required because system packages are updated in-place, and a
         // transaction that was rolled back to make way for reconfiguration should still be runnable
@@ -240,7 +249,8 @@ pub async fn compare_system_package<S: ObjectStore>(
         // fail if one of its mutable inputs was being used in another private `entry` function.
         check_private_entry_linking: true,
         disallowed_new_abilities: AbilitySet::singleton(Ability::Key),
-        disallow_change_struct_type_params: true,
+        disallow_change_datatype_type_params: true,
+        disallow_new_variants: true,
     };
 
     let new_pkg = new_object

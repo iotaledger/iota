@@ -86,6 +86,10 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub system_state_version: u64,
+    /// The current IOTA supply.
+    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
+    #[schemars(with = "crate::_schemars::U64")]
+    pub iota_total_supply: u64,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -106,11 +110,11 @@ pub struct SystemStateSummary {
     /// advance_epoch, and ended up executing advance_epoch_safe_mode.
     /// It can be reset once we are able to successfully execute advance_epoch.
     pub safe_mode: bool,
-    /// Amount of storage rewards accumulated (and not yet distributed) during
+    /// Amount of storage charges accumulated (and not yet distributed) during
     /// safe mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
-    pub safe_mode_storage_rewards: u64,
+    pub safe_mode_storage_charges: u64,
     /// Amount of computation rewards accumulated (and not yet distributed)
     /// during safe mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -135,11 +139,6 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub epoch_duration_ms: u64,
-
-    /// The starting epoch in which stake subsidies start being paid out
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
-    pub stake_subsidy_start_epoch: u64,
 
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
@@ -171,30 +170,6 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub validator_low_stake_grace_period: u64,
-
-    // Stake subsidy information
-    /// Balance of IOTA set aside for stake subsidies that will be drawn down
-    /// over time.
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
-    pub stake_subsidy_balance: u64,
-    /// This counter may be different from the current epoch number if
-    /// in some epochs we decide to skip the subsidy.
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
-    pub stake_subsidy_distribution_counter: u64,
-    /// The amount of stake subsidy to be drawn down per epoch.
-    /// This amount decays and decreases over time.
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
-    pub stake_subsidy_current_distribution_amount: u64,
-    /// Number of distributions to occur before the distribution amount decays.
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
-    pub stake_subsidy_period_length: u64,
-    /// The rate at which the distribution amount decays at the end of each
-    /// period. Expressed in basis points.
-    pub stake_subsidy_decrease_rate: u16,
 
     // Validator set
     /// Total amount of stake from all active validators at the beginning of the
@@ -457,27 +432,22 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             epoch,
             protocol_version,
             system_state_version,
+            iota_total_supply,
             storage_fund_total_object_storage_rebates,
             storage_fund_non_refundable_balance,
             reference_gas_price,
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            stake_subsidy_balance,
-            stake_subsidy_distribution_counter,
-            stake_subsidy_current_distribution_amount,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
             total_stake,
             active_validators,
             pending_active_validators_id,
@@ -497,27 +467,22 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             epoch,
             protocol_version,
             system_state_version,
+            iota_total_supply,
             storage_fund_total_object_storage_rebates,
             storage_fund_non_refundable_balance,
             reference_gas_price,
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            stake_subsidy_balance,
-            stake_subsidy_distribution_counter,
-            stake_subsidy_current_distribution_amount,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
             total_stake,
             active_validators: active_validators.into_iter().map(Into::into).collect(),
             pending_active_validators_id: pending_active_validators_id.into(),
