@@ -110,7 +110,7 @@ export default function EpochDetail() {
     return (
         <PageLayout
             content={
-                <div className="flex flex-col space-y-16">
+                <div className="flex flex-col gap-2xl">
                     <div className="grid grid-flow-row gap-4 sm:gap-2 md:flex md:gap-6">
                         <div className="flex min-w-[136px] max-w-[240px]">
                             <EpochProgress
