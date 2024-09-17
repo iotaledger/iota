@@ -1,18 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use better_any::{Tid, TidAble, TidExt};
 use std::{any::TypeId, collections::HashMap};
 
-/// A data type to represent a heterogeneous collection of extensions which are available to
-/// native functions. A value to this is passed into the session function execution.
+use better_any::{Tid, TidAble, TidExt};
+
+/// A data type to represent a heterogeneous collection of extensions which are
+/// available to native functions. A value to this is passed into the session
+/// function execution.
 ///
-/// The implementation uses the crate `better_any` which implements a version of the `Any`
-/// type, called `Tid<`a>`, which allows for up to one lifetime parameter. This
-/// avoids that extensions need to have `'static` lifetime, which `Any` requires. In order to make a
-/// struct suitable to be a 'Tid', use `#[derive(Tid)]` in the struct declaration. (See also
-/// tests at the end of this module.)
+/// The implementation uses the crate `better_any` which implements a version of
+/// the `Any` type, called `Tid<`a>`, which allows for up to one lifetime
+/// parameter. This avoids that extensions need to have `'static` lifetime,
+/// which `Any` requires. In order to make a struct suitable to be a 'Tid', use
+/// `#[derive(Tid)]` in the struct declaration. (See also tests at the end of
+/// this module.)
 #[derive(Default)]
 pub struct NativeContextExtensions<'a> {
     map: HashMap<TypeId, Box<dyn Tid<'a>>>,
@@ -60,8 +64,9 @@ impl<'a> NativeContextExtensions<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::native_extensions::NativeContextExtensions;
     use better_any::{Tid, TidAble};
+
+    use crate::native_extensions::NativeContextExtensions;
 
     #[derive(Tid)]
     struct Ext<'a> {

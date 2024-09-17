@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import React from "react";
 import Link from "@docusaurus/Link";
@@ -74,20 +75,11 @@ export default function NavbarContent() {
           <NavbarItems items={rightItems} />
           {!isHomePage && (
             <NavbarColorModeToggle className={styles.colorModeToggle} />
-          )}
-          {!searchBarItem && (
+          )} {!searchBarItem && (
             <NavbarSearch>
-              <SearchBar />
-              {isHomePage && (
-                <Link
-                  to="/guides#get-started-developing-on-sui"
-                  className="button-cta"
-                >
-                  Get started
-                </Link>
-              )}
+                <SearchBar />
             </NavbarSearch>
-          )}
+        )}
         </>
       }
     />

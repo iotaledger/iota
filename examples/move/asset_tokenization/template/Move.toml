@@ -1,0 +1,12 @@
+[package]
+name = "template"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+
+asset_tokenization = { local = "../asset_tokenization" }
+
+[addresses]
+template = "0x0"

@@ -1,59 +1,79 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    iter,
+    num::NonZeroUsize,
+    sync::Arc,
+};
+
+use config::AuthorityIdentifier;
 use fastcrypto::hash::Hash;
+use iota_common::sync::notify_read::NotifyRead;
+use iota_macros::fail_point;
+use iota_metrics::{RegistryID, RegistryService};
 use lru::LruCache;
 use parking_lot::Mutex;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::{cmp::Ordering, collections::BTreeMap, iter};
-use sui_macros::fail_point;
-use tap::Tap;
-
-use crate::StoreResult;
-use config::AuthorityIdentifier;
-use mysten_common::sync::notify_read::NotifyRead;
 use store::{rocks::DBMap, Map, TypedStoreError::RocksDBError};
+use tap::Tap;
 use types::{Certificate, CertificateDigest, Round};
 
-#[derive(Clone)]
+use crate::StoreResult;
+
 pub struct CertificateStoreCacheMetrics {
+    // Prometheus RegistryService for the metrics
+    registry_service: RegistryService,
+    // The registry id & value, saved for cleaning up the registered metrics
+    // after consensus shuts down.
+    registry: (RegistryID, Registry),
     hit: IntCounter,
     miss: IntCounter,
 }
 
 impl CertificateStoreCacheMetrics {
-    pub fn new(registry: &Registry) -> Self {
+    pub fn new(registry_service: RegistryService) -> Self {
+        let registry = Registry::new_custom(None, None).unwrap();
+        let registry_id = registry_service.add(registry.clone());
         Self {
+            registry_service,
+            registry: (registry_id, registry.clone()),
             hit: register_int_counter_with_registry!(
                 "certificate_store_cache_hit",
                 "The number of hits in the cache",
-                registry
+                registry,
             )
             .unwrap(),
             miss: register_int_counter_with_registry!(
                 "certificate_store_cache_miss",
                 "The number of miss in the cache",
-                registry
+                registry,
             )
             .unwrap(),
         }
     }
+
+    pub fn unregister(&self) {
+        self.registry_service.remove(self.registry.0);
+    }
 }
 
-/// A cache trait to be used as temporary in-memory store when accessing the underlying
-/// certificate_store. Using the cache allows to skip rocksdb access giving us benefits
-/// both on less disk access (when value not in db's cache) and also avoiding any additional
-/// deserialization costs.
+/// A cache trait to be used as temporary in-memory store when accessing the
+/// underlying certificate_store. Using the cache allows to skip rocksdb access
+/// giving us benefits both on less disk access (when value not in db's cache)
+/// and also avoiding any additional deserialization costs.
 pub trait Cache {
     fn write(&self, certificate: Certificate);
     fn write_all(&self, certificate: Vec<Certificate>);
     fn read(&self, digest: &CertificateDigest) -> Option<Certificate>;
 
-    /// Returns the certificates by performing a look up in the cache. The method is expected to
-    /// always return a result for every provided digest (when found will be Some, None otherwise)
-    /// and in the same order.
+    /// Returns the certificates by performing a look up in the cache. The
+    /// method is expected to always return a result for every provided
+    /// digest (when found will be Some, None otherwise) and in the same
+    /// order.
     fn read_all(
         &self,
         digests: Vec<CertificateDigest>,
@@ -62,7 +82,7 @@ pub trait Cache {
     /// Checks existence of one or more digests.
     fn contains(&self, digest: &CertificateDigest) -> bool;
     fn multi_contains<'a>(&self, digests: impl Iterator<Item = &'a CertificateDigest>)
-        -> Vec<bool>;
+    -> Vec<bool>;
 
     fn remove(&self, digest: &CertificateDigest);
     fn remove_all(&self, digests: Vec<CertificateDigest>);
@@ -72,11 +92,11 @@ pub trait Cache {
 #[derive(Clone)]
 pub struct CertificateStoreCache {
     cache: Arc<Mutex<LruCache<CertificateDigest, Certificate>>>,
-    metrics: Option<CertificateStoreCacheMetrics>,
+    metrics: Option<Arc<CertificateStoreCacheMetrics>>,
 }
 
 impl CertificateStoreCache {
-    pub fn new(size: NonZeroUsize, metrics: Option<CertificateStoreCacheMetrics>) -> Self {
+    pub fn new(size: NonZeroUsize, metrics: Option<Arc<CertificateStoreCacheMetrics>>) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(size))),
             metrics,
@@ -107,8 +127,8 @@ impl Cache for CertificateStoreCache {
         }
     }
 
-    /// Fetches the certificate for the provided digest. This method will update the LRU record
-    /// and mark it as "last accessed".
+    /// Fetches the certificate for the provided digest. This method will update
+    /// the LRU record and mark it as "last accessed".
     fn read(&self, digest: &CertificateDigest) -> Option<Certificate> {
         let mut guard = self.cache.lock();
         guard
@@ -117,8 +137,8 @@ impl Cache for CertificateStoreCache {
             .tap(|v| self.report_result(v.is_some()))
     }
 
-    /// Fetches the certificates for the provided digests. This method will update the LRU records
-    /// and mark them as "last accessed".
+    /// Fetches the certificates for the provided digests. This method will
+    /// update the LRU records and mark them as "last accessed".
     fn read_all(
         &self,
         digests: Vec<CertificateDigest>,
@@ -174,50 +194,6 @@ impl Cache for CertificateStoreCache {
     }
 }
 
-/// An implementation that basically disables the caching functionality when used for CertificateStore.
-#[derive(Clone)]
-struct NoCache {}
-
-impl Cache for NoCache {
-    fn write(&self, _certificate: Certificate) {
-        // no-op
-    }
-
-    fn write_all(&self, _certificate: Vec<Certificate>) {
-        // no-op
-    }
-
-    fn read(&self, _digest: &CertificateDigest) -> Option<Certificate> {
-        None
-    }
-
-    fn read_all(
-        &self,
-        digests: Vec<CertificateDigest>,
-    ) -> Vec<(CertificateDigest, Option<Certificate>)> {
-        digests.into_iter().map(|digest| (digest, None)).collect()
-    }
-
-    fn contains(&self, _digest: &CertificateDigest) -> bool {
-        false
-    }
-
-    fn multi_contains<'a>(
-        &self,
-        digests: impl Iterator<Item = &'a CertificateDigest>,
-    ) -> Vec<bool> {
-        digests.map(|_| false).collect()
-    }
-
-    fn remove(&self, _digest: &CertificateDigest) {
-        // no-op
-    }
-
-    fn remove_all(&self, _digests: Vec<CertificateDigest>) {
-        // no-op
-    }
-}
-
 /// The main storage when we have to deal with certificates. It maintains
 /// two storages, one main which saves the certificates by their ids, and a
 /// secondary one which acts as an index to allow us fast retrieval based
@@ -230,16 +206,19 @@ pub struct CertificateStore<T: Cache = CertificateStoreCache> {
     /// Holds the certificates by their digest id
     certificates_by_id: DBMap<CertificateDigest, Certificate>,
     /// A secondary index that keeps the certificate digest ids
-    /// by the certificate rounds. Certificate origin is used to produce unique keys.
-    /// This helps us to perform range requests based on rounds. We avoid storing again the
-    /// certificate here to not waste space. To dereference we use the certificates_by_id storage.
+    /// by the certificate rounds. Certificate origin is used to produce unique
+    /// keys. This helps us to perform range requests based on rounds. We
+    /// avoid storing again the certificate here to not waste space. To
+    /// dereference we use the certificates_by_id storage.
     certificate_id_by_round: DBMap<(Round, AuthorityIdentifier), CertificateDigest>,
     /// A secondary index that keeps the certificate digest ids
-    /// by the certificate origins. Certificate rounds are used to produce unique keys.
-    /// This helps us to perform range requests based on rounds. We avoid storing again the
-    /// certificate here to not waste space. To dereference we use the certificates_by_id storage.
+    /// by the certificate origins. Certificate rounds are used to produce
+    /// unique keys. This helps us to perform range requests based on
+    /// rounds. We avoid storing again the certificate here to not waste
+    /// space. To dereference we use the certificates_by_id storage.
     certificate_id_by_origin: DBMap<(AuthorityIdentifier, Round), CertificateDigest>,
-    /// The pub/sub to notify for a write that happened for a certificate digest id
+    /// The pub/sub to notify for a write that happened for a certificate digest
+    /// id
     notify_subscribers: Arc<NotifyRead<CertificateDigest, Certificate>>,
     /// An LRU cache to keep recent certificates
     cache: Arc<T>,
@@ -299,9 +278,9 @@ impl<T: Cache> CertificateStore<T> {
         result
     }
 
-    /// Inserts multiple certificates in the storage. This is an atomic operation.
-    /// In the end it notifies any subscribers that are waiting to hear for the
-    /// value.
+    /// Inserts multiple certificates in the storage. This is an atomic
+    /// operation. In the end it notifies any subscribers that are waiting
+    /// to hear for the value.
     pub fn write_all(
         &self,
         certificates: impl IntoIterator<Item = Certificate>,
@@ -550,7 +529,8 @@ impl<T: Cache> CertificateStore<T> {
             }
         }
 
-        // Fetch all those certificates from main storage, return an error if any one is missing.
+        // Fetch all those certificates from main storage, return an error if any one is
+        // missing.
         self.certificates_by_id
             .multi_get(digests.clone())?
             .into_iter()
@@ -676,8 +656,9 @@ impl<T: Cache> CertificateStore<T> {
         Ok(None)
     }
 
-    /// Retrieves the next round number bigger than the given round for the origin.
-    /// Returns None if there is no more local certificate from the origin with bigger round.
+    /// Retrieves the next round number bigger than the given round for the
+    /// origin. Returns None if there is no more local certificate from the
+    /// origin with bigger round.
     pub fn next_round_number(
         &self,
         origin: AuthorityIdentifier,
@@ -718,23 +699,68 @@ impl<T: Cache> CertificateStore<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::certificate_store::{CertificateStore, NoCache};
-    use crate::{Cache, CertificateStoreCache};
+    use std::{
+        collections::{BTreeSet, HashSet},
+        num::NonZeroUsize,
+        time::Instant,
+    };
+
     use config::AuthorityIdentifier;
     use fastcrypto::hash::Hash;
     use futures::future::join_all;
-    use std::num::NonZeroUsize;
-    use std::{
-        collections::{BTreeSet, HashSet},
-        time::Instant,
-    };
-    use store::rocks::MetricConf;
     use store::{
         reopen,
-        rocks::{open_cf, DBMap, ReadWriteOptions},
+        rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     };
-    use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+    use test_utils::{temp_dir, CommitteeFixture};
     use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
+
+    use crate::{certificate_store::CertificateStore, Cache, CertificateStoreCache};
+
+    /// An implementation that basically disables the caching functionality when
+    /// used for CertificateStore.
+    #[derive(Clone)]
+    struct NoCache {}
+
+    impl Cache for NoCache {
+        fn write(&self, _certificate: Certificate) {
+            // no-op
+        }
+
+        fn write_all(&self, _certificate: Vec<Certificate>) {
+            // no-op
+        }
+
+        fn read(&self, _digest: &CertificateDigest) -> Option<Certificate> {
+            None
+        }
+
+        fn read_all(
+            &self,
+            digests: Vec<CertificateDigest>,
+        ) -> Vec<(CertificateDigest, Option<Certificate>)> {
+            digests.into_iter().map(|digest| (digest, None)).collect()
+        }
+
+        fn contains(&self, _digest: &CertificateDigest) -> bool {
+            false
+        }
+
+        fn multi_contains<'a>(
+            &self,
+            digests: impl Iterator<Item = &'a CertificateDigest>,
+        ) -> Vec<bool> {
+            digests.map(|_| false).collect()
+        }
+
+        fn remove(&self, _digest: &CertificateDigest) {
+            // no-op
+        }
+
+        fn remove_all(&self, _digests: Vec<CertificateDigest>) {
+            // no-op
+        }
+    }
 
     fn new_store(path: std::path::PathBuf) -> CertificateStore {
         let (certificate_map, certificate_id_by_round_map, certificate_id_by_origin_map) =
@@ -797,28 +823,23 @@ mod test {
     fn certificates(rounds: u64) -> Vec<Certificate> {
         let fixture = CommitteeFixture::builder().build();
         let committee = fixture.committee();
-        let mut current_round: Vec<_> =
-            Certificate::genesis(&latest_protocol_version(), &committee)
-                .into_iter()
-                .map(|cert| cert.header().clone())
-                .collect();
+        let mut current_round: Vec<_> = Certificate::genesis(&committee)
+            .into_iter()
+            .map(|cert| cert.header().clone())
+            .collect();
 
         let mut result: Vec<Certificate> = Vec::new();
         for i in 0..rounds {
             let parents: BTreeSet<_> = current_round
                 .iter()
-                .map(|header| {
-                    fixture
-                        .certificate(&latest_protocol_version(), header)
-                        .digest()
-                })
+                .map(|header| fixture.certificate(header).digest())
                 .collect();
-            (_, current_round) = fixture.headers_round(i, &parents, &latest_protocol_version());
+            (_, current_round) = fixture.headers_round(i, &parents);
 
             result.extend(
                 current_round
                     .iter()
-                    .map(|h| fixture.certificate(&latest_protocol_version(), h))
+                    .map(|h| fixture.certificate(h))
                     .collect::<Vec<Certificate>>(),
             );
         }
@@ -886,8 +907,8 @@ mod test {
         // store them in both main and secondary index
         store.write_all(certs.clone()).unwrap();
 
-        // AND if running with cache, just remove a few items to ensure that they'll be fetched
-        // from storage
+        // AND if running with cache, just remove a few items to ensure that they'll be
+        // fetched from storage
         store.cache.remove(&ids[0]);
         store.cache.remove(&ids[3]);
         store.cache.remove(&ids[9]);

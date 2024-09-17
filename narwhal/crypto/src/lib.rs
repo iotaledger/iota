@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -8,15 +9,14 @@
     rust_2021_compatibility
 )]
 
+// This re-export allows using the trait-defined APIs
+pub use fastcrypto::traits;
 use fastcrypto::{
     bls12381, ed25519,
     error::FastCryptoError,
     hash::{Blake2b256, HashFunction},
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
-
-// This re-export allows using the trait-defined APIs
-pub use fastcrypto::traits;
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope, INTENT_PREFIX_LENGTH};
 
@@ -26,12 +26,14 @@ use shared_crypto::intent::{Intent, IntentMessage, IntentScope, INTENT_PREFIX_LE
 // Here we select the types that are used by default in the code base.
 // The whole code base should only:
 // - refer to those aliases and not use the individual scheme implementations
-// - not use the schemes in a way that break genericity (e.g. using their Struct impl functions)
+// - not use the schemes in a way that break genericity (e.g. using their Struct
+//   impl functions)
 // - swap one of those aliases to point to another type if necessary
 //
-// Beware: if you change those aliases to point to another scheme implementation, you will have
-// to change all four aliases to point to concrete types that work with each other. Failure to do
-// so will result in a ton of compilation errors, and worse: it will not make sense!
+// Beware: if you change those aliases to point to another scheme
+// implementation, you will have to change all four aliases to point to concrete
+// types that work with each other. Failure to do so will result in a ton of
+// compilation errors, and worse: it will not make sense!
 
 pub type PublicKey = bls12381::min_sig::BLS12381PublicKey;
 pub type PublicKeyBytes = bls12381::min_sig::BLS12381PublicKeyAsBytes;
@@ -51,7 +53,8 @@ pub type DefaultHashFunction = Blake2b256;
 pub const DIGEST_LENGTH: usize = DefaultHashFunction::OUTPUT_SIZE;
 pub const INTENT_MESSAGE_LENGTH: usize = INTENT_PREFIX_LENGTH + DIGEST_LENGTH;
 
-/// A trait for sign and verify over an intent message, instead of the message itself. See more at [struct IntentMessage].
+/// A trait for sign and verify over an intent message, instead of the message
+/// itself. See more at [struct IntentMessage].
 pub trait NarwhalAuthoritySignature {
     /// Create a new signature over an intent message.
     fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Self>) -> Self
@@ -114,7 +117,8 @@ impl NarwhalAuthorityAggregateSignature for AggregateSignature {
     }
 }
 
-/// Wrap a message in an intent message. Currently in Narwhal, the scope is always IntentScope::HeaderDigest and the app id is AppId::Narwhal.
+/// Wrap a message in an intent message. Currently in Narwhal, the scope is
+/// always IntentScope::HeaderDigest and the app id is AppId::Narwhal.
 pub fn to_intent_message<T>(value: T) -> IntentMessage<T> {
     IntentMessage::new(Intent::narwhal_app(IntentScope::HeaderDigest), value)
 }

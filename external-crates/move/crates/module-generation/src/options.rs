@@ -1,12 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Defines constants and options that are used for module generation
 
 #[derive(Clone, Debug)]
 pub struct ModuleGeneratorOptions {
-    /// The maximum number of locals that can be defined within a generated function definition.
+    /// The maximum number of locals that can be defined within a generated
+    /// function definition.
     pub max_locals: usize,
     /// The maximum number of fields that will be generated for any struct.
     pub max_fields: usize,
@@ -25,16 +27,18 @@ pub struct ModuleGeneratorOptions {
     pub max_function_call_size: usize,
     /// The maximum number of return types of generated function definitions.
     pub max_ret_types_size: usize,
-    /// Whether or not generate modules should only contain simple (non-reference, or nested
-    /// struct) types.
+    /// Whether or not generate modules should only contain simple
+    /// (non-reference, or nested struct) types.
     pub simple_types_only: bool,
-    /// Whether references are allowed to be generated for e.g. function parameters, locals.
+    /// Whether references are allowed to be generated for e.g. function
+    /// parameters, locals.
     pub references_allowed: bool,
     /// Whether the generated modules should have any resources declared.
     pub add_resources: bool,
     /// The minimum number of entries in any table
     pub min_table_size: usize,
-    /// If set, all functions with type parameters will have arguments of those types as well.
+    /// If set, all functions with type parameters will have arguments of those
+    /// types as well.
     pub args_for_ty_params: bool,
 }
 

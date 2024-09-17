@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use move_proc_macros::growing_stack;
 
@@ -14,7 +17,6 @@ use crate::{
     parser::ast::ConstantName,
     shared::unique_map::UniqueMap,
 };
-use std::collections::{BTreeMap, BTreeSet};
 
 /// returns true if anything changed
 pub fn optimize(
@@ -40,8 +42,9 @@ fn optimize_(start: Label, blocks: &mut BasicBlocks) -> bool {
 fn find_single_target_labels(start: Label, blocks: &BasicBlocks) -> BTreeSet<Label> {
     use Command_ as C;
     let mut counts = BTreeMap::new();
-    // 'start' block starts as one as it is the entry point of the function. In some sense,
-    // there is an implicit "jump" to this label to begin executing the function
+    // 'start' block starts as one as it is the entry point of the function. In some
+    // sense, there is an implicit "jump" to this label to begin executing the
+    // function
     counts.insert(start, 1);
     for block in blocks.values() {
         match &block.back().unwrap().value {
@@ -70,7 +73,8 @@ fn inline_single_target_blocks(
     start: Label,
     blocks: &mut BasicBlocks,
 ) -> bool {
-    //cleanup of needless_collect would result in mut and non mut borrows, and compilation warning.
+    // cleanup of needless_collect would result in mut and non mut borrows, and
+    // compilation warning.
     let labels_vec = blocks.keys().cloned().collect::<Vec<_>>();
     let mut labels = labels_vec.into_iter();
     let mut next = labels.next();
@@ -111,10 +115,10 @@ fn inline_single_target_blocks(
     changed
 }
 
-/// In order to preserve loop invariants at the bytecode level, when a block is "inlined", that
-/// block needs to be relabelled as the "inlined" block
-/// Without this, blocks that were outside of loops could be inlined into the loop-body, breaking
-/// invariants needed at the bytecode level.
+/// In order to preserve loop invariants at the bytecode level, when a block is
+/// "inlined", that block needs to be relabelled as the "inlined" block
+/// Without this, blocks that were outside of loops could be inlined into the
+/// loop-body, breaking invariants needed at the bytecode level.
 /// For example:
 /// Before:
 ///   A: block_a; jump B
@@ -130,8 +134,8 @@ fn remap_to_last_target(
     blocks: &mut BasicBlocks,
 ) {
     // The start block can't be relabelled in the current CFG API.
-    // But it does not need to be since it will always be the first block, thus it will not run
-    // into issues in the bytecode verifier
+    // But it does not need to be since it will always be the first block, thus it
+    // will not run into issues in the bytecode verifier
     remapping.remove(&start);
     if remapping.is_empty() {
         return;

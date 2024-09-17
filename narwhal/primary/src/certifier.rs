@@ -1,21 +1,19 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{aggregators::VotesAggregator, metrics::PrimaryMetrics, synchronizer::Synchronizer};
+
+use std::{sync::Arc, time::Duration};
 
 use config::{AuthorityIdentifier, Committee};
 use crypto::{NetworkPublicKey, Signature};
 use fastcrypto::signature_service::SignatureService;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use mysten_metrics::metered_channel::Receiver;
-use mysten_metrics::{monitored_future, spawn_logged_monitored_task};
-use mysten_network::anemo_ext::NetworkExt;
-use std::sync::Arc;
-use std::time::Duration;
+use futures::{stream::FuturesUnordered, StreamExt};
+use iota_macros::fail_point_async;
+use iota_metrics::{metered_channel::Receiver, monitored_future, spawn_logged_monitored_task};
+use iota_network_stack::anemo_ext::NetworkExt;
+use iota_protocol_config::ProtocolConfig;
 use storage::CertificateStore;
-use sui_macros::fail_point_async;
-use sui_protocol_config::ProtocolConfig;
 use tokio::{
     sync::oneshot,
     task::{JoinHandle, JoinSet},
@@ -28,15 +26,18 @@ use types::{
     PrimaryToPrimaryClient, RequestVoteRequest, Vote, VoteAPI,
 };
 
+use crate::{aggregators::VotesAggregator, metrics::PrimaryMetrics, synchronizer::Synchronizer};
+
 #[cfg(test)]
 #[path = "tests/certifier_tests.rs"]
 pub mod certifier_tests;
 
-/// This component is responisble for proposing headers to peers, collecting votes on headers,
-/// and certifying headers into certificates.
+/// This component is responisble for proposing headers to peers, collecting
+/// votes on headers, and certifying headers into certificates.
 ///
-/// It receives headers to propose from Proposer via `rx_headers`, and sends out certificates to be
-/// broadcasted by calling `Synchronizer::accept_own_certificate()`.
+/// It receives headers to propose from Proposer via `rx_headers`, and sends out
+/// certificates to be broadcasted by calling
+/// `Synchronizer::accept_own_certificate()`.
 pub struct Certifier {
     /// The identifier of this primary.
     authority_id: AuthorityIdentifier,
@@ -53,12 +54,13 @@ pub struct Certifier {
     rx_shutdown: ConditionalBroadcastReceiver,
     /// Receives our newly created headers from the `Proposer`.
     rx_headers: Receiver<Header>,
-    /// Used to cancel vote requests for a previously-proposed header that is being replaced
-    /// before a certificate could be formed.
+    /// Used to cancel vote requests for a previously-proposed header that is
+    /// being replaced before a certificate could be formed.
     cancel_proposed_header: Option<oneshot::Sender<()>>,
-    /// Handle to propose_header task. Our target is to have only one task running always, thus
-    /// we cancel the previously running before we spawn the next one. However, we don't wait for
-    /// the previous to finish to spawn the new one, so we might temporarily have more that one
+    /// Handle to propose_header task. Our target is to have only one task
+    /// running always, thus we cancel the previously running before we
+    /// spawn the next one. However, we don't wait for the previous to
+    /// finish to spawn the new one, so we might temporarily have more that one
     /// parallel running, which should be fine though.
     propose_header_tasks: JoinSet<DagResult<Certificate>>,
     /// A network sender to send the batches to the other workers.
@@ -116,8 +118,8 @@ impl Certifier {
         }
     }
 
-    // Requests a vote for a Header from the given peer. Retries indefinitely until either a
-    // vote is received, or a permanent error is returned.
+    // Requests a vote for a Header from the given peer. Retries indefinitely until
+    // either a vote is received, or a permanent error is returned.
     #[instrument(level = "debug", skip_all, fields(header_digest = ?header.digest()))]
     async fn request_vote(
         network: anemo::Network,
@@ -152,7 +154,10 @@ impl Certifier {
                     .flatten()
                     .collect();
                 if parents.len() != expected_count {
-                    warn!("tried to read {expected_count} missing certificates requested by remote primary for vote request, but only found {}", parents.len());
+                    warn!(
+                        "tried to read {expected_count} missing certificates requested by remote primary for vote request, but only found {}",
+                        parents.len()
+                    );
                     return Err(DagError::ProposedHeaderMissingCertificates);
                 }
                 parents
@@ -162,7 +167,7 @@ impl Certifier {
                 header: header.clone(),
                 parents,
             })
-            .with_timeout(Duration::from_secs(30));
+            .with_timeout(Duration::from_secs(5));
             match client.request_vote(request).await {
                 Ok(response) => {
                     let response = response.into_body();
@@ -181,9 +186,10 @@ impl Certifier {
                 }
             }
 
-            // Retry delay. Using custom values here because pure exponential backoff is hard to
-            // configure without it being either too aggressive or too slow. We want the first
-            // retry to be instantaneous, next couple to be fast, and to slow quickly thereafter.
+            // Retry delay. Using custom values here because pure exponential backoff is
+            // hard to configure without it being either too aggressive or too
+            // slow. We want the first retry to be instantaneous, next couple to
+            // be fast, and to slow quickly thereafter.
             tokio::time::sleep(Duration::from_millis(match attempt {
                 1 => 0,
                 2 => 100,

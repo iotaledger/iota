@@ -1,0 +1,9 @@
+---
+keystore:
+  File: /root/.iota/iota_config/iota.keystore
+envs:
+  - alias: iota-private-network
+    rpc: "http://fullnode-1:9000"
+    ws: ~
+active_env: iota-private-network
+active_address: "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"

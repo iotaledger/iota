@@ -1,0 +1,56 @@
+# BCS
+
+The `@iota/iota-sdk/bcs` package extends `@iota/bcs` with Iota specific scheme definitions.
+
+To learn more about using BCS see the [BCS documentation](../bcs.mdx).
+
+the `bcs` export of `@iota/iota-sdk/bcs` contains all the same exports as `bcs` from `@iota/bcs`
+plus the following pre-defined schemes:
+
+-   `U8`
+-   `U16`
+-   `U32`
+-   `U64`
+-   `U128`
+-   `U256`
+-   `ULEB128`
+-   `Bool`
+-   `String`
+-   `Address`
+-   `Argument`
+-   `CallArg`
+-   `CompressedSignature`
+-   `GasData`
+-   `MultiSig`
+-   `MultiSigPkMap`
+-   `MultiSigPublicKey`
+-   `ObjectArg`
+-   `ObjectDigest`
+-   `ProgrammableMoveCall`
+-   `ProgrammableTransaction`
+-   `PublicKey`
+-   `SenderSignedData`
+-   `SharedObjectRef`
+-   `StructTag`
+-   `IotaObjectRef`
+-   `Transaction`
+-   `TransactionData`
+-   `TransactionDataV1`
+-   `TransactionExpiration`
+-   `TransactionKind`
+-   `TypeTag`
+
+All the upper-cased values are `BcsType` instances, and can be used directly to parse and serialize
+data.
+
+```typescript
+import { bcs } from '@iota/iota-sdk/bcs';
+
+bcs.U8.serialize(1);
+bcs.Address.serialize('0x1');
+bcs.TypeTag.serialize({
+    vector: {
+        u8: true,
+    },
+});
+```

@@ -1,23 +1,26 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A helper for generating structured code.
 //!
-//! TODO(wrwg): this should be moved somewhere else. It is currently contained here
-//!   so its on the bottom of the dependency relation, and there is no `utility` crate
-//!   where it could belong to.
+//! TODO(wrwg): this should be moved somewhere else. It is currently contained
+//! here   so its on the bottom of the dependency relation, and there is no
+//! `utility` crate   where it could belong to.
 
-use std::collections::{BTreeMap, Bound};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, Bound},
+};
 
 use codespan::{ByteIndex, ByteOffset, ColumnIndex, Files, LineIndex, RawIndex, RawOffset};
 
 use crate::model::Loc;
-use std::cell::RefCell;
 
 struct CodeWriterData {
-    /// A function to be called on each emitted string. If the function does not change
-    /// anything, it returns None.
+    /// A function to be called on each emitted string. If the function does not
+    /// change anything, it returns None.
     emit_hook: Box<dyn Fn(&str) -> Option<String>>,
 
     /// The generated output string.
@@ -29,19 +32,22 @@ struct CodeWriterData {
     /// Current active location.
     current_location: Loc,
 
-    /// A sparse mapping from byte index in written output to location in source file.
-    /// Any index not in this map is approximated by the next smaller index on lookup.
+    /// A sparse mapping from byte index in written output to location in source
+    /// file. Any index not in this map is approximated by the next smaller
+    /// index on lookup.
     output_location_map: BTreeMap<ByteIndex, Loc>,
 
-    /// A map from label indices to the current position in output they are pointing to.
+    /// A map from label indices to the current position in output they are
+    /// pointing to.
     label_map: BTreeMap<ByteIndex, ByteIndex>,
 }
 
-/// A helper to emit code. Supports indentation and maintains source to target location information.
+/// A helper to emit code. Supports indentation and maintains source to target
+/// location information.
 pub struct CodeWriter(RefCell<CodeWriterData>);
 
-/// A label which can be created at the code writers current output position to later insert
-/// code at this position.
+/// A label which can be created at the code writers current output position to
+/// later insert code at this position.
 #[derive(Debug, Clone, Copy)]
 pub struct CodeWriterLabel(ByteIndex);
 
@@ -102,8 +108,9 @@ impl CodeWriter {
         data.output.insert_str(index.0 as usize, s);
     }
 
-    /// Calls a function to process the code written so far. This is embedded into a function
-    /// so we ensure correct scoping of borrowed RefCell content.
+    /// Calls a function to process the code written so far. This is embedded
+    /// into a function so we ensure correct scoping of borrowed RefCell
+    /// content.
     pub fn process_result<T, F: FnMut(&str) -> T>(&self, mut f: F) -> T {
         // Ensure that result is terminated by newline without spaces.
         // This assumes that we already trimmed all individual lines.
@@ -127,10 +134,11 @@ impl CodeWriter {
         s
     }
 
-    /// Sets the current location. This location will be associated with all subsequently written
-    /// code so we can map back from the generated code to this location. If current loc
-    /// is already the passed one, nothing will be updated, so it is ok to call this method
-    /// repeatedly with the same value.
+    /// Sets the current location. This location will be associated with all
+    /// subsequently written code so we can map back from the generated code
+    /// to this location. If current loc is already the passed one, nothing
+    /// will be updated, so it is ok to call this method repeatedly with the
+    /// same value.
     pub fn set_location(&self, loc: &Loc) {
         let mut data = self.0.borrow_mut();
         let code_at = ByteIndex(data.output.len() as u32);
@@ -140,8 +148,8 @@ impl CodeWriter {
         }
     }
 
-    /// Given a byte index in the written output, return the best approximation of the source
-    /// which generated this output.
+    /// Given a byte index in the written output, return the best approximation
+    /// of the source which generated this output.
     pub fn get_source_location(&self, output_index: ByteIndex) -> Option<Loc> {
         let data = self.0.borrow();
         if let Some(loc) = data
@@ -166,9 +174,9 @@ impl CodeWriter {
         })
     }
 
-    /// Indents any subsequently written output. The current line of output and any subsequent ones
-    /// will be indented. Note this works after the last output was `\n` but the line is still
-    /// empty.
+    /// Indents any subsequently written output. The current line of output and
+    /// any subsequent ones will be indented. Note this works after the last
+    /// output was `\n` but the line is still empty.
     pub fn indent(&self) {
         let mut data = self.0.borrow_mut();
         data.indent += 4;
@@ -191,7 +199,8 @@ impl CodeWriter {
         self.unindent();
     }
 
-    /// Emit a string. The string will be broken down into lines to apply current indentation.
+    /// Emit a string. The string will be broken down into lines to apply
+    /// current indentation.
     pub fn emit(&self, s: &str) {
         let rewritten = (*self.0.borrow().emit_hook)(s);
         let s = if let Some(r) = &rewritten {

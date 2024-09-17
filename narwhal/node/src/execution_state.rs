@@ -1,5 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use async_trait::async_trait;
 use executor::ExecutionState;
 use tokio::sync::mpsc::Sender;

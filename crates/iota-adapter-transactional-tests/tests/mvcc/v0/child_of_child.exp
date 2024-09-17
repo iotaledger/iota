@@ -1,0 +1,62 @@
+processed 14 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 9-67:
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 9218800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'programmable'. lines 69-71:
+created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 9750800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3 'view-object'. lines 73-73:
+Owner: Account Address ( A )
+Version: 2
+Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,4)}}, value: 0u64}
+
+task 4 'programmable'. lines 75-76:
+mutated: object(0,0), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, storage_cost: 4841200,  storage_rebate: 4841200, non_refundable_storage_fee: 0
+
+task 5 'view-object'. lines 78-78:
+Owner: Account Address ( A )
+Version: 3
+Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,4)}}, value: 1u64}
+
+task 6 'programmable'. lines 80-81:
+mutated: object(0,0), object(2,4)
+deleted: object(2,1), object(2,3)
+gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 6011600, non_refundable_storage_fee: 0
+
+task 7 'view-object'. lines 83-86:
+Owner: Account Address ( A )
+Version: 4
+Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,4)}}, value: 1u64}
+
+task 8 'programmable'. lines 88-89:
+mutated: object(_), object(2,4)
+gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1284400, non_refundable_storage_fee: 0
+
+task 9 'programmable'. lines 91-92:
+mutated: object(_), object(2,4)
+gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1284400, non_refundable_storage_fee: 0
+
+task 10 'programmable'. lines 94-98:
+mutated: object(_), object(2,4)
+gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1284400, non_refundable_storage_fee: 0
+
+task 11 'programmable'. lines 100-101:
+Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 3, instruction: 10, function_name: Some("check") }, 0) in command 0
+Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 3, instruction: 10, function_name: Some("check") }, 0) in command 0
+
+task 12 'programmable'. lines 103-104:
+Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+
+task 13 'programmable'. lines 106-107:
+Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 3, instruction: 10, function_name: Some("check") }, 0) in command 0
+Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 3, instruction: 10, function_name: Some("check") }, 0) in command 0

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ObjectOwner } from '@mysten/sui.js/client';
-import type { TransactionBlock, TransactionObjectArgument } from '@mysten/sui.js/transactions';
+import type { ObjectOwner } from '@iota/iota-sdk/client';
+import type { TransactionBlock, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import type { ObjectArgument } from './index.js';
 
@@ -28,23 +29,23 @@ export const ROYALTY_RULE = 'royalty_rule::Rule';
  * The Transfer Policy Cap in a consumable way.
  */
 export type TransferPolicyCap = {
-	policyId: string;
-	policyCapId: string;
-	type: string;
+    policyId: string;
+    policyCapId: string;
+    type: string;
 };
 
 /** The `TransferPolicy` object */
 export type TransferPolicy = {
-	id: string;
-	type: string;
-	balance: string;
-	rules: string[];
-	owner: ObjectOwner;
+    id: string;
+    type: string;
+    balance: string;
+    rules: string[];
+    owner: ObjectOwner;
 };
 
 /** Event emitted when a TransferPolicy is created. */
 export type TransferPolicyCreated = {
-	id: string;
+    id: string;
 };
 
 // The object a Rule resolving function accepts
@@ -52,16 +53,16 @@ export type TransferPolicyCreated = {
 // Each rule resolving function should check that the key it's seeking is in the object
 // e.g. `if(!'my_key' in ruleParams!) throw new Error("Can't resolve that rule!")`
 export type RuleResolvingParams = {
-	transactionBlock: TransactionBlock;
-	itemType: string;
-	itemId: string;
-	price: string;
-	policyId: ObjectArgument;
-	sellerKiosk: ObjectArgument;
-	kiosk: ObjectArgument;
-	kioskCap: ObjectArgument;
-	transferRequest: TransactionObjectArgument;
-	purchasedItem: TransactionObjectArgument;
-	packageId: string;
-	extraArgs: Record<string, any>; // extraParams contains more possible {key, values} to pass for custom rules.
+    transactionBlock: TransactionBlock;
+    itemType: string;
+    itemId: string;
+    price: string;
+    policyId: ObjectArgument;
+    sellerKiosk: ObjectArgument;
+    kiosk: ObjectArgument;
+    kioskCap: ObjectArgument;
+    transferRequest: TransactionObjectArgument;
+    purchasedItem: TransactionObjectArgument;
+    packageId: string;
+    extraArgs: Record<string, any>; // extraParams contains more possible {key, values} to pass for custom rules.
 };

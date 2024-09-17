@@ -1,0 +1,29 @@
+[alias]
+ci-fmt = "fmt --check"
+ci-fmt-external = "ci-fmt --manifest-path external-crates/move/Cargo.toml --all"
+ci-clippy = "clippy --all-targets --all-features -- -D warnings"
+ci-clippy-external = [
+  "clippy",
+  "--manifest-path",
+  "external-crates/move/Cargo.toml",
+  "--",
+  "-Aclippy::upper_case_acronyms",
+  "-Aclippy::type_complexity",
+  "-Aclippy::new_without_default",
+  "-Aclippy::box_default",
+  "-Aclippy::manual_slice_size_calculation",
+  "-Dwarnings",
+]
+ci-license = "license-template --template .license_template"
+ci-udeps = "udeps --all-targets --backend=depinfo"
+ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
+
+[build]
+rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
+
+# 64 bit MSVC, override default 1M stack with 8M stack
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+  "-C",
+  "link-arg=/STACK:8000000",
+]

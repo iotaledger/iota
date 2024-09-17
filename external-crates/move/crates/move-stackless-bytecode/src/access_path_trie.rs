@@ -1,16 +1,20 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The obvious approach to abstracting a set of concrete paths is using a set of abstract paths.
-//! An access path trie represents a set of paths in a way that avoids redundant representations of
-//! the same memory. Root nodes are access path roots and each internal node is an access path offset.
-//! Each node is (optionally) associated with abstract value of a generic type `T`.
+//! The obvious approach to abstracting a set of concrete paths is using a set
+//! of abstract paths. An access path trie represents a set of paths in a way
+//! that avoids redundant representations of the same memory. Root nodes are
+//! access path roots and each internal node is an access path offset. Each node
+//! is (optionally) associated with abstract value of a generic type `T`.
 
-use crate::{
-    access_path::{AbsAddr, AccessPath, AccessPathMap, FootprintDomain, Offset, Root},
-    dataflow_domains::{AbstractDomain, JoinResult, MapDomain},
+use std::{
+    fmt,
+    fmt::Formatter,
+    ops::{Deref, DerefMut},
 };
+
 use im::ordmap::Entry;
 use move_core_types::language_storage::TypeTag;
 use move_model::{
@@ -18,16 +22,17 @@ use move_model::{
     model::{FunctionEnv, GlobalEnv},
     ty::Type,
 };
-use std::{
-    fmt,
-    fmt::Formatter,
-    ops::{Deref, DerefMut},
+
+use crate::{
+    access_path::{AbsAddr, AccessPath, AccessPathMap, FootprintDomain, Offset, Root},
+    dataflow_domains::{AbstractDomain, JoinResult, MapDomain},
 };
 
 // =================================================================================================
 // Data model
 
-/// A node in the access Trie: `data` associated with the parent node + `children` mapping offsets to child nodes
+/// A node in the access Trie: `data` associated with the parent node +
+/// `children` mapping offsets to child nodes
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct TrieNode<T: FootprintDomain> {
     /// Optional data associated with the parent in the trie
@@ -58,7 +63,8 @@ impl<T: FootprintDomain> TrieNode<T> {
         }
     }
 
-    /// Like join, but gracefully handles `Non` data fields by treating None as Bottom
+    /// Like join, but gracefully handles `Non` data fields by treating None as
+    /// Bottom
     pub fn join_data_opt_(mut data: &mut Option<T>, other: &Option<T>) -> JoinResult {
         match (&mut data, other) {
             (Some(data1), Some(data2)) => data1.join(data2),
@@ -70,7 +76,8 @@ impl<T: FootprintDomain> TrieNode<T> {
         }
     }
 
-    /// Like join, but gracefully handles `None` data fields by treating None as Bottom
+    /// Like join, but gracefully handles `None` data fields by treating None as
+    /// Bottom
     pub fn join_data_opt(&mut self, other: &Option<T>) -> JoinResult {
         Self::join_data_opt_(&mut self.data, other)
     }
@@ -114,8 +121,9 @@ impl<T: FootprintDomain> TrieNode<T> {
         self.children.remove(o)
     }
 
-    /// Return true if `self`'s keys can be converted into a compact set of concrete access paths
-    /// Note: this says nothing about the `data` part of `self`
+    /// Return true if `self`'s keys can be converted into a compact set of
+    /// concrete access paths Note: this says nothing about the `data` part
+    /// of `self`
     pub fn keys_statically_known(&self) -> bool {
         for (offset, child) in self.children.iter() {
             if !offset.is_statically_known() || !child.keys_statically_known() {
@@ -127,7 +135,8 @@ impl<T: FootprintDomain> TrieNode<T> {
 
     /// Bind caller data in `actuals`, `type_actuals`, and `sub_map` to `self`.
     /// (1) Bind all free type variables in `self` to `type_actuals`
-    /// (2) Apply `sub_data` to `self.data` and (recursively) to the `data` fields of `self.children`
+    /// (2) Apply `sub_data` to `self.data` and (recursively) to the `data`
+    /// fields of `self.children`
     pub fn substitute_footprint<F>(
         mut self,
         actuals: &[TempIndex],
@@ -265,7 +274,8 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
     }
 
     /// Removes node located at the given access path
-    /// Returns the node if it has been fully removed from the trie (i.e. it did not have any children)
+    /// Returns the node if it has been fully removed from the trie (i.e. it did
+    /// not have any children)
     pub fn remove_node(&mut self, ap: AccessPath) -> Option<TrieNode<T>> {
         let mut node = self.0.get_mut(ap.root())?;
 
@@ -308,8 +318,8 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
     }
 
     /// Update `ap` in `global`.
-    /// Performs a strong update if the base of `ap` is a local and all offsets are Field's.
-    /// Otherwise, performs a weak update (TODO: more details).
+    /// Performs a strong update if the base of `ap` is a local and all offsets
+    /// are Field's. Otherwise, performs a weak update (TODO: more details).
     /// Creates nodes for each offset in `ap` if they do not already exist
     pub fn update_access_path(&mut self, ap: AccessPath, data: Option<T>) {
         self.update_access_path_(ap, TrieNode::new_opt(data), false)
@@ -321,10 +331,11 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
     }
 
     /// Update the value bound to `ap` with `new_node`.
-    /// If `weak_update` is true, do this by joining `new_node` with the old value`
-    /// If `weak_update` is false, attempt to replace the old value with `new_node`.
-    /// However, this may still result in a weak update if `ap` does not permit a strong
-    /// update (e.g., if it contains a vector index)
+    /// If `weak_update` is true, do this by joining `new_node` with the old
+    /// value` If `weak_update` is false, attempt to replace the old value
+    /// with `new_node`. However, this may still result in a weak update if
+    /// `ap` does not permit a strong update (e.g., if it contains a vector
+    /// index)
     fn update_access_path_(
         &mut self,
         ap: AccessPath,
@@ -356,12 +367,14 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
         }
     }
 
-    /// Bind `data` to `local_index` in the trie, overwriting the old value of `local_index`
+    /// Bind `data` to `local_index` in the trie, overwriting the old value of
+    /// `local_index`
     pub fn bind_local(&mut self, local_index: TempIndex, data: T, fun_env: &FunctionEnv) {
         self.bind_root(Root::from_index(local_index, fun_env), data)
     }
 
-    /// Bind `node` to `local_index` in the trie, overwriting the old value of `local_index`
+    /// Bind `node` to `local_index` in the trie, overwriting the old value of
+    /// `local_index`
     pub fn bind_local_node(
         &mut self,
         local_index: TempIndex,
@@ -391,13 +404,15 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
         self.0.insert(root, TrieNode::new(data));
     }
 
-    /// Retrieve the data associated with `local_index` in the trie. Returns `None` if there is no associated data
+    /// Retrieve the data associated with `local_index` in the trie. Returns
+    /// `None` if there is no associated data
     pub fn get_local(&self, local_index: TempIndex, fun_env: &FunctionEnv) -> Option<&T> {
         self.get_local_node(local_index, fun_env)
             .and_then(|n| n.data.as_ref())
     }
 
-    /// Retrieve the node associated with `local_index` in the trie. Returns `None` if there is no associated node
+    /// Retrieve the node associated with `local_index` in the trie. Returns
+    /// `None` if there is no associated node
     pub fn get_local_node(
         &self,
         local_index: TempIndex,
@@ -411,8 +426,8 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
         self.0.contains_key(&Root::from_index(local_index, fun_env))
     }
 
-    /// Return `true` if the keys of `self` have no dynamic components and thus can be converted into
-    /// a compact set of concrete access paths.
+    /// Return `true` if the keys of `self` have no dynamic components and thus
+    /// can be converted into a compact set of concrete access paths.
     pub fn keys_statically_known(&self) -> bool {
         for (root, node) in self.0.iter() {
             if !root.is_statically_known() || !node.keys_statically_known() {
@@ -424,7 +439,8 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
 
     /// Bind caller data in `actuals`, `type_actuals`, and `sub_map` to `self`.
     /// (1) Bind all free type variables in `self` to `type_actuals`
-    /// (2) Apply `sub_data` to `self.data` and (recursively) to the `data` fields of `self.children`
+    /// (2) Apply `sub_data` to `self.data` and (recursively) to the `data`
+    /// fields of `self.children`
     pub fn substitute_footprint<F>(
         self,
         actuals: &[TempIndex],
@@ -445,7 +461,8 @@ impl<T: FootprintDomain> AccessPathTrie<T> {
         acc
     }
 
-    /// Same as `substitute_footprint`, but does not change the `data` field of any node
+    /// Same as `substitute_footprint`, but does not change the `data` field of
+    /// any node
     pub fn substitute_footprint_skip_data(
         self,
         actuals: &[TempIndex],

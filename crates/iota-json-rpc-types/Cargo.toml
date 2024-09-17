@@ -1,0 +1,40 @@
+[package]
+name = "iota-json-rpc-types"
+version = "0.0.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+bcs.workspace = true
+colored.workspace = true
+enum_dispatch.workspace = true
+fastcrypto.workspace = true
+iota-enum-compat-util.workspace = true
+iota-macros.workspace = true
+iota-protocol-config.workspace = true
+itertools.workspace = true
+json_to_table.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+tabled.workspace = true
+tracing.workspace = true
+
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-core-types.workspace = true
+
+iota-json.workspace = true
+iota-metrics.workspace = true
+iota-package-resolver.workspace = true
+iota-types.workspace = true
+
+[dev-dependencies]
+iota-types = { workspace = true, features = ["test-utils"] }
+
+[features]
+test-utils = []

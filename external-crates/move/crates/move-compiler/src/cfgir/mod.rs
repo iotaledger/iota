@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod absint;
@@ -14,23 +15,24 @@ pub mod visitor;
 
 mod optimize;
 
-use crate::{
-    expansion::ast::{AbilitySet, Attributes, ModuleIdent, Mutability},
-    hlir::ast::{FunctionSignature, Label, SingleType, Var, Visibility},
-    parser::ast::StructName,
-    shared::{unique_map::UniqueMap, CompilationEnv, Name},
-};
+use std::collections::BTreeSet;
+
 use cfg::*;
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 use optimize::optimize;
-use std::collections::BTreeSet;
+
+use crate::{
+    expansion::ast::{Attributes, ModuleIdent, Mutability},
+    hlir::ast::{FunctionSignature, Label, SingleType, Var, Visibility},
+    shared::{program_info::TypingProgramInfo, unique_map::UniqueMap, CompilationEnv, Name},
+};
 
 pub struct CFGContext<'a> {
+    pub info: &'a TypingProgramInfo,
     pub package: Option<Symbol>,
     pub module: ModuleIdent,
     pub member: MemberName,
-    pub struct_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<StructName, AbilitySet>>,
     pub attributes: &'a Attributes,
     pub entry: Option<Loc>,
     pub visibility: Visibility,

@@ -1,0 +1,38 @@
+---
+title: Object Ownership
+description: Overview of the different types of object ownership in IOTA and their implications for transactions and access.
+---
+
+Every object on the IOTA network has an ownership model that dictates how it can be accessed and used within transactions. 
+The ownership type of an object determines who has the authority to interact with it and how it can be manipulated. Below are the various types of object ownership in IOTA:
+
+## Address-Owned Objects
+
+An [address-owned](address-owned.mdx) object is tied to a specific 32-byte address,
+which can either be an account address derived from a particular signature scheme or an object ID. 
+These objects are exclusively accessible by their owner,
+meaning no other entity can interact with them unless ownership is transferred.
+
+## Dynamic Fields
+
+[Dynamic fields](../dynamic-fields/dynamic-fields.mdx) in IOTA allow you to add and remove fields dynamically,
+meaning their structure isn't fixed at the time of publication.
+These fields only impact gas when they are accessed and can store a wide variety of heterogeneous values, making them versatile for many use cases.
+
+## Immutable Objects
+
+[Immutable objects](immutable.mdx) are unique in that once they are set as immutable, they cannot be altered, transferred, or deleted.
+These objects have no owner, making them accessible to anyone on the network.
+Immutable objects are especially useful when you need to ensure that the data remains unchanged.
+
+## Shared Objects
+
+[Shared objects](shared.mdx) are made accessible to everyone on the network through the
+[`0x2::transfer::share_object`](../../../../references/framework/iota-framework/transfer.mdx#function-share_object) function.
+Unlike address-owned objects, shared objects are not restricted to a single owner and can be read or modified by any entity on the network.
+
+## Wrapped Objects
+
+In Move, objects can be organized in a hierarchical manner by [wrapping](wrapped.mdx) one `struct` type as a field within another.
+This allows for more complex data structures and the ability to encapsulate different functionalities within a single object.
+

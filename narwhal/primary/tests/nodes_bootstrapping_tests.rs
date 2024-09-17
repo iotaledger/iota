@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use bytes::Bytes;
+
 use std::time::Duration;
+
+use bytes::Bytes;
 use test_utils::cluster::{setup_tracing, Cluster};
 use types::TransactionProto;
 
@@ -33,19 +36,14 @@ async fn test_response_error_after_shutdown_internal_consensus() {
     let tx_str = "test transaction".to_string();
     let tx = bcs::to_bytes(&tx_str).unwrap();
     let txn = TransactionProto {
-        transaction: Bytes::from(tx),
+        transactions: vec![Bytes::from(tx)],
     };
 
     // Should fail submitting to consensus.
     let Err(e) = client.submit_transaction(txn).await else {
         panic!("Submitting transactions after Narwhal shutdown should fail!");
     };
-    assert!(
-        e.message()
-            .contains("error trying to connect: tcp connect error:"),
-        "Actual: {}",
-        e
-    );
+    assert!(e.message().contains("tcp connect error:"), "Actual: {}", e);
 }
 
 /// Nodes will be started in a staggered fashion. This is simulating
@@ -86,7 +84,8 @@ async fn test_node_staggered_starts() {
 
     tokio::time::sleep(node_staggered_delay).await;
 
-    // We have only (f) unavailable nodes, so all should have made progress and committed at least after the first round
+    // We have only (f) unavailable nodes, so all should have made progress and
+    // committed at least after the first round
     cluster.assert_progress(3, 2).await;
 
     // ==== Start fourth authority ====
@@ -96,11 +95,13 @@ async fn test_node_staggered_starts() {
 
     tokio::time::sleep(node_staggered_delay).await;
 
-    // All nodes are available so all should have made progress and committed at least after the first round
+    // All nodes are available so all should have made progress and committed at
+    // least after the first round
     cluster.assert_progress(4, 2).await;
 }
 
-/// All the nodes have an outage at the same time, when they recover, the rounds begin to advance.
+/// All the nodes have an outage at the same time, when they recover, the rounds
+/// begin to advance.
 #[ignore]
 #[tokio::test]
 async fn test_full_outage_and_recovery() {
@@ -190,11 +191,11 @@ async fn test_second_node_restart() {
 
 #[ignore]
 #[tokio::test]
-/// We are testing the loss of liveness of a healthy cluster. While 3f+1 nodes run
-/// we are shutting down f+1 nodes. Then we are bringing the f+1 nodes back again
-/// We expect the restarted nodes to be able to make new proposals, and all the nodes
-/// should be able to propose from where they left of at last round, and the rounds should
-/// all advance.
+/// We are testing the loss of liveness of a healthy cluster. While 3f+1 nodes
+/// run we are shutting down f+1 nodes. Then we are bringing the f+1 nodes back
+/// again We expect the restarted nodes to be able to make new proposals, and
+/// all the nodes should be able to propose from where they left of at last
+/// round, and the rounds should all advance.
 async fn test_loss_of_liveness_without_recovery() {
     // Enabled debug tracing so we can easily observe the
     // nodes logs.
@@ -233,8 +234,8 @@ async fn test_loss_of_liveness_without_recovery() {
     cluster.authority(2).start(true, Some(1)).await;
     cluster.authority(3).start(true, Some(1)).await;
 
-    // wait and fetch the latest commit round. All of them should have advanced and we allow a small
-    // threshold in case some node is faster than the others
+    // wait and fetch the latest commit round. All of them should have advanced and
+    // we allow a small threshold in case some node is faster than the others
     tokio::time::sleep(node_advance_delay).await;
     let rounds_3 = cluster.assert_progress(4, 2).await;
 
@@ -245,8 +246,8 @@ async fn test_loss_of_liveness_without_recovery() {
 
 #[ignore]
 #[tokio::test]
-/// We are testing the loss of liveness of a healthy cluster. While 3f+1 nodes run
-/// we are shutting down f+1 nodes one by one with some delay between them.
+/// We are testing the loss of liveness of a healthy cluster. While 3f+1 nodes
+/// run we are shutting down f+1 nodes one by one with some delay between them.
 /// Then we are bringing the f+1 nodes back again. We expect the cluster to
 /// recover and effectively make progress.
 async fn test_loss_of_liveness_with_recovery() {

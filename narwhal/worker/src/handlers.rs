@@ -1,6 +1,9 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::HashSet, time::Duration};
 
 use anemo::{types::response::StatusCode, Network};
 use anyhow::Result;
@@ -9,15 +12,12 @@ use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
 use itertools::Itertools;
 use network::{client::NetworkClient, WorkerToPrimaryClient};
-use std::{collections::HashSet, time::Duration};
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
 use tracing::{debug, trace};
 use types::{
-    now, validate_batch_version, Batch, BatchAPI, BatchDigest, FetchBatchesRequest,
-    FetchBatchesResponse, MetadataAPI, PrimaryToWorker, RequestBatchesRequest,
-    RequestBatchesResponse, WorkerBatchMessage, WorkerOthersBatchMessage, WorkerSynchronizeMessage,
-    WorkerToWorker, WorkerToWorkerClient,
+    now, Batch, BatchAPI, BatchDigest, FetchBatchesRequest, FetchBatchesResponse, MetadataAPI,
+    PrimaryToWorker, RequestBatchesRequest, RequestBatchesResponse, WorkerBatchMessage,
+    WorkerOthersBatchMessage, WorkerSynchronizeMessage, WorkerToWorker, WorkerToWorkerClient,
 };
 
 use crate::{batch_fetcher::BatchFetcher, TransactionValidator};
@@ -29,7 +29,6 @@ pub mod handlers_tests;
 /// Defines how the network receiver handles incoming workers messages.
 #[derive(Clone)]
 pub struct WorkerReceiverHandler<V> {
-    pub protocol_config: ProtocolConfig,
     pub id: WorkerId,
     pub client: NetworkClient,
     pub store: DBMap<BatchDigest, Batch>,
@@ -43,10 +42,7 @@ impl<V: TransactionValidator> WorkerToWorker for WorkerReceiverHandler<V> {
         request: anemo::Request<WorkerBatchMessage>,
     ) -> Result<anemo::Response<()>, anemo::rpc::Status> {
         let message = request.into_body();
-        if let Err(err) = self
-            .validator
-            .validate_batch(&message.batch, &self.protocol_config)
-        {
+        if let Err(err) = self.validator.validate_batch(&message.batch) {
             return Err(anemo::rpc::Status::new_with_message(
                 StatusCode::BadRequest,
                 format!("Invalid batch: {err}"),
@@ -114,12 +110,12 @@ impl<V: TransactionValidator> WorkerToWorker for WorkerReceiverHandler<V> {
 /// Defines how the network receiver handles incoming primary messages.
 pub struct PrimaryReceiverHandler<V> {
     // The id of this authority.
+    #[allow(unused)]
     pub authority_id: AuthorityIdentifier,
     // The id of this worker.
     pub id: WorkerId,
     // The committee information.
     pub committee: Committee,
-    pub protocol_config: ProtocolConfig,
     // The worker information cache.
     pub worker_cache: WorkerCache,
     // The batch store
@@ -127,6 +123,7 @@ pub struct PrimaryReceiverHandler<V> {
     // Timeout on RequestBatches RPC.
     pub request_batches_timeout: Duration,
     // Number of random nodes to query when retrying batch requests.
+    #[allow(unused)]
     pub request_batches_retry_nodes: usize,
     // Synchronize header payloads from other workers.
     pub network: Option<Network>,
@@ -208,17 +205,9 @@ impl<V: TransactionValidator> PrimaryToWorker for PrimaryReceiverHandler<V> {
 
         let mut write_batch = self.store.batch();
         for batch in response.batches.iter_mut() {
-            // TODO: Remove once we have removed BatchV1 from the codebase.
-            validate_batch_version(batch, &self.protocol_config).map_err(|err| {
-                anemo::rpc::Status::new_with_message(
-                    StatusCode::BadRequest,
-                    format!("Invalid batch: {err}"),
-                )
-            })?;
-
             if !message.is_certified {
                 // This batch is not part of a certificate, so we need to validate it.
-                if let Err(err) = self.validator.validate_batch(batch, &self.protocol_config) {
+                if let Err(err) = self.validator.validate_batch(batch) {
                     return Err(anemo::rpc::Status::new_with_message(
                         StatusCode::BadRequest,
                         format!("Invalid batch: {err}"),

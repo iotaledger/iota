@@ -1,29 +1,34 @@
 // Copyright(C) Facebook, Inc. and its affiliates.
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::consensus::LeaderSchedule;
-use crate::metrics::PrimaryMetrics;
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, VecDeque},
+    sync::Arc,
+};
+
 use config::{AuthorityIdentifier, Committee, WorkerId};
 use fastcrypto::hash::Hash as _;
-use mysten_metrics::metered_channel::{Receiver, Sender};
-use mysten_metrics::spawn_logged_monitored_task;
-use std::collections::{BTreeMap, VecDeque};
-use std::{cmp::Ordering, sync::Arc};
+use iota_metrics::{
+    metered_channel::{Receiver, Sender},
+    spawn_logged_monitored_task,
+};
 use storage::ProposerStore;
-use sui_protocol_config::ProtocolConfig;
-use tokio::time::{sleep_until, Instant};
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
-    time::{sleep, Duration},
+    time::{sleep, sleep_until, Duration, Instant},
 };
 use tracing::{debug, enabled, error, info, trace};
 use types::{
     error::{DagError, DagResult},
-    BatchDigest, Certificate, CertificateAPI, Header, HeaderAPI, Round, TimestampMs,
+    now, BatchDigest, Certificate, CertificateAPI, ConditionalBroadcastReceiver, Header, HeaderAPI,
+    HeaderV1, Round, TimestampMs,
 };
-use types::{now, ConditionalBroadcastReceiver, HeaderV1};
+
+use crate::{consensus::LeaderSchedule, metrics::PrimaryMetrics};
 
 /// Messages sent to the proposer about our own batch digests
 #[derive(Debug)]
@@ -31,7 +36,8 @@ pub struct OurDigestMessage {
     pub digest: BatchDigest,
     pub worker_id: WorkerId,
     pub timestamp: TimestampMs,
-    /// A channel to send an () as an ack after this digest is processed by the primary.
+    /// A channel to send an () as an ack after this digest is processed by the
+    /// primary.
     pub ack_channel: Option<oneshot::Sender<()>>,
 }
 
@@ -41,7 +47,8 @@ pub mod proposer_tests;
 
 const DEFAULT_HEADER_RESEND_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// The proposer creates new headers and send them to the core for broadcasting and further processing.
+/// The proposer creates new headers and send them to the core for broadcasting
+/// and further processing.
 pub struct Proposer {
     /// The id of this primary.
     authority_id: AuthorityIdentifier,
@@ -65,7 +72,8 @@ pub struct Proposer {
 
     /// Receiver for shutdown.
     rx_shutdown: ConditionalBroadcastReceiver,
-    /// Receives the parents to include in the next header (along with their round number) from core.
+    /// Receives the parents to include in the next header (along with their
+    /// round number) from core.
     rx_parents: Receiver<(Vec<Certificate>, Round)>,
     /// Receives the batches' digests from our workers.
     rx_our_digests: Receiver<OurDigestMessage>,
@@ -85,11 +93,13 @@ pub struct Proposer {
     /// Holds the certificate of the last leader (if any).
     last_leader: Option<Certificate>,
     /// Holds the batches' digests waiting to be included in the next header.
-    /// Digests are roughly oldest to newest, and popped in FIFO order from the front.
+    /// Digests are roughly oldest to newest, and popped in FIFO order from the
+    /// front.
     digests: VecDeque<OurDigestMessage>,
 
-    /// Holds the map of proposed previous round headers and their digest messages, to ensure that
-    /// all batches' digest included will eventually be re-sent.
+    /// Holds the map of proposed previous round headers and their digest
+    /// messages, to ensure that all batches' digest included will
+    /// eventually be re-sent.
     proposed_headers: BTreeMap<Round, (Header, VecDeque<OurDigestMessage>)>,
     /// Committed headers channel on which we get updates on which of
     /// our own headers have been committed.
@@ -97,8 +107,8 @@ pub struct Proposer {
 
     /// Metrics handler
     metrics: Arc<PrimaryMetrics>,
-    /// The consensus leader schedule to be used in order to resolve the leader needed for the
-    /// protocol advancement.
+    /// The consensus leader schedule to be used in order to resolve the leader
+    /// needed for the protocol advancement.
     leader_schedule: LeaderSchedule,
 }
 
@@ -108,7 +118,6 @@ impl Proposer {
     pub fn spawn(
         authority_id: AuthorityIdentifier,
         committee: Committee,
-        protocol_config: &ProtocolConfig,
         proposer_store: ProposerStore,
         header_num_of_batches_threshold: usize,
         max_header_num_of_batches: usize,
@@ -124,7 +133,7 @@ impl Proposer {
         metrics: Arc<PrimaryMetrics>,
         leader_schedule: LeaderSchedule,
     ) -> JoinHandle<()> {
-        let genesis = Certificate::genesis(protocol_config, &committee);
+        let genesis = Certificate::genesis(&committee);
         spawn_logged_monitored_task!(
             async move {
                 Self {
@@ -186,9 +195,10 @@ impl Proposer {
         Ok((header, num_of_included_digests))
     }
 
-    // Creates a new header. Also the method ensures we are protected against equivocation.
-    // If we detect that a different header has been already produced for the same round, then
-    // this method returns the earlier header. Otherwise the newly created header will be returned.
+    // Creates a new header. Also the method ensures we are protected against
+    // equivocation. If we detect that a different header has been already
+    // produced for the same round, then this method returns the earlier header.
+    // Otherwise the newly created header will be returned.
     async fn create_new_header(&mut self) -> DagResult<Header> {
         let this_round = self.round;
         let this_epoch = self.committee.epoch();
@@ -208,9 +218,10 @@ impl Proposer {
         let header_digests: VecDeque<_> = self.digests.drain(..num_of_digests).collect();
         let parents = std::mem::take(&mut self.last_parents);
 
-        // Here we check that the timestamp we will include in the header is consistent with the
-        // parents, ie our current time is *after* the timestamp in all the included headers. If
-        // not we log an error and hope a kind operator fixes the clock.
+        // Here we check that the timestamp we will include in the header is consistent
+        // with the parents, ie our current time is *after* the timestamp in all
+        // the included headers. If not we log an error and hope a kind operator
+        // fixes the clock.
         let parent_max_time = parents
             .iter()
             .map(|c| *c.header().created_at())
@@ -280,11 +291,11 @@ impl Proposer {
 
             // NOTE: This log entry is used to compute performance.
             tracing::debug!(
-                    "Batch {:?} from worker {} took {} seconds from creation to be included in a proposed header",
-                    digest.digest,
-                    digest.worker_id,
-                    batch_inclusion_secs
-                );
+                "Batch {:?} from worker {} took {} seconds from creation to be included in a proposed header",
+                digest.digest,
+                digest.worker_id,
+                batch_inclusion_secs
+            );
             self.metrics
                 .proposer_batch_latency
                 .observe(batch_inclusion_secs);
@@ -318,8 +329,9 @@ impl Proposer {
 
     fn max_delay(&self) -> Duration {
         // If this node is going to be the leader of the next round, we set a lower max
-        // timeout value to increase its chance of being included in the dag. As leaders are elected
-        // on even rounds only we apply the reduced max delay only for those ones.
+        // timeout value to increase its chance of being included in the dag. As leaders
+        // are elected on even rounds only we apply the reduced max delay only
+        // for those ones.
         if (self.round + 1) % 2 == 0
             && self.leader_schedule.leader(self.round + 1).id() == self.authority_id
         {
@@ -330,12 +342,12 @@ impl Proposer {
     }
 
     fn min_delay(&self) -> Duration {
-        // TODO: consider even out the boost provided by the even/odd rounds so we avoid perpetually
-        // boosting the nodes and affect the scores.
-        // If this node is going to be the leader of the next round and there are more than
-        // 1 primary in the committee, we use a lower min delay value to increase the chance
-        // of committing the leader. Pay attention that we use here the leader_schedule to figure out
-        // the next leader.
+        // TODO: consider even out the boost provided by the even/odd rounds so we avoid
+        // perpetually boosting the nodes and affect the scores.
+        // If this node is going to be the leader of the next round and there are more
+        // than 1 primary in the committee, we use a lower min delay value to
+        // increase the chance of committing the leader. Pay attention that we
+        // use here the leader_schedule to figure out the next leader.
         let next_round = self.round + 1;
         if self.committee.size() > 1
             && next_round % 2 == 0
@@ -344,10 +356,10 @@ impl Proposer {
             return Duration::ZERO;
         }
 
-        // Give a boost on the odd rounds to a node by using the whole committee here, not just the
-        // nodes of the leader_schedule. By doing this we keep the proposal rate as high as possible
-        // which leads to higher round rate and also acting as a score booster to the less strong nodes
-        // as well.
+        // Give a boost on the odd rounds to a node by using the whole committee here,
+        // not just the nodes of the leader_schedule. By doing this we keep the
+        // proposal rate as high as possible which leads to higher round rate
+        // and also acting as a score booster to the less strong nodes as well.
         if self.committee.size() > 1
             && next_round % 2 != 0
             && self.committee.leader(next_round).id() == self.authority_id
@@ -376,9 +388,9 @@ impl Proposer {
         self.last_leader.is_some()
     }
 
-    /// Check whether if this validator is the leader of the round, or if we have
-    /// (i) f+1 votes for the leader, (ii) 2f+1 nodes not voting for the leader,
-    /// (iii) there is no leader to vote for.
+    /// Check whether if this validator is the leader of the round, or if we
+    /// have (i) f+1 votes for the leader, (ii) 2f+1 nodes not voting for
+    /// the leader, (iii) there is no leader to vote for.
     fn enough_votes(&self) -> bool {
         if self.leader_schedule.leader(self.round + 1).id() == self.authority_id {
             return true;
@@ -405,8 +417,9 @@ impl Proposer {
         enough_votes
     }
 
-    /// Whether we can advance the DAG or need to wait for the leader/more votes.
-    /// Note that if we timeout, we ignore this check and advance anyway.
+    /// Whether we can advance the DAG or need to wait for the leader/more
+    /// votes. Note that if we timeout, we ignore this check and advance
+    /// anyway.
     fn ready(&mut self) -> bool {
         match self.round % 2 {
             0 => self.update_leader(),
@@ -437,12 +450,14 @@ impl Proposer {
             self.authority_id, header_resend_timeout
         );
         loop {
-            // Check if we can propose a new header. We propose a new header when we have a quorum of parents
-            // and one of the following conditions is met:
-            // (i) the timer expired (we timed out on the leader or gave up gather votes for the leader),
-            // (ii) we have enough digests (header_num_of_batches_threshold) and we are on the happy path (we can vote for
-            // the leader or the leader has enough votes to enable a commit).
-            // We guarantee that no more than max_header_num_of_batches are included.
+            // Check if we can propose a new header. We propose a new header when we have a
+            // quorum of parents and one of the following conditions is met:
+            // (i) the timer expired (we timed out on the leader or gave up gather votes for
+            // the leader), (ii) we have enough digests
+            // (header_num_of_batches_threshold) and we are on the happy path (we can vote
+            // for the leader or the leader has enough votes to enable a
+            // commit). We guarantee that no more than max_header_num_of_batches
+            // are included.
             let enough_parents = !self.last_parents.is_empty();
             let enough_digests = self.digests.len() >= self.header_num_of_batches_threshold;
             let max_delay_timed_out = max_delay_timer.is_elapsed();
@@ -452,15 +467,22 @@ impl Proposer {
                 && enough_parents;
 
             debug!(
-                "Proposer loop starts: round={} enough_parents={} enough_digests={} advance={} max_delay_timed_out={} min_delay_timed_out={} should_create_header={}", 
-                self.round, enough_parents, enough_digests, advance, max_delay_timed_out, min_delay_timed_out, should_create_header
+                "Proposer loop starts: round={} enough_parents={} enough_digests={} advance={} max_delay_timed_out={} min_delay_timed_out={} should_create_header={}",
+                self.round,
+                enough_parents,
+                enough_digests,
+                advance,
+                max_delay_timed_out,
+                min_delay_timed_out,
+                should_create_header
             );
 
             if should_create_header {
                 if max_delay_timed_out {
-                    // It is expected that this timer expires from time to time. If it expires too often, it
-                    // either means some validators are Byzantine or that the network is experiencing periods
-                    // of asynchrony. In practice, the latter scenario means we misconfigured the parameter
+                    // It is expected that this timer expires from time to time. If it expires too
+                    // often, it either means some validators are Byzantine or
+                    // that the network is experiencing periods of asynchrony.
+                    // In practice, the latter scenario means we misconfigured the parameter
                     // called `max_header_delay`.
                     debug!("Timer expired for round {}", self.round);
                 }

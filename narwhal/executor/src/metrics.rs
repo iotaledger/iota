@@ -1,5 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use prometheus::{
     default_registry, register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry, Histogram, HistogramVec,

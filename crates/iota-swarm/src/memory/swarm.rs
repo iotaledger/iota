@@ -15,7 +15,7 @@ use anyhow::Result;
 use futures::future::try_join_all;
 use iota_config::{
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
-    NodeConfig,
+    NodeConfig, IOTA_GENESIS_FILENAME,
 };
 use iota_macros::nondeterministic;
 use iota_node::IotaNodeHandle;
@@ -354,17 +354,28 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
             }
 
-            config_builder
+            let mut network_config = config_builder
                 .committee(self.committee)
                 .rng(self.rng)
                 .with_objects(self.additional_objects)
+                .with_empty_validator_genesis()
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
                 )
                 .with_state_accumulator_v2_enabled_config(
                     self.state_accumulator_v2_enabled_config.clone(),
                 )
-                .build()
+                .build();
+            // Populate validator genesis by pointing to the blob
+            let genesis_path = dir.join(IOTA_GENESIS_FILENAME);
+            network_config
+                .genesis
+                .save(&genesis_path)
+                .expect("genesis should be saved successfully");
+            for validator in &mut network_config.validator_configs {
+                validator.genesis = iota_config::node::Genesis::new_from_file(&genesis_path);
+            }
+            network_config
         });
 
         let mut nodes: HashMap<_, _> = network_config

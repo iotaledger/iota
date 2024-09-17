@@ -1,17 +1,20 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines traits and representations of domains used in dataflow analysis.
+//! This module defines traits and representations of domains used in dataflow
+//! analysis.
 
-use im::{ordmap, ordset, OrdMap, OrdSet};
-use itertools::Itertools;
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
+
+use im::{ordmap, ordset, OrdMap, OrdSet};
+use itertools::Itertools;
 
 // ================================================================================================
 // Abstract Domains
@@ -21,13 +24,14 @@ use std::{
 pub enum JoinResult {
     /// The left operand subsumes the right operand: L union R == L.
     Unchanged,
-    /// The left operand does not subsume the right one and was changed as part of the join.
+    /// The left operand does not subsume the right one and was changed as part
+    /// of the join.
     Changed,
 }
 
 impl JoinResult {
-    /// Build the least upper bound of two join results, where `Unchanged` is bottom element of the
-    /// semilattice.
+    /// Build the least upper bound of two join results, where `Unchanged` is
+    /// bottom element of the semilattice.
     pub fn combine(self, other: JoinResult) -> JoinResult {
         use JoinResult::*;
         match (self, other) {
@@ -46,11 +50,13 @@ pub trait AbstractDomain {
 // ================================================================================================
 // Predefined Domain Types
 
-// As the underlying implementation of the below types we use the collections from the `im`(mutable)
-// crate (`im::OrdSet` and `im::OrdMap`), a representation which supports structure sharing.
-// This is important because in data flow analysis we often refine a set or map
-// value in each step of the analysis, e.g. adding a single element to a larger collection, while
-// the original collection still need to be available at the previous program point.
+// As the underlying implementation of the below types we use the collections
+// from the `im`(mutable) crate (`im::OrdSet` and `im::OrdMap`), a
+// representation which supports structure sharing. This is important because in
+// data flow analysis we often refine a set or map value in each step of the
+// analysis, e.g. adding a single element to a larger collection, while
+// the original collection still need to be available at the previous program
+// point.
 
 // ------------------------------------------------------------------------------------------------
 // Set Type
@@ -144,7 +150,8 @@ impl<E: Ord + Clone> SetDomain<E> {
         ordset!(e).into()
     }
 
-    /// Implements set difference, which is not following standard APIs for rust sets in OrdSet
+    /// Implements set difference, which is not following standard APIs for rust
+    /// sets in OrdSet
     pub fn difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a E> {
         self.iter().filter(move |e| !other.contains(e))
     }
@@ -246,7 +253,7 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone> MapDomain<K, V> {
         (ordmap! {k => v}).into()
     }
 
-    /// Join `v` with self[k] if `k` is bound, insert `v` otherwise
+    /// Join `v` with `self[k]` if `k` is bound, insert `v` otherwise
     pub fn insert_join(&mut self, k: K, v: V) -> JoinResult {
         let mut change = JoinResult::Unchanged;
         self.0
@@ -263,13 +270,14 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone> MapDomain<K, V> {
 }
 
 impl<K: Ord + Clone, V: AbstractDomain + Clone + PartialEq> MapDomain<K, V> {
-    /// Updates the values in the range of the map using the given function. Notice
-    /// that with other kind of map representations we would use `iter_mut` for this,
-    /// but this is not available in OrdMap for obvious reasons (because entries are shared),
-    /// so we need to use this pattern here instead.
+    /// Updates the values in the range of the map using the given function.
+    /// Notice that with other kind of map representations we would use
+    /// `iter_mut` for this, but this is not available in OrdMap for obvious
+    /// reasons (because entries are shared), so we need to use this pattern
+    /// here instead.
     pub fn update_values(&mut self, mut f: impl FnMut(&mut V)) {
-        // Commpute the key-values which actually changed. If the change is small, we preserve
-        // structure sharing.
+        // Compute the key-values which actually changed. If the change is small, we
+        // preserve structure sharing.
         let new_values = self
             .iter()
             .filter_map(|(k, v)| {
