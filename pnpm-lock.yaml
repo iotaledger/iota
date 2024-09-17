@@ -373,9 +373,6 @@ importers:
       '@visx/event':
         specifier: ^3.3.0
         version: 3.3.0
-      '@visx/geo':
-        specifier: ^3.3.0
-        version: 3.3.0(react@18.3.1)
       '@visx/marker':
         specifier: ^3.3.0
         version: 3.3.0(react@18.3.1)
@@ -448,9 +445,6 @@ importers:
       throttle-debounce:
         specifier: ^5.0.0
         version: 5.0.0
-      topojson-client:
-        specifier: ^3.1.0
-        version: 3.1.0
       zod:
         specifier: ^3.21.4
         version: 3.21.4
@@ -485,9 +479,6 @@ importers:
       '@types/react-dom':
         specifier: ^18.2.7
         version: 18.2.7
-      '@types/topojson-client':
-        specifier: ^3.1.1
-        version: 3.1.1
       '@vitejs/plugin-react':
         specifier: ^4.0.3
         version: 4.0.3(vite@4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0))
@@ -1874,31 +1865,6 @@ importers:
       wait-on:
         specifier: ^7.0.1
         version: 7.0.1(debug@4.3.4)
-
-  sdk/iotans-toolkit:
-    dependencies:
-      '@iota/iota-sdk':
-        specifier: workspace:*
-        version: link:../typescript
-    devDependencies:
-      '@faker-js/faker':
-        specifier: ^8.0.2
-        version: 8.0.2
-      '@iota/build-scripts':
-        specifier: workspace:*
-        version: link:../build-scripts
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
-      ts-node:
-        specifier: ^10.9.1
-        version: 10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3)
-      typescript:
-        specifier: ^5.3.3
-        version: 5.3.3
-      vitest:
-        specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   sdk/kiosk:
     dependencies:
@@ -4391,10 +4357,6 @@ packages:
     resolution: {integrity: sha512-DziebCdg4JpGlEqEdGgXmjqcFoJi+JGulUXwEjsZGAscAQ7MyD/7LE/GVCP29vEQxKc7AAwjT3A2ywHp2xfoCA==}
     engines: {node: '>=18'}
     hasBin: true
-
-  '@faker-js/faker@8.0.2':
-    resolution: {integrity: sha512-Uo3pGspElQW91PCvKSIAXoEgAUlRnH29sX2/p89kg7sP1m2PzCufHINd0FhTXQf6DYGiUlVncdSPa2F9wxed2A==}
-    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0, npm: '>=6.14.13'}
 
   '@fal-works/esbuild-plugin-global-externals@2.1.2':
     resolution: {integrity: sha512-cEee/Z+I12mZcFJshKcCqC8tuX5hG3s+d+9nZ3LabqKF1vKdF41B92pJVCBggjAGORAeOzyyDDKrZwIkLffeOQ==}
@@ -7353,9 +7315,6 @@ packages:
   '@types/d3-format@3.0.1':
     resolution: {integrity: sha512-5KY70ifCCzorkLuIkDe0Z9YTf9RR2CjBX1iaJG+rgM/cPP+sO+q9YdQ9WdhQcgPj1EQiJ2/0+yUkkziTG6Lubg==}
 
-  '@types/d3-geo@1.12.4':
-    resolution: {integrity: sha512-lNDaAuOaML6w2d1XE0Txr5YOXLBQSF1q2IU6eXh/u1TTPQSm2Ah+TMIub1+CIMq8J/7DOzi5Cr8/yHqjNvqLKA==}
-
   '@types/d3-interpolate@3.0.1':
     resolution: {integrity: sha512-jx5leotSeac3jr0RePOH1KdR9rISG91QIE4Q2PYTu4OymLTZfA3SrnURSLzKH48HmXVUru50b8nje4E79oQSQw==}
 
@@ -7433,9 +7392,6 @@ packages:
 
   '@types/find-cache-dir@3.2.1':
     resolution: {integrity: sha512-frsJrz2t/CeGifcu/6uRo4b+SzAwT4NYCVPu1GN8IB9XTzrpPkGuV0tmh9mN+/L0PklAlsC3u5Fxt0ju00LXIw==}
-
-  '@types/geojson@7946.0.10':
-    resolution: {integrity: sha512-Nmh0K3iWQJzniTuPRcJn5hxXkfB1T1pgB89SBig5PlJQU5yocazeu4jATJlaA0GYFKWMqDdvYemoSnF2pXgLVA==}
 
   '@types/git-rev-sync@2.0.0':
     resolution: {integrity: sha512-qGYApbb0m8Ofy3pwYks+kYVIZQAN/cqNucJGbl5O5GpLw9JSzp74rkTWDhPv3brrJfJb5/ixtimLJpo4tfh2QA==}
@@ -7661,12 +7617,6 @@ packages:
 
   '@types/tmp@0.2.3':
     resolution: {integrity: sha512-dDZH/tXzwjutnuk4UacGgFRwV+JSLaXL1ikvidfJprkb7L9Nx1njcRHHmi3Dsvt7pgqqTEeucQuOrWHPFgzVHA==}
-
-  '@types/topojson-client@3.1.1':
-    resolution: {integrity: sha512-E4/Z2Xg56kVLRzYWem/6uOKVcVNqqxEqlWM9qCG2tCV1BxuzvvXC02/ELoGJWgtKkQhfycBPlMFEuTFdA/YiTg==}
-
-  '@types/topojson-specification@1.0.2':
-    resolution: {integrity: sha512-SGc1NdX9g3UGDp6S+p+uyG+Z8CehS51sUJ9bejA25Xgn2kkAguILk6J9nxXK+0M/mbTBN7ypMA7+4HVLNMJ8ag==}
 
   '@types/tough-cookie@2.3.8':
     resolution: {integrity: sha512-7axfYN8SW9pWg78NgenHasSproWQee5rzyPVLC9HpaQSDgNArsnKJD88EaMfi4Pl48AyciO3agYCFqpHS1gLpg==}
@@ -7955,11 +7905,6 @@ packages:
 
   '@visx/event@3.3.0':
     resolution: {integrity: sha512-fKalbNgNz2ooVOTXhvcOx5IlEQDgVfX66rI7bgZhBxI2/scy+5rWcXJXpwkheRF68SMx9R93SjKW6tmiD0h+jA==}
-
-  '@visx/geo@3.3.0':
-    resolution: {integrity: sha512-Boov/z7xt3jYjb3oJR+FqpLwTh0tcV355m4SM7I6+FeO6nxC1LMrML/OoyudImhBUhitGbGLG4sCM4e9QmvI+w==}
-    peerDependencies:
-      react: ^16.3.0-0 || ^17.0.0-0 || ^18.0.0-0
 
   '@visx/group@3.3.0':
     resolution: {integrity: sha512-yKepDKwJqlzvnvPS0yDuW13XNrYJE4xzT6xM7J++441nu6IybWWwextyap8ey+kU651cYDb+q1Oi6aHvQwyEyw==}
@@ -9787,9 +9732,6 @@ packages:
   d3-format@3.1.0:
     resolution: {integrity: sha512-YyUI6AEuY/Wpt8KWLgZHsIU86atmikuoOmCfommt0LYHiQSPjvX2AcFc38PX0CBpr2RCyZhjex+NS/LPOv6YqA==}
     engines: {node: '>=12'}
-
-  d3-geo@1.12.1:
-    resolution: {integrity: sha512-XG4d1c/UJSEX9NfU02KwBL6BYPj8YKHxgBEw5om2ZnTRSbIcego6dhHwcxuSR3clxh0EpE38os1DVPOmnYtTPg==}
 
   d3-geo@3.1.1:
     resolution: {integrity: sha512-637ln3gXKXOwhalDzinUgY83KzNWZRKbYubaG+fGVuc/dxO64RRljtCTnf5ecMyE1RIdtqpkVcq0IbtU2S8j2Q==}
@@ -16403,10 +16345,6 @@ packages:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
 
-  topojson-client@3.1.0:
-    resolution: {integrity: sha512-605uxS6bcYxGXw9qi62XyrV6Q3xwbndjachmNxu8HWTtVPxZfEJN9fd/SZS1Q54Sn2y0TMyMxFj/cJINqGHrKw==}
-    hasBin: true
-
   toposort@2.0.2:
     resolution: {integrity: sha512-0a5EOkAUp8D4moMi2W8ZF8jcga7BgZd91O/yabJCFY8az+XSzeGyTKs0Aoo897iV1Nj6guFq8orWDS96z91oGg==}
 
@@ -21514,8 +21452,6 @@ snapshots:
 
   '@ethereumjs/rlp@5.0.2': {}
 
-  '@faker-js/faker@8.0.2': {}
-
   '@fal-works/esbuild-plugin-global-externals@2.1.2': {}
 
   '@floating-ui/core@1.3.1': {}
@@ -25909,10 +25845,6 @@ snapshots:
 
   '@types/d3-format@3.0.1': {}
 
-  '@types/d3-geo@1.12.4':
-    dependencies:
-      '@types/geojson': 7946.0.10
-
   '@types/d3-interpolate@3.0.1':
     dependencies:
       '@types/d3-color': 3.1.0
@@ -25994,8 +25926,6 @@ snapshots:
   '@types/filewriter@0.0.33': {}
 
   '@types/find-cache-dir@3.2.1': {}
-
-  '@types/geojson@7946.0.10': {}
 
   '@types/git-rev-sync@2.0.0': {}
 
@@ -26225,15 +26155,6 @@ snapshots:
       '@types/node': 20.4.2
 
   '@types/tmp@0.2.3': {}
-
-  '@types/topojson-client@3.1.1':
-    dependencies:
-      '@types/geojson': 7946.0.10
-      '@types/topojson-specification': 1.0.2
-
-  '@types/topojson-specification@1.0.2':
-    dependencies:
-      '@types/geojson': 7946.0.10
 
   '@types/tough-cookie@2.3.8': {}
 
@@ -26778,17 +26699,6 @@ snapshots:
     dependencies:
       '@types/react': 18.3.3
       '@visx/point': 3.3.0
-
-  '@visx/geo@3.3.0(react@18.3.1)':
-    dependencies:
-      '@types/d3-geo': 1.12.4
-      '@types/geojson': 7946.0.10
-      '@types/react': 18.3.3
-      '@visx/group': 3.3.0(react@18.3.1)
-      classnames: 2.5.1
-      d3-geo: 1.12.1
-      prop-types: 15.8.1
-      react: 18.3.1
 
   '@visx/group@3.3.0(react@18.3.1)':
     dependencies:
@@ -29116,10 +29026,6 @@ snapshots:
       d3-timer: 3.0.1
 
   d3-format@3.1.0: {}
-
-  d3-geo@1.12.1:
-    dependencies:
-      d3-array: 1.2.4
 
   d3-geo@3.1.1:
     dependencies:
@@ -37696,10 +37602,6 @@ snapshots:
   tocbot@4.21.0: {}
 
   toidentifier@1.0.1: {}
-
-  topojson-client@3.1.0:
-    dependencies:
-      commander: 2.20.3
 
   toposort@2.0.2: {}
 
