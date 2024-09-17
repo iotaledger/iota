@@ -1719,9 +1719,15 @@ importers:
 
   sdk/dapp-kit:
     dependencies:
+      '@iota/apps-ui-kit':
+        specifier: workspace:*
+        version: link:../../apps/ui-kit
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../../apps/ui-icons
       '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../wallet-standard
