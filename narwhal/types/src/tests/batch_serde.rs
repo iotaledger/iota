@@ -4,7 +4,9 @@
 
 use serde_test::{assert_tokens, Token};
 
-use crate::{worker::batch_serde::Token::NewtypeVariant, Batch, BatchV2, MetadataV1};
+use crate::{
+    worker::batch_serde::Token::NewtypeVariant, Batch, BatchV2, MetadataV1, VersionedMetadata,
+};
 #[test]
 fn test_serde_batch() {
     let tx = || vec![1; 5];

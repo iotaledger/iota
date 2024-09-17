@@ -22,13 +22,13 @@ opentelemetry-otlp = { version = "0.17", features = ["grpc-tonic"] }
 opentelemetry-proto = "0.7"
 opentelemetry_sdk = { version = "0.24", features = ["rt-tokio"] }
 prometheus.workspace = true
-prost.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tonic.workspace = true
 tracing.workspace = true
-tracing-appender = "0.2"
+tracing-appender.workspace = true
 tracing-opentelemetry = "0.25"
 tracing-subscriber.workspace = true
+prost.workspace = true
+tonic.workspace = true
 
 [features]
 default = []

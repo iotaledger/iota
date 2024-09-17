@@ -374,8 +374,9 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // /opt/iota/db/authorities_db/live Reset the downloaded db to execute from
     // genesis with: cargo run --package iota-tool -- db-tool --db-path
     // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
-    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.
-    // yaml A sample fullnode.yaml config would be: ---
+    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
+    // A sample fullnode.yaml config would be:
+    // ---
     // db-path:  /opt/iota/db/authorities_db
     // network-address: /ip4/0.0.0.0/tcp/8080/http
     // json-rpc-address: "0.0.0.0:9000"

@@ -18,6 +18,7 @@ tracing.workspace = true
 
 iota-json-rpc-types.workspace = true
 iota-move-build.workspace = true
+iota-package-management.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
 

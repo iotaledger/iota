@@ -26,12 +26,11 @@ pub async fn batch_create_account_and_gas(
     gas_object_num_per_account: u64,
 ) -> (BTreeMap<IotaAddress, Account>, Vec<Object>) {
     let tasks: FuturesUnordered<_> = (0..num_accounts)
-        .map(|idx| {
-            let starting_id = idx * gas_object_num_per_account;
+        .map(|_| {
             tokio::spawn(async move {
                 let (sender, keypair) = get_account_key_pair();
                 let objects = (0..gas_object_num_per_account)
-                    .map(|i| new_gas_object(starting_id + i, sender))
+                    .map(|_| Object::with_owner_for_testing(sender))
                     .collect::<Vec<_>>();
                 (sender, keypair, objects)
             })

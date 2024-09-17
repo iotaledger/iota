@@ -25,12 +25,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let object_bcs = client.read_api().get_move_object_bcs(object_id).await?;
     println!("Object bcs: {object_bcs:?}");
 
-    let loaded_child_objects = client
-        .read_api()
-        .get_loaded_child_objects(object.data.unwrap().previous_transaction.unwrap())
-        .await?;
-    println!("Loaded child objects: {loaded_child_objects:?}");
-
     let objects = client
         .read_api()
         .multi_get_object_with_options(vec![object_id], IotaObjectDataOptions::default().with_bcs())

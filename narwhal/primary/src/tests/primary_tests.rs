@@ -21,14 +21,13 @@ use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::{NodeStorage, VoteDigestStore};
 use test_utils::{
-    get_protocol_config, latest_protocol_version, make_optimal_signed_certificates, temp_dir,
-    CommitteeFixture,
+    latest_protocol_version, make_optimal_signed_certificates, temp_dir, CommitteeFixture,
 };
 use tokio::{sync::watch, time::timeout};
 use types::{
     now, Certificate, CertificateAPI, FetchCertificatesRequest, Header, HeaderAPI,
     MockPrimaryToWorker, PreSubscribedBroadcastSender, PrimaryToPrimary, RequestVoteRequest,
-    SignatureVerificationState, VoteAPI,
+    SignatureVerificationState,
 };
 use worker::{metrics::initialise_metrics, TrivialTransactionValidator, Worker};
 
@@ -124,7 +123,6 @@ async fn test_get_network_peers_from_admin_server() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
-        test_utils::latest_protocol_version(),
         worker_1_parameters.clone(),
         TrivialTransactionValidator,
         client_1,
@@ -316,7 +314,6 @@ async fn test_request_vote_has_missing_parents() {
     let handler = PrimaryReceiverHandler {
         authority_id: target_id,
         committee: fixture.committee(),
-        protocol_config: latest_protocol_version(),
         worker_cache: worker_cache.clone(),
         synchronizer: synchronizer.clone(),
         signature_service,
@@ -329,7 +326,7 @@ async fn test_request_vote_has_missing_parents() {
 
     // Make some mock certificates that are parents of our new header.
     let committee: Committee = fixture.committee();
-    let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+    let genesis = Certificate::genesis(&committee)
         .iter()
         .map(|x| x.digest())
         .collect::<BTreeSet<_>>();
@@ -337,13 +334,8 @@ async fn test_request_vote_has_missing_parents() {
         .authorities()
         .map(|a| (a.id(), a.keypair().copy()))
         .collect();
-    let (certificates, _next_parents) = make_optimal_signed_certificates(
-        1..=3,
-        &genesis,
-        &committee,
-        &test_utils::latest_protocol_version(),
-        ids.as_slice(),
-    );
+    let (certificates, _next_parents) =
+        make_optimal_signed_certificates(1..=3, &genesis, &committee, ids.as_slice());
     let all_certificates = certificates.into_iter().collect_vec();
     let round_2_certs = all_certificates[NUM_PARENTS..(NUM_PARENTS * 2)].to_vec();
     let round_2_parents = round_2_certs[..(NUM_PARENTS / 2)].to_vec();
@@ -351,15 +343,11 @@ async fn test_request_vote_has_missing_parents() {
 
     // Create a test header.
     let test_header: Header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .author(author_id)
         .round(3)
         .parents(round_2_certs.iter().map(|c| c.digest()).collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            0,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 0, 0)
         .build()
         .unwrap()
         .into();
@@ -496,7 +484,6 @@ async fn test_request_vote_accept_missing_parents() {
     let handler = PrimaryReceiverHandler {
         authority_id: target_id,
         committee: fixture.committee(),
-        protocol_config: latest_protocol_version(),
         worker_cache: worker_cache.clone(),
         synchronizer: synchronizer.clone(),
         signature_service,
@@ -509,7 +496,7 @@ async fn test_request_vote_accept_missing_parents() {
 
     // Make some mock certificates that are parents of our new header.
     let committee: Committee = fixture.committee();
-    let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+    let genesis = Certificate::genesis(&committee)
         .iter()
         .map(|x| x.digest())
         .collect::<BTreeSet<_>>();
@@ -517,13 +504,8 @@ async fn test_request_vote_accept_missing_parents() {
         .authorities()
         .map(|a| (a.id(), a.keypair().copy()))
         .collect();
-    let (certificates, _next_parents) = make_optimal_signed_certificates(
-        1..=3,
-        &genesis,
-        &committee,
-        &test_utils::latest_protocol_version(),
-        ids.as_slice(),
-    );
+    let (certificates, _next_parents) =
+        make_optimal_signed_certificates(1..=3, &genesis, &committee, ids.as_slice());
     let all_certificates = certificates.into_iter().collect_vec();
     let round_1_certs = all_certificates[..NUM_PARENTS].to_vec();
     let round_2_certs = all_certificates[NUM_PARENTS..(NUM_PARENTS * 2)].to_vec();
@@ -532,15 +514,11 @@ async fn test_request_vote_accept_missing_parents() {
 
     // Create a test header.
     let test_header: Header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .author(author_id)
         .round(3)
         .parents(round_2_certs.iter().map(|c| c.digest()).collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            0,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 0, 0)
         .build()
         .unwrap()
         .into();
@@ -657,7 +635,6 @@ async fn test_request_vote_missing_batches() {
     let handler = PrimaryReceiverHandler {
         authority_id,
         committee: fixture.committee(),
-        protocol_config: latest_protocol_version(),
         worker_cache: worker_cache.clone(),
         synchronizer: synchronizer.clone(),
         signature_service,
@@ -672,20 +649,13 @@ async fn test_request_vote_missing_batches() {
     let mut certificates = HashMap::new();
     for primary in fixture.authorities().filter(|a| a.id() != authority_id) {
         let header: Header = primary
-            .header_builder(&latest_protocol_version(), &fixture.committee())
-            .with_payload_batch(
-                test_utils::fixture_batch_with_transactions(
-                    10,
-                    &test_utils::latest_protocol_version(),
-                ),
-                0,
-                0,
-            )
+            .header_builder(&fixture.committee())
+            .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 0, 0)
             .build()
             .unwrap()
             .into();
 
-        let certificate = fixture.certificate(&latest_protocol_version(), &header);
+        let certificate = fixture.certificate(&header);
         let digest = certificate.clone().digest();
 
         certificates.insert(digest, certificate.clone());
@@ -695,14 +665,10 @@ async fn test_request_vote_missing_batches() {
         }
     }
     let test_header: Header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .round(2)
         .parents(certificates.keys().cloned().collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            1,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 1, 0)
         .build()
         .unwrap()
         .into();
@@ -805,7 +771,6 @@ async fn test_request_vote_already_voted() {
     let handler = PrimaryReceiverHandler {
         authority_id: id,
         committee: fixture.committee(),
-        protocol_config: latest_protocol_version(),
         worker_cache: worker_cache.clone(),
         synchronizer: synchronizer.clone(),
         signature_service,
@@ -820,20 +785,13 @@ async fn test_request_vote_already_voted() {
     let mut certificates = HashMap::new();
     for primary in fixture.authorities().filter(|a| a.id() != id) {
         let header: Header = primary
-            .header_builder(&latest_protocol_version(), &fixture.committee())
-            .with_payload_batch(
-                test_utils::fixture_batch_with_transactions(
-                    10,
-                    &test_utils::latest_protocol_version(),
-                ),
-                0,
-                0,
-            )
+            .header_builder(&fixture.committee())
+            .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 0, 0)
             .build()
             .unwrap()
             .into();
 
-        let certificate = fixture.certificate(&latest_protocol_version(), &header);
+        let certificate = fixture.certificate(&header);
         let digest = certificate.clone().digest();
 
         certificates.insert(digest, certificate.clone());
@@ -864,14 +822,10 @@ async fn test_request_vote_already_voted() {
 
     // Verify Handler generates a Vote.
     let test_header: Header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .round(2)
         .parents(certificates.keys().cloned().collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            1,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 1, 0)
         .build()
         .unwrap()
         .into();
@@ -920,14 +874,10 @@ async fn test_request_vote_already_voted() {
 
     // Verify a different request for the same round receives an error.
     let test_header: Header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .round(2)
         .parents(certificates.keys().cloned().collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            1,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 1, 0)
         .build()
         .unwrap()
         .into();
@@ -999,7 +949,6 @@ async fn test_fetch_certificates_v2_handler() {
     let handler = PrimaryReceiverHandler {
         authority_id: id,
         committee: fixture.committee(),
-        protocol_config: cert_v2_config.clone(),
         worker_cache: worker_cache.clone(),
         synchronizer: synchronizer.clone(),
         signature_service,
@@ -1010,7 +959,7 @@ async fn test_fetch_certificates_v2_handler() {
         metrics: metrics.clone(),
     };
 
-    let mut current_round: Vec<_> = Certificate::genesis(&cert_v2_config, &fixture.committee())
+    let mut current_round: Vec<_> = Certificate::genesis(&fixture.committee())
         .into_iter()
         .map(|cert| cert.header().clone())
         .collect();
@@ -1019,9 +968,9 @@ async fn test_fetch_certificates_v2_handler() {
     for i in 0..total_rounds {
         let parents: BTreeSet<_> = current_round
             .into_iter()
-            .map(|header| fixture.certificate(&cert_v2_config, &header).digest())
+            .map(|header| fixture.certificate(&header).digest())
             .collect();
-        (_, current_round) = fixture.headers_round(i, &parents, &cert_v2_config);
+        (_, current_round) = fixture.headers_round(i, &parents);
         headers.extend(current_round.clone());
     }
 
@@ -1030,7 +979,7 @@ async fn test_fetch_certificates_v2_handler() {
     // Create certificates test data.
     let mut certificates = vec![];
     for header in headers.into_iter() {
-        certificates.push(fixture.certificate(&cert_v2_config, &header));
+        certificates.push(fixture.certificate(&header));
     }
     assert_eq!(certificates.len(), total_certificates);
     assert_eq!(16, total_certificates);
@@ -1193,7 +1142,6 @@ async fn test_request_vote_created_at_in_future() {
     let handler = PrimaryReceiverHandler {
         authority_id: id,
         committee: fixture.committee(),
-        protocol_config: latest_protocol_version(),
         worker_cache: worker_cache.clone(),
         synchronizer: synchronizer.clone(),
         signature_service,
@@ -1208,20 +1156,13 @@ async fn test_request_vote_created_at_in_future() {
     let mut certificates = HashMap::new();
     for primary in fixture.authorities().filter(|a| a.id() != id) {
         let header: Header = primary
-            .header_builder(&latest_protocol_version(), &fixture.committee())
-            .with_payload_batch(
-                test_utils::fixture_batch_with_transactions(
-                    10,
-                    &test_utils::latest_protocol_version(),
-                ),
-                0,
-                0,
-            )
+            .header_builder(&fixture.committee())
+            .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 0, 0)
             .build()
             .unwrap()
             .into();
 
-        let certificate = fixture.certificate(&latest_protocol_version(), &header);
+        let certificate = fixture.certificate(&header);
         let digest = certificate.clone().digest();
 
         certificates.insert(digest, certificate.clone());
@@ -1256,14 +1197,10 @@ async fn test_request_vote_created_at_in_future() {
     let created_at = now() + 60 * 60 * 1000;
 
     let test_header: Header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .round(2)
         .parents(certificates.keys().cloned().collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            1,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 1, 0)
         .created_at(created_at)
         .build()
         .unwrap()
@@ -1295,14 +1232,10 @@ async fn test_request_vote_created_at_in_future() {
     let created_at = now() + 500;
 
     let test_header = author
-        .header_builder(&latest_protocol_version(), &fixture.committee())
+        .header_builder(&fixture.committee())
         .round(2)
         .parents(certificates.keys().cloned().collect())
-        .with_payload_batch(
-            test_utils::fixture_batch_with_transactions(10, &test_utils::latest_protocol_version()),
-            1,
-            0,
-        )
+        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 1, 0)
         .created_at(created_at)
         .build()
         .unwrap();

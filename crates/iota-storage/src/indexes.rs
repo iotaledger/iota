@@ -1372,7 +1372,7 @@ impl IndexStore {
             .await
             .unwrap()
             .map_err(|e| {
-                IotaError::ExecutionError(format!("Failed to read balance frm DB: {:?}", e))
+                IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
             });
         }
 
@@ -1410,7 +1410,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!("Failed to read balance frm DB: {:?}", e))
+                    IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
                 })
             })
             .await
@@ -1436,7 +1436,7 @@ impl IndexStore {
             .await
             .unwrap()
             .map_err(|e| {
-                IotaError::ExecutionError(format!("Failed to read all balance from DB: {:?}", e))
+                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
             });
         }
 
@@ -1452,7 +1452,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!(
+                    IotaError::Execution(format!(
                         "Failed to read all balance from DB: {:?}",
                         e
                     ))
@@ -1493,7 +1493,7 @@ impl IndexStore {
         metrics.all_balance_lookup_from_db.inc();
         let mut balances: HashMap<TypeTag, TotalBalance> = HashMap::new();
         let coins = Self::get_owned_coins_iterator(&coin_index, owner, None)?
-            .chunk_by(|(coin_type, _obj_id, _coin)| coin_type.clone());
+            .group_by(|(coin_type, _obj_id, _coin)| coin_type.clone());
         for (coin_type, coins) in &coins {
             let mut total_balance = 0i128;
             let mut coin_object_count = 0;
@@ -1503,7 +1503,7 @@ impl IndexStore {
             }
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
                 |e| {
-                    IotaError::ExecutionError(format!(
+                    IotaError::Execution(format!(
                         "Failed to parse event sender address: {:?}",
                         e
                     ))

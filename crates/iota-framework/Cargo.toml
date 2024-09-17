@@ -18,15 +18,13 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 
-[build-dependencies]
+[dev-dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-capitalize = "0.3.4"
 regex.workspace = true
-serde_json.workspace = true
+tempfile.workspace = true
 
 iota-move-build.workspace = true
-
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-package.workspace = true

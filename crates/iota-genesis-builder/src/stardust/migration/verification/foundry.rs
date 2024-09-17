@@ -137,9 +137,9 @@ pub(super) fn verify_foundry_output(
         expected_package_data.module().module_name
     );
     ensure!(
-        foundry_data.coin_type_origin.struct_name == expected_package_data.module().otw_name,
+        foundry_data.coin_type_origin.datatype_name == expected_package_data.module().otw_name,
         "foundry data OTW struct name mismatch: found {}, expected {}",
-        foundry_data.coin_type_origin.struct_name,
+        foundry_data.coin_type_origin.datatype_name,
         expected_package_data.module().otw_name
     );
 
