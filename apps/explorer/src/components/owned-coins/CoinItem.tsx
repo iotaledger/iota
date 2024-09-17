@@ -6,6 +6,7 @@ import { KeyValueInfo } from '@iota/apps-ui-kit';
 import { useFormatCoin } from '@iota/core';
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { formatAddress } from '@iota/iota-sdk/utils';
+import { ObjectLink } from '../ui';
 
 interface CoinItemProps {
     coin: CoinStruct;
@@ -14,11 +15,12 @@ interface CoinItemProps {
 export default function CoinItem({ coin }: CoinItemProps): JSX.Element {
     const [formattedBalance, symbol] = useFormatCoin(coin.balance, coin.coinType);
     return (
-        <KeyValueInfo
-            keyText={`${formattedBalance} ${symbol}`}
-            valueLink={`/object/${coin.coinObjectId}`}
-            valueText={formatAddress(coin.coinObjectId)}
-            fullwidth
-        />
+        <ObjectLink objectId={coin.coinObjectId}>
+            <KeyValueInfo
+                keyText={`${formattedBalance} ${symbol}`}
+                valueText={formatAddress(coin.coinObjectId)}
+                fullwidth
+            />
+        </ObjectLink>
     );
 }
