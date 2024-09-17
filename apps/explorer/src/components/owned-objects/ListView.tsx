@@ -106,7 +106,7 @@ function ListViewItemContainer({ obj }: { obj: IotaObjectResponse }): JSX.Elemen
                             variant="xs"
                         />
                     }
-                    label={name ? `${name} (${type})` : '--'}
+                    label={name ? name : '--'}
                 />
             }
             typeCell={<TableCell type={TableCellType.Text} label={type} />}
