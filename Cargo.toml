@@ -126,6 +126,7 @@ members = [
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
+  "crates/iota-service",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
