@@ -1,6 +1,6 @@
 [package]
 name = "iota-graphql-rpc"
-version = "2024.2.0"
+version = "2024.7.0"
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -9,30 +9,31 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
-async-graphql-axum = "7.0"
-async-graphql-value = "7.0"
+async-graphql-axum.workspace = true
+async-graphql-value.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-axum-extra = { workspace = true, features = ["typed-header"] }
+axum-extra.workspace = true
+bin-version.workspace = true
 chrono.workspace = true
 clap.workspace = true
 const-str.workspace = true
 diesel.workspace = true
+downcast = "0.11.0"
 either.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-zkp.workspace = true
 futures.workspace = true
-git-version.workspace = true
 hex.workspace = true
 http.workspace = true
 http-body-util = "0.1.2"
 hyper.workspace = true
-hyper-util = { workspace = true, features = ["http2", "server", "tokio"] }
 im.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
+itertools.workspace = true
 lru.workspace = true
 markdown-gen = "1.2"
 move-binary-format.workspace = true
@@ -41,7 +42,6 @@ move-disassembler.workspace = true
 move-ir-types.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
-rand.workspace = true # todo: cleanup test only deps
 regex.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -52,6 +52,7 @@ shared-crypto.workspace = true
 similar.workspace = true
 tap.workspace = true
 telemetry-subscribers.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -61,13 +62,14 @@ tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
+iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
 
 # TODO: put these behind feature flag to prevent leakage
 # Used for dummy data
 bcs.workspace = true
-iota-indexer.workspace = true
+iota-indexer = { workspace = true, default-features = true }
 iota-json-rpc.workspace = true
 iota-json-rpc-types.workspace = true
 iota-package-resolver.workspace = true
@@ -82,13 +84,16 @@ expect-test.workspace = true
 hyper.workspace = true
 insta.workspace = true
 iota-framework.workspace = true
+iota-test-transaction-builder.workspace = true
+rand.workspace = true
 serde_json.workspace = true
-serial_test = "2.0"
+serial_test.workspace = true
 simulacrum.workspace = true
 tower.workspace = true
 
 [features]
-default = ["pg_backend"]
+default = ["pg_backend", "postgres-feature"]
+postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
 pg_integration = []
 pg_backend = []
 

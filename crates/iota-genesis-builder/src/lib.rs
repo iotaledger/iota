@@ -43,9 +43,11 @@ use iota_types::{
     gas::IotaGasStatus,
     gas_coin::{GasCoin, GAS},
     governance::StakedIota,
+    id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{get_iota_system_state, IotaSystemState, IotaSystemStateTrait},
+    is_system_package,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
@@ -63,7 +65,7 @@ use iota_types::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
     },
-    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
@@ -953,7 +955,7 @@ fn build_unsigned_genesis_data<'info>(
     // if system packages are provided in `objects`, update them with the provided
     // bytes. This is a no-op under normal conditions and only an issue with
     // certain tests.
-    update_system_packages_from_objects(&mut system_packages, objects);
+    update_system_packages_from_objects(&mut system_packages, &objects);
 
     let mut genesis_ctx = create_genesis_context(
         &epoch_data,

@@ -891,26 +891,26 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-derive"
-version = "7.0.7"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e2e26a6b44bc61df3ca8546402cf9204c28e30c06084cc8e75cd5e34d4f150"
+checksum = "a6a7349168b79030e3172a620f4f0e0062268a954604e41475eff082380fe505"
 dependencies = [
  "Inflector",
  "async-graphql-parser",
  "darling 0.20.10",
- "proc-macro-crate 3.1.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
- "strum 0.26.3",
+ "strum 0.25.0",
  "syn 2.0.76",
  "thiserror",
 ]
 
 [[package]]
 name = "async-graphql-parser"
-version = "7.0.7"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f801451484b4977d6fe67b29030f81353cabdcbb754e5a064f39493582dac0cf"
+checksum = "58fdc0adf9f53c2b65bb0ff5170cba1912299f248d0e48266f444b6f005deb1d"
 dependencies = [
  "async-graphql-value",
  "pest",
@@ -920,9 +920,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-value"
-version = "7.0.7"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69117c43c01d81a69890a9f5dd6235f2f027ca8d1ec62d6d3c5e01ca0edb4f2b"
+checksum = "7cf4d4e86208f4f9b81a503943c07e6e7f29ad3505e6c9ce6431fe64dc241681"
 dependencies = [
  "bytes",
  "indexmap 2.4.0",
@@ -6890,7 +6890,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc"
-version = "2024.2.0"
+version = "2024.7.0"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6900,24 +6900,25 @@ dependencies = [
  "axum",
  "axum-extra",
  "bcs",
+ "bin-version",
  "chrono",
  "clap",
  "const-str",
  "diesel",
+ "downcast",
  "either",
  "expect-test",
  "fastcrypto",
  "fastcrypto-zkp",
  "futures",
- "git-version",
  "hex",
  "http 1.1.0",
  "http-body-util",
  "hyper 1.4.1",
- "hyper-util",
  "im",
  "insta",
  "iota-framework",
+ "iota-graphql-config",
  "iota-graphql-rpc-client",
  "iota-graphql-rpc-headers",
  "iota-indexer",
@@ -6930,7 +6931,9 @@ dependencies = [
  "iota-rest-api",
  "iota-sdk 0.2.0",
  "iota-swarm-config",
+ "iota-test-transaction-builder",
  "iota-types",
+ "itertools 0.10.5",
  "lru 0.10.1",
  "markdown-gen",
  "move-binary-format",
@@ -6953,6 +6956,7 @@ dependencies = [
  "simulacrum",
  "tap",
  "telemetry-subscribers",
+ "tempfile",
  "test-cluster",
  "thiserror",
  "tokio",

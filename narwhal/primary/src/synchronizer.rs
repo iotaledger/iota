@@ -371,7 +371,7 @@ impl Synchronizer {
         primary_channel_metrics: &PrimaryChannelMetrics,
     ) -> Self {
         let committee: &Committee = &committee;
-        let genesis = Self::make_genesis(&protocol_config, committee);
+        let genesis = Self::make_genesis(committee);
         let highest_processed_round = certificate_store.highest_round_number();
         let highest_created_certificate = certificate_store.last_round(authority_id).unwrap();
         let gc_round = rx_consensus_round_updates.borrow().gc_round;
@@ -804,11 +804,8 @@ impl Synchronizer {
         Ok(())
     }
 
-    fn make_genesis(
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-    ) -> HashMap<CertificateDigest, Certificate> {
-        Certificate::genesis(protocol_config, committee)
+    fn make_genesis(committee: &Committee) -> HashMap<CertificateDigest, Certificate> {
+        Certificate::genesis(committee)
             .into_iter()
             .map(|x| (x.digest(), x))
             .collect()
@@ -1617,7 +1614,7 @@ mod tests {
     use config::Committee;
     use fastcrypto::{hash::Hash, traits::KeyPair};
     use itertools::Itertools;
-    use test_utils::{latest_protocol_version, make_optimal_signed_certificates, CommitteeFixture};
+    use test_utils::{make_optimal_signed_certificates, CommitteeFixture};
     use types::{Certificate, Round};
 
     use crate::synchronizer::State;
@@ -1635,7 +1632,7 @@ mod tests {
             .build();
 
         let committee: Committee = fixture.committee();
-        let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+        let genesis = Certificate::genesis(&committee)
             .iter()
             .map(|x| x.digest())
             .collect::<BTreeSet<_>>();
@@ -1643,13 +1640,8 @@ mod tests {
             .authorities()
             .map(|a| (a.id(), a.keypair().copy()))
             .collect();
-        let (certificates, _next_parents) = make_optimal_signed_certificates(
-            1..=3,
-            &genesis,
-            &committee,
-            &latest_protocol_version(),
-            keys.as_slice(),
-        );
+        let (certificates, _next_parents) =
+            make_optimal_signed_certificates(1..=3, &genesis, &committee, keys.as_slice());
         let certificates = certificates.into_iter().collect_vec();
 
         let mut state = State::default();

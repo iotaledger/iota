@@ -592,12 +592,7 @@ async fn run(
             (Some(primary), None, None)
         }
         NodeType::Worker { id } => {
-            let worker = WorkerNode::new(
-                *id,
-                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
-                parameters.clone(),
-                registry_service.clone(),
-            );
+            let worker = WorkerNode::new(*id, parameters.clone(), registry_service.clone());
 
             worker
                 .start(
@@ -637,12 +632,7 @@ async fn run(
                 )
                 .await?;
 
-            let worker = WorkerNode::new(
-                *worker_id,
-                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
-                parameters.clone(),
-                registry_service.clone(),
-            );
+            let worker = WorkerNode::new(*worker_id, parameters.clone(), registry_service.clone());
 
             let mut worker_store_path = PathBuf::new();
             if let Some(parent) = store_path.parent() {
