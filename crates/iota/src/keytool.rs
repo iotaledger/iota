@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+#[path = "unit_tests/keytool_tests.rs"]
+mod keytool_tests;
+
 use std::{
     fmt::{Debug, Display, Formatter},
     fs,
@@ -53,9 +57,6 @@ use tabled::{
 use tracing::info;
 
 use crate::key_identity::{get_identity_address_from_keystore, KeyIdentity};
-#[cfg(test)]
-#[path = "unit_tests/keytool_tests.rs"]
-mod keytool_tests;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
@@ -110,7 +111,6 @@ pub enum KeyToolCommand {
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
     },
-
     /// Add a new key to Iota CLI Keystore using either the input mnemonic
     /// phrase or a Bech32 encoded 33-byte `flag || privkey` starting with
     /// "iotaprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
@@ -132,7 +132,7 @@ pub enum KeyToolCommand {
     /// Output the private key of the given key identity in Iota CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
-        #[clap(long)]
+        /// An IOTA address or its alias.
         key_identity: KeyIdentity,
     },
     /// List all keys by its Iota address, Base64 encoded public key, key scheme
@@ -179,7 +179,6 @@ pub enum KeyToolCommand {
         #[clap(long)]
         threshold: ThresholdUnit,
     },
-
     /// Read the content at the provided file path. The accepted format can be
     /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or
     /// `type AuthorityKeyPair` (Base64 encoded `privkey`). It prints its
@@ -238,7 +237,6 @@ pub enum KeyToolCommand {
     //     sign_with_sk: bool, /* if true, execute tx with the traditional sig (in the multisig),
     //                          * otherwise with the zklogin sig. */
     // },
-
     // /// A workaround to the above command because sometimes token pasting does
     // /// not work (for Facebook). All the inputs required here are printed from
     // /// the command above.
@@ -260,7 +258,6 @@ pub enum KeyToolCommand {
     //     #[clap(long, default_value = "false")]
     //     sign_with_sk: bool,
     // },
-
     // /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
     // /// parse it as either as TransactionData or PersonalMessage based on
     // /// `intent_scope`. It verifies the zkLogin signature based its latest
@@ -285,7 +282,6 @@ pub enum KeyToolCommand {
     //     #[clap(long, default_value = "devnet")]
     //     network: String,
     // },
-
     // /// TESTING ONLY: Given a string of data, sign with the fixed dev-only
     // /// ephemeral key and output a zkLogin signature with a fixed dev-only
     // /// proof with fixed max epoch 10.
@@ -483,7 +479,6 @@ impl KeyToolCommand {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
             }
-
             KeyToolCommand::DecodeMultiSig { multisig, tx_bytes } => {
                 let pks = multisig.get_pk().pubkeys();
                 let sigs = multisig.get_sigs();
@@ -520,8 +515,8 @@ impl KeyToolCommand {
                     })
                 }
 
-                if tx_bytes.is_some() {
-                    let tx_bytes = Base64::decode(&tx_bytes.unwrap())
+                if let Some(tx_bytes) = tx_bytes{
+                    let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {:?}", e))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = GenericSignature::MultiSig(multisig);
@@ -536,7 +531,6 @@ impl KeyToolCommand {
 
                 CommandOutput::DecodeMultiSig(output)
             }
-
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
@@ -589,7 +583,6 @@ impl KeyToolCommand {
                     CommandOutput::Generate(key)
                 }
             },
-
             KeyToolCommand::Import {
                 alias,
                 input_string,
@@ -608,20 +601,22 @@ impl KeyToolCommand {
                 match IotaKeyPair::decode(&input_string) {
                     Ok(ikp) => {
                         info!("Importing Bech32 encoded private key to keystore");
-                        let key = Key::from(&ikp);
+                        let mut key = Key::from(&ikp);
                         keystore.add_key(alias, ikp)?;
+                        key.alias = keystore.get_alias_by_address(&key.iota_address).ok();
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
-                        info!("Importing mneomonics to keystore");
+                        info!("Importing mnemonics to keystore");
                         let iota_address = keystore.import_from_mnemonic(
                             &input_string,
                             key_scheme,
-                            None,
+                            alias,
                             derivation_path,
                         )?;
                         let ikp = keystore.get_key(&iota_address)?;
-                        let key = Key::from(ikp);
+                        let mut key = Key::from(ikp);
+                        key.alias = keystore.get_alias_by_address(&iota_address).ok();
                         CommandOutput::Import(key)
                     }
                 }
@@ -629,12 +624,13 @@ impl KeyToolCommand {
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
                 let ikp = keystore.get_key(&address)?;
-                let key = ExportedKey {
+                let mut key = ExportedKey {
                     exported_private_key: ikp
                         .encode()
                         .map_err(|_| anyhow!("Cannot decode keypair"))?,
                     key: Key::from(ikp),
                 };
+                key.key.alias = keystore.get_alias_by_address(&address).ok();
                 CommandOutput::Export(key)
             }
             KeyToolCommand::List { sort_by_alias } => {
@@ -652,7 +648,6 @@ impl KeyToolCommand {
                 }
                 CommandOutput::List(keys)
             }
-
             KeyToolCommand::LoadKeypair { file } => {
                 let output = match read_keypair_from_file(&file) {
                     Ok(keypair) => {
@@ -691,7 +686,6 @@ impl KeyToolCommand {
                 };
                 CommandOutput::LoadKeypair(output)
             }
-
             KeyToolCommand::MultiSigAddress {
                 threshold,
                 pks,
@@ -713,7 +707,6 @@ impl KeyToolCommand {
                 }
                 CommandOutput::MultiSigAddress(output)
             }
-
             KeyToolCommand::MultiSigCombinePartialSig {
                 sigs,
                 pks,
@@ -731,7 +724,6 @@ impl KeyToolCommand {
                     multisig_serialized,
                 })
             }
-
             KeyToolCommand::Show { file } => {
                 let res = read_keypair_from_file(&file);
                 match res {
@@ -759,7 +751,6 @@ impl KeyToolCommand {
                     },
                 }
             }
-
             KeyToolCommand::Sign {
                 address,
                 data,
@@ -788,7 +779,6 @@ impl KeyToolCommand {
                     iota_signature: iota_signature.encode_base64(),
                 })
             }
-
             KeyToolCommand::SignKMS {
                 data,
                 keyid,
@@ -822,7 +812,7 @@ impl KeyToolCommand {
                 let kms = KmsClient::new(&config);
 
                 // Sign the message, normalize the signature and then compacts it
-                // serialize_compact is loaded as bytes for Secp256k1Sinaturere
+                // serialize_compact is loaded as bytes for Secp256k1Signature
                 let response = kms
                     .sign()
                     .key_id(keyid)
@@ -847,7 +837,6 @@ impl KeyToolCommand {
                     serialized_sig_base64: serialized_sig,
                 })
             }
-
             KeyToolCommand::Unpack { keypair } => {
                 let keypair = IotaKeyPair::decode_base64(&keypair)
                     .map_err(|_| anyhow!("Invalid Base64 encode keypair"))?;
@@ -861,7 +850,7 @@ impl KeyToolCommand {
                     keypair.encode_base64(),
                     key.flag
                 );
-                fs::write(path, out_str).unwrap();
+                fs::write(path, out_str)?;
                 CommandOutput::Show(key)
             } /* KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data } => {
                *     let msg = PersonalMessage {
@@ -1031,7 +1020,6 @@ impl KeyToolCommand {
                *     .await?;
                *     CommandOutput::ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx { tx_digest
                * }) } */
-
               /* KeyToolCommand::ZkLoginSigVerify {
                *     sig,
                *     bytes,
