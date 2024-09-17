@@ -51,9 +51,7 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     const name = displayMeta?.name ?? displayMeta?.description ?? '--';
     const type = trimStdLibPrefix(parseObjectType(obj));
     const id = obj.data?.objectId;
-    const objectType = parseObjectType(obj);
-    console.log('objectType', objectType);
-    console.log('type', type);
+
     return (
         <div className="flex items-center gap-md">
             <ObjectVideoImage
