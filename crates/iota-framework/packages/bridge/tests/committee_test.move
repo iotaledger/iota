@@ -32,8 +32,8 @@ module bridge::committee_test {
     const TEST_MSG: vector<u8> =
         b"00010a0000000000000000200000000000000000000000000000000000000000000000000000000000000064012000000000000000000000000000000000000000000000000000000000000000c8033930000000000000";
 
-    const VALIDATOR1_PUBKEY: vector<u8> = b"029bef8d556d80e43ae7e0becb3a7e6838b95defe45896ed6075bb9035d06c9964";
-    const VALIDATOR2_PUBKEY: vector<u8> = b"033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a62";
+    const VALIDATOR1_PUBKEY: vector<u8> = b"02708023b69a1c3a460c4c16ba36976fde0333c81eec253db9ae825782210f0d66";
+    const VALIDATOR2_PUBKEY: vector<u8> = b"030573cb972a57108488f5bdf10c4cbbb2cc3e81a8ff7dd23b7761411013664788";
     const VALIDATOR3_PUBKEY: vector<u8> = b"033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a63";
 
     #[test]
@@ -44,9 +44,9 @@ module bridge::committee_test {
         committee.verify_signatures(
             msg,
             vector[hex::decode(
-                b"8ba030a450cb1e36f61e572645fc9da1dea5f79b6db663a21ab63286d7fc29af447433abdd0c0b35ab751154ac5b612ae64d3be810f0d9e10ff68e764514ced300"
+                b"29f7c5cee069946d134ffc6c3a386f2e0fdb7f6ae8a2b6bfb488b55f5347ba364090a7cc01db3dcecfd61810a3eb55806b38cbb8a54df727c1f4de56b3d1806201"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
 
@@ -63,9 +63,9 @@ module bridge::committee_test {
         committee.verify_signatures(
             msg,
             vector[hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
         abort 0
@@ -95,7 +95,7 @@ module bridge::committee_test {
         committee.verify_signatures(
             msg,
             vector[hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
         abort 0
@@ -492,9 +492,9 @@ module bridge::committee_test {
         committee.verify_signatures(
             msg,
             vector[hex::decode(
-                b"8ba030a450cb1e36f61e572645fc9da1dea5f79b6db663a21ab63286d7fc29af447433abdd0c0b35ab751154ac5b612ae64d3be810f0d9e10ff68e764514ced300"
+                b"29f7c5cee069946d134ffc6c3a386f2e0fdb7f6ae8a2b6bfb488b55f5347ba364090a7cc01db3dcecfd61810a3eb55806b38cbb8a54df727c1f4de56b3d1806201"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
 
@@ -518,9 +518,9 @@ module bridge::committee_test {
         committee.verify_signatures(
             msg,
             vector[hex::decode(
-                b"8ba030a450cb1e36f61e572645fc9da1dea5f79b6db663a21ab63286d7fc29af447433abdd0c0b35ab751154ac5b612ae64d3be810f0d9e10ff68e764514ced300"
+                b"29f7c5cee069946d134ffc6c3a386f2e0fdb7f6ae8a2b6bfb488b55f5347ba364090a7cc01db3dcecfd61810a3eb55806b38cbb8a54df727c1f4de56b3d1806201"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
 

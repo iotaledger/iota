@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[test_only]
 module stardust::address_unlock_condition_tests {
 
     use iota::bag;
