@@ -19,7 +19,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const epoch = getValue<EpochMetrics['epoch']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{epoch}</TableCellText>
                     </TableCellBase>
                 );
@@ -31,7 +31,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{epochTotalTransactions}</TableCellText>
                     </TableCellBase>
                 );
@@ -43,7 +43,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const totalStakeRewardsDistributed = getValue<string | undefined>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{totalStakeRewardsDistributed ?? '0'}</TableCellText>
                     </TableCellBase>
                 );
@@ -55,7 +55,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const firstCheckpointId = getValue<EpochMetrics['firstCheckpointId']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>
                             <CheckpointSequenceLink sequence={firstCheckpointId}>
                                 {firstCheckpointId}
@@ -73,7 +73,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                 const storageNetInflow =
                     getEpochStorageFundFlow(endOfEpochInfo).netInflow?.toString() ?? '--';
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{storageNetInflow}</TableCellText>
                     </TableCellBase>
                 );
@@ -85,7 +85,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             cell: ({ getValue }) => {
                 const epochEndTimestamp = getValue<string>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{epochEndTimestamp}</TableCellText>
                     </TableCellBase>
                 );

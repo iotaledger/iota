@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
+import { generateTransactionsTableColumns } from '~/components/transactions/generateTransactionsTableColumns';
 
-import { generateTransactionsTableColumns } from '~/components';
 import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
@@ -22,11 +22,11 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
 
     const { data, isFetching, pagination, isPending } = useCursorPagination(transactions);
 
-    const cardData = data ? generateTransactionsTableColumns(data.data) : undefined;
+    const tableColumns = generateTransactionsTableColumns();
 
     return (
         <div className="flex flex-col space-y-5 text-left xl:pr-10">
-            {isPending || isFetching || !cardData ? (
+            {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={20}
                     rowHeight="16px"
@@ -34,7 +34,7 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
                 />
             ) : (
                 <div>
-                    <TableCard data={cardData.data} columns={cardData.columns} />
+                    <TableCard data={data.data} columns={tableColumns} />
                 </div>
             )}
             <div className="flex justify-between">

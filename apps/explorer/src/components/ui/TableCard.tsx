@@ -69,9 +69,11 @@ export function TableCard<DataType extends object>({
                 paginationOptions={paginationOptions}
                 supportingLabel={totalLabel}
                 action={
-                    <Link to={viewAll}>
-                        <TableActionButton text="View All" />
-                    </Link>
+                    viewAll ? (
+                        <Link to={viewAll}>
+                            <TableActionButton text="View All" />
+                        </Link>
+                    ) : undefined
                 }
             >
                 <TableHeader>

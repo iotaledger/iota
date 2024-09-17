@@ -18,7 +18,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const epoch = getValue<Checkpoint['digest']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{epoch}</TableCellText>
                     </TableCellBase>
                 );
@@ -30,7 +30,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const sequenceNumber = getValue<Checkpoint['sequenceNumber']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>
                             <CheckpointSequenceLink sequence={sequenceNumber}>
                                 {sequenceNumber}
@@ -46,7 +46,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const networkTotalTransactions = getValue<Checkpoint['networkTotalTransactions']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{networkTotalTransactions}</TableCellText>
                     </TableCellBase>
                 );
@@ -58,7 +58,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const timestampMs = getValue<Checkpoint['timestampMs']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{timestampMs}</TableCellText>
                     </TableCellBase>
                 );
@@ -70,7 +70,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
             cell: ({ getValue }) => {
                 const transactions = getValue<Checkpoint['transactions']>();
                 return (
-                    <TableCellBase isContentCentered>
+                    <TableCellBase>
                         <TableCellText>{transactions.length}</TableCellText>
                     </TableCellBase>
                 );
