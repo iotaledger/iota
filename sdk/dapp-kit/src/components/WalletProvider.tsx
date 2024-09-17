@@ -6,7 +6,7 @@ import type { WalletWithFeatures, WalletWithRequiredFeatures } from '@iota/walle
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StateStorage } from 'zustand/middleware';
-
+import '@iota/apps-ui-kit/styles';
 import {
     DEFAULT_PREFERRED_WALLETS,
     DEFAULT_REQUIRED_FEATURES,
