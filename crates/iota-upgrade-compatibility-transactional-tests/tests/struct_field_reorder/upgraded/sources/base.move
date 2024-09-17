@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module base::base_module {
-    struct X {
-        field1: bool,
+    public struct X {
         field0: u64,
+        field1: bool,
     }
 
     public fun public_fun(): u64 { 0 }

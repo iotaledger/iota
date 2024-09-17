@@ -13,18 +13,20 @@ use async_trait::async_trait;
 use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent, IotaTransactionBlockResponse};
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
+    bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeParsedTokenTransferMessage},
     digests::TransactionDigest,
     event::EventID,
     gas_coin::GasCoin,
     object::Owner,
-    transaction::Transaction,
+    transaction::{ObjectArg, Transaction},
     Identifier,
 };
 
 use crate::{
     error::{BridgeError, BridgeResult},
     iota_client::IotaClientInner,
-    types::{BridgeAction, BridgeActionDigest, BridgeActionStatus, MoveTypeBridgeCommittee},
+    test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+    types::{BridgeAction, BridgeActionStatus, IsBridgePaused},
 };
 
 /// Mock client used in test environments.
@@ -34,16 +36,17 @@ pub struct IotaMockClient {
     // the top two fields do not change during tests so we don't need them to be Arc<Mutex>>
     chain_identifier: String,
     latest_checkpoint_sequence_number: u64,
-    events: Arc<Mutex<HashMap<(ObjectID, Identifier, EventID), EventPage>>>,
-    past_event_query_params: Arc<Mutex<VecDeque<(ObjectID, Identifier, EventID)>>>,
+    events: Arc<Mutex<HashMap<(ObjectID, Identifier, Option<EventID>), EventPage>>>,
+    past_event_query_params: Arc<Mutex<VecDeque<(ObjectID, Identifier, Option<EventID>)>>>,
     events_by_tx_digest:
         Arc<Mutex<HashMap<TransactionDigest, Result<Vec<IotaEvent>, iota_sdk::error::Error>>>>,
     transaction_responses:
         Arc<Mutex<HashMap<TransactionDigest, BridgeResult<IotaTransactionBlockResponse>>>>,
     wildcard_transaction_response: Arc<Mutex<Option<BridgeResult<IotaTransactionBlockResponse>>>>,
     get_object_info: Arc<Mutex<HashMap<ObjectID, (GasCoin, ObjectRef, Owner)>>>,
-    onchain_status: Arc<Mutex<HashMap<BridgeActionDigest, BridgeActionStatus>>>,
-
+    onchain_status: Arc<Mutex<HashMap<(u8, u64), BridgeActionStatus>>>,
+    bridge_committee_summary: Arc<Mutex<Option<BridgeCommitteeSummary>>>,
+    is_paused: Arc<Mutex<Option<IsBridgePaused>>>,
     requested_transactions_tx: tokio::sync::broadcast::Sender<TransactionDigest>,
 }
 
@@ -59,6 +62,8 @@ impl IotaMockClient {
             wildcard_transaction_response: Default::default(),
             get_object_info: Default::default(),
             onchain_status: Default::default(),
+            bridge_committee_summary: Default::default(),
+            is_paused: Default::default(),
             requested_transactions_tx: tokio::sync::broadcast::channel(10000).0,
         }
     }
@@ -73,7 +78,7 @@ impl IotaMockClient {
         self.events
             .lock()
             .unwrap()
-            .insert((package, module, cursor), events);
+            .insert((package, module, Some(cursor)), events);
     }
 
     pub fn add_events_by_tx_digest(&self, tx_digest: TransactionDigest, events: Vec<IotaEvent>) {
@@ -105,7 +110,18 @@ impl IotaMockClient {
         self.onchain_status
             .lock()
             .unwrap()
-            .insert(action.digest(), status);
+            .insert((action.chain_id() as u8, action.seq_number()), status);
+    }
+
+    pub fn set_bridge_committee(&self, committee: BridgeCommitteeSummary) {
+        self.bridge_committee_summary
+            .lock()
+            .unwrap()
+            .replace(committee);
+    }
+
+    pub fn set_is_bridge_paused(&self, value: IsBridgePaused) {
+        self.is_paused.lock().unwrap().replace(value);
     }
 
     pub fn set_wildcard_transaction_response(
@@ -138,7 +154,7 @@ impl IotaClientInner for IotaMockClient {
     async fn query_events(
         &self,
         query: EventFilter,
-        cursor: EventID,
+        cursor: Option<EventID>,
     ) -> Result<EventPage, Self::Error> {
         let events = self.events.lock().unwrap();
         match query {
@@ -186,21 +202,64 @@ impl IotaClientInner for IotaMockClient {
         Ok(self.latest_checkpoint_sequence_number)
     }
 
-    async fn get_bridge_committee(&self) -> Result<MoveTypeBridgeCommittee, Self::Error> {
-        unimplemented!()
+    async fn get_mutable_bridge_object_arg(&self) -> Result<ObjectArg, Self::Error> {
+        Ok(DUMMY_MUTALBE_BRIDGE_OBJECT_ARG)
+    }
+
+    async fn get_reference_gas_price(&self) -> Result<u64, Self::Error> {
+        Ok(1000)
+    }
+
+    async fn get_bridge_summary(&self) -> Result<BridgeSummary, Self::Error> {
+        Ok(BridgeSummary {
+            bridge_version: 0,
+            message_version: 0,
+            chain_id: 0,
+            sequence_nums: vec![],
+            bridge_records_id: ObjectID::random(),
+            is_frozen: self.is_paused.lock().unwrap().unwrap_or_default(),
+            limiter: Default::default(),
+            committee: self
+                .bridge_committee_summary
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_default(),
+            treasury: Default::default(),
+        })
     }
 
     async fn get_token_transfer_action_onchain_status(
         &self,
-        action: &BridgeAction,
+        _bridge_object_arg: ObjectArg,
+        source_chain_id: u8,
+        seq_number: u64,
     ) -> Result<BridgeActionStatus, BridgeError> {
         Ok(self
             .onchain_status
             .lock()
             .unwrap()
-            .get(&action.digest())
+            .get(&(source_chain_id, seq_number))
             .cloned()
             .unwrap_or(BridgeActionStatus::Pending))
+    }
+
+    async fn get_token_transfer_action_onchain_signatures(
+        &self,
+        _bridge_object_arg: ObjectArg,
+        _source_chain_id: u8,
+        _seq_number: u64,
+    ) -> Result<Option<Vec<Vec<u8>>>, BridgeError> {
+        unimplemented!()
+    }
+
+    async fn get_parsed_token_transfer_message(
+        &self,
+        _bridge_object_arg: ObjectArg,
+        _source_chain_id: u8,
+        _seq_number: u64,
+    ) -> Result<Option<MoveTypeParsedTokenTransferMessage>, BridgeError> {
+        unimplemented!()
     }
 
     async fn execute_transaction_block_with_effects(

@@ -3,6 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use diesel::r2d2::R2D2Connection;
+use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
+use iota_json_rpc_api::{ReadApiServer, QUERY_MAX_RESULT_LIMIT};
+use iota_json_rpc_types::{
+    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
 use iota_json_rpc_api::{internal_error, ReadApiServer, QUERY_MAX_RESULT_LIMIT};
 use iota_json_rpc_types::{
@@ -25,12 +32,12 @@ use jsonrpsee::{core::RpcResult, RpcModule};
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 #[derive(Clone)]
-pub(crate) struct ReadApi {
-    inner: IndexerReader,
+pub(crate) struct ReadApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl ReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection + 'static> ReadApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 
@@ -61,7 +68,7 @@ impl ReadApi {
 }
 
 #[async_trait]
-impl ReadApiServer for ReadApi {
+impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -186,6 +193,14 @@ impl ReadApiServer for ReadApi {
         Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
+    async fn try_get_object_before_version(
+        &self,
+        _: ObjectID,
+        _: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+    }
+
     async fn try_multi_get_past_objects(
         &self,
         _past_objects: Vec<IotaGetPastObjectRequest>,
@@ -240,13 +255,6 @@ impl ReadApiServer for ReadApi {
             .map_err(Into::into)
     }
 
-    async fn get_loaded_child_objects(
-        &self,
-        _digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
-    }
-
     async fn get_protocol_config(
         &self,
         version: Option<BigInt<u64>>,
@@ -276,7 +284,7 @@ impl ReadApiServer for ReadApi {
     }
 }
 
-impl IotaRpcModule for ReadApi {
+impl<T: R2D2Connection> IotaRpcModule for ReadApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

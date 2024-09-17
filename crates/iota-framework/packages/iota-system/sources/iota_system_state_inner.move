@@ -5,7 +5,7 @@
 module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
     use iota::coin::Coin;
-    use iota_system::staking_pool::{stake_activation_epoch, StakedIota};
+    use iota_system::staking_pool::StakedIota;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set::{Self, ValidatorSet};
@@ -18,12 +18,6 @@ module iota_system::iota_system_state_inner {
     use iota::table::Table;
     use iota::bag::Bag;
     use iota::bag;
-
-    /* friend iota_system::genesis; */
-    /* friend iota_system::iota_system; */
-
-    /* #[test_only] */
-    /* friend iota_system::governance_test_utils; */
 
     // same as in validator_set
     const ACTIVE_VALIDATOR_ONLY: u8 = 1;
@@ -213,7 +207,6 @@ module iota_system::iota_system_state_inner {
     const ECannotReportOneself: u64 = 3;
     const EReportRecordNotFound: u64 = 4;
     const EBpsTooLarge: u64 = 5;
-    const EStakeWithdrawBeforeActivation: u64 = 6;
     const ESafeModeGasNotProcessed: u64 = 7;
     const EAdvancedToWrongEpoch: u64 = 8;
 
@@ -335,7 +328,7 @@ module iota_system::iota_system_state_inner {
         }
     }
 
-    // ==== public(friend) functions ====
+    // ==== public(package) functions ====
 
     /// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
@@ -511,10 +504,6 @@ module iota_system::iota_system_state_inner {
         staked_iota: StakedIota,
         ctx: &TxContext,
     ) : Balance<IOTA> {
-        assert!(
-            stake_activation_epoch(&staked_iota) <= ctx.epoch(),
-            EStakeWithdrawBeforeActivation
-        );
         self.validators.request_withdraw_stake(staked_iota, ctx)
     }
 
@@ -963,6 +952,19 @@ module iota_system::iota_system_state_inner {
     /// Aborts if `validator_addr` is not an active validator.
     public(package) fun validator_stake_amount(self: &IotaSystemStateInnerV2, validator_addr: address): u64 {
         self.validators.validator_total_stake_amount(validator_addr)
+    }
+
+    /// Returns the voting power for `validator_addr`.
+    /// Aborts if `validator_addr` is not an active validator.
+    public(package) fun active_validator_voting_powers(self: &IotaSystemStateInnerV2): VecMap<address, u64> {
+        let mut active_validators = active_validator_addresses(self);
+        let mut voting_powers = vec_map::empty();
+        while (!vector::is_empty(&active_validators)) {
+            let validator = vector::pop_back(&mut active_validators);
+            let voting_power = validator_set::validator_voting_power(&self.validators, validator);
+            vec_map::insert(&mut voting_powers, validator, voting_power);
+        };
+        voting_powers
     }
 
     /// Returns the staking pool id of a given validator.

@@ -8,28 +8,15 @@ use std::{
 };
 
 use clap::Parser;
-use iota_bridge::{config::BridgeNodeConfig, node::run_bridge_node};
+use iota_bridge::{
+    config::BridgeNodeConfig, node::run_bridge_node, server::BridgeNodePublicMetadata,
+};
 use iota_config::Config;
-use mysten_metrics::start_prometheus_server;
+use iota_metrics::start_prometheus_server;
 use tracing::info;
 
-// TODO consolidate this with iota-node/src/main.rs, but where to put it?
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
@@ -50,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.metrics_port);
     let registry_service = start_prometheus_server(metrics_address);
     let prometheus_registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&prometheus_registry);
+    iota_metrics::init_metrics(&prometheus_registry);
     info!("Metrics server started at port {}", config.metrics_port);
 
     // Init logging
@@ -58,6 +45,8 @@ async fn main() -> anyhow::Result<()> {
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .init();
-
-    run_bridge_node(config).await
+    let metadata = BridgeNodePublicMetadata::new(VERSION.into());
+    Ok(run_bridge_node(config, metadata, prometheus_registry)
+        .await?
+        .await?)
 }

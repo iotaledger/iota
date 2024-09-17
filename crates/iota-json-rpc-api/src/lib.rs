@@ -14,7 +14,7 @@ pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, Governan
 pub use indexer::{IndexerApiClient, IndexerApiOpenRpc, IndexerApiServer};
 use iota_metrics::histogram::Histogram;
 use jsonrpsee::{
-    core::Error as ClientError,
+    core::ClientError,
     types::{
         error::{INTERNAL_ERROR_CODE, UNKNOWN_ERROR_CODE},
         ErrorObjectOwned,
