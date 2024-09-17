@@ -38,7 +38,7 @@ function ListViewItem({
     const listViewItemContent = (
         <div
             className={cx(
-                'flex items-center justify-around',
+                'flex items-center justify-around overflow-hidden',
                 '[&_td]:flex [&_td]:items-center',
                 loading && 'group mb-2 justify-between rounded-lg p-1 hover:bg-hero/5',
             )}
@@ -56,7 +56,7 @@ function ListViewItem({
 
             <div
                 className={cx(
-                    'w-6/12 basis-6/12 [&_td]:flex',
+                    'w-6/12 basis-6/12 overflow-hidden [&_td]:flex',
                     loading && 'hidden max-w-[50%] pr-5 md:flex',
                 )}
             >
