@@ -95,20 +95,22 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
                     <Title
                         title="Modules"
                         trailingElement={
-                            <SegmentedButton
-                                type={SegmentedButtonType.Outlined}
-                                shape={ButtonSegmentType.Rounded}
-                            >
-                                {SPLIT_PANELS_ORIENTATION.map(({ value, label }) => (
-                                    <ButtonSegment
-                                        key={value}
-                                        type={ButtonSegmentType.Rounded}
-                                        onClick={() => setSplitPanelOrientation(value)}
-                                        selected={selectedSplitPanelOrientation === value}
-                                        label={label}
-                                    />
-                                ))}
-                            </SegmentedButton>
+                            <div className="hidden md:flex">
+                                <SegmentedButton
+                                    type={SegmentedButtonType.Outlined}
+                                    shape={ButtonSegmentType.Rounded}
+                                >
+                                    {SPLIT_PANELS_ORIENTATION.map(({ value, label }) => (
+                                        <ButtonSegment
+                                            key={value}
+                                            type={ButtonSegmentType.Rounded}
+                                            onClick={() => setSplitPanelOrientation(value)}
+                                            selected={selectedSplitPanelOrientation === value}
+                                            label={label}
+                                        />
+                                    ))}
+                                </SegmentedButton>
+                            </div>
                         }
                     />
                     <div className="h-full p-md--rs">

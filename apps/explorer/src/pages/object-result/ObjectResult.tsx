@@ -40,7 +40,7 @@ export function ObjectResult(): JSX.Element {
         <PageLayout
             content={
                 <div className="flex flex-col gap-y-2xl">
-                    {isPackage ? undefined : (
+                    {!isPackage && !isPageError && (
                         <div>
                             <PageHeader
                                 type="Object"

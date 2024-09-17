@@ -17,7 +17,6 @@ type ModuleCodeTabsProps = {
     packageId: string;
     moduleName: string;
     moduleBytecode: string;
-    isCompact: boolean;
 };
 interface TabItem {
     id: string;
@@ -29,7 +28,6 @@ export function ModuleCodeTabs({
     packageId,
     moduleName,
     moduleBytecode,
-    isCompact,
 }: ModuleCodeTabsProps): React.JSX.Element {
     const { data: verifiedSourceCode } = useVerifiedSourceCode({
         packageId,
@@ -68,13 +66,21 @@ export function ModuleCodeTabs({
                     )}
                 </TabSelector>
 
-                <ListTabContent id={bytecodeTab.id} isCompact={isCompact}>
-                    <ModuleView id={packageId} name={moduleName} code={moduleBytecode} />
+                <ListTabContent id={bytecodeTab.id}>
+                    <div className="max-h-[560px]">
+                        <ModuleView id={packageId} name={moduleName} code={moduleBytecode} />
+                    </div>
                 </ListTabContent>
 
                 {verifiedSourceCode && (
-                    <ListTabContent id={sourceTab.id} isCompact={isCompact}>
-                        <ModuleView id={packageId} name={moduleName} code={verifiedSourceCode} />
+                    <ListTabContent id={sourceTab.id}>
+                        <div className="max-h-[560px]">
+                            <ModuleView
+                                id={packageId}
+                                name={moduleName}
+                                code={verifiedSourceCode}
+                            />
+                        </div>
                     </ListTabContent>
                 )}
             </TabsProvider>
