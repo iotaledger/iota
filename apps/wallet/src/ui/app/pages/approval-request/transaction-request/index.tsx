@@ -112,12 +112,10 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
             </UserApproveContainer>
             <ConfirmationModal
                 isOpen={isConfirmationVisible}
-                title="This transaction might fail. Are you sure you still want to approve the transaction?"
-                hint="You will still be charged a gas fee for this transaction."
-                confirmStyle="primary"
+                title="Are you sure you still want to approve the transaction?"
+                hint="This transaction might fail. You will still be charged a gas fee for this transaction."
                 confirmText="Approve"
                 cancelText="Reject"
-                cancelStyle="warning"
                 onResponse={async (isConfirmed) => {
                     await dispatch(
                         respondToTransactionRequest({

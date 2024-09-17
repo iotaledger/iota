@@ -3,19 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-
-import { Button, type ButtonProps } from './ButtonUI';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './Dialog';
-import { Text } from './text';
+import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 
 export interface ConfirmationModalProps {
     isOpen: boolean;
     title?: string;
     hint?: string;
     confirmText?: string;
-    confirmStyle?: ButtonProps['variant'];
     cancelText?: string;
-    cancelStyle?: ButtonProps['variant'];
     onResponse: (confirmed: boolean) => Promise<void>;
 }
 
@@ -24,9 +19,7 @@ export function ConfirmationModal({
     title = 'Are you sure?',
     hint,
     confirmText = 'Confirm',
-    confirmStyle = 'primary',
     cancelText = 'Cancel',
-    cancelStyle = 'outline',
     onResponse,
 }: ConfirmationModalProps) {
     const [isConfirmLoading, setIsConfirmLoading] = useState(false);
@@ -43,45 +36,37 @@ export function ConfirmationModal({
                 setIsCancelLoading(false);
             }}
         >
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
-                </DialogHeader>
-                {hint ? (
-                    <div className="break-words text-center">
-                        <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                            {hint}
-                        </Text>
+            <DialogContent containerId="overlay-portal-container">
+                <Header title={title} />
+                <DialogBody>
+                    <div className="flex flex-col gap-lg">
+                        {hint ? <div className="text-body-md">{hint}</div> : null}
+                        <div className="flex gap-xs">
+                            <Button
+                                type={ButtonType.Secondary}
+                                text={cancelText}
+                                disabled={isConfirmLoading}
+                                onClick={async () => {
+                                    setIsCancelLoading(true);
+                                    await onResponse(false);
+                                    setIsCancelLoading(false);
+                                }}
+                                fullWidth
+                            />
+                            <Button
+                                type={ButtonType.Primary}
+                                text={confirmText}
+                                disabled={isCancelLoading}
+                                onClick={async () => {
+                                    setIsConfirmLoading(true);
+                                    await onResponse(true);
+                                    setIsConfirmLoading(false);
+                                }}
+                                fullWidth
+                            />
+                        </div>
                     </div>
-                ) : null}
-                <DialogFooter>
-                    <div className="flex flex-row gap-3 self-stretch">
-                        <Button
-                            variant={cancelStyle}
-                            size="tall"
-                            text={cancelText}
-                            loading={isCancelLoading}
-                            disabled={isConfirmLoading}
-                            onClick={async () => {
-                                setIsCancelLoading(true);
-                                await onResponse(false);
-                                setIsCancelLoading(false);
-                            }}
-                        />
-                        <Button
-                            variant={confirmStyle}
-                            size="tall"
-                            text={confirmText}
-                            loading={isConfirmLoading}
-                            disabled={isCancelLoading}
-                            onClick={async () => {
-                                setIsConfirmLoading(true);
-                                await onResponse(true);
-                                setIsConfirmLoading(false);
-                            }}
-                        />
-                    </div>
-                </DialogFooter>
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );

@@ -129,10 +129,9 @@ function MenuList() {
                     ))}
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
-                        confirmText="Logout"
-                        confirmStyle="outlineWarning"
-                        title="Are you sure you want to Logout?"
-                        hint="You will need to set up all your accounts again."
+                        confirmText="Reset"
+                        title="Are you sure you want to reset?"
+                        hint="This will clear all your data and you will need to set up all your accounts again."
                         onResponse={async (confirmed) => {
                             setIsLogoutDialogOpen(false);
                             if (confirmed) {
