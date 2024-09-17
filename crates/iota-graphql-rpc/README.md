@@ -67,15 +67,14 @@ cargo run --bin iota-graphql-rpc start-server
 
 Per default, the GraphQL server will be served on `127.0.0.1:8000`.
 
-To configure the DB URL, node RPC URL for transaction execution, the GraphQL server host and port or any specific any server options, you can pass the following arguments:
+To configure the DB URL, node RPC URL for transaction execution and the GraphQL server you can pass the following arguments:
 
 ```
 cargo run --bin iota-graphql-rpc start-server [--db-url] [--node-rpc-url] [--host] [--port] [--config]
 ```
 
-`--config` expects a path to a TOML server configuration file.
-
-Example `.toml` with server options:
+To further configure the GraphQL service, you can provide a TOML configuration file with the `--config` argument.
+An example `.toml` configuration could look like this:
 
 ```toml
 [limits]
