@@ -4,7 +4,8 @@
 
 import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
-import { createContext, useState, type ReactNode } from 'react';
+import { BadgeType, Badge } from '@iota/apps-ui-kit';
+import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
@@ -16,6 +17,9 @@ import { Link } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -93,6 +97,23 @@ function LeftContent({
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
 }) {
+    const isMain = (() => {
+        if (!account) {
+            return false;
+        }
+
+        if (
+            isLedgerAccountSerializedUI(account) ||
+            isMnemonicSerializedUiAccount(account) ||
+            isSeedSerializedUiAccount(account)
+        ) {
+            const { addressIndex, changeIndex, accountIndex } = parseDerivationPath(
+                account.derivationPath,
+            );
+
+            return addressIndex === 0 && changeIndex === 0 && accountIndex === 0;
+        }
+    })();
     const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
@@ -109,6 +130,7 @@ function LeftContent({
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
             <span className="text-title-sm text-neutral-10">{accountName}</span>
+            {isMain && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }
