@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Button, TimelockedUnstakePopup } from '@/components';
+import { Button, NewStakePopup, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
@@ -113,9 +113,6 @@ function VestingDashboardPage(): JSX.Element {
                 addNotification('Collect transaction was not sent', NotificationType.Error);
             });
     };
-    const handleStake = () => {
-        console.log('Stake');
-    };
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
         const validatorInfo = getValidatorByAddress(delegatedTimelockedStake.validatorAddress);
@@ -132,6 +129,12 @@ function VestingDashboardPage(): JSX.Element {
                 closePopup={closePopup}
                 onSuccess={handleOnSuccess}
             />,
+        );
+    }
+
+    function handleStake(): void {
+        openPopup(
+            <NewStakePopup onClose={closePopup} onSuccess={handleOnSuccess} isTimelockedStaking />,
         );
     }
 

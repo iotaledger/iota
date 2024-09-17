@@ -15,7 +15,6 @@ import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { useResolveIotaNSName } from '@iota/core';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
@@ -94,8 +93,7 @@ function LeftContent({
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
 }) {
-    const { data: domainName } = useResolveIotaNSName(account?.address);
-    const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+    const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
         <Link

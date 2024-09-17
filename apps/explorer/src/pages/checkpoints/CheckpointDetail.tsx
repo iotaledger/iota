@@ -3,26 +3,41 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { LoadingIndicator, Text } from '@iota/ui';
+import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-
-import { IotaAmount, PageLayout } from '~/components';
-import {
-    Banner,
-    DescriptionItem,
-    DescriptionList,
-    EpochLink,
-    PageHeader,
-    TabHeader,
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from '~/components/ui';
+import { PageLayout, Banner, PageHeader } from '~/components';
 import { CheckpointTransactionBlocks } from './CheckpointTransactionBlocks';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    LabelText,
+    LabelTextSize,
+    Panel,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+} from '@iota/apps-ui-kit';
+import { useState } from 'react';
+import { useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+
+enum FeesTabs {
+    GasAndStorageFees = 'gas-and-storage-fees',
+}
+enum DetailsTabs {
+    Details = 'details',
+    Signatures = 'signatures',
+}
+enum NestedTabs {
+    Aggregated = 'aggregated',
+}
 
 export default function CheckpointDetail(): JSX.Element {
+    const [activeFeesTabId, setActiveFeesTabId] = useState(FeesTabs.GasAndStorageFees);
+    const [activeDetailsTabId, setActiveDetailsTabId] = useState(DetailsTabs.Details);
+    const [activeNestedTabId, setActiveNestedTabId] = useState(NestedTabs.Aggregated);
+
     const { id } = useParams<{ id: string }>();
     const digestOrSequenceNumber = /^\d+$/.test(id!) ? parseInt(id!, 10) : id;
 
@@ -31,6 +46,20 @@ export default function CheckpointDetail(): JSX.Element {
         queryKey: ['checkpoints', digestOrSequenceNumber],
         queryFn: () => client.getCheckpoint({ id: String(digestOrSequenceNumber!) }),
     });
+
+    const [formattedComputationCost, computationCostCoinType] = useFormatCoin(
+        data?.epochRollingGasCostSummary?.computationCost,
+        IOTA_TYPE_ARG,
+    );
+    const [formattedStorageCost, storageCostCoinType] = useFormatCoin(
+        data?.epochRollingGasCostSummary.storageCost,
+        IOTA_TYPE_ARG,
+    );
+    const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin(
+        data?.epochRollingGasCostSummary.storageRebate,
+        IOTA_TYPE_ARG,
+    );
+
     return (
         <PageLayout
             content={
@@ -41,27 +70,48 @@ export default function CheckpointDetail(): JSX.Element {
                 ) : isPending ? (
                     <LoadingIndicator />
                 ) : (
-                    <div className="flex flex-col space-y-12">
+                    <div className="flex flex-col gap-2xl">
                         <PageHeader title={data.digest} type="Checkpoint" />
-                        <div className="space-y-8">
-                            <Tabs size="lg" defaultValue="details">
-                                <TabsList>
-                                    <TabsTrigger value="details">Details</TabsTrigger>
-                                    <TabsTrigger value="signatures">Signatures</TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="details">
-                                    <DescriptionList>
-                                        <DescriptionItem title="Checkpoint Sequence No.">
-                                            <Text variant="pBody/medium" color="steel-darker">
-                                                {data.sequenceNumber}
-                                            </Text>
-                                        </DescriptionItem>
-                                        <DescriptionItem title="Epoch">
-                                            <EpochLink epoch={data.epoch} />
-                                        </DescriptionItem>
-                                        <DescriptionItem title="Checkpoint Timestamp">
-                                            <Text variant="pBody/medium" color="steel-darker">
-                                                {data.timestampMs
+                        <div className="flex flex-row gap-lg">
+                            <Panel>
+                                <SegmentedButton
+                                    type={SegmentedButtonType.Transparent}
+                                    shape={ButtonSegmentType.Underlined}
+                                >
+                                    <ButtonSegment
+                                        type={ButtonSegmentType.Underlined}
+                                        label="Details"
+                                        selected={activeDetailsTabId === DetailsTabs.Details}
+                                        onClick={() => setActiveDetailsTabId(DetailsTabs.Details)}
+                                    />
+                                    <ButtonSegment
+                                        type={ButtonSegmentType.Underlined}
+                                        label="Signatures"
+                                        selected={activeDetailsTabId === DetailsTabs.Signatures}
+                                        onClick={() =>
+                                            setActiveDetailsTabId(DetailsTabs.Signatures)
+                                        }
+                                    />
+                                </SegmentedButton>
+                                {activeDetailsTabId === DetailsTabs.Details ? (
+                                    <div className="flex flex-col gap-lg p-md--rs">
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Checkpoint Sequence No."
+                                            text={data.sequenceNumber}
+                                            showSupportingLabel={false}
+                                        />
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Epoch"
+                                            text={data.epoch}
+                                            showSupportingLabel={false}
+                                        />
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Checkpoint Timestamp"
+                                            text={
+                                                data.timestampMs
                                                     ? new Date(
                                                           Number(data.timestampMs),
                                                       ).toLocaleString(undefined, {
@@ -75,66 +125,91 @@ export default function CheckpointDetail(): JSX.Element {
                                                           timeZone: 'UTC',
                                                           timeZoneName: 'short',
                                                       })
-                                                    : '--'}
-                                            </Text>
-                                        </DescriptionItem>
-                                    </DescriptionList>
-                                </TabsContent>
-                                <TabsContent value="signatures">
-                                    <Tabs defaultValue="aggregated">
-                                        <TabsList>
-                                            <TabsTrigger value="aggregated">
-                                                Aggregated Validator Signature
-                                            </TabsTrigger>
-                                        </TabsList>
-                                        <TabsContent value="aggregated">
-                                            <DescriptionList>
-                                                <DescriptionItem
-                                                    key={data.validatorSignature}
-                                                    title="Signature"
-                                                >
-                                                    <Text
-                                                        variant="pBody/medium"
-                                                        color="steel-darker"
-                                                    >
-                                                        {data.validatorSignature}
-                                                    </Text>
-                                                </DescriptionItem>
-                                            </DescriptionList>
-                                        </TabsContent>
-                                    </Tabs>
-                                </TabsContent>
-                            </Tabs>
-
-                            <TabHeader title="Gas & Storage Fees">
-                                <DescriptionList>
-                                    <DescriptionItem title="Computation Fee">
-                                        <IotaAmount
-                                            full
-                                            amount={data.epochRollingGasCostSummary.computationCost}
+                                                    : '--'
+                                            }
+                                            showSupportingLabel={false}
                                         />
-                                    </DescriptionItem>
-                                    <DescriptionItem title="Storage Fee">
-                                        <IotaAmount
-                                            full
-                                            amount={data.epochRollingGasCostSummary.storageCost}
+                                    </div>
+                                ) : null}
+                                {activeDetailsTabId === DetailsTabs.Signatures ? (
+                                    <>
+                                        <div className="inline-flex">
+                                            <SegmentedButton
+                                                type={SegmentedButtonType.Transparent}
+                                                shape={ButtonSegmentType.Underlined}
+                                            >
+                                                <ButtonSegment
+                                                    type={ButtonSegmentType.Underlined}
+                                                    label="Aggregated Validator Signature"
+                                                    selected={
+                                                        activeNestedTabId === NestedTabs.Aggregated
+                                                    }
+                                                    onClick={() =>
+                                                        setActiveNestedTabId(NestedTabs.Aggregated)
+                                                    }
+                                                />
+                                            </SegmentedButton>
+                                        </div>
+                                        {activeNestedTabId === NestedTabs.Aggregated ? (
+                                            <div className="flex flex-col gap-lg p-md--rs">
+                                                <LabelText
+                                                    size={LabelTextSize.Medium}
+                                                    label="Aggregated Validator Signature"
+                                                    text={data.validatorSignature}
+                                                    showSupportingLabel={false}
+                                                />
+                                            </div>
+                                        ) : null}
+                                    </>
+                                ) : null}
+                            </Panel>
+                            <Panel>
+                                <SegmentedButton
+                                    type={SegmentedButtonType.Transparent}
+                                    shape={ButtonSegmentType.Underlined}
+                                >
+                                    <ButtonSegment
+                                        type={ButtonSegmentType.Underlined}
+                                        label="Gas & Storage Fees"
+                                        selected={activeFeesTabId === FeesTabs.GasAndStorageFees}
+                                        onClick={() =>
+                                            setActiveFeesTabId(FeesTabs.GasAndStorageFees)
+                                        }
+                                    />
+                                </SegmentedButton>
+                                {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
+                                    <div className="flex flex-col gap-lg p-md--rs">
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Computation Fee"
+                                            text={formattedComputationCost}
+                                            showSupportingLabel
+                                            supportingLabel={computationCostCoinType}
                                         />
-                                    </DescriptionItem>
-                                    <DescriptionItem title="Storage Rebate">
-                                        <IotaAmount
-                                            full
-                                            amount={data.epochRollingGasCostSummary.storageRebate}
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Storage Fee"
+                                            text={formattedStorageCost}
+                                            showSupportingLabel
+                                            supportingLabel={storageCostCoinType}
                                         />
-                                    </DescriptionItem>
-                                </DescriptionList>
-                            </TabHeader>
-
-                            <TabHeader title="Checkpoint Transaction Blocks">
-                                <div className="mt-4">
-                                    <CheckpointTransactionBlocks id={data.sequenceNumber} />
-                                </div>
-                            </TabHeader>
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Storage Rebate"
+                                            text={formattedStorageRebate}
+                                            showSupportingLabel
+                                            supportingLabel={storageRebateCoinType}
+                                        />
+                                    </div>
+                                ) : null}
+                            </Panel>
                         </div>
+                        <Panel>
+                            <Title title="Checkpoint Transaction Blocks" />
+                            <div className="p-md--rs">
+                                <CheckpointTransactionBlocks id={data.sequenceNumber} />
+                            </div>
+                        </Panel>
                     </div>
                 )
             }

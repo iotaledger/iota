@@ -100,8 +100,8 @@ export function Accordion({
 }): React.JSX.Element {
     return (
         <div
-            className={cx('bg-neutral-100 dark:bg-neutral-6', {
-                'rounded-xl border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+            className={cx('overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-6', {
+                ' border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
                     !hideBorder,
             })}
         >
