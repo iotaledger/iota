@@ -74,28 +74,40 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                                     valueText={formatAddress(packageId)}
                                     fullwidth
                                 />
-                            </ExplorerLink>)
-                        }
+                            </ExplorerLink>
+                        )}
                     </div>
                 </div>
             )}
         >
             <div className="flex flex-col gap-y-sm px-md">
-                <ExplorerLink objectID={packageId} type={ExplorerLinkType.Object} moduleName={moduleName}>
+                <ExplorerLink
+                    objectID={packageId}
+                    type={ExplorerLinkType.Object}
+                    moduleName={moduleName}
+                >
                     <KeyValueInfo
                         keyText="Package"
                         valueText={formatAddress(packageId)}
                         fullwidth
                     />
                 </ExplorerLink>
-                <ExplorerLink objectID={packageId} type={ExplorerLinkType.Object} moduleName={moduleName}>
+                <ExplorerLink
+                    objectID={packageId}
+                    type={ExplorerLinkType.Object}
+                    moduleName={moduleName}
+                >
                     <KeyValueInfo
                         keyText="Package"
                         valueText={formatAddress(packageId)}
                         fullwidth
                     />
                 </ExplorerLink>
-                <ExplorerLink objectID={packageId} type={ExplorerLinkType.Object} moduleName={moduleName}>
+                <ExplorerLink
+                    objectID={packageId}
+                    type={ExplorerLinkType.Object}
+                    moduleName={moduleName}
+                >
                     <KeyValueInfo
                         keyText="Package"
                         valueText={formatAddress(packageId)}
@@ -113,12 +125,12 @@ interface ObjectChangeEntryProps {
 }
 
 export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
+    const [open, setOpen] = useState(new Set());
     return (
         <>
             {Object.entries(changes).map(([owner, changes]) => {
-                const ownerAddress = useAddressLink(owner);
                 const label = getObjectChangeLabel(type);
-                const [open, setOpen] = useState(true);
+                const isOpen = open.has(owner);
 
                 return (
                     <Panel key={`${type}-${owner}`} hasBorder>
@@ -126,7 +138,16 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                             <Collapsible
                                 hideBorder
                                 defaultOpen
-                                onOpenChange={(isOpen) => setOpen(isOpen)}
+                                onOpenChange={(isOpen) => {
+                                    setOpen((set) => {
+                                        if (isOpen) {
+                                            set.add(owner);
+                                        } else {
+                                            set.delete(owner);
+                                        }
+                                        return new Set(set);
+                                    });
+                                }}
                                 render={() => (
                                     <Title
                                         size={TitleSize.Small}
@@ -145,7 +166,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                             <ExpandableList
                                                 defaultItemsToShow={5}
                                                 items={
-                                                    open
+                                                    isOpen
                                                         ? changes.changesWithDisplay.map(
                                                               (change) => (
                                                                   <ObjectChangeDisplay
@@ -178,12 +199,9 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                             </Collapsible>
                             <div className="flex flex-col gap-y-sm px-md pb-md">
                                 <Divider />
-                                <KeyValueInfo
-                                    keyText="Owner"
-                                    valueText={ownerAddress.address}
-                                    valueLink={ownerAddress.explorerHref}
-                                    fullwidth
-                                />
+                                <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                    <KeyValueInfo keyText="Owner" valueText={owner} fullwidth />
+                                </ExplorerLink>
                             </div>
                         </div>
                     </Panel>

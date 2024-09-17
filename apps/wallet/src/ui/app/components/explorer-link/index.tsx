@@ -42,20 +42,6 @@ export function ExplorerLink({
     );
 }
 
-export function AddressLink({ address }: { address: string }) {
-    return (
-        <ExplorerLink
-            type={ExplorerLinkType.Address}
-            address={address}
-            className="text-hero-dark inline-block no-underline"
-        >
-            <Text variant="subtitle" weight="semibold" truncate mono>
-                {formatAddress(address)}
-            </Text>
-        </ExplorerLink>
-    );
-}
-
 export * from './ExplorerLinkType';
 
 export default ExplorerLink;

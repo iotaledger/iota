@@ -11,9 +11,10 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { truncateString } from '_src/ui/app/helpers';
+import { Fragment } from 'react/jsx-dev-runtime';
 
 type NftFields = {
     metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
@@ -137,12 +138,15 @@ function NFTDetailsPage() {
                                             (nftDisplayData?.creator && (
                                                 <div className="flex flex-col gap-xs">
                                                     {nftDisplayData?.projectUrl && (
-                                                        <KeyValueInfo
-                                                            keyText="Website"
-                                                            valueText={nftDisplayData?.projectUrl}
-                                                            valueLink={nftDisplayData?.projectUrl}
-                                                            fullwidth
-                                                        />
+                                                        <Link to={nftDisplayData?.projectUrl}>
+                                                            <KeyValueInfo
+                                                                keyText="Website"
+                                                                valueText={
+                                                                    nftDisplayData?.projectUrl
+                                                                }
+                                                                fullwidth
+                                                            />
+                                                        </Link>
                                                     )}
                                                     {nftDisplayData?.creator && (
                                                         <KeyValueInfo
@@ -194,13 +198,13 @@ function NFTDetailsPage() {
                                                         const { valueText, valueLink } =
                                                             formatMetaValue(metaValues[idx]);
                                                         return (
-                                                            <KeyValueInfo
-                                                                key={aKey}
-                                                                keyText={aKey}
-                                                                valueText={valueText}
-                                                                valueLink={valueLink}
-                                                                fullwidth
-                                                            />
+                                                            <Link key={aKey} to={valueLink || ''}>
+                                                                <KeyValueInfo
+                                                                    keyText={aKey}
+                                                                    valueText={valueText}
+                                                                    fullwidth
+                                                                />
+                                                            </Link>
                                                         );
                                                     })}
                                                 </div>

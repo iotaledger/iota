@@ -49,10 +49,6 @@ interface DisplayStatsProps {
      */
     icon?: React.ReactNode;
     /**
-     * The value link of the stats.
-     */
-    valueLink?: string;
-    /**
      * The value link is external.
      */
     isExternalLink?: boolean;
@@ -71,7 +67,6 @@ export function DisplayStats({
     type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
     icon,
-    valueLink,
     isExternalLink = false,
     isTruncated = false,
 }: DisplayStatsProps): React.JSX.Element {
@@ -111,24 +106,11 @@ export function DisplayStats({
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
             <div className="flex w-full flex-row items-baseline gap-xxs">
-                {valueLink ? (
-                    <a
-                        href={valueLink}
-                        target={isExternalLink ? '_blank' : '_self'}
-                        rel="noreferrer"
-                        className={cx('text-primary-30 dark:text-primary-80', valueTextClass)}
-                    >
-                        {truncate(value, 6, 6)}
-                    </a>
-                ) : (
-                    <>
-                        <span className={cx(valueTextClass)}>{truncate(value, 6, 6)}</span>
-                        {supportingLabel && (
-                            <span className={cx('opacity-40', supportingLabelTextClass)}>
-                                {supportingLabel}
-                            </span>
-                        )}
-                    </>
+                <span className={cx(valueTextClass)}>{truncate(value, 6, 6)}</span>
+                {supportingLabel && (
+                    <span className={cx('opacity-40', supportingLabelTextClass)}>
+                        {supportingLabel}
+                    </span>
                 )}
             </div>
         </div>

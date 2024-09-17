@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TxnAmount } from '_components';
+import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { parseAmount, useCoinMetadata } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { useAddressLink } from '_app/hooks/useAddressLink';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -28,9 +27,6 @@ export function PreviewTransfer({
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
 
-    const addrFrom = useAddressLink(accountAddress);
-    const addrTo = useAddressLink(to);
-
     return (
         <div className="flex w-full flex-col gap-md">
             <TxnAmount
@@ -40,19 +36,14 @@ export function PreviewTransfer({
                 approximation={approximation}
             />
             <div className="flex flex-col gap-md--rs p-sm--rs">
-                <KeyValueInfo
-                    keyText={'From'}
-                    valueText={addrFrom.address}
-                    valueLink={addrFrom.explorerHref}
-                    fullwidth
-                />
+                <ExplorerLink type={ExplorerLinkType.Address} address={accountAddress || ''}>
+                    <KeyValueInfo keyText={'From'} valueText={accountAddress || ''} fullwidth />
+                </ExplorerLink>
                 <Divider />
-                <KeyValueInfo
-                    keyText={'To'}
-                    valueText={addrTo.address}
-                    valueLink={addrTo.explorerHref}
-                    fullwidth
-                />
+                <ExplorerLink type={ExplorerLinkType.Address} address={accountAddress || ''}>
+                    <KeyValueInfo keyText={'To'} valueText={accountAddress || ''} fullwidth />
+                </ExplorerLink>
+
                 <Divider />
                 <KeyValueInfo
                     keyText={'Est. Gas Fees'}

@@ -46,11 +46,6 @@ export const Default: Story = {
         supportingLabel: {
             control: 'text',
         },
-        valueLink: {
-            control: {
-                type: 'text',
-            },
-        },
         size: {
             control: {
                 type: 'select',

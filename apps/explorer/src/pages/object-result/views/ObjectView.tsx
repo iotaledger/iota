@@ -14,8 +14,8 @@ import {
 } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useEffect, useState } from 'react';
-import { ObjectVideoImage } from '~/components/ui';
+import { PropsWithChildren, ReactNode, useEffect, useState } from 'react';
+import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
@@ -80,11 +80,9 @@ interface ObjectIdCardProps {
 
 function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
     return (
-        <DisplayStats
-            label="Object ID"
-            valueLink={`/object/${objectId}`}
-            value={formatAddress(objectId)}
-        />
+        <ObjectLink objectId={objectId}>
+            <DisplayStats label="Object ID" value={formatAddress(objectId)} />
+        </ObjectLink>
     );
 }
 
@@ -116,13 +114,14 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     const normalizedStructTag = normalizeStructTag(structTag);
 
     return (
-        <DisplayStats
-            label="Type"
-            valueLink={`${address}?module=${module}`}
-            value={normalizedStructTag}
-            tooltipText={objectType}
-            tooltipPosition={TooltipPosition.Right}
-        />
+        <ObjectLink objectId={`${address}?module=${module}`}>
+            <DisplayStats
+                label="Type"
+                value={normalizedStructTag}
+                tooltipText={objectType}
+                tooltipPosition={TooltipPosition.Right}
+            />
+        </ObjectLink>
     );
 }
 
@@ -140,11 +139,9 @@ interface LastTxBlockCardProps {
 
 function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     return (
-        <DisplayStats
-            label="Last Transaction Block Digest"
-            valueLink={`/txblock/${digest}`}
-            value={formatAddress(digest)}
-        />
+        <TransactionLink digest={digest}>
+            <DisplayStats label="Last Transaction Block Digest" value={formatAddress(digest)} />
+        </TransactionLink>
     );
 }
 interface OwnerCardProps {
@@ -163,21 +160,24 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
             : formatAddress(objOwner.AddressOwner);
     }
 
-    function getOwnerLink(objOwner: ObjectOwner): string | null {
+    function OwnerLink({
+        children,
+        objOwner,
+    }: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
         if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
-            return 'ObjectOwner' in objOwner
-                ? `/object/${objOwner.ObjectOwner}`
-                : `/address/${objOwner.AddressOwner}`;
+            if ('ObjectOwner' in objOwner) {
+                return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
+            } else {
+                return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
+            }
         }
         return null;
     }
 
     return (
-        <DisplayStats
-            label="Owner"
-            value={getOwner(objOwner)}
-            valueLink={getOwnerLink(objOwner) ?? undefined}
-        />
+        <OwnerLink objOwner={objOwner}>
+            <DisplayStats label="Owner" value={getOwner(objOwner)} />
+        </OwnerLink>
     );
 }
 
@@ -297,14 +297,14 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             </div>
             <div className="flex flex-row gap-md">
                 {display && display.link && (
-                    <DisplayStats label="Link" value={display.link} valueLink={display.link} />
+                    <Link to={display.link}>
+                        <DisplayStats label="Link" value={display.link} />
+                    </Link>
                 )}
                 {display && display.project_url && (
-                    <DisplayStats
-                        label="Website"
-                        value={display.project_url}
-                        valueLink={display.project_url}
-                    />
+                    <Link to={display.link}>
+                        <DisplayStats label="Website" value={display.project_url} />
+                    </Link>
                 )}
             </div>
         </div>

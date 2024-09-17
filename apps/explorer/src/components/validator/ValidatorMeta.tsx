@@ -6,7 +6,7 @@ import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import toast from 'react-hot-toast';
 import { ArrowTopRight } from '@iota/ui-icons';
-import { ImageIcon } from '~/components/ui';
+import { AddressLink, ImageIcon } from '~/components/ui';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
@@ -67,13 +67,14 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         isCopyable
                         onCopySuccess={handleOnCopy}
                     />
-                    <KeyValueInfo
-                        keyText="Address"
-                        valueText={validatorData.iotaAddress}
-                        valueLink={`/address/${validatorData.iotaAddress}`}
-                        isCopyable
-                        onCopySuccess={handleOnCopy}
-                    />
+                    <AddressLink address={validatorData.iotaAddress}>
+                        <KeyValueInfo
+                            keyText="Address"
+                            valueText={validatorData.iotaAddress}
+                            isCopyable
+                            onCopySuccess={handleOnCopy}
+                        />
+                    </AddressLink>
                     <KeyValueInfo keyText="Public Key" valueText={validatorPublicKey} />
                 </div>
             </Panel>

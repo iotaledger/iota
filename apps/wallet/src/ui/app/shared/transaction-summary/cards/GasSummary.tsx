@@ -8,6 +8,7 @@ import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
 import { useActiveAddress } from '_src/ui/app/hooks';
+import { ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
 
 interface GasSummaryProps {
     sender?: string | null;
@@ -49,12 +50,13 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
                         supportingLabel={symbol}
                         fullwidth
                     />
-                    <KeyValueInfo
-                        keyText="Sponsor"
-                        valueText={formatAddress(gasSummary.owner)}
-                        valueLink={gasOwnerLink.explorerHref}
-                        fullwidth
-                    />
+                    <ExplorerLink type={ExplorerLinkType.Address} address={gasSummary.owner}>
+                        <KeyValueInfo
+                            keyText="Sponsor"
+                            valueText={formatAddress(gasSummary.owner)}
+                            fullwidth
+                        />
+                    </ExplorerLink>
                 </>
             )}
         </>
