@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ExplorerLinkType } from '_components';
+import { ExplorerLink, ExplorerLinkType } from '_components';
 import {
     getObjectChangeLabel,
     type ObjectChangesByOwner,
@@ -40,23 +40,9 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
+
     const [open, setOpen] = useState(false);
-
-    const objectLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: change.objectId || '',
-    });
-
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
-    const packageIdLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: packageId || '',
-    });
-    const moduleLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: packageId || '',
-        moduleName,
-    });
 
     return (
         <Collapsible
@@ -81,37 +67,41 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                     />
                     <div className="flex flex-row items-center gap-xxs pr-md">
                         <Badge type={BadgeType.PrimarySoft} label={typeName} />
-                        <Link
-                            to={objectLink || ''}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-body-md text-primary-30 dark:text-primary-80"
-                        >
-                            {formatAddress(change.objectId)}
-                        </Link>
+                        {change.objectId && (
+                            <ExplorerLink type={ExplorerLinkType.Object} objectID={change.objectId}>
+                                <KeyValueInfo
+                                    keyText="Package"
+                                    valueText={formatAddress(packageId)}
+                                    fullwidth
+                                />
+                            </ExplorerLink>)
+                        }
                     </div>
                 </div>
             )}
         >
             <div className="flex flex-col gap-y-sm px-md">
-                <KeyValueInfo
-                    keyText="Package"
-                    valueText={formatAddress(packageId)}
-                    valueLink={packageIdLink || ''}
-                    fullwidth
-                />
-                <KeyValueInfo
-                    keyText="Module"
-                    valueText={moduleName}
-                    valueLink={moduleLink || ''}
-                    fullwidth
-                />
-                <KeyValueInfo
-                    keyText="Type"
-                    valueText={typeName}
-                    valueLink={moduleLink || ''}
-                    fullwidth
-                />
+                <ExplorerLink objectID={packageId} type={ExplorerLinkType.Object} moduleName={moduleName}>
+                    <KeyValueInfo
+                        keyText="Package"
+                        valueText={formatAddress(packageId)}
+                        fullwidth
+                    />
+                </ExplorerLink>
+                <ExplorerLink objectID={packageId} type={ExplorerLinkType.Object} moduleName={moduleName}>
+                    <KeyValueInfo
+                        keyText="Package"
+                        valueText={formatAddress(packageId)}
+                        fullwidth
+                    />
+                </ExplorerLink>
+                <ExplorerLink objectID={packageId} type={ExplorerLinkType.Object} moduleName={moduleName}>
+                    <KeyValueInfo
+                        keyText="Package"
+                        valueText={formatAddress(packageId)}
+                        fullwidth
+                    />
+                </ExplorerLink>
             </div>
         </Collapsible>
     );

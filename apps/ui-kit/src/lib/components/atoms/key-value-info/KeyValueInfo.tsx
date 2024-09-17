@@ -18,10 +18,6 @@ interface KeyValueProps {
      */
     valueText: string;
     /**
-     * The value link of the KeyValue.
-     */
-    valueLink?: string;
-    /**
      * The tooltip position.
      */
     tooltipPosition?: TooltipPosition;
@@ -69,7 +65,6 @@ export function KeyValueInfo({
     tooltipPosition,
     tooltipText,
     supportingLabel,
-    valueLink,
     size = ValueSize.Small,
     isTruncated = false,
     copyText = valueText,
@@ -116,39 +111,24 @@ export function KeyValueInfo({
                     truncate: isTruncated,
                 })}
             >
-                {valueLink ? (
-                    <a
-                        href={valueLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cx('text-body-md text-primary-30 dark:text-primary-80', {
-                            truncate: isTruncated,
-                        })}
-                    >
-                        {valueText}
-                    </a>
-                ) : (
-                    <>
-                        <span
-                            className={cx(
-                                'text-neutral-10 dark:text-neutral-92',
-                                size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
-                                { truncate: isTruncated },
-                            )}
-                        >
-                            {valueText}
-                        </span>
-                        {supportingLabel && (
-                            <span
-                                className={cx(
-                                    'text-neutral-60 dark:text-neutral-40',
-                                    size === ValueSize.Medium ? 'text-body-md' : 'text-body-sm',
-                                )}
-                            >
-                                {supportingLabel}
-                            </span>
+                <span
+                    className={cx(
+                        'text-neutral-10 dark:text-neutral-92',
+                        size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
+                        { truncate: isTruncated },
+                    )}
+                >
+                    {valueText}
+                </span>
+                {supportingLabel && (
+                    <span
+                        className={cx(
+                            'text-neutral-60 dark:text-neutral-40',
+                            size === ValueSize.Medium ? 'text-body-md' : 'text-body-sm',
                         )}
-                    </>
+                    >
+                        {supportingLabel}
+                    </span>
                 )}
                 <div className="self-center">
                     {isCopyable && (
