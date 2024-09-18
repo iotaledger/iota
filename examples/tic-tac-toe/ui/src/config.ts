@@ -14,7 +14,7 @@ const { networkConfig, useNetworkVariable } = createNetworkConfig({
 	localnet: {
 		url: getFullnodeUrl('localnet'),
 		variables: {
-			explorer: (id: string) => `https://explorer.polymedia.app/object/${id}/?network=local`,
+			explorer: (id: string) => `https://explorer.iota.org/object/${id}/?network=local`,
 			...LocalnetPackage,
 		},
 	},
