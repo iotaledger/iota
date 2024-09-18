@@ -29,17 +29,18 @@ function ValidatorWithImage({ validator }: { validator: IotaValidatorSummary }) 
                     validatorName: validator.name,
                 })
             }
-        >
-            <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
-                <ImageIcon
-                    src={validator.imageUrl}
-                    size="sm"
-                    label={validator.name}
-                    fallback={validator.name}
-                />
-                <span className="text-label-lg">{validator.name}</span>
-            </div>
-        </ValidatorLink>
+            label={
+                <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+                    <ImageIcon
+                        src={validator.imageUrl}
+                        size="sm"
+                        label={validator.name}
+                        fallback={validator.name}
+                    />
+                    <span className="text-label-lg">{validator.name}</span>
+                </div>
+            }
+        />
     );
 }
 
