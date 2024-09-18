@@ -49,7 +49,7 @@ use iota_sdk::{
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig, DEFAULT_GAS_AMOUNT},
-    network_config::NetworkConfig,
+    network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
         ProtocolVersionsConfig, StateAccumulatorV2EnabledCallback, StateAccumulatorV2EnabledConfig,
         SupportedProtocolVersionsCallback,
@@ -299,53 +299,6 @@ impl TestCluster {
             .unwrap()
     }
 
-    /// To detect whether the network has reached such state, we use the
-    /// fullnode as the source of truth, since a fullnode only does epoch
-    /// transition when the network has done so.
-    /// If target_epoch is specified, wait until the cluster reaches that epoch.
-    /// If target_epoch is None, wait until the cluster reaches the next epoch.
-    /// Note that this function does not guarantee that every node is at the
-    /// target epoch.
-    pub async fn wait_for_epoch(&self, target_epoch: Option<EpochId>) -> IotaSystemState {
-        self.wait_for_epoch_with_timeout(target_epoch, Duration::from_secs(60))
-            .await
-    }
-
-    pub async fn wait_for_epoch_with_timeout(
-        &self,
-        target_epoch: Option<EpochId>,
-        timeout_dur: Duration,
-    ) -> IotaSystemState {
-        let mut epoch_rx = self
-            .fullnode_handle
-            .iota_node
-            .with(|node| node.subscribe_to_epoch_change());
-        let mut state = Option::None;
-        timeout(timeout_dur, async {
-            while let Ok(system_state) = epoch_rx.recv().await {
-                info!("received epoch {}", system_state.epoch());
-                state = Some(system_state.clone());
-                match target_epoch {
-                    Some(target_epoch) if system_state.epoch() >= target_epoch => {
-                        return system_state;
-                    }
-                    None => {
-                        return system_state;
-                    }
-                    _ => (),
-                }
-            }
-            unreachable!("Broken reconfig channel");
-        })
-        .await
-        .unwrap_or_else(|_| {
-            if let Some(state) = state {
-                panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
-            }
-            panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
-        })
-    }
-
     pub async fn wait_for_run_with_range_shutdown_signal(&self) -> Option<RunWithRange> {
         self.wait_for_run_with_range_shutdown_signal_with_timeout(Duration::from_secs(60))
             .await
@@ -375,8 +328,8 @@ impl TestCluster {
                 },
             }
         })
-        .await
-        .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
+            .await
+            .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
     }
 
     pub async fn wait_for_protocol_version(
@@ -481,14 +434,14 @@ impl TestCluster {
             }
             unreachable!("Broken reconfig channel");
         })
-        .await
-        .unwrap_or_else(|_| {
-            error!("Timed out waiting for cluster to reach epoch {target_epoch:?}");
-            if let Some(state) = state {
-                panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
-            }
-            panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
-        })
+            .await
+            .unwrap_or_else(|_| {
+                error!("Timed out waiting for cluster to reach epoch {target_epoch:?}");
+                if let Some(state) = state {
+                    panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
+                }
+                panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
+            })
     }
 
     pub async fn wait_for_epoch_with_timeout(
@@ -643,7 +596,7 @@ impl TestCluster {
                     while let Some(tx) = txns.next().await {
                         let digest = *tx.transaction_digest();
                         let tx = state
-                            .get_cache_reader()
+                            .get_transaction_cache_reader()
                             .get_transaction_block(&digest)
                             .unwrap()
                             .unwrap();
@@ -757,7 +710,10 @@ impl TestCluster {
         client_addr: Option<SocketAddr>,
     ) -> anyhow::Result<CertifiedTransaction> {
         let agg = self.authority_aggregator();
-        Ok(agg.process_transaction(tx).await?.into_cert_for_testing())
+        Ok(agg
+            .process_transaction(tx, client_addr)
+            .await?
+            .into_cert_for_testing())
     }
 
     /// Execute a transaction on specified list of validators, and bypassing
@@ -772,7 +728,10 @@ impl TestCluster {
         pubkeys: &[AuthorityName],
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
         let agg = self.authority_aggregator();
-        let certificate = agg.process_transaction(tx).await?.into_cert_for_testing();
+        let certificate = agg
+            .process_transaction(tx, None)
+            .await?
+            .into_cert_for_testing();
         let replies = loop {
             let futures: Vec<_> = agg
                 .authority_clients
@@ -786,7 +745,7 @@ impl TestCluster {
                 })
                 .map(|client| {
                     let cert = certificate.clone();
-                    async move { client.handle_certificate_v2(cert).await }
+                    async move { client.handle_certificate_v2(cert, None).await }
                 })
                 .collect();
 
