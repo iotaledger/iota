@@ -15,7 +15,7 @@ export interface PlaceholderTableProps {
 
 function PlaceholderCell() {
     return (
-        <TableCellBase isContentCentered>
+        <TableCellBase>
             <TableCellPlaceholder />
         </TableCellBase>
     );
