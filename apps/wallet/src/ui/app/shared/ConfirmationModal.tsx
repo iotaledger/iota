@@ -3,14 +3,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
+import {
+    Button,
+    type ButtonProps,
+    ButtonType,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    Header,
+} from '@iota/apps-ui-kit';
 
 export interface ConfirmationModalProps {
     isOpen: boolean;
     title?: string;
     hint?: string;
     confirmText?: string;
+    confirmStyle?: ButtonProps['type'];
     cancelText?: string;
+    cancelStyle?: ButtonProps['type'];
     onResponse: (confirmed: boolean) => Promise<void>;
 }
 
@@ -20,6 +30,8 @@ export function ConfirmationModal({
     hint,
     confirmText = 'Confirm',
     cancelText = 'Cancel',
+    cancelStyle = ButtonType.Secondary,
+    confirmStyle = ButtonType.Primary,
     onResponse,
 }: ConfirmationModalProps) {
     const [isConfirmLoading, setIsConfirmLoading] = useState(false);
@@ -43,7 +55,7 @@ export function ConfirmationModal({
                         {hint ? <div className="text-body-md">{hint}</div> : null}
                         <div className="flex gap-xs">
                             <Button
-                                type={ButtonType.Secondary}
+                                type={cancelStyle}
                                 text={cancelText}
                                 disabled={isConfirmLoading}
                                 onClick={async () => {
@@ -54,7 +66,7 @@ export function ConfirmationModal({
                                 fullWidth
                             />
                             <Button
-                                type={ButtonType.Primary}
+                                type={confirmStyle}
                                 text={confirmText}
                                 disabled={isCancelLoading}
                                 onClick={async () => {
