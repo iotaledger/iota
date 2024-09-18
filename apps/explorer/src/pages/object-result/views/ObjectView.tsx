@@ -303,7 +303,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
                     </Link>
                 )}
                 {display && display.project_url && (
-                    <Link to={display.link}>
+                    <Link to={display.project_url}>
                         <DisplayStats label="Website" value={display.project_url} />
                     </Link>
                 )}
