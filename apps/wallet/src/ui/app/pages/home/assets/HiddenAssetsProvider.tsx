@@ -5,40 +5,74 @@
 import { Text } from '_src/ui/app/shared/text';
 import { Check12 } from '@iota/icons';
 import { get, set } from 'idb-keyval';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
+    type ReactNode,
+    useMemo,
+} from 'react';
 import { toast } from 'react-hot-toast';
 import { Link as InlineLink } from '../../../shared/Link';
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 
+type HiddenAssets =
+    | {
+          type: 'loading';
+      }
+    | {
+          type: 'loaded';
+          assetIds: string[];
+      };
+
 interface HiddenAssetContext {
-    hiddenAssetIds: string[];
+    hiddenAssets: HiddenAssets;
     setHiddenAssetIds: (hiddenAssetIds: string[]) => void;
     hideAsset: (assetId: string) => void;
     showAsset: (assetId: string) => void;
 }
 
 export const HiddenAssetsContext = createContext<HiddenAssetContext>({
-    hiddenAssetIds: [],
+    hiddenAssets: {
+        type: 'loading',
+    },
     setHiddenAssetIds: () => {},
     hideAsset: () => {},
     showAsset: () => {},
 });
 
 export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
-    const [hiddenAssetIds, setHiddenAssetIds] = useState<string[]>([]);
+    const [hiddenAssets, setHiddenAssets] = useState<HiddenAssets>({
+        type: 'loading',
+    });
+
+    const hiddenAssetIds = useMemo(() => {
+        if (hiddenAssets.type === 'loaded') {
+            return hiddenAssets.assetIds;
+        }
+        return [];
+    }, [hiddenAssets]);
 
     useEffect(() => {
         (async () => {
-            const hiddenAssets = await get<string[]>(HIDDEN_ASSET_IDS);
-            if (hiddenAssets) {
-                setHiddenAssetIds(hiddenAssets);
-            }
+            const hiddenAssets = (await get<string[]>(HIDDEN_ASSET_IDS)) ?? [];
+            setHiddenAssetIds(hiddenAssets);
         })();
     }, []);
 
+    function setHiddenAssetIds(hiddenAssetIds: string[]) {
+        setHiddenAssets({
+            type: 'loaded',
+            assetIds: hiddenAssetIds,
+        });
+    }
+
     const hideAssetId = useCallback(
         async (newAssetId: string) => {
+            const hiddenAssetIds = hiddenAssets.type === 'loaded' ? hiddenAssets.assetIds : [];
             if (hiddenAssetIds.includes(newAssetId)) return;
 
             const newHiddenAssetIds = [...hiddenAssetIds, newAssetId];
@@ -48,9 +82,13 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
             const undoHideAsset = async (assetId: string) => {
                 try {
                     let updatedHiddenAssetIds;
-                    setHiddenAssetIds((prevIds) => {
-                        updatedHiddenAssetIds = prevIds.filter((id) => id !== assetId);
-                        return updatedHiddenAssetIds;
+                    setHiddenAssets((previous) => {
+                        const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
+                        updatedHiddenAssetIds = previousIds.filter((id) => id !== assetId);
+                        return {
+                            type: 'loaded',
+                            assetIds: updatedHiddenAssetIds,
+                        };
                     });
                     await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
                 } catch (error) {
@@ -136,8 +174,13 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
 
             const undoShowAsset = async (assetId: string) => {
                 let newHiddenAssetIds;
-                setHiddenAssetIds((prevIds) => {
-                    return (newHiddenAssetIds = [...prevIds, assetId]);
+                setHiddenAssets((previous) => {
+                    const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
+                    newHiddenAssetIds = [...previousIds, assetId];
+                    return {
+                        type: 'loaded',
+                        assetIds: newHiddenAssetIds,
+                    };
                 });
                 await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
             };
@@ -205,7 +248,10 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
     return (
         <HiddenAssetsContext.Provider
             value={{
-                hiddenAssetIds: Array.from(new Set(hiddenAssetIds)),
+                hiddenAssets:
+                    hiddenAssets.type === 'loaded'
+                        ? { ...hiddenAssets, assetIds: Array.from(new Set(hiddenAssetIds)) }
+                        : { type: 'loading' },
                 setHiddenAssetIds,
                 hideAsset: hideAssetId,
                 showAsset,

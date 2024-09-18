@@ -7,7 +7,6 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Alert, Loading, LoadingIndicator, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
@@ -39,7 +38,6 @@ function NftsPage() {
     const observerElem = useRef<HTMLDivElement | null>(null);
 
     const accountAddress = useActiveAddress();
-    const { hiddenAssetIds } = useHiddenAssets();
     const {
         data: ownedAssets,
         hasNextPage,
@@ -96,7 +94,7 @@ function NftsPage() {
         if (
             (selectedAssetCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
             (selectedAssetCategory === AssetCategory.Other && ownedAssets?.other.length === 0) ||
-            (selectedAssetCategory === AssetCategory.Hidden && hiddenAssetIds.length === 0) ||
+            (selectedAssetCategory === AssetCategory.Hidden && ownedAssets?.hidden.length === 0) ||
             !selectedAssetCategory
         ) {
             computeSelectedCategory = true;
@@ -107,7 +105,7 @@ function NftsPage() {
                     ? AssetCategory.Visual
                     : ownedAssets.other.length > 0
                       ? AssetCategory.Other
-                      : hiddenAssetIds.length > 0
+                      : ownedAssets.hidden.length > 0
                         ? AssetCategory.Hidden
                         : null;
             setSelectedAssetCategory(defaultCategory);
