@@ -15,9 +15,9 @@
         "node": ">= v18.17.0"
     },
     "dependencies": {
+        "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
-        "@iota/apps-ui-kit": "workspace:*",
         "@iota/icons": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
         "@tanstack/react-query": "^5.0.0",
