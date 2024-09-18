@@ -32,7 +32,7 @@ use iota_config::{
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
-use iota_json_rpc_api::BridgeReadApiClient;
+use iota_json_rpc_api::{error_object_from_rpc, BridgeReadApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, TransactionFilter,
@@ -283,7 +283,11 @@ impl TestCluster {
     }
 
     pub async fn get_bridge_summary(&self) -> RpcResult<BridgeSummary> {
-        self.iota_client().http().get_latest_bridge().await
+        self.iota_client()
+            .http()
+            .get_latest_bridge()
+            .await
+            .map_err(error_object_from_rpc)
     }
 
     pub async fn get_object_or_tombstone_from_fullnode_store(
