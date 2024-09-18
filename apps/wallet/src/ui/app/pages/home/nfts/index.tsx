@@ -87,9 +87,6 @@ function NftsPage() {
     }, [ownedAssets]);
 
     useEffect(() => {
-        if (ownedAssets) {
-            setIsAssetsLoaded(true);
-        }
         let computeSelectedCategory = false;
         if (
             (selectedAssetCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
