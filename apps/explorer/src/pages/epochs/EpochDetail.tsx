@@ -51,8 +51,6 @@ export default function EpochDetail() {
         [systemState, epochData],
     );
 
-    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
-
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
@@ -77,6 +75,8 @@ export default function EpochDetail() {
                 }
             />
         );
+
+    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
 
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
