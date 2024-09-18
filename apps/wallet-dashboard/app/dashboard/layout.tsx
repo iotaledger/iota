@@ -37,8 +37,11 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                 {routes.map((route) => {
                     return <RouteLink key={route.title} {...route} />;
                 })}
-                                            <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} type={ButtonType.Ghost} />
-
+                <Button
+                    onClick={toggleDarkMode}
+                    text={isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                    type={ButtonType.Ghost}
+                />
             </section>
             <div>{children}</div>
         </>
