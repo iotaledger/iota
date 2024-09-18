@@ -60,6 +60,16 @@ export default function EpochDetail() {
             validatorEvents: [],
             rollingAverageApys: null,
             showValidatorIcon: true,
+            includeColumns: [
+                'Name',
+                'Stake',
+                'Proposed next Epoch gas price',
+                'APY',
+                'Comission',
+                'Last Epoch Rewards',
+                'Voting Power',
+                'Status',
+            ],
         });
     }, [epochData]);
 

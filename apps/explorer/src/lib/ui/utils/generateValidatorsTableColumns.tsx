@@ -15,7 +15,7 @@ interface generateValidatorsTableColumnsArgs {
     rollingAverageApys: ApyByValidator | null;
     limit?: number;
     showValidatorIcon?: boolean;
-    filterColumns?: string[];
+    includeColumns?: string[];
 }
 
 function ValidatorWithImage({ validator }: { validator: IotaValidatorSummary }) {
@@ -44,37 +44,12 @@ function ValidatorWithImage({ validator }: { validator: IotaValidatorSummary }) 
     );
 }
 
-function ValidatorAddress({
-    validator,
-    limit,
-}: {
-    validator: IotaValidatorSummary;
-    limit?: number;
-}) {
-    return (
-        <div className="whitespace-nowrap">
-            <ValidatorLink
-                address={validator.iotaAddress}
-                noTruncate={!limit}
-                onClick={() =>
-                    ampli.clickedValidatorRow({
-                        sourceFlow: 'Top validators - validator address',
-                        validatorAddress: validator.iotaAddress,
-                        validatorName: validator.name,
-                    })
-                }
-            />
-        </div>
-    );
-}
-
 export function generateValidatorsTableColumns({
-    limit,
     atRiskValidators = [],
     validatorEvents = [],
     rollingAverageApys = null,
     showValidatorIcon = true,
-    filterColumns,
+    includeColumns,
 }: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummary>[] {
     let columns: ColumnDef<IotaValidatorSummary>[] = [
         {
@@ -106,7 +81,7 @@ export function generateValidatorsTableColumns({
             },
         },
         {
-            header: 'nextEpochGasPrice',
+            header: 'Proposed next Epoch gas price',
             accessorKey: 'nextEpochGasPrice',
             cell({ getValue }) {
                 const nextEpochGasPrice = getValue<string>();
@@ -118,7 +93,7 @@ export function generateValidatorsTableColumns({
             },
         },
         {
-            header: 'apy',
+            header: 'APY',
             accessorKey: 'iotaAddress',
             cell({ getValue }) {
                 const iotaAddress = getValue<string>();
@@ -136,7 +111,7 @@ export function generateValidatorsTableColumns({
         },
         {
             header: 'Comission',
-            accessorKey: 'comission',
+            accessorKey: 'commissionRate',
             cell({ getValue }) {
                 return (
                     <TableCellBase>
@@ -146,18 +121,24 @@ export function generateValidatorsTableColumns({
             },
         },
         {
-            header: 'Last Reward',
+            header: 'Last Epoch Rewards',
             id: 'lastReward',
             cell({ row: { original: validator } }) {
                 const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
                     pool_staking_reward?: string;
                 };
                 const lastReward = event?.pool_staking_reward ?? null;
-                if (lastReward !== null) {
-                    return <StakeColumn stake={Number(lastReward)} />;
-                } else {
-                    <TableCellText>--</TableCellText>;
-                }
+                return (
+                    <TableCellBase>
+                        <TableCellText>
+                            {lastReward !== null ? (
+                                <StakeColumn stake={Number(lastReward)} />
+                            ) : (
+                                '--'
+                            )}
+                        </TableCellText>
+                    </TableCellBase>
+                );
             },
         },
         {
@@ -166,15 +147,17 @@ export function generateValidatorsTableColumns({
             cell({ getValue }) {
                 const votingPower = getValue<string>();
                 return (
-                    <TableCellText>
-                        {votingPower ? Number(votingPower) / 100 + '%' : '--'}
-                    </TableCellText>
+                    <TableCellBase>
+                        <TableCellText>
+                            {votingPower ? Number(votingPower) / 100 + '%' : '--'}
+                        </TableCellText>
+                    </TableCellBase>
                 );
             },
         },
 
         {
-            header: 'At Risk',
+            header: 'Status',
             id: 'atRisk',
             cell({ row: { original: validator } }) {
                 const atRiskValidator = atRiskValidators.find(
@@ -186,30 +169,27 @@ export function generateValidatorsTableColumns({
                     : null;
 
                 if (atRisk === null) {
-                    return <Badge type={BadgeType.PrimarySoft} label="Active" />;
+                    return (
+                        <TableCellBase>
+                            <Badge type={BadgeType.PrimarySoft} label="Active" />
+                        </TableCellBase>
+                    );
                 }
 
                 const atRiskText = atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch';
-                return <Badge type={BadgeType.Neutral} label={`At Risk ${atRiskText}`} />;
-            },
-        },
-        {
-            header: 'Address',
-            id: 'address',
-            cell({ row: { original: validator } }) {
                 return (
                     <TableCellBase>
-                        <TableCellText>
-                            <ValidatorAddress validator={validator} limit={limit} />
-                        </TableCellText>
+                        <Badge type={BadgeType.Neutral} label={`At Risk ${atRiskText}`} />
                     </TableCellBase>
                 );
             },
         },
     ];
 
-    if (filterColumns) {
-        columns = columns.filter((col) => filterColumns.includes(col.header?.toString() as string));
+    if (includeColumns) {
+        columns = columns.filter((col) =>
+            includeColumns.includes(col.header?.toString() as string),
+        );
     }
 
     return columns;

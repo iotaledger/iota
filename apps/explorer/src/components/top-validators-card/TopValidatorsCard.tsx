@@ -25,7 +25,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         rollingAverageApys: null,
         limit,
         showValidatorIcon: showIcon,
-        filterColumns: ['Name', 'Address', 'Stake'],
+        includeColumns: ['Name', 'Address', 'Stake'],
     });
 
     if (isError || (!isPending && !data.activeValidators.length)) {
