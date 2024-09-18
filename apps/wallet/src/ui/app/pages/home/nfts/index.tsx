@@ -34,7 +34,6 @@ const ASSET_CATEGORIES = [
 
 function NftsPage() {
     const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
-    const [isAssetsLoaded, setIsAssetsLoaded] = useState(false);
     const observerElem = useRef<HTMLDivElement | null>(null);
 
     const accountAddress = useActiveAddress();
@@ -48,11 +47,12 @@ function NftsPage() {
         isError,
     } = useGetNFTs(accountAddress);
 
+    const isAssetsLoaded = !!ownedAssets;
+
     const isSpinnerVisible = isFetchingNextPage && hasNextPage;
 
-    const filteredAssets = useMemo(() => {
+    const filteredAssets = (() => {
         if (!ownedAssets) return [];
-
         switch (selectedAssetCategory) {
             case AssetCategory.Visual:
                 return ownedAssets.visual;
@@ -61,7 +61,7 @@ function NftsPage() {
             default:
                 return [];
         }
-    }, [selectedAssetCategory, ownedAssets]);
+    })();
 
     const filteredHiddenAssets = useMemo(() => {
         return (
