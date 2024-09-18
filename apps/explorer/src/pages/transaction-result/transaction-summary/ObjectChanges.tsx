@@ -59,7 +59,7 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
             );
         case ItemLabel.Module:
             return (
-                <ObjectLink objectId={packageId || ''} module={moduleName}>
+                <ObjectLink objectId={packageId ? `${packageId}?module=${moduleName}` : ''}>
                     <KeyValueInfo keyText={label} valueText={moduleName || ''} fullwidth />
                 </ObjectLink>
             );
