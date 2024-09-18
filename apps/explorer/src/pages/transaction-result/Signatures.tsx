@@ -112,7 +112,7 @@ export function Signatures({ transaction }: SignaturesProps) {
         : null;
 
     return (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {userSignatures.length > 0 && (
                 <div className="flex flex-col gap-8">
                     {userSignatures.map((signature, index) => (

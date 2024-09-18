@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isIotaNSName } from '@iota/core';
 import { formatAddress, formatDigest } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 
@@ -31,7 +30,12 @@ function createInternalLink<T extends string>(
         const queryStringPrefix = queryString ? `?${queryString}` : '';
 
         return (
-            <Link variant="mono" to={`/${base}/${encodeURI(id)}${queryStringPrefix}`} {...props}>
+            <Link
+                className="text-primary-30 dark:text-primary-80"
+                variant="mono"
+                to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
+                {...props}
+            >
                 {label || truncatedAddress}
             </Link>
         );
@@ -41,12 +45,9 @@ function createInternalLink<T extends string>(
 export const EpochLink = createInternalLink('epoch', 'epoch');
 export const CheckpointLink = createInternalLink('checkpoint', 'digest', formatAddress);
 export const CheckpointSequenceLink = createInternalLink('checkpoint', 'sequence');
-export const AddressLink = createInternalLink('address', 'address', (addressOrNs) => {
-    if (isIotaNSName(addressOrNs)) {
-        return addressOrNs;
-    }
-    return formatAddress(addressOrNs);
-});
+export const AddressLink = createInternalLink('address', 'address', (addressOrNs) =>
+    formatAddress(addressOrNs),
+);
 export const ObjectLink = createInternalLink('object', 'objectId', formatAddress);
 export const TransactionLink = createInternalLink('txblock', 'digest', formatDigest);
 export const ValidatorLink = createInternalLink('validator', 'address', formatAddress);
@@ -69,3 +70,4 @@ export const checkpointToLink = createLinkTo('checkpoint', 'digest');
 export const epochToLink = createLinkTo('epoch', 'epoch');
 export const addressToLink = createLinkTo('address', 'address');
 export const checkpointSequenceToLink = createLinkTo('checkpoint', 'sequence');
+export const objectToLink = createLinkTo('object', 'objectId');

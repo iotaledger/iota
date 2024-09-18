@@ -3,4 +3,5 @@
 
 export * from './generateTableDataFromCheckpointsData';
 export * from './generateTableDataFromEpochsData';
+export * from './generateValidatorsTableData';
 export * from './objectField';

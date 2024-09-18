@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import React from 'react';
 import { BadgeType, Badge, Checkbox, ButtonUnstyled } from '../../atoms';
-import { TableCellType } from './table-cell.enums';
+import { TableCellType, TableCellTextColor } from './table-cell.enums';
 import { Copy } from '@iota/ui-icons';
 import cx from 'classnames';
 interface TableCellBaseProps {
@@ -18,6 +18,14 @@ interface TableCellBaseProps {
      * Whether the cell content should be centered.
      */
     isContentCentered?: boolean;
+    /**
+     * The color of the text.
+     */
+    textColor?: TableCellTextColor;
+    /**
+     * Whether to not wrap the text in the cell.
+     */
+    noWrap?: boolean;
 }
 
 type TableCellText = {
@@ -113,6 +121,17 @@ type TableCellLink = {
     isExternal?: boolean;
 };
 
+type TableCellChildren = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Children;
+    /**
+     * The children of the cell.
+     */
+    children?: React.ReactNode;
+};
+
 export type TableCellProps = TableCellBaseProps &
     (
         | TableCellText
@@ -122,12 +141,18 @@ export type TableCellProps = TableCellBaseProps &
         | TableCellCheckbox
         | TableCellPlaceholder
         | TableCellLink
+        | TableCellChildren
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
-    const { type, label, hasLastBorderNoneClass, isContentCentered } = props;
+    const {
+        type,
+        label,
+        hasLastBorderNoneClass,
+        isContentCentered,
+        textColor: textColorClass = TableCellTextColor.Default,
+    } = props;
 
-    const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
 
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
@@ -143,12 +168,19 @@ export function TableCell(props: TableCellProps): JSX.Element {
     }
 
     const Cell = () => {
+        const { noWrap } = props;
         switch (type) {
             case TableCellType.Text:
                 const { supportingLabel } = props;
                 return (
                     <div className="flex flex-row items-baseline gap-1">
-                        <span className={cx(textColorClass, textSizeClass)}>{label}</span>
+                        <span
+                            className={cx(textColorClass, textSizeClass, {
+                                'whitespace-nowrap': noWrap,
+                            })}
+                        >
+                            {label}
+                        </span>
                         {supportingLabel && (
                             <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
                                 {supportingLabel}
@@ -176,6 +208,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 return <Badge type={badgeType} label={label} />;
             case TableCellType.AvatarText:
                 const { leadingElement } = props;
+
                 return (
                     <div className={cx('flex items-center gap-x-2.5', textColorClass)}>
                         {leadingElement}
@@ -203,11 +236,16 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         href={to}
                         target={isExternal ? '_blank' : '_self'}
                         rel="noopener noreferrer"
-                        className={cx('text-primary-30 dark:text-primary-80', textSizeClass)}
+                        className={cx('text-primary-30 dark:text-primary-80', textSizeClass, {
+                            'whitespace-nowrap': noWrap,
+                        })}
                     >
                         {label}
                     </a>
                 );
+            case TableCellType.Children:
+                const { children } = props;
+                return children;
             default:
                 return null;
         }
