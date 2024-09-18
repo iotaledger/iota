@@ -14,7 +14,7 @@ use iota_types::{
     object::Object,
     transaction::{InputObjectKind, SenderSignedData, TransactionKind},
 };
-use jsonrpsee::core::Error as JsonRpseeError;
+use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;
 use move_core_types::{
     account_address::AccountAddress,
@@ -177,7 +177,8 @@ pub enum ReplayEngineError {
     #[error("Unable to query system events; {}", rpc_err)]
     UnableToQuerySystemEvents { rpc_err: String },
 
-    #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {:#?}", q)).unwrap_or_default() )]
+    #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {:#?}", q)).unwrap_or_default()
+    )]
     InternalCacheInvariantViolation {
         id: ObjectID,
         version: Option<SequenceNumber>,
@@ -239,7 +240,7 @@ impl From<IotaError> for ReplayEngineError {
 impl From<IotaRpcError> for ReplayEngineError {
     fn from(err: IotaRpcError) -> Self {
         match err {
-            IotaRpcError::RpcError(JsonRpseeError::RequestTimeout) => {
+            IotaRpcError::Rpc(JsonRpseeError::RequestTimeout) => {
                 ReplayEngineError::IotaRpcRequestTimeout
             }
             _ => ReplayEngineError::IotaRpcError {

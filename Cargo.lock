@@ -6888,11 +6888,11 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-snapshot"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bcs",
- "git-version",
+ "bin-version",
  "iota-framework",
  "iota-protocol-config",
  "iota-types",
