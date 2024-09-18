@@ -45,7 +45,8 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         if (newWindow) newWindow.opener = null;
     }
 
-    function handleToggleLock() {
+    function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
+        e.stopPropagation();
         if (account.isLocked) {
             unlockAccount(account);
         } else {
@@ -77,6 +78,11 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         }
     }
 
+    function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {
+        e.stopPropagation();
+        setDropdownOpen(true);
+    }
+
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount}>
@@ -90,7 +96,7 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
                     title={accountName}
                     subtitle={formatAddress(account.address)}
                     onCopy={handleCopySuccess}
-                    onOptionsClick={() => setDropdownOpen(true)}
+                    onOptionsClick={handleOptionsClick}
                     onLockAccountClick={handleToggleLock}
                     onUnlockAccountClick={handleToggleLock}
                 />
