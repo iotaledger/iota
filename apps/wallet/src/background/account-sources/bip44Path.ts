@@ -33,7 +33,7 @@ export function parseDerivationPath(path: string): MakeDerivationOptions {
     return {
         bip44CoinType: parts[0],
         accountIndex: parts[1],
-        addressIndex: parts[2],
-        changeIndex: parts[3],
+        changeIndex: parts[2],
+        addressIndex: parts[3],
     };
 }

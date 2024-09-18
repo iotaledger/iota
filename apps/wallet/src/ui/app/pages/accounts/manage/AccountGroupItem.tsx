@@ -10,11 +10,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAccounts } from '_app/hooks/useAccounts';
 import { useExplorerLink } from '_app/hooks/useExplorerLink';
 import toast from 'react-hot-toast';
-import { Account, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { isMainAccount } from '_src/background/accounts/isMainAccount';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -77,6 +78,21 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         }
     }
 
+    const isMain = isMainAccount(account);
+
+    const badgeConfig = (() => {
+        if (isMain) {
+            return {
+                type: BadgeType.PrimarySoft,
+                text: 'Main',
+            };
+        }
+        return {
+            type: undefined,
+            text: undefined,
+        };
+    })();
+
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount}>
@@ -88,6 +104,8 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
                     onOpen={handleOpen}
                     avatarContent={() => <AccountAvatar account={account} />}
                     title={accountName}
+                    badgeType={badgeConfig.type}
+                    badgeText={badgeConfig.text}
                     subtitle={formatAddress(account.address)}
                     onCopy={handleCopySuccess}
                     onOptionsClick={() => setDropdownOpen(true)}
