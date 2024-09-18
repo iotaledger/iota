@@ -2,6 +2,9 @@
 description: Guide to setting up and using a local IOTA network for development and testing.
 tags: [ how-to, install, setup, cli, typescript, sdk, testing ]
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/local-network.json';
+
 # Local Development
 
 You can create a local IOTA network to develop and test your dApps with the latest changes in the IOTA repository. You
@@ -256,3 +259,6 @@ pnpm add <PATH_TO_YOUR_REPO>/sdk/typescript
 ``` 
 
 and the locally compiled version of `@iota/iota-sdk` package will be installed for your application.
+
+
+<Quiz questions={questions} />

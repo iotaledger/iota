@@ -6,6 +6,9 @@ tags: [ how-to, cli, getting-started, install, setup ]
 
 import MacosDeps from "../../_snippets/macos-deps.mdx";
 import LinuxDeps from "../../_snippets/linux-deps.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/install-iota.json';
+
 
 In order to deploy your contracts and interact with the chains some tooling is required. IOTA Rebased has an excellent command-line tool that can be used for the most common tasks.
 
@@ -418,3 +421,6 @@ used to install them:
 ```shell
 cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota
 ```
+
+
+<Quiz questions={questions} />

@@ -1,0 +1,29 @@
+[
+	{
+		"questionText": "Which command is used to publish a Move package in IOTA?",
+		"answerOptions": [
+			{ "answerText": "iota client publish --gas-budget <value>", "isCorrect": true },
+			{ "answerText": "iota move publish --gas-budget <value>", "isCorrect": false },
+			{ "answerText": "iota client deploy --gas-budget <value>", "isCorrect": false },
+			{ "answerText": "iota move deploy --gas-budget <value>", "isCorrect": false }
+		]
+	},
+	{
+		"questionText": "Which function is executed during the publishing process of a Move package?",
+		"answerOptions": [
+			{ "answerText": "main", "isCorrect": false },
+			{ "answerText": "start", "isCorrect": false },
+			{ "answerText": "init", "isCorrect": true },
+			{ "answerText": "deploy", "isCorrect": false }
+		]
+	},
+	{
+		"questionText": "Which command retrieves the list of objects associated with your address?",
+		"answerOptions": [
+			{ "answerText": "iota client list-objects", "isCorrect": false },
+			{ "answerText": "iota client objects", "isCorrect": true },
+			{ "answerText": "iota client show-objects", "isCorrect": false },
+			{ "answerText": "iota client get-objects", "isCorrect": false }
+		]
+	}
+]
