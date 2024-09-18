@@ -3,6 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageType,
+} from '@iota/apps-ui-kit';
+import {
     type BalanceChange,
     type BalanceChangeSummary,
     CoinFormat,
@@ -10,11 +19,10 @@ import {
     useCoinMetadata,
     useFormatCoin,
 } from '@iota/core';
-import { Heading, Text } from '@iota/ui';
+import { RecognizedBadge } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useMemo } from 'react';
-
-import { AddressLink, Banner, Coin, CollapsibleCard, CollapsibleSection } from '~/components/ui';
+import { AddressLink, Coin, CollapsibleCard, CollapsibleSection } from '~/components/ui';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -31,39 +39,29 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
     }
 
     return (
-        <div className="flex flex-col gap-2 py-3 first:pt-0 only:pb-0 only:pt-0">
-            <div className="flex justify-between gap-1">
-                <div className="flex gap-2">
-                    <div className="w-5">
-                        <Coin type={coinType} />
-                    </div>
-                    <div className="flex flex-wrap gap-2 gap-y-1">
-                        <Text variant="pBody/semibold" color="steel-darker">
-                            {coinMetaData?.name || symbol}
-                        </Text>
-                        {unRecognizedToken && (
-                            <Banner variant="warning" icon={null} border spacing="sm">
-                                <div className="max-w-[70px] overflow-hidden truncate whitespace-nowrap text-captionSmallExtra font-medium uppercase leading-3 tracking-wider lg:max-w-full">
-                                    Unrecognized
-                                </div>
-                            </Banner>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex justify-end text-right">
-                    <Text variant="pBody/medium" color={isPositive ? 'success-dark' : 'issue-dark'}>
-                        {isPositive ? '+' : ''}
-                        {formatted} {symbol}
-                    </Text>
-                </div>
-            </div>
-
+        <div className="flex flex-col gap-xs">
+            <Card type={CardType.Filled}>
+                <CardImage type={ImageType.BgTransparent}>
+                    <Coin type={coinType} />
+                </CardImage>
+                <CardBody
+                    title={coinMetaData?.name || symbol}
+                    icon={
+                        !unRecognizedToken ? (
+                            <RecognizedBadge className="h-4 w-4 text-primary-40" />
+                        ) : null
+                    }
+                />
+                <CardAction
+                    type={CardActionType.SupportingText}
+                    title={`${isPositive ? '+' : ''} ${formatted} ${symbol}`}
+                />
+            </Card>
             {recipient && (
-                <div className="flex flex-wrap items-center justify-between border-t border-gray-45 pt-2">
-                    <Text variant="pBody/medium" color="steel-dark">
+                <div className="flex flex-wrap items-center justify-between px-sm py-xs">
+                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 dark:text-neutral-60 md:w-40">
                         Recipient
-                    </Text>
+                    </span>
                     <AddressLink address={recipient} />
                 </div>
             )}
@@ -79,31 +77,21 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
 
     return (
         <CollapsibleCard
-            title={
-                <div className="flex w-full flex-wrap items-center justify-between gap-y-2">
-                    <Heading variant="heading6/semibold" color="steel-darker">
-                        Balance Changes
-                    </Heading>
-                </div>
-            }
-            shadow
-            size="sm"
+            title="Balance Changes"
             footer={
                 owner ? (
-                    <div className="flex flex-wrap justify-between">
-                        <Text variant="pBody/medium" color="steel-dark">
+                    <div className="flex flex-wrap justify-between px-md--rs pb-sm--rs">
+                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                             Owner
-                        </Text>
-                        <Text variant="pBody/medium" color="hero-dark">
-                            <AddressLink address={owner} />
-                        </Text>
+                        </span>
+                        <AddressLink label={undefined} address={owner} />
                     </div>
                 ) : null
             }
         >
             <div className="flex flex-col gap-2">
                 {recognizedTokenChanges.map((change, index) => (
-                    <CollapsibleSection key={index + change.coinType}>
+                    <CollapsibleSection key={index + change.coinType} hideBorder>
                         <BalanceChangeEntry change={change} />
                     </CollapsibleSection>
                 ))}
@@ -115,7 +103,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                         )}
                     >
                         {unRecognizedTokenChanges.map((change, index) => (
-                            <CollapsibleSection key={index + change.coinType}>
+                            <CollapsibleSection key={index + change.coinType} hideBorder>
                                 <BalanceChangeEntry change={change} />
                             </CollapsibleSection>
                         ))}
