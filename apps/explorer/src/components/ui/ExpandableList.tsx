@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ChevronUp12 } from '@iota/icons';
+import { Text } from '@iota/ui';
+import clsx from 'clsx';
 import { type ReactNode, useMemo, useState, createContext, useContext } from 'react';
+
 import { Link } from './Link';
-import { ArrowRight } from '@iota/ui-icons';
 
 type ExpandableListContextType = {
     handleShowAllClick: () => void;
@@ -54,11 +57,11 @@ export function ExpandableListControl(): JSX.Element | null {
     }
 
     return (
-        <div className="flex cursor-pointer items-center text-neutral-40 dark:text-neutral-60">
+        <div className="flex cursor-pointer items-center gap-1 text-steel hover:text-steel-dark">
             <Link variant="text" onClick={handleShowAllClick}>
-                <div className="flex items-center gap-xxxs">
-                    <span className="text-body-sm ">{showAllText}</span>
-                    <ArrowRight />
+                <div className="flex items-center gap-0.5">
+                    <Text variant="bodySmall/medium">{showAllText}</Text>
+                    <ChevronUp12 className={clsx('h-3 w-3', !showAll ? 'rotate-90' : '')} />
                 </div>
             </Link>
         </div>
@@ -89,6 +92,7 @@ export function ExpandableList({
                 showAll,
                 items,
                 defaultItemsToShow,
+                itemsLabel,
             }}
         >
             {children || (

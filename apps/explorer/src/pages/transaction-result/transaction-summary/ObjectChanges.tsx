@@ -9,26 +9,29 @@ import {
     type ObjectChangesByOwner,
     type ObjectChangeSummary,
 } from '@iota/core';
+import { ChevronRight12 } from '@iota/icons';
 import {
     type DisplayFieldsResponse,
     type IotaObjectChange,
     type IotaObjectChangePublished,
 } from '@iota/iota-sdk/client';
-import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
+import { parseStructTag } from '@iota/iota-sdk/utils';
+import { Text } from '@iota/ui';
+import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
+
 import {
     AddressLink,
     CollapsibleCard,
+    CollapsibleSection,
     ExpandableList,
     ExpandableListControl,
     ExpandableListItems,
     ObjectLink,
 } from '~/components/ui';
 import { ObjectDisplay } from './ObjectDisplay';
-import { Badge, BadgeType, KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
-import { FieldCollapsible } from '~/components';
-import { TriangleDown } from '@iota/ui-icons';
+import { Badge, BadgeType } from '@iota/apps-ui-kit';
 
 interface ItemProps {
     label: string;
@@ -46,72 +49,60 @@ enum ItemLabel {
 const DEFAULT_ITEMS_TO_SHOW = 5;
 
 function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Element | null {
-    function getValueData() {
-        switch (label) {
-            case ItemLabel.Package:
-                return {
-                    text: packageId ? formatAddress(packageId) : '',
-                    link: packageId ? `/object/${packageId}` : undefined,
-                };
-            case ItemLabel.Module:
-                return {
-                    text: moduleName || '',
-                    link:
-                        packageId && moduleName
-                            ? `/object/${packageId}?module=${moduleName}`
-                            : undefined,
-                };
-            case ItemLabel.Type:
-                return {
-                    text: typeName || '',
-                    link: undefined,
-                };
-            default:
-                return {
-                    text: '',
-                    link: undefined,
-                };
-        }
-    }
-    const { text: valueText, link: valueLink } = getValueData();
+    return (
+        <div
+            className={clsx(
+                'flex justify-between gap-10',
+                label === ItemLabel.Type ? 'items-start' : 'items-center',
+            )}
+        >
+            <Text variant="pBody/medium" color="steel-dark">
+                {label}
+            </Text>
 
-    return <KeyValueInfo keyText={label} valueText={valueText} valueLink={valueLink} fullwidth />;
+            {label === ItemLabel.Package && packageId && <ObjectLink objectId={packageId} />}
+            {label === ItemLabel.Module && (
+                <ObjectLink objectId={`${packageId}?module=${moduleName}`} label={moduleName} />
+            )}
+            {label === ItemLabel.Type && (
+                <div className="break-all text-right">
+                    <Text mono variant="pBody/medium" color="steel-darker">
+                        {typeName}
+                    </Text>
+                </div>
+            )}
+        </div>
+    );
 }
 
 interface ObjectDetailPanelProps {
     panelContent: ReactNode;
     headerContent?: ReactNode;
-    hideBorder?: boolean;
 }
 
 function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelProps): JSX.Element {
     const [open, setOpen] = useState(false);
     return (
-        <FieldCollapsible
-            hideBorder
-            onOpenChange={(isOpen) => setOpen(isOpen)}
-            hideArrow
-            render={() => (
-                <div className="flex w-full flex-row items-center justify-between">
-                    <div className="flex flex-row gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
-                        <span className="text-body-md">Object</span>
+        <Collapsible.Root open={open} onOpenChange={setOpen}>
+            <div className="flex flex-wrap items-center justify-between">
+                <Collapsible.Trigger>
+                    <div className="flex items-center gap-0.5">
+                        <Text variant="pBody/medium" color="steel-dark">
+                            Object
+                        </Text>
 
-                        <TriangleDown
-                            className={clsx(
-                                'h-5 w-5',
-                                open
-                                    ? 'rotate-0 transition-transform ease-linear'
-                                    : '-rotate-90 transition-transform ease-linear',
-                            )}
+                        <ChevronRight12
+                            className={clsx('h-3 w-3 text-steel-dark', open && 'rotate-90')}
                         />
                     </div>
-                    <div className="flex flex-row items-center gap-xxs pr-xxs">{headerContent}</div>
-                </div>
-            )}
-            open={open}
-        >
-            {panelContent}
-        </FieldCollapsible>
+                </Collapsible.Trigger>
+                {headerContent}
+            </div>
+
+            <Collapsible.Content>
+                <div className="flex flex-col gap-2">{panelContent}</div>
+            </Collapsible.Content>
+        </Collapsible.Root>
     );
 }
 
@@ -134,13 +125,15 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
     return (
         <ObjectDetailPanel
             headerContent={
-                <div className="flex shrink-0 items-center gap-xxs">
-                    <Badge type={BadgeType.PrimarySoft} label={name} />
+                <div className="flex items-center">
+                    <Text mono variant="body/medium" color="steel-dark">
+                        {name}:
+                    </Text>
                     {objectId && <ObjectLink objectId={objectId} />}
                 </div>
             }
             panelContent={
-                <div className="mt-2 flex flex-col gap-xs capitalize">
+                <div className="mt-2 flex flex-col gap-2 capitalize">
                     {objectDetailLabels.map((label) => (
                         <Item
                             key={label}
@@ -212,7 +205,7 @@ function ObjectChangeEntries({
     }
 
     return (
-        <div className="px-md">
+        <CollapsibleSection>
             <ExpandableList
                 items={expandableItems}
                 defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
@@ -233,7 +226,7 @@ function ObjectChangeEntries({
                     </div>
                 )}
             </ExpandableList>
-        </div>
+        </CollapsibleSection>
     );
 }
 
@@ -247,12 +240,15 @@ function ObjectChangeEntriesCardFooter({
     ownerAddress,
 }: ObjectChangeEntriesCardFooterProps): JSX.Element {
     return (
-        <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-            <span className="text-body-md text-neutral-40 dark:text-neutral-60">Owner</span>
-            {ownerType === 'AddressOwner' && (
-                <AddressLink label={undefined} address={ownerAddress} />
-            )}
+        <div className="flex flex-wrap items-center justify-between">
+            <Text variant="pBody/medium" color="steel-dark">
+                Owner
+            </Text>
+
+            {ownerType === 'AddressOwner' && <AddressLink address={ownerAddress} />}
+
             {ownerType === 'ObjectOwner' && <ObjectLink objectId={ownerAddress} />}
+
             {ownerType === 'Shared' && <ObjectLink objectId={ownerAddress} label="Shared" />}
         </div>
     );
@@ -276,8 +272,7 @@ export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCard
                     <CollapsibleCard
                         collapsible
                         key={ownerAddress}
-                        title="Object Changes"
-                        titleSize={TitleSize.Small}
+                        title="Changes"
                         footer={
                             renderFooter && (
                                 <ObjectChangeEntriesCardFooter
