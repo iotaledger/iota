@@ -8,7 +8,6 @@ use futures::{
     stream::{FuturesOrdered, FuturesUnordered},
     StreamExt,
 };
-use iota_core::authority::EffectsNotifyRead;
 use iota_macros::*;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
@@ -150,8 +149,8 @@ async fn test_net_determinism() {
     handle
         .iota_node
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 }

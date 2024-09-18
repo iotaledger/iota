@@ -6,13 +6,9 @@
 mod sim_only_tests {
     use std::{path::PathBuf, time::Duration};
 
-    use iota_core::{
-        authority::authority_store_tables::LiveObject, state_accumulator::AccumulatorStore,
-    };
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::sim_test;
     use iota_node::IotaNode;
-    use iota_protocol_config::{ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
         base_types::ObjectID, digests::TransactionDigest,
@@ -20,60 +16,6 @@ mod sim_only_tests {
     };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
-
-    /// This test checks that after we enable simplified_unwrap_then_delete, we
-    /// no longer depend on wrapped tombstones when generating effects and
-    /// using effects.
-    #[sim_test]
-    async fn test_no_more_dependency_on_wrapped_tombstone() {
-        let mut _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_simplified_unwrap_then_delete(false);
-            config
-        });
-
-        let test_cluster = TestClusterBuilder::new()
-            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
-                ProtocolVersion::MAX.as_u64(),
-                ProtocolVersion::MAX_ALLOWED.as_u64(),
-            ))
-            .build()
-            .await;
-
-        let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
-
-        let child_id = create_owned_child(&test_cluster, package_id).await;
-        wrap_child(&test_cluster, package_id, object_id, child_id).await;
-        assert_eq!(count_fullnode_wrapped_tombstones(&test_cluster), 1);
-
-        // At this point, we should have a wrapped tombstone in the db of every node.
-
-        drop(_guard);
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_simplified_unwrap_then_delete(true);
-            config
-        });
-        // At this epoch change, we should be re-accumulating without wrapped tombstone
-        // and now flips the feature flag simplified_unwrap_then_delete to true.
-        test_cluster.trigger_reconfiguration().await;
-
-        // Remove the wrapped tombstone on some nodes but not all.
-        for (idx, validator) in test_cluster.swarm.validator_nodes().enumerate() {
-            validator.get_node_handle().unwrap().with(|node| {
-                let db = node.state().database_for_testing().clone();
-                assert_eq!(count_wrapped_tombstone(&node), 1);
-                if idx % 2 == 0 {
-                    db.remove_all_versions_of_object(child_id);
-                    assert_eq!(count_wrapped_tombstone(&node), 0);
-                }
-            })
-        }
-
-        let effects = unwrap_and_delete_child(&test_cluster, package_id, object_id).await;
-        assert_eq!(effects.modified_at_versions().len(), 2);
-        assert_eq!(effects.unwrapped_then_deleted().len(), 1);
-
-        test_cluster.trigger_reconfiguration().await;
-    }
 
     // Tests that object pruning can prune objects correctly.
     // Specifically, we first wrap a child object into a root object (tests wrap
@@ -111,19 +53,23 @@ mod sim_only_tests {
                 .await
                 .unwrap();
 
+                let state = node.state();
+                let checkpoint_store = state.get_checkpoint_store();
+
                 // Manually initiating a pruning and compaction job to make sure that deleted
                 // objects are gong from object store.
-                node.state().prune_objects_and_compact_for_testing().await;
+                state
+                    .database_for_testing()
+                    .prune_objects_and_compact_for_testing(checkpoint_store, None)
+                    .await;
 
                 // Check that no object with `child_id` exists in object store.
                 assert_eq!(
-                    node.state()
-                        .database_for_testing()
-                        .count_object_versions(child_id),
+                    state.database_for_testing().count_object_versions(child_id),
                     0
                 );
                 assert!(
-                    node.state()
+                    state
                         .database_for_testing()
                         .count_object_versions(object_id)
                         > 0
@@ -166,19 +112,22 @@ mod sim_only_tests {
                 .await
                 .unwrap();
 
+                let state = node.state();
+                let checkpoit_store = state.get_checkpoint_store();
                 // Manually initiating a pruning and compaction job to make sure that deleted
                 // objects are gong from object store.
-                node.state().prune_objects_and_compact_for_testing().await;
+                state
+                    .database_for_testing()
+                    .prune_objects_and_compact_for_testing(checkpoit_store, None)
+                    .await;
 
                 // Check that both root and child objects are gone from object store.
                 assert_eq!(
-                    node.state()
-                        .database_for_testing()
-                        .count_object_versions(child_id),
+                    state.database_for_testing().count_object_versions(child_id),
                     0
                 );
                 assert_eq!(
-                    node.state()
+                    state
                         .database_for_testing()
                         .count_object_versions(object_id),
                     0
@@ -314,21 +263,6 @@ mod sim_only_tests {
             .unwrap();
         assert_eq!(effects.deleted().len(), 1);
         effects
-    }
-
-    fn count_fullnode_wrapped_tombstones(test_cluster: &TestCluster) -> usize {
-        test_cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| count_wrapped_tombstone(node))
-    }
-
-    fn count_wrapped_tombstone(node: &IotaNode) -> usize {
-        let store = node.state().get_execution_cache();
-        store
-            .iter_live_object_set(true)
-            .filter(|o| matches!(o, LiveObject::Wrapped(_)))
-            .count()
     }
 
     async fn wait_until_txn_in_checkpoint(
