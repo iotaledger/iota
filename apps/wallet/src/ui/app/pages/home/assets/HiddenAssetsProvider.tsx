@@ -67,7 +67,6 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
 
     const hideAssetId = useCallback(
         async (newAssetId: string) => {
-            const hiddenAssetIds = hiddenAssets.type === 'loaded' ? hiddenAssets.assetIds : [];
             if (hiddenAssetIds.includes(newAssetId)) return;
 
             const newHiddenAssetIds = [...hiddenAssetIds, newAssetId];
