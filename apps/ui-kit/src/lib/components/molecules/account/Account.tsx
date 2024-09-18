@@ -24,15 +24,15 @@ interface AccountProps {
     /**
      * Handler for more options click.
      */
-    onOptionsClick?: () => void;
+    onOptionsClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
      * Handler for the lock account icon click.
      */
-    onLockAccountClick?: () => void;
+    onLockAccountClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
      * Handle for the unlock account icon click.
      */
-    onUnlockAccountClick?: () => void;
+    onUnlockAccountClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
      * Function to render avatar content.
      */

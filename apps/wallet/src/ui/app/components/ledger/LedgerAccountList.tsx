@@ -14,7 +14,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { type DerivedLedgerAccount } from './useDeriveLedgerAccounts';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useResolveIotaNSName } from '@iota/core';
+import { useBalance, useFormatCoin } from '@iota/core';
 
 export type SelectableLedgerAccount = DerivedLedgerAccount & {
     isSelected: boolean;
@@ -34,7 +34,6 @@ export function LedgerAccountList({ accounts, onAccountClick, selectAll }: Ledge
 
     const rowsData = accounts.map((account) => {
         const { data: coinBalance } = useBalance(account.address);
-        const { data: domainName } = useResolveIotaNSName(account.address);
         const [totalAmount, totalAmountSymbol] = useFormatCoin(
             coinBalance?.totalBalance ?? 0,
             IOTA_TYPE_ARG,
@@ -42,7 +41,7 @@ export function LedgerAccountList({ accounts, onAccountClick, selectAll }: Ledge
 
         return [
             {
-                label: domainName ?? formatAddress(account.address),
+                label: formatAddress(account.address),
             },
             {
                 label: `${totalAmount} ${totalAmountSymbol}`,

@@ -36,13 +36,12 @@ The initial creation of `Coin` takes place by minting these coins. This is usual
 
 ```move title="examples/Exampletoken.move"
 module examples::exampletoken {
-    use std::option;
     use iota::coin;
     use iota::transfer;
     use iota::tx_context::{Self, TxContext};
 
     /// One-Time-Witness of kind: `Coin<package_object::exampletoken::EXAMPLETOKEN>`
-    struct EXAMPLETOKEN has drop {}
+    public struct EXAMPLETOKEN has drop {}
 
     fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
         let (treasurycap, metadata) = coin::create_currency(
@@ -71,7 +70,7 @@ A `module` is defined (`exampletoken`) as part of the `examples` package (module
 After the aliases, we see an empty struct defined:
 
 ```move
-struct EXAMPLETOKEN has drop {}
+public struct EXAMPLETOKEN has drop {}
 ```
 
 This is the definition of the so-called [One-Time-Witness](../iota-101/move-overview/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
