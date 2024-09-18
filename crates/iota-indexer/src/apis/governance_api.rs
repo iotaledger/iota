@@ -10,10 +10,6 @@ use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
-    DelegatedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter, StakeStatus, ValidatorApys,
-use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
-use iota_json_rpc_api::GovernanceReadApiServer;
-use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter,
     StakeStatus, ValidatorApys,
 };

@@ -46,10 +46,10 @@ use super::{
 use crate::{
     authority::{
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::TotalIotaSupplyCheck,
         authority_store_pruner::{
             AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
         },
+        authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{
             get_store_object_pair, ObjectContentDigest, StoreObject, StoreObjectPair,
             StoreObjectWrapper,

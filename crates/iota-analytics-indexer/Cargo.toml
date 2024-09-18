@@ -20,7 +20,7 @@ clap.workspace = true
 csv.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-gcp-bigquery-client = "0.18.0"
+gcp-bigquery-client = "0.23"
 iota-analytics-indexer-derive.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true

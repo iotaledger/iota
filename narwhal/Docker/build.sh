@@ -20,6 +20,7 @@ echo "build date: \t$BUILD_DATE"
 echo "git revision: \t$GIT_REVISION"
 echo
 
+# TODO: Remove "--ssh default" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 docker build --ssh default -f "$DOCKERFILE" "$REPO_ROOT" \
 	--build-arg GIT_REVISION="$GIT_REVISION" \
 	--build-arg BUILD_DATE="$BUILD_DATE" \
