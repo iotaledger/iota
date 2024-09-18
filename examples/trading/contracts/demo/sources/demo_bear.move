@@ -7,7 +7,6 @@ module demo::demo_bear {
 
     use iota::package;
     use iota::display;
-    use iota::tx_context::sender;
 
     /// our demo struct.
     public struct DemoBear has key, store {
@@ -47,8 +46,8 @@ module demo::demo_bear {
         // Commit first version of `Display` to apply changes.
         display::update_version(&mut display);
 
-        iota::transfer::public_transfer(display, sender(ctx));
-        iota::transfer::public_transfer(publisher, sender(ctx))
+        iota::transfer::public_transfer(display, ctx.sender());
+        iota::transfer::public_transfer(publisher, ctx.sender())
     }
 
     public fun new(name: String, ctx: &mut TxContext): DemoBear {
