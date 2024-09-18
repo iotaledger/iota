@@ -7,7 +7,7 @@ import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@io
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
-import { AddressLink, ObjectLink } from '../../../components/ui';
+import { AddressLink, TransactionLink } from '../../../components/ui';
 
 /**
  * Generate table columns renderers for the transactions data.
@@ -21,8 +21,8 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 const digest = getValue<string>();
                 return (
                     <TableCellBase>
-                        <ObjectLink
-                            objectId={digest}
+                        <TransactionLink
+                            digest={digest}
                             label={<TableCellText>{digest}</TableCellText>}
                         />
                     </TableCellBase>

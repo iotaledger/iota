@@ -5,7 +5,7 @@
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { Checkpoint } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
-import { CheckpointSequenceLink, ObjectLink } from '~/components';
+import { CheckpointSequenceLink, CheckpointLink } from '~/components';
 
 /**
  * Generate table columns renderers for the checkpoints data.
@@ -19,8 +19,8 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
                 const digest = getValue<Checkpoint['digest']>();
                 return (
                     <TableCellBase>
-                        <ObjectLink
-                            objectId={digest}
+                        <CheckpointLink
+                            digest={digest}
                             label={<TableCellText>{digest}</TableCellText>}
                         />
                     </TableCellBase>
