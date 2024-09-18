@@ -1088,6 +1088,9 @@ importers:
 
   apps/wallet-dashboard:
     dependencies:
+      '@iota/apps-ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@iota/core':
         specifier: workspace:*
         version: link:../core

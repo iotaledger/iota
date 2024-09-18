@@ -3,8 +3,9 @@
 'use client';
 
 import { Notifications, RouteLink } from '@/components/index';
-import React, { type PropsWithChildren } from 'react';
+import React, { useState, type PropsWithChildren } from 'react';
 import { ConnectButton } from '@iota/dapp-kit';
+import { ButtonType, Button } from '@iota/apps-ui-kit';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const routes = [
@@ -16,7 +17,16 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
         { title: 'Migrations', path: '/dashboard/migrations' },
         { title: 'Vesting', path: '/dashboard/vesting' },
     ];
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
+    const toggleDarkMode = () => {
+        setIsDarkMode(!isDarkMode);
+        if (isDarkMode) {
+            document.documentElement.classList.remove('dark');
+        } else {
+            document.documentElement.classList.add('dark');
+        }
+    };
     // TODO: check if the wallet is connected and if not redirect to the welcome screen
     return (
         <>
@@ -27,6 +37,8 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                 {routes.map((route) => {
                     return <RouteLink key={route.title} {...route} />;
                 })}
+                                            <Button onClick={toggleDarkMode} text={isDarkMode ? 'Light Mode' : 'Dark Mode'} type={ButtonType.Ghost} />
+
             </section>
             <div>{children}</div>
         </>
