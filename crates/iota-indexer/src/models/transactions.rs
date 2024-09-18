@@ -210,6 +210,11 @@ impl StoredTransaction {
             None
         };
 
+        let raw_effects = options
+            .show_raw_effects
+            .then(|| self.raw_effects)
+            .unwrap_or_default();
+
         Ok(IotaTransactionBlockResponse {
             digest: tx_digest,
             transaction,
@@ -222,7 +227,7 @@ impl StoredTransaction {
             checkpoint: Some(self.checkpoint_sequence_number as u64),
             confirmed_local_execution: None,
             errors: vec![],
-            raw_effects: self.raw_effects,
+            raw_effects,
         })
     }
 
