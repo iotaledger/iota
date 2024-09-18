@@ -346,7 +346,7 @@ inquire = "0.6.0"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
 ipnetwork = "0.20.0"
-itertools = "0.10.5"
+itertools = "0.13.0"
 jemalloc-ctl = "^0.5"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = [
