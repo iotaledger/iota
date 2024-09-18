@@ -20,9 +20,7 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
-    signature_verification::{
-        verify_sender_signed_data_message_signatures, VerifiedDigestCache,
-    },
+    signature_verification::{verify_sender_signed_data_message_signatures, VerifiedDigestCache},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -79,7 +77,7 @@ pub async fn payloads(
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
-    hasher.update(&bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
+    hasher.update(bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
     let digest = hasher.finalize().digest;
 
     Ok(ConstructionPayloadsResponse {
@@ -123,8 +121,9 @@ pub async fn combine(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
         )?],
     );
-    // TODO: this will likely fail with zklogin authenticator, since we do not know the current epoch.
-    // As long as coinbase doesn't need to use zklogin for custodial wallets this is okay.
+    // TODO: this will likely fail with zklogin authenticator, since we do not know
+    // the current epoch. As long as coinbase doesn't need to use zklogin for
+    // custodial wallets this is okay.
     let place_holder_epoch = 0;
     verify_sender_signed_data_message_signatures(
         &signed_tx,

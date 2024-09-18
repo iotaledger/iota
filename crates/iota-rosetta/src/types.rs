@@ -22,7 +22,7 @@ use iota_types::{
 };
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use strum::{EnumIter, EnumString};
+use strum_macros::{EnumIter, EnumString};
 
 use crate::{
     errors::{Error, ErrorType},

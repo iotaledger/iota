@@ -292,9 +292,7 @@ impl Operations {
                 IotaArgument::Input(i) => inputs[i as usize].pure()?.to_iota_address().ok()?,
                 IotaArgument::GasCoin
                 | IotaArgument::Result(_)
-                | IotaArgument::NestedResult(_, _) => {
-                    return None;
-                }
+                | IotaArgument::NestedResult(_, _) => return None,
             };
             for obj in objs {
                 let value = match *obj {
