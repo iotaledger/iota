@@ -23,10 +23,7 @@ import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/uti
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
-import {
-    generateValidatorsTableData,
-    type ValidatorTableColumn,
-} from '~/lib/ui/utils/generateValidatorsTableData';
+import { generateValidatorsTableData, type ValidatorTableColumn } from '~/lib/ui';
 
 export const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
     {

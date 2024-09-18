@@ -20,7 +20,7 @@ import {
     TableCard,
     TableHeader,
 } from '~/components';
-import { generateValidatorsTableData } from '~/lib/ui/utils/generateValidatorsTableData';
+import { generateValidatorsTableData } from '~/lib/ui';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
