@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
+#[cfg(feature = "pg_integration")]
+mod common;
 #[cfg(feature = "pg_integration")]
 mod ingestion_tests {
     use std::sync::Arc;
@@ -12,12 +13,13 @@ mod ingestion_tests {
         errors::{Context, IndexerError},
         models::transactions::StoredTransaction,
         schema::transactions,
-        test_utils::pg_integration::{
-            indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_write_indexer,
-        },
     };
     use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
     use simulacrum::Simulacrum;
+
+    use crate::common::pg_integration::{
+        indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_write_indexer,
+    };
 
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{

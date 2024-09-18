@@ -4,10 +4,6 @@
 use std::str::FromStr;
 
 use iota_config::node::RunWithRange;
-use iota_indexer::test_utils::pg_integration::{
-    indexer_wait_for_checkpoint, rpc_call_error_msg_matches,
-    start_test_cluster_with_read_write_indexer,
-};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
@@ -17,6 +13,12 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
+};
+use serial_test::serial;
+
+use crate::common::pg_integration::{
+    indexer_wait_for_checkpoint, rpc_call_error_msg_matches,
+    start_test_cluster_with_read_write_indexer,
 };
 
 fn is_ascending(vec: &[u64]) -> bool {
@@ -50,6 +52,7 @@ fn match_transaction_block_resp_options(
 macro_rules! create_get_object_with_options_test {
     ( $function_name:ident, $options:expr) => {
         #[tokio::test]
+        #[serial]
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
@@ -70,10 +73,6 @@ macro_rules! create_get_object_with_options_test {
                 .await
                 .unwrap();
 
-            // we drop the cluster early because in some random cases
-            // it panics due to `Address already in use` when starting the nodes
-            drop(cluster);
-
             for obj in fullnode_objects.data {
                 let indexer_obj = indexer_client
                     .get_object(obj.object_id().unwrap(), Some(options.clone()))
@@ -89,6 +88,7 @@ macro_rules! create_get_object_with_options_test {
 macro_rules! create_multi_get_objects_with_options_test {
     ($function_name:ident, $options:expr) => {
         #[tokio::test]
+        #[serial]
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
@@ -107,10 +107,6 @@ macro_rules! create_multi_get_objects_with_options_test {
                 )
                 .await
                 .unwrap();
-
-            // we drop the cluster early because in some random cases
-            // it panics due to `Address already in use` when starting the nodes
-            drop(cluster);
 
             let object_ids = fullnode_objects
                 .data
@@ -131,6 +127,7 @@ macro_rules! create_multi_get_objects_with_options_test {
 macro_rules! create_get_transaction_block_with_options_test {
     ($function_name:ident, $options:expr) => {
         #[tokio::test]
+        #[serial]
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
@@ -152,10 +149,6 @@ macro_rules! create_get_transaction_block_with_options_test {
                 .get_transaction_block(tx_digest, Some(options.clone()))
                 .await
                 .unwrap();
-
-            // we drop the cluster early because in some random cases
-            // it panics due to `Address already in use` when starting the nodes
-            drop(cluster);
 
             let tx = indexer_client
                 .get_transaction_block(tx_digest, Some(options.clone()))
@@ -182,6 +175,7 @@ macro_rules! create_get_transaction_block_with_options_test {
 macro_rules! create_multi_get_transaction_blocks_with_options_test {
     ($function_name:ident, $options:expr) => {
         #[tokio::test]
+        #[serial]
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
@@ -208,10 +202,6 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
                 .await
                 .unwrap();
 
-            // we drop the cluster early because in some random cases
-            // it panics due to `Address already in use` when starting the nodes
-            drop(cluster);
-
             let indexer_txs = indexer_client
                 .multi_get_transaction_blocks(digests, Some(options.clone()))
                 .await
@@ -235,6 +225,7 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoint_by_seq_num() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -247,10 +238,6 @@ async fn get_checkpoint_by_seq_num() {
         .await
         .unwrap();
 
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
-
     let checkpoint_indexer = indexer_client
         .get_checkpoint(CheckpointId::SequenceNumber(0))
         .await
@@ -260,14 +247,12 @@ async fn get_checkpoint_by_seq_num() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoint_by_seq_num_not_found() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .get_checkpoint(CheckpointId::SequenceNumber(100000000000))
@@ -280,6 +265,7 @@ async fn get_checkpoint_by_seq_num_not_found() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoint_by_digest() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -292,10 +278,6 @@ async fn get_checkpoint_by_digest() {
         .await
         .unwrap();
 
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
-
     let checkpoint_indexer = indexer_client
         .get_checkpoint(CheckpointId::Digest(fullnode_checkpoint.digest))
         .await
@@ -305,14 +287,12 @@ async fn get_checkpoint_by_digest() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoint_by_digest_not_found() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .get_checkpoint(CheckpointId::Digest([0; 32].into()))
@@ -325,14 +305,12 @@ async fn get_checkpoint_by_digest_not_found() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_all_ascending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(None, None, false)
@@ -349,14 +327,12 @@ async fn get_checkpoints_all_ascending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_all_descending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(None, None, true)
@@ -373,14 +349,12 @@ async fn get_checkpoints_all_descending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_by_cursor_and_limit_one_descending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(Some(1.into()), Some(1), true)
@@ -398,14 +372,12 @@ async fn get_checkpoints_by_cursor_and_limit_one_descending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_by_cursor_and_limit_one_ascending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(Some(1.into()), Some(1), false)
@@ -423,14 +395,12 @@ async fn get_checkpoints_by_cursor_and_limit_one_ascending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(Some(0.into()), Some(3), false)
@@ -448,14 +418,12 @@ async fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_by_cursor_zero_and_limit_descending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(Some(0.into()), Some(3), true)
@@ -473,14 +441,12 @@ async fn get_checkpoints_by_cursor_zero_and_limit_descending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_by_cursor_and_limit_ascending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 6).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(Some(3.into()), Some(3), false)
@@ -498,14 +464,12 @@ async fn get_checkpoints_by_cursor_and_limit_ascending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_by_cursor_and_limit_descending() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let checkpoint_indexer = indexer_client
         .get_checkpoints(Some(3.into()), Some(3), true)
@@ -523,14 +487,12 @@ async fn get_checkpoints_by_cursor_and_limit_descending() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_checkpoints_invalid_limit() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client.get_checkpoints(None, Some(0), false).await;
 
@@ -541,6 +503,7 @@ async fn get_checkpoints_invalid_limit() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_object() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -554,10 +517,6 @@ async fn get_object() {
         .await
         .unwrap();
 
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
-
     for obj in fullnode_objects.data {
         let indexer_obj = indexer_client
             .get_object(obj.object_id().unwrap(), None)
@@ -568,14 +527,12 @@ async fn get_object() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_object_not_found() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let indexer_obj = indexer_client
         .get_object(
@@ -650,6 +607,7 @@ create_get_object_with_options_test!(
 );
 
 #[tokio::test]
+#[serial]
 async fn multi_get_objects() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -662,10 +620,6 @@ async fn multi_get_objects() {
         .get_owned_objects(address, None, None, None)
         .await
         .unwrap();
-
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let object_ids = fullnode_objects
         .data
@@ -682,6 +636,7 @@ async fn multi_get_objects() {
 }
 
 #[tokio::test]
+#[serial]
 async fn multi_get_objects_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -724,6 +679,7 @@ async fn multi_get_objects_not_found() {
 }
 
 #[tokio::test]
+#[serial]
 async fn multi_get_objects_found_and_not_found() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -736,10 +692,6 @@ async fn multi_get_objects_found_and_not_found() {
         .get_owned_objects(address, None, None, None)
         .await
         .unwrap();
-
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let mut object_ids = fullnode_objects
         .data
@@ -823,6 +775,7 @@ create_multi_get_objects_with_options_test!(
 );
 
 #[tokio::test]
+#[serial]
 async fn get_events() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -835,10 +788,6 @@ async fn get_events() {
         .await
         .unwrap();
 
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
-
     let events = indexer_client
         .get_events(*fullnode_checkpoint.transactions.first().unwrap())
         .await
@@ -848,14 +797,12 @@ async fn get_events() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_events_not_found() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client.get_events(TransactionDigest::ZERO).await;
 
@@ -866,6 +813,7 @@ async fn get_events_not_found() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_transaction_block() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -878,10 +826,6 @@ async fn get_transaction_block() {
         .await
         .unwrap();
 
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
-
     let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
 
     let tx = indexer_client
@@ -893,14 +837,12 @@ async fn get_transaction_block() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_transaction_block_not_found() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .get_transaction_block(TransactionDigest::ZERO, None)
@@ -958,6 +900,7 @@ create_get_transaction_block_with_options_test!(
 );
 
 #[tokio::test]
+#[serial]
 async fn multi_get_transaction_blocks() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -981,10 +924,6 @@ async fn multi_get_transaction_blocks() {
         .multi_get_transaction_blocks(digests.clone(), None)
         .await
         .unwrap();
-
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let indexer_txs = indexer_client
         .multi_get_transaction_blocks(digests, None)
@@ -1040,6 +979,7 @@ create_multi_get_transaction_blocks_with_options_test!(
 );
 
 #[tokio::test]
+#[serial]
 async fn get_protocol_config() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -1051,10 +991,6 @@ async fn get_protocol_config() {
         .get_protocol_config(None)
         .await
         .unwrap();
-
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let indexer_protocol_config = indexer_client.get_protocol_config(None).await.unwrap();
 
@@ -1069,14 +1005,12 @@ async fn get_protocol_config() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_protocol_config_invalid_protocol_version() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .get_protocol_config(Some(100u64.into()))
@@ -1089,6 +1023,7 @@ async fn get_protocol_config_invalid_protocol_version() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_chain_identifier() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
@@ -1096,9 +1031,6 @@ async fn get_chain_identifier() {
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_chain_identifier = cluster.rpc_client().get_chain_identifier().await.unwrap();
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let indexer_chain_identifier = indexer_client.get_chain_identifier().await.unwrap();
 
@@ -1106,6 +1038,7 @@ async fn get_chain_identifier() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_total_transaction_blocks() {
     let stop_after_checkpoint_seq = 5;
     let (cluster, pg_store, indexer_client) =
@@ -1142,9 +1075,6 @@ async fn get_total_transaction_blocks() {
         .unwrap();
 
     indexer_wait_for_checkpoint(&pg_store, stop_after_checkpoint_seq).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let total_transaction_blocks = indexer_client
         .get_total_transaction_blocks()
@@ -1159,6 +1089,7 @@ async fn get_total_transaction_blocks() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_latest_checkpoint_sequence_number() {
     let stop_after_checkpoint_seq = 5;
     let (cluster, pg_store, indexer_client) =
@@ -1192,9 +1123,6 @@ async fn get_latest_checkpoint_sequence_number() {
 
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, stop_after_checkpoint_seq).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let latest_checkpoint_seq_number = indexer_client
         .get_latest_checkpoint_sequence_number()
@@ -1209,14 +1137,12 @@ async fn get_latest_checkpoint_sequence_number() {
 }
 
 #[tokio::test]
+#[serial]
 async fn try_get_past_object() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .try_get_past_object(ObjectID::random(), SequenceNumber::new(), None)
@@ -1228,14 +1154,12 @@ async fn try_get_past_object() {
 }
 
 #[tokio::test]
+#[serial]
 async fn try_multi_get_past_objects() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .try_multi_get_past_objects(
@@ -1253,14 +1177,12 @@ async fn try_multi_get_past_objects() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_loaded_child_objects() {
-    let (cluster, pg_store, indexer_client) =
+    let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
-    // we drop the cluster early because in some random cases
-    // it panics due to `Address already in use` when starting the nodes
-    drop(cluster);
 
     let result = indexer_client
         .get_loaded_child_objects(TransactionDigest::ZERO)

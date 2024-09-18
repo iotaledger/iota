@@ -53,8 +53,16 @@ serde_json = { workspace = true, optional = true }
 simulacrum = { workspace = true, optional = true }
 test-cluster = { workspace = true, optional = true }
 
+serial_test = { version = "2.0", optional = true }
+
 [features]
-pg_integration = ["test-cluster", "serde_json", "simulacrum", "iota-config"]
+pg_integration = [
+  "test-cluster",
+  "serde_json",
+  "simulacrum",
+  "iota-config",
+  "serial_test",
+]
 
 [dev-dependencies]
 iota-genesis-builder.workspace = true
