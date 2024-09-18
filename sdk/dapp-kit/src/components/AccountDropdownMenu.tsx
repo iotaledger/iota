@@ -4,87 +4,62 @@
 
 import { formatAddress } from '@iota/iota-sdk/utils';
 import type { WalletAccount } from '@iota/wallet-standard';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import clsx from 'clsx';
-
 import { useResolveIotaNSName } from '../hooks/useResolveIotaNSNames.js';
 import { useAccounts } from '../hooks/wallet/useAccounts.js';
 import { useDisconnectWallet } from '../hooks/wallet/useDisconnectWallet.js';
 import { useSwitchAccount } from '../hooks/wallet/useSwitchAccount.js';
-import * as styles from './AccountDropdownMenu.css.js';
 import { CheckIcon } from './icons/CheckIcon.js';
-import { ChevronIcon } from './icons/ChevronIcon.js';
-import { StyleMarker } from './styling/StyleMarker.js';
-import { Button } from './ui/Button.js';
 import { Text } from './ui/Text.js';
+import { Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { Checkmark } from '@iota/ui-icons';
+import { useState } from 'react';
 
 type AccountDropdownMenuProps = {
     currentAccount: WalletAccount;
 };
 
 export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
-    const { mutate: disconnectWallet } = useDisconnectWallet();
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+    const { mutate: disconnectWallet } = useDisconnectWallet();
+    const { mutate: switchAccount } = useSwitchAccount();
     const { data: domain } = useResolveIotaNSName(
         currentAccount.label ? null : currentAccount.address,
     );
     const accounts = useAccounts();
 
-    return (
-        <DropdownMenu.Root modal={false}>
-            <StyleMarker>
-                <DropdownMenu.Trigger asChild>
-                    <Button size="lg" className={styles.connectedAccount}>
-                        <Text mono weight="bold">
-                            {currentAccount.label ??
-                                domain ??
-                                formatAddress(currentAccount.address)}
-                        </Text>
-                        <ChevronIcon />
-                    </Button>
-                </DropdownMenu.Trigger>
-            </StyleMarker>
-            <DropdownMenu.Portal>
-                <StyleMarker className={styles.menuContainer}>
-                    <DropdownMenu.Content className={styles.menuContent}>
-                        {accounts.map((account) => (
-                            <AccountDropdownMenuItem
-                                key={account.address}
-                                account={account}
-                                active={currentAccount.address === account.address}
-                            />
-                        ))}
-                        <DropdownMenu.Separator className={styles.separator} />
-                        <DropdownMenu.Item
-                            className={clsx(styles.menuItem)}
-                            onSelect={() => disconnectWallet()}
-                        >
-                            Disconnect
-                        </DropdownMenu.Item>
-                    </DropdownMenu.Content>
-                </StyleMarker>
-            </DropdownMenu.Portal>
-        </DropdownMenu.Root>
-    );
-}
+    function handleOnClick(account: WalletAccount) {
+        setIsDropdownOpen(!isDropdownOpen);
+        switchAccount({ account });
+    }
 
-export function AccountDropdownMenuItem({
-    account,
-    active,
-}: {
-    account: WalletAccount;
-    active?: boolean;
-}) {
-    const { mutate: switchAccount } = useSwitchAccount();
-    const { data: domain } = useResolveIotaNSName(account.label ? null : account.address);
-
-    return (
-        <DropdownMenu.Item
-            className={clsx(styles.menuItem, styles.switchAccountMenuItem)}
-            onSelect={() => switchAccount({ account })}
-        >
-            <Text mono>{account.label ?? domain ?? formatAddress(account.address)}</Text>
-            {active ? <CheckIcon /> : null}
-        </DropdownMenu.Item>
+    return !isDropdownOpen ? (
+        <ListItem onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+            <div className="flex flex-row gap-xxs">
+                <span>
+                    {currentAccount.label ?? domain ?? formatAddress(currentAccount.address)}
+                </span>
+                <Checkmark />
+            </div>
+        </ListItem>
+    ) : (
+        <Dropdown>
+            <>
+                {accounts.map((account) => (
+                    <ListItem onClick={() => handleOnClick(account)}>
+                        <>
+                            <Text mono>
+                                {account.label ?? domain ?? formatAddress(account.address)}
+                            </Text>
+                            {currentAccount.address === account.address ? <CheckIcon /> : null}
+                        </>
+                    </ListItem>
+                ))}
+                <Divider />
+                <ListItem onClick={() => disconnectWallet()}>
+                    <span>Disconnect</span>
+                </ListItem>
+            </>
+        </Dropdown>
     );
 }
