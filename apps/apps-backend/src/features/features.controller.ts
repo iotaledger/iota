@@ -3,7 +3,8 @@
 
 import { Controller, Get, Query } from '@nestjs/common';
 
-import { developmentFeatures } from './features.mock';
+import { featuresMock } from './features.mock';
+import { featuresDevelopment } from './features.config';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -11,7 +12,10 @@ export class FeaturesController {
     getDevelopmentFeatures() {
         return {
             status: 200,
-            features: developmentFeatures,
+            features: {
+                ...featuresMock,
+                ...featuresDevelopment,
+            },
             dateUpdated: new Date().toISOString(),
         };
     }
@@ -20,14 +24,14 @@ export class FeaturesController {
     getProductionFeatures() {
         return {
             status: 200,
-            features: developmentFeatures,
+            features: featuresMock,
             dateUpdated: new Date().toISOString(),
         };
     }
 
     @Get('/apps')
     getAppsFeatures(@Query('network') network: string) {
-        const apps = developmentFeatures['wallet-dapps'].rules
+        const apps = featuresMock['wallet-dapps'].rules
             .filter((rule) => rule.condition.network === network)
             .reduce(
                 (acc, rule) => {

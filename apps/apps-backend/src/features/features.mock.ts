@@ -106,7 +106,7 @@ const walletDapps = [
     },
 ];
 
-export const developmentFeatures = {
+export const featuresMock = {
     'mainnet-selection': {
         defaultValue: true,
     },
