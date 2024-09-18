@@ -11133,10 +11133,17 @@
             "description": "A system transaction used for initializing the initial state of the chain.",
             "type": "object",
             "required": [
+              "events",
               "kind",
               "objects"
             ],
             "properties": {
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EventID"
+                }
+              },
               "kind": {
                 "type": "string",
                 "enum": [

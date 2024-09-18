@@ -38,7 +38,7 @@ async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    let ops: Operations = data.clone().try_into()?;
+    let ops: Operations = Operations::from_transaction_data(data.clone(), None)?;
     let metadata = ConstructionMetadata {
         sender,
         coins: vec![gas],
