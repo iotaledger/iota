@@ -7543,7 +7543,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rosetta"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7573,6 +7573,7 @@ dependencies = [
  "shared-crypto",
  "signature 1.6.4",
  "strum 0.24.1",
+ "strum_macros 0.24.3",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
