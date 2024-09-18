@@ -13,6 +13,7 @@ iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true
 shared-crypto.workspace = true
+move-binary-format = { workspace = true, features = ["fuzzing"] }
 
 [dev-dependencies]
 bcs.workspace = true
