@@ -4,7 +4,6 @@
 
 import {
     ObjectChangeLabels,
-    useResolveIotaNSName,
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     type ObjectChangesByOwner,
@@ -247,13 +246,11 @@ function ObjectChangeEntriesCardFooter({
     ownerType,
     ownerAddress,
 }: ObjectChangeEntriesCardFooterProps): JSX.Element {
-    const { data: iotansDomainName } = useResolveIotaNSName(ownerAddress);
-
     return (
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
             <span className="text-body-md text-neutral-40 dark:text-neutral-60">Owner</span>
             {ownerType === 'AddressOwner' && (
-                <AddressLink label={iotansDomainName || undefined} address={ownerAddress} />
+                <AddressLink label={undefined} address={ownerAddress} />
             )}
             {ownerType === 'ObjectOwner' && <ObjectLink objectId={ownerAddress} />}
             {ownerType === 'Shared' && <ObjectLink objectId={ownerAddress} label="Shared" />}

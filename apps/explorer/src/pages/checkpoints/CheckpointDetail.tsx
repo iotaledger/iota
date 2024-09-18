@@ -99,13 +99,11 @@ export default function CheckpointDetail(): JSX.Element {
                                             size={LabelTextSize.Medium}
                                             label="Checkpoint Sequence No."
                                             text={data.sequenceNumber}
-                                            showSupportingLabel={false}
                                         />
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Epoch"
                                             text={data.epoch}
-                                            showSupportingLabel={false}
                                         />
                                         <LabelText
                                             size={LabelTextSize.Medium}
@@ -127,7 +125,6 @@ export default function CheckpointDetail(): JSX.Element {
                                                       })
                                                     : '--'
                                             }
-                                            showSupportingLabel={false}
                                         />
                                     </div>
                                 ) : null}
@@ -156,7 +153,6 @@ export default function CheckpointDetail(): JSX.Element {
                                                     size={LabelTextSize.Medium}
                                                     label="Aggregated Validator Signature"
                                                     text={data.validatorSignature}
-                                                    showSupportingLabel={false}
                                                 />
                                             </div>
                                         ) : null}
@@ -183,21 +179,18 @@ export default function CheckpointDetail(): JSX.Element {
                                             size={LabelTextSize.Medium}
                                             label="Computation Fee"
                                             text={formattedComputationCost}
-                                            showSupportingLabel
                                             supportingLabel={computationCostCoinType}
                                         />
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Storage Fee"
                                             text={formattedStorageCost}
-                                            showSupportingLabel
                                             supportingLabel={storageCostCoinType}
                                         />
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Storage Rebate"
                                             text={formattedStorageRebate}
-                                            showSupportingLabel
                                             supportingLabel={storageRebateCoinType}
                                         />
                                     </div>

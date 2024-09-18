@@ -4,119 +4,28 @@
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
-import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
-import { type ReactNode, useMemo } from 'react';
+import { useMemo } from 'react';
 
-import { HighlightedTableCol } from '~/components';
-import {
-    AddressLink,
-    Banner,
-    ImageIcon,
-    Link,
-    PlaceholderTable,
-    TableCard,
-    ValidatorLink,
-} from '~/components/ui';
-import { ampli } from '~/lib/utils';
-import { StakeColumn } from './StakeColumn';
+import { Banner, Link, PlaceholderTable, TableCard } from '~/components/ui';
+import { generateValidatorsTableData, type ValidatorTableColumn } from '~/lib/ui';
 
 const NUMBER_OF_VALIDATORS = 10;
 
-export function processValidators(set: IotaValidatorSummary[]) {
-    return set.map((av) => ({
-        name: av.name,
-        address: av.iotaAddress,
-        stake: av.stakingPoolIotaBalance,
-        logo: av.imageUrl,
-    }));
-}
-interface ValidatorData {
-    name: ReactNode;
-    stake: ReactNode;
-    delegation: ReactNode;
-    address: ReactNode;
-}
-
-interface TableColumn {
-    header: string;
-    accessorKey: keyof ValidatorData;
-}
-
-interface ValidatorsTableData {
-    data: ValidatorData[];
-    columns: TableColumn[];
-}
-
-function validatorsTable(
-    validatorsData: IotaValidatorSummary[],
-    limit?: number,
-    showIcon?: boolean,
-): ValidatorsTableData {
-    const validators = processValidators(validatorsData).sort(() => (Math.random() > 0.5 ? -1 : 1));
-
-    const validatorsItems = limit ? validators.splice(0, limit) : validators;
-
-    return {
-        data: validatorsItems.map(({ name, stake, address, logo }) => ({
-            name: (
-                <HighlightedTableCol first>
-                    <div className="flex items-center gap-2.5">
-                        {showIcon && (
-                            <ImageIcon src={logo} size="sm" fallback={name} label={name} circle />
-                        )}
-                        <ValidatorLink
-                            address={address}
-                            label={name}
-                            onClick={() =>
-                                ampli.clickedValidatorRow({
-                                    sourceFlow: 'Top validators - validator name',
-                                    validatorAddress: address,
-                                    validatorName: name,
-                                })
-                            }
-                        />
-                    </div>
-                </HighlightedTableCol>
-            ),
-            stake: <StakeColumn stake={stake} />,
-            delegation: (
-                <Text variant="bodySmall/medium" color="steel-darker">
-                    {stake.toString()}
-                </Text>
-            ),
-            address: (
-                <HighlightedTableCol>
-                    <AddressLink
-                        address={address}
-                        noTruncate={!limit}
-                        onClick={() =>
-                            ampli.clickedValidatorRow({
-                                sourceFlow: 'Top validators - validator address',
-                                validatorAddress: address,
-                                validatorName: name,
-                            })
-                        }
-                    />
-                </HighlightedTableCol>
-            ),
-        })),
-        columns: [
-            {
-                header: 'Name',
-                accessorKey: 'name',
-            },
-            {
-                header: 'Address',
-                accessorKey: 'address',
-            },
-            {
-                header: 'Stake',
-                accessorKey: 'stake',
-            },
-        ],
-    };
-}
+const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Address',
+        accessorKey: 'address',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+];
 
 type TopValidatorsCardProps = {
     limit?: number;
@@ -127,7 +36,18 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
     const tableData = useMemo(
-        () => (data ? validatorsTable(data.activeValidators, limit, showIcon) : null),
+        () =>
+            data
+                ? generateValidatorsTableData({
+                      validators: [...data.activeValidators].sort(() => 0.5 - Math.random()),
+                      atRiskValidators: [],
+                      validatorEvents: [],
+                      rollingAverageApys: null,
+                      limit,
+                      showValidatorIcon: showIcon,
+                      columns: VALIDATOR_COLUMNS,
+                  })
+                : null,
         [data, limit, showIcon],
     );
 
