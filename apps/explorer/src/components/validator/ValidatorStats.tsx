@@ -52,7 +52,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Staking APY"
                             text={apy === null ? 'N/A' : `${apy}%`}
-                            showSupportingLabel={false}
                             tooltipText="This represents the Annualized Percentage Yield based on a specific validator's past activities. Keep in mind that this APY may not hold true in the future."
                             tooltipPosition={TooltipPosition.Right}
                         />
@@ -61,7 +60,6 @@ export function ValidatorStats({
                             label="Total IOTA Staked"
                             text={formattedTotalStakeAmount}
                             supportingLabel={totalStakeSymbol}
-                            showSupportingLabel
                             tooltipText="The total amount of IOTA staked on the network by validators and delegators to secure the network and earn rewards."
                             tooltipPosition={TooltipPosition.Right}
                         />
@@ -71,7 +69,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Commission"
                             text={`${commission}%`}
-                            showSupportingLabel={false}
                             tooltipText="The charge imposed by the validator for their staking services."
                             tooltipPosition={TooltipPosition.Right}
                         />
@@ -79,7 +76,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Delegators"
                             text={numberOfDelegators || '--'}
-                            showSupportingLabel={false}
                             tooltipText={
                                 !numberOfDelegators
                                     ? 'Coming soon'
@@ -97,7 +93,6 @@ export function ValidatorStats({
                         size={LabelTextSize.Medium}
                         label="Last Epoch Rewards"
                         text={typeof epochRewards === 'number' ? formattedEpochRewards : '0'}
-                        showSupportingLabel
                         supportingLabel={epochRewardsSymbol}
                         tooltipText={
                             epochRewards === null
@@ -111,7 +106,6 @@ export function ValidatorStats({
                         label="Reward Pool"
                         text={formattedRewardsPoolBalance}
                         supportingLabel={rewardsPoolBalanceSymbol}
-                        showSupportingLabel
                         tooltipText={
                             Number(rewardsPoolBalance) <= 0
                                 ? 'Coming soon'
@@ -129,7 +123,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Checkpoint Participation"
                             text={networkStakingParticipation || '--'}
-                            showSupportingLabel={false}
                             tooltipText={
                                 !networkStakingParticipation
                                     ? 'Coming soon'
@@ -141,7 +134,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Voted Last Round"
                             text={votedLastRound || '--'}
-                            showSupportingLabel={false}
                             tooltipText={
                                 !votedLastRound
                                     ? 'Coming soon'
@@ -155,7 +147,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Tallying Score"
                             text={tallyingScore ?? '--'}
-                            showSupportingLabel={false}
                             tooltipText={
                                 !tallyingScore
                                     ? 'Coming soon'
@@ -167,7 +158,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Last Narwhal round"
                             text={lastNarwhalRound || '--'}
-                            showSupportingLabel={false}
                             tooltipText={
                                 !lastNarwhalRound
                                     ? 'Coming soon'
@@ -181,7 +171,6 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Proposed next epoch gas price"
                             text={nextEpochGasPriceAmount}
-                            showSupportingLabel
                             supportingLabel="nano"
                             tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
                             tooltipPosition={TooltipPosition.Right}

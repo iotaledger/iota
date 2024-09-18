@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isIotaNSName, useResolveIotaNSAddress, useResolveIotaNSName } from '@iota/core';
-import { Domain32 } from '@iota/icons';
-import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 
 import {
@@ -18,39 +15,17 @@ import { Divider, PageHeader, SplitPanes } from '~/components/ui';
 
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
-import { TotalStaked } from './TotalStaked';
 import { Panel, Title, Divider as DividerUI } from '@iota/apps-ui-kit';
-
-interface AddressResultPageHeaderProps {
-    address: string;
-    loading?: boolean;
-}
+import { TotalStaked } from './TotalStaked';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
 interface AddressResultPageHeaderProps {
     address: string;
-    loading?: boolean;
-}
-function AddressResultPageHeader({ address, loading }: AddressResultPageHeaderProps): JSX.Element {
-    const { data: domainName, isLoading } = useResolveIotaNSName(address);
-
-    return (
-        <PageHeader
-            loading={loading || isLoading}
-            type="Address"
-            title={address}
-            subtitle={domainName}
-            before={<Domain32 className="h-6 w-6 text-steel-darker sm:h-10 sm:w-10" />}
-            after={<TotalStaked address={address} />}
-        />
-    );
 }
 
-function IotaNSAddressResultPageHeader({ name }: { name: string }): JSX.Element {
-    const { data: address, isLoading } = useResolveIotaNSAddress(name);
-
-    return <AddressResultPageHeader address={address ?? name} loading={isLoading} />;
+function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): JSX.Element {
+    return <PageHeader type="Address" title={address} after={<TotalStaked address={address} />} />;
 }
 
 function AddressResult({ address }: { address: string }): JSX.Element {
@@ -74,36 +49,15 @@ function AddressResult({ address }: { address: string }): JSX.Element {
     );
 }
 
-function IotaNSAddressResult({ name }: { name: string }): JSX.Element {
-    const { isFetched, data } = useResolveIotaNSAddress(name);
-
-    if (!isFetched) {
-        return <LoadingIndicator />;
-    }
-
-    // Fall back into just trying to load the name as an address anyway:
-    return <AddressResult address={data ?? name} />;
-}
-
 export default function AddressResultPage(): JSX.Element {
     const { id } = useParams();
-    const isIotaNSAddress = isIotaNSName(id!);
 
     return (
         <PageLayout
             content={
                 <div className="flex flex-col gap-2xl">
-                    {isIotaNSAddress ? (
-                        <>
-                            <IotaNSAddressResultPageHeader name={id!} />
-                            <IotaNSAddressResult name={id!} />
-                        </>
-                    ) : (
-                        <>
-                            <AddressResultPageHeader address={id!} />
-                            <AddressResult address={id!} />
-                        </>
-                    )}
+                    <AddressResultPageHeader address={id!} />
+                    <AddressResult address={id!} />
                 </div>
             }
         />

@@ -4,7 +4,6 @@
 
 import { formatAddress } from '@iota/iota-sdk/utils';
 import type { WalletAccount } from '@iota/wallet-standard';
-import { useResolveIotaNSName } from '../hooks/useResolveIotaNSNames.js';
 import { useAccounts } from '../hooks/wallet/useAccounts.js';
 import { useDisconnectWallet } from '../hooks/wallet/useDisconnectWallet.js';
 import { useSwitchAccount } from '../hooks/wallet/useSwitchAccount.js';
@@ -23,9 +22,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
 
     const { mutate: disconnectWallet } = useDisconnectWallet();
     const { mutate: switchAccount } = useSwitchAccount();
-    const { data: domain } = useResolveIotaNSName(
-        currentAccount.label ? null : currentAccount.address,
-    );
+
     const accounts = useAccounts();
 
     function handleOnClick(account: WalletAccount) {
@@ -36,9 +33,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
     return !isDropdownOpen ? (
         <ListItem onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
             <div className="flex flex-row gap-xxs">
-                <span>
-                    {currentAccount.label ?? domain ?? formatAddress(currentAccount.address)}
-                </span>
+                <span>{currentAccount.label ?? formatAddress(currentAccount.address)}</span>
                 <Checkmark />
             </div>
         </ListItem>
@@ -48,9 +43,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                 {accounts.map((account) => (
                     <ListItem onClick={() => handleOnClick(account)}>
                         <>
-                            <Text mono>
-                                {account.label ?? domain ?? formatAddress(account.address)}
-                            </Text>
+                            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
                             {currentAccount.address === account.address ? <CheckIcon /> : null}
                         </>
                     </ListItem>
