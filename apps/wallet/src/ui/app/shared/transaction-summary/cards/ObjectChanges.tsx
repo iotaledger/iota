@@ -94,22 +94,14 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                     type={ExplorerLinkType.Object}
                     moduleName={moduleName}
                 >
-                    <KeyValueInfo
-                        keyText="Package"
-                        valueText={formatAddress(packageId)}
-                        fullwidth
-                    />
+                    <KeyValueInfo keyText="Module" valueText={moduleName} fullwidth />
                 </ExplorerLink>
                 <ExplorerLink
                     objectID={packageId}
                     type={ExplorerLinkType.Object}
                     moduleName={moduleName}
                 >
-                    <KeyValueInfo
-                        keyText="Package"
-                        valueText={formatAddress(packageId)}
-                        fullwidth
-                    />
+                    <KeyValueInfo keyText="Type" valueText={typeName} fullwidth />
                 </ExplorerLink>
             </div>
         </Collapsible>
