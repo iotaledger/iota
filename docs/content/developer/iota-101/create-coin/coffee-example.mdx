@@ -1,0 +1,320 @@
+---
+title: Getting Started with Move Coffee Token Tutorial
+---
+
+## Introduction
+
+Welcome to this beginner-friendly tutorial on [Move](https://move-language.github.io/move/) programming! We will build a simple Coffee Shop example that allows customers to buy, claim, and transfer coffee tokens. The example demonstrates fundamental concepts like importing modules, defining [constants](https://move-language.github.io/move/constants.html), creating [structs](https://move-language.github.io/move/structs-and-resources.html), minting and burning tokens, and handling [control](https://move-language.github.io/move/loops.html) flow.
+
+### Key Concepts Covered
+
+1. **Importing modules**: We imported essential Move packages for transactions, tokens, and balances.
+2. **Defining constants**: Used to represent error codes and set a price for coffee.
+3. **Creating structs with [abilities](https://move-language.github.io/move/abilities.html)**: Defined the `COFFEE` and `CoffeeShop` structs to represent tokens and shop data.
+4. **Initialization with OTW**: Set up the shop with its treasury cap for minting tokens.
+5. **Control flow with assertions**: Ensured correct amounts and balances in transactions.
+6. **Transferring and burning tokens**: Demonstrated how tokens are moved between users and how they can be consumed (burned).
+
+## Prerequisites
+
+- Basic understanding of blockchain concepts like tokens and transactions.
+- Basic understanding of the [Move](https://move-language.github.io/move/)
+- [Installed Iota CLI and iota-test-validator](../../getting-started/iota-install.mdx)
+
+## 1. Create a IOTA Move package
+
+1. Open a new terminal to run the local test validator:
+
+```bash
+RUST_LOG="off,iota_node=info" iota-test-validator
+```
+
+2. Use the following command to create a standard IOTA Move [package](../../getting-started/create-a-package.mdx) called examples:
+
+``` bash
+iota move new examples
+```
+
+The command will create and populate the examples directory with a skeleton for an IOTA Move project. To add a [module](../../getting-started/create-a-module.mdx), create a .move file in the sources directory, and call it coffee.move.
+
+3. In `coffee.move`, paste the following codes to the `coffee` module:
+
+## 2. Importing Modules from the IOTA Package
+
+The first step in our program is importing necessary modules from the IOTA package. These modules provide functionalities for transaction handling, coins, balances, and tokens.
+
+```move
+module examples::coffee {
+    use iota::tx_context::sender;
+    use iota::coin::{Self, TreasuryCap, Coin};
+    use iota::balance::{Self, Balance};
+    use iota::token::{Self, Token};
+    use iota::iota::IOTA;
+}
+```
+
+- `iota::tx_context::sender`: Manages the transaction context.
+- `iota::coin`: Handles the creation and management of coins.
+- `iota::balance`: Manages the balance of the shop.
+- `iota::token`: Manages the minting, transfer, and burning of tokens.
+- `iota::iota::IOTA`: The IOTA cryptocurrency module.
+
+## 3. Defining Constants
+
+In this step, we define a few constants that represent different error codes and the price of a coffee. Constants in Move are useful for defining fixed values used throughout the code.
+
+```move
+const EIncorrectAmount: u64 = 0;
+const ENotEnoughPoints: u64 = 1;
+const COFFEE_PRICE: u64 = 10_000_000_000;  // 10 IOTA for a coffee
+```
+
+- `EIncorrectAmount`: Error when the wrong amount is provided.
+- `ENotEnoughPoints`: Error when there aren’t enough points to complete a transaction.
+- `COFFEE_PRICE`: The price of a coffee (10 IOTA).
+
+## 4. Creating Structs with Abilities
+
+Structs in Move represent data storage objects, and we define two structs in our program:
+
+1. `COFFEE`: A token struct representing coffee points.
+2. `CoffeeShop`: A struct for the coffee shop that includes its treasury cap and IOTA balance.
+
+```move
+public struct COFFEE has drop {}
+
+public struct CoffeeShop has key {
+    id: UID,
+    coffee_points: TreasuryCap<COFFEE>,
+    balance: Balance<IOTA>,
+}
+```
+
+- `COFFEE`: A token with the ability drop, allowing it to be destroyed when no longer needed.
+- `CoffeeShop`: Represents a shop that has an ID, a treasury for minting coffee points, and a balance in IOTA.
+
+## 5. Initialization with OneTimeWitness (OTW)
+
+The init function initializes the CoffeeShop by creating the COFFEE token and defining the shop’s treasury cap and balance.
+
+```
+fun init(otw: COFFEE, ctx: &mut TxContext) {
+    let (coffee_points, metadata) = coin::create_currency(
+        otw, 0, b"COFFEE", b"Coffee Point",
+        b"Buy 4 coffees and get 1 free",
+        std::option::none(),
+        ctx
+    );
+
+    iota::transfer::public_freeze_object(metadata);
+    iota::transfer::share_object(CoffeeShop {
+        coffee_points,
+        id: object::new(ctx),
+        balance: balance::zero(),
+    });
+}
+```
+
+Here, we use the OneTimeWitness (OTW) pattern, where `COFFEE` is used as a witness to authorize the creation of a new currency called `COFFEE`. The shop’s balance starts at zero.
+
+## 6. Buying a Coffee (Token Transfer)
+
+The `buy_coffee` function allows a customer to buy a coffee if they have enough IOTA. This function also demonstrates control flow using assertions.
+
+```move
+public fun buy_coffee(app: &mut CoffeeShop, payment: Coin<IOTA>, ctx: &mut TxContext) {
+    assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
+
+    let token = token::mint(&mut app.coffee_points, 1, ctx);
+    let request = token::transfer(token, sender(ctx), ctx);
+
+    token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
+    coin::put(&mut app.balance, payment);
+    iota::event::emit(CoffeePurchased {})
+}
+```
+
+- The function checks if the customer has enough IOTA to pay for the coffee using an assertion (`assert!`).
+- If the customer has sufficient funds, it mints 1 COFFEE token and transfers it to the customer.
+
+## 7. Control Flow with Assertions
+
+Move uses assertions (`assert!`) to enforce logical conditions during execution. If an assertion fails, it aborts the function with the defined error code.
+
+```move
+assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
+```
+
+In this example, we ensure the customer has enough IOTA to buy coffee. If not, it returns the `EIncorrectAmount` error.
+
+## 8. Claiming a Free Coffee (Burning Tokens)
+
+Customers can claim a free coffee after purchasing 4 coffees. When claiming, the `COFFEE` points are burned (i.e., destroyed) to reflect that the tokens were used.
+
+```move
+public fun claim_free(app: &mut CoffeeShop, points: Token<COFFEE>, ctx: &mut TxContext) {
+    assert!(token::value(&points) == 4, EIncorrectAmount);
+
+    let request = token::spend(points, ctx);
+    token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
+    iota::event::emit(CoffeePurchased {})
+}
+```
+
+- We check if the customer has exactly 4 coffee points using another assertion.
+- Instead of burning, we "spend" the tokens as an alternative method to handle token consumption.
+
+## 9. Transferring Tokens
+
+The `transfer` function allows the transfer of `COFFEE` tokens between customers but charges a 1-point fee.
+
+```move
+public fun transfer(
+    app: &mut CoffeeShop,
+    mut points: Token<COFFEE>,
+    recipient: address,
+    ctx: &mut TxContext
+) {
+    assert!(token::value(&points) > 1, ENotEnoughPoints);
+
+    let commission = token::split(&mut points, 1, ctx);
+    let request = token::transfer(points, recipient, ctx);
+
+    token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
+    token::burn(&mut app.coffee_points, commission);
+    }
+}
+```
+
+- This function splits 1 token from the total points as a commission and then transfers the remaining tokens to the recipient.
+- The commission token is burned, removing it from circulation.
+
+## Full Contract:
+
+```move
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+/// This example illustrates how to use the `Token` without a `TokenPolicy`. And
+/// only rely on `TreasuryCap` for minting and burning tokens.
+module examples::coffee {
+    use iota::tx_context::sender;
+    use iota::coin::{Self, TreasuryCap, Coin};
+    use iota::balance::{Self, Balance};
+    use iota::token::{Self, Token};
+    use iota::iota::IOTA;
+
+    /// Error code for incorrect amount.
+    const EIncorrectAmount: u64 = 0;
+    /// Trying to claim a free coffee without enough points.
+    /// Or trying to transfer but not enough points to pay the commission.
+    const ENotEnoughPoints: u64 = 1;
+
+    /// 10 IOTA for a coffee.
+    const COFFEE_PRICE: u64 = 10_000_000_000;
+
+    /// OTW for the Token.
+    public struct COFFEE has drop {}
+
+    /// The shop that sells Coffee and allows to buy a Coffee if the customer
+    /// has 10 COFFEE points.
+    public struct CoffeeShop has key {
+        id: UID,
+        /// The treasury cap for the `COFFEE` points.
+        coffee_points: TreasuryCap<COFFEE>,
+        /// The IOTA balance of the shop; the shop can sell Coffee for IOTA.
+        balance: Balance<IOTA>,
+    }
+
+    /// Event marking that a Coffee was purchased; transaction sender serves as
+    /// the customer ID.
+    public struct CoffeePurchased has copy, store, drop {}
+
+    // Create and share the `CoffeeShop` object.
+    fun init(otw: COFFEE, ctx: &mut TxContext) {
+        let (coffee_points, metadata) = coin::create_currency(
+            otw, 0, b"COFFEE", b"Coffee Point",
+            b"Buy 4 coffees and get 1 free",
+            std::option::none(),
+            ctx
+        );
+
+        iota::transfer::public_freeze_object(metadata);
+        iota::transfer::share_object(CoffeeShop {
+            coffee_points,
+            id: object::new(ctx),
+            balance: balance::zero(),
+        });
+    }
+
+    /// Buy a coffee from the shop. Emitted event is tracked by the real coffee
+    /// shop and the customer gets a free coffee after 4 purchases.
+    public fun buy_coffee(app: &mut CoffeeShop, payment: Coin<IOTA>, ctx: &mut TxContext) {
+        // Check if the customer has enough IOTA to pay for the coffee.
+        assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
+
+        let token = token::mint(&mut app.coffee_points, 1, ctx);
+        let request = token::transfer(token, sender(ctx), ctx);
+
+        token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
+        coin::put(&mut app.balance, payment);
+        iota::event::emit(CoffeePurchased {})
+    }
+
+    /// Claim a free coffee from the shop. Emitted event is tracked by the real
+    /// coffee shop and the customer gets a free coffee after 4 purchases. The
+    /// `COFFEE` tokens are spent.
+    public fun claim_free(app: &mut CoffeeShop, points: Token<COFFEE>, ctx: &mut TxContext) {
+        // Check if the customer has enough `COFFEE` points to claim a free one.
+        assert!(token::value(&points) == 4, EIncorrectAmount);
+
+        // While we could use `burn`, spend illustrates another way of doing this
+        let request = token::spend(points, ctx);
+        token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
+        iota::event::emit(CoffeePurchased {})
+    }
+
+    /// We allow transfer of `COFFEE` points to other customers but we charge 1
+    /// `COFFEE` point for the transfer.
+    public fun transfer(
+        app: &mut CoffeeShop,
+        mut points: Token<COFFEE>,
+        recipient: address,
+        ctx: &mut TxContext
+    ) {
+        assert!(token::value(&points) > 1, ENotEnoughPoints);
+        let commission = token::split(&mut points, 1, ctx);
+        let request = token::transfer(points, recipient, ctx);
+
+        token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
+        token::burn(&mut app.coffee_points, commission);
+    }
+}
+```
+
+## 10. Building your Package
+
+You can use the `iota move build` command to [build](../../getting-started/build-test.mdx) Move packages in the working directory, `examples` in this case.
+
+```bash
+iota move build
+```
+
+## 11. Publish the `example` package by running the following command:
+
+```bash
+iota client publish --gas-budget 100000000
+```
+
+5. The console will respond with the transaction effects. You should pay attention to the created objects to retrieve the object IDs:
+
+## Conclusion
+
+In this tutorial, we explored the basics of Move programming by building a simple Coffee Shop application. You learned how to import modules, define constants, create structs, mint and burn tokens, and manage control flow with assertions. With this foundational knowledge, you can now begin experimenting with more advanced Move features and expand your decentralized applications. Happy coding!
+
+
+
+
+
+
