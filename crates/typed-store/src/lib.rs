@@ -72,8 +72,10 @@ pub type StoreError = typed_store_error::TypedStoreError;
 /// }
 ///
 /// // b. Options specified by DB opener
-/// // For finer control, we also allow the opener of the DB to specify their own options which override the defaults set by the definer
-/// // This is done via a configurator which gives one a struct with field similarly named as that of the DB, but of type Options
+/// // For finer control, we also allow the opener of the DB to specify their
+/// own options which override the defaults set by the definer // This is done
+/// via a configurator which gives one a struct with field similarly named as
+/// that of the DB, but of type Options
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
@@ -84,14 +86,15 @@ pub type StoreError = typed_store_error::TypedStoreError;
 /// config.table1.options.create_if_missing(true);
 /// config.table1.options.set_write_buffer_size(123456);
 ///
-/// let primary_path = tempfile::tempdir().expect("Failed to open temporary directory").into_path();
+/// let primary_path = tempfile::tempdir().expect("Failed to open temporary
+/// directory").into_path();
 ///
 /// // We can then open the DB with the configs
-/// let _ = Tables::open_tables_read_write(primary_path, MetricConf::default(), None, Some(config.build()));
-/// Ok(())
+/// let _ = Tables::open_tables_read_write(primary_path, MetricConf::default(),
+/// None, Some(config.build())); Ok(())
 /// }
 /// ```
-///
+/// 
 /// 2. Auto-generated `open` routine The function `open_tables_read_write` is
 ///    generated which allows for specifying DB wide options and custom table
 ///    configs as mentioned above

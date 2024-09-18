@@ -4,14 +4,6 @@
 
 use async_trait::async_trait;
 use diesel::r2d2::R2D2Connection;
-use iota_json_rpc::{
-    name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
-    IotaRpcModule,
-};
-use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
-use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{cap_page_limit, internal_error, IndexerApiServer};
 use iota_json_rpc_types::{
@@ -37,9 +29,7 @@ use jsonrpsee::{
 use tap::TapFallible;
 
 use crate::{indexer_reader::IndexerReader, IndexerError};
-use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, RpcModule};
 
-use crate::indexer_reader::IndexerReader;
 
 
 pub(crate) struct IndexerApi<T: R2D2Connection + 'static> {

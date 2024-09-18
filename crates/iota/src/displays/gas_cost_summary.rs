@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 
 use iota_types::gas::GasCostSummary;
 
-use crate::client_ptb::displays::Pretty;
+use crate::displays::Pretty;
 
 impl<'a> Display for Pretty<'a, GasCostSummary> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

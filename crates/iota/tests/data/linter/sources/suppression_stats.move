@@ -12,7 +12,7 @@ module linter::suppression_stats {
     use iota::tx_context::{Self, TxContext};
 
     #[allow(unused_field)]
-    struct S1 has key, store {
+    public struct S1 has key, store {
         id: UID
     }
 

@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: MIT
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "../../contracts/IotaBridge.sol";
@@ -14,6 +12,16 @@ contract MockIotaBridgeV2 is IotaBridge {
         _pause();
     }
 
+    function initializeV2Params(uint256 value, bool _override, string memory _event) external {
+        if (_override) {
+            _pause();
+        } else if (value == 42) {
+            _pause();
+        }
+
+        emit MockEvent(_event);
+    }
+
     function newMockFunction(bool _pausing) external {
         isPausing = _pausing;
     }
@@ -24,5 +32,7 @@ contract MockIotaBridgeV2 is IotaBridge {
     }
 
     // used to ignore for forge coverage
-    function test() external view {}
+    function testSkip() external view {}
+
+    event MockEvent(string _event);
 }
