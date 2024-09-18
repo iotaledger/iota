@@ -7,7 +7,6 @@ import { Copy, Flag, Globe, Warning } from '@iota/ui-icons';
 import { Placeholder } from '@iota/ui';
 import { useCopyToClipboard } from '@iota/core';
 import toast from 'react-hot-toast';
-import { useEffect, useState } from 'react';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
@@ -29,8 +28,6 @@ const TYPE_TO_ICON: Record<PageHeaderType, React.ComponentType<{ className?: str
     Address: Globe,
 };
 
-const TIMEOUT_TIMER = 2000;
-
 export function PageHeader({
     title,
     subtitle,
@@ -40,25 +37,12 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
-    const [copied, setCopied] = useState(false);
-
     const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
     const Icon = TYPE_TO_ICON[type];
 
     const handleCopy = async () => {
         await copyToClipBoard(title);
-        setCopied(true);
     };
-
-    useEffect(() => {
-        if (copied) {
-            const timeout = setTimeout(() => {
-                setCopied(false);
-            }, TIMEOUT_TIMER);
-
-            return () => clearTimeout(timeout);
-        }
-    }, [copied]);
 
     return (
         <Panel>
