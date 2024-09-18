@@ -8,11 +8,9 @@ import {
     useCurrentAccount,
     useSignAndExecuteTransactionBlock,
 } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
 import { TransactionBlock, getPureSerializationType } from '@iota/iota-sdk/transactions';
 import { Button } from '@iota/ui';
 import { useMutation } from '@tanstack/react-query';
-import clsx from 'clsx';
 import { useMemo } from 'react';
 import { useWatch } from 'react-hook-form';
 import { z } from 'zod';
