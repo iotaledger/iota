@@ -28,7 +28,8 @@ use iota_types::{
     event::EventID,
 };
 use jsonrpsee::{
-    core::RpcResult, PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
+    core::{RpcResult, SubscriptionResult},
+    PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
 use move_core_types::language_storage::TypeTag;
@@ -313,26 +314,36 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     }
 
     #[instrument(skip(self))]
-    fn subscribe_event(&self, sink: PendingSubscriptionSink, filter: EventFilter) {
-        let permit = self.acquire_subscribe_permit().ok();
+    fn subscribe_event(
+        &self,
+        sink: PendingSubscriptionSink,
+        filter: EventFilter,
+    ) -> SubscriptionResult {
+        let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
             self.state
                 .get_subscription_handler()
                 .subscribe_events(filter),
-            permit,
+            Some(permit),
         );
+        Ok(())
     }
 
-    fn subscribe_transaction(&self, sink: PendingSubscriptionSink, filter: TransactionFilter) {
-        let permit = self.acquire_subscribe_permit().ok();
+    fn subscribe_transaction(
+        &self,
+        sink: PendingSubscriptionSink,
+        filter: TransactionFilter,
+    ) -> SubscriptionResult {
+        let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
             self.state
                 .get_subscription_handler()
                 .subscribe_transactions(filter),
-            permit,
+            Some(permit),
         );
+        Ok(())
     }
 
     #[instrument(skip(self))]
