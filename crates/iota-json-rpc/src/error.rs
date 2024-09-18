@@ -286,6 +286,12 @@ impl From<Error> for RpcError {
     }
 }
 
+impl From<Error> for ErrorObjectOwned {
+    fn from(value: Error) -> Self {
+        error_object_from_rpc(value.into())
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum IotaRpcInputError {
     #[error("Input contains duplicates")]
