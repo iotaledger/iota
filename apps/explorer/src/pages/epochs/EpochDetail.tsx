@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -17,35 +15,53 @@ import {
 } from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
-import { Banner, Stats, type StatsProps, TableCard } from '~/components/ui';
+import { Banner, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
-import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
-import { validatorsTableData } from '../validators/Validators';
-import { EpochProgress } from './stats/EpochProgress';
-import { EpochStats } from './stats/EpochStats';
+import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
+import cx from 'clsx';
+import { TokenStats } from './stats/TokenStats';
+import { EpochTopStats } from './stats/EpochTopStats';
+import { getEpochStorageFundFlow } from '~/lib/utils';
+import {
+    generateValidatorsTableData,
+    type ValidatorTableColumn,
+} from '~/lib/ui/utils/generateValidatorsTableData';
 
-function IotaStats({
-    amount,
-    showSign,
-    ...props
-}: Omit<StatsProps, 'children'> & {
-    amount: bigint | number | string | undefined | null;
-    showSign?: boolean;
-}): JSX.Element {
-    const [formattedAmount, symbol] = useFormatCoin(
-        amount,
-        IOTA_TYPE_ARG,
-        CoinFormat.ROUNDED,
-        showSign,
-    );
-
-    return (
-        <Stats postfix={formattedAmount && symbol} {...props}>
-            {formattedAmount || '--'}
-        </Stats>
-    );
-}
+export const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
+    {
+        header: 'Name',
+        accessorKey: 'name',
+    },
+    {
+        header: 'Stake',
+        accessorKey: 'stake',
+    },
+    {
+        header: 'Proposed next Epoch gas price',
+        accessorKey: 'nextEpochGasPrice',
+    },
+    {
+        header: 'APY',
+        accessorKey: 'apy',
+    },
+    {
+        header: 'Commission',
+        accessorKey: 'commission',
+    },
+    {
+        header: 'Last Epoch Reward',
+        accessorKey: 'lastReward',
+    },
+    {
+        header: 'Voting Power',
+        accessorKey: 'votingPower',
+    },
+    {
+        header: 'Status',
+        accessorKey: 'atRisk',
+    },
+];
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -74,15 +90,17 @@ export default function EpochDetail() {
     );
 
     const validatorsTable = useMemo(() => {
-        if (!epochData?.validators) return null;
+        if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData(
-            [...epochData.validators].sort(() => 0.5 - Math.random()),
-            [],
-            [],
-            null,
-        );
+        return generateValidatorsTableData({
+            validators: [...epochData.validators].sort(() => 0.5 - Math.random()),
+            atRiskValidators: [],
+            validatorEvents: [],
+            rollingAverageApys: null,
+            columns: VALIDATOR_COLUMNS,
+            showValidatorIcon: true,
+        });
     }, [epochData]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
@@ -111,51 +129,60 @@ export default function EpochDetail() {
         <PageLayout
             content={
                 <div className="flex flex-col gap-2xl">
-                    <div className="grid grid-flow-row gap-4 sm:gap-2 md:flex md:gap-6">
-                        <div className="flex min-w-[136px] max-w-[240px]">
-                            <EpochProgress
-                                epoch={epochData.epoch}
+                    <div
+                        className={cx(
+                            'grid grid-cols-1 gap-md--rs',
+                            isCurrentEpoch ? 'md:grid-cols-2' : 'md:grid-cols-3',
+                        )}
+                    >
+                        <EpochStats
+                            title={`Epoch ${epochData.epoch}`}
+                            subtitle={isCurrentEpoch ? 'In progress' : 'Ended'}
+                        >
+                            <EpochTopStats
                                 inProgress={isCurrentEpoch}
                                 start={Number(epochData.epochStartTimestamp)}
                                 end={Number(epochData.endOfEpochInfo?.epochEndTimestamp ?? 0)}
-                            />
-                        </div>
-
-                        <EpochStats label="Rewards">
-                            <IotaStats
-                                label="Total Stake"
-                                tooltip=""
-                                amount={epochData.endOfEpochInfo?.totalStake}
-                            />
-                            <IotaStats
-                                label="Stake Rewards"
-                                amount={epochData.endOfEpochInfo?.totalStakeRewardsDistributed}
-                            />
-                            <IotaStats
-                                label="Gas Fees"
-                                amount={epochData.endOfEpochInfo?.totalGasFees}
+                                endOfEpochInfo={epochData.endOfEpochInfo}
                             />
                         </EpochStats>
+                        {!isCurrentEpoch && (
+                            <>
+                                <EpochStats title="Rewards">
+                                    <EpochStatsGrid>
+                                        <TokenStats
+                                            label="Total Stake"
+                                            amount={epochData.endOfEpochInfo?.totalStake}
+                                        />
+                                        <TokenStats
+                                            label="Stake Rewards"
+                                            amount={
+                                                epochData.endOfEpochInfo
+                                                    ?.totalStakeRewardsDistributed
+                                            }
+                                        />
+                                        <TokenStats
+                                            label="Gas Fees"
+                                            amount={epochData.endOfEpochInfo?.totalGasFees}
+                                        />
+                                    </EpochStatsGrid>
+                                </EpochStats>
 
-                        <EpochStats label="Storage Fund Balance">
-                            <IotaStats
-                                label="Fund Size"
-                                amount={epochData.endOfEpochInfo?.storageFundBalance}
-                            />
-                            <IotaStats label="Net Inflow" amount={netInflow} />
-                            <IotaStats label="Fund Inflow" amount={fundInflow} />
-                            <IotaStats label="Fund Outflow" amount={fundOutflow} />
-                        </EpochStats>
+                                <EpochStats title="Storage Fund Balance">
+                                    <EpochStatsGrid>
+                                        <TokenStats
+                                            label="Fund Size"
+                                            amount={epochData.endOfEpochInfo?.storageFundBalance}
+                                        />
+                                        <TokenStats label="Net Inflow" amount={netInflow} />
+                                        <TokenStats label="Fund Inflow" amount={fundInflow} />
+                                        <TokenStats label="Fund Outflow" amount={fundOutflow} />
+                                    </EpochStatsGrid>
+                                </EpochStats>
+                            </>
+                        )}
 
-                        <EpochStats label="Supply">
-                            <IotaStats
-                                label="Supply Change"
-                                amount={getSupplyChangeAfterEpochEnd(epochData.endOfEpochInfo)}
-                                showSign
-                            />
-                        </EpochStats>
-
-                        {isCurrentEpoch ? <ValidatorStatus /> : null}
+                        {isCurrentEpoch && <ValidatorStatus />}
                     </div>
 
                     <div className="rounded-xl bg-white">
@@ -191,7 +218,6 @@ export default function EpochDetail() {
                                 <TableCard
                                     data={validatorsTable.data}
                                     columns={validatorsTable.columns}
-                                    sortTable
                                 />
                             ) : null}
                         </div>
