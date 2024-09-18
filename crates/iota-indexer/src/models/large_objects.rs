@@ -3,9 +3,9 @@
 
 //! Expose server-side large-object functions.
 //!
-//! Based on https://github.com/diesel-rs/diesel/issues/2127#issuecomment-846524605
+//! Based on <https://github.com/diesel-rs/diesel/issues/2127#issuecomment-846524605>
 //!
-//! See also https://www.postgresql.org/docs/current/lo-funcs.html.
+//! See also <https://www.postgresql.org/docs/current/lo-funcs.html>
 
 use diesel::{
     define_sql_function,

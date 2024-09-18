@@ -75,7 +75,7 @@ interface EventsProps {
 
 export function Events({ events }: EventsProps) {
     return (
-        <div>
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {events.map((event, index) => (
                 <Event key={event.type} event={event} divider={index !== events.length - 1} />
             ))}

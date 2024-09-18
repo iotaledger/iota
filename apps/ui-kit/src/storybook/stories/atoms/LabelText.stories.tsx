@@ -22,7 +22,6 @@ export const Default: Story = {
         text: '12,000.00',
         label: 'Label',
         size: LabelTextSize.Medium,
-        showSupportingLabel: true,
         supportingLabel: 'IOTA',
         isCentered: false,
     },
@@ -39,9 +38,6 @@ export const Default: Story = {
         },
         supportingLabel: {
             control: 'text',
-        },
-        showSupportingLabel: {
-            control: 'boolean',
         },
         text: {
             control: 'text',

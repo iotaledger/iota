@@ -69,7 +69,6 @@ import type {
     ProtocolConfig,
     QueryEventsParams,
     QueryTransactionBlocksParams,
-    ResolvedNameServiceNames,
     SubscribeEventParams,
     SubscribeTransactionParams,
     IotaEvent,
@@ -787,18 +786,6 @@ export class IotaClient {
         const checkpoint = await this.getCheckpoint({ id: '0' });
         const bytes = fromB58(checkpoint.digest);
         return toHEX(bytes.slice(0, 4));
-    }
-
-    async resolveNameServiceAddress(_input: any): Promise<string | null> {
-        return 'remove_me';
-    }
-
-    async resolveNameServiceNames(_input: any): Promise<ResolvedNameServiceNames> {
-        return {
-            data: [],
-            hasNextPage: false,
-            nextCursor: null,
-        };
     }
 
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {
