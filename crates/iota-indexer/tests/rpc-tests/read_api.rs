@@ -71,7 +71,7 @@ macro_rules! create_get_object_with_options_test {
                 .unwrap();
 
             // we drop the cluster early because in some random cases
-            // it panics due to `Address already` in use when starting the nodes
+            // it panics due to `Address already in use` when starting the nodes
             drop(cluster);
 
             for obj in fullnode_objects.data {
@@ -109,7 +109,7 @@ macro_rules! create_multi_get_objects_with_options_test {
                 .unwrap();
 
             // we drop the cluster early because in some random cases
-            // it panics due to `Address already` in use when starting the nodes
+            // it panics due to `Address already in use` when starting the nodes
             drop(cluster);
 
             let object_ids = fullnode_objects
@@ -154,7 +154,7 @@ macro_rules! create_get_transaction_block_with_options_test {
                 .unwrap();
 
             // we drop the cluster early because in some random cases
-            // it panics due to `Address already` in use when starting the nodes
+            // it panics due to `Address already in use` when starting the nodes
             drop(cluster);
 
             let tx = indexer_client
@@ -209,7 +209,7 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
                 .unwrap();
 
             // we drop the cluster early because in some random cases
-            // it panics due to `Address already` in use when starting the nodes
+            // it panics due to `Address already in use` when starting the nodes
             drop(cluster);
 
             let indexer_txs = indexer_client
@@ -224,12 +224,11 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
 
             assert!(
                 match_transaction_block_resp_options(options.clone(), &fullnode_txs),
-                "fullnode multi transaction block assertion failed"
+                "fullnode multi transaction blocks assertion failed"
             );
-
             assert!(
                 match_transaction_block_resp_options(options.clone(), &indexer_txs,),
-                "indexer multi transaction block assertion failed"
+                "indexer multi transaction blocks assertion failed"
             );
         }
     };
@@ -249,7 +248,7 @@ async fn get_checkpoint_by_seq_num() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -267,7 +266,7 @@ async fn get_checkpoint_by_seq_num_not_found() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
@@ -294,7 +293,7 @@ async fn get_checkpoint_by_digest() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -312,7 +311,7 @@ async fn get_checkpoint_by_digest_not_found() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
@@ -332,7 +331,7 @@ async fn get_checkpoints_all_ascending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -356,7 +355,7 @@ async fn get_checkpoints_all_descending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -380,7 +379,7 @@ async fn get_checkpoints_by_cursor_and_limit_one_descending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -405,7 +404,7 @@ async fn get_checkpoints_by_cursor_and_limit_one_ascending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -430,7 +429,7 @@ async fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -455,7 +454,7 @@ async fn get_checkpoints_by_cursor_zero_and_limit_descending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -480,7 +479,7 @@ async fn get_checkpoints_by_cursor_and_limit_ascending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 6).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -505,7 +504,7 @@ async fn get_checkpoints_by_cursor_and_limit_descending() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let checkpoint_indexer = indexer_client
@@ -530,7 +529,7 @@ async fn get_checkpoints_invalid_limit() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client.get_checkpoints(None, Some(0), false).await;
@@ -556,7 +555,7 @@ async fn get_object() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     for obj in fullnode_objects.data {
@@ -575,7 +574,7 @@ async fn get_object_not_found() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let indexer_obj = indexer_client
@@ -665,7 +664,7 @@ async fn multi_get_objects() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let object_ids = fullnode_objects
@@ -739,7 +738,7 @@ async fn multi_get_objects_found_and_not_found() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let mut object_ids = fullnode_objects
@@ -837,7 +836,7 @@ async fn get_events() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let events = indexer_client
@@ -855,7 +854,7 @@ async fn get_events_not_found() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client.get_events(TransactionDigest::ZERO).await;
@@ -880,7 +879,7 @@ async fn get_transaction_block() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
@@ -900,7 +899,7 @@ async fn get_transaction_block_not_found() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
@@ -984,7 +983,7 @@ async fn multi_get_transaction_blocks() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let indexer_txs = indexer_client
@@ -1054,7 +1053,7 @@ async fn get_protocol_config() {
         .unwrap();
 
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let indexer_protocol_config = indexer_client.get_protocol_config(None).await.unwrap();
@@ -1076,7 +1075,7 @@ async fn get_protocol_config_invalid_protocol_version() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
@@ -1098,7 +1097,7 @@ async fn get_chain_identifier() {
 
     let fullnode_chain_identifier = cluster.rpc_client().get_chain_identifier().await.unwrap();
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let indexer_chain_identifier = indexer_client.get_chain_identifier().await.unwrap();
@@ -1144,7 +1143,7 @@ async fn get_total_transaction_blocks() {
 
     indexer_wait_for_checkpoint(&pg_store, stop_after_checkpoint_seq).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let total_transaction_blocks = indexer_client
@@ -1194,7 +1193,7 @@ async fn get_latest_checkpoint_sequence_number() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, stop_after_checkpoint_seq).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let latest_checkpoint_seq_number = indexer_client
@@ -1216,7 +1215,7 @@ async fn try_get_past_object() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
@@ -1235,7 +1234,7 @@ async fn try_multi_get_past_objects() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
@@ -1260,7 +1259,7 @@ async fn get_loaded_child_objects() {
     // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     // we drop the cluster early because in some random cases
-    // it panics due to `Address already` in use when starting the nodes
+    // it panics due to `Address already in use` when starting the nodes
     drop(cluster);
 
     let result = indexer_client
