@@ -1513,7 +1513,8 @@ impl IotaNode {
     /// This function awaits the completion of checkpoint execution of the
     /// current epoch, after which it initiates reconfiguration of the
     /// entire system. This function also handles role changes for the node when
-    /// epoch changes.
+    /// epoch changes and advertises capabilities to the committee if the node
+    /// is a validator.
     pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
         let checkpoint_executor_metrics =
             CheckpointExecutorMetrics::new(&self.registry_service.default_registry());

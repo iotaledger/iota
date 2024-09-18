@@ -4387,6 +4387,9 @@ impl AuthorityState {
     }
 
     // TODO: delete once authority_capabilities_v2 is deployed everywhere
+    /// Returns the new protocol version and system packages that the network
+    /// has voted to upgrade to. If the proposed protocol version is not
+    /// supported, None is returned.
     fn is_protocol_version_supported_v1(
         current_protocol_version: ProtocolVersion,
         proposed_protocol_version: ProtocolVersion,
@@ -4565,6 +4568,9 @@ impl AuthorityState {
     }
 
     // TODO: delete once authority_capabilities_v2 is deployed everywhere
+    /// Selects the highest supported protocol version and system packages that
+    /// the network has voted to upgrade to. If no upgrade is supported,
+    /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
         protocol_config: &ProtocolConfig,
@@ -4600,6 +4606,9 @@ impl AuthorityState {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
 
+        // Finds the highest supported protocol version and system packages by
+        // incrementing the proposed protocol version by one until no further
+        // upgrades are supported.
         while let Some((version, packages)) = Self::is_protocol_version_supported_v2(
             current_protocol_version,
             next_protocol_version + 1,
