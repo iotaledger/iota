@@ -8,7 +8,7 @@ import { LoadingIndicator, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 
 import { Banner, TableCard } from '~/components/ui';
-import { generateTransactionsTableColumns } from './generateTransactionsTableColumns';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 interface TransactionsForAddressProps {
     address: string;

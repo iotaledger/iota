@@ -18,7 +18,7 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
-import { generateTransactionsTableColumns } from '../transactions/generateTransactionsTableColumns';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 type TransactionBlocksForAddressProps = {
     address: string;

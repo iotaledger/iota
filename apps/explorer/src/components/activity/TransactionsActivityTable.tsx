@@ -12,8 +12,8 @@ import {
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { numberSuffix } from '~/lib/utils';
-import { generateTransactionsTableColumns } from '../transactions/generateTransactionsTableColumns';
 import { Select } from '@iota/apps-ui-kit';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;

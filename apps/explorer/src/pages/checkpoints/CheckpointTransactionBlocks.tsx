@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { generateTransactionsTableColumns } from '~/components/transactions/generateTransactionsTableColumns';
 
 import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
