@@ -6,15 +6,23 @@
 use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
+#[cfg(not(msim))]
+use std::str::FromStr;
 use std::{
-    collections::BTreeSet, fmt::Write, fs::read_dir, io::Read, path::PathBuf, str, str::FromStr,
-    thread, time::Duration,
+    collections::BTreeSet, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr, path::PathBuf,
+    str, thread, time::Duration,
 };
 
 use expect_test::expect;
+#[cfg(feature = "indexer")]
+use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
-    client_commands::{IotaClientCommandResult, IotaClientCommands, SwitchResponse},
-    iota_commands::IotaCommand,
+    client_commands::{
+        estimate_gas_budget, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
+        SwitchResponse,
+    },
+    client_ptb::ptb::PTB,
+    iota_commands::{parse_host_port, IotaCommand},
     key_identity::{get_identity_address, KeyIdentity},
 };
 use iota_config::{
@@ -23,17 +31,18 @@ use iota_config::{
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockDataAPI, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, OwnedObjectRef,
+    get_new_package_obj_from_response, IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    OwnedObjectRef,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{iota_client_config::IotaClientConfig, wallet_context::WalletContext};
+use iota_sdk::{iota_client_config::IotaClientConfig, wallet_context::WalletContext, IotaClient};
 use iota_swarm_config::{
-    genesis_config::{AccountConfig, GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES},
-    network_config::NetworkConfigLight,
+    genesis_config::{AccountConfig, GenesisConfig},
+    network_config::{NetworkConfig, NetworkConfigLight},
 };
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
@@ -51,9 +60,9 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     },
 };
-use move_package::BuildConfig as MoveBuildConfig;
+use move_package::{lock_file::schema::ManagedPackage, BuildConfig as MoveBuildConfig};
 use serde_json::json;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
 
 const TEST_DATA_DIR: &str = "tests/data/";
@@ -63,6 +72,24 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
 
+    // TODO is this still obsolete?
+    // let config = working_dir.join(IOTA_NETWORK_CONFIG);
+
+    // // Start network without authorities
+    // let start = IotaCommand::Start {
+    //     config_dir: Some(config),
+    //     force_regenesis: false,
+    //     with_faucet: None,
+    //     fullnode_rpc_port: 9000,
+    //     epoch_duration_ms: None,
+    //     no_full_node: false,
+    //     #[cfg(feature = "indexer")]
+    //     indexer_feature_args: IndexerFeatureArgs::for_testing(),
+    // }
+    // .execute()
+    // .await;
+    // assert!(matches!(start, Err(..)));
+    // Genesis
     IotaCommand::Genesis {
         working_dir: Some(working_dir.to_path_buf()),
         write_config: None,
@@ -71,9 +98,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
-        local_migration_snapshots: vec![],
-        remote_migration_snapshots: vec![],
     }
     .execute()
     .await?;
@@ -113,9 +137,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
-        local_migration_snapshots: vec![],
-        remote_migration_snapshots: vec![],
     }
     .execute()
     .await;
@@ -275,12 +296,9 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     let resp = IotaClientCommands::Publish {
         package_path: package_path.clone(),
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
@@ -288,13 +306,14 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     // Print it out to CLI/logs
     resp.print(true);
 
-    let IotaClientCommandResult::Publish(response) = resp else {
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
         unreachable!("Invalid response");
     };
 
     let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
 
     assert!(effects.status.is_ok());
+    assert_eq!(effects.gas_object().object_id(), gas_obj_id);
     let package = effects
         .created()
         .iter()
@@ -307,24 +326,22 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
         module: "test_module".to_string(),
         function: "new_shared".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         gas_price: None,
         args: vec![],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let shared_id_str = if let IotaClientCommandResult::Call(response) = start_call_result {
-        response.effects.unwrap().created().to_vec()[0]
-            .reference
-            .object_id
-            .to_string()
-    } else {
-        unreachable!("Invalid response");
-    };
+    let shared_id_str =
+        if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
+            response.effects.unwrap().created().to_vec()[0]
+                .reference
+                .object_id
+                .to_string()
+        } else {
+            unreachable!("Invalid response");
+        };
 
     let complex_ptb_string = format!(
         r#"
@@ -362,6 +379,31 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
         .execute(context)
         .await?;
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_publish() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("ptb_complex_args_test_functions");
+
+    let publish_ptb_string = format!(
+        r#"
+         --move-call iota::tx_context::sender
+         --assign sender
+         --publish {}
+         --assign upgrade_cap
+         --transfer-objects "[upgrade_cap]" sender
+        "#,
+        package_path.display()
+    );
+    let args = shlex::split(&publish_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB { args: args.clone() }
+        .execute(context)
+        .await?;
     Ok(())
 }
 
@@ -523,10 +565,7 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
     IotaClientCommands::Transfer {
         to: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
         object_id: object_to_send,
-        gas: Some(object_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(object_id), rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
     }
     .execute(context)
     .await?;
@@ -572,21 +611,22 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: TEST_ONLY_GAS_UNIT_FOR_PUBLISH * rgp,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let package = if let IotaClientCommandResult::Publish(response) = resp {
+    let package = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         assert!(
             response.status_ok().unwrap(),
             "Command failed: {:?}",
             response
+        );
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
         );
         response
             .effects
@@ -655,18 +695,15 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         function: "create".to_string(),
         type_args: vec![],
         args,
-        gas: None,
-        gas_budget: TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS),
         gas_price: None,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
     resp.print(true);
 
     // Get the created object
-    let created_obj: ObjectID = if let IotaClientCommandResult::Call(resp) = resp {
+    let created_obj: ObjectID = if let IotaClientCommandResult::TransactionBlock(resp) = resp {
         resp.effects
             .unwrap()
             .created()
@@ -695,11 +732,8 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         function: "create".to_string(),
         type_args: vec![],
         args: args.to_vec(),
-        gas: Some(gas),
-        gas_budget: TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+        opts: OptsWithGas::for_testing(Some(gas), rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS),
         gas_price: None,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -722,11 +756,8 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         function: "transfer".to_string(),
         type_args: vec![],
         args: args.to_vec(),
-        gas: Some(gas),
-        gas_budget: TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+        opts: OptsWithGas::for_testing(Some(gas), rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS),
         gas_price: None,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -746,11 +777,8 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         function: "transfer".to_string(),
         type_args: vec![],
         args: args.to_vec(),
-        gas: Some(gas),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        opts: OptsWithGas::for_testing(Some(gas), rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS),
         gas_price: Some(1),
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -779,11 +807,8 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         function: "transfer".to_string(),
         type_args: vec![],
         args: args.to_vec(),
-        gas: Some(gas),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         gas_price: None,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(gas), rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS),
     }
     .execute(context)
     .await?;
@@ -800,16 +825,13 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         function: "create".to_string(),
         type_args: vec![],
         args,
-        gas: None,
-        gas_budget: TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS),
         gas_price: Some(12345),
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::Call(txn_response) = result {
+    if let IotaClientCommandResult::TransactionBlock(txn_response) = result {
         assert_eq!(
             txn_response.transaction.unwrap().data.gas_data().price,
             12345
@@ -855,12 +877,9 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
@@ -868,7 +887,11 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
     // Print it out to CLI/logs
     resp.print(true);
 
-    let obj_ids = if let IotaClientCommandResult::Publish(response) = resp {
+    let obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
         response
             .effects
             .as_ref()
@@ -886,6 +909,78 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
         get_parsed_object_assert_existence(obj_id, context).await;
     }
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_package_management_on_publish_command() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("dummy_modules_publish");
+    let build_config = BuildConfig::new_for_testing().config;
+    // Publish the package
+    let resp = IotaClientCommands::Publish {
+        package_path,
+        build_config: build_config.clone(),
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await?;
+
+    // Get Package ID and version
+    let (expect_original_id, expect_version, _) =
+        if let IotaClientCommandResult::TransactionBlock(response) = resp {
+            assert_eq!(
+                response.effects.as_ref().unwrap().gas_object().object_id(),
+                gas_obj_id
+            );
+            get_new_package_obj_from_response(&response)
+                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+        } else {
+            unreachable!("Invalid response");
+        };
+
+    // Get lock file that recorded Package ID and version
+    let lock_file = build_config.lock_file.expect("Lock file for testing");
+    let mut lock_file = std::fs::File::open(lock_file).unwrap();
+    let envs = ManagedPackage::read(&mut lock_file).unwrap();
+    let localnet = envs.get("localnet").unwrap();
+    assert_eq!(
+        expect_original_id.to_string(),
+        localnet.original_published_id,
+    );
+    assert_eq!(expect_original_id.to_string(), localnet.latest_published_id);
+    assert_eq!(
+        expect_version.value(),
+        localnet.version.parse::<u64>().unwrap(),
+    );
     Ok(())
 }
 
@@ -922,17 +1017,18 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let owned_obj_ids = if let IotaClientCommandResult::Publish(response) = resp {
+    let owned_obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
         let x = response.effects.unwrap();
         x.created().to_vec()
     } else {
@@ -956,17 +1052,14 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
         module: "sod".to_string(),
         function: "start".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         gas_price: None,
         args: vec![],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let shared_id = if let IotaClientCommandResult::Call(response) = start_call_result {
+    let shared_id = if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
         response.effects.unwrap().created().to_vec()[0]
             .reference
             .object_id
@@ -979,17 +1072,14 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
         module: "sod".to_string(),
         function: "delete".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         gas_price: None,
         args: vec![IotaJsonValue::from_str(&shared_id.to_string()).unwrap()],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::Call(response) = delete_result {
+    if let IotaClientCommandResult::TransactionBlock(response) = delete_result {
         assert!(response.effects.unwrap().into_status().is_ok());
     } else {
         unreachable!("Invalid response");
@@ -1031,17 +1121,18 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let owned_obj_ids = if let IotaClientCommandResult::Publish(response) = resp {
+    let owned_obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
         let x = response.effects.unwrap();
         x.created().to_vec()
     } else {
@@ -1065,59 +1156,54 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         gas_price: None,
         args: vec![],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let (parent, child) = if let IotaClientCommandResult::Call(response) = start_call_result {
-        let created = response.effects.unwrap().created().to_vec();
-        let owners: BTreeSet<ObjectID> = created
-            .iter()
-            .flat_map(|refe| {
-                refe.owner
-                    .get_address_owner_address()
-                    .ok()
-                    .map(|x| x.into())
-            })
-            .collect();
-        let child = created
-            .iter()
-            .find(|refe| !owners.contains(&refe.reference.object_id))
-            .unwrap();
-        let parent = created
-            .iter()
-            .find(|refe| owners.contains(&refe.reference.object_id))
-            .unwrap();
-        (parent.reference.clone(), child.reference.clone())
-    } else {
-        unreachable!("Invalid response");
-    };
+    let (parent, child) =
+        if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
+            let created = response.effects.unwrap().created().to_vec();
+            let owners: BTreeSet<ObjectID> = created
+                .iter()
+                .flat_map(|refe| {
+                    refe.owner
+                        .get_address_owner_address()
+                        .ok()
+                        .map(|x| x.into())
+                })
+                .collect();
+            let child = created
+                .iter()
+                .find(|refe| !owners.contains(&refe.reference.object_id))
+                .unwrap();
+            let parent = created
+                .iter()
+                .find(|refe| owners.contains(&refe.reference.object_id))
+                .unwrap();
+            (parent.reference.clone(), child.reference.clone())
+        } else {
+            unreachable!("Invalid response");
+        };
 
     let receive_result = IotaClientCommands::Call {
         package: (*package_id.object_id).into(),
         module: "tto".to_string(),
         function: "receiver".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         gas_price: None,
         args: vec![
             IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
             IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
         ],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::Call(response) = receive_result {
+    if let IotaClientCommandResult::TransactionBlock(response) = receive_result {
         assert!(response.effects.unwrap().into_status().is_ok());
     } else {
         unreachable!("Invalid response");
@@ -1159,17 +1245,18 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let owned_obj_ids = if let IotaClientCommandResult::Publish(response) = resp {
+    let owned_obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
         let x = response.effects.unwrap();
         x.created().to_vec()
     } else {
@@ -1193,59 +1280,54 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         gas_price: None,
         args: vec![],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    let (parent, child) = if let IotaClientCommandResult::Call(response) = start_call_result {
-        let created = response.effects.unwrap().created().to_vec();
-        let owners: BTreeSet<ObjectID> = created
-            .iter()
-            .flat_map(|refe| {
-                refe.owner
-                    .get_address_owner_address()
-                    .ok()
-                    .map(|x| x.into())
-            })
-            .collect();
-        let child = created
-            .iter()
-            .find(|refe| !owners.contains(&refe.reference.object_id))
-            .unwrap();
-        let parent = created
-            .iter()
-            .find(|refe| owners.contains(&refe.reference.object_id))
-            .unwrap();
-        (parent.reference.clone(), child.reference.clone())
-    } else {
-        unreachable!("Invalid response");
-    };
+    let (parent, child) =
+        if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
+            let created = response.effects.unwrap().created().to_vec();
+            let owners: BTreeSet<ObjectID> = created
+                .iter()
+                .flat_map(|refe| {
+                    refe.owner
+                        .get_address_owner_address()
+                        .ok()
+                        .map(|x| x.into())
+                })
+                .collect();
+            let child = created
+                .iter()
+                .find(|refe| !owners.contains(&refe.reference.object_id))
+                .unwrap();
+            let parent = created
+                .iter()
+                .find(|refe| owners.contains(&refe.reference.object_id))
+                .unwrap();
+            (parent.reference.clone(), child.reference.clone())
+        } else {
+            unreachable!("Invalid response");
+        };
 
     let receive_result = IotaClientCommands::Call {
         package: (*package_id.object_id).into(),
         module: "tto".to_string(),
         function: "invalid_call_immut_ref".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         gas_price: None,
         args: vec![
             IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
             IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
         ],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::Call(response) = receive_result {
+    if let IotaClientCommandResult::TransactionBlock(response) = receive_result {
         assert!(response.effects.unwrap().into_status().is_ok());
     } else {
         unreachable!("Invalid response");
@@ -1287,17 +1369,18 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    let owned_obj_ids = if let IotaClientCommandResult::Publish(response) = resp {
+    let owned_obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
         let x = response.effects.unwrap();
         x.created().to_vec()
     } else {
@@ -1321,59 +1404,54 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         gas_price: None,
         args: vec![],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    let (parent, child) = if let IotaClientCommandResult::Call(response) = start_call_result {
-        let created = response.effects.unwrap().created().to_vec();
-        let owners: BTreeSet<ObjectID> = created
-            .iter()
-            .flat_map(|refe| {
-                refe.owner
-                    .get_address_owner_address()
-                    .ok()
-                    .map(|x| x.into())
-            })
-            .collect();
-        let child = created
-            .iter()
-            .find(|refe| !owners.contains(&refe.reference.object_id))
-            .unwrap();
-        let parent = created
-            .iter()
-            .find(|refe| owners.contains(&refe.reference.object_id))
-            .unwrap();
-        (parent.reference.clone(), child.reference.clone())
-    } else {
-        unreachable!("Invalid response");
-    };
+    let (parent, child) =
+        if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
+            let created = response.effects.unwrap().created().to_vec();
+            let owners: BTreeSet<ObjectID> = created
+                .iter()
+                .flat_map(|refe| {
+                    refe.owner
+                        .get_address_owner_address()
+                        .ok()
+                        .map(|x| x.into())
+                })
+                .collect();
+            let child = created
+                .iter()
+                .find(|refe| !owners.contains(&refe.reference.object_id))
+                .unwrap();
+            let parent = created
+                .iter()
+                .find(|refe| owners.contains(&refe.reference.object_id))
+                .unwrap();
+            (parent.reference.clone(), child.reference.clone())
+        } else {
+            unreachable!("Invalid response");
+        };
 
     let receive_result = IotaClientCommands::Call {
         package: (*package_id.object_id).into(),
         module: "tto".to_string(),
         function: "invalid_call_mut_ref".to_string(),
         type_args: vec![],
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         gas_price: None,
         args: vec![
             IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
             IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
         ],
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::Call(response) = receive_result {
+    if let IotaClientCommandResult::TransactionBlock(response) = receive_result {
         assert!(response.effects.unwrap().into_status().is_ok());
     } else {
         unreachable!("Invalid response");
@@ -1417,12 +1495,9 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
@@ -1430,7 +1505,11 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
     // Print it out to CLI/logs
     resp.print(true);
 
-    let obj_ids = if let IotaClientCommandResult::Publish(response) = resp {
+    let obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
         response
             .effects
             .as_ref()
@@ -1485,12 +1564,9 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
     let result = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -1498,7 +1574,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
     let expect = expect![[r#"
         Err(
             ModulePublishFailure {
-                error: "Package dependency \"Unpublished\" does not specify a published address (the Move.toml manifest for \"Unpublished\" does not contain a published-at field).\nIf this is intentional, you may use the --with-unpublished-dependencies flag to continue publishing these dependencies as part of your package (they won't be linked against existing packages on-chain).",
+                error: "Package dependency \"Unpublished\" does not specify a published address (the Move.toml manifest for \"Unpublished\" does not contain a 'published-at' field, nor is there a 'published-id' in the Move.lock).\nIf this is intentional, you may use the --with-unpublished-dependencies flag to continue publishing these dependencies as part of your package (they won't be linked against existing packages on-chain).",
             },
         )
     "#]];
@@ -1531,12 +1607,9 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
     let result = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -1586,12 +1659,9 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
     let result = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -1599,7 +1669,7 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
     let expect = expect![[r#"
         Err(
             ModulePublishFailure {
-                error: "Package dependency \"Invalid\" does not specify a valid published address: could not parse value \"mystery\" for published-at field.",
+                error: "Package dependency \"Invalid\" does not specify a valid published address: could not parse value \"mystery\" for 'published-at' field in Move.toml or 'published-id' in Move.lock file.",
             },
         )
     "#]];
@@ -1628,12 +1698,9 @@ async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Err
     let result = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -1671,12 +1738,9 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
     let result = IotaClientCommands::Publish {
         package_path,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await;
@@ -1726,12 +1790,9 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::Publish {
         package_path: package_path.clone(),
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
@@ -1739,13 +1800,14 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     // Print it out to CLI/logs
     resp.print(true);
 
-    let IotaClientCommandResult::Publish(response) = resp else {
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
         unreachable!("Invalid response");
     };
 
     let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
 
     assert!(effects.status.is_ok());
+    assert_eq!(effects.gas_object().object_id(), gas_obj_id);
     let package = effects
         .created()
         .iter()
@@ -1802,24 +1864,22 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         package_path: upgrade_pkg_path,
         upgrade_capability: cap.reference.object_id,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
     resp.print(true);
 
-    let IotaClientCommandResult::Upgrade(response) = resp else {
-        unreachable!("Invalid upgrade response");
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
+        unreachable!("Invalid response");
     };
     let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
 
     assert!(effects.status.is_ok());
+    assert_eq!(effects.gas_object().object_id(), gas_obj_id);
 
     let obj_ids = effects
         .created()
@@ -1832,6 +1892,263 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         get_parsed_object_assert_existence(obj_id, context).await;
     }
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("dummy_modules_upgrade");
+    let mut build_config = BuildConfig::new_for_testing().config;
+    let resp = IotaClientCommands::Publish {
+        package_path: package_path.clone(),
+        build_config: build_config.clone(),
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(publish_response) = resp else {
+        unreachable!("Invalid response");
+    };
+
+    let IotaTransactionBlockEffects::V1(effects) = publish_response.clone().effects.unwrap();
+
+    assert!(effects.status.is_ok());
+    assert_eq!(effects.gas_object().object_id(), gas_obj_id);
+    let cap = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .unwrap();
+
+    // We will upgrade the package in a `tmp_dir` using the `Move.lock` resulting
+    // from publish, so as not to clobber anything.
+    // The `Move.lock` needs to point to the root directory of the
+    // package-to-be-upgraded. The core implementation does not use support an
+    // arbitrary `lock_file` path specified in `BuildConfig` when the
+    // `Move.lock` file is an input for upgrades, so we change the `BuildConfig`
+    // `lock_file` to point to the root directory of package-to-be-upgraded.
+    let tmp_dir = tempfile::tempdir().unwrap();
+    fs_extra::dir::copy(
+        &package_path,
+        tmp_dir.path(),
+        &fs_extra::dir::CopyOptions::default(),
+    )
+    .unwrap();
+    let mut upgrade_pkg_path = tmp_dir.path().to_path_buf();
+    upgrade_pkg_path.extend(["dummy_modules_upgrade", "Move.toml"]);
+    upgrade_pkg_path.pop();
+    // Place the `Move.lock` after publishing in the tmp dir for upgrading.
+    let published_lock_file_path = build_config.lock_file.clone().unwrap();
+    let mut upgrade_lock_file_path = upgrade_pkg_path.clone();
+    upgrade_lock_file_path.push("Move.lock");
+    std::fs::copy(
+        published_lock_file_path.clone(),
+        upgrade_lock_file_path.clone(),
+    )?;
+    // Point the `BuildConfig` lock_file to the package root.
+    build_config.lock_file = Some(upgrade_pkg_path.join("Move.lock"));
+
+    // Now run the upgrade
+    let upgrade_response = IotaClientCommands::Upgrade {
+        package_path: upgrade_pkg_path,
+        upgrade_capability: cap.reference.object_id,
+        build_config: build_config.clone(),
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await?;
+
+    // Get Original Package ID and version
+    let (expect_original_id, _, _) = get_new_package_obj_from_response(&publish_response)
+        .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
+
+    // Get Upgraded Package ID and version
+    let (expect_upgrade_latest_id, expect_upgrade_version, _) =
+        if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
+            assert_eq!(
+                response.effects.as_ref().unwrap().gas_object().object_id(),
+                gas_obj_id
+            );
+            get_new_package_obj_from_response(&response)
+                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+        } else {
+            unreachable!("Invalid response");
+        };
+
+    // Get lock file that recorded Package ID and version
+    let lock_file = build_config.lock_file.expect("Lock file for testing");
+    let mut lock_file = std::fs::File::open(lock_file).unwrap();
+    let envs = ManagedPackage::read(&mut lock_file).unwrap();
+    let localnet = envs.get("localnet").unwrap();
+    // Original ID should correspond to first published package.
+    assert_eq!(
+        expect_original_id.to_string(),
+        localnet.original_published_id,
+    );
+    // Upgrade ID should correspond to upgraded package.
+    assert_eq!(
+        expect_upgrade_latest_id.to_string(),
+        localnet.latest_published_id,
+    );
+    // Version should correspond to upgraded package.
+    assert_eq!(
+        expect_upgrade_version.value(),
+        localnet.version.parse::<u64>().unwrap(),
+    );
+    Ok(())
+}
+
+#[sim_test]
+async fn test_package_management_on_upgrade_command_conflict() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("dummy_modules_upgrade");
+    let build_config_publish = BuildConfig::new_for_testing().config;
+    let resp = IotaClientCommands::Publish {
+        package_path: package_path.clone(),
+        build_config: build_config_publish.clone(),
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(publish_response) = resp else {
+        unreachable!("Invalid response");
+    };
+
+    let IotaTransactionBlockEffects::V1(effects) = publish_response.clone().effects.unwrap();
+
+    assert!(effects.status.is_ok());
+    assert_eq!(effects.gas_object().object_id(), gas_obj_id);
+    let package = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::Immutable))
+        .unwrap();
+
+    let cap = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .unwrap();
+
+    // Set up a temporary working directory  for upgrading.
+    let tmp_dir = tempfile::tempdir().unwrap();
+    fs_extra::dir::copy(
+        &package_path,
+        tmp_dir.path(),
+        &fs_extra::dir::CopyOptions::default(),
+    )
+    .unwrap();
+    let mut upgrade_pkg_path = tmp_dir.path().to_path_buf();
+    upgrade_pkg_path.extend(["dummy_modules_upgrade", "Move.toml"]);
+    let mut move_toml = std::fs::File::options()
+        .read(true)
+        .write(true)
+        .open(&upgrade_pkg_path)
+        .unwrap();
+    upgrade_pkg_path.pop();
+    let mut buf = String::new();
+    move_toml.read_to_string(&mut buf).unwrap();
+    let mut lines: Vec<String> = buf.split('\n').map(|x| x.to_string()).collect();
+    let idx = lines.iter().position(|s| s == "[package]").unwrap();
+    // Purposely add a conflicting `published-at` address to the Move manifest.
+    lines.insert(idx + 1, "published-at = \"0xbad\"".to_string());
+    let new = lines.join("\n");
+    move_toml.write_at(new.as_bytes(), 0).unwrap();
+
+    // Create a new build config for the upgrade. Initialize its lock file to the
+    // package we published.
+    let build_config_upgrade = BuildConfig::new_for_testing().config;
+    let mut upgrade_lock_file_path = upgrade_pkg_path.clone();
+    upgrade_lock_file_path.push("Move.lock");
+    let publish_lock_file_path = build_config_publish.lock_file.unwrap();
+    std::fs::copy(
+        publish_lock_file_path.clone(),
+        upgrade_lock_file_path.clone(),
+    )?;
+
+    // Now run the upgrade
+    let upgrade_response = IotaClientCommands::Upgrade {
+        package_path: upgrade_pkg_path,
+        upgrade_capability: cap.reference.object_id,
+        build_config: build_config_upgrade.clone(),
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await;
+
+    let err_string = upgrade_response.unwrap_err().to_string();
+    let err_string = err_string.replace(&package.object_id().to_string(), "<elided-for-test>");
+
+    let expect = expect![[r#"
+        Conflicting published package address: `Move.toml` contains published-at address 0x0000000000000000000000000000000000000000000000000000000000000bad but `Move.lock` file contains published-at address <elided-for-test>. You may want to:
+
+                         - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
+                         - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
+                         - check that your `iota active-env` (currently localnet) corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
+                         - contact the maintainer if this package is a dependency and request resolving the conflict."#]];
+    expect.assert_eq(&err_string);
     Ok(())
 }
 
@@ -1864,12 +2181,9 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let obj_id = object_refs.get(1).unwrap().object().unwrap().object_id;
 
     let resp = IotaClientCommands::Transfer {
-        gas: Some(gas_obj_id),
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
         to: KeyIdentity::Address(recipient),
         object_id: obj_id,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
@@ -1878,11 +2192,15 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     resp.print(true);
 
     // Get the mutated objects
-    let (mut_obj1, mut_obj2) = if let IotaClientCommandResult::Transfer(response) = resp {
+    let (mut_obj1, mut_obj2) = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         assert!(
             response.status_ok().unwrap(),
             "Command failed: {:?}",
             response
+        );
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
         );
         (
             response
@@ -1969,12 +2287,9 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let obj_id = object_refs.data.get(1).unwrap().object().unwrap().object_id;
 
     let resp = IotaClientCommands::Transfer {
-        gas: None,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
         to: KeyIdentity::Address(recipient),
         object_id: obj_id,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
@@ -1983,7 +2298,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     resp.print(true);
 
     // Get the mutated objects
-    let (_mut_obj1, _mut_obj2) = if let IotaClientCommandResult::Transfer(response) = resp {
+    let (_mut_obj1, _mut_obj2) = if let IotaClientCommandResult::TransactionBlock(response) = resp {
         (
             response
                 .effects
@@ -2288,15 +2603,13 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::MergeCoin {
         primary_coin,
         coin_to_merge,
-        gas: Some(gas),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(gas), rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC),
     }
     .execute(context)
     .await?;
-    let g = if let IotaClientCommandResult::MergeCoin(r) = resp {
+    let g = if let IotaClientCommandResult::TransactionBlock(r) = resp {
         assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert_eq!(r.effects.as_ref().unwrap().gas_object().object_id(), gas);
         let object_id = r
             .effects
             .as_ref()
@@ -2343,15 +2656,12 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
     let resp = IotaClientCommands::MergeCoin {
         primary_coin,
         coin_to_merge,
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC),
     }
     .execute(context)
     .await?;
 
-    let g = if let IotaClientCommandResult::MergeCoin(r) = resp {
+    let g = if let IotaClientCommandResult::TransactionBlock(r) = resp {
         let object_id = r
             .effects
             .as_ref()
@@ -2406,19 +2716,17 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
     // Test with gas specified
     let resp = IotaClientCommands::SplitCoin {
-        gas: Some(gas),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        opts: OptsWithGas::for_testing(Some(gas), rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
         coin_id: coin,
         amounts: Some(vec![1000, 10]),
         count: None,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let (updated_coin, new_coins) = if let IotaClientCommandResult::SplitCoin(r) = resp {
+    let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
         assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
+        assert_eq!(r.effects.as_ref().unwrap().gas_object().object_id(), gas);
         let updated_object_id = r
             .effects
             .as_ref()
@@ -2474,18 +2782,15 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
     // Test split coin into equal parts
     let resp = IotaClientCommands::SplitCoin {
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
         coin_id: coin,
         amounts: None,
         count: Some(3),
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let (updated_coin, new_coins) = if let IotaClientCommandResult::SplitCoin(r) = resp {
+    let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
         assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
         let updated_object_id = r
             .effects
@@ -2545,18 +2850,15 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
     // Test with no gas specified
     let resp = IotaClientCommands::SplitCoin {
-        gas: None,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
         coin_id: coin,
         amounts: Some(vec![1000, 10]),
         count: None,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
     }
     .execute(context)
     .await?;
 
-    let (updated_coin, new_coins) = if let IotaClientCommandResult::SplitCoin(r) = resp {
+    let (updated_coin, new_coins) = if let IotaClientCommandResult::TransactionBlock(r) = resp {
         assert!(r.status_ok().unwrap(), "Command failed: {:?}", r);
         let updated_object_id = r
             .effects
@@ -2657,10 +2959,13 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     IotaClientCommands::TransferIota {
         to: KeyIdentity::Address(address1),
         iota_coin_object_id: coin,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         amount: Some(1),
-        serialize_unsigned_transaction: true,
-        serialize_signed_transaction: false,
+        opts: Opts {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            dry_run: false,
+            serialize_unsigned_transaction: true,
+            serialize_signed_transaction: false,
+        },
     }
     .execute(context)
     .await?;
@@ -2668,10 +2973,13 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     IotaClientCommands::TransferIota {
         to: KeyIdentity::Address(address1),
         iota_coin_object_id: coin,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         amount: Some(1),
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: true,
+        opts: Opts {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            dry_run: false,
+            serialize_unsigned_transaction: false,
+            serialize_signed_transaction: true,
+        },
     }
     .execute(context)
     .await?;
@@ -2680,13 +2988,38 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     IotaClientCommands::TransferIota {
         to: KeyIdentity::Alias(alias1),
         iota_coin_object_id: coin,
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         amount: Some(1),
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: true,
+        opts: Opts {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            dry_run: false,
+            serialize_unsigned_transaction: false,
+            serialize_signed_transaction: true,
+        },
     }
     .execute(context)
     .await?;
+
+    let ptb_args = vec![
+        "--split-coins".to_string(),
+        "gas".to_string(),
+        "[1000]".to_string(),
+        "--assign".to_string(),
+        "new_coin".to_string(),
+        "--transfer-objects".to_string(),
+        "[new_coin]".to_string(),
+        format!("@{}", address1),
+        "--gas-budget".to_string(),
+        "50000000".to_string(),
+    ];
+    let mut args = ptb_args.clone();
+    args.push("--serialize-signed-transaction".to_string());
+    let ptb = PTB { args };
+    IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
+    let mut args = ptb_args.clone();
+    args.push("--serialize-unsigned-transaction".to_string());
+    let ptb = PTB { args };
+    IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
+
     Ok(())
 }
 
@@ -2882,8 +3215,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
 
 #[tokio::test]
 async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
-    const LINTER_MSG: &str =
-        "Total number of linter warnings suppressed: 5 (filtered categories: 3)";
+    const LINTER_MSG: &str = "Total number of linter warnings suppressed: 5 (unique lints: 3)";
     let mut cmd = assert_cmd::Command::cargo_bin("iota").unwrap();
     let args = vec!["move", "test", "--path", "tests/data/linter"];
     let output = cmd
@@ -2891,7 +3223,10 @@ async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
         .output()
         .expect("failed to run 'iota move test'");
     let out_str = str::from_utf8(&output.stderr).unwrap();
-    assert!(out_str.contains(LINTER_MSG));
+    assert!(
+        out_str.contains(LINTER_MSG),
+        "Expected to match {LINTER_MSG}, got: {out_str}"
+    );
     // test no-lint suppresses
     let args = vec!["move", "test", "--no-lint", "--path", "tests/data/linter"];
     let output = cmd
@@ -2899,7 +3234,10 @@ async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
         .output()
         .expect("failed to run 'iota move test'");
     let out_str = str::from_utf8(&output.stderr).unwrap();
-    assert!(!out_str.contains(LINTER_MSG));
+    assert!(
+        !out_str.contains(LINTER_MSG),
+        "Expected _not to_ match {LINTER_MSG}, got: {out_str}"
+    );
     Ok(())
 }
 
@@ -2932,4 +3270,822 @@ async fn key_identity_test() {
         context.active_address().unwrap(),
         get_identity_address(None, context).unwrap()
     );
+}
+
+fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectID, command: &str) {
+    if let IotaClientCommandResult::DryRun(response) = dry_run {
+        assert_eq!(
+            *response.effects.status(),
+            IotaExecutionStatus::Success,
+            "{command} dry run test effects is not success"
+        );
+        assert_eq!(
+            response.effects.gas_object().object_id(),
+            object_id,
+            "{command} dry run test failed, gas object used is not the expected one"
+        );
+    } else {
+        panic!("{} dry run failed", command);
+    }
+}
+
+#[sim_test]
+async fn test_dry_run() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::full_content(),
+            )),
+            None,
+            None,
+        )
+        .await?;
+
+    let object_id = object_refs
+        .data
+        .first()
+        .unwrap()
+        .object()
+        .unwrap()
+        .object_id;
+    let object_to_send = object_refs.data.get(1).unwrap().object().unwrap().object_id;
+
+    // === TRANSFER === //
+    let transfer_dry_run = IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
+        object_id: object_to_send,
+        opts: OptsWithGas::for_testing_dry_run(
+            Some(object_id),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    assert_dry_run(transfer_dry_run, object_id, "Transfer");
+
+    // === TRANSFER IOTA === //
+    let transfer_iota_dry_run = IotaClientCommands::TransferIota {
+        to: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
+        iota_coin_object_id: object_to_send,
+        amount: Some(1),
+        opts: Opts::for_testing_dry_run(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    assert_dry_run(transfer_iota_dry_run, object_to_send, "TransferIota");
+
+    // === PAY === //
+    let pay_dry_run = IotaClientCommands::Pay {
+        input_coins: vec![object_id],
+        recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
+        amounts: vec![1],
+        opts: OptsWithGas::for_testing_dry_run(None, rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    if let IotaClientCommandResult::DryRun(response) = pay_dry_run {
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+        assert_ne!(response.effects.gas_object().object_id(), object_id);
+    } else {
+        panic!("Pay dry run failed");
+    }
+
+    // specify which gas object to use
+    let gas_coin_id = object_refs.data.last().unwrap().object().unwrap().object_id;
+    let pay_dry_run = IotaClientCommands::Pay {
+        input_coins: vec![object_id],
+        recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
+        amounts: vec![1],
+        opts: OptsWithGas::for_testing_dry_run(
+            Some(gas_coin_id),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    assert_dry_run(pay_dry_run, gas_coin_id, "Pay");
+
+    // === PAY IOTA === //
+    let pay_iota_dry_run = IotaClientCommands::PayIota {
+        input_coins: vec![object_id],
+        recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
+        amounts: vec![1],
+        opts: Opts::for_testing_dry_run(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    assert_dry_run(pay_iota_dry_run, object_id, "PayIota");
+
+    // === PAY ALL IOTA === //
+    let pay_all_iota_dry_run = IotaClientCommands::PayAllIota {
+        input_coins: vec![object_id],
+        recipient: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
+        opts: Opts::for_testing_dry_run(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    assert_dry_run(pay_all_iota_dry_run, object_id, "PayAllIota");
+
+    Ok(())
+}
+
+async fn test_cluster_helper() -> (
+    TestCluster,
+    IotaClient,
+    u64,
+    [ObjectID; 3],
+    [KeyIdentity; 2],
+    [IotaAddress; 2],
+) {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address1 = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await.unwrap();
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address1,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::full_content(),
+            )),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    let object_id1 = object_refs
+        .data
+        .first()
+        .unwrap()
+        .object()
+        .unwrap()
+        .object_id;
+    let object_id2 = object_refs.data.get(1).unwrap().object().unwrap().object_id;
+    let object_id3 = object_refs.data.get(2).unwrap().object().unwrap().object_id;
+    let address2 = IotaAddress::random_for_testing_only();
+    let address3 = IotaAddress::random_for_testing_only();
+    let recipient1 = KeyIdentity::Address(address2);
+    let recipient2 = KeyIdentity::Address(address3);
+
+    (
+        test_cluster,
+        client,
+        rgp,
+        [object_id1, object_id2, object_id3],
+        [recipient1, recipient2],
+        [address2, address3],
+    )
+}
+
+#[sim_test]
+async fn test_pay() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper().await;
+    let (object_id1, object_id2, object_id3) = (objects[0], objects[1], objects[2]);
+    let (recipient1, recipient2) = (&recipients[0], &recipients[1]);
+    let (address2, address3) = (addresses[0], addresses[1]);
+    let context = &mut test_cluster.wallet;
+    let pay = IotaClientCommands::Pay {
+        input_coins: vec![object_id1, object_id2],
+        recipients: vec![recipient1.clone(), recipient2.clone()],
+        amounts: vec![5000, 10000],
+        opts: OptsWithGas::for_testing(Some(object_id1), rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await;
+
+    // we passed the gas object to be one of the input coins, which should fail
+    assert!(pay.is_err());
+
+    let amounts = [5000, 10000];
+    // we expect this to be the gas coin used
+    let pay = IotaClientCommands::Pay {
+        input_coins: vec![object_id1, object_id2],
+        recipients: vec![recipient1.clone(), recipient2.clone()],
+        amounts: amounts.into(),
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    // Pay command takes the input coins and transfers the given amounts from each
+    // input coin (in order) to the recipients
+    // this test checks if the recipients have received the objects, and if the gas
+    // object used is the right one (not one of the input coins, and in this
+    // setup it's the 3rd coin of sender) we also check if the balances are
+    // right!
+    if let IotaClientCommandResult::TransactionBlock(response) = pay {
+        // check tx status
+        assert!(response.status_ok().unwrap());
+        // check gas coin used
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            object_id3
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address2,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        assert_eq!(
+            client
+                .coin_read_api()
+                .get_balance(address2, None)
+                .await?
+                .total_balance,
+            amounts[0] as u128
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address3,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(response.status_ok().unwrap());
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        assert_eq!(
+            client
+                .coin_read_api()
+                .get_balance(address3, None)
+                .await?
+                .total_balance,
+            amounts[1] as u128
+        );
+    } else {
+        panic!("Pay test failed");
+    }
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_pay_iota() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper().await;
+    let (object_id1, object_id2) = (objects[0], objects[1]);
+    let (recipient1, recipient2) = (&recipients[0], &recipients[1]);
+    let (address2, address3) = (addresses[0], addresses[1]);
+    let context = &mut test_cluster.wallet;
+    let amounts = [1000, 5000];
+    let pay_iota = IotaClientCommands::PayIota {
+        input_coins: vec![object_id1, object_id2],
+        recipients: vec![recipient1.clone(), recipient2.clone()],
+        amounts: amounts.into(),
+        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    // pay iota takes the input coins and transfers from each of them (in order) the
+    // amounts to the respective receipients.
+    // check if each recipient has one object, if the tx status is success,
+    // and if the gas object used was the first object in the input coins
+    // we also check if the balances of each recipient are right!
+    if let IotaClientCommandResult::TransactionBlock(response) = pay_iota {
+        assert!(response.status_ok().unwrap());
+        // check gas coin used
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            object_id1
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address2,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        assert_eq!(
+            client
+                .coin_read_api()
+                .get_balance(address2, None)
+                .await?
+                .total_balance,
+            amounts[0] as u128
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address3,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(response.status_ok().unwrap());
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        assert_eq!(
+            client
+                .coin_read_api()
+                .get_balance(address3, None)
+                .await?
+                .total_balance,
+            amounts[1] as u128
+        );
+    } else {
+        panic!("PayIota test failed");
+    }
+    Ok(())
+}
+
+#[sim_test]
+async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper().await;
+    let (object_id1, object_id2) = (objects[0], objects[1]);
+    let recipient1 = &recipients[0];
+    let address2 = addresses[0];
+    let context = &mut test_cluster.wallet;
+    let pay_all_iota = IotaClientCommands::PayAllIota {
+        input_coins: vec![object_id1, object_id2],
+        recipient: recipient1.clone(),
+        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    // pay all iota will take the input coins and smash them into one coin and
+    // transfer that coin to the recipient, so we check that the recipient has
+    // one object, if the tx status is success, and if the gas object used was
+    // the first object in the input coins
+    if let IotaClientCommandResult::TransactionBlock(response) = pay_all_iota {
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address2,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(response.status_ok().unwrap());
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        assert_eq!(
+            response.effects.unwrap().gas_object().object_id(),
+            object_id1
+        );
+    } else {
+        panic!("PayAllIota test failed");
+    }
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_transfer() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper().await;
+    let (object_id1, object_id2) = (objects[0], objects[1]);
+    let recipient1 = &recipients[0];
+    let address2 = addresses[0];
+    let context = &mut test_cluster.wallet;
+    let transfer = IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(address2),
+        object_id: object_id1,
+        opts: OptsWithGas::for_testing(Some(object_id1), rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await;
+
+    // passed the gas object to be the object to transfer, which should fail
+    assert!(transfer.is_err());
+
+    let transfer = IotaClientCommands::Transfer {
+        to: recipient1.clone(),
+        object_id: object_id1,
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+    // transfer command will transfer the object_id1 to address2, and use object_id2
+    // as gas we check if object1 is owned by address 2 and if the gas object
+    // used is object_id2
+    if let IotaClientCommandResult::TransactionBlock(response) = transfer {
+        assert!(response.status_ok().unwrap());
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            object_id2
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address2,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        assert_eq!(
+            objs_refs.data.first().unwrap().object().unwrap().object_id,
+            object_id1
+        );
+    } else {
+        panic!("Transfer test failed");
+    }
+    Ok(())
+}
+
+#[sim_test]
+async fn test_transfer_iota() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper().await;
+    let object_id1 = objects[0];
+    let recipient1 = &recipients[0];
+    let address2 = addresses[0];
+    let context = &mut test_cluster.wallet;
+    let amount = 1000;
+    let transfer_iota = IotaClientCommands::TransferIota {
+        to: KeyIdentity::Address(address2),
+        iota_coin_object_id: object_id1,
+        amount: Some(amount),
+        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+
+    // transfer iota will transfer the amount from object_id1 to address2, and use
+    // the same object as gas, and we check if the recipient address received
+    // the object, and the expected balance is correct
+    if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota {
+        assert!(response.status_ok().unwrap());
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            object_id1
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address2,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(objs_refs.data.len(), 1);
+        let balance = client
+            .coin_read_api()
+            .get_balance(address2, None)
+            .await?
+            .total_balance;
+        assert_eq!(balance, amount as u128);
+    } else {
+        panic!("TransferIota test failed");
+    }
+    // transfer the whole object by not passing an amount
+    let transfer_iota = IotaClientCommands::TransferIota {
+        to: recipient1.clone(),
+        iota_coin_object_id: object_id1,
+        amount: None,
+        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+    if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota {
+        assert!(response.status_ok().unwrap());
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            object_id1
+        );
+        let objs_refs = client
+            .read_api()
+            .get_owned_objects(
+                address2,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        assert!(!objs_refs.has_next_page);
+        assert_eq!(
+            objs_refs.data.len(),
+            2,
+            "Expected to have two coins when calling transfer iota the 2nd time"
+        );
+        assert!(
+            objs_refs
+                .data
+                .iter()
+                .any(|x| x.object().unwrap().object_id == object_id1)
+        );
+    } else {
+        panic!("TransferIota test failed");
+    }
+    Ok(())
+}
+
+#[sim_test]
+async fn test_gas_estimation() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, client, rgp, objects, _, addresses) = test_cluster_helper().await;
+    let object_id1 = objects[0];
+    let address2 = addresses[0];
+    let context = &mut test_cluster.wallet;
+    let amount = 1000;
+    let sender = context.active_address().unwrap();
+    let tx_builder = client.transaction_builder();
+    let tx_kind = tx_builder.transfer_iota_tx_kind(address2, Some(amount));
+    let gas_estimate = estimate_gas_budget(&client, sender, tx_kind, rgp, None, None).await;
+    assert!(gas_estimate.is_ok());
+
+    let transfer_iota_cmd = IotaClientCommands::TransferIota {
+        to: KeyIdentity::Address(address2),
+        iota_coin_object_id: object_id1,
+        amount: Some(amount),
+        opts: Opts {
+            gas_budget: None,
+            dry_run: false,
+            serialize_unsigned_transaction: false,
+            serialize_signed_transaction: false,
+        },
+    }
+    .execute(context)
+    .await
+    .unwrap();
+    if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota_cmd {
+        assert!(response.status_ok().unwrap());
+        let gas_used = response.effects.as_ref().unwrap().gas_object().object_id();
+        assert_eq!(gas_used, object_id1);
+        assert!(
+            response
+                .effects
+                .as_ref()
+                .unwrap()
+                .gas_cost_summary()
+                .gas_used()
+                <= gas_estimate.unwrap()
+        );
+    } else {
+        panic!("TransferIota test failed");
+    }
+    Ok(())
+}
+
+#[sim_test]
+async fn test_clever_errors() -> Result<(), anyhow::Error> {
+    // Publish the package
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("clever_errors");
+    let build_config = BuildConfig::new_for_testing().config;
+    let resp = IotaClientCommands::Publish {
+        package_path: package_path.clone(),
+        build_config,
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+    }
+    .execute(context)
+    .await?;
+
+    // Print it out to CLI/logs
+    resp.print(true);
+
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
+        unreachable!("Invalid response");
+    };
+
+    let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
+
+    assert!(effects.status.is_ok());
+    assert_eq!(effects.gas_object().object_id(), gas_obj_id);
+    let package = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::Immutable))
+        .unwrap();
+
+    let elide_transaction_digest = |s: String| -> String {
+        let mut x = s.splitn(5, '\'').collect::<Vec<_>>();
+        x[1] = "ELIDED_TRANSACTION_DIGEST";
+        let tmp = format!("ELIDED_ADDRESS{}", &x[3][66..]);
+        x[3] = &tmp;
+        x.join("'")
+    };
+
+    // Normal abort
+    let non_clever_abort = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "clever_errors".to_string(),
+        function: "aborter".to_string(),
+        type_args: vec![],
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        gas_price: None,
+        args: vec![],
+    }
+    .execute(context)
+    .await
+    .unwrap_err();
+
+    // Line-only abort
+    let line_only_abort = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "clever_errors".to_string(),
+        function: "aborter_line_no".to_string(),
+        type_args: vec![],
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        gas_price: None,
+        args: vec![],
+    }
+    .execute(context)
+    .await
+    .unwrap_err();
+
+    // Full clever error with utf-8 string
+    let clever_error_utf8 = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "clever_errors".to_string(),
+        function: "clever_aborter".to_string(),
+        type_args: vec![],
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        gas_price: None,
+        args: vec![],
+    }
+    .execute(context)
+    .await
+    .unwrap_err();
+
+    // Full clever error with non-utf-8 string
+    let clever_error_non_utf8 = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "clever_errors".to_string(),
+        function: "clever_aborter_not_a_string".to_string(),
+        type_args: vec![],
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        gas_price: None,
+        args: vec![],
+    }
+    .execute(context)
+    .await
+    .unwrap_err();
+
+    let error_string = format!(
+        "Non-clever-abort\n---\n{}\n---\nLine-only-abort\n---\n{}\n---\nClever-error-utf8\n---\n{}\n---\nClever-error-non-utf8\n---\n{}\n---\n",
+        elide_transaction_digest(non_clever_abort.to_string()),
+        elide_transaction_digest(line_only_abort.to_string()),
+        elide_transaction_digest(clever_error_utf8.to_string()),
+        elide_transaction_digest(clever_error_non_utf8.to_string())
+    );
+
+    insta::assert_snapshot!(error_string);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_move_build_bytecode_with_address_resolution() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+
+    // Package setup: a simple package depends on another and copied to tmpdir
+    let mut simple_package_path = PathBuf::from(TEST_DATA_DIR);
+    simple_package_path.push("simple");
+
+    let mut depends_on_simple_package_path = PathBuf::from(TEST_DATA_DIR);
+    depends_on_simple_package_path.push("depends_on_simple");
+
+    let tmp_dir = tempfile::tempdir().unwrap();
+
+    fs_extra::dir::copy(
+        &simple_package_path,
+        &tmp_dir,
+        &fs_extra::dir::CopyOptions::default(),
+    )?;
+
+    fs_extra::dir::copy(
+        &depends_on_simple_package_path,
+        &tmp_dir,
+        &fs_extra::dir::CopyOptions::default(),
+    )?;
+
+    // Publish simple package.
+    let simple_tmp_dir = tmp_dir.path().join("simple");
+    test_with_iota_binary(&[
+        "client",
+        "--client.config",
+        config_path.to_str().unwrap(),
+        "publish",
+        simple_tmp_dir.to_str().unwrap(),
+    ])
+    .await?;
+
+    // Build the package that depends on 'simple' package. Addresses must resolve
+    // successfully from the `Move.lock` for this command to succeed at all.
+    let depends_on_simple_tmp_dir = tmp_dir.path().join("depends_on_simple");
+    test_with_iota_binary(&[
+        "move",
+        "--client.config",
+        config_path.to_str().unwrap(),
+        "build",
+        "--dump-bytecode-as-base64",
+        "--path",
+        depends_on_simple_tmp_dir.to_str().unwrap(),
+    ])
+    .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_parse_host_port() {
+    let input = "127.0.0.0";
+    let result = parse_host_port(input.to_string(), 9123).unwrap();
+    assert_eq!(result, "127.0.0.0:9123".parse::<SocketAddr>().unwrap());
+
+    let input = "127.0.0.5:9124";
+    let result = parse_host_port(input.to_string(), 9123).unwrap();
+    assert_eq!(result, "127.0.0.5:9124".parse::<SocketAddr>().unwrap());
+
+    let input = "9090";
+    let result = parse_host_port(input.to_string(), 9123).unwrap();
+    assert_eq!(result, "0.0.0.0:9090".parse::<SocketAddr>().unwrap());
+
+    let input = "";
+    let result = parse_host_port(input.to_string(), 9123).unwrap();
+    assert_eq!(result, "0.0.0.0:9123".parse::<SocketAddr>().unwrap());
+
+    let result = parse_host_port("localhost".to_string(), 9899).unwrap();
+    assert_eq!(result, "127.0.0.1:9899".parse::<SocketAddr>().unwrap());
+
+    let input = "asg";
+    assert!(parse_host_port(input.to_string(), 9123).is_err());
+    let input = "127.0.0:900";
+    assert!(parse_host_port(input.to_string(), 9123).is_err());
+    let input = "127.0.0";
+    assert!(parse_host_port(input.to_string(), 9123).is_err());
+    let input = "127.";
+    assert!(parse_host_port(input.to_string(), 9123).is_err());
+    let input = "127.9.0.1:asb";
+    assert!(parse_host_port(input.to_string(), 9123).is_err());
 }

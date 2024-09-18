@@ -9,7 +9,8 @@ use tabled::{
     settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
 
-use crate::client_ptb::{displays::Pretty, ptb::Summary};
+use crate::{client_ptb::ptb::Summary, displays::Pretty};
+
 impl<'a> Display for Pretty<'a, Summary> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut builder = TableBuilder::default();
