@@ -3,41 +3,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { WalletWithRequiredFeatures } from '@iota/wallet-standard';
-
-import { useWallets } from '../../../hooks/wallet/useWallets.js';
-import { getWalletUniqueIdentifier } from '../../../utils/walletUtils.js';
-import { IotaIcon } from '../../icons/IotaIcon.js';
-import * as styles from './WalletList.css.js';
 import { WalletListItem } from './WalletListItem.js';
+import { getWalletUniqueIdentifier } from '../../../utils/walletUtils.js';
 
-type WalletListProps = {
+interface WalletListProps {
     selectedWalletName?: string;
-    onPlaceholderClick: () => void;
     onSelect: (wallet: WalletWithRequiredFeatures) => void;
-};
+    wallets: WalletWithRequiredFeatures[];
+}
 
-export function WalletList({ selectedWalletName, onPlaceholderClick, onSelect }: WalletListProps) {
-    const wallets = useWallets();
+export function WalletList({ selectedWalletName, onSelect, wallets }: WalletListProps) {
     return (
-        <ul className={styles.container}>
-            {wallets.length > 0 ? (
-                wallets.map((wallet) => (
-                    <WalletListItem
-                        key={getWalletUniqueIdentifier(wallet)}
-                        name={wallet.name}
-                        icon={wallet.icon}
-                        isSelected={getWalletUniqueIdentifier(wallet) === selectedWalletName}
-                        onClick={() => onSelect(wallet)}
-                    />
-                ))
-            ) : (
+        <>
+            {wallets.map((wallet) => (
                 <WalletListItem
-                    name="Iota Wallet"
-                    icon={<IotaIcon />}
-                    onClick={onPlaceholderClick}
-                    isSelected
+                    key={getWalletUniqueIdentifier(wallet)}
+                    name={wallet.name}
+                    icon={wallet.icon}
+                    isSelected={getWalletUniqueIdentifier(wallet) === selectedWalletName}
+                    onClick={() => onSelect(wallet)}
                 />
-            )}
-        </ul>
+            ))}
+        </>
     );
 }

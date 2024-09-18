@@ -2,36 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { clsx } from 'clsx';
-import type { ReactNode } from 'react';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageShape,
+    ImageType,
+} from '@iota/apps-ui-kit';
 
-import { Heading } from '../../ui/Heading.js';
-import * as styles from './WalletListItem.css.js';
-
-type WalletListItemProps = {
+interface WalletListItemProps {
     name: string;
-    icon: ReactNode;
+    icon: React.ReactNode;
     isSelected?: boolean;
     onClick: () => void;
-};
+}
 
-export function WalletListItem({ name, icon, onClick, isSelected = false }: WalletListItemProps) {
+export function WalletListItem({ name, icon, isSelected, onClick }: WalletListItemProps) {
     return (
-        <li className={styles.container}>
-            <button
-                className={clsx(styles.walletItem, { [styles.selectedWalletItem]: isSelected })}
-                type="button"
-                onClick={onClick}
-            >
-                {typeof icon === 'string' ? (
-                    <img className={styles.walletIcon} src={icon} alt={`${name} logo`} />
-                ) : (
-                    icon
-                )}
-                <Heading size="md" truncate asChild>
-                    <div>{name}</div>
-                </Heading>
-            </button>
-        </li>
+        <Card type={!isSelected ? CardType.Default : CardType.Filled} onClick={onClick}>
+            <CardImage type={ImageType.Placeholder} shape={ImageShape.SquareRounded}>
+                {typeof icon === 'string' ? <img src={icon} alt={`${name} logo`} /> : icon}
+            </CardImage>
+            <CardBody title={name} />
+            <CardAction type={CardActionType.Link} />
+        </Card>
     );
 }
