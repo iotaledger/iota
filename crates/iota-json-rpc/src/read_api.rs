@@ -1348,6 +1348,17 @@ fn convert_to_response(
         response.transaction = Some(tx_block);
     }
 
+    if opts.show_raw_effects {
+        let raw_effects = cache
+            .effects
+            .as_ref()
+            .map(|tx_effects| bcs::to_bytes(tx_effects))
+            .transpose()
+            .map_err(|e| anyhow!("Failed to serialize raw effects with error: {e}"))?
+            .unwrap_or_default();
+        response.raw_effects = raw_effects;
+    }
+
     if opts.show_effects && cache.effects.is_some() {
         let effects = cache.effects.unwrap().try_into().map_err(|e| {
             anyhow!(
@@ -1372,6 +1383,7 @@ fn convert_to_response(
     if opts.show_object_changes {
         response.object_changes = cache.object_changes;
     }
+
     Ok(response)
 }
 
