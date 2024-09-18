@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 #[allow(dead_code)]
 #[cfg(feature = "pg_integration")]
 pub mod pg_integration {
