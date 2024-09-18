@@ -129,20 +129,7 @@ export function ModuleFunction({
                     >
                         Execute
                     </Button>
-                    <ConnectButton
-                        connectText={
-                            <>
-                                Connect Wallet
-                                <ArrowRight12 fill="currentColor" className="-rotate-45" />
-                            </>
-                        }
-                        className={clsx(
-                            '!rounded-md !text-bodySmall',
-                            currentAccount
-                                ? '!border !border-solid !border-steel !bg-white !font-mono !text-hero-dark !shadow-sm !shadow-ebony/5'
-                                : '!flex !flex-nowrap !items-center !gap-1 !bg-iota-dark !font-sans !text-iota-light hover:!bg-iota-dark hover:!text-white',
-                        )}
-                    />
+                    <ConnectButton />
                 </div>
                 {execute.error || execute.data ? (
                     <FunctionExecutionResult
