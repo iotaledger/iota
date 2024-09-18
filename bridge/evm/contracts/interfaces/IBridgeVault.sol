@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: MIT
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 /// @title IBridgeVault
