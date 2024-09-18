@@ -23,17 +23,12 @@ use move_core_types::{
 };
 
 use crate::{
-
-use crate::{
-    db::PgConnectionPool,
     errors::{Context, IndexerError},
-    models::large_objects::{get_large_object_in_chunks, put_large_object_in_chunks},
     schema::transactions,
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
-#[derive(Clone, Debug, Queryable, Insertable, QueryableByName)]
 #[diesel(table_name = transactions)]
 pub struct StoredTransaction {
     /// The index of the transaction in the global ordering that starts

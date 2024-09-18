@@ -10,9 +10,9 @@ use iota_json_rpc_api::{BridgeReadApiOpenRpc, BridgeReadApiServer, JsonRpcMetric
 use iota_open_rpc::Module;
 use iota_types::bridge::{get_bridge_obj_initial_shared_version, BridgeSummary, BridgeTrait};
 use jsonrpsee::{core::RpcResult, RpcModule};
-use tracing::{info, instrument};
+use tracing::instrument;
 
-use crate::{authority_state::StateRead, error::Error, with_tracing, IotaRpcModule};
+use crate::{authority_state::StateRead, error::Error, logger::FutureWithTracing, IotaRpcModule};
 
 #[derive(Clone)]
 pub struct BridgeReadApi {
@@ -30,18 +30,20 @@ impl BridgeReadApi {
 impl BridgeReadApiServer for BridgeReadApi {
     #[instrument(skip(self))]
     async fn get_latest_bridge(&self) -> RpcResult<BridgeSummary> {
-        with_tracing!(async move {
+        async move {
             self.state
                 .get_bridge()
                 .map_err(Error::from)?
                 .try_into_bridge_summary()
                 .map_err(Error::from)
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_bridge_object_initial_shared_version(&self) -> RpcResult<u64> {
-        with_tracing!(async move {
+        async move {
             Ok(
                 get_bridge_obj_initial_shared_version(self.state.get_object_store())?
                     .ok_or(Error::UnexpectedError(
@@ -49,7 +51,9 @@ impl BridgeReadApiServer for BridgeReadApi {
                     ))?
                     .into(),
             )
-        })
+        }
+        .trace()
+        .await
     }
 }
 

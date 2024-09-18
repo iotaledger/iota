@@ -81,7 +81,7 @@ pub async fn main() -> anyhow::Result<()> {
     }
 
     let app_state_copy = app_state.clone();
-    let server = serve(app_state_copy).await?;
+    let server = tokio::spawn(async { serve(app_state_copy).await });
     threads.push(server);
     info!("serving on {}", host_port());
     for t in threads {

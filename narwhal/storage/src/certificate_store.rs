@@ -712,7 +712,7 @@ mod test {
         reopen,
         rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     };
-    use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+    use test_utils::{temp_dir, CommitteeFixture};
     use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
 
     use crate::{certificate_store::CertificateStore, Cache, CertificateStoreCache};
@@ -823,28 +823,23 @@ mod test {
     fn certificates(rounds: u64) -> Vec<Certificate> {
         let fixture = CommitteeFixture::builder().build();
         let committee = fixture.committee();
-        let mut current_round: Vec<_> =
-            Certificate::genesis(&latest_protocol_version(), &committee)
-                .into_iter()
-                .map(|cert| cert.header().clone())
-                .collect();
+        let mut current_round: Vec<_> = Certificate::genesis(&committee)
+            .into_iter()
+            .map(|cert| cert.header().clone())
+            .collect();
 
         let mut result: Vec<Certificate> = Vec::new();
         for i in 0..rounds {
             let parents: BTreeSet<_> = current_round
                 .iter()
-                .map(|header| {
-                    fixture
-                        .certificate(&latest_protocol_version(), header)
-                        .digest()
-                })
+                .map(|header| fixture.certificate(header).digest())
                 .collect();
-            (_, current_round) = fixture.headers_round(i, &parents, &latest_protocol_version());
+            (_, current_round) = fixture.headers_round(i, &parents);
 
             result.extend(
                 current_round
                     .iter()
-                    .map(|h| fixture.certificate(&latest_protocol_version(), h))
+                    .map(|h| fixture.certificate(h))
                     .collect::<Vec<Certificate>>(),
             );
         }

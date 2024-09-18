@@ -1,21 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use std::{path::PathBuf, sync::Arc, time::Instant};
-
+use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use iota_config::{ConsensusConfig, NodeConfig};
+use iota_config::{node::ConsensusProtocol, ConsensusConfig, NodeConfig};
 use iota_metrics::RegistryService;
-use iota_protocol_config::ProtocolVersion;
-use iota_types::committee::EpochId;
+use iota_protocol_config::{ConsensusChoice, ProtocolVersion};
+use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
+use narwhal_worker::LazyNarwhalClient;
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::{
+    sync::{Mutex, MutexGuard},
+    time::{sleep, timeout},
+};
+use tracing::{debug, info};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    consensus_adapter::SubmitToConsensus,
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{
         mysticeti_manager::MysticetiManager,
@@ -34,19 +44,12 @@ pub(crate) enum Running {
     False,
 }
 
-/// An enum to easily differentiate between the chosen consensus engine
-#[enum_dispatch]
-pub enum ConsensusManager {
-    Narwhal(NarwhalManager),
-    Mysticeti(MysticetiManager),
-}
-
 #[async_trait]
-#[enum_dispatch(ConsensusManager)]
+#[enum_dispatch(ProtocolManager)]
 pub trait ConsensusManagerTrait {
     async fn start(
         &self,
-        config: &NodeConfig,
+        node_config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
         tx_validator: IotaTxValidator,
@@ -55,16 +58,23 @@ pub trait ConsensusManagerTrait {
     async fn shutdown(&self);
 
     async fn is_running(&self) -> bool;
-
-    fn get_storage_base_path(&self) -> PathBuf;
 }
 
-impl ConsensusManager {
-    /// Create a new narwhal manager and wrap it around the Manager enum
+// Wraps the underlying consensus protocol managers to make calling
+// the ConsensusManagerTrait easier.
+#[enum_dispatch]
+enum ProtocolManager {
+    Narwhal(NarwhalManager),
+    Mysticeti(MysticetiManager),
+}
+
+impl ProtocolManager {
+    /// Creates a new narwhal manager.
     pub fn new_narwhal(
         config: &NodeConfig,
         consensus_config: &ConsensusConfig,
         registry_service: &RegistryService,
+        metrics: Arc<ConsensusManagerMetrics>,
     ) -> Self {
         let narwhal_config = NarwhalConfiguration {
             primary_keypair: config.protocol_key_pair().copy(),
@@ -74,28 +84,240 @@ impl ConsensusManager {
             parameters: consensus_config.narwhal_config().to_owned(),
             registry_service: registry_service.clone(),
         };
-
-        let metrics = ConsensusManagerMetrics::new(&registry_service.default_registry());
-
         Self::Narwhal(NarwhalManager::new(narwhal_config, metrics))
     }
 
+    /// Creates a new mysticeti manager.
     pub fn new_mysticeti(
         config: &NodeConfig,
         consensus_config: &ConsensusConfig,
         registry_service: &RegistryService,
+        metrics: Arc<ConsensusManagerMetrics>,
         client: Arc<LazyMysticetiClient>,
     ) -> Self {
-        let metrics = ConsensusManagerMetrics::new(&registry_service.default_registry());
-
         Self::Mysticeti(MysticetiManager::new(
             config.worker_key_pair().copy(),
             config.network_key_pair().copy(),
             consensus_config.db_path().to_path_buf(),
-            metrics,
             registry_service.clone(),
+            metrics,
             client,
         ))
+    }
+}
+
+/// Used by Iota validator to start consensus protocol for each epoch.
+pub struct ConsensusManager {
+    consensus_config: ConsensusConfig,
+    narwhal_manager: ProtocolManager,
+    mysticeti_manager: ProtocolManager,
+    narwhal_client: Arc<LazyNarwhalClient>,
+    mysticeti_client: Arc<LazyMysticetiClient>,
+    active: parking_lot::Mutex<Vec<bool>>,
+    consensus_client: Arc<ConsensusClient>,
+}
+
+impl ConsensusManager {
+    pub fn new(
+        node_config: &NodeConfig,
+        consensus_config: &ConsensusConfig,
+        registry_service: &RegistryService,
+        consensus_client: Arc<ConsensusClient>,
+    ) -> Self {
+        let metrics = Arc::new(ConsensusManagerMetrics::new(
+            &registry_service.default_registry(),
+        ));
+        let narwhal_client = Arc::new(LazyNarwhalClient::new(
+            consensus_config.address().to_owned(),
+        ));
+        let narwhal_manager = ProtocolManager::new_narwhal(
+            node_config,
+            consensus_config,
+            registry_service,
+            metrics.clone(),
+        );
+        let mysticeti_client = Arc::new(LazyMysticetiClient::new());
+        let mysticeti_manager = ProtocolManager::new_mysticeti(
+            node_config,
+            consensus_config,
+            registry_service,
+            metrics,
+            mysticeti_client.clone(),
+        );
+        Self {
+            consensus_config: consensus_config.clone(),
+            narwhal_manager,
+            mysticeti_manager,
+            narwhal_client,
+            mysticeti_client,
+            active: parking_lot::Mutex::new(vec![false; 2]),
+            consensus_client,
+        }
+    }
+
+    pub fn get_storage_base_path(&self) -> PathBuf {
+        self.consensus_config.db_path().to_path_buf()
+    }
+
+    // Picks the consensus protocol based on the protocol config and the epoch.
+    pub fn get_consensus_protocol_in_epoch(
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> ConsensusProtocol {
+        let protocol_config = epoch_store.protocol_config();
+        if protocol_config.version >= ProtocolVersion::new(36) {
+            if let Ok(consensus_choice) = std::env::var("CONSENSUS") {
+                match consensus_choice.to_lowercase().as_str() {
+                    "narwhal" => return ConsensusProtocol::Narwhal,
+                    "mysticeti" => return ConsensusProtocol::Mysticeti,
+                    "swap_each_epoch" => {
+                        let protocol = if epoch_store.epoch() % 2 == 0 {
+                            ConsensusProtocol::Narwhal
+                        } else {
+                            ConsensusProtocol::Mysticeti
+                        };
+                        return protocol;
+                    }
+                    _ => {
+                        debug!(
+                            "Invalid consensus choice {} in env var. Continue to pick consensus with protocol config",
+                            consensus_choice
+                        );
+                    }
+                };
+            }
+        }
+
+        match protocol_config.consensus_choice() {
+            ConsensusChoice::Narwhal => ConsensusProtocol::Narwhal,
+            ConsensusChoice::Mysticeti => ConsensusProtocol::Mysticeti,
+            ConsensusChoice::SwapEachEpoch => {
+                if epoch_store.epoch() % 2 == 0 {
+                    ConsensusProtocol::Narwhal
+                } else {
+                    ConsensusProtocol::Mysticeti
+                }
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl ConsensusManagerTrait for ConsensusManager {
+    async fn start(
+        &self,
+        node_config: &NodeConfig,
+        epoch_store: Arc<AuthorityPerEpochStore>,
+        consensus_handler_initializer: ConsensusHandlerInitializer,
+        tx_validator: IotaTxValidator,
+    ) {
+        let protocol_manager = {
+            let mut active = self.active.lock();
+            active.iter().enumerate().for_each(|(index, active)| {
+                assert!(
+                    !*active,
+                    "Cannot start consensus. ConsensusManager protocol {index} is already running"
+                );
+            });
+            let protocol = Self::get_consensus_protocol_in_epoch(&epoch_store);
+            info!("Starting consensus protocol {protocol:?} ...");
+            match protocol {
+                ConsensusProtocol::Narwhal => {
+                    active[0] = true;
+                    self.consensus_client.set(self.narwhal_client.clone());
+                    &self.narwhal_manager
+                }
+                ConsensusProtocol::Mysticeti => {
+                    active[1] = true;
+                    self.consensus_client.set(self.mysticeti_client.clone());
+                    &self.mysticeti_manager
+                }
+            }
+        };
+
+        protocol_manager
+            .start(
+                node_config,
+                epoch_store,
+                consensus_handler_initializer,
+                tx_validator,
+            )
+            .await
+    }
+
+    async fn shutdown(&self) {
+        let prev_active = {
+            let mut active = self.active.lock();
+            std::mem::replace(&mut *active, vec![false; 2])
+        };
+        if prev_active[0] {
+            self.narwhal_manager.shutdown().await;
+        }
+        if prev_active[1] {
+            self.mysticeti_manager.shutdown().await;
+        }
+        self.consensus_client.clear();
+    }
+
+    async fn is_running(&self) -> bool {
+        let active = self.active.lock();
+        active.iter().any(|i| *i)
+    }
+}
+
+#[derive(Default)]
+pub struct ConsensusClient {
+    // An extra layer of Arc<> is needed as required by ArcSwapAny.
+    client: ArcSwapOption<Arc<dyn SubmitToConsensus>>,
+}
+
+impl ConsensusClient {
+    pub fn new() -> Self {
+        Self {
+            client: ArcSwapOption::empty(),
+        }
+    }
+
+    async fn get(&self) -> Arc<Arc<dyn SubmitToConsensus>> {
+        const START_TIMEOUT: Duration = Duration::from_secs(30);
+        const RETRY_INTERVAL: Duration = Duration::from_millis(100);
+        if let Ok(client) = timeout(START_TIMEOUT, async {
+            loop {
+                let Some(client) = self.client.load_full() else {
+                    sleep(RETRY_INTERVAL).await;
+                    continue;
+                };
+                return client;
+            }
+        })
+        .await
+        {
+            return client;
+        }
+
+        panic!(
+            "Timed out after {:?} waiting for Consensus to start!",
+            START_TIMEOUT,
+        );
+    }
+
+    pub fn set(&self, client: Arc<dyn SubmitToConsensus>) {
+        self.client.store(Some(Arc::new(client)));
+    }
+
+    pub fn clear(&self) {
+        self.client.store(None);
+    }
+}
+
+#[async_trait]
+impl SubmitToConsensus for ConsensusClient {
+    async fn submit_to_consensus(
+        &self,
+        transactions: &[ConsensusTransaction],
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult {
+        let client = self.get().await;
+        client.submit_to_consensus(transactions, epoch_store).await
     }
 }
 

@@ -43,7 +43,7 @@ pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPack
 
     // Step 4: Compile the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let compiled_package = BuildConfig::default().build(package_path)?;
+    let compiled_package = BuildConfig::default().build(&package_path)?;
 
     // Clean up the temporary directory
     tmp_dir.close()?;

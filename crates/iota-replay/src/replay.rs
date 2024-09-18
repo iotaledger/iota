@@ -39,7 +39,7 @@ use iota_types::{
         SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
         TransactionKind::ProgrammableTransaction, VerifiedTransaction,
     },
-    DEEPBOOK_PACKAGE_ID, IOTA_DENY_LIST_OBJECT_ID,
+    IOTA_DENY_LIST_OBJECT_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;

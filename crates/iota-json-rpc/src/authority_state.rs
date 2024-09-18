@@ -12,7 +12,7 @@ use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
     authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
-    execution_cache::{ExecutionCacheRead, ObjectCacheRead},
+    execution_cache::ObjectCacheRead,
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{

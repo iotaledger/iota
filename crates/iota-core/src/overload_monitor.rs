@@ -13,6 +13,7 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
+use iota_metrics::monitored_scope;
 use iota_types::{
     digests::TransactionDigest,
     error::{IotaError, IotaResult},
@@ -23,10 +24,6 @@ use tracing::{debug, info};
 use twox_hash::XxHash64;
 
 use crate::authority::AuthorityState;
-
-#[cfg(test)]
-#[path = "unit_tests/overload_monitor_tests.rs"]
-pub mod overload_monitor_tests;
 
 #[derive(Default)]
 pub struct AuthorityOverloadInfo {
@@ -84,6 +81,7 @@ fn check_authority_overload(
     authority_state: &Weak<AuthorityState>,
     config: &AuthorityOverloadConfig,
 ) -> bool {
+    let _scope = monitored_scope("OverloadMonitor::check_authority_overload");
     let authority_arc = authority_state.upgrade();
     if authority_arc.is_none() {
         // `authority_state` doesn't exist anymore.
@@ -433,6 +431,8 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     pub async fn test_check_authority_overload() {
+        telemetry_subscribers::init_for_testing();
+
         let config = AuthorityOverloadConfig {
             safe_transaction_ready_rate: 0,
             ..Default::default()
@@ -442,12 +442,16 @@ mod tests {
             .build()
             .await;
 
+        // Initialize latency reporter.
+        for _ in 0..1000 {
+            state
+                .metrics
+                .execution_queueing_latency
+                .report(Duration::from_secs(20));
+        }
+
         // Creates a simple case to see if authority state overload_info can be updated
         // correctly by check_authority_overload.
-        state
-            .metrics
-            .execution_queueing_latency
-            .report(Duration::from_secs(20));
         let authority = Arc::downgrade(&state);
         assert!(check_authority_overload(&authority, &config));
         assert!(state.overload_info.is_overload.load(Ordering::Relaxed));

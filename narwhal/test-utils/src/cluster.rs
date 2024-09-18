@@ -425,7 +425,7 @@ impl WorkerNodeDetails {
         worker_cache: WorkerCache,
     ) -> Self {
         let registry_service = RegistryService::new(Registry::new());
-        let node = WorkerNode::new(id, latest_protocol_version(), parameters, registry_service);
+        let node = WorkerNode::new(id, parameters, registry_service);
 
         Self {
             id,

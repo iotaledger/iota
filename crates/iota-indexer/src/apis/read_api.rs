@@ -4,17 +4,12 @@
 
 use async_trait::async_trait;
 use diesel::r2d2::R2D2Connection;
-use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
-use iota_json_rpc_api::{ReadApiServer, QUERY_MAX_RESULT_LIMIT};
-use iota_json_rpc_types::{
-    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
+
 use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
 use iota_json_rpc_api::{internal_error, ReadApiServer, QUERY_MAX_RESULT_LIMIT};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaLoadedChildObjectsResponse, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
     IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     ProtocolConfigResponse,
 };

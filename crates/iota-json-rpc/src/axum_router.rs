@@ -12,7 +12,6 @@ use axum::{
     extract::{ConnectInfo, Json, State},
     response::Response,
 };
-use futures::StreamExt;
 use hyper::{header::HeaderValue, HeaderMap};
 use iota_core::traffic_controller::{
     metrics::TrafficControllerMetrics, policies::TrafficTally, TrafficController,
@@ -259,7 +258,7 @@ async fn handle_traffic_req(
     if !traffic_controller.check(client, &None).await {
         // Entity in blocklist
         let err_obj =
-            ErrorObject::borrowed(ErrorCode::ServerIsBusy.code(), &TOO_MANY_REQUESTS_MSG, None);
+            ErrorObject::borrowed(ErrorCode::ServerIsBusy.code(), TOO_MANY_REQUESTS_MSG, None);
         Err(MethodResponse::error(Id::Null, err_obj))
     } else {
         Ok(())
@@ -271,7 +270,7 @@ fn handle_traffic_resp(
     client: Option<IpAddr>,
     response: &MethodResponse,
 ) {
-    let error = response.error_code.map(ErrorCode::from);
+    let error = response.as_error_code().map(ErrorCode::from);
     traffic_controller.tally(TrafficTally {
         direct: client,
         through_fullnode: None,
