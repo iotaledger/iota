@@ -11,6 +11,7 @@ import {
     TableRowCheckbox,
     TableCellText,
     TableActionButton,
+    TableHeaderCheckbox,
 } from '@/lib';
 import { useState } from 'react';
 
@@ -69,7 +70,19 @@ const meta = {
             <div className="container mx-auto p-4">
                 <Table {...props} selectedRowIndexes={selectedRows}>
                     <TableHeader>
-                        <TableRow>
+                        <TableRow
+                            leading={
+                                <TableHeaderCheckbox
+                                    onCheckboxChange={(checked) => {
+                                        if (checked) {
+                                            setSelectedRows(new Set(props.rowIndexes));
+                                        } else {
+                                            setSelectedRows(new Set());
+                                        }
+                                    }}
+                                />
+                            }
+                        >
                             {HEADERS.map((header, index) => (
                                 <TableHeaderCell key={index} {...header} />
                             ))}
