@@ -10,13 +10,13 @@ import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 type ConnectButtonProps = ComponentProps<typeof Button>;
 
-export function ConnectButton({ text = 'Connect Wallet', ...buttonProps }: ConnectButtonProps) {
+export function ConnectButton({ text = 'Connect', ...buttonProps }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
     return currentAccount ? (
         <AccountDropdownMenu currentAccount={currentAccount} />
     ) : (
         <ConnectModal
-            trigger={<Button text={text} type={ButtonType.Outlined} {...buttonProps} />}
+            trigger={<Button text={text} type={ButtonType.Secondary} {...buttonProps} />}
         />
     );
 }
