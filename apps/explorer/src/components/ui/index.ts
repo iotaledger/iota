@@ -13,7 +13,6 @@ export * from './Card';
 export * from './CoinsStack';
 export * from './CopyToClipboard';
 export * from './DateCard';
-export * from './DateFilter';
 export * from './Description';
 export * from './DescriptionList';
 export * from './DisclosureBox';
