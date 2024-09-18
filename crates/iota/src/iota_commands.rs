@@ -589,27 +589,6 @@ async fn start(
     fullnode_rpc_port: u16,
     no_full_node: bool,
 ) -> Result<(), anyhow::Error> {
-    // // Resolve the configuration directory.
-    // let config_dir = config_dir.map_or_else(iota_config_dir, Ok)?;
-
-    // let network_config_path = config_dir.clone().join(IOTA_NETWORK_CONFIG);
-    // // Auto genesis if no configuration exists in the configuration directory.
-    // if !network_config_path.exists() {
-    //     genesis(
-    //         None,
-    //         None,
-    //         Some(config_dir.clone()),
-    //         false,
-    //         None,
-    //         None,
-    //         false,
-    //         DEFAULT_NUMBER_OF_AUTHORITIES,
-    //         Default::default(),
-    //         Default::default(),
-    //     )
-    //     .await?;
-    // }
-
     if force_regenesis {
         ensure!(
             config.is_none(),
@@ -649,7 +628,12 @@ async fn start(
         );
     }
 
+    // Resolve the configuration directory.
+    let config = config.map_or_else(iota_config_dir, Ok)?;
+    let network_config_path = config.clone().join(IOTA_NETWORK_CONFIG);
+
     let mut swarm_builder = Swarm::builder();
+
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
@@ -660,8 +644,21 @@ async fn start(
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
     } else {
-        if config.is_none() && !iota_config_dir()?.join(IOTA_NETWORK_CONFIG).exists() {
-            genesis(None, None, None, false, epoch_duration_ms, None, false).await?;
+        // Auto genesis if no configuration exists in the configuration directory.
+        if !network_config_path.exists() {
+            genesis(
+                None,
+                None,
+                Some(config_dir.clone()),
+                false,
+                epoch_duration_ms,
+                None,
+                false,
+                DEFAULT_NUMBER_OF_AUTHORITIES,
+                Default::default(),
+                Default::default(),
+            )
+            .await?;
         }
 
         // Load the config of the Iota authority.
