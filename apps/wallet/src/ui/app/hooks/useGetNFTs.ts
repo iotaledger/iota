@@ -47,15 +47,12 @@ export function useGetNFTs(address?: string | null) {
 
         const groupedAssets = data?.pages
             .flatMap((page) => page.data)
-            .filter(
-                (asset) => asset.data?.objectId && !hiddenAssetIds.includes(asset.data?.objectId),
-            )
             .reduce((acc, curr) => {
-                if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
-                    acc.visual.push(curr.data as IotaObjectData);
-                if (!hasDisplayData(curr)) acc.other.push(curr.data as IotaObjectData);
                 if (curr.data?.objectId && hiddenAssetIds.includes(curr.data?.objectId))
                     acc.hidden.push(curr.data as IotaObjectData);
+                else if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
+                    acc.visual.push(curr.data as IotaObjectData);
+                else if (!hasDisplayData(curr)) acc.other.push(curr.data as IotaObjectData);
                 return acc;
             }, ownedAssets);
         return groupedAssets;
