@@ -10,7 +10,7 @@ import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 type ConnectButtonProps = React.ComponentProps<typeof Button>;
 
-export function ConnectButton({ text = 'Connect Wallet', ...buttonProps }: ConnectButtonProps) {
+export function ConnectButton({ text = 'Connect', ...buttonProps }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
     const [isModalOpen, setModalOpen] = useState(false);
 
@@ -19,12 +19,7 @@ export function ConnectButton({ text = 'Connect Wallet', ...buttonProps }: Conne
     ) : (
         <>
             <ConnectModal isModalOpen={isModalOpen} onOpenChange={(open) => setModalOpen(open)} />
-            <Button
-                text={text}
-                type={ButtonType.Outlined}
-                {...buttonProps}
-                onClick={() => setModalOpen(!isModalOpen)}
-            />
+            <Button text={text} type={ButtonType.Secondary} {...buttonProps} />
         </>
     );
 }

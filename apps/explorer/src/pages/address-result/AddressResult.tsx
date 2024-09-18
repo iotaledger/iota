@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useParams } from 'react-router-dom';
-
 import {
     ErrorBoundary,
     OwnedCoins,
@@ -11,11 +10,10 @@ import {
     PageLayout,
     TransactionsForAddress,
 } from '~/components';
-import { Divider, PageHeader, SplitPanes } from '~/components/ui';
-
+import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
-import { Panel, Title, Divider as DividerUI } from '@iota/apps-ui-kit';
+import { Panel, Title, Divider } from '@iota/apps-ui-kit';
 import { TotalStaked } from './TotalStaked';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
@@ -33,7 +31,7 @@ function AddressResult({ address }: { address: string }): JSX.Element {
         <>
             <Panel>
                 <Title title="Owned Objects" />
-                <DividerUI />
+                <Divider />
                 <div className="flex flex-col gap-2xl">
                     <OwnedObjectsPanel address={address} />
                 </div>

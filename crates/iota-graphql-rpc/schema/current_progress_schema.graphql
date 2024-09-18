@@ -1338,6 +1338,10 @@ type GenesisTransaction {
 	Objects to be created during genesis.
 	"""
 	objects(first: Int, after: String, last: Int, before: String): ObjectConnection!
+	"""
+	Events emitted during genesis.
+	"""
+	events(first: Int, after: String, last: Int, before: String): EventConnection!
 }
 
 

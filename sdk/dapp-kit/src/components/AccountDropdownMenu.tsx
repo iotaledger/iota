@@ -8,9 +8,8 @@ import { useAccounts } from '../hooks/wallet/useAccounts.js';
 import { useDisconnectWallet } from '../hooks/wallet/useDisconnectWallet.js';
 import { useSwitchAccount } from '../hooks/wallet/useSwitchAccount.js';
 import { CheckIcon } from './icons/CheckIcon.js';
-import { Text } from './ui/Text.js';
-import { Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { Checkmark } from '@iota/ui-icons';
+import { Divider, ListItem, Button, ButtonType } from '@iota/apps-ui-kit';
+import { ArrowDown, ArrowUp } from '@iota/ui-icons';
 import { useState } from 'react';
 
 type AccountDropdownMenuProps = {
@@ -30,29 +29,38 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
         switchAccount({ account });
     }
 
-    return !isDropdownOpen ? (
-        <ListItem onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
-            <div className="flex flex-row gap-xxs">
-                <span>{currentAccount.label ?? formatAddress(currentAccount.address)}</span>
-                <Checkmark />
-            </div>
-        </ListItem>
-    ) : (
-        <Dropdown>
-            <>
-                {accounts.map((account) => (
-                    <ListItem onClick={() => handleOnClick(account)}>
-                        <>
-                            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
-                            {currentAccount.address === account.address ? <CheckIcon /> : null}
-                        </>
+    return (
+        <div className="relative">
+            <Button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                type={isDropdownOpen ? ButtonType.Secondary : ButtonType.Outlined}
+                text={currentAccount.label ?? formatAddress(currentAccount.address)}
+                iconAfterText
+                icon={isDropdownOpen ? <ArrowUp /> : <ArrowDown />}
+                fullWidth
+            />
+            {isDropdownOpen && (
+                <div className="absolute top-[110%] right-0 w-60 border bg-shader-neutral-light-8 dark:bg-shader-neutral-dark-8 bg-neutral-100 dark:bg-neutral-6 rounded-lg py-xs">
+                    {accounts.map((account) => (
+                        <ListItem
+                            key={account.address}
+                            onClick={() => handleOnClick(account)}
+                            hideBottomBorder
+                        >
+                            <>
+                                <span className="text-body-lg text-neutra-10 dark:text-neutral-92">
+                                    {account.label ?? formatAddress(account.address)}
+                                </span>
+                                {currentAccount.address === account.address ? <CheckIcon /> : null}
+                            </>
+                        </ListItem>
+                    ))}
+                    <Divider />
+                    <ListItem onClick={() => disconnectWallet()} hideBottomBorder>
+                        <span>Disconnect</span>
                     </ListItem>
-                ))}
-                <Divider />
-                <ListItem onClick={() => disconnectWallet()}>
-                    <span>Disconnect</span>
-                </ListItem>
-            </>
-        </Dropdown>
+                </div>
+            )}
+        </div>
     );
 }
