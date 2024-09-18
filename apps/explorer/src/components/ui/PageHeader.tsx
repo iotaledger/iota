@@ -2,10 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Address, Badge, BadgeType, InfoBox, InfoBoxType, Panel } from '@iota/apps-ui-kit';
-import { Globe, Info } from '@iota/ui-icons';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { Badge, BadgeType, InfoBox, InfoBoxStyle, InfoBoxType, Panel } from '@iota/apps-ui-kit';
+import { Copy, Flag, Globe, Warning } from '@iota/ui-icons';
 import { Placeholder } from '@iota/ui';
+import { useCopyToClipboard } from '@iota/core';
+import toast from 'react-hot-toast';
+import { useEffect, useState } from 'react';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
@@ -19,6 +21,16 @@ export interface PageHeaderProps {
     loading?: boolean;
 }
 
+const TYPE_TO_ICON: Record<PageHeaderType, React.ComponentType<{ className?: string }> | null> = {
+    Transaction: null,
+    Checkpoint: Flag,
+    Object: null,
+    Package: null,
+    Address: Globe,
+};
+
+const TIMEOUT_TIMER = 2000;
+
 export function PageHeader({
     title,
     subtitle,
@@ -28,11 +40,31 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
+    const [copied, setCopied] = useState(false);
+
+    const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
+    const Icon = TYPE_TO_ICON[type];
+
+    const handleCopy = async () => {
+        await copyToClipBoard(title);
+        setCopied(true);
+    };
+
+    useEffect(() => {
+        if (copied) {
+            const timeout = setTimeout(() => {
+                setCopied(false);
+            }, TIMEOUT_TIMER);
+
+            return () => clearTimeout(timeout);
+        }
+    }, [copied]);
+
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">
-                <div className="flex w-full flex-row items-center justify-between gap-xs">
-                    <div className="flex w-1/2 flex-col gap-xxs sm:w-3/4">
+                <div className="flex w-full flex-col items-start justify-between gap-sm md:flex-row md:items-center">
+                    <div className="flex w-full flex-col gap-xxs md:w-3/4">
                         {loading ? (
                             <Placeholder rounded="xl" width="50%" height="10px" />
                         ) : (
@@ -56,11 +88,11 @@ export function PageHeader({
                                 )}
                                 {title && (
                                     <div className="flex items-center gap-xxs text-neutral-40 dark:text-neutral-60">
-                                        <Globe />
-                                        <Address
-                                            text={formatAddress(title)}
-                                            isCopyable
-                                            copyText={title}
+                                        {Icon && <Icon className="shrink-0" />}
+                                        <span className="break-all text-body-ds-lg">{title}</span>
+                                        <Copy
+                                            onClick={handleCopy}
+                                            className="shrink-0 cursor-pointer"
                                         />
                                     </div>
                                 )}
@@ -70,11 +102,14 @@ export function PageHeader({
                                     </span>
                                 )}
                                 {error && (
-                                    <InfoBox
-                                        title={error}
-                                        icon={<Info />}
-                                        type={InfoBoxType.Default}
-                                    />
+                                    <div className="mt-xs--rs flex">
+                                        <InfoBox
+                                            title={error}
+                                            icon={<Warning />}
+                                            type={InfoBoxType.Warning}
+                                            style={InfoBoxStyle.Elevated}
+                                        />
+                                    </div>
                                 )}
                             </>
                         )}
