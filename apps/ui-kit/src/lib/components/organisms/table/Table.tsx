@@ -3,7 +3,7 @@
 
 import { PropsWithChildren, ReactNode } from 'react';
 import cx from 'classnames';
-import { TableRowType, TableProvider, useTableContext, TableProviderProps } from './TableContext';
+import { TableProvider, useTableContext } from './TableContext';
 import {
     Button,
     ButtonProps,
@@ -64,6 +64,10 @@ export type TableProps = {
      */
     supportingLabel?: string;
     /**
+     * Numeric indexes of the selected rows.
+     */
+    selectedRowIndexes?: Set<number>;
+    /**
      * Numeric indexes of all the rows.
      */
     rowIndexes: number[];
@@ -73,17 +77,12 @@ export function Table({
     paginationOptions,
     action,
     supportingLabel,
-    onRowCheckboxChange,
-    onHeaderCheckboxChange,
+    selectedRowIndexes = new Set(),
     rowIndexes,
     children,
-}: PropsWithChildren<TableProps & TableProviderProps>): JSX.Element {
+}: PropsWithChildren<TableProps>): JSX.Element {
     return (
-        <TableProvider
-            onRowCheckboxChange={onRowCheckboxChange}
-            onHeaderCheckboxChange={onHeaderCheckboxChange}
-            rowIndexes={rowIndexes}
-        >
+        <TableProvider selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
             <div className="w-full">
                 <div className="overflow-auto">
                     <table className="w-full table-auto">{children}</table>
@@ -148,7 +147,7 @@ export function TableHeader({ children }: PropsWithChildren): JSX.Element {
 export function TableRow({
     children,
     leading,
-}: PropsWithChildren<{ leading?: React.JSX.Element }>): JSX.Element {
+}: PropsWithChildren<{ leading?: React.ReactNode }>): JSX.Element {
     return (
         <tr>
             {leading}
@@ -165,45 +164,43 @@ export function TableBody({ children }: PropsWithChildren): JSX.Element {
 }
 
 export function TableRowCheckbox({
-    type,
     rowIndex,
+    onCheckboxChange,
 }: {
-    type: TableRowType;
-    rowIndex?: number;
+    rowIndex: number;
+    onCheckboxChange: (checked: boolean) => void;
 }): React.JSX.Element {
-    const {
-        toggleHeaderChecked,
-        toggleRowChecked,
-        rowsChecked,
-        isHeaderChecked,
-        isHeaderIndeterminate,
-    } = useTableContext();
-
-    if (type === TableRowType.Header) {
-        return (
-            <TableHeaderCell
-                isContentCentered
-                hasCheckbox
-                onCheckboxChange={(event) => {
-                    toggleHeaderChecked(event.target.checked);
-                }}
-                isChecked={isHeaderChecked}
-                columnKey={1}
-                isIndeterminate={isHeaderIndeterminate}
-            />
-        );
-    }
+    const { selectedRowIndexes } = useTableContext();
 
     return (
         <TableCellBase isContentCentered>
             <Checkbox
                 onCheckedChange={(event) => {
-                    if (rowIndex !== undefined) {
-                        toggleRowChecked?.(event.target.checked, rowIndex);
-                    }
+                    onCheckboxChange(event.target.checked);
                 }}
-                isChecked={rowIndex !== undefined && rowsChecked.has(rowIndex)}
+                isChecked={selectedRowIndexes.has(rowIndex)}
             />
         </TableCellBase>
+    );
+}
+
+export function TableHeaderCheckbox({
+    onCheckboxChange,
+}: {
+    onCheckboxChange: (checked: boolean) => void;
+}): JSX.Element {
+    const { isHeaderChecked, isHeaderIndeterminate } = useTableContext();
+
+    return (
+        <TableHeaderCell
+            isContentCentered
+            hasCheckbox
+            onCheckboxChange={(event) => {
+                onCheckboxChange(event.target.checked);
+            }}
+            isChecked={isHeaderChecked}
+            columnKey={1}
+            isIndeterminate={isHeaderIndeterminate}
+        />
     );
 }

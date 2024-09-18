@@ -12,7 +12,7 @@ import {
     TableCellText,
     TableActionButton,
 } from '@/lib';
-import { TableRowType } from '@/lib/components/organisms/table/TableContext';
+import { useState } from 'react';
 
 const HEADERS = [
     {
@@ -63,23 +63,11 @@ const DATA = [
 const meta = {
     component: Table,
     tags: ['autodocs'],
-    args: {
-        onRowCheckboxChange: (value, index, values) =>
-            console.log(
-                'Checked checkbox at index:',
-                index,
-                'with value:',
-                value,
-                'table values:',
-                values,
-            ),
-        onHeaderCheckboxChange: (value) =>
-            console.log('Checked header checkbox with value:', value),
-    },
     render: (props) => {
+        const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
         return (
             <div className="container mx-auto p-4">
-                <Table {...props}>
+                <Table {...props} selectedRowIndexes={selectedRows}>
                     <TableHeader>
                         <TableRow>
                             {HEADERS.map((header, index) => (
@@ -94,7 +82,26 @@ const meta = {
                                 leading={
                                     <TableRowCheckbox
                                         rowIndex={rowIndex}
-                                        type={TableRowType.Body}
+                                        onCheckboxChange={(checked) => {
+                                            setSelectedRows((selectedRows) => {
+                                                if (checked) {
+                                                    selectedRows.add(rowIndex);
+                                                } else {
+                                                    selectedRows.delete(rowIndex);
+                                                }
+
+                                                console.log(
+                                                    'Checked checkbox at index:',
+                                                    rowIndex,
+                                                    'with value:',
+                                                    checked,
+                                                    'table values:',
+                                                    selectedRows,
+                                                );
+
+                                                return new Set(selectedRows);
+                                            });
+                                        }}
                                     />
                                 }
                             >
