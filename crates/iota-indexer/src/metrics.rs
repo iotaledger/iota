@@ -313,6 +313,8 @@ impl IndexerMetrics {
             db_commit_lag_ms: register_int_gauge_with_registry!(
                 "db_commit_lag_ms",
                 "Lag of the latest checkpoint in milliseconds",
+                registry,
+            ).unwrap(),
             latest_move_call_metrics_tx_seq: register_int_gauge_with_registry!(
                 "latest_move_call_metrics_tx_seq",
                 "Latest move call metrics tx seq",

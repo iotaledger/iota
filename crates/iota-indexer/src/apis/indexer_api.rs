@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::IotaRpcModule;
-use iota_json_rpc_api::{cap_page_limit, internal_error, IndexerApiServer};
+use iota_json_rpc_api::{cap_page_limit, error_object_from_rpc, internal_error, IndexerApiServer};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaObjectData, IotaObjectDataOptions,
     IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, ObjectsPage,
@@ -15,34 +15,27 @@ use iota_open_rpc::Module;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldName, Field},
+    dynamic_field::DynamicFieldName,
     error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
     TypeTag,
 };
 use jsonrpsee::{
-    core::RpcResult,
-    types::{SubscriptionEmptyError, SubscriptionResult},
-    RpcModule, SubscriptionSink,
+    core::{client::Error as RpcClientError, RpcResult, SubscriptionResult},
+    PendingSubscriptionSink, RpcModule,
 };
 use tap::TapFallible;
 
-use crate::{indexer_reader::IndexerReader, IndexerError};
-
-
+use crate::indexer_reader::IndexerReader;
 
 pub(crate) struct IndexerApi<T: R2D2Connection + 'static> {
     inner: IndexerReader<T>,
-    name_service_config: NameServiceConfig,
 }
 
 impl<T: R2D2Connection + 'static> IndexerApi<T> {
-    pub fn new(inner: IndexerReader<T>, name_service_config: NameServiceConfig) -> Self {
-        Self {
-            inner,
-            name_service_config,
-        }
+    pub fn new(inner: IndexerReader<T>) -> Self {
+        Self { inner }
     }
 
     async fn get_owned_objects_internal(
@@ -65,76 +58,29 @@ impl<T: R2D2Connection + 'static> IndexerApi<T> {
                 object.try_into_object_read(self.inner.package_resolver()),
             ));
         }
-        let mut objects = futures::future::join_all(object_futures)
+        let mut objects = futures::future::try_join_all(object_futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!("Error joining object read futures.");
-                jsonrpsee::core::Error::Custom(format!("Error joining object read futures. {}", e))
-            })?
+                RpcClientError::Custom(format!("Error joining object read futures. {e}"))
+            })
+            .map_err(error_object_from_rpc)?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error converting object to object read: {}", e))?;
+            .tap_err(|e| tracing::error!("Error converting object to object read: {e}"))?;
         let has_next_page = objects.len() > limit;
         objects.truncate(limit);
 
         let next_cursor = objects.last().map(|o_read| o_read.object_id());
-        let mut parallel_tasks = Vec::with_capacity(objects.len());
-        async fn check_read_obj(
-            obj: ObjectRead,
-            reader: IndexerReader,
-            options: IotaObjectDataOptions,
-        ) -> anyhow::Result<IotaObjectResponse> {
-            match obj {
-                ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                    IotaObjectResponseError::NotExists { object_id: id },
-                )),
-                ObjectRead::Exists(object_ref, o, layout) => {
-                    if options.show_display {
-                        match reader.get_display_fields(&o, &layout).await {
-                            Ok(rendered_fields) => {
-                                Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
-                                    object_ref,
-                                    o,
-                                    layout,
-                                    options,
-                                    rendered_fields,
-                                )?))
-                            }
-                            Err(e) => Ok(IotaObjectResponse::new(
-                                Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
-                                Some(IotaObjectResponseError::DisplayError {
-                                    error: e.to_string(),
-                                }),
-                            )),
-                        }
-                    } else {
-                        Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
-                            object_ref, o, layout, options, None,
-                        )?))
-                    }
-                }
-                ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                    IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                        object_id,
-                        version,
-                        digest,
-                    }),
-                ),
-            }
-        }
-        for obj in objects {
-            parallel_tasks.push(tokio::task::spawn(check_read_obj(
-                obj,
+        let construct_response_tasks = objects.into_iter().map(|object| {
+            tokio::task::spawn(construct_object_response(
+                object,
                 self.inner.clone(),
                 options.clone(),
-            )));
-        }
-        let data = futures::future::join_all(parallel_tasks)
+            ))
+        });
+        let data = futures::future::try_join_all(construct_response_tasks)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(internal_error)?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
@@ -145,6 +91,44 @@ impl<T: R2D2Connection + 'static> IndexerApi<T> {
             next_cursor,
             has_next_page,
         })
+    }
+}
+
+async fn construct_object_response<T: R2D2Connection + 'static>(
+    obj: ObjectRead,
+    reader: IndexerReader<T>,
+    options: IotaObjectDataOptions,
+) -> anyhow::Result<IotaObjectResponse> {
+    match obj {
+        ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::NotExists { object_id: id },
+        )),
+        ObjectRead::Exists(object_ref, o, layout) => {
+            if options.show_display {
+                match reader.get_display_fields(&o, &layout).await {
+                    Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
+                        IotaObjectData::new(object_ref, o, layout, options, rendered_fields)?,
+                    )),
+                    Err(e) => Ok(IotaObjectResponse::new(
+                        Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
+                        Some(IotaObjectResponseError::DisplayError {
+                            error: e.to_string(),
+                        }),
+                    )),
+                }
+            } else {
+                Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                    object_ref, o, layout, options, None,
+                )?))
+            }
+        }
+        ObjectRead::Deleted((object_id, version, digest)) => Ok(
+            IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
+                object_id,
+                version,
+                digest,
+            }),
+        ),
     }
 }
 
@@ -255,10 +239,7 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        let name_bcs_value = self
-            .inner
-            .bcs_name_from_dynamic_field_name_in_blocking_task(&name)
-            .await?;
+        let name_bcs_value = self.inner.bcs_name_from_dynamic_field_name(&name).await?;
 
         // Try as Dynamic Field
         let id = iota_types::dynamic_field::derive_dynamic_field_id(
@@ -310,18 +291,21 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
         ))
     }
 
-    fn subscribe_event(&self, _sink: SubscriptionSink, _filter: EventFilter) -> SubscriptionResult {
-        Err(SubscriptionEmptyError)
+    fn subscribe_event(
+        &self,
+        _sink: PendingSubscriptionSink,
+        _filter: EventFilter,
+    ) -> SubscriptionResult {
+        Err("empty subscription".into())
     }
 
     fn subscribe_transaction(
         &self,
-        _sink: SubscriptionSink,
+        _sink: PendingSubscriptionSink,
         _filter: TransactionFilter,
     ) -> SubscriptionResult {
-        Err(SubscriptionEmptyError)
+        Err("empty subscription".into())
     }
-
 }
 
 impl<T: R2D2Connection> IotaRpcModule for IndexerApi<T> {

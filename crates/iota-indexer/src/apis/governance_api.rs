@@ -53,7 +53,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
             self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let exchange_rate_table = exchange_rates(self, system_state_summary).await?;
+        let exchange_rate_table = exchange_rates(self, &system_state_summary).await?;
 
         let apys = iota_json_rpc::governance_api::calculate_apys(exchange_rate_table);
 
@@ -216,7 +216,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, system_state_summary)
+        let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
             .map(|rates| (rates.pool_id, rates))
@@ -293,7 +293,7 @@ fn stake_status(
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
 #[cached(
-    ty = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
+    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
     convert = "{ system_state_summary.epoch }",
     result = true
@@ -386,7 +386,7 @@ async fn exchange_rates(
 
 /// Cache a map representing the validators' APYs for this epoch
 #[cached(
-    ty = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
+    type = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
     create = "{ SizedCache::with_size(1) }",
     convert = " {apys.epoch} "
 )]

@@ -12,7 +12,6 @@ use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
-use iota_types::base_types::{IotaAddress, ObjectID};
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
@@ -173,23 +172,8 @@ pub async fn build_json_rpc_server<T: R2D2Connection>(
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
     let http_client = crate::get_http_client(config.rpc_client_url.as_str())?;
 
-    let name_service_config =
-        if let (Some(package_address), Some(registry_id), Some(reverse_registry_id)) = (
-            config.name_service_package_address,
-            config.name_service_registry_id,
-            config.name_service_reverse_registry_id,
-        ) {
-            iota_json_rpc::name_service::NameServiceConfig::new(
-                package_address,
-                registry_id,
-                reverse_registry_id,
-            )
-        } else {
-            iota_json_rpc::name_service::NameServiceConfig::default()
-        };
-
     builder.register_module(WriteApi::new(http_client.clone()))?;
-    builder.register_module(IndexerApi::new(reader.clone(), name_service_config))?;
+    builder.register_module(IndexerApi::new(reader.clone()))?;
     builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;

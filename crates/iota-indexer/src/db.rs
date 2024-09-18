@@ -206,7 +206,7 @@ pub mod setup_postgres {
         errors::IndexerError,
         indexer::Indexer,
         metrics::IndexerMetrics,
-        store::PgIndexerStore,
+        store::{PgIndexerAnalyticalStore, PgIndexerStore},
         IndexerConfig,
     };
 

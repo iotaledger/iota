@@ -10,13 +10,15 @@
 use diesel::{
     define_sql_function,
     pg::sql_types::Oid,
+    r2d2::R2D2Connection,
     select,
     sql_types::{BigInt, Binary, Integer, Nullable},
     PgConnection, RunQueryDsl,
 };
+use downcast::Any;
 
 use crate::{
-    db::PgConnectionPool,
+    db::{ConnectionPool, PoolConnection},
     errors::{Context, IndexerError},
 };
 
@@ -52,13 +54,17 @@ pub fn create_large_object(conn: &mut PgConnection) -> Result<u32, IndexerError>
 /// Store raw data as a large object in chunks.
 ///
 /// Returns the object identifier (`oid`) represented as `u32`.
-pub fn put_large_object_in_chunks(
+pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
     data: Vec<u8>,
     chunk_size: usize,
-    pool: &PgConnectionPool,
+    pool: &ConnectionPool<T>,
 ) -> Result<u32, IndexerError> {
-    let mut conn = crate::db::get_pg_pool_connection(pool)?;
-    let oid = create_large_object(&mut conn)?;
+    let mut conn = crate::db::get_pool_connection(pool)?;
+    let pool_conn = conn
+        .as_any_mut()
+        .downcast_mut::<PoolConnection<diesel::PgConnection>>()
+        .unwrap();
+    let oid = create_large_object(pool_conn)?;
 
     if let Err(err) = i64::try_from(data.len()) {
         return Err(IndexerError::GenericError(err.to_string()));
@@ -72,7 +78,7 @@ pub fn put_large_object_in_chunks(
         //
         // additionally we could apply a backoff retry strategy
         select(lo_put(oid, offset, chunk))
-            .execute(&mut conn)
+            .execute(pool_conn)
             .map_err(IndexerError::from)
             .context("failed to insert large object chunk")?;
     }
@@ -80,14 +86,18 @@ pub fn put_large_object_in_chunks(
 }
 
 /// Get a large object from the database in chunks.
-pub fn get_large_object_in_chunks(
+pub fn get_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
     oid: u32,
     chunk_size: usize,
-    pool: &PgConnectionPool,
+    pool: &ConnectionPool<T>,
 ) -> Result<Vec<u8>, IndexerError> {
-    let mut conn = crate::db::get_pg_pool_connection(pool)?;
-    let mut chunk_num = 0;
+    let mut conn = crate::db::get_pool_connection(pool)?;
+    let pool_conn = conn
+        .as_any_mut()
+        .downcast_mut::<PoolConnection<diesel::PgConnection>>()
+        .unwrap();
     let mut data: Vec<u8> = vec![];
+    let mut chunk_num = 0;
     loop {
         let length =
             i32::try_from(chunk_size).map_err(|e| IndexerError::GenericError(e.to_string()))?;
@@ -96,7 +106,7 @@ pub fn get_large_object_in_chunks(
         tracing::trace!("Fetching large-object chunk at offset {}", offset);
 
         let chunk = select(lo_get(oid, Some(offset), Some(length)))
-            .get_result::<Vec<u8>>(&mut conn)
+            .get_result::<Vec<u8>>(pool_conn)
             .map_err(IndexerError::from)
             .context("failed to query large object chunk")?;
 
