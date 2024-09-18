@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
 use axum::{extract::State, Extension, Json};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{
@@ -19,6 +20,9 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
+    signature_verification::{
+        verify_sender_signed_data_message_signatures, VerifiedDigestCache,
+    },
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -119,7 +123,15 @@ pub async fn combine(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
         )?],
     );
-    signed_tx.verify_signature(&VerifyParams::default())?;
+    // TODO: this will likely fail with zklogin authenticator, since we do not know the current epoch.
+    // As long as coinbase doesn't need to use zklogin for custodial wallets this is okay.
+    let place_holder_epoch = 0;
+    verify_sender_signed_data_message_signatures(
+        &signed_tx,
+        place_holder_epoch,
+        &VerifyParams::default(),
+        Arc::new(VerifiedDigestCache::new_empty()), // no need to use cache in rosetta
+    )?;
     let signed_tx_bytes = bcs::to_bytes(&signed_tx)?;
 
     Ok(ConstructionCombineResponse {
