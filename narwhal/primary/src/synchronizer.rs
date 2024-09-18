@@ -650,6 +650,7 @@ impl Synchronizer {
     /// potentially return early. This helps to verify consistency, and has
     /// little extra cost because fetched certificates usually are not
     /// suspended.
+    #[cfg(test)]
     pub async fn try_accept_fetched_certificate(&self, certificate: Certificate) -> DagResult<()> {
         let _scope = monitored_scope("Synchronizer::try_accept_fetched_certificate");
         self.process_certificate_internal(certificate, false, false)
