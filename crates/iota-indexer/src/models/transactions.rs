@@ -118,62 +118,59 @@ impl StoredTransaction {
                 ))
             })?;
 
-        let transaction = if options.show_input {
-            let sender_signed_data = self.try_into_sender_signed_data()?;
-            let tx_block = IotaTransactionBlock::try_from(sender_signed_data, module)?;
-            Some(tx_block)
-        } else {
-            None
-        };
+        let transaction = options
+            .show_input
+            .then(|| {
+                let sender_signed_data = self.try_into_sender_signed_data()?;
+                IotaTransactionBlock::try_from(sender_signed_data, module)
+            })
+            .transpose()?;
 
-        let effects = if options.show_effects {
-            let effects = self.try_into_iota_transaction_effects()?;
-            Some(effects)
-        } else {
-            None
-        };
+        let effects = options
+            .show_effects
+            .then(|| self.try_into_iota_transaction_effects())
+            .transpose()?;
 
-        let raw_transaction = if options.show_raw_input {
-            self.raw_transaction
-        } else {
-            Vec::new()
-        };
+        let raw_transaction = options
+            .show_raw_input
+            .then_some(self.raw_transaction)
+            .unwrap_or_default();
 
-        let events = if options.show_events {
-            let events = self
-                .events
-                .into_iter()
-                .map(|event| match event {
-                    Some(event) => {
-                        let event: Event = bcs::from_bytes(&event).map_err(|e| {
+        let events = options
+            .show_events
+            .then(|| {
+                let events =
+                    self.events
+                        .into_iter()
+                        .map(|event| match event {
+                            Some(event) => {
+                                let event: Event = bcs::from_bytes(&event).map_err(|e| {
                             IndexerError::PersistentStorageDataCorruptionError(format!(
                                 "Can't convert event bytes into Event. tx_digest={:?} Error: {e}",
                                 tx_digest
                             ))
                         })?;
-                        Ok(event)
-                    }
-                    None => Err(IndexerError::PersistentStorageDataCorruptionError(format!(
-                        "Event should not be null, tx_digest={:?}",
-                        tx_digest
-                    ))),
-                })
-                .collect::<Result<Vec<Event>, IndexerError>>()?;
-            let timestamp = self.timestamp_ms as u64;
-            let tx_events = TransactionEvents { data: events };
-            let tx_events = IotaTransactionBlockEvents::try_from_using_module_resolver(
-                tx_events,
-                tx_digest,
-                Some(timestamp),
-                module,
-            )?;
-            Some(tx_events)
-        } else {
-            None
-        };
+                                Ok(event)
+                            }
+                            None => Err(IndexerError::PersistentStorageDataCorruptionError(
+                                format!("Event should not be null, tx_digest={:?}", tx_digest),
+                            )),
+                        })
+                        .collect::<Result<Vec<Event>, IndexerError>>()?;
+                let timestamp = self.timestamp_ms as u64;
+                let tx_events = TransactionEvents { data: events };
+                IotaTransactionBlockEvents::try_from_using_module_resolver(
+                    tx_events,
+                    tx_digest,
+                    Some(timestamp),
+                    module,
+                )
+                .map_err(Into::<IndexerError>::into)
+            })
+            .transpose()?;
 
-        let object_changes = if options.show_object_changes {
-            let object_changes = self.object_changes.into_iter().map(|object_change| {
+        let object_changes = options.show_object_changes.then(||
+            self.object_changes.into_iter().map(|object_change| {
                 match object_change {
                     Some(object_change) => {
                         let object_change: IndexedObjectChange = bcs::from_bytes(&object_change)
@@ -184,15 +181,11 @@ impl StoredTransaction {
                     }
                     None => Err(IndexerError::PersistentStorageDataCorruptionError(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
                 }
-            }).collect::<Result<Vec<ObjectChange>, IndexerError>>()?;
+            }).collect::<Result<Vec<ObjectChange>, IndexerError>>()
+        ).transpose()?;
 
-            Some(object_changes)
-        } else {
-            None
-        };
-
-        let balance_changes = if options.show_balance_changes {
-            let balance_changes = self.balance_changes.into_iter().map(|balance_change| {
+        let balance_changes =  options.show_balance_changes.then(||
+            self.balance_changes.into_iter().map(|balance_change| {
                 match balance_change {
                     Some(balance_change) => {
                         let balance_change: BalanceChange = bcs::from_bytes(&balance_change)
@@ -203,16 +196,12 @@ impl StoredTransaction {
                     }
                     None => Err(IndexerError::PersistentStorageDataCorruptionError(format!("object_change should not be null, tx_digest={:?}", tx_digest))),
                 }
-            }).collect::<Result<Vec<BalanceChange>, IndexerError>>()?;
-
-            Some(balance_changes)
-        } else {
-            None
-        };
+            }).collect::<Result<Vec<BalanceChange>, IndexerError>>()
+        ).transpose()?;
 
         let raw_effects = options
             .show_raw_effects
-            .then(|| self.raw_effects)
+            .then_some(self.raw_effects)
             .unwrap_or_default();
 
         Ok(IotaTransactionBlockResponse {

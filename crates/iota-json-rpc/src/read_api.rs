@@ -1352,7 +1352,7 @@ fn convert_to_response(
         let raw_effects = cache
             .effects
             .as_ref()
-            .map(|tx_effects| bcs::to_bytes(tx_effects))
+            .map(bcs::to_bytes)
             .transpose()
             .map_err(|e| anyhow!("Failed to serialize raw effects with error: {e}"))?
             .unwrap_or_default();
