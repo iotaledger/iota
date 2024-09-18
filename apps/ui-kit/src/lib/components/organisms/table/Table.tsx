@@ -163,13 +163,15 @@ export function TableBody({ children }: PropsWithChildren): JSX.Element {
     return <tbody className={cx(TEXT_COLOR_CLASS, TEXT_SIZE_CLASS)}>{children}</tbody>;
 }
 
+export interface TableRowCheckboxProps {
+    rowIndex: number;
+    onCheckboxChange: (checked: boolean) => void;
+}
+
 export function TableRowCheckbox({
     rowIndex,
     onCheckboxChange,
-}: {
-    rowIndex: number;
-    onCheckboxChange: (checked: boolean) => void;
-}): React.JSX.Element {
+}: TableRowCheckboxProps): React.JSX.Element {
     const { selectedRowIndexes } = useTableContext();
 
     return (
@@ -184,11 +186,11 @@ export function TableRowCheckbox({
     );
 }
 
-export function TableHeaderCheckbox({
-    onCheckboxChange,
-}: {
+export interface TableHeaderCheckboxProps {
     onCheckboxChange: (checked: boolean) => void;
-}): JSX.Element {
+}
+
+export function TableHeaderCheckbox({ onCheckboxChange }: TableHeaderCheckboxProps): JSX.Element {
     const { isHeaderChecked, isHeaderIndeterminate } = useTableContext();
 
     return (
