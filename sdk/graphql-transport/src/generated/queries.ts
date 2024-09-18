@@ -1484,8 +1484,22 @@ export type GasInputGasPaymentArgs = {
  */
 export type GenesisTransaction = {
   __typename?: 'GenesisTransaction';
+  /** Events emitted during genesis. */
+  events: EventConnection;
   /** Objects to be created during genesis. */
   objects: ObjectConnection;
+};
+
+
+/**
+ * System transaction that initializes the network and writes the initial set
+ * of objects on-chain.
+ */
+export type GenesisTransactionEventsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
