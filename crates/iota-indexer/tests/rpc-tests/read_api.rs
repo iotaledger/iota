@@ -32,7 +32,7 @@ fn is_descending(vec: &[u64]) -> bool {
 /// [`iota_json_rpc_types::IotaTransactionBlockResponse`] match to the provided
 /// [`iota_json_rpc_types::IotaTransactionBlockResponseOptions`] filters
 fn match_transaction_block_resp_options(
-    expected_options: IotaTransactionBlockResponseOptions,
+    expected_options: &IotaTransactionBlockResponseOptions,
     responses: &[IotaTransactionBlockResponse],
 ) -> bool {
     responses
@@ -46,7 +46,7 @@ fn match_transaction_block_resp_options(
             show_balance_changes: iota_tx_block_resp.balance_changes.is_some(),
             show_raw_effects: !iota_tx_block_resp.raw_effects.is_empty(),
         })
-        .all(|actual_options| expected_options == actual_options)
+        .all(|actual_options| actual_options.eq(expected_options))
 }
 
 macro_rules! create_get_object_with_options_test {
@@ -56,7 +56,6 @@ macro_rules! create_get_object_with_options_test {
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
-            // indexer starts storing data after checkpoint 0
             indexer_wait_for_checkpoint(&pg_store, 1).await;
             let address = cluster.get_address_0();
 
@@ -131,7 +130,6 @@ macro_rules! create_get_transaction_block_with_options_test {
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
-            // indexer starts storing data after checkpoint 0
             indexer_wait_for_checkpoint(&pg_store, 1).await;
 
             let options = $options;
@@ -161,11 +159,11 @@ macro_rules! create_get_transaction_block_with_options_test {
             assert_eq!(fullnode_tx, tx);
 
             assert!(
-                match_transaction_block_resp_options(options.clone(), &[fullnode_tx]),
+                match_transaction_block_resp_options(&options, &[fullnode_tx]),
                 "fullnode transaction block assertion failed"
             );
             assert!(
-                match_transaction_block_resp_options(options.clone(), &[tx]),
+                match_transaction_block_resp_options(&options, &[tx]),
                 "indexer transaction block assertion failed"
             );
         }
@@ -179,7 +177,6 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
         async fn $function_name() {
             let (cluster, pg_store, indexer_client) =
                 start_test_cluster_with_read_write_indexer(None).await;
-            // indexer starts storing data after checkpoint 0
             indexer_wait_for_checkpoint(&pg_store, 3).await;
 
             let options = $options;
@@ -213,11 +210,11 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
             assert_eq!(fullnode_txs, indexer_txs);
 
             assert!(
-                match_transaction_block_resp_options(options.clone(), &fullnode_txs),
+                match_transaction_block_resp_options(&options, &fullnode_txs),
                 "fullnode multi transaction blocks assertion failed"
             );
             assert!(
-                match_transaction_block_resp_options(options.clone(), &indexer_txs,),
+                match_transaction_block_resp_options(&options, &indexer_txs),
                 "indexer multi transaction blocks assertion failed"
             );
         }
@@ -229,7 +226,6 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
 async fn get_checkpoint_by_seq_num() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_checkpoint = cluster
@@ -238,12 +234,12 @@ async fn get_checkpoint_by_seq_num() {
         .await
         .unwrap();
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoint(CheckpointId::SequenceNumber(0))
         .await
         .unwrap();
 
-    assert_eq!(fullnode_checkpoint, checkpoint_indexer);
+    assert_eq!(fullnode_checkpoint, indexer_checkpoint);
 }
 
 #[tokio::test]
@@ -251,7 +247,6 @@ async fn get_checkpoint_by_seq_num() {
 async fn get_checkpoint_by_seq_num_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client
@@ -269,7 +264,6 @@ async fn get_checkpoint_by_seq_num_not_found() {
 async fn get_checkpoint_by_digest() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_checkpoint = cluster
@@ -278,12 +272,12 @@ async fn get_checkpoint_by_digest() {
         .await
         .unwrap();
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoint(CheckpointId::Digest(fullnode_checkpoint.digest))
         .await
         .unwrap();
 
-    assert_eq!(fullnode_checkpoint, checkpoint_indexer);
+    assert_eq!(fullnode_checkpoint, indexer_checkpoint);
 }
 
 #[tokio::test]
@@ -291,7 +285,6 @@ async fn get_checkpoint_by_digest() {
 async fn get_checkpoint_by_digest_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client
@@ -309,15 +302,14 @@ async fn get_checkpoint_by_digest_not_found() {
 async fn get_checkpoints_all_ascending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(None, None, false)
         .await
         .unwrap();
 
-    let seq_numbers = checkpoint_indexer
+    let seq_numbers = indexer_checkpoint
         .data
         .iter()
         .map(|c| c.sequence_number)
@@ -331,15 +323,14 @@ async fn get_checkpoints_all_ascending() {
 async fn get_checkpoints_all_descending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(None, None, true)
         .await
         .unwrap();
 
-    let seq_numbers = checkpoint_indexer
+    let seq_numbers = indexer_checkpoint
         .data
         .iter()
         .map(|c| c.sequence_number)
@@ -353,17 +344,16 @@ async fn get_checkpoints_all_descending() {
 async fn get_checkpoints_by_cursor_and_limit_one_descending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(Some(1.into()), Some(1), true)
         .await
         .unwrap();
 
     assert_eq!(
         vec![0],
-        checkpoint_indexer
+        indexer_checkpoint
             .data
             .into_iter()
             .map(|c| c.sequence_number)
@@ -376,17 +366,16 @@ async fn get_checkpoints_by_cursor_and_limit_one_descending() {
 async fn get_checkpoints_by_cursor_and_limit_one_ascending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(Some(1.into()), Some(1), false)
         .await
         .unwrap();
 
     assert_eq!(
         vec![2],
-        checkpoint_indexer
+        indexer_checkpoint
             .data
             .into_iter()
             .map(|c| c.sequence_number)
@@ -399,17 +388,16 @@ async fn get_checkpoints_by_cursor_and_limit_one_ascending() {
 async fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(Some(0.into()), Some(3), false)
         .await
         .unwrap();
 
     assert_eq!(
         vec![1, 2, 3],
-        checkpoint_indexer
+        indexer_checkpoint
             .data
             .into_iter()
             .map(|c| c.sequence_number)
@@ -422,17 +410,16 @@ async fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
 async fn get_checkpoints_by_cursor_zero_and_limit_descending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(Some(0.into()), Some(3), true)
         .await
         .unwrap();
 
     assert_eq!(
         Vec::<u64>::default(),
-        checkpoint_indexer
+        indexer_checkpoint
             .data
             .into_iter()
             .map(|c| c.sequence_number)
@@ -445,17 +432,16 @@ async fn get_checkpoints_by_cursor_zero_and_limit_descending() {
 async fn get_checkpoints_by_cursor_and_limit_ascending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 6).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(Some(3.into()), Some(3), false)
         .await
         .unwrap();
 
     assert_eq!(
         vec![4, 5, 6],
-        checkpoint_indexer
+        indexer_checkpoint
             .data
             .into_iter()
             .map(|c| c.sequence_number)
@@ -468,17 +454,16 @@ async fn get_checkpoints_by_cursor_and_limit_ascending() {
 async fn get_checkpoints_by_cursor_and_limit_descending() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-    let checkpoint_indexer = indexer_client
+    let indexer_checkpoint = indexer_client
         .get_checkpoints(Some(3.into()), Some(3), true)
         .await
         .unwrap();
 
     assert_eq!(
         vec![2, 1, 0],
-        checkpoint_indexer
+        indexer_checkpoint
             .data
             .into_iter()
             .map(|c| c.sequence_number)
@@ -491,7 +476,6 @@ async fn get_checkpoints_by_cursor_and_limit_descending() {
 async fn get_checkpoints_invalid_limit() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
     let result = indexer_client.get_checkpoints(None, Some(0), false).await;
@@ -507,7 +491,6 @@ async fn get_checkpoints_invalid_limit() {
 async fn get_object() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     let address = cluster.get_address_0();
 
@@ -531,7 +514,6 @@ async fn get_object() {
 async fn get_object_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let indexer_obj = indexer_client
@@ -611,7 +593,6 @@ create_get_object_with_options_test!(
 async fn multi_get_objects() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     let address = cluster.get_address_0();
 
@@ -640,7 +621,6 @@ async fn multi_get_objects() {
 async fn multi_get_objects_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let object_ids = vec![
@@ -683,7 +663,6 @@ async fn multi_get_objects_not_found() {
 async fn multi_get_objects_found_and_not_found() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
     let address = cluster.get_address_0();
 
@@ -779,7 +758,6 @@ create_multi_get_objects_with_options_test!(
 async fn get_events() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_checkpoint = cluster
@@ -801,7 +779,6 @@ async fn get_events() {
 async fn get_events_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client.get_events(TransactionDigest::ZERO).await;
@@ -817,7 +794,6 @@ async fn get_events_not_found() {
 async fn get_transaction_block() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_checkpoint = cluster
@@ -841,7 +817,6 @@ async fn get_transaction_block() {
 async fn get_transaction_block_not_found() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client
@@ -904,7 +879,6 @@ create_get_transaction_block_with_options_test!(
 async fn multi_get_transaction_blocks() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
     let fullnode_checkpoints = cluster
@@ -983,7 +957,6 @@ create_multi_get_transaction_blocks_with_options_test!(
 async fn get_protocol_config() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_protocol_config = cluster
@@ -1009,7 +982,6 @@ async fn get_protocol_config() {
 async fn get_protocol_config_invalid_protocol_version() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client
@@ -1027,7 +999,6 @@ async fn get_protocol_config_invalid_protocol_version() {
 async fn get_chain_identifier() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let fullnode_chain_identifier = cluster.rpc_client().get_chain_identifier().await.unwrap();
@@ -1121,7 +1092,6 @@ async fn get_latest_checkpoint_sequence_number() {
         .unwrap()
         .into_inner();
 
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, stop_after_checkpoint_seq).await;
 
     let latest_checkpoint_seq_number = indexer_client
@@ -1141,7 +1111,6 @@ async fn get_latest_checkpoint_sequence_number() {
 async fn try_get_past_object() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client
@@ -1158,7 +1127,6 @@ async fn try_get_past_object() {
 async fn try_multi_get_past_objects() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client
@@ -1181,7 +1149,6 @@ async fn try_multi_get_past_objects() {
 async fn get_loaded_child_objects() {
     let (_cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
-    // indexer starts storing data after checkpoint 0
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let result = indexer_client

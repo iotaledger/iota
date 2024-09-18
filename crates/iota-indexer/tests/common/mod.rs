@@ -64,6 +64,8 @@ pub mod pg_integration {
     }
 
     /// Wait for the indexer to catch up to the given checkpoint sequence number
+    ///
+    /// Indexer starts storing data after checkpoint 0
     pub async fn indexer_wait_for_checkpoint(
         pg_store: &PgIndexerStore,
         checkpoint_sequence_number: u64,
