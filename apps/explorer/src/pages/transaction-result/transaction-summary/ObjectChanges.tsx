@@ -46,36 +46,28 @@ enum ItemLabel {
 const DEFAULT_ITEMS_TO_SHOW = 5;
 
 function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Element | null {
-    function getValueData() {
-        switch (label) {
-            case ItemLabel.Package:
-                return {
-                    text: packageId ? formatAddress(packageId) : '',
-                    link: packageId ? `/object/${packageId}` : undefined,
-                };
-            case ItemLabel.Module:
-                return {
-                    text: moduleName || '',
-                    link:
-                        packageId && moduleName
-                            ? `/object/${packageId}?module=${moduleName}`
-                            : undefined,
-                };
-            case ItemLabel.Type:
-                return {
-                    text: typeName || '',
-                    link: undefined,
-                };
-            default:
-                return {
-                    text: '',
-                    link: undefined,
-                };
-        }
+    switch (label) {
+        case ItemLabel.Package:
+            return (
+                <ObjectLink objectId={packageId || ''}>
+                    <KeyValueInfo
+                        keyText={label}
+                        valueText={formatAddress(packageId || '')}
+                        fullwidth
+                    />
+                </ObjectLink>
+            );
+        case ItemLabel.Module:
+            return (
+                <ObjectLink objectId={packageId || ''} module={moduleName}>
+                    <KeyValueInfo keyText={label} valueText={moduleName || ''} fullwidth />
+                </ObjectLink>
+            );
+        case ItemLabel.Type:
+            return <KeyValueInfo keyText={label} valueText={typeName || ''} fullwidth />;
+        default:
+            return <KeyValueInfo keyText={label} valueText="" fullwidth />;
     }
-    const { text: valueText, link: valueLink } = getValueData();
-
-    return <KeyValueInfo keyText={label} valueText={valueText} valueLink={valueLink} fullwidth />;
 }
 
 interface ObjectDetailPanelProps {
