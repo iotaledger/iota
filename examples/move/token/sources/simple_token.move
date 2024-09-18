@@ -6,7 +6,6 @@
 /// actions are allowed as long as the user is not on the denylist.
 module examples::simple_token {
     use iota::coin::{Self, TreasuryCap};
-    use iota::tx_context::sender;
 
     use iota::token::{Self, TokenPolicy, TokenPolicyCap};
 

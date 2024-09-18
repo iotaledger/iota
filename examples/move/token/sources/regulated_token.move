@@ -28,7 +28,6 @@
 module examples::regulated_token {
     use iota::vec_map;
     use iota::coin::{Self, TreasuryCap};
-    use iota::tx_context::sender;
 
     use iota::token::{Self, TokenPolicy, TokenPolicyCap};
 

@@ -16,7 +16,6 @@ module raffles::example2 {
     use iota::random::{Random, new_generator};
     use iota::iota::IOTA;
     use iota::table_vec::{Self, TableVec};
-    use iota::tx_context::sender;
 
     /// Error codes
     const EGameInProgress: u64 = 0;

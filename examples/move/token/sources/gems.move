@@ -38,7 +38,6 @@ module examples::gem {
     use std::string::{Self, String};
     use iota::iota::IOTA;
     use iota::balance::{Self, Balance};
-    use iota::tx_context::sender;
     use iota::coin::{Self, Coin, TreasuryCap};
 
     use iota::token::{Self, Token, ActionRequest};

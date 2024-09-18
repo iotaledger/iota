@@ -5,7 +5,6 @@
 /// This example illustrates how to use the `Token` without a `TokenPolicy`. And
 /// only rely on `TreasuryCap` for minting and burning tokens.
 module examples::coffee {
-    use iota::tx_context::sender;
     use iota::coin::{Self, TreasuryCap, Coin};
     use iota::balance::{Self, Balance};
     use iota::token::{Self, Token};
