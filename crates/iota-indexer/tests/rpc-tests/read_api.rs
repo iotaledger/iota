@@ -167,7 +167,14 @@ macro_rules! create_get_transaction_block_with_options_test {
             // match
             assert_eq!(fullnode_tx, tx);
 
-            assert!(match_transaction_block_resp_options(options.clone(), &[tx]));
+            assert!(
+                match_transaction_block_resp_options(options.clone(), &[fullnode_tx]),
+                "fullnode transaction block assertion failed"
+            );
+            assert!(
+                match_transaction_block_resp_options(options.clone(), &[tx]),
+                "indexer transaction block assertion failed"
+            );
         }
     };
 }
@@ -215,10 +222,15 @@ macro_rules! create_multi_get_transaction_blocks_with_options_test {
             // match
             assert_eq!(fullnode_txs, indexer_txs);
 
-            assert!(match_transaction_block_resp_options(
-                options.clone(),
-                &indexer_txs
-            ));
+            assert!(
+                match_transaction_block_resp_options(options.clone(), &fullnode_txs),
+                "fullnode multi transaction block assertion failed"
+            );
+
+            assert!(
+                match_transaction_block_resp_options(options.clone(), &indexer_txs,),
+                "indexer multi transaction block assertion failed"
+            );
         }
     };
 }
