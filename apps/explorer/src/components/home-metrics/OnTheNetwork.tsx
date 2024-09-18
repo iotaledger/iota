@@ -36,7 +36,6 @@ export function OnTheNetwork(): JSX.Element {
                                     ? Math.floor(networkMetrics.currentTps).toString()
                                     : '-'
                             }
-                            showSupportingLabel={false}
                         />
                     </div>
 
@@ -49,7 +48,6 @@ export function OnTheNetwork(): JSX.Element {
                                     ? Math.floor(networkMetrics?.tps30Days).toString()
                                     : '-'
                             }
-                            showSupportingLabel={false}
                         />
                     </div>
                 </div>
@@ -62,7 +60,6 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Total Packages"
                             text={networkMetrics?.totalPackages ?? '-'}
-                            showSupportingLabel={false}
                         />
                     </div>
                     <div className="flex-1">
@@ -70,7 +67,6 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Objects"
                             text={networkMetrics?.totalObjects ?? '-'}
-                            showSupportingLabel={false}
                         />
                     </div>
                 </div>
@@ -81,8 +77,7 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Reference Gas Price"
                             text={gasPriceFormatted ?? '-'}
-                            showSupportingLabel={gasPriceFormatted !== null}
-                            supportingLabel="IOTA"
+                            supportingLabel={gasPriceFormatted !== null ? 'IOTA' : undefined}
                         />
                     </div>
                     <div className="flex-1">
@@ -90,8 +85,7 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Total Supply"
                             text={totalSupplyFormatted ?? '-'}
-                            showSupportingLabel={totalSupplyFormatted !== null}
-                            supportingLabel="IOTA"
+                            supportingLabel={totalSupplyFormatted !== null ? 'IOTA' : undefined}
                         />
                     </div>
                 </div>

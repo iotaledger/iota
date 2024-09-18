@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './Dropdown';
-export * from './dropdown-position.enum';
+export * from './colors.constants';

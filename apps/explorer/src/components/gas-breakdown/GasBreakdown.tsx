@@ -3,12 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Divider, Title } from '@iota/apps-ui-kit';
-import {
-    CoinFormat,
-    type TransactionSummary,
-    useFormatCoin,
-    useResolveIotaNSName,
-} from '@iota/core';
+import { CoinFormat, type TransactionSummary, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     AddressLink,
@@ -102,7 +97,6 @@ interface GasBreakdownProps {
 
 export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
     const gasData = summary?.gas;
-    const { data: iotansDomainName } = useResolveIotaNSName(gasData?.owner);
 
     if (!gasData) {
         return null;
@@ -125,7 +119,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                             <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                                 Paid by
                             </span>
-                            <AddressLink label={iotansDomainName || undefined} address={owner} />
+                            <AddressLink label={undefined} address={owner} />
                         </div>
                     )}
                     <div className="flex flex-col gap-3">
