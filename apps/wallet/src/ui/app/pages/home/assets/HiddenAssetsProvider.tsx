@@ -49,12 +49,7 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
         type: 'loading',
     });
 
-    const hiddenAssetIds = useMemo(() => {
-        if (hiddenAssets.type === 'loaded') {
-            return hiddenAssets.assetIds;
-        }
-        return [];
-    }, [hiddenAssets]);
+    const hiddenAssetIds = hiddenAssets.type === 'loaded' ? hiddenAssets.assetIds : [];
 
     useEffect(() => {
         (async () => {
