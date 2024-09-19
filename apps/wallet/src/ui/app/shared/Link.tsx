@@ -41,7 +41,7 @@ const styles = cva(
                 medium: 'font-medium',
             },
             size: {
-                bodySmall: 'text-bodySmall',
+                bodySmall: 'text-body-sm',
                 body: 'text-body',
                 base: 'text-base leading-none',
                 captionSmall: 'text-captionSmall',
