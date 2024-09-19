@@ -46,7 +46,6 @@ export function AccountItem({
     }
     return (
         <Account
-            isSelected={true}
             title={accountName}
             subtitle={formatAddress(account.address)}
             isLocked={account.isLocked}
