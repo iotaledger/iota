@@ -116,7 +116,10 @@ export function DisplayStats({
                         href={valueLink}
                         target={isExternalLink ? '_blank' : '_self'}
                         rel="noreferrer"
-                        className={cx('text-primary-30 dark:text-primary-80', valueTextClass)}
+                        className={cx(
+                            'w-full break-words text-primary-30 dark:text-primary-80',
+                            valueTextClass,
+                        )}
                     >
                         {truncate(value, 6, 6)}
                     </a>
