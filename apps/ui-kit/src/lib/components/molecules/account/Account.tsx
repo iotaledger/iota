@@ -99,7 +99,6 @@ export function Account({
     showSelected,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
-
     return (
         <div
             className={cx(
@@ -133,7 +132,7 @@ export function Account({
             <div
                 className={cx(
                     'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden [&_button]:h-5 [&_button]:w-5 group-hover:[&_button]:flex',
-                    '[&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-neutral-40',
+                    '[&_svg]:h-5 [&_svg]:w-5',
                     '[&_div.checkmark_button]:flex', // make checkmark visible always
                     isLocked && '[&_div.unlock_button]:flex', // make unlock visible when is locked
                 )}

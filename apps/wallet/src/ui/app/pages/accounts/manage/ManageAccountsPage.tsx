@@ -41,7 +41,7 @@ export function ManageAccountsPage() {
                         }),
                     )}
                 </div>
-                <div>
+                <div className="pt-sm">
                     <Button
                         type={ButtonType.Primary}
                         text="Add Profile"
