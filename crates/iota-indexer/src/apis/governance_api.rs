@@ -298,7 +298,7 @@ fn stake_status(
     convert = "{ system_state_summary.epoch }",
     result = true
 )]
-async fn exchange_rates(
+pub async fn exchange_rates(
     state: &GovernanceReadApi<impl R2D2Connection>,
     system_state_summary: &IotaSystemStateSummary,
 ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {

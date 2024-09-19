@@ -7,7 +7,6 @@ use std::{collections::BTreeSet, fmt::Display, time::Duration};
 use async_graphql::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use iota_graphql_config::GraphQLConfig;
-use iota_json_rpc::name_service::NameServiceConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::functional_group::FunctionalGroup;

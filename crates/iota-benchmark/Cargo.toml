@@ -49,7 +49,7 @@ tracing.workspace = true
 iota-metrics.workspace = true
 move-core-types.workspace = true
 narwhal-node.workspace = true
-sysinfo.workspace = true
+sysinfo = "0.31"
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]

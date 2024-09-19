@@ -20,9 +20,7 @@ use crate::{
     consistency::Checkpointed,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    filter,
-    move_type::MoveType,
-    query,
+    filter, query,
     raw_query::RawQuery,
     types::{
         available_range::AvailableRange,

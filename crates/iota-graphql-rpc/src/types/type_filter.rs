@@ -9,13 +9,13 @@ use iota_types::{
     parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
     parse_iota_type_tag, TypeTag,
 };
-use iota_types::{
-    parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_type_tag, TypeTag,
-};
 use move_core_types::language_storage::StructTag;
 
-use crate::types::{iota_address::IotaAddress, string_input::impl_string_input};
-use crate::{filter, raw_query::RawQuery};
+use crate::{
+    filter,
+    raw_query::RawQuery,
+    types::{iota_address::IotaAddress, string_input::impl_string_input},
+};
 
 /// A GraphQL scalar containing a filter on types that requires an exact match.
 #[derive(Clone, Debug, Eq, PartialEq)]

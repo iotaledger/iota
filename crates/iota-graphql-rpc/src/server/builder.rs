@@ -31,7 +31,7 @@ use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
 use iota_sdk::IotaClientBuilder;
-use tokio::{join, sync::OnceCell};
+use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -478,7 +478,6 @@ impl ServerBuilder {
             .context_data(pg_conn_pool)
             .context_data(resolver)
             .context_data(iota_sdk_client)
-            .context_data(name_service_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
             .context_data(config.clone());
