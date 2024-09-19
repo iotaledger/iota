@@ -50,7 +50,6 @@ impl IotaAddress {
         self.0.to_vec()
     }
 
-    #[cfg(test)]
     pub fn as_slice(&self) -> &[u8] {
         &self.0
     }

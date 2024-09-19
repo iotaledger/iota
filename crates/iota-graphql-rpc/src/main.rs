@@ -8,7 +8,7 @@ use clap::Parser;
 use iota_graphql_rpc::{
     commands::Command,
     config::{ConnectionConfig, Ide, ServerConfig, ServiceConfig, TxExecFullNodeConfig, Version},
-    server::{builder::export_schema, graphiql_server::start_graphiql_server},
+    server::graphiql_server::start_graphiql_server,
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
@@ -48,16 +48,6 @@ async fn main() {
                 println!("{}", toml);
             }
         }
-        Command::GenerateSchema { file } => {
-            let out = export_schema();
-            if let Some(file) = file {
-                println!("Write schema to file: {:?}", file);
-                std::fs::write(file, &out).unwrap();
-            } else {
-                println!("{}", toml);
-            }
-        }
-
         Command::StartServer {
             ide_title,
             db_url,

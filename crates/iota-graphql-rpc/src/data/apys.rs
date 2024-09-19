@@ -17,11 +17,12 @@ pub(crate) fn calculate_apy(rates: &[(u64, PoolTokenExchangeRate)]) -> f64 {
     // We need at least 2 data points to calculate apy.
     if rates.len() >= 2 {
         // rates are sorted by epoch in descending order.
-        let er_e = rates.clone().dropping(1);
+        let er_e = rates.iter().dropping(1);
         // rate e+1
-        let er_e_1 = rates.dropping_back(1);
+        let er_e_1 = rates.iter().dropping_back(1);
         let apys = er_e
             .zip(er_e_1)
+            .map(|(e, e1)| (&e.1, &e1.1))
             .map(apy_rate)
             .filter(|apy| *apy > 0.0 && *apy < 0.1)
             .take(30)
@@ -40,7 +41,7 @@ pub(crate) fn calculate_apy(rates: &[(u64, PoolTokenExchangeRate)]) -> f64 {
 
 // APY_e = (ER_e+1 / ER_e) ^ 365
 pub(crate) fn apy_rate(
-    (rate_e, rate_e_1): (&&PoolTokenExchangeRate, &&PoolTokenExchangeRate),
+    (rate_e, rate_e_1): (&PoolTokenExchangeRate, &PoolTokenExchangeRate),
 ) -> f64 {
     (rate_e.rate() / rate_e_1.rate()).powf(365.0) - 1.0
 }

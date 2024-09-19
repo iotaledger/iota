@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use async_graphql::*;
 
-use crate::types::{big_int::BigInt, uint53::UInt53};
+use crate::types::big_int::BigInt;
 
 /// Details of the system that are decided during genesis.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
