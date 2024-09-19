@@ -80,9 +80,10 @@ interface ObjectIdCardProps {
 
 function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
     return (
-        <ObjectLink objectId={objectId}>
-            <DisplayStats label="Object ID" value={formatAddress(objectId)} />
-        </ObjectLink>
+        <DisplayStats
+            label="Object ID"
+            value={<ObjectLink objectId={objectId}>{formatAddress(objectId)}</ObjectLink>}
+        />
     );
 }
 
@@ -114,14 +115,16 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     const normalizedStructTag = normalizeStructTag(structTag);
 
     return (
-        <ObjectLink objectId={`${address}?module=${module}`}>
-            <DisplayStats
-                label="Type"
-                value={normalizedStructTag}
-                tooltipText={objectType}
-                tooltipPosition={TooltipPosition.Right}
-            />
-        </ObjectLink>
+        <DisplayStats
+            label="Type"
+            value={
+                <ObjectLink objectId={`${address}?module=${module}`}>
+                    {normalizedStructTag}
+                </ObjectLink>
+            }
+            tooltipText={objectType}
+            tooltipPosition={TooltipPosition.Right}
+        />
     );
 }
 
@@ -139,9 +142,10 @@ interface LastTxBlockCardProps {
 
 function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     return (
-        <TransactionLink digest={digest}>
-            <DisplayStats label="Last Transaction Block Digest" value={formatAddress(digest)} />
-        </TransactionLink>
+        <DisplayStats
+            label="Last Transaction Block Digest"
+            value={<TransactionLink digest={digest}>{formatAddress(digest)}</TransactionLink>}
+        />
     );
 }
 
@@ -162,9 +166,10 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
     }
 
     return (
-        <OwnerLink objOwner={objOwner}>
-            <DisplayStats label="Owner" value={getOwner(objOwner)} />
-        </OwnerLink>
+        <DisplayStats
+            label="Owner"
+            value={<OwnerLink objOwner={objOwner}>{getOwner(objOwner)}</OwnerLink>}
+        />
     );
 }
 
@@ -298,14 +303,16 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             </div>
             <div className="flex flex-row gap-md">
                 {display && display.link && (
-                    <Link to={display.link}>
-                        <DisplayStats label="Link" value={display.link} />
-                    </Link>
+                    <DisplayStats
+                        label="Link"
+                        value={<Link to={display.link}>{display.link}</Link>}
+                    />
                 )}
                 {display && display.project_url && (
-                    <Link to={display.project_url}>
-                        <DisplayStats label="Website" value={display.project_url} />
-                    </Link>
+                    <DisplayStats
+                        label="Website"
+                        value={<Link to={display.project_url}>{display.project_url}</Link>}
+                    />
                 )}
             </div>
         </div>

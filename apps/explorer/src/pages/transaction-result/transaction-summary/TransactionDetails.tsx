@@ -22,19 +22,26 @@ export function TransactionDetails({
     return (
         <div className="grid grid-cols-1 gap-sm md:grid-cols-4">
             {sender && (
-                <AddressLink address={sender}>
-                    <DisplayStats label="Sender" value={sender} isTruncated />
-                </AddressLink>
+                <DisplayStats
+                    label="Sender"
+                    value={<AddressLink address={sender}>{truncate(sender)}</AddressLink>}
+                />
             )}
             {checkpoint && (
-                <CheckpointSequenceLink sequence={checkpoint}>
-                    <DisplayStats label="Checkpoint" value={Number(checkpoint).toLocaleString()} />
-                </CheckpointSequenceLink>
+                <DisplayStats
+                    label="Checkpoint"
+                    value={
+                        <CheckpointSequenceLink sequence={checkpoint}>
+                            {Number(checkpoint).toLocaleString()}
+                        </CheckpointSequenceLink>
+                    }
+                />
             )}
             {executedEpoch && (
-                <EpochLink epoch={executedEpoch}>
-                    <DisplayStats label="Epoch" value={executedEpoch} />
-                </EpochLink>
+                <DisplayStats
+                    label="Epoch"
+                    value={<EpochLink epoch={executedEpoch}>{executedEpoch}</EpochLink>}
+                />
             )}
 
             {timestamp && <DisplayStats label="Date" value={formatDate(Number(timestamp))} />}

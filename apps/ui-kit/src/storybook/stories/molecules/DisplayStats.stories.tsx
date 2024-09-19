@@ -60,8 +60,5 @@ export const Default: Story = {
                 options: Object.values(DisplayStatsSize),
             },
         },
-        isTruncated: {
-            control: 'boolean',
-        },
     },
 };

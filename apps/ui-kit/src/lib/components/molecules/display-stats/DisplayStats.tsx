@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
 import { DisplayStatsType, DisplayStatsSize } from './display-stats.enums';
@@ -31,7 +31,7 @@ interface DisplayStatsProps {
     /**
      * The value of the stats.
      */
-    value: string;
+    value: ReactNode;
     /**
      * The supporting label of the stats (optional).
      */
@@ -48,10 +48,6 @@ interface DisplayStatsProps {
      * Add icon to the right of the label.
      */
     icon?: React.ReactNode;
-    /**
-     * The value is truncated
-     */
-    isTruncated?: boolean;
 }
 
 export function DisplayStats({
@@ -63,7 +59,6 @@ export function DisplayStats({
     type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
     icon,
-    isTruncated = false,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
@@ -71,11 +66,7 @@ export function DisplayStats({
     const valueTextClass = VALUE_TEXT_CLASSES[size];
     const labelTextClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
-    function truncate(value: string, startLength: number, endLength: number): string {
-        return value.length > startLength + endLength && isTruncated
-            ? `${value.slice(0, startLength)}...${value.slice(-endLength)}`
-            : value;
-    }
+
     return (
         <div
             className={cx(
@@ -101,7 +92,7 @@ export function DisplayStats({
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
             <div className="flex w-full flex-row items-baseline gap-xxs">
-                <span className={cx(valueTextClass)}>{truncate(value, 6, 6)}</span>
+                <span className={cx(valueTextClass)}>{value}</span>
                 {supportingLabel && (
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
                         {supportingLabel}
