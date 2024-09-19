@@ -24,6 +24,15 @@
         "build/**"
       ]
     },
+    "lint:fix": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        "build/**"
+      ]
+    },
     "prettier:fix": {
       "cache": false
     },
