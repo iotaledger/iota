@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is the main difference between `create_regulated_currency` and `create_currency` in the IOTA Coin standard?",
+    "answerOptions": [
+      { "answerText": "`create_regulated_currency` creates coins that cannot be transferred.", "isCorrect": false },
+      { "answerText": "`create_regulated_currency` requires additional gas fees.", "isCorrect": false },
+      { "answerText": "`create_regulated_currency` does not produce a DenyCap object.", "isCorrect": false },
+      { "answerText": "`create_regulated_currency` allows blocking certain addresses from using the coin in transactions.", "isCorrect": true }
+    ]
+  },
+  {
+    "questionText": "What additional object does `create_regulated_currency` produce that allows controlling the deny list?",
+    "answerOptions": [
+      { "answerText": "`UpgradeCap` object.", "isCorrect": false },
+      { "answerText": "`RegulatedCoinMetadata` object.", "isCorrect": false },
+      { "answerText": "`DenyCap` object.", "isCorrect": true },
+      { "answerText": "`TreasuryCap` object.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is the address of the `DenyList` singleton object in the IOTA framework?",
+    "answerOptions": [
+      { "answerText": "`0x1`", "isCorrect": false },
+      { "answerText": "`0x2`", "isCorrect": false },
+      { "answerText": "`0x0`", "isCorrect": false },
+      { "answerText": "`0x403`", "isCorrect": true }
+    ]
+  },
+  {
+    "questionText": "Which functions are used to manipulate the deny list in the given example?",
+    "answerOptions": [
+      { "answerText": "`block_address` and `unblock_address`", "isCorrect": false },
+      { "answerText": "`add_address_to_deny_list` and `remove_address_from_deny_list`", "isCorrect": false },
+      { "answerText": "`deny_list_add` and `deny_list_remove`", "isCorrect": false },
+      { "answerText": "`add_addr_from_deny_list` and `remove_addr_from_deny_list`", "isCorrect": true }
+    ]
+  }
+]

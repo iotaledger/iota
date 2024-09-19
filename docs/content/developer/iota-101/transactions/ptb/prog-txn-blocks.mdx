@@ -2,6 +2,8 @@
 title: Programmable Transaction Blocks
 description: Programmable transaction blocks are a group of commands that complete a transaction on IOTA.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/prog-txn-blocks.json';
 
 On IOTA, a transaction is more than a basic record of the flow of assets. Transactions on IOTA are composed of a number of commands that execute on inputs to define the result of the transaction. Termed programmable transaction blocks (PTBs), these groups of commands define all user transactions on IOTA. PTBs allow a user to call multiple Move functions, manage their objects, and manage their coins in a single transaction--without publishing a new Move package. Designed with automation and transaction builders in mind, PTBs are a lightweight and flexible way of generating transactions. More intricate programming patterns, such as loops, are not supported, however, and in those cases you must publish a new Move package.
 
@@ -441,3 +443,5 @@ After these checks are performed, generate the effects.
   - The `Item` with `id2` is a newly created object.
 - The `Marketplace` object is returned, remains shared, and it's mutated.
   - The object remains shared but its contents are mutated.
+  
+<Quiz questions={questions} />

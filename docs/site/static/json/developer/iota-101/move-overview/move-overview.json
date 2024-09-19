@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is a key difference between Move on IOTA and Move on Diem regarding global storage?",
+    "answerOptions": [
+      { "answerText": "IOTA uses global storage similar to Diem, allowing transactions to access resources from any account.", "isCorrect": false },
+      { "answerText": "IOTA eliminates global storage and related operations, using object-centric storage with unique identifiers.", "isCorrect": true },
+      { "answerText": "Diem does not use global storage, while IOTA relies heavily on it.", "isCorrect": false },
+      { "answerText": "IOTA and Diem both use global storage, but with different security models.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How does IOTA's Move implementation represent addresses compared to Diem?",
+    "answerOptions": [
+      { "answerText": "IOTA uses 32-byte addresses for both objects and accounts, representing unique IDs.", "isCorrect": true },
+      { "answerText": "IOTA uses 16-byte addresses for account addresses, like Diem.", "isCorrect": false },
+      { "answerText": "IOTA does not use addresses in its Move implementation.", "isCorrect": false },
+      { "answerText": "IOTA uses addresses only for accounts, not for objects.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is the purpose of the `key` ability in Move on IOTA?",
+    "answerOptions": [
+      { "answerText": "To indicate an object type that requires the struct's first field to be `id: UID`, containing the object's unique on-chain address.", "isCorrect": true },
+      { "answerText": "To represent account addresses in global storage.", "isCorrect": false },
+      { "answerText": "To denote a resource that can be stored globally in any account.", "isCorrect": false },
+      { "answerText": "To enable the use of global storage operators.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is a reason why Move code written for Diem might not be compatible with IOTA?",
+    "answerOptions": [
+      { "answerText": "IOTA does not support any of Move's language features.", "isCorrect": false },
+      { "answerText": "IOTA lacks support for global storage operators and uses different key abilities.", "isCorrect": true },
+      { "answerText": "IOTA and Diem use completely different programming languages.", "isCorrect": false },
+      { "answerText": "IOTA requires all functions to be written in assembly.", "isCorrect": false }
+    ]
+  }
+]

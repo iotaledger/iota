@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "What is the main purpose of events in IOTA Move smart contracts?",
+        "answerOptions": [
+            { "answerText": "To track on-chain actions and allow subscriptions to these events.", "isCorrect": true },
+            { "answerText": "To store data permanently on the blockchain.", "isCorrect": false },
+            { "answerText": "To facilitate object transfers between addresses.", "isCorrect": false },
+            { "answerText": "To manage access control for shared objects.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which module must be imported to use events in IOTA Move?",
+        "answerOptions": [
+            { "answerText": "`use iota::event;`", "isCorrect": true },
+            { "answerText": "`use iota::events;`", "isCorrect": false },
+            { "answerText": "`use iota::subscription;`", "isCorrect": false },
+            { "answerText": "`use iota::emit;`", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the donut example, when is the `DonutBought` event emitted?",
+        "answerOptions": [
+            { "answerText": "When someone purchases a donut.", "isCorrect": true },
+            { "answerText": "When the donut shop is initialized.", "isCorrect": false },
+            { "answerText": "When the shop owner collects profits.", "isCorrect": false },
+            { "answerText": "When a donut is eaten.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How do you emit an event in IOTA Move?",
+        "answerOptions": [
+            { "answerText": "Using `event::emit(EventType { ... });`", "isCorrect": true },
+            { "answerText": "Using `emit::event(EventType { ... });`", "isCorrect": false },
+            { "answerText": "By calling `event::publish(EventType { ... });`", "isCorrect": false },
+            { "answerText": "By using `iota::event::trigger(EventType { ... });`", "isCorrect": false }
+        ]
+    }
+]

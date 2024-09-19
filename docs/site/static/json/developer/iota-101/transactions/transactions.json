@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "What is a programmable transaction block in IOTA?",
+        "answerOptions": [
+            { "answerText": "A transaction that only validators can submit", "isCorrect": false },
+            { "answerText": "A system transaction responsible for network management", "isCorrect": false },
+            { "answerText": "A transaction that anyone can submit on the network", "isCorrect": true },
+            { "answerText": "A transaction that updates the entire ledger", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What happens if the gas budget is exceeded during a transaction in IOTA?",
+        "answerOptions": [
+            { "answerText": "The transaction is aborted, but the gas input object is debited", "isCorrect": true },
+            { "answerText": "The transaction is retried with a higher gas price", "isCorrect": false },
+            { "answerText": "The transaction is executed but without any effects", "isCorrect": false },
+            { "answerText": "The transaction is canceled without any gas debit", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the transaction example with Tom, Alice, and John, what is the final outcome for Tom?",
+        "answerOptions": [
+            { "answerText": "Tom ends up with 4 IOTA coins", "isCorrect": false },
+            { "answerText": "Tom ends up with 6 IOTA coins", "isCorrect": true },
+            { "answerText": "Tom transfers all of his coins to Alice", "isCorrect": false },
+            { "answerText": "Tom's coins are locked in Object B", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the role of the Gas Input in an IOTA transaction?",
+        "answerOptions": [
+            { "answerText": "It stores the cryptographic signature of the transaction", "isCorrect": false },
+            { "answerText": "It contains the maximum gas price for the transaction", "isCorrect": false },
+            { "answerText": "It references the object used to pay for the transaction's gas fees", "isCorrect": true },
+            { "answerText": "It points to the system address managing the gas", "isCorrect": false }
+        ]
+    }
+]
