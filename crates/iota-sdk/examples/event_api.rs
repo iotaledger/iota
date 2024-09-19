@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This example showcases how to use the Event API.
-//! At the end of the program it subscribes to the events
-//! on the Iota testnet and prints every incoming event to
-//! the console. The program will loop until it is force
-//! stopped.
+//! At the end of the program it subscribes to the events on the Iota testnet
+//! and prints every incoming event to the console. The program will loop until
+//! it is force stopped.
 //!
 //! cargo run --example event_api
 

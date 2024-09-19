@@ -7,11 +7,12 @@
 
 mod utils;
 
+use std::path::Path;
+
 use iota_json_rpc_types::ObjectChange;
 use iota_move_build::BuildConfig;
 use iota_types::move_package::MovePackage;
 use utils::{setup_for_write, sign_and_execute_transaction};
-use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -26,7 +27,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 10_000_000;
 
     let package_path = Path::new("../../examples/move/first_package");
-    let module = BuildConfig::default().build(&package_path)?;
+    let module = BuildConfig::default().build(package_path)?;
 
     let tx_data = client
         .transaction_builder()
@@ -75,7 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .expect("missing upgrade cap");
 
     // In reality you would like to do some changes to the package before upgrading
-    let module = BuildConfig::default().build(&package_path)?;
+    let module = BuildConfig::default().build(package_path)?;
     let deps = module.published_dependency_ids();
     let package_bytes = module.get_package_bytes(false);
 
