@@ -217,6 +217,15 @@ pub enum IotaCommand {
         /// Start the network without a fullnode
         #[clap(long = "no-full-node")]
         no_full_node: bool,
+
+        /// The path to local migration snapshot files
+        #[clap(long, name = "path")]
+        #[arg(num_args(0..))]
+        local_migration_snapshots: Vec<PathBuf>,
+        /// Remotely stored migration snapshots.
+        #[clap(long, name = "iota|smr|<full-url>")]
+        #[arg(num_args(0..))]
+        remote_migration_snapshots: Vec<SnapshotUrl>,
     },
     /// Bootstrap and initialize a new iota network
     #[clap(name = "genesis")]
@@ -253,14 +262,12 @@ pub enum IotaCommand {
             default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
         )]
         num_validators: usize,
-        #[clap(long, help = "The path to a local migration snapshot.", name = "path")]
+        /// The path to local migration snapshot files
+        #[clap(long, name = "path")]
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
-        #[clap(
-            long,
-            name = "iota|smr|<full-url>",
-            help = "The remote migration snapshot."
-        )]
+        /// Remotely stored migration snapshots.
+        #[clap(long, name = "iota|smr|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
@@ -368,6 +375,8 @@ impl IotaCommand {
                 fullnode_rpc_port,
                 no_full_node,
                 epoch_duration_ms,
+                local_migration_snapshots,
+                remote_migration_snapshots,
             } => {
                 start(
                     config_dir.clone(),
@@ -378,6 +387,8 @@ impl IotaCommand {
                     epoch_duration_ms,
                     fullnode_rpc_port,
                     no_full_node,
+                    local_migration_snapshots,
+                    remote_migration_snapshots,
                 )
                 .await?;
 
@@ -588,6 +599,8 @@ async fn start(
     epoch_duration_ms: Option<u64>,
     fullnode_rpc_port: u16,
     no_full_node: bool,
+    local_migration_snapshots: Vec<PathBuf>,
+    remote_migration_snapshots: Vec<SnapshotUrl>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -639,7 +652,14 @@ async fn start(
     if force_regenesis {
         swarm_builder =
             swarm_builder.committee_size(NonZeroUsize::new(DEFAULT_NUMBER_OF_AUTHORITIES).unwrap());
-        let genesis_config = GenesisConfig::custom_genesis(1, 100);
+        let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
+        let local_snapshots = local_migration_snapshots
+            .into_iter()
+            .map(SnapshotSource::Local);
+        let remote_snapshots = remote_migration_snapshots
+            .into_iter()
+            .map(SnapshotSource::S3);
+        genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
@@ -655,33 +675,12 @@ async fn start(
                 None,
                 false,
                 DEFAULT_NUMBER_OF_AUTHORITIES,
-                Default::default(),
-                Default::default(),
+                local_migration_snapshots,
+                remote_migration_snapshots,
             )
             .await?;
         }
 
-        // Load the config of the Iota authority.
-        // To keep compatibility with iota-test-validator where the user can pass a
-        // config directory, this checks if the config is a file or a directory
-        let network_config_path = if let Some(ref config) = config_dir {
-            if config.is_dir() {
-                config.join(IOTA_NETWORK_CONFIG)
-            } else if config.is_file()
-                && config
-                    .extension()
-                    .is_some_and(|ext| (ext == "yml" || ext == "yaml"))
-            {
-                config.clone()
-            } else {
-                config.join(IOTA_NETWORK_CONFIG)
-            }
-        } else {
-            config_dir
-                .clone()
-                .unwrap_or(iota_config_dir()?)
-                .join(IOTA_NETWORK_CONFIG)
-        };
         let NetworkConfigLight {
             validator_configs,
             account_keys,
@@ -692,7 +691,7 @@ async fn start(
                 network_config_path
             ))
         })?;
-        let genesis_path = iota_config_dir()?.join(IOTA_GENESIS_FILENAME);
+        let genesis_path = config.join(IOTA_GENESIS_FILENAME);
         let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
         let network_config = NetworkConfig {
             validator_configs,
@@ -701,7 +700,7 @@ async fn start(
         };
 
         swarm_builder = swarm_builder
-            .dir(iota_config_dir()?)
+            .dir(config)
             .with_network_config(network_config);
     }
 
