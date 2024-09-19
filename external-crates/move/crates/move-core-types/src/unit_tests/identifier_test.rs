@@ -70,7 +70,6 @@ fn invalid_identifiers() {
 }
 
 #[test]
-#[ignore = "ignored until https://github.com/MystenLabs/sui/pull/19446 is merged"]
 fn invalid_identifier_deser() {
     let invalid_identifiers = [
         "",

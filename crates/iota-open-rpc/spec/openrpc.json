@@ -1329,6 +1329,7 @@
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "uncompressed_g1_group_elements": true,
+                "validate_identifier_inputs": false,
                 "variant_nodes": false,
                 "zklogin_auth": false
               },

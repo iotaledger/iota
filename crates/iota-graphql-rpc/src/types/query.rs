@@ -292,11 +292,10 @@ impl Query {
     /// Fetch a structured representation of a concrete type, including its
     /// layout information. Fails if the type is malformed.
     async fn type_(&self, type_: String) -> Result<MoveType> {
-        Ok(MoveType::new(
-            TypeTag::from_str(&type_)
-                .map_err(|e| Error::Client(format!("Bad type: {e}")))
-                .extend()?,
-        ))
+        Ok(TypeTag::from_str(&type_)
+            .map_err(|e| Error::Client(format!("Bad type: {e}")))
+            .extend()?
+            .into())
     }
 
     /// Fetch epoch information by ID (defaults to the latest epoch).
@@ -559,6 +558,15 @@ impl Query {
                 checkpoint_viewed_at: checkpoint,
             }))
     }
+
+    // TODO <- patch this after [aebab3c](https://github.com/MystenLabs/sui/commit/aebab3cf3218a8893417209fecc834c23619e780#diff-dc915efeed8b11d1f192223812017db449f824f2df0043dd95e207e75b0ba70e)
+    // /// Fetch a type that includes dot move service names in it.
+    // async fn type_by_name(&self, ctx: &Context<'_>, name: String) ->
+    // Result<MoveType> {     let Watermark { checkpoint, .. } = *ctx.data()?;
+    //     let type_tag = NamedType::query(ctx, &name, checkpoint).await?;
+
+    //     Ok(type_tag.into())
+    // }
 
     /// The coin metadata associated with the given coin type.
     async fn coin_metadata(
