@@ -95,7 +95,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                         />
                     ))}
                 </SegmentedButton>
-                <div className="absolute inset-y-0 -top-1 right-0 flex items-center gap-3 text-2xl">
+                <div className="absolute inset-y-0 -top-1 right-sm flex items-center gap-sm text-2xl">
                     {/* TODO re-enable this when index is stable */}
                     {/*activeTab === 'transactions' && isTransactionKindFilterEnabled ? (
                             <DropdownMenu
