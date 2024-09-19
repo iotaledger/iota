@@ -21,7 +21,11 @@ pub enum Command {
         /// Optional path to an output file. Prints to `stdout` if not provided.
         output: Option<PathBuf>,
     },
-
+    GenerateSchema {
+        /// Path to output GraphQL schema to, in SDL format.
+        #[clap(short, long)]
+        file: Option<PathBuf>,
+    },
     StartServer {
         /// The title to display at the top of the page
         #[clap(short, long)]
