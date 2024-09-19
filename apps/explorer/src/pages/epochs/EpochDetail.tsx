@@ -100,7 +100,7 @@ export default function EpochDetail() {
     return (
         <PageLayout
             content={
-                <div className="flex flex-col space-y-16">
+                <div className="flex flex-col gap-2xl">
                     <div
                         className={cx(
                             'grid grid-cols-1 gap-md--rs',
