@@ -24,7 +24,12 @@ function ConnectButtonWithModal({ text = 'Connect', ...buttonProps }: ConnectBut
     return (
         <>
             <ConnectModal isModalOpen={isModalOpen} onOpenChange={(open) => setModalOpen(open)} />
-            <Button text={text} type={ButtonType.Secondary} {...buttonProps} />
+            <Button
+                text={text}
+                type={ButtonType.Secondary}
+                {...buttonProps}
+                onClick={() => setModalOpen(true)}
+            />
         </>
     );
 }
