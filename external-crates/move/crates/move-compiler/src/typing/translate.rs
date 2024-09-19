@@ -2454,7 +2454,7 @@ fn match_pattern_(
         // used on the pattern RHS (right-hand side, i.e., not just the guard), we will need to
         // copy the value (in the value case). To this end, we require that the subject type has
         // Copy if it's not a reference. Moreover, any wildcard values inside the inner pattern
-        // will neeed to be dropped, so we require that as well in our recursion.
+        // will need to be dropped, so we require that as well in our recursion.
         //
         // If we find an `@` whose binding variable is live on the RHS with no RHS binders in the
         // inner pattern, we know we can move this value to that binder after matching, discarding

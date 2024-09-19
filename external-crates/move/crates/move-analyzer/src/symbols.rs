@@ -621,7 +621,7 @@ impl fmt::Display for DefInfo {
                     type_args_str,
                     typed_id_list_to_ide_string(
                         arg_names, arg_types, // separate_lines
-                        false, // verbose
+                        false,     // verbose
                         true
                     ),
                     ret_type_str,
@@ -2083,7 +2083,7 @@ pub fn ignored_function(name: Symbol) -> bool {
     // In test mode (that's how IDE compiles Move source files), the compiler
     // inserts an dummy function preventing publishing of modules compiled in
     // test mode. We need to ignore its definition to avoid spurious on-hover
-    // display of this function's info whe hovering close to `module` keyword.
+    // display of this function's info when hovering close to `module` keyword.
     name == UNIT_TEST_POISON_FUN_NAME
 }
 

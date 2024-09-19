@@ -63,6 +63,6 @@ pub fn ignored_function(name: Symbol) -> bool {
     // the compiler inserts an dummy function preventing preventing
     // publishing of modules compiled in test mode. We need to
     // ignore its definition to avoid spurious on-hover display
-    // of this function's info whe hovering close to `module` keyword.
+    // of this function's info when hovering close to `module` keyword.
     name == UNIT_TEST_POISON_FUN_NAME
 }

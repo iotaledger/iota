@@ -3335,7 +3335,7 @@ impl<'env> FunctionEnv<'env> {
 
     /// Returns true if the function is a script function
     pub fn is_script(&self) -> bool {
-        // The main function of a scipt is a script function
+        // The main function of a script is a script function
         self.module_env.is_script_module() || self.definition().is_entry
     }
 
