@@ -52,7 +52,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::stardust_to_iota_address,
     timelock::{
-        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::is_timelock, timelocked_staked_iota::TimelockedStakedIota
+        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
+        timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
@@ -315,10 +316,12 @@ impl Builder {
                 .into_iter()
                 .map(|(id, _, _)| id),
         );
-        let mut timelock_objects = self.migration_objects.take_timelock_objects(self.genesis_stake
-            .take_timelocks_to_burn()
-            .into_iter()
-            .map(|(id, _, _)| id),);
+        let mut timelock_objects = self.migration_objects.take_timelock_objects(
+            self.genesis_stake
+                .take_timelocks_to_burn()
+                .into_iter()
+                .map(|(id, _, _)| id),
+        );
 
         timelock_objects.extend(self.objects.values().cloned());
 
