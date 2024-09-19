@@ -97,7 +97,7 @@ public struct CoffeeShop has key {
 
 The init function initializes the CoffeeShop by creating the COFFEE token and defining the shop’s treasury cap and balance.
 
-```
+```move
 fun init(otw: COFFEE, ctx: &mut TxContext) {
     let (coffee_points, metadata) = coin::create_currency(
         otw, 0, b"COFFEE", b"Coffee Point",
