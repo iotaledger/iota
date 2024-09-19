@@ -177,7 +177,7 @@ impl Argument {
             (Argument::U128(u), TypeTag::U128) => MoveValue::U128(*u),
             (Argument::U256(u), TypeTag::U256) => MoveValue::U256(*u),
             // Inferred numbers, unless they need to be used as a specific type default to u64.
-            (Argument::InferredNum(u), tag) => Self::cast_inferrred_num(*u, tag, loc)?,
+            (Argument::InferredNum(u), tag) => Self::cast_inferred_num(*u, tag, loc)?,
             (Argument::Address(a), TypeTag::Address) => MoveValue::Address(a.into_inner()),
             (Argument::Vector(vs), TypeTag::Vector(ty)) => MoveValue::Vector(
                 vs.iter()
@@ -243,7 +243,7 @@ impl Argument {
             Argument::U128(u) => MoveValue::U128(*u),
             Argument::U256(u) => MoveValue::U256(*u),
             // Inferred numbers, unless they need to be used as a specific type default to u64.
-            Argument::InferredNum(u) => Self::cast_inferrred_num(*u, &TypeTag::U64, loc)?,
+            Argument::InferredNum(u) => Self::cast_inferred_num(*u, &TypeTag::U64, loc)?,
             Argument::Address(a) => MoveValue::Address(a.into_inner()),
             Argument::Vector(vs) => MoveValue::Vector(
                 vs.iter()
@@ -274,7 +274,7 @@ impl Argument {
         })
     }
 
-    fn cast_inferrred_num(
+    fn cast_inferred_num(
         val: move_core_types::u256::U256,
         tag: &TypeTag,
         loc: Span,

@@ -458,7 +458,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     }
 
     fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        Ok(self.store().get_highest_checkpint().unwrap())
+        Ok(self.store().get_highest_checkpoint().unwrap())
     }
 
     fn get_highest_verified_checkpoint(
@@ -715,7 +715,7 @@ mod tests {
         }
         let end_time_ms = chain.store().get_clock().timestamp_ms();
         assert_eq!(end_time_ms - start_time_ms, steps);
-        dbg!(chain.store().get_highest_checkpint());
+        dbg!(chain.store().get_highest_checkpoint());
     }
 
     #[test]
@@ -723,16 +723,16 @@ mod tests {
         let steps = 10;
         let mut chain = Simulacrum::new();
 
-        let start_epoch = chain.store.get_highest_checkpint().unwrap().epoch;
+        let start_epoch = chain.store.get_highest_checkpoint().unwrap().epoch;
         for i in 0..steps {
             chain.advance_epoch(/* create_random_state */ false);
             chain.advance_clock(Duration::from_millis(1));
             chain.create_checkpoint();
             println!("{i}");
         }
-        let end_epoch = chain.store.get_highest_checkpint().unwrap().epoch;
+        let end_epoch = chain.store.get_highest_checkpoint().unwrap().epoch;
         assert_eq!(end_epoch - start_epoch, steps);
-        dbg!(chain.store().get_highest_checkpint());
+        dbg!(chain.store().get_highest_checkpoint());
     }
 
     #[test]

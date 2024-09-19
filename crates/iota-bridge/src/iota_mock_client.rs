@@ -25,7 +25,7 @@ use iota_types::{
 use crate::{
     error::{BridgeError, BridgeResult},
     iota_client::IotaClientInner,
-    test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+    test_utils::DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
     types::{BridgeAction, BridgeActionStatus, IsBridgePaused},
 };
 
@@ -203,7 +203,7 @@ impl IotaClientInner for IotaMockClient {
     }
 
     async fn get_mutable_bridge_object_arg(&self) -> Result<ObjectArg, Self::Error> {
-        Ok(DUMMY_MUTALBE_BRIDGE_OBJECT_ARG)
+        Ok(DUMMY_MUTABLE_BRIDGE_OBJECT_ARG)
     }
 
     async fn get_reference_gas_price(&self) -> Result<u64, Self::Error> {

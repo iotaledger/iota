@@ -685,7 +685,7 @@ impl<'a> PTBBuilder<'a> {
             // or that is coming from an external source (e.g., the keystore).
             PTBArg::Identifier(i) if self.addresses.contains_key(&i) => {
                 // We now have a location for this address (which may have come from the
-                // keystore so we didnt' have an address for it before), so we
+                // keystore so we didn't have an address for it before), so we
                 // tag it with its first usage location put it in the arguments
                 // to resolve and resolve away.
                 let addr = self.addresses[&i];

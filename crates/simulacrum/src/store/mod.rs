@@ -60,7 +60,7 @@ pub trait SimulatorStore:
 
     fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint>;
 
-    fn get_highest_checkpint(&self) -> Option<VerifiedCheckpoint>;
+    fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint>;
 
     fn get_checkpoint_contents(
         &self,

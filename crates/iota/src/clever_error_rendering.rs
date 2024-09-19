@@ -30,7 +30,7 @@ use move_core_types::account_address::AccountAddress;
 /// Take a Move abort status string and render it into a more human-readable
 /// error message using by parsing the string (as best we can) and seeing if the
 /// abort code is a Clever Error abort code. If it is, we attempt to render the
-/// error in a more huma-readable manner using the Read API and decoding the
+/// error in a more human-readable manner using the Read API and decoding the
 /// Clever Error encoding in the abort code.
 ///
 /// This function is used to render Clever Errors for on-chain errors only

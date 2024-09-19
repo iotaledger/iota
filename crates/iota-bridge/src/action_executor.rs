@@ -685,7 +685,7 @@ mod tests {
         test_utils::{
             get_test_authorities_and_run_mock_bridge_server, get_test_eth_to_iota_bridge_action,
             get_test_iota_to_eth_bridge_action, sign_action_with_key,
-            DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
         },
         types::{
             BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction, BRIDGE_PAUSED,
@@ -724,7 +724,7 @@ mod tests {
             iota_address,
             &gas_object_ref,
             action_certificate,
-            DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
             &id_token_map,
             1000,
         )
@@ -786,7 +786,7 @@ mod tests {
             iota_address,
             &gas_object_ref,
             action_certificate,
-            DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
             &id_token_map,
             1000,
         )
@@ -842,7 +842,7 @@ mod tests {
             iota_address,
             &gas_object_ref,
             action_certificate,
-            DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
             &id_token_map,
             1000,
         )
@@ -997,7 +997,7 @@ mod tests {
             iota_address,
             &gas_object_ref,
             action_certificate,
-            DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
             &id_token_map,
             1000,
         )
@@ -1124,7 +1124,7 @@ mod tests {
         );
 
         let action = action_certificate.data().clone();
-        let arg = DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
+        let arg = DUMMY_MUTABLE_BRIDGE_OBJECT_ARG;
         let tx_data = build_iota_transaction(
             iota_address,
             &gas_object_ref,
@@ -1210,7 +1210,7 @@ mod tests {
         );
 
         let action = action_certificate.data().clone();
-        let arg = DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
+        let arg = DUMMY_MUTABLE_BRIDGE_OBJECT_ARG;
         let tx_data = build_iota_transaction(
             iota_address,
             &gas_object_ref,
@@ -1312,7 +1312,7 @@ mod tests {
         );
 
         let action = action_certificate.data().clone();
-        let arg = DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
+        let arg = DUMMY_MUTABLE_BRIDGE_OBJECT_ARG;
         let tx_data = build_iota_transaction(
             iota_address,
             &gas_object_ref,

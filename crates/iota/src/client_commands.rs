@@ -2625,7 +2625,7 @@ fn pretty_print_balance(
     builder: &mut TableBuilder,
     with_coins: bool,
 ) {
-    let format_decmials = 2;
+    let format_decimals = 2;
     let mut table_builder = TableBuilder::default();
     if !with_coins {
         table_builder.set_header(vec!["coin", "balance (raw)", "balance", ""]);
@@ -2649,7 +2649,7 @@ fn pretty_print_balance(
             let coin_numbers = if coins.len() != 1 { "coins" } else { "coin" };
             let balance_formatted = format!(
                 "({} {})",
-                format_balance(balance, coin_decimals, format_decmials, Some(symbol)),
+                format_balance(balance, coin_decimals, format_decimals, Some(symbol)),
                 symbol
             );
             let summary = format!(
@@ -2666,7 +2666,7 @@ fn pretty_print_balance(
                     format_balance(
                         c.balance as u128,
                         coin_decimals,
-                        format_decmials,
+                        format_decimals,
                         Some(symbol),
                     )
                     .as_str(),
@@ -2688,7 +2688,7 @@ fn pretty_print_balance(
             table_builder.push_record(vec![
                 name,
                 balance.to_string().as_str(),
-                format_balance(balance, coin_decimals, format_decmials, Some(symbol)).as_str(),
+                format_balance(balance, coin_decimals, format_decimals, Some(symbol)).as_str(),
             ]);
         }
     }

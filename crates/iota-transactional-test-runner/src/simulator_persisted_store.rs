@@ -186,7 +186,7 @@ impl SimulatorStore for PersistedStore {
             .and_then(|sequence_number| self.get_checkpoint_by_sequence_number(sequence_number))
     }
 
-    fn get_highest_checkpint(&self) -> Option<VerifiedCheckpoint> {
+    fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
         self.read_write
             .checkpoints
             .unbounded_iter()

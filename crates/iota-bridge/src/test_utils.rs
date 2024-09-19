@@ -49,7 +49,7 @@ use crate::{
     },
 };
 
-pub const DUMMY_MUTALBE_BRIDGE_OBJECT_ARG: ObjectArg = ObjectArg::SharedObject {
+pub const DUMMY_MUTABLE_BRIDGE_OBJECT_ARG: ObjectArg = ObjectArg::SharedObject {
     id: IOTA_BRIDGE_OBJECT_ID,
     initial_shared_version: SequenceNumber::from_u64(1),
     mutable: true,
