@@ -60,9 +60,6 @@ export const Default: Story = {
                 options: Object.values(DisplayStatsSize),
             },
         },
-        isExternalLink: {
-            control: 'boolean',
-        },
         isTruncated: {
             control: 'boolean',
         },

@@ -49,10 +49,6 @@ interface DisplayStatsProps {
      */
     icon?: React.ReactNode;
     /**
-     * The value link is external.
-     */
-    isExternalLink?: boolean;
-    /**
      * The value is truncated
      */
     isTruncated?: boolean;
@@ -67,7 +63,6 @@ export function DisplayStats({
     type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
     icon,
-    isExternalLink = false,
     isTruncated = false,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
