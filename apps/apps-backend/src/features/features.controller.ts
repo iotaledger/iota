@@ -4,7 +4,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 
 import { featuresMock } from './features.mock';
-import { featuresDevelopment } from './features.config';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -12,10 +11,7 @@ export class FeaturesController {
     getDevelopmentFeatures() {
         return {
             status: 200,
-            features: {
-                ...featuresMock,
-                ...featuresDevelopment,
-            },
+            features: featuresMock,
             dateUpdated: new Date().toISOString(),
         };
     }

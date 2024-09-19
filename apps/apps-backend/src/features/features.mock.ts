@@ -434,4 +434,7 @@ export const featuresMock = {
             },
         ],
     },
+    'account-finder': {
+        defaultValue: false,
+    },
 };
