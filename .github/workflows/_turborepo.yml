@@ -45,9 +45,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo2-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-
+            turbo2-${{ runner.os }}-
       - name: Lint
         run: pnpm turbo lint
       - name: Install wasm-pack for mbf package
