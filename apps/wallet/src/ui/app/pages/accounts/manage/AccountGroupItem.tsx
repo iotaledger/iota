@@ -86,18 +86,15 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
 
     const isMain = isMainAccount(account);
 
-    const badgeConfig = (() => {
-        if (isMain) {
-            return {
-                type: BadgeType.PrimarySoft,
-                text: 'Main',
-            };
-        }
-        return {
-            type: undefined,
-            text: undefined,
-        };
-    })();
+    const badgeConfig = isMain
+        ? {
+              type: BadgeType.PrimarySoft,
+              text: 'Main',
+          }
+        : {
+              type: undefined,
+              text: undefined,
+          };
 
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
