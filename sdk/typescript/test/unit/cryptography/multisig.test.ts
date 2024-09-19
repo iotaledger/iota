@@ -368,8 +368,7 @@ describe('Multisig address creation:', () => {
         pk2: PublicKey,
         k3: Secp256r1Keypair,
         pk3: PublicKey,
-        k6: Ed25519Keypair,
-        pk6: PublicKey;
+        k6: Ed25519Keypair;
 
     beforeAll(() => {
         k1 = new Ed25519Keypair();
@@ -386,7 +385,6 @@ describe('Multisig address creation:', () => {
             220, 168, 250, 73, 119, 95, 19, 242, 100, 105, 81, 114, 86, 105,
         ]);
         k6 = Ed25519Keypair.fromSecretKey(secret_key_ed25519);
-        pk6 = k6.getPublicKey();
     });
 
     it('with unreachable threshold', async () => {

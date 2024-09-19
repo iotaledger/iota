@@ -248,7 +248,7 @@ export class MultiSigPublicKey extends PublicKey {
                 throw new Error('MultiSig is not supported inside MultiSig');
             }
 
-            let publicKey = parsed.publicKey;
+            const publicKey = parsed.publicKey;
 
             compressedSignatures[i] = {
                 [parsed.signatureScheme]: Array.from(
