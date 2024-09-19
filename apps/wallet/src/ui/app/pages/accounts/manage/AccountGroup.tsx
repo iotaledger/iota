@@ -15,6 +15,8 @@ import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { Collapsible } from '_app/shared/collapse';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '_shared/experimentation/features';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -84,8 +86,11 @@ export function AccountGroup({
         navigate(`../export/seed/${accountSource!.id}`);
     }
 
+    const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
+
     const dropdownVisibility = {
-        showBalanceFinder: ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type),
+        showBalanceFinder:
+            ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && featureAccountFinderEnabled,
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
     };

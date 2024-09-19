@@ -26,6 +26,7 @@ export function AccountItemApproveConnection({
                 subtitle={formatAddress(account.address)}
                 isSelected={selected}
                 isLocked={account.isLocked}
+                showSelected={true}
                 onLockAccountClick={() => lockAccount(account)}
                 onUnlockAccountClick={() => unlockAccount(account)}
                 avatarContent={() => <AccountIcon account={account} />}
