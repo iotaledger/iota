@@ -40,7 +40,10 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                 fullWidth
             />
             {isDropdownOpen && (
-                <div className="absolute top-[110%] right-0 w-60 border bg-shader-neutral-light-8 dark:bg-shader-neutral-dark-8 bg-neutral-100 dark:bg-neutral-6 rounded-lg py-xs">
+                <div
+                    style={{ minWidth: '240px', top: '110%', right: 0 }}
+                    className="absolute border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8 bg-neutral-100 dark:bg-neutral-6 rounded-lg py-xs"
+                >
                     {accounts.map((account) => (
                         <ListItem
                             key={account.address}

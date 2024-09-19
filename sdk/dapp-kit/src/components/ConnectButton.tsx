@@ -8,15 +8,20 @@ import { AccountDropdownMenu } from './AccountDropdownMenu.js';
 import { ConnectModal } from './connect-modal/ConnectModal.js';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 
-type ConnectButtonProps = React.ComponentProps<typeof Button>;
-
-export function ConnectButton({ text = 'Connect', ...buttonProps }: ConnectButtonProps) {
+export function ConnectButton(props: ConnectButtonWithModalProps) {
     const currentAccount = useCurrentAccount();
-    const [isModalOpen, setModalOpen] = useState(false);
 
     return currentAccount ? (
         <AccountDropdownMenu currentAccount={currentAccount} />
     ) : (
+        <ConnectButtonWithModal {...props} />
+    );
+}
+
+type ConnectButtonWithModalProps = React.ComponentProps<typeof Button>;
+function ConnectButtonWithModal({ text = 'Connect', ...buttonProps }: ConnectButtonWithModalProps) {
+    const [isModalOpen, setModalOpen] = useState(false);
+    return (
         <>
             <ConnectModal isModalOpen={isModalOpen} onOpenChange={(open) => setModalOpen(open)} />
             <Button text={text} type={ButtonType.Secondary} {...buttonProps} />
