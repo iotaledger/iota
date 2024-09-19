@@ -49,176 +49,144 @@ fn match_transaction_block_resp_options(
         .all(|actual_options| actual_options.eq(expected_options))
 }
 
-macro_rules! create_get_object_with_options_test {
-    ( $function_name:ident, $options:expr) => {
-        #[tokio::test]
-        #[serial]
-        async fn $function_name() {
-            let (cluster, pg_store, indexer_client) =
-                start_test_cluster_with_read_write_indexer(None).await;
-            indexer_wait_for_checkpoint(&pg_store, 1).await;
-            let address = cluster.get_address_0();
+async fn get_object_with_options(options: IotaObjectDataOptions) {
+    let (cluster, pg_store, indexer_client) =
+        start_test_cluster_with_read_write_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 1).await;
+    let address = cluster.get_address_0();
 
-            let options = $options;
+    let fullnode_objects = cluster
+        .rpc_client()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(options.clone())),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
-            let fullnode_objects = cluster
-                .rpc_client()
-                .get_owned_objects(
-                    address,
-                    Some(IotaObjectResponseQuery::new_with_options(options.clone())),
-                    None,
-                    None,
-                )
-                .await
-                .unwrap();
+    for obj in fullnode_objects.data {
+        let indexer_obj = indexer_client
+            .get_object(obj.object_id().unwrap(), Some(options.clone()))
+            .await
+            .unwrap();
 
-            for obj in fullnode_objects.data {
-                let indexer_obj = indexer_client
-                    .get_object(obj.object_id().unwrap(), Some(options.clone()))
-                    .await
-                    .unwrap();
-
-                assert_eq!(obj, indexer_obj);
-            }
-        }
-    };
+        assert_eq!(obj, indexer_obj);
+    }
 }
 
-macro_rules! create_multi_get_objects_with_options_test {
-    ($function_name:ident, $options:expr) => {
-        #[tokio::test]
-        #[serial]
-        async fn $function_name() {
-            let (cluster, pg_store, indexer_client) =
-                start_test_cluster_with_read_write_indexer(None).await;
-            indexer_wait_for_checkpoint(&pg_store, 1).await;
-            let address = cluster.get_address_0();
+async fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
+    let (cluster, pg_store, indexer_client) =
+        start_test_cluster_with_read_write_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 1).await;
+    let address = cluster.get_address_0();
 
-            let options = $options;
+    let fullnode_objects = cluster
+        .rpc_client()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(options.clone())),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
-            let fullnode_objects = cluster
-                .rpc_client()
-                .get_owned_objects(
-                    address,
-                    Some(IotaObjectResponseQuery::new_with_options(options.clone())),
-                    None,
-                    None,
-                )
-                .await
-                .unwrap();
+    let object_ids = fullnode_objects
+        .data
+        .iter()
+        .map(|iota_object| iota_object.object_id().unwrap())
+        .collect::<Vec<ObjectID>>();
 
-            let object_ids = fullnode_objects
-                .data
-                .iter()
-                .map(|iota_object| iota_object.object_id().unwrap())
-                .collect::<Vec<ObjectID>>();
+    let indexer_objects = indexer_client
+        .multi_get_objects(object_ids, Some(options))
+        .await
+        .unwrap();
 
-            let indexer_objects = indexer_client
-                .multi_get_objects(object_ids, Some(options))
-                .await
-                .unwrap();
-
-            assert_eq!(fullnode_objects.data, indexer_objects);
-        }
-    };
+    assert_eq!(fullnode_objects.data, indexer_objects);
 }
 
-macro_rules! create_get_transaction_block_with_options_test {
-    ($function_name:ident, $options:expr) => {
-        #[tokio::test]
-        #[serial]
-        async fn $function_name() {
-            let (cluster, pg_store, indexer_client) =
-                start_test_cluster_with_read_write_indexer(None).await;
-            indexer_wait_for_checkpoint(&pg_store, 1).await;
+async fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptions) {
+    let (cluster, pg_store, indexer_client) =
+        start_test_cluster_with_read_write_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-            let options = $options;
+    let fullnode_checkpoint = cluster
+        .rpc_client()
+        .get_checkpoint(CheckpointId::SequenceNumber(0))
+        .await
+        .unwrap();
 
-            let fullnode_checkpoint = cluster
-                .rpc_client()
-                .get_checkpoint(CheckpointId::SequenceNumber(0))
-                .await
-                .unwrap();
+    let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
 
-            let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
+    let fullnode_tx = cluster
+        .rpc_client()
+        .get_transaction_block(tx_digest, Some(options.clone()))
+        .await
+        .unwrap();
 
-            let fullnode_tx = cluster
-                .rpc_client()
-                .get_transaction_block(tx_digest, Some(options.clone()))
-                .await
-                .unwrap();
+    let tx = indexer_client
+        .get_transaction_block(tx_digest, Some(options.clone()))
+        .await
+        .unwrap();
 
-            let tx = indexer_client
-                .get_transaction_block(tx_digest, Some(options.clone()))
-                .await
-                .unwrap();
+    // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
+    // not match all options filters but is still good to check if both tx does
+    // match
+    assert_eq!(fullnode_tx, tx);
 
-            // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
-            // not match all options filters but is still good to check if both tx does
-            // match
-            assert_eq!(fullnode_tx, tx);
-
-            assert!(
-                match_transaction_block_resp_options(&options, &[fullnode_tx]),
-                "fullnode transaction block assertion failed"
-            );
-            assert!(
-                match_transaction_block_resp_options(&options, &[tx]),
-                "indexer transaction block assertion failed"
-            );
-        }
-    };
+    assert!(
+        match_transaction_block_resp_options(&options, &[fullnode_tx]),
+        "fullnode transaction block assertion failed"
+    );
+    assert!(
+        match_transaction_block_resp_options(&options, &[tx]),
+        "indexer transaction block assertion failed"
+    );
 }
 
-macro_rules! create_multi_get_transaction_blocks_with_options_test {
-    ($function_name:ident, $options:expr) => {
-        #[tokio::test]
-        #[serial]
-        async fn $function_name() {
-            let (cluster, pg_store, indexer_client) =
-                start_test_cluster_with_read_write_indexer(None).await;
-            indexer_wait_for_checkpoint(&pg_store, 3).await;
+async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
+    let (cluster, pg_store, indexer_client) =
+        start_test_cluster_with_read_write_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 3).await;
 
-            let options = $options;
+    let fullnode_checkpoints = cluster
+        .rpc_client()
+        .get_checkpoints(None, Some(3), false)
+        .await
+        .unwrap();
 
-            let fullnode_checkpoints = cluster
-                .rpc_client()
-                .get_checkpoints(None, Some(3), false)
-                .await
-                .unwrap();
+    let digests = fullnode_checkpoints
+        .data
+        .into_iter()
+        .flat_map(|c| c.transactions)
+        .collect::<Vec<TransactionDigest>>();
 
-            let digests = fullnode_checkpoints
-                .data
-                .into_iter()
-                .flat_map(|c| c.transactions)
-                .collect::<Vec<TransactionDigest>>();
+    let fullnode_txs = cluster
+        .rpc_client()
+        .multi_get_transaction_blocks(digests.clone(), Some(options.clone()))
+        .await
+        .unwrap();
 
-            let fullnode_txs = cluster
-                .rpc_client()
-                .multi_get_transaction_blocks(digests.clone(), Some(options.clone()))
-                .await
-                .unwrap();
+    let indexer_txs = indexer_client
+        .multi_get_transaction_blocks(digests, Some(options.clone()))
+        .await
+        .unwrap();
 
-            let indexer_txs = indexer_client
-                .multi_get_transaction_blocks(digests, Some(options.clone()))
-                .await
-                .unwrap();
+    // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
+    // not match all options filters but is still good to check if both tx does
+    // match
+    assert_eq!(fullnode_txs, indexer_txs);
 
-            // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
-            // not match all options filters but is still good to check if both tx does
-            // match
-            assert_eq!(fullnode_txs, indexer_txs);
-
-            assert!(
-                match_transaction_block_resp_options(&options, &fullnode_txs),
-                "fullnode multi transaction blocks assertion failed"
-            );
-            assert!(
-                match_transaction_block_resp_options(&options, &indexer_txs),
-                "indexer multi transaction blocks assertion failed"
-            );
-        }
-    };
+    assert!(
+        match_transaction_block_resp_options(&options, &fullnode_txs),
+        "fullnode multi transaction blocks assertion failed"
+    );
+    assert!(
+        match_transaction_block_resp_options(&options, &indexer_txs),
+        "indexer multi transaction blocks assertion failed"
+    );
 }
 
 #[tokio::test]
@@ -540,53 +508,63 @@ async fn get_object_not_found() {
     )
 }
 
-create_get_object_with_options_test!(
-    get_object_with_bcs_lossless,
-    IotaObjectDataOptions::bcs_lossless()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_bcs_lossless() {
+    get_object_with_options(IotaObjectDataOptions::bcs_lossless()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_full_content,
-    IotaObjectDataOptions::full_content()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_full_content() {
+    get_object_with_options(IotaObjectDataOptions::full_content()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_bcs,
-    IotaObjectDataOptions::default().with_bcs()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_bcs() {
+    get_object_with_options(IotaObjectDataOptions::default().with_bcs()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_content,
-    IotaObjectDataOptions::default().with_content()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_content() {
+    get_object_with_options(IotaObjectDataOptions::default().with_content()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_display,
-    IotaObjectDataOptions::default().with_display()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_display() {
+    get_object_with_options(IotaObjectDataOptions::default().with_display()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_owner,
-    IotaObjectDataOptions::default().with_owner()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_owner() {
+    get_object_with_options(IotaObjectDataOptions::default().with_owner()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_previous_transaction,
-    IotaObjectDataOptions::default().with_previous_transaction()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_previous_transaction() {
+    get_object_with_options(IotaObjectDataOptions::default().with_previous_transaction()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_type,
-    IotaObjectDataOptions::default().with_type()
-);
+#[tokio::test]
+#[serial]
+async fn get_object_with_type() {
+    get_object_with_options(IotaObjectDataOptions::default().with_type()).await;
+}
 
-create_get_object_with_options_test!(
-    get_object_with_storage_rebate,
-    IotaObjectDataOptions {
+#[tokio::test]
+#[serial]
+async fn get_object_with_storage_rebate() {
+    get_object_with_options(IotaObjectDataOptions {
         show_storage_rebate: true,
         ..Default::default()
-    }
-);
+    })
+    .await;
+}
 
 #[tokio::test]
 #[serial]
@@ -705,53 +683,64 @@ async fn multi_get_objects_found_and_not_found() {
     assert_eq!(2, obj_not_found_num);
 }
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_bcs_lossless,
-    IotaObjectDataOptions::bcs_lossless()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_bcs_lossless() {
+    multi_get_objects_with_options(IotaObjectDataOptions::bcs_lossless()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_full_content,
-    IotaObjectDataOptions::full_content()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_full_content() {
+    multi_get_objects_with_options(IotaObjectDataOptions::full_content()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_bcs,
-    IotaObjectDataOptions::default().with_bcs()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_bcs() {
+    multi_get_objects_with_options(IotaObjectDataOptions::default().with_bcs()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_content,
-    IotaObjectDataOptions::default().with_content()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_content() {
+    multi_get_objects_with_options(IotaObjectDataOptions::default().with_content()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_display,
-    IotaObjectDataOptions::default().with_display()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_display() {
+    multi_get_objects_with_options(IotaObjectDataOptions::default().with_display()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_owner,
-    IotaObjectDataOptions::default().with_owner()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_owner() {
+    multi_get_objects_with_options(IotaObjectDataOptions::default().with_owner()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_previous_transaction,
-    IotaObjectDataOptions::default().with_previous_transaction()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_previous_transaction() {
+    multi_get_objects_with_options(IotaObjectDataOptions::default().with_previous_transaction())
+        .await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_type,
-    IotaObjectDataOptions::default().with_type()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_type() {
+    multi_get_objects_with_options(IotaObjectDataOptions::default().with_type()).await;
+}
 
-create_multi_get_objects_with_options_test!(
-    multi_get_objects_with_storage_rebate,
-    IotaObjectDataOptions {
+#[tokio::test]
+#[serial]
+async fn multi_get_objects_with_storage_rebate() {
+    multi_get_objects_with_options(IotaObjectDataOptions {
         show_storage_rebate: true,
         ..Default::default()
-    }
-);
+    })
+    .await;
+}
 
 #[tokio::test]
 #[serial]
@@ -829,50 +818,81 @@ async fn get_transaction_block_not_found() {
     ));
 }
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_full_content,
-    IotaTransactionBlockResponseOptions::full_content()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_full_content() {
+    get_transaction_block_with_options(IotaTransactionBlockResponseOptions::full_content()).await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_full_content_and_with_raw_effects,
-    IotaTransactionBlockResponseOptions::full_content().with_raw_effects()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_full_content_and_with_raw_effects() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::full_content().with_raw_effects(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_raw_input,
-    IotaTransactionBlockResponseOptions::default().with_raw_input()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_raw_input() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::default().with_raw_input(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_effects,
-    IotaTransactionBlockResponseOptions::default().with_effects()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_effects() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::default().with_effects(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_events,
-    IotaTransactionBlockResponseOptions::default().with_events()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_events() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::default().with_events(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_balance_changes,
-    IotaTransactionBlockResponseOptions::default().with_balance_changes()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_balance_changes() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::default().with_balance_changes(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_object_changes,
-    IotaTransactionBlockResponseOptions::default().with_object_changes()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_object_changes() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::default().with_object_changes(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_raw_effects,
-    IotaTransactionBlockResponseOptions::default().with_raw_effects()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_raw_effects() {
+    get_transaction_block_with_options(
+        IotaTransactionBlockResponseOptions::default().with_raw_effects(),
+    )
+    .await;
+}
 
-create_get_transaction_block_with_options_test!(
-    get_transaction_block_with_input,
-    IotaTransactionBlockResponseOptions::default().with_input()
-);
+#[tokio::test]
+#[serial]
+async fn get_transaction_block_with_input() {
+    get_transaction_block_with_options(IotaTransactionBlockResponseOptions::default().with_input())
+        .await;
+}
 
 #[tokio::test]
 #[serial]
@@ -907,50 +927,84 @@ async fn multi_get_transaction_blocks() {
     assert_eq!(fullnode_txs, indexer_txs);
 }
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_full_content,
-    IotaTransactionBlockResponseOptions::full_content()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_full_content() {
+    multi_get_transaction_blocks_with_options(IotaTransactionBlockResponseOptions::full_content())
+        .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_full_content_and_with_raw_effects,
-    IotaTransactionBlockResponseOptions::full_content().with_raw_effects()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_full_content_and_with_raw_effects() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::full_content().with_raw_effects(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_raw_input,
-    IotaTransactionBlockResponseOptions::default().with_raw_input()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_raw_input() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_raw_input(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_effects,
-    IotaTransactionBlockResponseOptions::default().with_effects()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_effects() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_effects(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_events,
-    IotaTransactionBlockResponseOptions::default().with_events()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_events() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_events(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_balance_changes,
-    IotaTransactionBlockResponseOptions::default().with_balance_changes()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_balance_changes() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_balance_changes(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_object_changes,
-    IotaTransactionBlockResponseOptions::default().with_object_changes()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_object_changes() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_object_changes(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_raw_effects,
-    IotaTransactionBlockResponseOptions::default().with_raw_effects()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_raw_effects() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_raw_effects(),
+    )
+    .await;
+}
 
-create_multi_get_transaction_blocks_with_options_test!(
-    multi_get_transaction_blocks_with_input,
-    IotaTransactionBlockResponseOptions::default().with_input()
-);
+#[tokio::test]
+#[serial]
+async fn multi_get_transaction_blocks_with_input() {
+    multi_get_transaction_blocks_with_options(
+        IotaTransactionBlockResponseOptions::default().with_input(),
+    )
+    .await;
+}
 
 #[tokio::test]
 #[serial]
