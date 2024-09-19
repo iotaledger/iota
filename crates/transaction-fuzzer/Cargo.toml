@@ -19,12 +19,10 @@ rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
-iota-core.workspace = true
+iota-core = { workspace = true, features = ["test-utils"] }
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
 iota-types = { workspace = true, features = ["fuzzing"] }
 
 [dev-dependencies]
-iota-core = { workspace = true, features = ["test-utils"] }
-iota-protocol-config.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }

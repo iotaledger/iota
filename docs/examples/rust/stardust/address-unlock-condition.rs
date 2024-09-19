@@ -53,8 +53,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
         ED25519,
-        None,
         Some(derivation_path),
+        None,
     )?;
 
     println!("Sender address - {sender:?}");

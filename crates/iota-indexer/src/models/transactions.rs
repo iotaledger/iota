@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use diesel::prelude::*;
+use diesel::{prelude::*, r2d2::R2D2Connection};
 use iota_json_rpc_types::{
     BalanceChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
@@ -23,7 +23,9 @@ use move_core_types::{
 };
 
 use crate::{
+    db::ConnectionPool,
     errors::{Context, IndexerError},
+    models::large_objects::{get_large_object_in_chunks, put_large_object_in_chunks},
     schema::transactions,
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
@@ -485,16 +487,15 @@ impl StoredTransaction {
     pub fn is_genesis(&self) -> bool {
         self.tx_sequence_number == 0
     }
-
 }
 
 #[cfg(feature = "postgres-feature")]
 impl StoredTransaction {
     /// Store the raw transaction data as a large object in postgres
     /// and replace `self.raw_transaction` with a pointer to the large object.
-    fn store_raw_transaction_as_large_object(
+    fn store_raw_transaction_as_large_object<T: R2D2Connection + Send + 'static>(
         mut self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Storing raw transaction as large object data");
         let raw_tx = std::mem::take(&mut self.raw_transaction);
@@ -505,9 +506,9 @@ impl StoredTransaction {
 
     /// Store object changes as a large object in postgres
     /// and replace `self.object_changes` with a pointer to the large object.
-    fn store_object_changes_as_large_object(
+    fn store_object_changes_as_large_object<T: R2D2Connection + Send + 'static>(
         mut self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Storing object changes as large object data");
         let object_changes = std::mem::take(&mut self.object_changes);
@@ -522,9 +523,9 @@ impl StoredTransaction {
 
     /// Store the raw effects data as a large object in postgres
     /// and replace `self.raw_effects` with a pointer to the large object.
-    fn store_raw_effects_as_large_object(
+    fn store_raw_effects_as_large_object<T: R2D2Connection + Send + 'static>(
         mut self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Storing raw effects as large object data");
         let raw_tx = std::mem::take(&mut self.raw_effects);
@@ -537,9 +538,9 @@ impl StoredTransaction {
     /// and if true it stores the raw data as a large object
     /// in postgres, replacing `self.raw_transaction`,`self.raw_effects`,
     /// and `self.object_changes` with the respective pointers.
-    pub fn store_inner_genesis_data_as_large_object(
+    pub fn store_inner_genesis_data_as_large_object<T: R2D2Connection + Send + 'static>(
         self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         if !self.is_genesis() {
             return Ok(self);
@@ -551,9 +552,9 @@ impl StoredTransaction {
 
     /// This method replaces `self.raw_transaction` large object id with the
     /// actual large object data
-    fn set_large_object_as_raw_transaction(
+    fn set_large_object_as_raw_transaction<T: R2D2Connection + Send + 'static>(
         mut self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Setting large object data as raw transaction");
         let raw_oid = std::mem::take(&mut self.raw_transaction);
@@ -570,9 +571,9 @@ impl StoredTransaction {
 
     /// This method replaces `self.raw_effects` large object id with the actual
     /// large object data
-    fn set_large_object_as_raw_effects(
+    fn set_large_object_as_raw_effects<T: R2D2Connection + Send + 'static>(
         mut self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Setting large object data as raw effects");
         let raw_oid = std::mem::take(&mut self.raw_effects);
@@ -588,9 +589,9 @@ impl StoredTransaction {
 
     /// This method replaces `self.object_changes` large object id with the
     /// actual large object data
-    fn set_large_object_as_object_changes(
+    fn set_large_object_as_object_changes<T: R2D2Connection + Send + 'static>(
         mut self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         tracing::debug!("Setting large object data as object changes");
         let raw_oid = std::mem::take(&mut self.object_changes)
@@ -616,9 +617,9 @@ impl StoredTransaction {
     /// as inner data.
     ///
     /// This replaces the pointer with the actual large object data.
-    pub fn set_genesis_large_object_as_inner_data(
+    pub fn set_genesis_large_object_as_inner_data<T: R2D2Connection + Send + 'static>(
         self,
-        pool: &PgConnectionPool,
+        pool: &ConnectionPool<T>,
     ) -> Result<Self, IndexerError> {
         if !self.is_genesis() {
             return Ok(self);

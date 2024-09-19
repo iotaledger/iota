@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
 use axum::{extract::State, Extension, Json};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{

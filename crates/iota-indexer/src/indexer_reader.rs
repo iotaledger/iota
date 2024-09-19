@@ -60,7 +60,7 @@ use crate::{
     },
     schema::{
         address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, packages, transactions,
+        objects_snapshot, transactions,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -745,7 +745,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             stored_txes = stored_txes
                 .into_iter()
                 .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
         }
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
@@ -1506,7 +1506,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let metrics = self.run_query(|conn| {
+        let metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
@@ -1514,21 +1514,21 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_move_call_metrics(&self) -> IndexerResult<MoveCallMetrics> {
-        let latest_3d_move_call_metrics = self.run_query(|conn| {
+        let latest_3d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
                 .filter(move_call_metrics::dsl::day.eq(3))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
                 .load::<QueriedMoveCallMetrics>(conn)
         })?;
-        let latest_7d_move_call_metrics = self.run_query(|conn| {
+        let latest_7d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
                 .filter(move_call_metrics::dsl::day.eq(7))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
                 .load::<QueriedMoveCallMetrics>(conn)
         })?;
-        let latest_30d_move_call_metrics = self.run_query(|conn| {
+        let latest_30d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
                 .filter(move_call_metrics::dsl::day.eq(30))
                 .order(move_call_metrics::dsl::id.desc())
@@ -1569,7 +1569,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_address_metrics(&self) -> IndexerResult<AddressMetrics> {
-        let stored_address_metrics = self.run_query(|conn| {
+        let stored_address_metrics = run_query!(&self.pool, |conn| {
             address_metrics::table
                 .order(address_metrics::dsl::checkpoint.desc())
                 .first::<StoredAddressMetrics>(conn)
@@ -1581,7 +1581,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         checkpoint_seq: u64,
     ) -> IndexerResult<AddressMetrics> {
-        let stored_address_metrics = self.run_query(|conn| {
+        let stored_address_metrics = run_query!(&self.pool, |conn| {
             address_metrics::table
                 .filter(address_metrics::dsl::checkpoint.eq(checkpoint_seq as i64))
                 .first::<StoredAddressMetrics>(conn)
@@ -1608,7 +1608,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
               WHERE row_num = 1 ORDER BY epoch {}",
             if is_descending { "DESC" } else { "ASC" },
         );
-        let epoch_address_metrics = self.run_query(|conn| {
+        let epoch_address_metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query(epoch_address_metrics_query).load::<StoredAddressMetrics>(conn)
         })?;
 

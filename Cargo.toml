@@ -346,10 +346,10 @@ inquire = "0.6.0"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
 ipnetwork = "0.20.0"
-itertools = "0.10.5"
+itertools = "0.13.0"
 jemalloc-ctl = "^0.5"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
-jsonrpsee = { version = "0.24.0", features = [
+jsonrpsee = { version = "0.24", features = [
   "server",
   "macros",
   "client",
@@ -368,8 +368,8 @@ moka = { version = "0.12", default-features = false, features = [
   "atomic64",
 ] }
 more-asserts = "0.3.1"
-msim = { git = "https://github.com/MystenLabs/mysten-sim.git", rev = "b320996d8dfb99b273fe31c0222c659332283c99", package = "msim" }
-msim-macros = { git = "https://github.com/MystenLabs/mysten-sim.git", rev = "b320996d8dfb99b273fe31c0222c659332283c99", package = "msim-macros" }
+msim = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim" }
+msim-macros = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim-macros" }
 multiaddr = "0.17.0"
 nexlint = { git = "https://github.com/nextest-rs/nexlint.git", rev = "7ce56bd591242a57660ed05f14ca2483c37d895b" }
 nexlint-lints = { git = "https://github.com/nextest-rs/nexlint.git", rev = "7ce56bd591242a57660ed05f14ca2483c37d895b" }

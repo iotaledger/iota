@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use iota_json_rpc::IotaRpcModule;
-use iota_json_rpc_api::{WriteApiClient, WriteApiServer};
+use iota_json_rpc_api::{error_object_from_rpc, WriteApiClient, WriteApiServer};
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,

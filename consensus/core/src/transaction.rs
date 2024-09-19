@@ -246,6 +246,20 @@ pub enum ValidationError {
     InvalidTransaction(String),
 }
 
+/// `NoopTransactionVerifier` accepts all transactions.
+#[allow(unused)]
+pub(crate) struct NoopTransactionVerifier;
+
+impl TransactionVerifier for NoopTransactionVerifier {
+    fn verify_batch(
+        &self,
+        _protocol_config: &ProtocolConfig,
+        _batch: &[&[u8]],
+    ) -> Result<(), ValidationError> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{sync::Arc, time::Duration};

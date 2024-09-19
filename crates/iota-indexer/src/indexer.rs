@@ -28,7 +28,7 @@ use crate::{
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
-    store::IndexerStore,
+    store::{IndexerAnalyticalStore, IndexerStore},
     IndexerConfig,
 };
 

@@ -89,10 +89,10 @@ impl IotaMockClient {
     }
 
     pub fn add_events_by_tx_digest_error(&self, tx_digest: TransactionDigest) {
-        self.events_by_tx_digest.lock().unwrap().insert(
-            tx_digest,
-            Err(iota_sdk::error::Error::DataError("".to_string())),
-        );
+        self.events_by_tx_digest
+            .lock()
+            .unwrap()
+            .insert(tx_digest, Err(iota_sdk::error::Error::Data("".to_string())));
     }
 
     pub fn add_transaction_response(
@@ -190,7 +190,7 @@ impl IotaClientInner for IotaMockClient {
         {
             Ok(events) => Ok(events.clone()),
             // iota_sdk::error::Error is not Clone
-            Err(_) => Err(iota_sdk::error::Error::DataError("".to_string())),
+            Err(_) => Err(iota_sdk::error::Error::Data("".to_string())),
         }
     }
 

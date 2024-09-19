@@ -89,6 +89,7 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
 
     let store = create_pg_store(config.get_db_url().unwrap(), reset_database);
 
+    let registry = prometheus::Registry::default();
     let handle = match reader_writer_config {
         ReaderWriterConfig::Reader {
             reader_mode_rpc_url,
@@ -106,9 +107,16 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
         }
         ReaderWriterConfig::Writer { snapshot_config } => {
             if config.reset_db {
+                let blocking_pool =
+                    new_connection_pool_with_config::<T>(&db_url, Some(5), Default::default())
+                        .unwrap();
                 crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
             }
+
             let store_clone = store.clone();
+
+            init_metrics(&registry);
+            let indexer_metrics = IndexerMetrics::new(&registry);
 
             tokio::spawn(async move {
                 Indexer::start_writer_with_config::<PgIndexerStore<T>, T>(
@@ -126,14 +134,17 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     (store, handle)
 }
 
-pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexerStore {
+pub fn create_pg_store<T: R2D2Connection + Send + 'static>(
+    db_url: Secret<String>,
+    reset_database: bool,
+) -> PgIndexerStore<T> {
     // Reduce the connection pool size to 10 for testing
     // to prevent maxing out
     info!("Setting DB_POOL_SIZE to 10");
     std::env::set_var("DB_POOL_SIZE", "10");
 
     // Set connection timeout for tests to 1 second
-    let mut pool_config = ConnectionPoolConfig::default();
+    let pool_config = ConnectionPoolConfig::default();
 
     let registry = prometheus::Registry::default();
 

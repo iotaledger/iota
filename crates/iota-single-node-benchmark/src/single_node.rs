@@ -36,10 +36,9 @@ use iota_types::{
     },
 };
 use tokio::sync::broadcast;
-
+use iota_core::mock_consensus::{ConsensusMode, MockConsensusClient};
 use crate::{
     command::Component,
-    mock_consensus::{ConsensusMode, MockConsensusClient},
     mock_storage::InMemoryObjectStore,
 };
 
