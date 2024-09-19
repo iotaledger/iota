@@ -3,7 +3,7 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { Button, ButtonSize, ButtonType } from '../../atoms/button';
+import { ButtonUnstyled } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
 import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled } from '@iota/ui-icons';
 import { Address } from '../address';
@@ -62,6 +62,10 @@ interface AccountProps {
      */
     isSelected?: boolean;
     /**
+     * Show background if account active (optional).
+     */
+    isActive?: boolean;
+    /**
      * The type of the badge.
      */
     badgeType?: BadgeType;
@@ -87,11 +91,17 @@ export function Account({
     isCopyable,
     isExternal,
     isSelected,
+    isActive,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
 
     return (
-        <div className="state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer">
+        <div
+            className={cx(
+                'state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
+                isActive && 'state-active',
+            )}
+        >
             <div className="flex items-center space-x-3">
                 <Avatar isLocked={isLocked} />
                 <div className="flex flex-col items-start py-xs">
@@ -120,46 +130,33 @@ export function Account({
                 )}
             >
                 {onOptionsClick && (
-                    <Button
-                        size={ButtonSize.Small}
-                        type={ButtonType.Ghost}
-                        onClick={onOptionsClick}
-                        icon={<MoreHoriz />}
-                    />
+                    <ButtonUnstyled onClick={onOptionsClick}>
+                        <MoreHoriz />
+                    </ButtonUnstyled>
                 )}
                 {onLockAccountClick &&
                     onUnlockAccountClick &&
                     (isLocked ? (
                         <div className="unlock">
-                            <Button
-                                size={ButtonSize.Small}
-                                type={ButtonType.Ghost}
-                                onClick={onUnlockAccountClick}
-                                icon={<LockLocked />}
-                            />
+                            <ButtonUnstyled onClick={onUnlockAccountClick}>
+                                <LockLocked />
+                            </ButtonUnstyled>
                         </div>
                     ) : (
-                        <Button
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            onClick={onLockAccountClick}
-                            icon={<LockUnlocked />}
-                        />
+                        <ButtonUnstyled onClick={onLockAccountClick}>
+                            <LockUnlocked />
+                        </ButtonUnstyled>
                     ))}
                 {isSelected !== undefined ? (
                     <div className="checkmark">
-                        <Button
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            icon={
-                                <CheckmarkFilled
-                                    className={cx({
-                                        'text-neutral-10': !isSelected,
-                                        'text-primary-30': isSelected,
-                                    })}
-                                />
-                            }
-                        />
+                        <ButtonUnstyled>
+                            <CheckmarkFilled
+                                className={cx({
+                                    'text-neutral-10': !isSelected,
+                                    'text-primary-30': isSelected,
+                                })}
+                            />
+                        </ButtonUnstyled>
                     </div>
                 ) : null}
             </div>
