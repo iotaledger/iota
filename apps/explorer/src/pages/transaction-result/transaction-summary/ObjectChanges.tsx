@@ -49,24 +49,34 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
     switch (label) {
         case ItemLabel.Package:
             return (
-                <ObjectLink objectId={packageId || ''}>
-                    <KeyValueInfo
-                        keyText={label}
-                        valueText={formatAddress(packageId || '')}
-                        fullwidth
-                    />
-                </ObjectLink>
+                <KeyValueInfo
+                    keyText={label}
+                    value={
+                        <ObjectLink
+                            objectId={packageId || ''}
+                            label={formatAddress(packageId || '')}
+                        />
+                    }
+                    fullwidth
+                />
             );
         case ItemLabel.Module:
             return (
-                <ObjectLink objectId={packageId ? `${packageId}?module=${moduleName}` : ''}>
-                    <KeyValueInfo keyText={label} valueText={moduleName || ''} fullwidth />
-                </ObjectLink>
+                <KeyValueInfo
+                    keyText={label}
+                    value={
+                        <ObjectLink
+                            objectId={packageId ? `${packageId}?module=${moduleName}` : ''}
+                            label={moduleName || ''}
+                        />
+                    }
+                    fullwidth
+                />
             );
         case ItemLabel.Type:
-            return <KeyValueInfo keyText={label} valueText={typeName || ''} fullwidth />;
+            return <KeyValueInfo keyText={label} value={typeName || ''} fullwidth />;
         default:
-            return <KeyValueInfo keyText={label} valueText="" fullwidth />;
+            return <KeyValueInfo keyText={label} value="" fullwidth />;
     }
 }
 

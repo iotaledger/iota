@@ -66,9 +66,18 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
                             <BalanceChangeEntries changes={changes} />
                             <div className="flex flex-col gap-y-sm px-md pb-md">
                                 <Divider />
-                                <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                    <KeyValueInfo keyText="Owner" valueText={owner} fullwidth />
-                                </ExplorerLink>
+                                <KeyValueInfo
+                                    keyText="Owner"
+                                    value={
+                                        <ExplorerLink
+                                            type={ExplorerLinkType.Address}
+                                            address={owner}
+                                        >
+                                            {owner}
+                                        </ExplorerLink>
+                                    }
+                                    fullwidth
+                                />
                             </div>
                         </div>
                     </Panel>

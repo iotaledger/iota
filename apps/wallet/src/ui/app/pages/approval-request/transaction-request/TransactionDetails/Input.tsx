@@ -19,13 +19,19 @@ export function Input({ input }: InputProps) {
             {'Pure' in input.value ? (
                 <KeyValueInfo
                     keyText="Pure"
-                    valueText={toB64(new Uint8Array(input.value.Pure))}
+                    value={toB64(new Uint8Array(input.value.Pure))}
                     fullwidth
                 />
             ) : 'Object' in input.value ? (
-                <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
-                    <KeyValueInfo keyText="Object" valueText={formatAddress(objectId)} fullwidth />
-                </ExplorerLink>
+                <KeyValueInfo
+                    keyText="Object"
+                    value={
+                        <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
+                            {formatAddress(objectId)}
+                        </ExplorerLink>
+                    }
+                    fullwidth
+                />
             ) : (
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                     Unknown input value

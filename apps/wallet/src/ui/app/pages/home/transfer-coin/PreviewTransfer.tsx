@@ -36,18 +36,37 @@ export function PreviewTransfer({
                 approximation={approximation}
             />
             <div className="flex flex-col gap-md--rs p-sm--rs">
-                <ExplorerLink type={ExplorerLinkType.Address} address={accountAddress || ''}>
-                    <KeyValueInfo keyText={'From'} valueText={accountAddress || ''} fullwidth />
-                </ExplorerLink>
+                <KeyValueInfo
+                    keyText={'From'}
+                    value={
+                        <ExplorerLink
+                            type={ExplorerLinkType.Address}
+                            address={accountAddress || ''}
+                        >
+                            {accountAddress || ''}
+                        </ExplorerLink>
+                    }
+                    fullwidth
+                />
+
                 <Divider />
-                <ExplorerLink type={ExplorerLinkType.Address} address={accountAddress || ''}>
-                    <KeyValueInfo keyText={'To'} valueText={accountAddress || ''} fullwidth />
-                </ExplorerLink>
+                <KeyValueInfo
+                    keyText={'To'}
+                    value={
+                        <ExplorerLink
+                            type={ExplorerLinkType.Address}
+                            address={accountAddress || ''}
+                        >
+                            {accountAddress || ''}
+                        </ExplorerLink>
+                    }
+                    fullwidth
+                />
 
                 <Divider />
                 <KeyValueInfo
                     keyText={'Est. Gas Fees'}
-                    valueText={`${gasBudget} ${GAS_SYMBOL}`}
+                    value={`${gasBudget} ${GAS_SYMBOL}`}
                     fullwidth
                 />
             </div>

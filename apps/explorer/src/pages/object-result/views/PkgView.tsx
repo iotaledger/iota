@@ -81,17 +81,22 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
                 <Panel>
                     <Title title="Details" />
                     <div className="flex flex-col gap-lg p-md--rs">
-                        <ObjectLink objectId={viewedData.id}>
-                            <KeyValueInfo keyText="Object ID" valueText={viewedData.id} />
-                        </ObjectLink>
-                        <KeyValueInfo keyText="Version" valueText={viewedData.version} />
+                        <KeyValueInfo
+                            keyText="Object ID"
+                            value={<ObjectLink objectId={viewedData.id} label={viewedData.id} />}
+                        />
+
+                        <KeyValueInfo keyText="Version" value={viewedData.version} />
                         {viewedData?.publisherAddress && (
-                            <AddressLink address={viewedData.publisherAddress}>
-                                <KeyValueInfo
-                                    keyText="Publisher"
-                                    valueText={viewedData.publisherAddress}
-                                />
-                            </AddressLink>
+                            <KeyValueInfo
+                                keyText="Publisher"
+                                value={
+                                    <AddressLink
+                                        address={viewedData.publisherAddress}
+                                        label={viewedData.publisherAddress}
+                                    />
+                                }
+                            />
                         )}
                     </div>
                 </Panel>

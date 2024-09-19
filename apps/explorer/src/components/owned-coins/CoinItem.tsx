@@ -15,12 +15,12 @@ interface CoinItemProps {
 export default function CoinItem({ coin }: CoinItemProps): JSX.Element {
     const [formattedBalance, symbol] = useFormatCoin(coin.balance, coin.coinType);
     return (
-        <ObjectLink objectId={coin.coinObjectId}>
-            <KeyValueInfo
-                keyText={`${formattedBalance} ${symbol}`}
-                valueText={formatAddress(coin.coinObjectId)}
-                fullwidth
-            />
-        </ObjectLink>
+        <KeyValueInfo
+            keyText={`${formattedBalance} ${symbol}`}
+            value={
+                <ObjectLink objectId={coin.coinObjectId} label={formatAddress(coin.coinObjectId)} />
+            }
+            fullwidth
+        />
     );
 }

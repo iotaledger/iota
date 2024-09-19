@@ -28,14 +28,14 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
           : `${gasSummary?.isSponsored ? 0 : gas}`;
 
     if (!gasSummary)
-        return <KeyValueInfo keyText="Gas fee" valueText="0" supportingLabel={symbol} fullwidth />;
+        return <KeyValueInfo keyText="Gas fee" value="0" supportingLabel={symbol} fullwidth />;
 
     return (
         <>
             {address === gasSummary?.owner && (
                 <KeyValueInfo
                     keyText="Gas fee"
-                    valueText={gasValueText}
+                    value={gasValueText}
                     supportingLabel={symbol}
                     fullwidth
                 />
@@ -44,17 +44,22 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
                 <>
                     <KeyValueInfo
                         keyText="Sponsored fee"
-                        valueText={gas}
+                        value={gas}
                         supportingLabel={symbol}
                         fullwidth
                     />
-                    <ExplorerLink type={ExplorerLinkType.Address} address={gasSummary.owner}>
-                        <KeyValueInfo
-                            keyText="Sponsor"
-                            valueText={formatAddress(gasSummary.owner)}
-                            fullwidth
-                        />
-                    </ExplorerLink>
+                    <KeyValueInfo
+                        keyText="Sponsor"
+                        value={
+                            <ExplorerLink
+                                type={ExplorerLinkType.Address}
+                                address={gasSummary.owner}
+                            >
+                                {formatAddress(gasSummary.owner)}
+                            </ExplorerLink>
+                        }
+                        fullwidth
+                    />
                 </>
             )}
         </>

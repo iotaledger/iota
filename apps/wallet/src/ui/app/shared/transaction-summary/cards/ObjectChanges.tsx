@@ -64,44 +64,64 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                     <div className="flex flex-row items-center gap-xxs pr-md">
                         <Badge type={BadgeType.PrimarySoft} label={typeName} />
                         {change.objectId && (
-                            <ExplorerLink type={ExplorerLinkType.Object} objectID={change.objectId}>
-                                <KeyValueInfo
-                                    keyText="Package"
-                                    valueText={formatAddress(packageId)}
-                                    fullwidth
-                                />
-                            </ExplorerLink>
+                            <KeyValueInfo
+                                keyText="Package"
+                                value={
+                                    <ExplorerLink
+                                        type={ExplorerLinkType.Object}
+                                        objectID={change.objectId}
+                                    >
+                                        {formatAddress(packageId)}
+                                    </ExplorerLink>
+                                }
+                                fullwidth
+                            />
                         )}
                     </div>
                 </div>
             )}
         >
             <div className="flex flex-col gap-y-sm px-md">
-                <ExplorerLink
-                    objectID={packageId}
-                    type={ExplorerLinkType.Object}
-                    moduleName={moduleName}
-                >
-                    <KeyValueInfo
-                        keyText="Package"
-                        valueText={formatAddress(packageId)}
-                        fullwidth
-                    />
-                </ExplorerLink>
-                <ExplorerLink
-                    objectID={packageId}
-                    type={ExplorerLinkType.Object}
-                    moduleName={moduleName}
-                >
-                    <KeyValueInfo keyText="Module" valueText={moduleName} fullwidth />
-                </ExplorerLink>
-                <ExplorerLink
-                    objectID={packageId}
-                    type={ExplorerLinkType.Object}
-                    moduleName={moduleName}
-                >
-                    <KeyValueInfo keyText="Type" valueText={typeName} fullwidth />
-                </ExplorerLink>
+                <KeyValueInfo
+                    keyText="Package"
+                    value={
+                        <ExplorerLink
+                            objectID={packageId}
+                            type={ExplorerLinkType.Object}
+                            moduleName={moduleName}
+                        >
+                            {formatAddress(packageId)}
+                        </ExplorerLink>
+                    }
+                    fullwidth
+                />
+
+                <KeyValueInfo
+                    keyText="Module"
+                    value={
+                        <ExplorerLink
+                            objectID={packageId}
+                            type={ExplorerLinkType.Object}
+                            moduleName={moduleName}
+                        >
+                            {moduleName}
+                        </ExplorerLink>
+                    }
+                    fullwidth
+                />
+                <KeyValueInfo
+                    keyText="Type"
+                    value={
+                        <ExplorerLink
+                            objectID={packageId}
+                            type={ExplorerLinkType.Object}
+                            moduleName={moduleName}
+                        >
+                            {typeName}
+                        </ExplorerLink>
+                    }
+                    fullwidth
+                />
             </div>
         </Collapsible>
     );
@@ -187,9 +207,18 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                             </Collapsible>
                             <div className="flex flex-col gap-y-sm px-md pb-md">
                                 <Divider />
-                                <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                    <KeyValueInfo keyText="Owner" valueText={owner} fullwidth />
-                                </ExplorerLink>
+                                <KeyValueInfo
+                                    keyText="Owner"
+                                    value={
+                                        <ExplorerLink
+                                            type={ExplorerLinkType.Address}
+                                            address={owner}
+                                        >
+                                            {owner}
+                                        </ExplorerLink>
+                                    }
+                                    fullwidth
+                                />
                             </div>
                         </div>
                     </Panel>

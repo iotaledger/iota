@@ -60,22 +60,26 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
             </Panel>
             <Panel>
                 <div className="flex flex-col gap-md p-md--rs">
-                    <KeyValueInfo keyText="Location" valueText="--" />
+                    <KeyValueInfo keyText="Location" value="--" />
                     <KeyValueInfo
                         keyText="Pool ID"
-                        valueText={validatorData.stakingPoolId}
-                        isCopyable
+                        value={validatorData.stakingPoolId}
+                        copyText={validatorData.stakingPoolId}
                         onCopySuccess={handleOnCopy}
                     />
                     <AddressLink address={validatorData.iotaAddress}>
                         <KeyValueInfo
                             keyText="Address"
-                            valueText={validatorData.iotaAddress}
-                            isCopyable
+                            value={validatorData.iotaAddress}
+                            copyText={validatorData.iotaAddress}
                             onCopySuccess={handleOnCopy}
                         />
                     </AddressLink>
-                    <KeyValueInfo keyText="Public Key" valueText={validatorPublicKey} />
+                    <KeyValueInfo
+                        keyText="Public Key"
+                        value={validatorPublicKey}
+                        copyText={validatorPublicKey}
+                    />
                 </div>
             </Panel>
         </div>

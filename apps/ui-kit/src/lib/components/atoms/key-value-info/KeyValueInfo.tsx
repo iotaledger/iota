@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import cx from 'classnames';
 import { Copy, Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
@@ -14,9 +14,9 @@ interface KeyValueProps {
      */
     keyText: string;
     /**
-     * The value text of the KeyValue.
+     * The value of the KeyValue.
      */
-    valueText: string;
+    value: ReactNode;
     /**
      * The tooltip position.
      */
@@ -50,10 +50,6 @@ interface KeyValueProps {
      */
     onCopyError?: (e: unknown, text: string) => void;
     /**
-     * Has copy icon (optional).
-     */
-    isCopyable?: boolean;
-    /**
      * Full width KeyValue (optional).
      */
     fullwidth?: boolean;
@@ -61,16 +57,15 @@ interface KeyValueProps {
 
 export function KeyValueInfo({
     keyText,
-    valueText,
+    value,
     tooltipPosition,
     tooltipText,
     supportingLabel,
     size = ValueSize.Small,
     isTruncated = false,
-    copyText = valueText,
+    copyText,
     onCopySuccess,
     onCopyError,
-    isCopyable,
     fullwidth,
 }: KeyValueProps): React.JSX.Element {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
@@ -78,12 +73,14 @@ export function KeyValueInfo({
             return;
         }
 
-        try {
-            await navigator.clipboard.writeText(copyText);
-            onCopySuccess?.(event, copyText);
-        } catch (error) {
-            console.error('Failed to copy:', error);
-            onCopyError?.(error, copyText);
+        if (copyText) {
+            try {
+                await navigator.clipboard.writeText(copyText);
+                onCopySuccess?.(event, copyText);
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                onCopyError?.(error, copyText);
+            }
         }
     }
 
@@ -118,7 +115,7 @@ export function KeyValueInfo({
                         { truncate: isTruncated },
                     )}
                 >
-                    {valueText}
+                    {value}
                 </span>
                 {supportingLabel && (
                     <span
@@ -131,7 +128,7 @@ export function KeyValueInfo({
                     </span>
                 )}
                 <div className="self-center">
-                    {isCopyable && (
+                    {copyText && (
                         <ButtonUnstyled onClick={handleCopyClick}>
                             <Copy className="text-neutral-60 dark:text-neutral-40" />
                         </ButtonUnstyled>
