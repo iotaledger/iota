@@ -16,9 +16,9 @@ interface TopPackagesTableProps {
 const tableColumns: ColumnDef<MoveCallMetric>[] = [
     {
         header: 'Module',
-        accessorKey: 'item[0]',
-        cell({ getValue }) {
-            const item = getValue<MoveCallMetric[0]>();
+        id: 'module',
+        cell({ row: { original: metric } }) {
+            const item = metric[0];
             return (
                 <TableCellBase>
                     <ObjectLink objectId={`${item.package}?module=${item.module}`}>
@@ -30,21 +30,21 @@ const tableColumns: ColumnDef<MoveCallMetric>[] = [
     },
     {
         header: 'Function',
-        accessorKey: 'item[0].function',
-        cell({ getValue }) {
-            const item = getValue<MoveCallMetric[0]['function']>();
+        id: 'function',
+        cell({ row: { original: metric } }) {
+            const item = metric[0];
             return (
                 <TableCellBase>
-                    <TableCellText>{item}</TableCellText>
+                    <TableCellText>{item.function}</TableCellText>
                 </TableCellBase>
             );
         },
     },
     {
         header: 'Function',
-        accessorKey: 'item[0].package',
-        cell({ getValue }) {
-            const item = getValue<MoveCallMetric[0]['package']>();
+        id: 'function',
+        cell({ row: { original: metric } }) {
+            const item = metric[0].package;
             return (
                 <TableCellBase>
                     <ObjectLink objectId={item}>
@@ -56,9 +56,9 @@ const tableColumns: ColumnDef<MoveCallMetric>[] = [
     },
     {
         header: 'Count',
-        accessorKey: 'item[1]',
-        cell({ getValue }) {
-            const item = getValue<MoveCallMetric[1]>();
+        id: 'count',
+        cell({ row: { original: metric } }) {
+            const item = metric[1];
             return (
                 <TableCellBase>
                     <TableCellText>{item}</TableCellText>
