@@ -7,7 +7,13 @@ import { LoadingIndicator } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
-import { ErrorBoundary, PkgModulesWrapper, TransactionBlocksForAddress } from '~/components';
+import {
+    AddressLink,
+    ErrorBoundary,
+    ObjectLink,
+    PkgModulesWrapper,
+    TransactionBlocksForAddress,
+} from '~/components';
 import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
@@ -75,18 +81,17 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
                 <Panel>
                     <Title title="Details" />
                     <div className="flex flex-col gap-lg p-md--rs">
-                        <KeyValueInfo
-                            keyText="Object ID"
-                            valueLink={`/object/${viewedData.id}`}
-                            valueText={viewedData.id}
-                        />
+                        <ObjectLink objectId={viewedData.id}>
+                            <KeyValueInfo keyText="Object ID" valueText={viewedData.id} />
+                        </ObjectLink>
                         <KeyValueInfo keyText="Version" valueText={viewedData.version} />
                         {viewedData?.publisherAddress && (
-                            <KeyValueInfo
-                                keyText="Publisher"
-                                valueLink={`/address/${viewedData.publisherAddress}`}
-                                valueText={viewedData.publisherAddress}
-                            />
+                            <AddressLink address={viewedData.publisherAddress}>
+                                <KeyValueInfo
+                                    keyText="Publisher"
+                                    valueText={viewedData.publisherAddress}
+                                />
+                            </AddressLink>
                         )}
                     </div>
                 </Panel>
