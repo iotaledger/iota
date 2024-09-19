@@ -15,8 +15,8 @@ function getGrowthbookConfig(env: string) {
     }
     if (env === 'production') {
         return {
-            clientKey: 'development',
-            enableDevMode: true,
+            clientKey: 'production',
+            enableDevMode: false,
         };
     }
 
