@@ -66,7 +66,7 @@ export function App() {
                 <CodePanel
                     title="Transaction details"
                     json={tx?.blockData}
-                    action={<ConnectButton className="!bg-indigo-600 !text-white" />}
+                    action={<ConnectButton />}
                 />
 
                 <CodePanel
