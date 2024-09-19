@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use aws_config::BehaviorVersion;
 use aws_sdk_kms::{
     primitives::Blob,
     types::{MessageType, SigningAlgorithmSpec},
@@ -21,19 +22,9 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
-    jwt_utils::parse_and_validate_jwt,
     secp256k1::recoverable::Secp256k1Sig,
     traits::{KeyPair, ToFromBytes},
 };
-use fastcrypto_zkp::bn254::{
-    utils::{
-        gen_address_seed, get_nonce, get_oidc_url, get_proof, get_test_issuer_jwt_token,
-        get_token_exchange_url,
-    },
-    zk_login::{fetch_jwks, JwkId, OIDCProvider, ZkLoginInputs, JWK},
-    zk_login_api::ZkLoginEnv,
-};
-use im::hashmap::HashMap as ImHashMap;
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -44,27 +35,20 @@ use iota_keys::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    committee::EpochId,
     crypto::{
-        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature,
-        SignatureScheme, ZkLoginPublicIdentifier,
+        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey,
+        SignatureScheme,
     },
     error::IotaResult,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
-    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     transaction::{TransactionData, TransactionDataAPI},
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 use json_to_table::{json_to_table, Orientation};
-use num_bigint::BigUint;
-use rand::{rngs::StdRng, Rng, SeedableRng};
-use rusoto_core::Region;
-use rusoto_kms::{Kms, KmsClient, SignRequest};
 use serde::Serialize;
 use serde_json::json;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope, PersonalMessage};
+use shared_crypto::intent::{Intent, IntentMessage};
 use tabled::{
     builder::Builder,
     settings::{object::Rows, Modify, Rotate, Width},
@@ -73,7 +57,6 @@ use tracing::info;
 
 use crate::{
     key_identity::{get_identity_address_from_keystore, KeyIdentity},
-    zklogin_commands_util::{perform_zk_login_test_tx, read_cli_line},
 };
 #[cfg(test)]
 #[path = "unit_tests/keytool_tests.rs"]
@@ -852,7 +835,7 @@ impl KeyToolCommand {
                 info!("Digest to sign: {:?}", Base64::encode(digest));
 
                 // Set up the KMS client in default region.
-                let config = aws_config::from_env().load().await;
+                let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
                 let kms = KmsClient::new(&config);
 
                 // Sign the message, normalize the signature and then compacts it

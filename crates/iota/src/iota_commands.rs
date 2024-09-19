@@ -581,7 +581,7 @@ impl IotaCommand {
 
 /// Starts a local network with the given configuration.
 async fn start(
-    config: Option<PathBuf>,
+    config_dir: Option<PathBuf>,
     with_faucet: Option<String>,
     #[cfg(feature = "indexer")] indexer_feature_args: IndexerFeatureArgs,
     force_regenesis: bool,
@@ -591,7 +591,7 @@ async fn start(
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
-            config.is_none(),
+            config_dir.is_none(),
             "Cannot pass `--force-regenesis` and `--network.config` at the same time."
         );
     }
@@ -620,7 +620,7 @@ async fn start(
         );
     }
 
-    if epoch_duration_ms.is_some() && genesis_blob_exists(config.clone()) && !force_regenesis {
+    if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
             "Epoch duration can only be set when passing the `--force-regenesis` flag, or when \
             there is no genesis configuration in the default Iota configuration folder or the given \
@@ -629,7 +629,7 @@ async fn start(
     }
 
     // Resolve the configuration directory.
-    let config = config.map_or_else(iota_config_dir, Ok)?;
+    let config = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
     let network_config_path = config.clone().join(IOTA_NETWORK_CONFIG);
 
     let mut swarm_builder = Swarm::builder();
@@ -649,7 +649,7 @@ async fn start(
             genesis(
                 None,
                 None,
-                Some(config_dir.clone()),
+                Some(config.clone()),
                 false,
                 epoch_duration_ms,
                 None,
@@ -664,7 +664,7 @@ async fn start(
         // Load the config of the Iota authority.
         // To keep compatibility with iota-test-validator where the user can pass a
         // config directory, this checks if the config is a file or a directory
-        let network_config_path = if let Some(ref config) = config {
+        let network_config_path = if let Some(ref config) = config_dir {
             if config.is_dir() {
                 config.join(IOTA_NETWORK_CONFIG)
             } else if config.is_file()
@@ -677,7 +677,7 @@ async fn start(
                 config.join(IOTA_NETWORK_CONFIG)
             }
         } else {
-            config
+            config_dir
                 .clone()
                 .unwrap_or(iota_config_dir()?)
                 .join(IOTA_NETWORK_CONFIG)
@@ -692,7 +692,7 @@ async fn start(
                 network_config_path
             ))
         })?;
-        let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
+        let genesis_path = iota_config_dir()?.join(IOTA_GENESIS_FILENAME);
         let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
         let network_config = NetworkConfig {
             validator_configs,
@@ -794,7 +794,7 @@ async fn start(
         let config_dir = if force_regenesis {
             tempdir()?.into_path()
         } else {
-            match config {
+            match config_dir {
                 Some(config) => config,
                 None => iota_config_dir()?,
             }
