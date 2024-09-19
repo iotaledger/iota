@@ -58,9 +58,13 @@ interface AccountProps {
      */
     isExternal?: boolean;
     /**
-     * Show checkmark selected or unselected if not undefined (optional).
+     * The account is selected.
      */
     isSelected?: boolean;
+    /**
+     * Show the selected checkbox.
+     */
+    showSelected?: boolean;
     /**
      * Show background if account active (optional).
      */
@@ -92,14 +96,19 @@ export function Account({
     isExternal,
     isSelected,
     isActive,
+    showSelected,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
 
     return (
         <div
             className={cx(
-                'state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
+                'group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
                 isActive && 'state-active',
+                {
+                    'opacity-60': isLocked,
+                    'state-layer': !isLocked,
+                },
             )}
         >
             <div className="flex items-center space-x-3">
@@ -129,25 +138,27 @@ export function Account({
                     isLocked && '[&_div.unlock_button]:flex', // make unlock visible when is locked
                 )}
             >
-                {onOptionsClick && (
-                    <ButtonUnstyled onClick={onOptionsClick}>
-                        <MoreHoriz />
-                    </ButtonUnstyled>
-                )}
-                {onLockAccountClick &&
-                    onUnlockAccountClick &&
-                    (isLocked ? (
-                        <div className="unlock">
-                            <ButtonUnstyled onClick={onUnlockAccountClick}>
-                                <LockLocked />
-                            </ButtonUnstyled>
-                        </div>
-                    ) : (
-                        <ButtonUnstyled onClick={onLockAccountClick}>
-                            <LockUnlocked />
+                <div className="flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex [&_svg]:text-neutral-40 [&_svg]:dark:text-neutral-60">
+                    {onOptionsClick && (
+                        <ButtonUnstyled onClick={onOptionsClick}>
+                            <MoreHoriz />
                         </ButtonUnstyled>
-                    ))}
-                {isSelected !== undefined ? (
+                    )}
+                    {onLockAccountClick &&
+                        onUnlockAccountClick &&
+                        (isLocked ? (
+                            <div className="unlock">
+                                <ButtonUnstyled onClick={onUnlockAccountClick}>
+                                    <LockLocked />
+                                </ButtonUnstyled>
+                            </div>
+                        ) : (
+                            <ButtonUnstyled onClick={onLockAccountClick}>
+                                <LockUnlocked />
+                            </ButtonUnstyled>
+                        ))}
+                </div>
+                {showSelected && (
                     <div className="checkmark">
                         <ButtonUnstyled>
                             <CheckmarkFilled
@@ -158,7 +169,7 @@ export function Account({
                             />
                         </ButtonUnstyled>
                     </div>
-                ) : null}
+                )}
             </div>
         </div>
     );
