@@ -323,6 +323,19 @@ impl MigrationObjects {
         std::mem::take(&mut self.inner)
     }
 
+    /// Take timelock objects.
+    pub fn take_timelock_objects(&mut self, objects: impl IntoIterator<Item = ObjectID>) -> Vec<Object> {
+        let timelocks: HashSet<_> = objects.into_iter().collect();
+    
+        let (timelocks_result, remaining): (Vec<Object>, Vec<Object>) = self.inner
+            .drain(..)
+            .partition(|object| timelocks.contains(&object.id()));
+        
+        self.inner = remaining;
+    
+        timelocks_result
+    }
+
     /// Checks if inner is empty.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
