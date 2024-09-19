@@ -46,7 +46,8 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         if (newWindow) newWindow.opener = null;
     }
 
-    function handleToggleLock() {
+    function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
+        e.stopPropagation();
         if (account.isLocked) {
             unlockAccount(account);
         } else {
@@ -76,6 +77,11 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
             navigate('/');
             toast.success(`Account ${formatAddress(account.address)} selected`);
         }
+    }
+
+    function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {
+        e.stopPropagation();
+        setDropdownOpen(true);
     }
 
     const isMain = isMainAccount(account);
@@ -108,7 +114,7 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
                     badgeText={badgeConfig.text}
                     subtitle={formatAddress(account.address)}
                     onCopy={handleCopySuccess}
-                    onOptionsClick={() => setDropdownOpen(true)}
+                    onOptionsClick={handleOptionsClick}
                     onLockAccountClick={handleToggleLock}
                     onUnlockAccountClick={handleToggleLock}
                 />

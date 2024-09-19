@@ -156,10 +156,29 @@ function InputElement({
     inputRef: React.ForwardedRef<HTMLInputElement>;
     className: string;
 }) {
+    function preventScrollInputChange(e: React.WheelEvent<HTMLInputElement>) {
+        if (type === InputType.Number) {
+            const input = e.currentTarget;
+
+            input.blur();
+            e.stopPropagation();
+            setTimeout(() => {
+                input.focus({ preventScroll: true });
+            }, 0);
+        }
+    }
     return type === InputType.NumericFormat ? (
         <NumericFormatInput inputRef={inputRef} {...inputProps} type={type} />
     ) : (
-        <input ref={inputRef} {...inputProps} type={type} />
+        <input
+            ref={inputRef}
+            {...inputProps}
+            type={type}
+            onWheel={(e) => {
+                preventScrollInputChange(e);
+                inputProps.onWheel?.(e);
+            }}
+        />
     );
 }
 
