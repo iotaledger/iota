@@ -323,6 +323,25 @@ const references = [
             },
         ],
     },
+    {
+        type: 'category',
+        label: 'Expert topics',
+        items: [
+            {
+                type: 'category',
+                label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'references/execution-architecture/execution-layer',
+                },
+                items: [
+                    'references/execution-architecture/iota-execution',
+                    'references/execution-architecture/adapter',
+                    'references/execution-architecture/natives',
+                ],
+            },
+        ],
+    },
     'references/research-papers',
     'references/iota-glossary',
     {
@@ -334,8 +353,6 @@ const references = [
         },
         items: [
             'references/contribute/contribution-process',
-            'references/contribute/contribute-to-iota-repos',
-            'references/contribute/localize-iota-docs',
             'references/contribute/code-of-conduct',
             'references/contribute/style-guide',
             'references/contribute/add-a-quiz',

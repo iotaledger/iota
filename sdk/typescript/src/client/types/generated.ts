@@ -1457,6 +1457,7 @@ export type IotaTransactionBlockKind =
           storage_rebate: string;
       } /** A system transaction used for initializing the initial state of the chain. */
     | {
+          events: EventId[];
           kind: 'Genesis';
           objects: string[];
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */

@@ -101,7 +101,7 @@ export function DisplayStats({
                 })}
             >
                 <div className="flex flex-row items-center gap-xxs">
-                    <span className={cx(labelTextClass)}>{label}</span>
+                    <span className={cx(labelTextClass, 'whitespace-pre-line')}>{label}</span>
                     {tooltipText && (
                         <Tooltip text={tooltipText} position={tooltipPosition}>
                             <Info className="opacity-40" />

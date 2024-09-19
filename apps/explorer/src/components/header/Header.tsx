@@ -19,7 +19,7 @@ function Header(): JSX.Element {
                 >
                     <IotaLogoWeb width={137} height={36} />
                 </LinkWithQuery>
-                <div className="flex w-[360-px] justify-center">
+                <div className="flex w-[360px] justify-center">
                     <Search />
                 </div>
                 <NetworkSelector />
