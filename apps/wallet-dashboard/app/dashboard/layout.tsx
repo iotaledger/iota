@@ -32,8 +32,6 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
         <>
             <section className="flex flex-row items-center justify-around pt-12">
                 <Notifications />
-                <ConnectButton />
-
                 {routes.map((route) => {
                     return <RouteLink key={route.title} {...route} />;
                 })}
@@ -42,6 +40,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
                     text={isDarkMode ? 'Light Mode' : 'Dark Mode'}
                     type={ButtonType.Ghost}
                 />
+                <ConnectButton />
             </section>
             <div>{children}</div>
         </>
