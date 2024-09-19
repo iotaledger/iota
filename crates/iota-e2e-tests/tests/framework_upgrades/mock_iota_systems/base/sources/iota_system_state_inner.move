@@ -75,7 +75,7 @@ module iota_system::iota_system_state_inner {
         self: &mut IotaSystemStateInner,
         new_epoch: u64,
         next_protocol_version: u64,
-        storage_reward: Balance<IOTA>,
+        storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         storage_rebate_amount: u64,
         epoch_start_timestamp_ms: u64,
