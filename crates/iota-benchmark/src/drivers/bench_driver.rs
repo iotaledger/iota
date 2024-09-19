@@ -33,7 +33,7 @@ use prometheus::{
     Registry,
 };
 use rand::seq::SliceRandom;
-use sysinfo::{CpuExt, System, SystemExt};
+use sysinfo::System;
 use tokio::{
     sync::{
         mpsc::{channel, Sender},
