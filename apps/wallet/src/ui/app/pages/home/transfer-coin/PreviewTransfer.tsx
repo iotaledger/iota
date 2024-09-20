@@ -43,7 +43,7 @@ export function PreviewTransfer({
                             type={ExplorerLinkType.Address}
                             address={accountAddress || ''}
                         >
-                            {accountAddress || ''}
+                            {formatAddress(accountAddress || '')}
                         </ExplorerLink>
                     }
                     fullwidth
