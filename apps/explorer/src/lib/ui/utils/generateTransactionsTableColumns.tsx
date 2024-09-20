@@ -23,7 +23,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                     <TableCellBase>
                         <TransactionLink
                             digest={digest}
-                            label={<TableCellText>{digest}</TableCellText>}
+                            label={<TableCellText>{formatAddress(digest)}</TableCellText>}
                         />
                     </TableCellBase>
                 );
@@ -38,7 +38,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                     <TableCellBase>
                         <AddressLink
                             address={address}
-                            label={<TableCellText>{address}</TableCellText>}
+                            label={<TableCellText>{formatAddress(address)}</TableCellText>}
                         />
                     </TableCellBase>
                 );
