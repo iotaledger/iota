@@ -38,7 +38,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                     <TableCellBase>
                         <AddressLink
                             address={address}
-                            label={<TableCellText>{address}</TableCellText>}
+                            label={<TableCellText>{formatAddress(address)}</TableCellText>}
                         />
                     </TableCellBase>
                 );
