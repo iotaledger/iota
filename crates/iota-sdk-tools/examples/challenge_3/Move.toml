@@ -1,0 +1,11 @@
+[package]
+name = "airdrop"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+ctf =  "0x0"
+iota =  "0x2"

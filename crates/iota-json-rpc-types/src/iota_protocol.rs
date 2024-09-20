@@ -36,6 +36,104 @@ pub enum IotaProtocolConfigValue {
     ),
 }
 
+impl IotaProtocolConfigValue {
+    /// Checks whether the config value is a u16.
+    pub fn is_u16(&self) -> bool {
+        matches!(self, Self::U16(_))
+    }
+
+    /// Gets the config value as a u16.
+    /// PANIC: Do not call on a non-u16 value.
+    pub fn as_u16(&self) -> u16 {
+        if let Self::U16(v) = self {
+            *v
+        } else {
+            panic!("as_u16 called on a non-u16 {self:?}");
+        }
+    }
+
+    /// Gets the config value as a u16, if it is one.
+    pub fn as_u16_opt(&self) -> Option<u16> {
+        if let Self::U16(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks whether the config value is a u32.
+    pub fn is_u32(&self) -> bool {
+        matches!(self, Self::U32(_))
+    }
+
+    /// Gets the config value as a u32.
+    /// PANIC: Do not call on a non-u32 value.
+    pub fn as_u32(&self) -> u32 {
+        if let Self::U32(v) = self {
+            *v
+        } else {
+            panic!("as_u32 called on a non-u32 {self:?}");
+        }
+    }
+
+    /// Gets the config value as a u32, if it is one.
+    pub fn as_u32_opt(&self) -> Option<u32> {
+        if let Self::U32(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks whether the config value is a u64.
+    pub fn is_u64(&self) -> bool {
+        matches!(self, Self::U64(_))
+    }
+
+    /// Gets the config value as a u64.
+    /// PANIC: Do not call on a non-u64 value.
+    pub fn as_u64(&self) -> u64 {
+        if let Self::U64(v) = self {
+            *v
+        } else {
+            panic!("as_u64 called on a non-u64 {self:?}");
+        }
+    }
+
+    /// Gets the config value as a u64, if it is one.
+    pub fn as_u64_opt(&self) -> Option<u64> {
+        if let Self::U64(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks whether the config value is a f64.
+    pub fn is_f64(&self) -> bool {
+        matches!(self, Self::F64(_))
+    }
+
+    /// Gets the config value as a f64.
+    /// PANIC: Do not call on a non-f64 value.
+    pub fn as_f64(&self) -> f64 {
+        if let Self::F64(v) = self {
+            *v
+        } else {
+            panic!("as_f64 called on a non-f64 {self:?}");
+        }
+    }
+
+    /// Gets the config value as a f64, if it is one.
+    pub fn as_f64_opt(&self) -> Option<f64> {
+        if let Self::F64(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+}
+
 impl From<ProtocolConfigValue> for IotaProtocolConfigValue {
     fn from(value: ProtocolConfigValue) -> Self {
         match value {
@@ -61,7 +159,7 @@ pub struct ProtocolConfigResponse {
     #[serde_as(as = "Readable<AsProtocolVersion, _>")]
     pub protocol_version: ProtocolVersion,
     pub feature_flags: BTreeMap<String, bool>,
-    pub attributes: BTreeMap<String, Option<IotaProtocolConfigValue>>,
+    pub attributes: BTreeMap<String, IotaProtocolConfigValue>,
 }
 
 impl From<ProtocolConfig> for ProtocolConfigResponse {
@@ -71,7 +169,7 @@ impl From<ProtocolConfig> for ProtocolConfigResponse {
             attributes: config
                 .attr_map()
                 .into_iter()
-                .map(|(k, v)| (k, v.map(IotaProtocolConfigValue::from)))
+                .filter_map(|(k, v)| v.map(|v| (k, IotaProtocolConfigValue::from(v))))
                 .collect(),
             min_supported_protocol_version: ProtocolVersion::MIN,
             max_supported_protocol_version: ProtocolVersion::MAX,
