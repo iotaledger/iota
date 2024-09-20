@@ -8,6 +8,7 @@ import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@io
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 /**
  * Generate table columns renderers for the transactions data.
