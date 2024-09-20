@@ -19,7 +19,7 @@ interface DisplayStatsProps {
     /**
      * The label of the stats.
      */
-    label: string;
+    label: ReactNode;
     /**
      * The tooltip position.
      */
@@ -63,8 +63,8 @@ export function DisplayStats({
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
     const textClass = TEXT_CLASSES[type];
-    const valueTextClass = VALUE_TEXT_CLASSES[size];
-    const labelTextClass = LABEL_TEXT_CLASSES[size];
+    const valueClass = VALUE_TEXT_CLASSES[size];
+    const labelClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
 
     return (
@@ -82,7 +82,7 @@ export function DisplayStats({
                 })}
             >
                 <div className="flex flex-row items-center gap-xxs">
-                    <span className={cx(labelTextClass, 'whitespace-pre-line')}>{label}</span>
+                    <span className={cx(labelClass, 'whitespace-pre-line')}>{label}</span>
                     {tooltipText && (
                         <Tooltip text={tooltipText} position={tooltipPosition}>
                             <Info className="opacity-40" />
@@ -92,7 +92,7 @@ export function DisplayStats({
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
             <div className="flex w-full flex-row items-baseline gap-xxs">
-                <span className={cx(valueTextClass)}>{value}</span>
+                <span className={cx(valueClass)}>{value}</span>
                 {supportingLabel && (
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
                         {supportingLabel}
