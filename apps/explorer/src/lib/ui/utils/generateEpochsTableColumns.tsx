@@ -41,9 +41,11 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
         },
         {
             header: 'Stake Rewards',
+            id: 'stakeRewards',
             accessorKey: 'endOfEpochInfo.totalStakeRewardsDistributed',
-            cell: ({ getValue }) => {
-                const totalStakeRewardsDistributed = getValue<string | undefined>();
+            cell: ({ row: { original: epochMetrics } }) => {
+                const totalStakeRewardsDistributed =
+                    epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
                 return (
                     <TableCellBase>
                         <TableCellText>{totalStakeRewardsDistributed ?? '0'}</TableCellText>
@@ -83,12 +85,12 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
         },
         {
             header: 'Epoch End',
-            accessorKey: 'endOfEpochInfo.epochEndTimestamp',
-            cell: ({ getValue }) => {
-                const epochEndTimestamp = getValue<string>();
+            id: 'epochEndTimestamp',
+            cell: ({ row: { original: epochMetrics } }) => {
+                const epochEndTimestamp = epochMetrics.endOfEpochInfo?.epochEndTimestamp;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochEndTimestamp}</TableCellText>
+                        <TableCellText>{epochEndTimestamp || '--'}</TableCellText>
                     </TableCellBase>
                 );
             },
