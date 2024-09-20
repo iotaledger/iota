@@ -95,7 +95,7 @@ function AppWrapper() {
                                         <UnlockAccountProvider>
                                             <div
                                                 className={cn(
-                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                    'relative flex h-screen min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
                                                     isFullscreen && 'rounded-xl shadow-lg',
                                                 )}
                                             >
