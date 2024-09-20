@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { style } from '@vanilla-extract/css';
-
 import { themeVars } from '../themes/themeContract.js';
 
 export const connectedAccount = style({
-    gap: 8,
+    gap: themeVars.spacing.xsmall,
 });
 
 export const menuContainer = style({
@@ -15,7 +14,7 @@ export const menuContainer = style({
 });
 
 export const icon = style({
-   color: themeVars.colors.body,
+    color: themeVars.colors.body,
 });
 
 export const menuContent = style({
