@@ -13,10 +13,10 @@ WARNING: Note that we are still iterating on the RPC and SDK API before TestNet,
 expect frequent breaking changes in the short-term. We expect the API to stabilize after the
 upcoming TestNet launch.
 
-## Working with Devnet
+## Working with Testnet
 
 The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota-sdk) with the
-same bi-weekly release cycle as the Devnet validators and
+same release cycle as the Testnet validators and
 [RPC Server](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). To
 use the SDK in your project, you can do:
 
@@ -93,10 +93,10 @@ Some more follow up here is if you used homebrew to install node, there could be
 node on your machine.
 https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm-use-on-mac
 
-To run E2E tests against Devnet
+To run E2E tests against Testnet
 
 ```
-VITE_FAUCET_URL='https://faucet.devnet.iota.io:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.io' pnpm --filter @iota/iota-sdk exec vitest e2e
+VITE_FAUCET_URL='https://faucet.testnet.iota.io:443/gas' VITE_FULLNODE_URL='https://fullnode.testnet.iota.io' pnpm --filter @iota/iota-sdk exec vitest e2e
 ```
 
 ## Connecting to Iota Network
@@ -105,13 +105,13 @@ The `IotaClient` class provides a connection to the JSON-RPC Server and should b
 read-only operations. The default URLs to connect with the RPC server are:
 
 - local: http://127.0.0.1:9000
-- Devnet: https://fullnode.devnet.iota.io
+- testnet: https://fullnode.testnet.iota.io
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
-// create a client connected to devnet
-const client = new IotaClient({ url: getFullnodeUrl('devnet') });
+// create a client connected to testnet
+const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 
 // get coins owned by an address
 await client.getCoins({
@@ -126,7 +126,7 @@ with a local validator, a fullnode, and a faucet server. Refer to
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
-// create a client connected to devnet
+// create a client connected to localnet
 const client = new IotaClient({ url: getFullnodeUrl('localnet') });
 
 // get coins owned by an address
@@ -140,9 +140,9 @@ You can also construct your own in custom connections, with the URL for your own
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
-// create a client connected to devnet
+// create a client connected to testnet
 const client = new IotaClient({
-    url: 'https://fullnode.devnet.iota.io',
+    url: 'https://fullnode.testnet.iota.io',
 });
 
 // get coins owned by an address
@@ -153,7 +153,7 @@ await client.getCoins({
 
 ## Getting coins from the faucet
 
-You can request iota from the faucet when running against devnet, testnet, or localnet
+You can request iota from the faucet when running against testnet, testnet, or localnet
 
 ```typescript
 import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
@@ -508,11 +508,11 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const somePackage = '0x...';
-const devnetNftFilter = {
+const testnetNftFilter = {
     MoveModule: { package: somePackage, module: 'nft' },
 };
 const devNftSub = await client.subscribeEvent({
-    filter: devnetNftFilter,
+    filter: testnetNftFilter,
     onMessage(event) {
         // handle subscription notification message here
     },

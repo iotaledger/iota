@@ -21,12 +21,12 @@ You can follow the
 [Iota installation instruction](https://docs.iota.io/build/install) to get
 everything set up.
 
-This template uses `devnet` by default, so we'll need to set up a devnet
+This template uses `testnet` by default, so we'll need to set up a testnet
 environment in the CLI:
 
 ```bash
-iota client new-env --alias devnet --rpc https://fullnode.devnet.iota.io:443
-iota client switch --env devnet
+iota client new-env --alias testnet --rpc https://fullnode.testnet.iota.io:443
+iota client switch --env testnet
 ```
 
 If you haven't set up an address in the iota client yet, you can use the
@@ -48,7 +48,7 @@ We can ensure we have some Iota in our new wallet by requesting Iota from the
 faucet (make sure to replace the address with your address):
 
 ```bash
-curl --location --request POST 'https://faucet.devnet.iota.io/gas' \
+curl --location --request POST 'https://faucet.testnet.iota.io/gas' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "FixedAmountRequest": {
@@ -71,7 +71,7 @@ In the output there will be an object with a `"packageId"` property. You'll want
 to save that package ID to the `src/constants.ts` file as `PACKAGE_ID`:
 
 ```ts
-export const DEVNET_COUNTER_PACKAGE_ID = "<YOUR_PACKAGE_ID>";
+export const testnet_COUNTER_PACKAGE_ID = "<YOUR_PACKAGE_ID>";
 ```
 
 Now that we have published the move code, and update the package ID, we can

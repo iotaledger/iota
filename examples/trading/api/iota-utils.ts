@@ -11,7 +11,7 @@ import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { fromB64 } from '@iota/iota-sdk/utils';
 
-export type Network = 'mainnet' | 'testnet' | 'devnet' | 'localnet';
+export type Network = 'mainnet' | 'testnet' | 'localnet';
 
 export const ACTIVE_NETWORK = (process.env.NETWORK as Network) || 'testnet';
 

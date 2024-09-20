@@ -23,7 +23,6 @@ const queryClient = new QueryClient();
 
 const { networkConfig } = createNetworkConfig({
   localnet: { url: getFullnodeUrl("localnet") },
-  devnet: { url: getFullnodeUrl("devnet") },
   testnet: { url: getFullnodeUrl("testnet") },
   mainnet: { url: getFullnodeUrl("mainnet") },
 });
