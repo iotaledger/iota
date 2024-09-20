@@ -398,9 +398,6 @@ export const featuresMock = {
     'polling-txn-table': {
         defaultValue: true,
     },
-    'network-outage-override': {
-        defaultValue: false,
-    },
     'module-source-verification': {
         defaultValue: true,
     },
