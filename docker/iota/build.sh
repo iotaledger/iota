@@ -13,7 +13,7 @@ GIT_REVISION="$(git describe --always --abbrev=12 --dirty --exclude '*')"
 BUILD_DATE="$(date -u +'%Y-%m-%d')"
 
 echo
-echo "Building iota-test-validator docker image"
+echo "Building iota docker image"
 echo "Dockerfile: \t$DOCKERFILE"
 echo "docker context: $REPO_ROOT"
 echo "build date: \t$BUILD_DATE"
@@ -24,5 +24,6 @@ echo
 docker build --ssh default -f "$DOCKERFILE" "$REPO_ROOT" \
 	--build-arg GIT_REVISION="$GIT_REVISION" \
 	--build-arg BUILD_DATE="$BUILD_DATE" \
+	--build-arg CARGO_BUILD_FEATURES="$CARGO_BUILD_FEATURES" \
 	--target runtime \
 	"$@"

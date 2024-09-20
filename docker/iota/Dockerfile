@@ -6,7 +6,8 @@ FROM rust:bullseye AS builder
 ARG PROFILE=release
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
-WORKDIR "$WORKDIR/iota"
+ARG CARGO_BUILD_FEATURES
+WORKDIR "/iota"
 
 RUN apt-get update && apt-get install -y cmake clang libpq5 libpq-dev
 
@@ -35,17 +36,16 @@ COPY external-crates external-crates
 COPY docs docs
 
 # TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
-RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin iota-test-validator
-RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-test-validator ./
+RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin iota --features ${CARGO_BUILD_FEATURES:=default}
+RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota ./
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
-WORKDIR "$WORKDIR/iota"
 
 # iota-tool needs libpq at runtime
 RUN apt-get update && apt-get install -y libpq5 libpq-dev
 
-COPY --from=builder /iota/iota-test-validator /usr/local/bin
+COPY --from=builder /iota/iota /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION
