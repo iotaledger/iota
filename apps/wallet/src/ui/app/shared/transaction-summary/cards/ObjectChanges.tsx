@@ -214,7 +214,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                             type={ExplorerLinkType.Address}
                                             address={owner}
                                         >
-                                            {owner}
+                                            {formatAddress(owner)}
                                         </ExplorerLink>
                                     }
                                     fullwidth
