@@ -88,11 +88,11 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             initialValues={{
                 to: '',
             }}
-            validateOnMount
+            validateOnChange
             validationSchema={validationSchema}
             onSubmit={({ to }) => transferNFT.mutateAsync(to)}
         >
-            {({ isValid }) => (
+            {({ isValid, touched, errors }) => (
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
                         <Field
@@ -102,7 +102,11 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                             placeholder="Enter Address"
                         />
 
-                        <Button htmlType={ButtonHtmlType.Submit} disabled={!isValid} text="Send" />
+                        <Button
+                            htmlType={ButtonHtmlType.Submit}
+                            disabled={!isValid || !touched.to || !!errors.to}
+                            text="Send"
+                        />
                     </div>
                 </Form>
             )}
