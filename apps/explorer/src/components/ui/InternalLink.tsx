@@ -28,7 +28,7 @@ function createInternalLink<T extends string>(
         const truncatedAddress = noTruncate ? id : formatter(id);
         const queryString = new URLSearchParams(queryStrings).toString();
         const queryStringPrefix = queryString ? `?${queryString}` : '';
-        
+
         return (
             <Link
                 className="text-primary-30 dark:text-primary-80"
