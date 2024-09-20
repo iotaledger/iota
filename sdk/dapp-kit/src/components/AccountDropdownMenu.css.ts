@@ -43,6 +43,7 @@ export const menuItem = style({
     padding: themeVars.spacing.small,
     ':hover': {
         backgroundColor: themeVars.backgroundColors.primaryButtonHover,
+        cursor: 'pointer',
     },
 });
 
