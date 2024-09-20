@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { style } from '@vanilla-extract/css';
-
 import { themeVars } from '../../../themes/themeContract.js';
 
 export const container = style({
@@ -19,13 +18,13 @@ export const walletItem = style({
     gap: 8,
     borderRadius: themeVars.radii.large,
     ':hover': {
-        backgroundColor: themeVars.backgroundColors.walletItemHover,
+        backgroundColor: themeVars.backgroundColors.primaryButtonHover,
     },
 });
 
 export const selectedWalletItem = style({
-    backgroundColor: themeVars.backgroundColors.walletItemSelected,
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.05)',
+    border: `1px solid ${themeVars.borderColors.outlineButton}`,
+    borderRadius: themeVars.radii.large,
 });
 
 export const walletIcon = style({

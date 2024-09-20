@@ -29,11 +29,11 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
         <DropdownMenu.Root modal={false}>
             <StyleMarker>
                 <DropdownMenu.Trigger asChild>
-                    <Button size="lg" className={styles.connectedAccount}>
-                        <Text mono weight="bold">
+                    <Button size="md" className={styles.connectedAccount}>
+                        <Text>
                             {currentAccount.label ?? formatAddress(currentAccount.address)}
                         </Text>
-                        <ChevronIcon />
+                        <ChevronIcon className={styles.icon} />
                     </Button>
                 </DropdownMenu.Trigger>
             </StyleMarker>
