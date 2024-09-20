@@ -16,8 +16,8 @@ import type { Configuration } from 'webpack';
 
 import packageJson from '../../package.json';
 
-const WALLET_BETA = process.env.WALLET_BETA === 'true';
-const RELEASE_CANDIDATE_VERSION = WALLET_BETA
+const WALLET_RC = process.env.WALLET_RC === 'true';
+const RELEASE_CANDIDATE_VERSION = WALLET_RC
     ? Number(process.env.RELEASE_CANDIDATE_VERSION) || 1
     : 0;
 
@@ -30,7 +30,7 @@ const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
 const IS_DEV = process.env.NODE_ENV === 'development';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
-const APP_NAME = WALLET_BETA ? 'IOTA Wallet (BETA)' : IS_DEV ? 'IOTA Wallet (DEV)' : 'IOTA Wallet';
+const APP_NAME = WALLET_RC ? 'IOTA Wallet (RC)' : IS_DEV ? 'IOTA Wallet (DEV)' : 'IOTA Wallet';
 
 dotenv.config({
     path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
@@ -216,7 +216,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.WALLET_KEYRING_PASSWORD': JSON.stringify(
                     IS_DEV ? 'DEV_PASS' : Buffer.from(randomBytes(64)).toString('hex'),
                 ),
-                'process.env.WALLET_BETA': WALLET_BETA,
+                'process.env.WALLET_RC': WALLET_RC,
                 'process.env.APP_NAME': JSON.stringify(APP_NAME),
                 'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
                 'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
