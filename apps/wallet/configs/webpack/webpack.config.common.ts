@@ -16,18 +16,10 @@ import type { Configuration } from 'webpack';
 
 import packageJson from '../../package.json';
 
-function generateDateVersion(patch: number) {
-    const sha = gitRevSync.short();
-    const version = packageJson.version
-
-    return {
-        version,
-        version_name: `${version} (${sha})`,
-    };
-}
-
 const WALLET_BETA = process.env.WALLET_BETA === 'true';
-const PATCH_VERSION = Number(process.env.PATCH_VERSION) || 0;
+const RELEASE_CANDIDATE_VERSION = WALLET_BETA
+    ? Number(process.env.RELEASE_CANDIDATE_VERSION) || 1
+    : 0;
 
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -43,6 +35,18 @@ const APP_NAME = WALLET_BETA ? 'IOTA Wallet (BETA)' : IS_DEV ? 'IOTA Wallet (DEV
 dotenv.config({
     path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
 });
+
+// From package.json: x.y.z
+// App version: x.y.z.n where n=0 for production and n>0 for release candidates
+function generateVersion(n: number) {
+    const sha = gitRevSync.short();
+    const packageVersion = packageJson.version;
+    const version = `${packageVersion}.${n}`;
+    return {
+        version,
+        version_name: `${version} (${sha})`,
+    };
+}
 
 function loadTsConfig(tsConfigFilePath: string) {
     return new Promise<string>((res, rej) => {
@@ -93,7 +97,7 @@ async function generateAliasFromTs() {
 
 const commonConfig: () => Promise<Configuration> = async () => {
     const alias = await generateAliasFromTs();
-    const walletVersionDetails = generateDateVersion(PATCH_VERSION);
+    const walletVersionDetails = generateVersion(RELEASE_CANDIDATE_VERSION);
     const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
     return {
         context: SRC_ROOT,
