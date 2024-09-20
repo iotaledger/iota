@@ -41,7 +41,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
         },
         {
             header: 'Stake Rewards',
-            accessorKey: 'stakeRewards.endOfEpochInfo.totalStakeRewardsDistributed',
+            accessorKey: 'endOfEpochInfo.totalStakeRewardsDistributed',
             cell: ({ getValue }) => {
                 const totalStakeRewardsDistributed = getValue<string | undefined>();
                 return (
