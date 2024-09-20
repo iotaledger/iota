@@ -1,18 +1,18 @@
 processed 10 tasks
 
-task 1, lines 6-29:
+task 1, lines 7-30:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 6650000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 31:
+task 2, line 32:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 33:
+task 3, line 34:
 //# view-object 2,0
 Owner: Account Address ( _ )
 Version: 3
@@ -24,7 +24,7 @@ Contents: tto::M1::A {
     },
 }
 
-task 4, line 35:
+task 4, line 36:
 //# view-object 2,1
 Owner: Account Address ( fake(2,0) )
 Version: 3
@@ -36,24 +36,24 @@ Contents: tto::M1::B {
     },
 }
 
-task 5, line 37:
+task 5, line 38:
 //# run tto::M1::receiver --args receiving(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 6, lines 39-40:
+task 6, lines 40-41:
 //# programmable --inputs receiving(2,1)
 //> iota::transfer::receiving_object_id<tto::M1::B>(Input(0))
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7, lines 42-43:
+task 7, lines 43-44:
 //# programmable --inputs receiving(2,1)
 //> tto::M1::receiver(Input(0))
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 8, line 45:
+task 8, line 46:
 //# view-object 2,0
 Owner: Account Address ( _ )
 Version: 3
@@ -65,7 +65,7 @@ Contents: tto::M1::A {
     },
 }
 
-task 9, line 47:
+task 9, line 48:
 //# view-object 2,1
 Owner: Account Address ( fake(2,0) )
 Version: 3

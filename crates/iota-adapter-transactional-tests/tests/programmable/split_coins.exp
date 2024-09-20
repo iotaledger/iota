@@ -3,13 +3,13 @@ processed 20 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 9-22:
+task 1, lines 10-23:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5677200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5692400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 24-28:
+task 2, lines 25-29:
 //# programmable --sender A --inputs 100000 @A
 //> SplitCoins(Gas, [Input(0)]);
 //> TransferObjects([Result(0)], Input(1))
@@ -18,13 +18,13 @@ created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 29:
+task 3, line 30:
 //# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(2,0) 1000 @A --sender A
 created: object(3,0)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2964000,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
+gas summary: computation_cost: 1000000, storage_cost: 2964000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
-task 4, lines 31-33:
+task 4, lines 32-34:
 //# view-object 3,0
 Owner: Account Address ( A )
 Version: 3
@@ -39,15 +39,15 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 5, lines 34-36:
+task 5, lines 35-37:
 //# programmable --sender A --inputs object(3,0) 100 @B
 //> 0: SplitCoins(Input(0), [Input(1)]);
 //> TransferObjects([NestedResult(0,0)], Input(2));
 created: object(5,0)
 mutated: object(0,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 2964000,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
+gas summary: computation_cost: 1000000, storage_cost: 2964000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
-task 6, line 38:
+task 6, line 39:
 //# view-object 3,0
 Owner: Account Address ( A )
 Version: 4
@@ -62,7 +62,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 7, lines 40-43:
+task 7, lines 41-44:
 //# view-object 5,0
 Owner: Account Address ( B )
 Version: 4
@@ -77,15 +77,15 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 8, lines 44-46:
+task 8, lines 45-47:
 //# programmable --sender A --inputs object(3,0) 100 @B
 //> 0: SplitCoins(Input(0), [Input(1), Input(1)]);
 //> TransferObjects([NestedResult(0,0), NestedResult(0,1)], Input(2));
 created: object(8,0), object(8,1)
 mutated: object(0,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3952000,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
+gas summary: computation_cost: 1000000, storage_cost: 3952000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
-task 9, line 48:
+task 9, line 49:
 //# view-object 3,0
 Owner: Account Address ( A )
 Version: 5
@@ -100,7 +100,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 10, line 50:
+task 10, line 51:
 //# view-object 8,0
 Owner: Account Address ( B )
 Version: 5
@@ -115,7 +115,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 11, lines 52-54:
+task 11, lines 53-55:
 //# view-object 8,1
 Owner: Account Address ( B )
 Version: 5
@@ -130,16 +130,16 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 12, lines 55-58:
+task 12, lines 56-59:
 //# programmable --sender A --inputs object(3,0) 100 @B
 //> 0: test::m1::ret_one_amount();
 //> 1: SplitCoins(Input(0), [Result(0), Input(1)]);
 //> TransferObjects([NestedResult(1,0), NestedResult(1,1)], Input(2));
 created: object(12,0), object(12,1)
 mutated: object(0,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3952000,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
+gas summary: computation_cost: 1000000, storage_cost: 3952000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
-task 13, line 60:
+task 13, line 61:
 //# view-object 3,0
 Owner: Account Address ( A )
 Version: 6
@@ -154,7 +154,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 14, line 62:
+task 14, line 63:
 //# view-object 12,0
 Owner: Account Address ( B )
 Version: 6
@@ -169,7 +169,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 15, lines 64-67:
+task 15, lines 65-68:
 //# view-object 12,1
 Owner: Account Address ( B )
 Version: 6
@@ -184,7 +184,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 16, lines 68-72:
+task 16, lines 69-73:
 //# programmable --sender A --inputs object(3,0) 100 @B
 //> 0: test::m1::ret_one_amount();
 //> 1: SplitCoins(Input(0), [Result(0), Input(1)]);
@@ -192,9 +192,9 @@ task 16, lines 68-72:
 //> test::m1::transfer_(Result(2), Input(2));
 created: object(16,0), object(16,1)
 mutated: object(0,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3952000,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
+gas summary: computation_cost: 1000000, storage_cost: 3952000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
-task 17, line 74:
+task 17, line 75:
 //# view-object 3,0
 Owner: Account Address ( A )
 Version: 7
@@ -209,7 +209,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 18, line 76:
+task 18, line 77:
 //# view-object 16,0
 Owner: Account Address ( B )
 Version: 7
@@ -224,7 +224,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 19, line 78:
+task 19, line 79:
 //# view-object 16,1
 Owner: Account Address ( B )
 Version: 7

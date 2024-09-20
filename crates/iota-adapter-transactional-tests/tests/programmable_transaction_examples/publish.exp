@@ -3,7 +3,7 @@ processed 11 tasks
 init:
 A: object(0,0)
 
-task 3, lines 27-32:
+task 3, lines 29-34:
 //# programmable --sender A --inputs 10 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: Publish(q, []);
@@ -14,20 +14,28 @@ created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 8876800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 6, lines 38-40:
+task 4, line 36:
+//# view-object 3,3
+3,3::m
+
+task 5, line 38:
+//# view-object 3,4
+3,4::{m, n}
+
+task 8, lines 44-46:
 //# programmable --sender A
 //> 0: q::m::x();
 //> p::m::foo(Result(0))
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7, lines 42-47:
+task 9, lines 48-53:
 //# publish --dependencies p q
-created: object(7,0)
+created: object(9,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 5221200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 8, line 49:
+task 10, line 55:
 //# run r::all::foo_x
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0

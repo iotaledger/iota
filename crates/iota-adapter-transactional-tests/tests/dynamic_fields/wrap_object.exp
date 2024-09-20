@@ -3,19 +3,19 @@ processed 12 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-39:
+task 1, lines 9-40:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 7478400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 41:
+task 2, line 42:
 //# run a::m::mint --sender A
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5890000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 43:
+task 3, line 44:
 //# view-object 2,1
 Owner: Object ID: ( fake(2,2) )
 Version: 2
@@ -27,23 +27,23 @@ Contents: a::m::Obj {
     },
 }
 
-task 4, line 45:
+task 4, line 46:
 //# run a::m::take_and_wrap --sender A --args object(2,0)
 created: object(4,0)
 mutated: object(0,0), object(2,0)
 deleted: object(2,2)
 wrapped: object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 4157200,  storage_rebate: 5831100, non_refundable_storage_fee: 58900
+gas summary: computation_cost: 1000000, storage_cost: 4157200,  storage_rebate: 5890000, non_refundable_storage_fee: 0
 
-task 5, line 48:
+task 5, line 49:
 //# run a::m::mint --sender A
 created: object(5,0), object(5,1), object(5,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5890000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 5890000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 6, line 50:
+task 6, line 51:
 //# view-object 5,2
-Owner: Object ID: ( fake(5,1) )
+Owner: Object ID: ( fake(5,0) )
 Version: 4
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -55,23 +55,23 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
         name: 0u64,
     },
     value: iota::object::ID {
-        bytes: fake(5,0),
+        bytes: fake(5,1),
     },
 }
 
-task 7, line 52:
-//# run a::m::take_and_destroy --sender A --args object(5,1)
-mutated: object(0,0), object(5,1)
-deleted: object(5,0), object(5,2)
-gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 5831100, non_refundable_storage_fee: 58900
+task 7, line 53:
+//# run a::m::take_and_destroy --sender A --args object(5,0)
+mutated: object(0,0), object(5,0)
+deleted: object(5,1), object(5,2)
+gas summary: computation_cost: 1000000, storage_cost: 2211600,  storage_rebate: 5890000, non_refundable_storage_fee: 0
 
-task 8, line 55:
+task 8, line 56:
 //# run a::m::mint --sender A
 created: object(8,0), object(8,1), object(8,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5890000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 5890000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 9, line 57:
+task 9, line 58:
 //# view-object 8,2
 Owner: Object ID: ( fake(8,0) )
 Version: 6
@@ -89,12 +89,12 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
     },
 }
 
-task 10, line 59:
+task 10, line 60:
 //# run a::m::take_and_take --sender A --args object(8,0)
 mutated: object(0,0), object(8,0), object(8,1)
 deleted: object(8,2)
-gas summary: computation_cost: 1000000, storage_cost: 3435200,  storage_rebate: 5831100, non_refundable_storage_fee: 58900
+gas summary: computation_cost: 1000000, storage_cost: 3435200,  storage_rebate: 5890000, non_refundable_storage_fee: 0
 
-task 11, line 61:
+task 11, line 62:
 //# view-object 8,2
 No object at id 8,2

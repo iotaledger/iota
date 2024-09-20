@@ -1,24 +1,24 @@
 processed 9 tasks
 
-task 1, lines 9-26:
+task 1, lines 10-27:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5342800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 28-36:
+task 2, lines 29-37:
 //# publish --dependencies t2
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 4453600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 38:
+task 3, line 39:
 //# run t2::o2::create
 created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4, lines 40-42:
+task 4, lines 41-43:
 //# view-object 3,0
 Owner: Shared( 4 )
 Version: 4
@@ -30,19 +30,19 @@ Contents: t2::o2::Obj2 {
     },
 }
 
-task 5, line 43:
+task 5, line 44:
 //# run t1::o1::consume_o2 --args object(3,0)
 mutated: object(0,0)
 deleted: object(3,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2226800, non_refundable_storage_fee: 0
 
-task 6, line 45:
+task 6, line 46:
 //# run t2::o2::create
 created: object(6,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7, lines 47-49:
+task 7, lines 48-50:
 //# view-object 6,0
 Owner: Shared( 6 )
 Version: 6
@@ -54,7 +54,7 @@ Contents: t2::o2::Obj2 {
     },
 }
 
-task 8, line 50:
+task 8, line 51:
 //# run t2::o2::consume_o2 --args object(6,0)
 mutated: object(0,0)
 deleted: object(6,0)

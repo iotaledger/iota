@@ -3,19 +3,19 @@ processed 6 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 8-18:
+task 1, lines 9-19:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 4902000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 20:
+task 2, line 21:
 //# run test::m::mint_s
 created: object(2,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, line 22:
+task 3, line 23:
 //# view-object 2,0
 Owner: Shared( 3 )
 Version: 3
@@ -27,12 +27,12 @@ Contents: test::m::S {
     },
 }
 
-task 4, line 24:
+task 4, line 25:
 //# transfer-object 2,0 --sender A --recipient B
 Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
 Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue } at command Some(0)
 
-task 5, line 26:
+task 5, line 27:
 //# view-object 2,0
 Owner: Shared( 3 )
 Version: 4

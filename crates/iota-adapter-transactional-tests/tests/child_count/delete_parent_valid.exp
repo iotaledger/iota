@@ -3,25 +3,25 @@ processed 7 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1, lines 9-57:
+task 1, lines 10-58:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 7987600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 58:
+task 2, line 59:
 //# run test::m::mint --sender A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 60:
+task 3, line 61:
 //# run test::m::add --sender A --args object(2,0) 0
 created: object(3,0), object(3,1)
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 5859600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
 
-task 4, line 62:
+task 4, line 63:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
@@ -33,13 +33,13 @@ Contents: test::m::S {
     },
 }
 
-task 5, line 64:
+task 5, line 65:
 //# run test::m::remove --sender A --args object(2,0) 0
 mutated: object(0,0), object(2,0)
 deleted: object(3,0), object(3,1)
 gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 5859600, non_refundable_storage_fee: 0
 
-task 6, line 66:
+task 6, line 67:
 //# run test::m::delete --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)

@@ -3,13 +3,13 @@ processed 4 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-26:
+task 1, lines 9-27:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 5456800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 27-36:
+task 2, lines 28-37:
 //# programmable
 //> 0: test::m1::a();
 //> 1: test::m1::b();
@@ -20,9 +20,9 @@ task 2, lines 27-36:
 //> test::m1::eat(NestedResult(4,1), NestedResult(4,0), NestedResult(4,1));
 // invalid
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 3, lines 37-44:
+task 3, lines 38-45:
 //# programmable
 //> 0: test::m1::a();
 //> 1: test::m1::b();

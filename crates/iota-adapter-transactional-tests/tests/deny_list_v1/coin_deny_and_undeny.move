@@ -48,17 +48,10 @@ module test::regulated_coin {
 //# view-object 1,5
 
 // Transfer away the newly minted coin works normally.
-<<<<<<<< HEAD:crates/iota-adapter-transactional-tests/tests/deny_list/coin_deny_and_undeny.move
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Deny account B.
 //# run iota::coin::deny_list_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-========
-//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-
-// Deny account B.
-//# run iota::coin::deny_list_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
->>>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-adapter-transactional-tests:crates/iota-adapter-transactional-tests/tests/deny_list_v1/coin_deny_and_undeny.move
 
 // Try transfer the coin from B. This should now be denied.
 //# transfer-object 8,0 --sender B --recipient A
@@ -67,11 +60,7 @@ module test::regulated_coin {
 //# run iota::pay::split_and_transfer --args object(8,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
 
 // Undeny account B.
-<<<<<<<< HEAD:crates/iota-adapter-transactional-tests/tests/deny_list/coin_deny_and_undeny.move
 //# run iota::coin::deny_list_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-========
-//# run iota::coin::deny_list_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
->>>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-adapter-transactional-tests:crates/iota-adapter-transactional-tests/tests/deny_list_v1/coin_deny_and_undeny.move
 
 // This time the transfer should work.
 //# transfer-object 8,0 --sender B --recipient A

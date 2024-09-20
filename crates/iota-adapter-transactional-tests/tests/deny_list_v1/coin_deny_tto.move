@@ -62,21 +62,13 @@ module test::regulated_coin {
 //# view-object 1,6
 
 // Deny account A.
-<<<<<<<< HEAD:crates/iota-adapter-transactional-tests/tests/deny_list/coin_deny_tto.move
 //# run iota::coin::deny_list_add --args object(0x403) object(1,3) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
-========
-//# run iota::coin::deny_list_add --args object(0x403) object(1,4) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
->>>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-adapter-transactional-tests:crates/iota-adapter-transactional-tests/tests/deny_list_v1/coin_deny_tto.move
 
 // Try to receive coin in Wallet. This should now fail.
 //# run test::regulated_coin::receive_coin --args object(1,0) receiving(1,1) --sender A
 
 // Undeny account A.
-<<<<<<<< HEAD:crates/iota-adapter-transactional-tests/tests/deny_list/coin_deny_tto.move
 //# run iota::coin::deny_list_remove --args object(0x403) object(1,3) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
-========
-//# run iota::coin::deny_list_remove --args object(0x403) object(1,4) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
->>>>>>>> origin/slipstream/mainnet-v1.32.2/crates/iota-adapter-transactional-tests:crates/iota-adapter-transactional-tests/tests/deny_list_v1/coin_deny_tto.move
 
 // Try to receive coin in Wallet. This should now succeed.
 //# run test::regulated_coin::receive_coin --args object(1,0) receiving(1,1) --sender A
