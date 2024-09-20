@@ -1,19 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Adapted from AbstractInterpreter for Bytecode, this module defines the data-flow analysis
-//! framework for stackless bytecode.
+//! Adapted from AbstractInterpreter for Bytecode, this module defines the
+//! data-flow analysis framework for stackless bytecode.
+
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt::Debug,
+};
+
+use move_binary_format::file_format::CodeOffset;
 
 use crate::{
     dataflow_domains::{AbstractDomain, JoinResult},
     stackless_bytecode::Bytecode,
     stackless_control_flow_graph::{BlockId, StacklessControlFlowGraph},
-};
-use move_binary_format::file_format::CodeOffset;
-use std::{
-    collections::{BTreeMap, VecDeque},
-    fmt::Debug,
 };
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -36,7 +39,7 @@ pub trait TransferFunctions {
         instrs: &[Bytecode],
         cfg: &StacklessControlFlowGraph,
     ) -> Self::State {
-        if cfg.is_dummmy(block_id) {
+        if cfg.is_dummy(block_id) {
             return state;
         }
         let instr_inds = cfg.instr_indexes(block_id).unwrap();
@@ -114,11 +117,13 @@ pub trait DataflowAnalysis: TransferFunctions {
         state_map
     }
 
-    /// Takes the StateMap resulting from `analyze_function` and converts it into a map
-    /// from each code offset into a derived state `A`. This re-executes the analysis for
-    /// each instruction within a basic block to reconstruct the intermediate results
-    /// from block begin to block end. The function `f` gets passed the before/after state
-    /// of the instruction at a code offset. Returns a map from code offset to `A`.
+    /// Takes the StateMap resulting from `analyze_function` and converts it
+    /// into a map from each code offset into a derived state `A`. This
+    /// re-executes the analysis for each instruction within a basic block
+    /// to reconstruct the intermediate results from block begin to block
+    /// end. The function `f` gets passed the before/after state
+    /// of the instruction at a code offset. Returns a map from code offset to
+    /// `A`.
     fn state_per_instruction<A, F>(
         &self,
         state_map: StateMap<Self::State>,
@@ -132,7 +137,7 @@ pub trait DataflowAnalysis: TransferFunctions {
         let mut result = BTreeMap::new();
         for (block_id, block_state) in state_map {
             let mut state = block_state.pre;
-            if !cfg.is_dummmy(block_id) {
+            if !cfg.is_dummy(block_id) {
                 let instr_inds = cfg.instr_indexes(block_id).unwrap();
                 if Self::BACKWARD {
                     for offset in instr_inds.rev() {

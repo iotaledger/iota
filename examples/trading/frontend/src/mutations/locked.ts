@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { CONSTANTS, QueryKey } from "@/constants";
 import { useTransactionExecution } from "@/hooks/useTransactionExecution";
-import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
-import { SuiObjectData } from "@mysten/sui.js/client";
-import { TransactionBlock } from "@mysten/sui.js/transactions";
+import { useCurrentAccount, useIotaClient } from "@iota/dapp-kit";
+import { IotaObjectData } from "@iota/iota-sdk/client";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
@@ -17,7 +18,7 @@ export function useLockObjectMutation() {
   const executeTransaction = useTransactionExecution();
 
   return useMutation({
-    mutationFn: async ({ object }: { object: SuiObjectData }) => {
+    mutationFn: async ({ object }: { object: IotaObjectData }) => {
       if (!account?.address)
         throw new Error("You need to connect your wallet!");
       const txb = new TransactionBlock();
@@ -41,18 +42,18 @@ export function useLockObjectMutation() {
 export function useUnlockMutation() {
   const account = useCurrentAccount();
   const executeTransaction = useTransactionExecution();
-  const client = useSuiClient();
+  const client = useIotaClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       lockedId,
       keyId,
-      suiObject,
+      iotaObject,
     }: {
       lockedId: string;
       keyId: string;
-      suiObject: SuiObjectData;
+      iotaObject: IotaObjectData;
     }) => {
       if (!account?.address)
         throw new Error("You need to connect your wallet!");
@@ -77,7 +78,7 @@ export function useUnlockMutation() {
 
       const item = txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::lock::unlock`,
-        typeArguments: [suiObject.type!],
+        typeArguments: [iotaObject.type!],
         arguments: [txb.object(lockedId), txb.object(keyId)],
       });
 

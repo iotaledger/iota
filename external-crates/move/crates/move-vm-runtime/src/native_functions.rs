@@ -1,10 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    interpreter::Interpreter, loader::Resolver, native_extensions::NativeContextExtensions,
+use std::{
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    fmt::Write,
+    sync::Arc,
 };
+
 use move_binary_format::errors::{ExecutionState, PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -19,11 +24,9 @@ use move_vm_config::runtime::VMRuntimeLimitsConfig;
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
-use std::{
-    cell::RefCell,
-    collections::{HashMap, VecDeque},
-    fmt::Write,
-    sync::Arc,
+
+use crate::{
+    interpreter::Interpreter, loader::Resolver, native_extensions::NativeContextExtensions,
 };
 
 pub type UnboxedNativeFunction = dyn Fn(&mut NativeContext, Vec<Type>, VecDeque<Value>) -> PartialVMResult<NativeResult>
@@ -163,8 +166,8 @@ impl<'a, 'b> NativeContext<'a, 'b> {
         self.extensions
     }
 
-    /// Get count stack frames, including the one of the called native function. This
-    /// allows a native function to reflect about its caller.
+    /// Get count stack frames, including the one of the called native function.
+    /// This allows a native function to reflect about its caller.
     pub fn stack_frames(&self, count: usize) -> ExecutionState {
         self.interpreter.get_stack_frames(count)
     }

@@ -1,0 +1,330 @@
+---
+source: crates/iota-swarm-config/tests/snapshot_tests.rs
+expression: genesis.iota_system_object().into_genesis_version_for_tooling()
+---
+epoch: 0
+protocol_version: 1
+system_state_version: 1
+iota_treasury_cap:
+  inner:
+    id:
+      id: "0x8e905e836935e8b3fb66d5ce63729b2f1dd177ad13ae5ceb4efe22c3b6569809"
+    total_supply:
+      value: "751500000000000000"
+validators:
+  total_stake: 1500000000000000
+  active_validators:
+    - metadata:
+        iota_address: "0xb877dacaef0724a0a155ad7c6ae1289580b96646aef3caafd6ebcb1bcf8bd13f"
+        protocol_pubkey_bytes:
+          - 153
+          - 242
+          - 94
+          - 246
+          - 31
+          - 128
+          - 50
+          - 185
+          - 20
+          - 99
+          - 100
+          - 96
+          - 152
+          - 44
+          - 92
+          - 198
+          - 241
+          - 52
+          - 239
+          - 29
+          - 218
+          - 231
+          - 102
+          - 87
+          - 242
+          - 203
+          - 254
+          - 193
+          - 235
+          - 252
+          - 141
+          - 9
+          - 115
+          - 116
+          - 8
+          - 13
+          - 246
+          - 252
+          - 240
+          - 220
+          - 184
+          - 188
+          - 75
+          - 13
+          - 142
+          - 10
+          - 245
+          - 216
+          - 14
+          - 187
+          - 255
+          - 43
+          - 76
+          - 89
+          - 159
+          - 84
+          - 244
+          - 45
+          - 99
+          - 18
+          - 223
+          - 195
+          - 20
+          - 39
+          - 96
+          - 120
+          - 193
+          - 204
+          - 52
+          - 126
+          - 187
+          - 190
+          - 197
+          - 25
+          - 139
+          - 226
+          - 88
+          - 81
+          - 63
+          - 56
+          - 107
+          - 147
+          - 13
+          - 2
+          - 194
+          - 116
+          - 154
+          - 128
+          - 62
+          - 35
+          - 48
+          - 149
+          - 94
+          - 189
+          - 26
+          - 16
+        network_pubkey_bytes:
+          - 148
+          - 228
+          - 168
+          - 73
+          - 49
+          - 68
+          - 233
+          - 230
+          - 150
+          - 32
+          - 140
+          - 190
+          - 208
+          - 2
+          - 89
+          - 230
+          - 221
+          - 181
+          - 111
+          - 151
+          - 155
+          - 145
+          - 195
+          - 41
+          - 103
+          - 86
+          - 9
+          - 133
+          - 190
+          - 97
+          - 144
+          - 155
+        worker_pubkey_bytes:
+          - 31
+          - 42
+          - 121
+          - 1
+          - 168
+          - 66
+          - 228
+          - 211
+          - 98
+          - 59
+          - 198
+          - 28
+          - 225
+          - 193
+          - 113
+          - 125
+          - 46
+          - 118
+          - 142
+          - 15
+          - 215
+          - 45
+          - 248
+          - 52
+          - 26
+          - 245
+          - 102
+          - 21
+          - 185
+          - 22
+          - 240
+          - 56
+        proof_of_possession_bytes:
+          - 185
+          - 60
+          - 204
+          - 156
+          - 218
+          - 197
+          - 31
+          - 107
+          - 109
+          - 84
+          - 191
+          - 98
+          - 196
+          - 9
+          - 17
+          - 141
+          - 243
+          - 38
+          - 4
+          - 23
+          - 37
+          - 149
+          - 114
+          - 51
+          - 168
+          - 186
+          - 243
+          - 141
+          - 189
+          - 48
+          - 40
+          - 187
+          - 147
+          - 104
+          - 20
+          - 211
+          - 60
+          - 160
+          - 197
+          - 136
+          - 139
+          - 70
+          - 112
+          - 193
+          - 80
+          - 163
+          - 186
+          - 226
+        name: "0"
+        description: ""
+        image_url: ""
+        project_url: ""
+        net_address: /ip4/127.0.0.1/tcp/80
+        p2p_address: /ip4/127.0.0.1/udp/80
+        primary_address: /ip4/127.0.0.1/udp/80
+        worker_address: /ip4/127.0.0.1/udp/80
+        next_epoch_protocol_pubkey_bytes: ~
+        next_epoch_proof_of_possession: ~
+        next_epoch_network_pubkey_bytes: ~
+        next_epoch_worker_pubkey_bytes: ~
+        next_epoch_net_address: ~
+        next_epoch_p2p_address: ~
+        next_epoch_primary_address: ~
+        next_epoch_worker_address: ~
+        extra_fields:
+          id:
+            id: "0xe7d648e1a5c6da060c89e1cabd57d7ae1eb1c8f5b6d99f5b8950200a19fc6599"
+          size: 0
+      voting_power: 10000
+      operation_cap_id: "0x27ba7ff7067e4999047149f2dbad34b86a0c7b12417f0c2630d59b25c762ab11"
+      gas_price: 1000
+      staking_pool:
+        id: "0xc68bee890532dd2bdcd23d647283965ebf36107a9f7addf4c1905cad798f3d08"
+        activation_epoch: 0
+        deactivation_epoch: ~
+        iota_balance: 1500000000000000
+        rewards_pool:
+          value: 0
+        pool_token_balance: 1500000000000000
+        exchange_rates:
+          id: "0xdfe398c3f077539b79205ec6acdfa7b391ebfb32775da7032f4be00533dfc4b0"
+          size: 1
+        pending_stake: 0
+        pending_total_iota_withdraw: 0
+        pending_pool_token_withdraw: 0
+        extra_fields:
+          id:
+            id: "0x2abe60179d053da0e738a7b0cf386cef69930c8cff2ce1c7027a40b60161a236"
+          size: 0
+      commission_rate: 200
+      next_epoch_stake: 1500000000000000
+      next_epoch_gas_price: 1000
+      next_epoch_commission_rate: 200
+      extra_fields:
+        id:
+          id: "0x38d71ff9f186176f3509fb41919891a800f0fa33a4682c9a6cbc66dee91faa2d"
+        size: 0
+  pending_active_validators:
+    contents:
+      id: "0xd68814d7812d16ca275dca54d051eebac9ad7bb47d21256614ad5020906256a7"
+      size: 0
+  pending_removals: []
+  staking_pool_mappings:
+    id: "0xd470acefee0a169389a1a068909714cf41d32d1c33782bcc0a4a1772f7c280ec"
+    size: 1
+  inactive_validators:
+    id: "0xb64665f0f5de10385ea9a45aca2e1139a0778ea2a4063d924e6394c0faface36"
+    size: 0
+  validator_candidates:
+    id: "0x374994dcba2e2a7ea5ffab4860675f915e5f5909b7fdc37efcbf80be32c43795"
+    size: 0
+  at_risk_validators:
+    contents: []
+  extra_fields:
+    id:
+      id: "0xcfb96e9dcfad0abb6bc75ca1a92157f55178da99cb59742f91df44a428e8b0fa"
+    size: 0
+storage_fund:
+  total_object_storage_rebates:
+    value: 0
+  non_refundable_balance:
+    value: 0
+parameters:
+  epoch_duration_ms: 86400000
+  max_validator_count: 150
+  min_validator_joining_stake: 2000000000000000
+  validator_low_stake_threshold: 1500000000000000
+  validator_very_low_stake_threshold: 1000000000000000
+  validator_low_stake_grace_period: 7
+  extra_fields:
+    id:
+      id: "0x52f9c43c397b6e533a6d138211493d1baccb733247559cfa3d9b3d1dc75227d7"
+    size: 0
+reference_gas_price: 1000
+validator_report_records:
+  contents: []
+safe_mode: false
+safe_mode_storage_charges:
+  value: 0
+safe_mode_computation_rewards:
+  value: 0
+safe_mode_storage_rebates: 0
+safe_mode_non_refundable_storage_fee: 0
+epoch_start_timestamp_ms: 10
+extra_fields:
+  id:
+    id: "0x1f19e330054af819612a65e6686a84bf1dddb13e99a97fc6870616577ff8f059"
+  size: 0

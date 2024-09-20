@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A pool of uniqued string data akin to a hash set.
@@ -42,7 +43,8 @@ use std::{
 
 /// The number of buckets in the pool's contiguous array.
 const NB_BUCKETS: usize = 1 << 12; // 4096
-/// A mask used to convert a string hash into the index of one of the contiguous buckets.
+/// A mask used to convert a string hash into the index of one of the contiguous
+/// buckets.
 const BUCKET_MASK: u64 = NB_BUCKETS as u64 - 1;
 
 /// A bucket is a space on the heap within which an entry may be allocated.
@@ -85,7 +87,7 @@ impl Pool {
         let bucket_index = (hash & BUCKET_MASK) as usize;
         let mut ptr: Option<&mut Box<Entry>> = self.0[bucket_index].as_mut();
 
-        // Iterate over the entires in the bucket.
+        // Iterate over the entries in the bucket.
         while let Some(entry) = ptr.take() {
             // If we find the string we're looking for, don't add anything to
             // the pool. Instead, just return the existing entry.

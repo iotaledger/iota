@@ -1,40 +1,40 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the transfer functions for verifying local safety of a procedure body.
-//! It is concerned with the assignment state of a local variable at the time of usage, which is
-//! a control flow sensitive check.
+//! This module defines the transfer functions for verifying local safety of a
+//! procedure body. It is concerned with the assignment state of a local
+//! variable at the time of usage, which is a control flow sensitive check.
 
 mod abstract_state;
 
-use crate::{
-    absint::{AbstractInterpreter, TransferFunctions},
-    locals_safety::abstract_state::{RET_PER_LOCAL_COST, STEP_BASE_COST},
-    meter::{Meter, Scope},
-};
-use abstract_state::{AbstractState, LocalState};
+use crate::ability_cache::AbilityCache;
+use abstract_state::{AbstractState, LocalState, RET_COST, STEP_BASE_COST};
+use move_abstract_interpreter::absint::{AbstractInterpreter, FunctionContext, TransferFunctions};
 use move_binary_format::{
-    binary_views::{BinaryIndexedView, FunctionView},
     errors::{PartialVMError, PartialVMResult},
     file_format::{Bytecode, CodeOffset},
+    CompiledModule,
 };
+use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 
 pub(crate) fn verify<'a>(
-    resolver: &BinaryIndexedView,
-    function_view: &'a FunctionView<'a>,
-    meter: &mut impl Meter,
+    module: &CompiledModule,
+    function_context: &'a FunctionContext<'a>,
+    ability_cache: &mut AbilityCache,
+    meter: &mut (impl Meter + ?Sized),
 ) -> PartialVMResult<()> {
-    let initial_state = AbstractState::new(resolver, function_view)?;
-    LocalsSafetyAnalysis().analyze_function(initial_state, function_view, meter)
+    let initial_state = AbstractState::new(module, function_context, ability_cache, meter)?;
+    LocalsSafetyAnalysis().analyze_function(initial_state, function_context, meter)
 }
 
 fn execute_inner(
     state: &mut AbstractState,
     bytecode: &Bytecode,
     offset: CodeOffset,
-    meter: &mut impl Meter,
+    meter: &mut (impl Meter + ?Sized),
 ) -> PartialVMResult<()> {
     meter.add(Scope::Function, STEP_BASE_COST)?;
     match bytecode {
@@ -42,21 +42,21 @@ fn execute_inner(
             LocalState::MaybeAvailable | LocalState::Available
                 if !state.local_abilities(*idx).has_drop() =>
             {
-                return Err(state.error(StatusCode::STLOC_UNSAFE_TO_DESTROY_ERROR, offset))
+                return Err(state.error(StatusCode::STLOC_UNSAFE_TO_DESTROY_ERROR, offset));
             }
             _ => state.set_available(*idx),
         },
 
         Bytecode::MoveLoc(idx) => match state.local_state(*idx) {
             LocalState::MaybeAvailable | LocalState::Unavailable => {
-                return Err(state.error(StatusCode::MOVELOC_UNAVAILABLE_ERROR, offset))
+                return Err(state.error(StatusCode::MOVELOC_UNAVAILABLE_ERROR, offset));
             }
             LocalState::Available => state.set_unavailable(*idx),
         },
 
         Bytecode::CopyLoc(idx) => match state.local_state(*idx) {
             LocalState::MaybeAvailable | LocalState::Unavailable => {
-                return Err(state.error(StatusCode::COPYLOC_UNAVAILABLE_ERROR, offset))
+                return Err(state.error(StatusCode::COPYLOC_UNAVAILABLE_ERROR, offset));
             }
             LocalState::Available => (),
         },
@@ -64,7 +64,7 @@ fn execute_inner(
         Bytecode::MutBorrowLoc(idx) | Bytecode::ImmBorrowLoc(idx) => {
             match state.local_state(*idx) {
                 LocalState::Unavailable | LocalState::MaybeAvailable => {
-                    return Err(state.error(StatusCode::BORROWLOC_UNAVAILABLE_ERROR, offset))
+                    return Err(state.error(StatusCode::BORROWLOC_UNAVAILABLE_ERROR, offset));
                 }
                 LocalState::Available => (),
             }
@@ -72,7 +72,7 @@ fn execute_inner(
 
         Bytecode::Ret => {
             let local_states = state.local_states();
-            meter.add_items(Scope::Function, RET_PER_LOCAL_COST, local_states.len())?;
+            meter.add_items(Scope::Function, RET_COST, local_states.len())?;
             let all_local_abilities = state.all_local_abilities();
             assert!(local_states.len() == all_local_abilities.len());
             for (local_state, local_abilities) in local_states.iter().zip(all_local_abilities) {
@@ -82,7 +82,7 @@ fn execute_inner(
                     {
                         return Err(
                             state.error(StatusCode::UNSAFE_RET_UNUSED_VALUES_WITHOUT_DROP, offset)
-                        )
+                        );
                     }
                     _ => (),
                 }
@@ -159,7 +159,16 @@ fn execute_inner(
         | Bytecode::VecPushBack(_)
         | Bytecode::VecPopBack(_)
         | Bytecode::VecUnpack(..)
-        | Bytecode::VecSwap(_) => (),
+        | Bytecode::VecSwap(_)
+        | Bytecode::PackVariant(_)
+        | Bytecode::PackVariantGeneric(_)
+        | Bytecode::UnpackVariant(_)
+        | Bytecode::UnpackVariantImmRef(_)
+        | Bytecode::UnpackVariantMutRef(_)
+        | Bytecode::UnpackVariantGeneric(_)
+        | Bytecode::UnpackVariantGenericImmRef(_)
+        | Bytecode::UnpackVariantGenericMutRef(_)
+        | Bytecode::VariantSwitch(_) => (),
     };
     Ok(())
 }
@@ -176,7 +185,7 @@ impl TransferFunctions for LocalsSafetyAnalysis {
         bytecode: &Bytecode,
         index: CodeOffset,
         _last_index: CodeOffset,
-        meter: &mut impl Meter,
+        meter: &mut (impl Meter + ?Sized),
     ) -> PartialVMResult<()> {
         execute_inner(state, bytecode, index, meter)
     }

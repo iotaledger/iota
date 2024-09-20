@@ -1,11 +1,11 @@
-# @mysten/create-dapp
+# @iota/create-dapp
 
-`@mysten/create-dapp` is a CLI tool that helps you to create a new dApp project.
+`@iota/create-dapp` is a CLI tool that helps you to create a new dApp project.
 
 You can get started quickly by running the following command:
 
 ```bash
-pnpm create @mysten/dapp
+pnpm create @iota/dapp
 ```
 
 This will prompt you through creating a new dApp project. It will ask you for the name/directory and
@@ -27,7 +27,7 @@ you including:
 - [Vite](https://vitejs.dev/)
 - [Radix UI](https://www.radix-ui.com/)
 - [ESLint](https://eslint.org/)
-- [`@mysten/dapp-kit`](https://sdk.mystenlabs.com/dapp-kit)
+- [`@iota/dapp-kit`]()
 
 These templates are still new, and would love to get feedback and suggestions for improvements or
 future templates. Please open an issue on GitHub if you have any feedback.

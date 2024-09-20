@@ -2,13 +2,13 @@
 title: Event Query and Subscription
 ---
 
-Sui Full nodes support publish/subscribe using JSON-RPC notifications via the WebSocket API. You can use this service with Sui client to filter and subscribe to a real-time event stream generated from Move or from the Sui network.
+IOTA Full nodes support publish/subscribe using JSON-RPC notifications via the WebSocket API. You can use this service with IOTA client to filter and subscribe to a real-time event stream generated from Move or from the IOTA network.
 
-The client provides an [event filter](#event-filters) to limit the scope of events. Sui returns a notification with the event data and subscription ID for each event that matches the filter.
+The client provides an [event filter](#event-filters) to limit the scope of events. IOTA returns a notification with the event data and subscription ID for each event that matches the filter.
 
-# Event types
+## Event types
 
-A Sui node emits the following types of events:
+A IOTA node emits the following types of events:
 
 - [Move event](#move-event)
 - [Publish event](#publish-event)
@@ -19,7 +19,7 @@ A Sui node emits the following types of events:
 
 ## Move event {#move-event}
 
-Move calls emit Move events. You can [define custom events](https://examples.sui.io/basics/events.html) in Move contracts.
+Move calls emit Move events. You can [define custom events](https://examples.iota.io/basics/events.html) in Move contracts.
 
 ### Attributes {#attributes}
 
@@ -193,9 +193,9 @@ None, Checkpoint events do not have any attributes. The event includes the Check
 }
 ```
 
-## Sui event query criteria {#sui-event-query-criteria}
+## IOTA event query criteria {#iota-event-query-criteria}
 
-You can use the `EventQuery` criteria object to query a Sui node and retrieve events that match query criteria.
+You can use the `EventQuery` criteria object to query a IOTA node and retrieve events that match query criteria.
 
 | Query       | Description                                               | JSON-RPC Parameter Example                                                                          |
 | ----------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -225,7 +225,7 @@ curl --location --request POST '127.0.0.1:9000' \
 --data-raw '{
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "sui_getEvents",
+  "method": "iota_getEvents",
   "params": [
     {"MoveModule":{"package":"<PACKAGE-ID>", "module":"nft"}},
     null,
@@ -341,7 +341,7 @@ curl --location --request POST '127.0.0.1:9000' \
 --data-raw '{
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "sui_getEvents",
+  "method": "iota_getEvents",
   "params": [
     {"MoveEvent":"<PACKAGE-ID>::nft::MintNFTEvent"},
     null,
@@ -419,7 +419,7 @@ curl --location --request POST '127.0.0.1:9000' \
 --data-raw '{
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "sui_getEvents",
+  "method": "iota_getEvents",
   "params": [
     "All",
     null,
@@ -484,7 +484,7 @@ curl --location --request POST '127.0.0.1:9000' \
 }
 ```
 
-## Subscribe to Sui events {#subscribe-events}
+## Subscribe to IOTA events {#subscribe-events}
 
 When you subscribe to the events described in the preceding sections, you can apply event filters to match the events you want to filter.
 
@@ -501,12 +501,12 @@ You can use `EventFilter` to filter the events included in your subscription to 
 | MoveEventType  | Move event type defined in the move code                         | MoveEvent                                                                                              | `{"MoveEventType":"<PACKAGE-ID>::nft::MintNFTEvent"}`                                     |
 | MoveEventField | Filter using the data fields in the move event object            | MoveEvent                                                                                              | `{"MoveEventField":{ "path":"/name", "value":"NFT"}}`                                     |
 | SenderAddress  | Address that started the transaction                             | MoveEvent<br/>Publish<br/>TransferObject<br/>DeleteObject<br/>NewObject                                | `{"SenderAddress": "0x008e9c621f4fdb210b873aab59a1e5bf32ddb1d33ee85eb069b348c234465106"}` |
-| EventType      | Type of event described in the [Events](#type-of-events) section | MoveEvent<br/>Publish<br/>TransferObject<br/>DeleteObject<br/>NewObject<br/>EpochChange<br/>Checkpoint | `{"EventType":"Publish"}`                                                                 |
+| EventType      | Type of event described in the [Events](#event-types) section | MoveEvent<br/>Publish<br/>TransferObject<br/>DeleteObject<br/>NewObject<br/>EpochChange<br/>Checkpoint | `{"EventType":"Publish"}`                                                                 |
 | ObjectId       | Object ID                                                        | TransferObject<br/>DeleteObject<br/>NewObject                                                          | `{"ObjectId":"0x727b37454ab13d5c1dbb22e8741bff72b145d1e660f71b275c01f24e7860e5e5"}`       |
 
 ### Combining filters {#combining-filters}
 
-Sui provides a few operators for combining filters:
+IOTA provides a few operators for combining filters:
 
 | Operator | Description                                                             | JSON-RPC Parameter Example                                                                          |
 | -------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -520,13 +520,13 @@ Sui provides a few operators for combining filters:
 The following example demonstrates how to subscribe to Move events (`MoveEvent`) that a `<PACKAGE-ID>::nft` package emits:
 
 ```bash
->> {"jsonrpc":"2.0", "id": 1, "method": "sui_subscribeEvent", "params": [{"All":[{"EventType":"MoveEvent"}, {"Package":"<PACKAGE-MODULE-ID>"}, {"Module":"nft"}]}]}
+>> {"jsonrpc":"2.0", "id": 1, "method": "iota_subscribeEvent", "params": [{"All":[{"EventType":"MoveEvent"}, {"Package":"<PACKAGE-MODULE-ID>"}, {"Module":"nft"}]}]}
 << {"jsonrpc":"2.0","result":3121662727959200,"id":1}
 ```
 
 To unsubscribe from this stream, use:
 
 ```bash
->> {"jsonrpc":"2.0", "id": 1, "method": "sui_unsubscribeEvent", "params": [3121662727959200]}
+>> {"jsonrpc":"2.0", "id": 1, "method": "iota_unsubscribeEvent", "params": [3121662727959200]}
 << {"jsonrpc":"2.0","result":true,"id":1}
 ```

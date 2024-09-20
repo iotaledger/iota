@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
@@ -37,14 +38,14 @@ const NetworkSelect = () => {
           <InputLabel
             id="network"
             className="dark:text-white"
-          >{`RPC: https://fullnode.${selection.toLowerCase()}.sui.io:443`}</InputLabel>
+          >{`RPC: https://fullnode.${selection.toLowerCase()}.iota.io:443`}</InputLabel>
           <Select
             label-id="network"
             id="network-select"
             value={selection}
-            label={`RPC: https://fullnode.${selection.toLowerCase()}.sui.io:443`}
+            label={`RPC: https://fullnode.${selection.toLowerCase()}.iota.io:443`}
             onChange={handleChange}
-            className="dark:text-white dark:bg-sui-ghost-dark"
+            className="dark:text-white dark:bg-iota-ghost-dark"
           >
             <MenuItem value="devnet">{NETWORKS[0]}</MenuItem>
             <MenuItem value="testnet">{NETWORKS[1]}</MenuItem>

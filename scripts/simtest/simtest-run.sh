@@ -1,5 +1,6 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 echo "Running simulator tests at commit $(git rev-parse HEAD)"
@@ -20,7 +21,7 @@ if [ -z "$NUM_CPUS" ]; then
 fi
 
 # filter out some tests that give spurious failures.
-TEST_FILTER="(not test(~batch_verification_tests))"
+TEST_FILTER="(not (test(~batch_verification_tests)))"
 
 DATE=$(date +%s)
 SEED="$DATE"
@@ -51,9 +52,9 @@ MSIM_WATCHDOG_TIMEOUT_MS=60000 \
 scripts/simtest/cargo-simtest simtest \
   --color always \
   --test-threads "$NUM_CPUS" \
-  --package sui-core \
-  --package sui-archival \
-  --package sui-e2e-tests \
+  --package iota-core \
+  --package iota-archival \
+  --package iota-e2e-tests \
   --profile simtestnightly \
   -E "$TEST_FILTER" 2>&1 | tee "$LOG_FILE"
 
@@ -75,7 +76,7 @@ for SUB_SEED in `seq 1 $NUM_CPUS`; do
   SIM_STRESS_TEST_DURATION_SECS=300 \
   scripts/simtest/cargo-simtest simtest \
     --color always \
-    --package sui-benchmark \
+    --package iota-benchmark \
     --test-threads 1 \
     --profile simtestnightly \
     > "$LOG_FILE" 2>&1 &
@@ -102,7 +103,7 @@ MSIM_TEST_CHECK_DETERMINISM=1
 scripts/simtest/cargo-simtest simtest \
   --color always \
   --test-threads "$NUM_CPUS" \
-  --package sui-benchmark \
+  --package iota-benchmark \
   --profile simtestnightly \
   -E "$TEST_FILTER" 2>&1 | tee "$LOG_FILE"
 
@@ -112,7 +113,7 @@ echo "All tests completed, checking for failures..."
 echo "============================================="
 date
 
-grep -qHn FAIL "$LOG_DIR"/*
+grep -EqHn 'TIMEOUT|FAIL' "$LOG_DIR"/*
 
 # if grep found no failures exit now
 [ $? -eq 1 ] && echo "No test failures detected" && exit 0
@@ -121,7 +122,7 @@ echo "Failures detected, printing logs..."
 
 # read all filenames in $LOG_DIR that contain the string "FAIL" into a bash array
 # and print the line number and filename for each
-readarray -t FAILED_LOG_FILES < <(grep -l FAIL "$LOG_DIR"/*)
+readarray -t FAILED_LOG_FILES < <(grep -El 'TIMEOUT|FAIL' "$LOG_DIR"/*)
 
 # iterate over the array and print the contents of each file
 for LOG_FILE in "${FAILED_LOG_FILES[@]}"; do

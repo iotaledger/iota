@@ -1,7 +1,32 @@
 [default]
-extend-ignore-re = [
-  "[a-zA-Z0-9]{44}"
-]
+extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
 
 [default.extend-words]
+# accepted plurals
+froms = "froms"
+alls = "alls"
+# ordinal numbers (2nd, ...)
+nd = "nd"
+# random identifiers, variables, functions, ...
+dbe = "dbe"
+thr = "thr"
+fo = "fo"
+BA = "BA"
+DAA = "DAA"
+UE = "UE"
+tto = "tto"
+ser = "ser"
+pn = "pn"
+noo = "noo"
+Ot = "Ot"
+Hel = "Hel"
+numer = "numer"
+ratatui = "ratatui"
 groth = "groth"
+strat = "strat"
+mistic = "mistic"
+# Identity
+AAS = "AAS"
+# actual typos purposedly used in tests
+assing = "assing"
+tring = "tring"

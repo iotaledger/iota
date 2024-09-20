@@ -1,24 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2014 The Prometheus Authors
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-//! This library implements a `ClosureMetric` for crate `prometheus` whose value is computed at
-//! the time of collection by a provided closure.
+//! This library implements a `ClosureMetric` for crate `prometheus` whose value
+//! is computed at the time of collection by a provided closure.
 
 // TODO: add example usage once constructor macros are implemented.
 // (For now, look at tests for an example.)
 
-use anyhow::anyhow;
-use anyhow::Result;
-use prometheus::core;
-use prometheus::proto;
+use anyhow::{anyhow, Result};
+use prometheus::{core, proto};
 
-/// A Prometheus metric whose value is computed at collection time by the provided closure.
+/// A Prometheus metric whose value is computed at collection time by the
+/// provided closure.
 ///
-/// WARNING: The provided closure must be fast (~milliseconds or faster), since it blocks
-/// metric collection.
+/// WARNING: The provided closure must be fast (~milliseconds or faster), since
+/// it blocks metric collection.
 #[derive(Debug)]
 pub struct ClosureMetric<F> {
     desc: core::Desc,

@@ -1,29 +1,32 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::source_package::parsed_manifest::{CustomDepInfo, SourceManifest};
+use std::sync::Mutex;
+
 use anyhow::bail;
 use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
+
+use crate::source_package::parsed_manifest::{CustomDepInfo, SourceManifest};
 
 pub type PackageIdentifier = Symbol;
 
 // TODO: remove static hooks and refactor this crate for better customizability
 
-/// A trait providing hooks to customize the package system for a particular Move application.
-/// An instance of the trait can be registered globally.
+/// A trait providing hooks to customize the package system for a particular
+/// Move application. An instance of the trait can be registered globally.
 pub trait PackageHooks {
     /// Returns custom fields allowed in `PackageInfo`.
     fn custom_package_info_fields(&self) -> Vec<String>;
 
-    /// Returns a custom key for dependencies, if available. This is the string used
-    /// in dependencies `{ <key> = value, address = addr }.
+    /// Returns a custom key for dependencies, if available. This is the string
+    /// used in dependencies `{ <key> = value, address = addr }`.
     fn custom_dependency_key(&self) -> Option<String>;
 
-    /// A resolver for custom dependencies in the manifest. This is called to download the
-    /// dependency from the dependency into the `info.local_path` location, similar as with git
-    /// dependencies.
+    /// A resolver for custom dependencies in the manifest. This is called to
+    /// download the dependency from the dependency into the
+    /// `info.local_path` location, similar as with git dependencies.
     fn resolve_custom_dependency(
         &self,
         dep_name: Symbol,
@@ -31,7 +34,7 @@ pub trait PackageHooks {
     ) -> anyhow::Result<()>;
 
     fn custom_resolve_pkg_id(&self, manifest: &SourceManifest)
-        -> anyhow::Result<PackageIdentifier>;
+    -> anyhow::Result<PackageIdentifier>;
 
     fn resolve_version(&self, manifest: &SourceManifest) -> anyhow::Result<Option<Symbol>>;
 }
@@ -43,7 +46,8 @@ pub fn register_package_hooks(hooks: Box<dyn PackageHooks + Send + Sync>) {
     *HOOKS.lock().unwrap() = Some(hooks)
 }
 
-/// Calls any registered hook to resolve a node dependency. Bails if none is registered.
+/// Calls any registered hook to resolve a node dependency. Bails if none is
+/// registered.
 pub(crate) fn resolve_custom_dependency(
     dep_name: Symbol,
     info: &CustomDepInfo,

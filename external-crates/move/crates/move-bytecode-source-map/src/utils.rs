@@ -1,11 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::source_map::SourceMap;
+use std::{fs::File, io::Read, path::Path};
+
 use anyhow::{format_err, Result};
 use move_ir_types::location::Loc;
-use std::{fs::File, io::Read, path::Path};
+
+use crate::source_map::SourceMap;
 
 pub type Error = (Loc, String);
 pub type Errors = Vec<Error>;

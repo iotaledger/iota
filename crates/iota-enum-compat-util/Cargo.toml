@@ -1,0 +1,10 @@
+[package]
+name = "iota-enum-compat-util"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+serde_yaml.workspace = true

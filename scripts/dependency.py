@@ -1,4 +1,5 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
@@ -7,6 +8,7 @@ import re
 
 ROOT = os.path.join(os.path.dirname(__file__), "../")
 PATTERN = None
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -28,6 +30,7 @@ def parse_args():
     upgrade_group.add_argument("--rev")
     upgrade_group.add_argument("--branch")
     return parser.parse_args()
+
 
 def scan_file(file, process_line, depth=0):
     new_content = []
@@ -61,6 +64,7 @@ def try_match_line(line):
         return (name, extra)
     return None
 
+
 def switch_to_local(project):
     default_path_map = {
         "move": "move/language",
@@ -84,11 +88,9 @@ def switch_to_local(project):
             "move-cli": "tools/move-cli",
             "move-core-types": "move-core/types",
             "move-coverage": "tools/move-coverage",
-            "move-errmapgen": "move-prover/move-errmapgen",
             "move-package": "tools/move-package",
             "move-resource-viewer": "tools/move-resource-viewer",
             "move-stackless-bytecode": "move-prover/bytecode",
-            "move-stackless-bytecode-interpreter": "move-prover/interpreter",
             "move-unit-test": "tools/move-unit-test",
             "move-vm-test-utils": "move-vm/test-utils",
             "move-vm-runtime": "move-vm/runtime",
@@ -119,6 +121,7 @@ def switch_to_local(project):
 
 def upgrade_revision(project, repo, rev, branch):
     assert (args.rev is None) != (args.branch is None)
+
     def process_line(line, _):
         m = try_match_line(line)
         if m:
@@ -135,10 +138,11 @@ def upgrade_revision(project, repo, rev, branch):
 
 
 args = parse_args()
-assert(args.project == "move" or args.project == "narwhal")
+assert (args.project == "move" or args.project == "narwhal")
 
 PATTERN = re.compile(
-    '(.+)={git="https://github.com/.+/' + args.project + '",(?:rev|branch)="[^"]+"(,.*)?}'
+    '(.+)={git="https://github.com/.+/' +
+    args.project + '",(?:rev|branch)="[^"]+"(,.*)?}'
 )
 
 if args.command == "local":

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Final phase of cleanup and optimization.
@@ -63,8 +64,8 @@ impl FunctionTargetProcessor for CleanAndOptimizeProcessor {
 // Analysis
 // ========
 
-/// A data flow analysis state used for optimization analysis. Currently it tracks the nodes
-/// which have been updated but not yet written back.
+/// A data flow analysis state used for optimization analysis. Currently it
+/// tracks the nodes which have been updated but not yet written back.
 #[derive(Debug, Clone, Default, Eq, PartialEq, PartialOrd)]
 struct AnalysisState {
     unwritten: BTreeSet<BorrowNode>,
@@ -134,7 +135,8 @@ impl<'a> TransferFunctions for Optimizer<'a> {
     }
 }
 
-/// Check if fun_env matches one of the functions implementing custom mutable borrow semantics.
+/// Check if fun_env matches one of the functions implementing custom mutable
+/// borrow semantics.
 fn is_custom_borrow(fun_env: &FunctionEnv, borrow_natives: &Vec<String>) -> bool {
     for name in borrow_natives {
         if &fun_env.get_full_name_str() == name {
@@ -188,7 +190,8 @@ impl<'a> Optimizer<'a> {
                         && !is_unwritten(code_offset as CodeOffset, &Reference(srcs[0])) =>
                 {
                     assert!(matches!(instrs[code_offset + 1], Label(..)));
-                    // skip this obsolete IsParent check when all WriteBacks in this block are redundant
+                    // skip this obsolete IsParent check when all WriteBacks in this block are
+                    // redundant
                     let mut block_cursor = code_offset + 2;
                     let mut skip_branch = true;
                     loop {
@@ -202,7 +205,8 @@ impl<'a> Optimizer<'a> {
                                 should_skip.insert(block_cursor);
                             }
                             Call(_, _, TraceLocal(_), _, _) => {
-                                // since the previous write-back is skipped, this trace local is redundant as well
+                                // since the previous write-back is skipped, this trace local is
+                                // redundant as well
                                 should_skip.insert(block_cursor);
                             }
                             _ => {

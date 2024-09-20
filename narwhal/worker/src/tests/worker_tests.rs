@@ -1,25 +1,27 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::*;
-use crate::LocalNarwhalClient;
-use crate::{metrics::initialise_metrics, TrivialTransactionValidator};
+
+use std::time::Duration;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use fastcrypto::{
     encoding::{Encoding, Hex},
     hash::Hash,
 };
-use futures::stream::FuturesOrdered;
-use futures::StreamExt;
-use primary::consensus::{ConsensusRound, LeaderSchedule, LeaderSwapTable};
-use primary::{Primary, CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS};
+use futures::{stream::FuturesOrdered, StreamExt};
+use primary::{
+    consensus::{ConsensusRound, LeaderSchedule, LeaderSwapTable},
+    Primary, CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS,
+};
 use prometheus::Registry;
-use std::time::Duration;
 use storage::NodeStorage;
-use store::rocks;
-use store::rocks::MetricConf;
-use store::rocks::ReadWriteOptions;
+use store::{
+    rocks,
+    rocks::{MetricConf, ReadWriteOptions},
+};
 use test_utils::{
     batch, latest_protocol_version, temp_dir, test_network, transaction, CommitteeFixture,
 };
@@ -28,6 +30,9 @@ use types::{
     BatchAPI, MockWorkerToPrimary, MockWorkerToWorker, PreSubscribedBroadcastSender,
     TransactionProto, TransactionsClient, WorkerBatchMessage, WorkerToWorkerClient,
 };
+
+use super::*;
+use crate::{metrics::initialise_metrics, LocalNarwhalClient, TrivialTransactionValidator};
 
 // A test validator that rejects every transaction / batch
 #[derive(Clone)]
@@ -39,11 +44,7 @@ impl TransactionValidator for NilTxValidator {
     fn validate(&self, _tx: &[u8]) -> Result<(), Self::Error> {
         eyre::bail!("Invalid transaction");
     }
-    fn validate_batch(
-        &self,
-        _txs: &Batch,
-        _protocol_config: &ProtocolConfig,
-    ) -> Result<(), Self::Error> {
+    fn validate_batch(&self, _txs: &Batch) -> Result<(), Self::Error> {
         eyre::bail!("Invalid batch");
     }
 }
@@ -87,7 +88,6 @@ async fn reject_invalid_clients_transactions() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
-        latest_protocol_version(),
         parameters,
         NilTxValidator,
         client,
@@ -103,12 +103,12 @@ async fn reject_invalid_clients_transactions() {
         .worker(&public_key, &worker_id)
         .unwrap()
         .transactions;
-    let config = mysten_network::config::Config::new();
+    let config = iota_network_stack::config::Config::new();
     let channel = config.connect_lazy(&address).unwrap();
     let mut client = TransactionsClient::new(channel);
     let tx = transaction();
     let txn = TransactionProto {
-        transaction: Bytes::from(tx.clone()),
+        transactions: vec![Bytes::from(tx.clone())],
     };
 
     // Check invalid transactions are rejected
@@ -117,7 +117,7 @@ async fn reject_invalid_clients_transactions() {
 
     let worker_pk = worker_cache.worker(&public_key, &worker_id).unwrap().name;
 
-    let batch = batch(&latest_protocol_version());
+    let batch = batch();
     let batch_message = WorkerBatchMessage {
         batch: batch.clone(),
     };
@@ -143,7 +143,8 @@ async fn reject_invalid_clients_transactions() {
     assert!(res.is_err());
 }
 
-/// TODO: test both RemoteNarwhalClient and LocalNarwhalClient in the same test case.
+/// TODO: test both RemoteNarwhalClient and LocalNarwhalClient in the same test
+/// case.
 #[tokio::test]
 async fn handle_remote_clients_transactions() {
     let fixture = CommitteeFixture::builder().randomize_ports(true).build();
@@ -183,7 +184,6 @@ async fn handle_remote_clients_transactions() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
-        latest_protocol_version(),
         parameters,
         TrivialTransactionValidator,
         client.clone(),
@@ -196,7 +196,7 @@ async fn handle_remote_clients_transactions() {
     let mut peer_networks = Vec::new();
 
     // Create batches
-    let batch = batch(&latest_protocol_version());
+    let batch = batch();
     let batch_digest = batch.digest();
 
     let (tx_await_batch, mut rx_await_batch) = test_utils::test_channel!(CHANNEL_CAPACITY);
@@ -232,7 +232,7 @@ async fn handle_remote_clients_transactions() {
         .worker(&authority_public_key, &worker_id)
         .unwrap()
         .transactions;
-    let config = mysten_network::config::Config::new();
+    let config = iota_network_stack::config::Config::new();
     let channel = config.connect_lazy(&address).unwrap();
     let client = TransactionsClient::new(channel);
 
@@ -240,7 +240,7 @@ async fn handle_remote_clients_transactions() {
         let mut fut_list = FuturesOrdered::new();
         for tx in batch.transactions() {
             let txn = TransactionProto {
-                transaction: Bytes::from(tx.clone()),
+                transactions: vec![Bytes::from(tx.clone())],
             };
 
             // Calls to submit_transaction are now blocking, so we need to drive them
@@ -262,7 +262,8 @@ async fn handle_remote_clients_transactions() {
     assert!(join_handle.await.is_ok());
 }
 
-/// TODO: test both RemoteNarwhalClient and LocalNarwhalClient in the same test case.
+/// TODO: test both RemoteNarwhalClient and LocalNarwhalClient in the same test
+/// case.
 #[tokio::test]
 async fn handle_local_clients_transactions() {
     let fixture = CommitteeFixture::builder().randomize_ports(true).build();
@@ -302,7 +303,6 @@ async fn handle_local_clients_transactions() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
-        latest_protocol_version(),
         parameters,
         TrivialTransactionValidator,
         client.clone(),
@@ -315,7 +315,7 @@ async fn handle_local_clients_transactions() {
     let mut peer_networks = Vec::new();
 
     // Create batches
-    let batch = batch(&latest_protocol_version());
+    let batch = batch();
     let batch_digest = batch.digest();
 
     let (tx_await_batch, mut rx_await_batch) = test_utils::test_channel!(CHANNEL_CAPACITY);
@@ -359,7 +359,10 @@ async fn handle_local_clients_transactions() {
             // all at the same time, rather than sequentially.
             let inner_client = client.clone();
             fut_list.push_back(async move {
-                inner_client.submit_transaction(txn.clone()).await.unwrap();
+                inner_client
+                    .submit_transactions(vec![txn.clone()])
+                    .await
+                    .unwrap();
             });
         }
 
@@ -443,7 +446,6 @@ async fn get_network_peers_from_admin_server() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
-        latest_protocol_version(),
         worker_1_parameters.clone(),
         TrivialTransactionValidator,
         client_1.clone(),
@@ -475,7 +477,8 @@ async fn get_network_peers_from_admin_server() {
     // Assert we returned 3 peers (1 primary + 3 other workers)
     assert_eq!(4, resp.len());
 
-    // Test getting all connected peers for worker 1 (worker at index 0 for primary 1)
+    // Test getting all connected peers for worker 1 (worker at index 0 for primary
+    // 1)
     let resp = reqwest::get(format!(
         "http://127.0.0.1:{}/peers",
         worker_1_parameters
@@ -558,7 +561,6 @@ async fn get_network_peers_from_admin_server() {
         worker_id,
         committee.clone(),
         worker_cache.clone(),
-        latest_protocol_version(),
         worker_2_parameters.clone(),
         TrivialTransactionValidator,
         client_2,
@@ -567,8 +569,8 @@ async fn get_network_peers_from_admin_server() {
         &mut tx_shutdown_worker,
     );
 
-    // Wait for tasks to start. Sleeping longer here to ensure all primaries and workers
-    // have  a chance to connect to each other.
+    // Wait for tasks to start. Sleeping longer here to ensure all primaries and
+    // workers have  a chance to connect to each other.
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     let primary_2_peer_id = Hex::encode(authority_2.network_keypair().copy().public().0.as_bytes());
@@ -591,7 +593,8 @@ async fn get_network_peers_from_admin_server() {
     // Assert we returned 4 peers (1 primary + 3 other workers)
     assert_eq!(4, resp.len());
 
-    // Test getting all connected peers for worker 1 (worker at index 0 for primary 1)
+    // Test getting all connected peers for worker 1 (worker at index 0 for primary
+    // 1)
     let resp = reqwest::get(format!(
         "http://127.0.0.1:{}/peers",
         worker_1_parameters
@@ -612,7 +615,8 @@ async fn get_network_peers_from_admin_server() {
     let expected_peer_ids = [&primary_1_peer_id, &primary_2_peer_id, &worker_2_peer_id];
     assert!(expected_peer_ids.iter().all(|e| resp.contains(e)));
 
-    // Test getting all connected peers for worker 2 (worker at index 0 for primary 2)
+    // Test getting all connected peers for worker 2 (worker at index 0 for primary
+    // 2)
     let resp = reqwest::get(format!(
         "http://127.0.0.1:{}/peers",
         worker_2_parameters

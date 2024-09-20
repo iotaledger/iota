@@ -1,6 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 use move_ir_types::location::Loc;
 
@@ -10,7 +16,6 @@ use crate::{
     ice,
     shared::{unique_map::UniqueMap, unique_set::UniqueSet, *},
 };
-use std::{collections::BTreeSet, fmt};
 
 #[derive(Clone, Debug)]
 pub struct AliasSet {
@@ -26,6 +31,8 @@ pub struct AliasMap {
     // For now, this excludes local variables because the only case where this can overlap is with
     // macro lambdas, but those have to have a leading `$` and cannot conflict with module members
     module_members: UniqueMap<Name, MemberEntry>,
+    // These are for caching resolution for IDE information.
+    ide_alias_info: Option<ide::AliasAutocompleteInfo>,
     previous: Option<Box<AliasMap>>,
 }
 
@@ -102,6 +109,7 @@ impl AliasMap {
             unused: BTreeSet::new(),
             leading_access: UniqueMap::new(),
             module_members: UniqueMap::new(),
+            ide_alias_info: None,
             previous: None,
         }
     }
@@ -146,9 +154,9 @@ impl AliasMap {
         None
     }
 
-    /// Pushes a new scope, adding all of the new items to it (shadowing the outer one).
-    /// Returns any name collisions that occur between addresses, members, and modules in the map
-    /// builder.
+    /// Pushes a new scope, adding all of the new items to it (shadowing the
+    /// outer one). Returns any name collisions that occur between
+    /// addresses, members, and modules in the map builder.
     pub fn push_alias_scope(
         &mut self,
         loc: Loc,
@@ -203,6 +211,7 @@ impl AliasMap {
             unused,
             leading_access,
             module_members,
+            ide_alias_info: None,
             previous: None,
         };
 
@@ -212,8 +221,9 @@ impl AliasMap {
         Ok(duplicate)
     }
 
-    /// Similar to add_and_shadow but just hides aliases now shadowed by a type parameter.
-    /// Type parameters are never resolved. We track them to apply appropriate shadowing.
+    /// Similar to add_and_shadow but just hides aliases now shadowed by a type
+    /// parameter. Type parameters are never resolved. We track them to
+    /// apply appropriate shadowing.
     pub fn push_type_parameters<'a, I: IntoIterator<Item = &'a Name>>(&mut self, tparams: I)
     where
         I::IntoIter: ExactSizeIterator,
@@ -232,7 +242,8 @@ impl AliasMap {
         self.previous = Some(Box::new(previous));
     }
 
-    /// Resets the alias map to the previous scope, and returns the set of unused aliases
+    /// Resets the alias map to the previous scope, and returns the set of
+    /// unused aliases
     pub fn pop_scope(&mut self) -> AliasSet {
         let previous = self
             .previous
@@ -250,6 +261,27 @@ impl AliasMap {
         }
         result
     }
+
+    /// Gets a map of all in-scope names for IDE information, subject to
+    /// shadowing, either from a cached value or generated fresh.
+    pub fn get_ide_alias_information(&mut self) -> ide::AliasAutocompleteInfo {
+        if self.ide_alias_info.is_none() {
+            let mut cur: Option<&Self> = Some(self);
+            let mut leading_names = BTreeMap::new();
+            let mut member_names = BTreeMap::new();
+            while let Some(map) = cur {
+                for (name, entry) in map.leading_access.key_cloned_iter() {
+                    leading_names.entry(name.value).or_insert(*entry);
+                }
+                for (name, entry) in map.module_members.key_cloned_iter() {
+                    member_names.entry(name.value).or_insert(*entry);
+                }
+                cur = map.previous.as_deref();
+            }
+            self.ide_alias_info = Some((leading_names, member_names).into())
+        }
+        self.ide_alias_info.clone().unwrap()
+    }
 }
 
 //**************************************************************************************************
@@ -262,6 +294,7 @@ impl fmt::Debug for AliasMap {
             unused,
             leading_access,
             module_members,
+            ide_alias_info: _,
             previous,
         } = self;
         writeln!(f, "AliasMap(\n  unused: [")?;

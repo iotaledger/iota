@@ -1,9 +1,0 @@
-[package]
-name = "iota-test-validator"
-version.workspace = true
-authors = ["IOTA Foundation <contact@iota.org>"]
-edition = "2021"
-license = "Apache-2.0"
-publish = false
-
-[dependencies]

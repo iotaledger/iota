@@ -1,0 +1,97 @@
+---
+description: "A guide to familiarizing yourself with the IOTA repository, including branch and network structure."
+tags:
+  - explanation
+  - repository
+  - crates
+---
+
+# The IOTA Repository
+
+You can find all the official crates and tools offered by IOTA in
+the [IOTA monorepo](https://github.com/iotaledger/iota/).
+It contains all the source code used to build on and run the IOTA network. The following section will give a brief
+overview of the most important folders:
+
+- [apps](https://github.com/iotaledger/iota/tree/develop/apps) Contains the source code for the main web applications
+  that
+  IOTA runs, for example, the `IOTA Wallet`.
+- [crates](https://github.com/iotaledger/iota/tree/develop/crates): Contains all the Rust crates that are part of the
+  IOTA
+  system.
+- [dapps](https://github.com/iotaledger/iota/tree/develop/dapps): Contains some examples of decentralized applications
+  built on top of IOTA, such as Kiosk or Sponsored Transactions.
+- [dashboards](https://github.com/iotaledger/iota/tree/develop/dashboards): Currently empty.
+- [doc](https://github.com/iotaledger/iota/tree/develop/doc): Contains deprecated documentation related to Move and
+  IOTA.
+- [docker](https://github.com/iotaledger/iota/tree/develop/docker): Contains the docker files needed to spin up a node,
+  an
+  indexer, a Full node, or other services.
+- [docs](https://github.com/iotaledger/iota/tree/develop/docs): Contains this documentation and the source for this
+  site.
+- [examples](https://github.com/iotaledger/iota/tree/develop/examples): Contains examples of apps written for IOTA and
+  smart contracts written in Move.
+- [external-crates](https://github.com/iotaledger/iota/tree/develop/external-crates): Contains the source code for the
+  Move
+  programming language.
+- [kiosk](https://github.com/iotaledger/iota/tree/develop/kiosk): Contains the source code of the `IOTA Kiosk`
+  extensions and rules, as well as examples.
+- [narwhal](https://github.com/iotaledger/iota/tree/develop/narwhal): Contains the source code of Narwhal and partially
+  synchronous Bullshark, a DAG-based mempool, and efficient BFT consensus.
+- [nre](https://github.com/iotaledger/iota/tree/develop/nre): Contains information about node and network reliability
+  engineering.
+- [scripts](https://github.com/iotaledger/iota/tree/develop/scripts): Contains a number of scripts that are used
+  internally.
+- [sdk](https://github.com/iotaledger/iota/tree/develop/sdk): Contains the source code for different tools and SDKs,
+  such
+  as the IOTA TypeScript SDK, Kiosk SDK, BCS, dApp kit, etc.
+- [iota-execution](https://github.com/iotaledger/iota/tree/develop/iota-execution): Contains the source code responsible
+  for abstracting access to the execution layer.
+
+The following primary directories offer a good starting point for exploring the IOTA codebase:
+
+- [move](https://github.com/iotaledger/iota/tree/develop/external-crates/move) - Move VM, compiler, and tools.
+- [narwhal](https://github.com/iotaledger/iota/tree/develop/narwhal) - Mempool and consensus.
+- [typescript-sdk](https://github.com/iotaledger/iota/tree/develop/sdk/typescript/) - the IOTA TypeScript SDK.
+- [wallet](https://github.com/iotaledger/iota/tree/develop/apps/wallet) - Chrome extension wallet for IOTA.
+- [iota](https://github.com/iotaledger/iota/tree/develop/crates/iota) - the IOTA command line tool.
+- [iota-core](https://github.com/iotaledger/iota/tree/develop/crates/iota-core) - Core IOTA components.
+- [iota-execution](https://github.com/iotaledger/iota/tree/develop/iota-execution) - Execution Layer (programmable
+  transactions, execution integration).
+- [iota-framework](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework) - Move system packages (0x1,
+  0x2,
+  0x3, 0xdee9).
+- [iota-network](https://github.com/iotaledger/iota/tree/develop/crates/iota-network) - Networking interfaces.
+- [iota-node](https://github.com/iotaledger/iota/tree/develop/crates/iota-node) - Validator and Full node software.
+- [iota-protocol-config](https://github.com/iotaledger/iota/tree/develop/crates/iota-protocol-config) - On-chain system
+  configuration and limits.
+- [iota-sdk](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk) - The IOTA Rust SDK.
+- [iota-types](https://github.com/iotaledger/iota/tree/develop/crates/iota-types) - IOTA object types, such as coins and
+  gas.
+
+## Branch and Network Structure
+
+The main branches in the IOTA repository correspond to its
+networks ([`devnet`](#devnet), [`testnet`](#testnet), [`mainnet`](#mainnet)) plus a `develop` branch with the most
+recent changes.
+
+### Devnet
+
+The `devnet` branch is the latest stable build of IOTA. Choose the `devnet` branch if you want to build or test on
+IOTA Devnet. If you encounter an issue or find a bug, it may already be fixed in the [`develop`](#develop) branch. To
+submit a PR, you should push commits to your fork of the [`develop`](#develop) branch.
+
+### Testnet
+
+The `testnet` branch includes the code running on the IOTA Testnet network.
+
+### Mainnet
+
+The `mainnet` branch includes the code running on the IOTA Mainnet network.
+
+### Develop
+
+The `develop` branch includes the most recent changes and updates. Use the `develop` branch if you want to contribute to
+the
+IOTA project or to experiment with cutting-edge functionality. The `develop` branch might include unreleased changes and
+experimental features, so use it at your own risk.# The IOTA Repository

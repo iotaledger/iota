@@ -1,41 +1,44 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::{authority::AuthorityState, test_utils::send_and_confirm_transaction};
-use sui_move_build::BuildConfig;
-use sui_types::base_types::ObjectID;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::error::SuiError;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::object::Object;
-use sui_types::transaction::{Transaction, TransactionData};
-use sui_types::utils::to_sender_signed_transaction;
+use iota_core::{
+    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    test_utils::send_and_confirm_transaction,
+};
+use iota_move_build::BuildConfig;
+use iota_types::{
+    base_types::ObjectID,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::IotaError,
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
+    object::Object,
+    transaction::{Transaction, TransactionData},
+    utils::to_sender_signed_transaction,
+};
 use tokio::runtime::Runtime;
 
 use crate::account_universe::{AccountCurrent, PUBLISH_BUDGET};
 
-pub type ExecutionResult = Result<ExecutionStatus, SuiError>;
+pub type ExecutionResult = Result<ExecutionStatus, IotaError>;
 
 fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["data", test_dir]);
     let with_unpublished_deps = false;
     let config = BuildConfig::new_for_testing();
-    let package = config.build(path).unwrap();
+    let package = config.build(&path).unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),
     )
 }
 
-// We want to look for either panics (in which case we won't hit this) or invariant violations in
-// which case we want to panic.
+// We want to look for either panics (in which case we won't hit this) or
+// invariant violations in which case we want to panic.
 pub fn assert_is_acceptable_result(result: &ExecutionResult) {
     if let Ok(
         e @ ExecutionStatus::Failure {
@@ -114,7 +117,8 @@ impl Executor {
         account: &mut AccountCurrent,
     ) -> TransactionEffects {
         let (_, modules) = build_test_modules(package_name);
-        // let gas_obj_ref = account.current_coins.last().unwrap().compute_object_reference();
+        // let gas_obj_ref =
+        // account.current_coins.last().unwrap().compute_object_reference();
         let gas_object = account.new_gas_object(self);
         let data = TransactionData::new_module(
             account.initial_data.account.address,

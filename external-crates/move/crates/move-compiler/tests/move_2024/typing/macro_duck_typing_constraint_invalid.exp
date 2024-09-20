@@ -7,7 +7,7 @@ error[E05001]: ability constraint not satisfied
    │                   ---- To satisfy the constraint, the 'copy' ability would need to be added here
    ·
  9 │     macro fun needs_copy<$T, $U, $V>(_: X<$T>, _: $U, $v: $V): X<$U> {
-   │                                         ^^^^^ 'copy' constraint not satisifed
+   │                                         ^^^^^ 'copy' constraint not satisfied
    ·
 17 │         needs_copy!<None, None, None>(X(), None(), None());
    │                     ---- The type 'a::m::None' does not have the ability 'copy'
@@ -21,7 +21,7 @@ error[E05001]: ability constraint not satisfied
    │                   ---- To satisfy the constraint, the 'copy' ability would need to be added here
    ·
  9 │     macro fun needs_copy<$T, $U, $V>(_: X<$T>, _: $U, $v: $V): X<$U> {
-   │                                                                ^^^^^ 'copy' constraint not satisifed
+   │                                                                ^^^^^ 'copy' constraint not satisfied
    ·
 17 │         needs_copy!<None, None, None>(X(), None(), None());
    │                           ---- The type 'a::m::None' does not have the ability 'copy'
@@ -36,7 +36,7 @@ error[E05001]: ability constraint not satisfied
    │                   ---- 'copy' constraint declared here
    ·
 11 │         mycopy(&v);
-   │         ^^^^^^^^^^ 'copy' constraint not satisifed
+   │         ^^^^^^^^^^ 'copy' constraint not satisfied
    ·
 17 │         needs_copy!<None, None, None>(X(), None(), None());
    │                                 ---- The type 'a::m::None' does not have the ability 'copy'
@@ -50,7 +50,7 @@ error[E05001]: ability constraint not satisfied
    │                   ---- To satisfy the constraint, the 'copy' ability would need to be added here
    ·
 12 │         X()
-   │         ^^^ 'copy' constraint not satisifed
+   │         ^^^ 'copy' constraint not satisfied
    ·
 17 │         needs_copy!<None, None, None>(X(), None(), None());
    │                           ---- The type 'a::m::None' does not have the ability 'copy'

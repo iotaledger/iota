@@ -52,5 +52,5 @@ error[E05001]: ability constraint not satisfied
    │            ^^^^^
    │            │  │
    │            │  The type 'T' does not have the ability 'copy'
-   │            'copy' constraint not satisifed
+   │            'copy' constraint not satisfied
 

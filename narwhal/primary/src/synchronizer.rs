@@ -1,19 +1,8 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anemo::{rpc::Status, Network, Request, Response};
-use config::{AuthorityIdentifier, Committee, WorkerCache};
-use crypto::NetworkPublicKey;
-use fastcrypto::hash::Hash as _;
-use futures::{stream::FuturesOrdered, StreamExt};
-use itertools::Itertools;
-use mysten_common::sync::notify_once::NotifyOnce;
-use mysten_metrics::metered_channel::{channel_with_total, Sender};
-use mysten_metrics::{monitored_scope, spawn_logged_monitored_task};
-use mysten_network::anemo_ext::{NetworkExt, WaitingPeer};
-use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
-use parking_lot::Mutex;
 use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -23,22 +12,35 @@ use std::{
     },
     time::Duration,
 };
+
+use anemo::{rpc::Status, Network, Request, Response};
+use config::{AuthorityIdentifier, Committee, WorkerCache};
+use crypto::NetworkPublicKey;
+use fastcrypto::hash::Hash as _;
+use futures::{stream::FuturesOrdered, StreamExt};
+use iota_common::sync::notify_once::NotifyOnce;
+use iota_metrics::{
+    metered_channel::{channel_with_total, Sender},
+    monitored_scope, spawn_logged_monitored_task,
+};
+use iota_network_stack::anemo_ext::{NetworkExt, WaitingPeer};
+use iota_protocol_config::ProtocolConfig;
+use itertools::Itertools;
+use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
+use parking_lot::Mutex;
 use storage::{CertificateStore, PayloadStore};
-use sui_protocol_config::ProtocolConfig;
-use tokio::task::spawn_blocking;
-use tokio::time::Instant;
 use tokio::{
     sync::{broadcast, oneshot, watch, MutexGuard},
-    task::JoinSet,
-    time::{sleep, timeout},
+    task::{spawn_blocking, JoinSet},
+    time::{sleep, timeout, Instant},
 };
 use tracing::{debug, error, instrument, trace, warn};
-use types::SignatureVerificationState;
 use types::{
     ensure,
     error::{AcceptNotification, DagError, DagResult},
     Certificate, CertificateAPI, CertificateDigest, Header, HeaderAPI, PrimaryToPrimaryClient,
-    Round, SendCertificateRequest, SendCertificateResponse, WorkerSynchronizeMessage,
+    Round, SendCertificateRequest, SendCertificateResponse, SignatureVerificationState,
+    WorkerSynchronizeMessage,
 };
 
 use crate::{
@@ -50,9 +52,10 @@ use crate::{
 #[path = "tests/synchronizer_tests.rs"]
 pub mod synchronizer_tests;
 
-/// Only try to accept or suspend a certificate, if it is within this limit above the
-/// locally highest processed round.
-/// Expected max memory usage with 100 nodes: 100 nodes * 1000 rounds * 3.3KB per certificate = 330MB.
+/// Only try to accept or suspend a certificate, if it is within this limit
+/// above the locally highest processed round.
+/// Expected max memory usage with 100 nodes: 100 nodes * 1000 rounds * 3.3KB
+/// per certificate = 330MB.
 const NEW_CERTIFICATE_ROUND_LIMIT: Round = 1000;
 
 struct Inner {
@@ -69,7 +72,7 @@ struct Inner {
     gc_round: AtomicU64,
     // Highest round of certificate accepted into the certificate store.
     highest_processed_round: AtomicU64,
-    // Highest round of verfied certificate that has been received.
+    // Highest round of verified certificate that has been received.
     highest_received_round: AtomicU64,
     // Client for fetching payloads.
     client: NetworkClient,
@@ -105,13 +108,15 @@ struct Inner {
     certificates_aggregators: Mutex<BTreeMap<Round, Box<CertificatesAggregator>>>,
     // State for tracking suspended certificates and when they can be accepted.
     //
-    // TODO: tokio::sync::Mutex seems to be very slow to acquire here. Switch to parking_log::Mutex.
-    // This requires making sure no await is used inside accept_certificate_internal().
+    // TODO: tokio::sync::Mutex seems to be very slow to acquire here. Switch to
+    // parking_log::Mutex. This requires making sure no await is used inside
+    // accept_certificate_internal().
     state: tokio::sync::Mutex<State>,
 }
 
 impl Inner {
-    /// Checks if the certificate is valid and can potentially be accepted into the DAG.
+    /// Checks if the certificate is valid and can potentially be accepted into
+    /// the DAG.
     fn sanitize_certificate(&self, certificate: Certificate) -> DagResult<Certificate> {
         ensure!(
             self.committee.epoch() == certificate.epoch(),
@@ -120,7 +125,8 @@ impl Inner {
                 received: certificate.epoch()
             }
         );
-        // Ok to drop old certificate, because it will never be included into the consensus dag.
+        // Ok to drop old certificate, because it will never be included into the
+        // consensus dag.
         let gc_round = self.gc_round.load(Ordering::Acquire);
         ensure!(
             gc_round < certificate.round(),
@@ -131,7 +137,8 @@ impl Inner {
     }
 
     async fn append_certificate_in_aggregator(&self, certificate: Certificate) -> DagResult<()> {
-        // Check if we have enough certificates to enter a new dag round and propose a header.
+        // Check if we have enough certificates to enter a new dag round and propose a
+        // header.
         let Some(parents) = self
             .certificates_aggregators
             .lock()
@@ -211,8 +218,9 @@ impl Inner {
             .write(certificate.clone())
             .expect("Writing certificate to storage cannot fail!");
 
-        // From this point, the certificate must be sent to consensus or Narwhal needs to shutdown,
-        // to avoid inconsistencies in certificate store and consensus dag.
+        // From this point, the certificate must be sent to consensus or Narwhal needs
+        // to shutdown, to avoid inconsistencies in certificate store and
+        // consensus dag.
 
         // Update metrics for accepted certificates.
         let highest_processed_round = self
@@ -258,7 +266,8 @@ impl Inner {
         Ok(())
     }
 
-    /// Returns parent digests that do no exist either in storage or among suspended.
+    /// Returns parent digests that do no exist either in storage or among
+    /// suspended.
     async fn get_unknown_parent_digests(
         &self,
         header: &Header,
@@ -288,9 +297,9 @@ impl Inner {
         Ok(unknown)
     }
 
-    /// Tries to get all missing parents of the certificate. If there is any, sends the
-    /// certificate to `CertificateFetcher` which will trigger range fetching of missing
-    /// certificates.
+    /// Tries to get all missing parents of the certificate. If there is any,
+    /// sends the certificate to `CertificateFetcher` which will trigger
+    /// range fetching of missing certificates.
     async fn get_missing_parents(
         &self,
         certificate: &Certificate,
@@ -331,11 +340,12 @@ impl Inner {
     }
 }
 
-/// `Synchronizer` helps this primary and other peers stay in sync with each other,
-/// w.r.t. certificates and the DAG. Specifically, it is responsible for
+/// `Synchronizer` helps this primary and other peers stay in sync with each
+/// other, w.r.t. certificates and the DAG. Specifically, it is responsible for
 /// - Validating and accepting certificates received from peers.
 /// - Triggering fetching for certificates and batches.
 /// - Broadcasting created certificates.
+///
 /// `Synchronizer` contains most of the certificate processing logic in Narwhal.
 #[derive(Clone)]
 pub struct Synchronizer {
@@ -361,7 +371,7 @@ impl Synchronizer {
         primary_channel_metrics: &PrimaryChannelMetrics,
     ) -> Self {
         let committee: &Committee = &committee;
-        let genesis = Self::make_genesis(&protocol_config, committee);
+        let genesis = Self::make_genesis(committee);
         let highest_processed_round = certificate_store.highest_round_number();
         let highest_created_certificate = certificate_store.last_round(authority_id).unwrap();
         let gc_round = rx_consensus_round_updates.borrow().gc_round;
@@ -428,8 +438,8 @@ impl Synchronizer {
             "Synchronizer::RecoverCertificates"
         );
 
-        // Start a task to update gc_round, gc in-memory data, and trigger certificate catchup
-        // if no gc / consensus commit happened for 30s.
+        // Start a task to update gc_round, gc in-memory data, and trigger certificate
+        // catchup if no gc / consensus commit happened for 30s.
         let weak_inner = Arc::downgrade(&inner);
         spawn_logged_monitored_task!(
             async move {
@@ -439,10 +449,11 @@ impl Synchronizer {
                     let Ok(result) =
                         timeout(FETCH_TRIGGER_TIMEOUT, rx_consensus_round_updates.changed()).await
                     else {
-                        // When consensus commit has not happened for 30s, it is possible that no new
-                        // certificate is received by this primary or created in the network, so
-                        // fetching should definitely be started.
-                        // For other reasons of timing out, there is no harm to start fetching either.
+                        // When consensus commit has not happened for 30s, it is possible that no
+                        // new certificate is received by this primary or
+                        // created in the network, so fetching should
+                        // definitely be started. For other reasons of
+                        // timing out, there is no harm to start fetching either.
                         let Some(inner) = weak_inner.upgrade() else {
                             debug!("Synchronizer is shutting down.");
                             return;
@@ -457,7 +468,10 @@ impl Synchronizer {
                             return;
                         }
                         inner.metrics.synchronizer_gc_timeout.inc();
-                        warn!("No consensus commit happened for {:?}, triggering certificate fetching.", FETCH_TRIGGER_TIMEOUT);
+                        warn!(
+                            "No consensus commit happened for {:?}, triggering certificate fetching.",
+                            FETCH_TRIGGER_TIMEOUT
+                        );
                         continue;
                     };
                     if result.is_err() {
@@ -480,7 +494,10 @@ impl Synchronizer {
                     let mut state = inner.state.lock().await;
                     while let Some(((round, digest), suspended_cert)) = state.run_gc_once(gc_round)
                     {
-                        assert!(round <= gc_round, "Never gc certificates above gc_round as this can lead to missing causal history in DAG");
+                        assert!(
+                            round <= gc_round,
+                            "Never gc certificates above gc_round as this can lead to missing causal history in DAG"
+                        );
 
                         let suspended_children_certs = state.accept_children(round, digest);
                         // Acceptance must be in causal order.
@@ -502,8 +519,8 @@ impl Synchronizer {
             "Synchronizer::GarbageCollection"
         );
 
-        // Start a task to accept certificates. See comment above `process_certificates_with_lock()`
-        // for why this task is needed.
+        // Start a task to accept certificates. See comment above
+        // `process_certificates_with_lock()` for why this task is needed.
         let weak_inner = Arc::downgrade(&inner);
         spawn_logged_monitored_task!(
             async move {
@@ -521,7 +538,7 @@ impl Synchronizer {
                                 matches!(
                                     certificate.signature_verification_state(),
                                     SignatureVerificationState::VerifiedDirectly(_)
-                                    | SignatureVerificationState::VerifiedIndirectly(_)
+                                        | SignatureVerificationState::VerifiedIndirectly(_)
                                 ),
                                 "Never accept certificates that have not been verified either directly or indirectly."
                             );
@@ -613,10 +630,12 @@ impl Synchronizer {
         Self { inner }
     }
 
-    /// Validates the certificate and accepts it into the DAG, if the certificate can be verified
-    /// and has all parents in the certificate store. Otherwise an error is returned.
-    /// If the certificate has missing parents and cannot be accepted immediately, the error would
-    /// contain a value that can be awaited on, for signaling when the certificate is accepted.
+    /// Validates the certificate and accepts it into the DAG, if the
+    /// certificate can be verified and has all parents in the certificate
+    /// store. Otherwise an error is returned. If the certificate has
+    /// missing parents and cannot be accepted immediately, the error would
+    /// contain a value that can be awaited on, for signaling when the
+    /// certificate is accepted.
     pub async fn try_accept_certificate(&self, certificate: Certificate) -> DagResult<()> {
         let _scope = monitored_scope("Synchronizer::try_accept_certificate");
         self.process_certificate_internal(certificate, true, true)
@@ -624,11 +643,14 @@ impl Synchronizer {
     }
 
     /// Tries to accept a certificate from certificate fetcher.
-    /// Fetched certificates are already sanitized, so it is unnecessary to duplicate the work.
-    /// Also, this method always checks parents of fetched certificates and uses the result to
-    /// validate the suspended certificates state, instead of relying on suspended certificates to
-    /// potentially return early. This helps to verify consistency, and has little extra cost
-    /// because fetched certificates usually are not suspended.
+    /// Fetched certificates are already sanitized, so it is unnecessary to
+    /// duplicate the work. Also, this method always checks parents of
+    /// fetched certificates and uses the result to validate the suspended
+    /// certificates state, instead of relying on suspended certificates to
+    /// potentially return early. This helps to verify consistency, and has
+    /// little extra cost because fetched certificates usually are not
+    /// suspended.
+    #[cfg(test)]
     pub async fn try_accept_fetched_certificate(&self, certificate: Certificate) -> DagResult<()> {
         let _scope = monitored_scope("Synchronizer::try_accept_fetched_certificate");
         self.process_certificate_internal(certificate, false, false)
@@ -637,11 +659,13 @@ impl Synchronizer {
 
     /// Tries to accept a batch of certificates from certificate fetcher.
     ///
-    /// The implementation takes advantage of input certificates being in a batch and
-    /// likely topologically sorted, to improve processing efficiency.
+    /// The implementation takes advantage of input certificates being in a
+    /// batch and likely topologically sorted, to improve processing
+    /// efficiency.
     ///
-    /// NOTE: when making changes to this function, check if the same change needs to be made to
-    /// process_certificate_internal() which is non-batched.
+    /// NOTE: when making changes to this function, check if the same change
+    /// needs to be made to process_certificate_internal() which is
+    /// non-batched.
     pub async fn try_accept_fetched_certificates(
         &self,
         certificates: Vec<Certificate>,
@@ -667,13 +691,15 @@ impl Synchronizer {
             .with_label_values(&[certificate_source])
             .set(highest_received_round as i64);
 
-        // Let the proposer draw early conclusions from a certificate at this round and epoch, without its
-        // parents or payload (which we may not have yet).
+        // Let the proposer draw early conclusions from a certificate at this round and
+        // epoch, without its parents or payload (which we may not have yet).
         //
-        // Since our certificate is well-signed, it shows a majority of honest signers stand at round r,
-        // so to make a successful proposal, our proposer must use parents at least at round r-1.
+        // Since our certificate is well-signed, it shows a majority of honest signers
+        // stand at round r, so to make a successful proposal, our proposer must
+        // use parents at least at round r-1.
         //
-        // This allows the proposer not to fire proposals at rounds strictly below the certificate we witnessed.
+        // This allows the proposer not to fire proposals at rounds strictly below the
+        // certificate we witnessed.
         let minimal_round_for_parents = highest_received_round.saturating_sub(1);
         self.inner
             .tx_parents
@@ -688,9 +714,11 @@ impl Synchronizer {
         let max_age = self.inner.gc_depth.saturating_sub(1);
         let highest_processed_round = self.inner.highest_processed_round.load(Ordering::Acquire);
         for certificate in &certificates {
-            // Instruct workers to download any missing batches referenced in this certificate.
-            // Since this header got certified, we are sure that all the data it refers to (ie. its batches and its parents) are available.
-            // We can thus continue the processing of the certificate without blocking on batch synchronization.
+            // Instruct workers to download any missing batches referenced in this
+            // certificate. Since this header got certified, we are sure that
+            // all the data it refers to (ie. its batches and its parents) are available.
+            // We can thus continue the processing of the certificate without blocking on
+            // batch synchronization.
             let header = certificate.header().clone();
             self.inner
                 .tx_batch_tasks
@@ -725,8 +753,8 @@ impl Synchronizer {
         Ok(())
     }
 
-    /// Accepts a certificate produced by this primary. This is not expected to fail unless
-    /// the primary is shutting down.
+    /// Accepts a certificate produced by this primary. This is not expected to
+    /// fail unless the primary is shutting down.
     pub async fn accept_own_certificate(&self, certificate: Certificate) -> DagResult<()> {
         // Process the new certificate.
         match self
@@ -777,17 +805,15 @@ impl Synchronizer {
         Ok(())
     }
 
-    fn make_genesis(
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-    ) -> HashMap<CertificateDigest, Certificate> {
-        Certificate::genesis(protocol_config, committee)
+    fn make_genesis(committee: &Committee) -> HashMap<CertificateDigest, Certificate> {
+        Certificate::genesis(committee)
             .into_iter()
             .map(|x| (x.digest(), x))
             .collect()
     }
 
-    /// Checks if the certificate is valid and can potentially be accepted into the DAG.
+    /// Checks if the certificate is valid and can potentially be accepted into
+    /// the DAG.
     pub fn sanitize_certificate(&self, certificate: Certificate) -> DagResult<Certificate> {
         self.inner.sanitize_certificate(certificate)
     }
@@ -796,12 +822,13 @@ impl Synchronizer {
         &self,
         mut certificates: Vec<Certificate>,
     ) -> DagResult<Vec<Certificate>> {
-        // Number of certificates to verify in a batch. Verifications in each batch run serially.
-        // Batch size is chosen so that verifying a batch takes non-trival
-        // time (verifying a batch of 50 certificates should take > 25ms).
+        // Number of certificates to verify in a batch. Verifications in each batch run
+        // serially. Batch size is chosen so that verifying a batch takes
+        // non-trivial time (verifying a batch of 50 certificates should take >
+        // 25ms).
         const VERIFY_CERTIFICATES_V2_BATCH_SIZE: usize = 50;
-        // Number of rounds to force verfication of certificates by signature, to bound the maximum
-        // number of certificates with bad signatures in storage.
+        // Number of rounds to force verification of certificates by signature, to bound
+        // the maximum number of certificates with bad signatures in storage.
         const CERTIFICATE_VERIFICATION_ROUND_INTERVAL: u64 = 50;
 
         let mut all_digests = HashSet::<CertificateDigest>::new();
@@ -879,8 +906,9 @@ impl Synchronizer {
         Ok(certificates)
     }
 
-    /// NOTE: when making changes to this function, check if the same change needs to be made to
-    /// try_accept_fetched_certificates() which is the batched version.
+    /// NOTE: when making changes to this function, check if the same change
+    /// needs to be made to try_accept_fetched_certificates() which is the
+    /// batched version.
     async fn process_certificate_internal(
         &self,
         mut certificate: Certificate,
@@ -934,13 +962,15 @@ impl Synchronizer {
             .with_label_values(&[certificate_source])
             .set(highest_received_round as i64);
 
-        // Let the proposer draw early conclusions from a certificate at this round and epoch, without its
-        // parents or payload (which we may not have yet).
+        // Let the proposer draw early conclusions from a certificate at this round and
+        // epoch, without its parents or payload (which we may not have yet).
         //
-        // Since our certificate is well-signed, it shows a majority of honest signers stand at round r,
-        // so to make a successful proposal, our proposer must use parents at least at round r-1.
+        // Since our certificate is well-signed, it shows a majority of honest signers
+        // stand at round r, so to make a successful proposal, our proposer must
+        // use parents at least at round r-1.
         //
-        // This allows the proposer not to fire proposals at rounds strictly below the certificate we witnessed.
+        // This allows the proposer not to fire proposals at rounds strictly below the
+        // certificate we witnessed.
         let minimal_round_for_parents = certificate.round().saturating_sub(1);
         self.inner
             .tx_parents
@@ -948,9 +978,11 @@ impl Synchronizer {
             .await
             .map_err(|_| DagError::ShuttingDown)?;
 
-        // Instruct workers to download any missing batches referenced in this certificate.
-        // Since this header got certified, we are sure that all the data it refers to (ie. its batches and its parents) are available.
-        // We can thus continue the processing of the certificate without blocking on batch synchronization.
+        // Instruct workers to download any missing batches referenced in this
+        // certificate. Since this header got certified, we are sure that all
+        // the data it refers to (ie. its batches and its parents) are available.
+        // We can thus continue the processing of the certificate without blocking on
+        // batch synchronization.
         let header = certificate.header().clone();
         let max_age = self.inner.gc_depth.saturating_sub(1);
         self.inner
@@ -985,14 +1017,16 @@ impl Synchronizer {
         Ok(())
     }
 
-    /// This function checks if a certificate has all parents and can be accepted into storage.
-    /// If yes, writing the certificate to storage and sending it to consensus need to happen
-    /// atomically. Otherwise, there will be divergence between certificate storage and consensus
-    /// DAG. A certificate that is sent to consensus must have all of its parents already in
-    /// the consensu DAG.
+    /// This function checks if a certificate has all parents and can be
+    /// accepted into storage. If yes, writing the certificate to storage
+    /// and sending it to consensus need to happen atomically. Otherwise,
+    /// there will be divergence between certificate storage and consensus
+    /// DAG. A certificate that is sent to consensus must have all of its
+    /// parents already in the consensu DAG.
     ///
-    /// Because of the atomicity requirement, this function cannot be made cancellation safe.
-    /// So it is run in a loop inside a separate task, connected to `Synchronizer` via a channel.
+    /// Because of the atomicity requirement, this function cannot be made
+    /// cancellation safe. So it is run in a loop inside a separate task,
+    /// connected to `Synchronizer` via a channel.
     #[instrument(level = "debug", skip_all)]
     async fn process_certificates_with_lock(
         inner: &Inner,
@@ -1001,8 +1035,8 @@ impl Synchronizer {
     ) -> DagResult<()> {
         let _scope = monitored_scope("Synchronizer::process_certificates_with_lock");
 
-        // We re-check here in case we already have in pipeline the same certificate for processing
-        // more that once.
+        // We re-check here in case we already have in pipeline the same certificate for
+        // processing more that once.
         let digests = certificates.iter().map(|c| c.digest()).collect_vec();
         let exists = inner.certificate_store.multi_contains(digests.iter())?;
         let certificates = certificates
@@ -1021,19 +1055,21 @@ impl Synchronizer {
             return Ok(());
         }
 
-        // The state lock must be held for the rest of the function, to ensure updating state,
-        // writing certificates into storage and sending certificates to consensus are atomic.
-        // The atomicity makes sure the internal state is consistent with DAG in certificate store,
-        // and certificates are sent to consensus in causal order.
-        // It is possible to reduce the critical section below, but it seems unnecessary for now.
+        // The state lock must be held for the rest of the function, to ensure updating
+        // state, writing certificates into storage and sending certificates to
+        // consensus are atomic. The atomicity makes sure the internal state is
+        // consistent with DAG in certificate store, and certificates are sent
+        // to consensus in causal order. It is possible to reduce the critical
+        // section below, but it seems unnecessary for now.
         let mut state = inner.state.lock().await;
 
-        // Returns Ok(()) if all input certificates are accepted, or a suspended error for the last
-        // suspended certificate. It is ok to not return all suspended errors for suspended
-        // certificates, because the accept notification is only used when trying to accept a
-        // single certificate.
+        // Returns Ok(()) if all input certificates are accepted, or a suspended error
+        // for the last suspended certificate. It is ok to not return all
+        // suspended errors for suspended certificates, because the accept
+        // notification is only used when trying to accept a single certificate.
         //
-        // TODO: simplify the logic here by separating try_accept_certificate() and notify_accept().        let mut result = Ok(());
+        // TODO: simplify the logic here by separating try_accept_certificate() and
+        // notify_accept().        let mut result = Ok(());
         let mut result = Ok(());
 
         for certificate in certificates {
@@ -1043,8 +1079,8 @@ impl Synchronizer {
             // Ensure parents are checked if !early_suspend.
             // See comments above `try_accept_fetched_certificate()` for details.
             if early_suspend {
-                // Re-check if the certificate has been suspended, which can happen before the lock is
-                // acquired.
+                // Re-check if the certificate has been suspended, which can happen before the
+                // lock is acquired.
                 if let Some(notify) = state.check_suspended(&digest) {
                     trace!("Certificate {digest:?} is still suspended. Skip processing.");
                     inner
@@ -1057,8 +1093,9 @@ impl Synchronizer {
                 }
             }
 
-            // Ensure either we have all the ancestors of this certificate, or the parents have been garbage collected.
-            // If we don't, the synchronizer will start fetching missing certificates.
+            // Ensure either we have all the ancestors of this certificate, or the parents
+            // have been garbage collected. If we don't, the synchronizer will
+            // start fetching missing certificates.
             if certificate.round() > inner.gc_round.load(Ordering::Acquire) + 1 {
                 let missing_parents = inner.get_missing_parents(&certificate).await?;
                 if !missing_parents.is_empty() {
@@ -1071,8 +1108,9 @@ impl Synchronizer {
                         .certificates_suspended
                         .with_label_values(&["missing_parents"])
                         .inc();
-                    // There is no upper round limit to suspended certificates. Currently there is no
-                    // memory usage issue and this will speed up catching up. But we can revisit later.
+                    // There is no upper round limit to suspended certificates. Currently there is
+                    // no memory usage issue and this will speed up catching up.
+                    // But we can revisit later.
                     let notify = state.insert(certificate, missing_parents, !early_suspend);
                     inner
                         .metrics
@@ -1104,9 +1142,11 @@ impl Synchronizer {
         result
     }
 
-    /// Pushes new certificates received from the rx_own_certificate_broadcast channel
-    /// to the target peer continuously. Only exits when the primary is shutting down.
-    // TODO: move this to proposer, since this naturally follows after a certificate is created.
+    /// Pushes new certificates received from the rx_own_certificate_broadcast
+    /// channel to the target peer continuously. Only exits when the primary
+    /// is shutting down.
+    // TODO: move this to proposer, since this naturally follows after a certificate
+    // is created.
     async fn push_certificates(
         network: Network,
         authority_id: AuthorityIdentifier,
@@ -1117,11 +1157,12 @@ impl Synchronizer {
         let peer_id = anemo::PeerId(network_key.0.to_bytes());
         let peer = network.waiting_peer(peer_id);
         let client = PrimaryToPrimaryClient::new(peer);
-        // Older broadcasts return early, so the last broadcast must be the latest certificate.
-        // This will contain at most certificates created within the last PUSH_TIMEOUT.
+        // Older broadcasts return early, so the last broadcast must be the latest
+        // certificate. This will contain at most certificates created within
+        // the last PUSH_TIMEOUT.
         let mut requests = FuturesOrdered::new();
-        // Back off and retry only happen when there is only one certificate to be broadcasted.
-        // Otherwise no retry happens.
+        // Back off and retry only happen when there is only one certificate to be
+        // broadcasted. Otherwise no retry happens.
         const BACKOFF_INTERVAL: Duration = Duration::from_millis(100);
         const MAX_BACKOFF_MULTIPLIER: u32 = 100;
         let mut backoff_multiplier: u32 = 0;
@@ -1181,10 +1222,10 @@ impl Synchronizer {
         }
     }
 
-    /// Synchronizes batches in the given header with other nodes (through our workers).
-    /// Blocks until either synchronization is complete, or the current consensus rounds advances
-    /// past the max allowed age. (`max_age == 0` means the header's round must match current
-    /// round.)
+    /// Synchronizes batches in the given header with other nodes (through our
+    /// workers). Blocks until either synchronization is complete, or the
+    /// current consensus rounds advances past the max allowed age.
+    /// (`max_age == 0` means the header's round must match current round.)
     pub async fn sync_header_batches(&self, header: &Header, max_age: Round) -> DagResult<()> {
         Synchronizer::sync_batches_internal(self.inner.clone(), header, max_age, false).await
     }
@@ -1196,8 +1237,8 @@ impl Synchronizer {
     //     network: anemo::Network,
     //     max_age: Round,
     // ) -> DagResult<()> {
-    //     Synchronizer::sync_batches_internal(self.inner.clone(), header, max_age, true)
-    //         .await
+    //     Synchronizer::sync_batches_internal(self.inner.clone(), header, max_age,
+    // true)         .await
     // }
 
     async fn sync_batches_internal(
@@ -1207,12 +1248,14 @@ impl Synchronizer {
         is_certified: bool,
     ) -> DagResult<()> {
         if header.author() == inner.authority_id {
-            debug!("skipping sync_batches for header {header}: no need to sync payload from own workers");
+            debug!(
+                "skipping sync_batches for header {header}: no need to sync payload from own workers"
+            );
             return Ok(());
         }
 
-        // Clone the round updates channel so we can get update notifications specific to
-        // this RPC handler.
+        // Clone the round updates channel so we can get update notifications specific
+        // to this RPC handler.
         let mut rx_consensus_round_updates = inner.rx_consensus_round_updates.clone();
         let mut consensus_round = rx_consensus_round_updates.borrow().committed_round;
         ensure!(
@@ -1226,17 +1269,20 @@ impl Synchronizer {
 
         let mut missing = HashMap::new();
         for (digest, (worker_id, _)) in header.payload().iter() {
-            // Check whether we have the batch. If one of our worker has the batch, the primary stores the pair
-            // (digest, worker_id) in its own storage. It is important to verify that we received the batch
+            // Check whether we have the batch. If one of our worker has the batch, the
+            // primary stores the pair (digest, worker_id) in its own storage.
+            // It is important to verify that we received the batch
             // from the correct worker id to prevent the following attack:
             //      1. A Bad node sends a batch X to 2f good nodes through their worker #0.
-            //      2. The bad node proposes a malformed block containing the batch X and claiming it comes
-            //         from worker #1.
-            //      3. The 2f good nodes do not need to sync and thus don't notice that the header is malformed.
-            //         The bad node together with the 2f good nodes thus certify a block containing the batch X.
-            //      4. The last good node will never be able to sync as it will keep sending its sync requests
-            //         to workers #1 (rather than workers #0). Also, clients will never be able to retrieve batch
-            //         X as they will be querying worker #1.
+            //      2. The bad node proposes a malformed block containing the batch X and
+            //         claiming it comes from worker #1.
+            //      3. The 2f good nodes do not need to sync and thus don't notice that the
+            //         header is malformed. The bad node together with the 2f good nodes
+            //         thus certify a block containing the batch X.
+            //      4. The last good node will never be able to sync as it will keep sending
+            //         its sync requests to workers #1 (rather than workers #0). Also,
+            //         clients will never be able to retrieve batch X as they will be
+            //         querying worker #1.
             if !inner.payload_store.contains(*digest, *worker_id)? {
                 missing
                     .entry(*worker_id)
@@ -1323,7 +1369,8 @@ impl Synchronizer {
         }
     }
 
-    /// Returns the parent certificates of the given header, waits for availability if needed.
+    /// Returns the parent certificates of the given header, waits for
+    /// availability if needed.
     pub async fn notify_read_parent_certificates(
         &self,
         header: &Header,
@@ -1349,7 +1396,8 @@ impl Synchronizer {
         Ok(parents)
     }
 
-    /// Returns parent digests that do no exist either in storage or among suspended.
+    /// Returns parent digests that do no exist either in storage or among
+    /// suspended.
     pub async fn get_unknown_parent_digests(
         &self,
         header: &Header,
@@ -1357,9 +1405,9 @@ impl Synchronizer {
         self.inner.get_unknown_parent_digests(header).await
     }
 
-    /// Tries to get all missing parents of the certificate. If there is any, sends the
-    /// certificate to `CertificateFetcher` which will trigger range fetching of missing
-    /// certificates.
+    /// Tries to get all missing parents of the certificate. If there is any,
+    /// sends the certificate to `CertificateFetcher` which will trigger
+    /// range fetching of missing certificates.
     #[cfg(test)]
     pub(crate) async fn get_missing_parents(
         &self,
@@ -1375,8 +1423,8 @@ impl Synchronizer {
     }
 }
 
-/// Holds information for a suspended certificate. The certificate can be accepted into the DAG
-/// once `missing_parents` become empty.
+/// Holds information for a suspended certificate. The certificate can be
+/// accepted into the DAG once `missing_parents` become empty.
 struct SuspendedCertificate {
     certificate: Certificate,
     missing_parents: HashSet<CertificateDigest>,
@@ -1391,19 +1439,22 @@ impl Drop for SuspendedCertificate {
 }
 
 /// Keeps track of suspended certificates and their missing parents.
-/// The digest keys in `suspended` and `missing` can overlap, but a digest can exist in one map
-/// but not the other.
+/// The digest keys in `suspended` and `missing` can overlap, but a digest can
+/// exist in one map but not the other.
 ///
-/// They can be combined into a single map, but it seems more complex to differentiate between
-/// suspended certificates that is not a missing parent of another, from a missing parent without
-/// the actual certificate.
+/// They can be combined into a single map, but it seems more complex to
+/// differentiate between suspended certificates that is not a missing parent of
+/// another, from a missing parent without the actual certificate.
 ///
-/// Traversal of certificates that can be accepted should start from the missing map, i.e.
+/// Traversal of certificates that can be accepted should start from the missing
+/// map, i.e.
 /// 1. If a certificate exists in `missing`, remove its entry.
 /// 2. Find children of the certificate, update their missing parents.
-/// 3. If a child certificate no longer has missing parent, traverse from it with step 1.
+/// 3. If a child certificate no longer has missing parent, traverse from it
+///    with step 1.
 ///
-/// Synchronizer should access this struct via its methods, to avoid making inconsistent changes.
+/// Synchronizer should access this struct via its methods, to avoid making
+/// inconsistent changes.
 #[derive(Default)]
 struct State {
     // Maps digests of suspended certificates to details including the certificate itself.
@@ -1414,7 +1465,8 @@ struct State {
 }
 
 impl State {
-    /// Checks if a digest is suspended. If it is, gets a notification for when it is accepted.
+    /// Checks if a digest is suspended. If it is, gets a notification for when
+    /// it is accepted.
     fn check_suspended(&self, digest: &CertificateDigest) -> Option<AcceptNotification> {
         self.suspended
             .get(digest)
@@ -1422,9 +1474,10 @@ impl State {
     }
 
     /// Inserts a certificate with its missing parents into the suspended state.
-    /// When `allow_reinsert` is false and the same certificate digest is inserted again,
-    /// this function will panic. Otherwise, this function checks the missing parents of
-    /// the certificate and verifies the same set is stored, before allowing a reinsertion.
+    /// When `allow_reinsert` is false and the same certificate digest is
+    /// inserted again, this function will panic. Otherwise, this function
+    /// checks the missing parents of the certificate and verifies the same
+    /// set is stored, before allowing a reinsertion.
     fn insert(
         &mut self,
         certificate: Certificate,
@@ -1445,29 +1498,31 @@ impl State {
             }
         }
         let notify = Arc::new(NotifyOnce::new());
-        assert!(self
-            .suspended
-            .insert(
-                digest,
-                SuspendedCertificate {
-                    certificate,
-                    missing_parents: missing_parents_map,
-                    notify: notify.clone(),
-                }
-            )
-            .is_none());
+        assert!(
+            self.suspended
+                .insert(
+                    digest,
+                    SuspendedCertificate {
+                        certificate,
+                        missing_parents: missing_parents_map,
+                        notify: notify.clone(),
+                    }
+                )
+                .is_none()
+        );
         for d in missing_parents {
-            assert!(self
-                .missing
-                .entry((missing_round, d))
-                .or_default()
-                .insert(digest));
+            assert!(
+                self.missing
+                    .entry((missing_round, d))
+                    .or_default()
+                    .insert(digest)
+            );
         }
         notify
     }
 
-    /// Examines children of a certificate that has been accepted, and returns the children that
-    /// can be accepted as well.
+    /// Examines children of a certificate that has been accepted, and returns
+    /// the children that can be accepted as well.
     fn accept_children(
         &mut self,
         round: Round,
@@ -1477,8 +1532,7 @@ impl State {
         if let Some(suspended_cert) = self.suspended.remove(&digest) {
             panic!(
                 "Certificate {:?} should have no missing parent, but is still suspended (missing parents {:?})",
-                suspended_cert.certificate,
-                suspended_cert.missing_parents
+                suspended_cert.certificate, suspended_cert.missing_parents
             )
         }
         let mut to_traverse = VecDeque::new();
@@ -1507,23 +1561,26 @@ impl State {
     /// Runs GC on the suspended certificates.
     /// Returns one certificate that can be GC'ed and accepted, or None.
     ///
-    /// If (round, digest) is returned, it is the caller's responsibility to check if any
-    /// of its children can also be accepted. If SuspendedCertificate is returned as well,
-    /// it should be accepted before any of its children.
+    /// If (round, digest) is returned, it is the caller's responsibility to
+    /// check if any of its children can also be accepted. If
+    /// SuspendedCertificate is returned as well, it should be accepted
+    /// before any of its children.
     fn run_gc_once(
         &mut self,
         gc_round: Round,
     ) -> Option<((u64, CertificateDigest), Option<SuspendedCertificate>)> {
-        // Accept suspended certificates at and below gc round because their parents will not
-        // be accepted into the DAG store anymore, in sanitize_certificate().
-        let Some(((round, digest), _children)) = self.missing.first_key_value() else {
-            return None;
-        };
-        // Note that gc_round is the highest round where certificates are gc'ed, and which will
-        // never be in a consensus commit. It's safe to gc up to gc_round, so anything suspended on gc_round + 1
-        // can safely be accepted as their parents (of gc_round) have already been removed from the DAG.
-        // It would be dangerous to accept anything above gc_round here as this could create inconsistencies
-        // in the DAG because we have to make sure anything we accept above gc_round is able to get
+        // Accept suspended certificates at and below gc round because their parents
+        // will not be accepted into the DAG store anymore, in
+        // sanitize_certificate().
+        let ((round, digest), _children) = self.missing.first_key_value()?;
+
+        // Note that gc_round is the highest round where certificates are gc'ed, and
+        // which will never be in a consensus commit. It's safe to gc up to
+        // gc_round, so anything suspended on gc_round + 1 can safely be
+        // accepted as their parents (of gc_round) have already been removed from the
+        // DAG. It would be dangerous to accept anything above gc_round here as
+        // this could create inconsistencies in the DAG because we have to make
+        // sure anything we accept above gc_round is able to get
         // properly processed , stored and sent to the DAG.
         if *round > gc_round {
             return None;
@@ -1536,7 +1593,8 @@ impl State {
             suspended.missing_parents.clear();
         }
 
-        // The missing children info is needed for and will be cleared in accept_children() later.
+        // The missing children info is needed for and will be cleared in
+        // accept_children() later.
         Some(((*round, *digest), suspended))
     }
 
@@ -1552,16 +1610,18 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use crate::synchronizer::State;
+    use std::{collections::BTreeSet, num::NonZeroUsize};
+
     use config::Committee;
     use fastcrypto::{hash::Hash, traits::KeyPair};
     use itertools::Itertools;
-    use std::collections::BTreeSet;
-    use std::num::NonZeroUsize;
-    use test_utils::{latest_protocol_version, make_optimal_signed_certificates, CommitteeFixture};
+    use test_utils::{make_optimal_signed_certificates, CommitteeFixture};
     use types::{Certificate, Round};
 
-    // Tests that gc_once is reporting back missing certificates up to gc_round and no further.
+    use crate::synchronizer::State;
+
+    // Tests that gc_once is reporting back missing certificates up to gc_round and
+    // no further.
     #[tokio::test]
     async fn test_run_gc_once() {
         // GIVEN
@@ -1573,7 +1633,7 @@ mod tests {
             .build();
 
         let committee: Committee = fixture.committee();
-        let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+        let genesis = Certificate::genesis(&committee)
             .iter()
             .map(|x| x.digest())
             .collect::<BTreeSet<_>>();
@@ -1581,13 +1641,8 @@ mod tests {
             .authorities()
             .map(|a| (a.id(), a.keypair().copy()))
             .collect();
-        let (certificates, _next_parents) = make_optimal_signed_certificates(
-            1..=3,
-            &genesis,
-            &committee,
-            &latest_protocol_version(),
-            keys.as_slice(),
-        );
+        let (certificates, _next_parents) =
+            make_optimal_signed_certificates(1..=3, &genesis, &committee, keys.as_slice());
         let certificates = certificates.into_iter().collect_vec();
 
         let mut state = State::default();
@@ -1599,8 +1654,8 @@ mod tests {
             state.insert(cert.clone(), vec![round_1_validator_1], true);
         }
 
-        // Insert all certificates of round 3. We report as missing the certificate of validator 1
-        // from round 2.
+        // Insert all certificates of round 3. We report as missing the certificate of
+        // validator 1 from round 2.
         let round_2_validator_1 = certificates[NUM_AUTHORITIES].digest();
         for cert in &certificates[NUM_AUTHORITIES * 2..] {
             state.insert(cert.clone(), vec![round_2_validator_1], true);
@@ -1630,9 +1685,11 @@ mod tests {
 
         // 3 certificates of round 2 have been unsuspended
         assert_eq!(suspended_certificates.len(), 3);
-        assert!(suspended_certificates
-            .iter()
-            .all(|c| c.certificate.round() == 2));
+        assert!(
+            suspended_certificates
+                .iter()
+                .all(|c| c.certificate.round() == 2)
+        );
 
         // WHEN trying to trigger again for gc_round 1, it should return None
         assert!(state.run_gc_once(GC_ROUND).is_none());
