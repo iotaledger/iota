@@ -69,7 +69,7 @@ function ListViewItemContainer({ obj }: { obj: IotaObjectResponse }): JSX.Elemen
                         subtitle={type}
                         src={displayMeta?.image_url || ''}
                         video={video}
-                        variant="xs"
+                        variant="xxs"
                     />
                     <div className="flex flex-col overflow-hidden">
                         <OwnedObjectsText color="steel-darker" font="semibold">

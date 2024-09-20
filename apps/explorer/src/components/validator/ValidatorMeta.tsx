@@ -6,7 +6,7 @@ import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import toast from 'react-hot-toast';
 import { ArrowTopRight } from '@iota/ui-icons';
-import { ImageIcon } from '~/components/ui';
+import { AddressLink, ImageIcon } from '~/components/ui';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
@@ -60,21 +60,29 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
             </Panel>
             <Panel>
                 <div className="flex flex-col gap-md p-md--rs">
-                    <KeyValueInfo keyText="Location" valueText="--" />
+                    <KeyValueInfo keyText="Location" value="--" />
                     <KeyValueInfo
                         keyText="Pool ID"
-                        valueText={validatorData.stakingPoolId}
-                        isCopyable
+                        value={validatorData.stakingPoolId}
+                        copyText={validatorData.stakingPoolId}
                         onCopySuccess={handleOnCopy}
                     />
                     <KeyValueInfo
                         keyText="Address"
-                        valueText={validatorData.iotaAddress}
-                        valueLink={`/address/${validatorData.iotaAddress}`}
-                        isCopyable
+                        value={
+                            <AddressLink
+                                address={validatorData.iotaAddress}
+                                label={validatorData.iotaAddress}
+                            />
+                        }
+                        copyText={validatorData.iotaAddress}
                         onCopySuccess={handleOnCopy}
                     />
-                    <KeyValueInfo keyText="Public Key" valueText={validatorPublicKey} />
+                    <KeyValueInfo
+                        keyText="Public Key"
+                        value={validatorPublicKey}
+                        copyText={validatorPublicKey}
+                    />
                 </div>
             </Panel>
         </div>

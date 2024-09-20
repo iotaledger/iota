@@ -1817,14 +1817,13 @@ impl AuthorityState {
 
         Ok((
             DryRunTransactionBlockResponse {
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache).map_err(
-                    |e| IotaError::TransactionSerialization {
+                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
+                    .map_err(|e| IotaError::TransactionSerialization {
                         error: format!(
                             "Failed to convert transaction to IotaTransactionBlockData: {}",
                             e
                         ),
-                    },
-                )?, // TODO: replace the underlying try_from to IotaError. This one goes deep
+                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
                 effects: effects.clone().try_into()?,
                 events: IotaTransactionBlockEvents::try_from(
                     inner_temp_store.events.clone(),

@@ -39,10 +39,15 @@ export function UnStakeTxn({ event, gasSummary }: UnStakeTxnProps) {
             )}
             <Panel hasBorder>
                 <div className="flex flex-col gap-y-sm p-md">
-                    <KeyValueInfo keyText="Your Stake" valueText={`${formatPrinciple} ${symbol}`} />
+                    <KeyValueInfo
+                        keyText="Your Stake"
+                        value={`${formatPrinciple} ${symbol}`}
+                        fullwidth
+                    />
                     <KeyValueInfo
                         keyText="Rewards Earned"
-                        valueText={`${formatRewards} ${symbol}`}
+                        value={`${formatRewards} ${symbol}`}
+                        fullwidth
                     />
                     <Divider />
                     <GasSummary gasSummary={gasSummary} />
