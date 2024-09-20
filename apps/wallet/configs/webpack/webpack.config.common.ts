@@ -17,9 +17,7 @@ import type { Configuration } from 'webpack';
 import packageJson from '../../package.json';
 
 const WALLET_RC = process.env.WALLET_RC === 'true';
-const RELEASE_CANDIDATE_VERSION = WALLET_RC
-    ? Number(process.env.RELEASE_CANDIDATE_VERSION) || 1
-    : 0;
+const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 1 : 0;
 
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -97,7 +95,7 @@ async function generateAliasFromTs() {
 
 const commonConfig: () => Promise<Configuration> = async () => {
     const alias = await generateAliasFromTs();
-    const walletVersionDetails = generateVersion(RELEASE_CANDIDATE_VERSION);
+    const walletVersionDetails = generateVersion(RC_VERSION);
     const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
     return {
         context: SRC_ROOT,
