@@ -1,6 +1,13 @@
-//! Encourages replacing `while(true)` with `loop` for infinite loops in Move for clarity and conciseness.
-//! Identifies `while(true)` patterns, suggesting a more idiomatic approach using `loop`.
-//! Aims to enhance code readability and adherence to Rust idioms.
+// Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Encourages replacing `while(true)` with `loop` for infinite loops in Move
+//! for clarity and conciseness. Identifies `while(true)` patterns, suggesting a
+//! more idiomatic approach using `loop`. Aims to enhance code readability and
+//! adherence to Rust idioms.
+
+use super::{LinterDiagnosticCategory, LINT_WARNING_PREFIX, WHILE_TRUE_TO_LOOP_DIAG_CODE};
 use crate::{
     diag,
     diagnostics::{
@@ -14,8 +21,6 @@ use crate::{
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
-
-use super::{LinterDiagnosticCategory, LINT_WARNING_PREFIX, WHILE_TRUE_TO_LOOP_DIAG_CODE};
 
 const WHILE_TRUE_TO_LOOP_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
