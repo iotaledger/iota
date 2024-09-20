@@ -83,9 +83,9 @@ use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
 /// │       magic <4 byte>         │
 /// ├──────────────────────────────┤
 /// │  storage format <1 byte>     │
-// ├──────────────────────────────┤
+/// ├──────────────────────────────┤
 /// │    file compression <1 byte> │
-// ├──────────────────────────────┤
+/// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
 /// │ │         Blob 1           │ │
 /// │ ├──────────────────────────┤ │
@@ -299,23 +299,35 @@ pub fn create_file_metadata_from_bytes(
     Ok(file_metadata)
 }
 
+/// Reads the manifest file from the store.
 pub async fn read_manifest<S: ObjectStoreGetExt>(remote_store: S) -> Result<Manifest> {
     let manifest_file_path = Path::from(MANIFEST_FILENAME);
     let vec = get(&remote_store, &manifest_file_path).await?.to_vec();
     read_manifest_from_bytes(vec)
 }
 
+/// Reads the manifest file from the given byte vector and verifies the
+/// integrity of the file.
 pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     let manifest_file_size = vec.len();
     let mut manifest_reader = Cursor::new(vec);
+
+    // Reads from the beginning of the file and verifies the magic byte
+    // is MANIFEST_FILE_MAGIC
     manifest_reader.rewind()?;
     let magic = manifest_reader.read_u32::<BigEndian>()?;
     if magic != MANIFEST_FILE_MAGIC {
         return Err(anyhow!("Unexpected magic byte in manifest: {}", magic));
     }
+
+    // Reads from the end of the file and gets the SHA3 checksum
+    // of the content.
     manifest_reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
     let mut sha3_digest = [0u8; SHA3_BYTES];
     manifest_reader.read_exact(&mut sha3_digest)?;
+
+    // Reads the content of the file and verifies the SHA3 checksum
+    // of the content matches the stored checksum.
     manifest_reader.rewind()?;
     let mut content_buf = vec![0u8; manifest_file_size - SHA3_BYTES];
     manifest_reader.read_exact(&mut content_buf)?;
@@ -334,6 +346,7 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     Blob::read(&mut manifest_reader)?.decode()
 }
 
+/// Computes the SHA3 checksum of the Manifest and writes it to a byte vector.
 pub fn finalize_manifest(manifest: Manifest) -> Result<Bytes> {
     let mut buf = BufWriter::new(vec![]);
     buf.write_u32::<BigEndian>(MANIFEST_FILE_MAGIC)?;
@@ -347,6 +360,7 @@ pub fn finalize_manifest(manifest: Manifest) -> Result<Bytes> {
     Ok(Bytes::from(buf.into_inner()?))
 }
 
+/// Writes the Manifest to the remote store.
 pub async fn write_manifest<S: ObjectStorePutExt>(
     manifest: Manifest,
     remote_store: S,
@@ -381,6 +395,8 @@ pub async fn write_manifest_from_json(
     Ok(())
 }
 
+/// Loads and stores states from genesis then verifies and stores the
+/// checkpoints from the archive store.
 pub async fn verify_archive_with_genesis_config(
     genesis: &std::path::Path,
     remote_store_config: ObjectStoreConfig,
@@ -439,6 +455,7 @@ pub async fn verify_archive_with_checksums(
         download_concurrency: NonZeroUsize::new(concurrency).unwrap(),
         use_for_pruning_watermark: false,
     };
+    // Gets the Manifest from the remote store.
     let archive_reader = ArchiveReader::new(config, &metrics)?;
     archive_reader.sync_manifest_once().await?;
     let manifest = archive_reader.get_manifest().await?;
@@ -457,6 +474,8 @@ pub async fn verify_archive_with_checksums(
     Ok(())
 }
 
+/// Verifies the archive store by reading the checkpoints from the remote store
+/// and storing them in the local one.
 pub async fn verify_archive_with_local_store<S>(
     store: S,
     remote_store_config: ObjectStoreConfig,
@@ -473,6 +492,7 @@ where
         use_for_pruning_watermark: false,
     };
     let archive_reader = ArchiveReader::new(config, &metrics)?;
+    // Gets the Manifest from the remote store.
     archive_reader.sync_manifest_once().await?;
     let latest_checkpoint_in_archive = archive_reader.latest_available_checkpoint().await?;
     info!(
@@ -530,6 +550,8 @@ where
         });
         None
     };
+    // Reads the checkpoints from the remote store and stores them in the local
+    // one.
     archive_reader
         .read(
             store.clone(),
