@@ -18,13 +18,7 @@ import packageJson from '../../package.json';
 
 function generateDateVersion(patch: number) {
     const sha = gitRevSync.short();
-    const date = new Date();
-    const version = [
-        String(date.getUTCFullYear()).slice(2),
-        String(date.getUTCMonth() + 1),
-        String(date.getUTCDate()),
-        patch,
-    ].join('.');
+    const version = packageJson.version
 
     return {
         version,
