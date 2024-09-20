@@ -19,49 +19,11 @@ import { Banner, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
+import { generateValidatorsTableColumns } from '~/lib/ui/utils/generateValidatorsTableColumns';
 import cx from 'clsx';
 import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
-import {
-    generateValidatorsTableData,
-    type ValidatorTableColumn,
-} from '~/lib/ui/utils/generateValidatorsTableData';
-
-export const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
-    {
-        header: 'Name',
-        accessorKey: 'name',
-    },
-    {
-        header: 'Stake',
-        accessorKey: 'stake',
-    },
-    {
-        header: 'Proposed next Epoch gas price',
-        accessorKey: 'nextEpochGasPrice',
-    },
-    {
-        header: 'APY',
-        accessorKey: 'apy',
-    },
-    {
-        header: 'Commission',
-        accessorKey: 'commission',
-    },
-    {
-        header: 'Last Epoch Reward',
-        accessorKey: 'lastReward',
-    },
-    {
-        header: 'Voting Power',
-        accessorKey: 'votingPower',
-    },
-    {
-        header: 'Status',
-        accessorKey: 'atRisk',
-    },
-];
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -89,17 +51,25 @@ export default function EpochDetail() {
         [systemState, epochData],
     );
 
-    const validatorsTable = useMemo(() => {
+    const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return generateValidatorsTableData({
-            validators: [...epochData.validators].sort(() => 0.5 - Math.random()),
+        return generateValidatorsTableColumns({
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
-            columns: VALIDATOR_COLUMNS,
             showValidatorIcon: true,
+            includeColumns: [
+                'Name',
+                'Stake',
+                'Proposed next Epoch gas price',
+                'APY',
+                'Comission',
+                'Last Epoch Rewards',
+                'Voting Power',
+                'Status',
+            ],
         });
     }, [epochData]);
 
@@ -115,6 +85,8 @@ export default function EpochDetail() {
                 }
             />
         );
+
+    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
 
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
@@ -214,11 +186,8 @@ export default function EpochDetail() {
                                     initialLimit={20}
                                 />
                             ) : null}
-                            {activeTabId === EpochTabs.Validators && validatorsTable ? (
-                                <TableCard
-                                    data={validatorsTable.data}
-                                    columns={validatorsTable.columns}
-                                />
+                            {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
+                                <TableCard data={tableData} columns={tableColumns} />
                             ) : null}
                         </div>
                     </div>

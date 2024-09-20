@@ -49,16 +49,23 @@
 
 @layer utilities {
     .state-layer,
-    .state-layer-inverted {
+    .state-layer-inverted,
+    .state-active {
         &::after {
             content: '';
             border-radius: inherit;
             @apply absolute;
             @apply h-full w-full;
             @apply left-0 top-0;
-            @apply opacity-0;
             @apply transition-opacity duration-75;
             @apply pointer-events-none;
+        }
+    }
+
+    .state-layer,
+    .state-layer-inverted {
+        &::after {
+            @apply opacity-0;
         }
 
         &:hover::after {
@@ -74,6 +81,7 @@
         }
     }
 
+    .state-active,
     .state-layer {
         &::after {
             @apply bg-primary-60;
@@ -83,6 +91,12 @@
     .state-layer-inverted {
         &::after {
             @apply bg-primary-80;
+        }
+    }
+
+    .state-active {
+        &::after {
+            @apply opacity-12;
         }
     }
 }
