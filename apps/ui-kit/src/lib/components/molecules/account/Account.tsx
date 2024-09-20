@@ -3,7 +3,7 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { Button, ButtonSize, ButtonType } from '../../atoms/button';
+import { ButtonUnstyled } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
 import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled } from '@iota/ui-icons';
 import { Address } from '../address';
@@ -66,6 +66,10 @@ interface AccountProps {
      */
     showSelected?: boolean;
     /**
+     * Show background if account active (optional).
+     */
+    isActive?: boolean;
+    /**
      * The type of the badge.
      */
     badgeType?: BadgeType;
@@ -91,6 +95,7 @@ export function Account({
     isCopyable,
     isExternal,
     isSelected,
+    isActive,
     showSelected,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
@@ -99,6 +104,7 @@ export function Account({
         <div
             className={cx(
                 'group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
+                isActive && 'state-active',
                 {
                     'opacity-60': isLocked,
                     'state-layer': !isLocked,
@@ -127,45 +133,32 @@ export function Account({
             <div className="z-10 ml-auto flex items-center space-x-2 [&_button]:h-5 [&_button]:w-5 [&_svg]:h-5 [&_svg]:w-5">
                 <div className="flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex [&_svg]:text-neutral-40 [&_svg]:dark:text-neutral-60">
                     {onOptionsClick && (
-                        <Button
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            onClick={onOptionsClick}
-                            icon={<MoreHoriz />}
-                        />
+                        <ButtonUnstyled onClick={onOptionsClick}>
+                            <MoreHoriz />
+                        </ButtonUnstyled>
                     )}
                     {onLockAccountClick &&
                         onUnlockAccountClick &&
                         (isLocked ? (
                             <div className="unlock">
-                                <Button
-                                    size={ButtonSize.Small}
-                                    type={ButtonType.Ghost}
-                                    onClick={onUnlockAccountClick}
-                                    icon={<LockLocked />}
-                                />
+                                <ButtonUnstyled onClick={onUnlockAccountClick}>
+                                    <LockLocked />
+                                </ButtonUnstyled>
                             </div>
                         ) : (
-                            <Button
-                                size={ButtonSize.Small}
-                                type={ButtonType.Ghost}
-                                onClick={onLockAccountClick}
-                                icon={<LockUnlocked />}
-                            />
+                            <ButtonUnstyled onClick={onLockAccountClick}>
+                                <LockUnlocked />
+                            </ButtonUnstyled>
                         ))}
                 </div>
                 {showSelected && (
-                    <Button
-                        size={ButtonSize.Small}
-                        type={ButtonType.Ghost}
-                        icon={
-                            <CheckmarkFilled
-                                className={cx({
-                                    'text-primary-30': isSelected,
-                                })}
-                            />
-                        }
-                    />
+                    <ButtonUnstyled>
+                        <CheckmarkFilled
+                            className={cx({
+                                'text-primary-30': isSelected,
+                            })}
+                        />
+                    </ButtonUnstyled>
                 )}
             </div>
         </div>

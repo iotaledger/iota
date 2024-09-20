@@ -20,9 +20,10 @@ import { isMainAccount } from '_src/background/accounts/isMainAccount';
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
     isLast: boolean;
+    isActive?: boolean;
 }
 
-export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
+export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItemProps) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
@@ -102,6 +103,7 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
                 <Account
                     isLocked={account.isLocked}
                     isCopyable
+                    isActive={isActive}
                     copyText={account.address}
                     isExternal
                     onOpen={handleOpen}
