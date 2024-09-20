@@ -21,7 +21,6 @@ use iota_bridge::{
     iota_transaction_builder::{
         build_committee_register_transaction, build_committee_update_url_transaction,
     },
-    keystore::AccountKeystore,
 };
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use iota_json_rpc_types::{
