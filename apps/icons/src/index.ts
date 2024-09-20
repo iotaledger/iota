@@ -147,7 +147,6 @@ export { default as Staking32 } from './Staking32';
 export { default as IotaLogoTxt } from './IotaLogoTxt';
 export { default as Iota } from './Iota';
 export { default as IotaCustomRpc } from './IotaCustomRpc';
-export { default as IotaDevnet } from './IotaDevnet';
 export { default as IotaLocal } from './IotaLocal';
 export { default as IotaMainnet } from './IotaMainnet';
 export { default as IotaTestnet } from './IotaTestnet';

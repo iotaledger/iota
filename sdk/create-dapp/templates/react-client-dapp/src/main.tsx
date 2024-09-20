@@ -20,7 +20,6 @@ const queryClient = new QueryClient();
 
 const { networkConfig } = createNetworkConfig({
   localnet: { url: getFullnodeUrl("localnet") },
-  devnet: { url: getFullnodeUrl("devnet") },
   testnet: { url: getFullnodeUrl("testnet") },
   mainnet: { url: getFullnodeUrl("mainnet") },
 });
@@ -29,7 +28,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Theme appearance="dark">
       <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={networkConfig} defaultNetwork="devnet">
+        <IotaClientProvider networks={networkConfig} defaultNetwork="testnet">
           <WalletProvider autoConnect>
             <App />
           </WalletProvider>

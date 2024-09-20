@@ -17,11 +17,7 @@ type UseVerifiedSourceCodeResponse = {
     error?: string;
 };
 
-const networksWithSourceCodeVerification: Network[] = [
-    Network.Devnet,
-    Network.Testnet,
-    Network.Mainnet,
-];
+const networksWithSourceCodeVerification: Network[] = [Network.Testnet, Network.Mainnet];
 
 /**
  * Hook that retrieves the source code for verified modules.

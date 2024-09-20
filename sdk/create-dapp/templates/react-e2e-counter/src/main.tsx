@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@iota/dapp-kit/dist/index.css";
@@ -15,7 +18,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Theme appearance="dark">
       <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={networkConfig} defaultNetwork="devnet">
+        <IotaClientProvider networks={networkConfig} defaultNetwork="testnet">
           <WalletProvider autoConnect>
             <App />
           </WalletProvider>

@@ -25,7 +25,6 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
                 networks={{
                     'iota:testnet': { url: getFullnodeUrl('testnet') },
                     'iota:mainnet': { url: getFullnodeUrl('mainnet') },
-                    'iota:devnet': { url: getFullnodeUrl('devnet') },
                 }}
             >
                 <WalletProvider>
