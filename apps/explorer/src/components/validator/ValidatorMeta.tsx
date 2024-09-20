@@ -67,14 +67,16 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         copyText={validatorData.stakingPoolId}
                         onCopySuccess={handleOnCopy}
                     />
-                    <AddressLink address={validatorData.iotaAddress}>
-                        <KeyValueInfo
-                            keyText="Address"
-                            value={validatorData.iotaAddress}
-                            copyText={validatorData.iotaAddress}
-                            onCopySuccess={handleOnCopy}
-                        />
-                    </AddressLink>
+                    <KeyValueInfo
+                        keyText="Address"
+                        value={
+                            <AddressLink address={validatorData.iotaAddress}>
+                                {validatorData.iotaAddress}
+                            </AddressLink>
+                        }
+                        copyText={validatorData.iotaAddress}
+                        onCopySuccess={handleOnCopy}
+                    />
                     <KeyValueInfo
                         keyText="Public Key"
                         value={validatorPublicKey}
