@@ -4,7 +4,6 @@
 
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { recipe } from '@vanilla-extract/recipes';
-
 import { themeVars } from '../../themes/themeContract.js';
 
 export const buttonVariants = recipe({
@@ -22,7 +21,6 @@ export const buttonVariants = recipe({
             primary: {
                 backgroundColor: themeVars.backgroundColors.primaryButton,
                 color: themeVars.colors.primaryButton,
-                boxShadow: themeVars.shadows.primaryButton,
                 ':hover': {
                     backgroundColor: themeVars.backgroundColors.primaryButtonHover,
                 },
@@ -38,8 +36,8 @@ export const buttonVariants = recipe({
             },
         },
         size: {
-            md: { borderRadius: themeVars.radii.medium, padding: '8px 16px' },
-            lg: { borderRadius: themeVars.radii.large, padding: '16px 24px ' },
+            md: { borderRadius: themeVars.radii.full, padding: '8px 16px' },
+            lg: { borderRadius: themeVars.radii.full, padding: '16px 24px ' },
         },
     },
     defaultVariants: {

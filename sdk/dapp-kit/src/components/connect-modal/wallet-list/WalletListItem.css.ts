@@ -8,6 +8,7 @@ import { themeVars } from '../../../themes/themeContract.js';
 
 export const container = style({
     display: 'flex',
+    width: '100%',
 });
 
 export const walletItem = style({

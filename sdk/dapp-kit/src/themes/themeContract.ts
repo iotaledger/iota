@@ -18,9 +18,9 @@ const themeContractValues = {
         modalPrimary: '',
         modalSecondary: '',
         iconButton: '',
-        iconButtonHover: '',
         dropdownMenu: '',
         dropdownMenuSeparator: '',
+        scrollThumb: '',
     },
     borderColors: {
         outlineButton: '',
@@ -38,10 +38,7 @@ const themeContractValues = {
         medium: '',
         large: '',
         xlarge: '',
-    },
-    shadows: {
-        primaryButton: '',
-        walletItemSelected: '',
+        full: '',
     },
     fontWeights: {
         normal: '',
@@ -59,6 +56,14 @@ const themeContractValues = {
         fontStyle: '',
         lineHeight: '',
         letterSpacing: '',
+    },
+    spacing: {
+        xxs: '',
+        xs: '',
+        sm: '',
+        md: '',
+        lg: '',
+        xl: '',
     },
 };
 
