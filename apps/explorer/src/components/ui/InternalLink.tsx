@@ -30,7 +30,12 @@ function createInternalLink<T extends string>(
         const queryStringPrefix = queryString ? `?${queryString}` : '';
 
         return (
-            <Link variant="mono" to={`/${base}/${encodeURI(id)}${queryStringPrefix}`} {...props}>
+            <Link
+                className="text-primary-30 dark:text-primary-80"
+                variant="mono"
+                to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
+                {...props}
+            >
                 {label || truncatedAddress}
             </Link>
         );

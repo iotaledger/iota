@@ -23,7 +23,9 @@ export function TransactionsCard({ transactions }: TransactionsCardProps): JSX.E
         return (
             <CollapsibleSection defaultOpen key={index} title={type}>
                 <div data-testid="transactions-card-content">
-                    <Transaction key={index} type={type} data={data} />
+                    <div className="px-md pb-lg pt-xs">
+                        <Transaction key={index} type={type} data={data} />
+                    </div>
                 </div>
             </CollapsibleSection>
         );
