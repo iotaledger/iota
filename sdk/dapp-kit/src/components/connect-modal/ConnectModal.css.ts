@@ -73,8 +73,8 @@ export const walletListContent = style({
     flexDirection: 'column',
     width: '100%',
     flexGrow: 1,
-    gap: themeVars.spacing.md,
-    padding: themeVars.spacing.md,
+    gap: themeVars.spacing.medium,
+    padding: themeVars.spacing.medium,
     backgroundColor: themeVars.backgroundColors.modalPrimary,
     '@media': {
         'screen and (min-width: 768px)': {

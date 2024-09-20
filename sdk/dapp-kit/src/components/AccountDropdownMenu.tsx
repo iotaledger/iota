@@ -74,7 +74,7 @@ export function AccountDropdownMenuItem({
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}
             onSelect={() => switchAccount({ account })}
         >
-            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
+            <Text>{account.label ?? formatAddress(account.address)}</Text>
             {active ? <CheckIcon /> : null}
         </DropdownMenu.Item>
     );

@@ -8,8 +8,17 @@ export const container = style({
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: themeVars.spacing.md,
-    padding: themeVars.spacing.md,
+    justifyContent: 'center',
+    padding: themeVars.spacing.medium,
+    height: '100%',
+    gap: themeVars.spacing.xlarge,
+});
+
+export const content = style({
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: themeVars.spacing.medium,
 });
 
 export const text = style({
@@ -21,5 +30,9 @@ export const text = style({
 export const button = style({
     display: 'flex',
     alignItems: 'center',
-    gap: themeVars.spacing.xs,
+    gap: themeVars.spacing.xsmall,
+});
+
+export const icon = style({
+    color: themeVars.colors.body,
 });

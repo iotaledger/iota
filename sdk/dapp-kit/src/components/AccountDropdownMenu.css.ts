@@ -19,24 +19,25 @@ export const menuContent = style({
     flexDirection: 'column',
     width: 180,
     maxHeight: 200,
-    marginTop: 4,
-    padding: 8,
-    gap: 8,
+    marginTop: themeVars.spacing.xsmall,
+    gap: themeVars.spacing.small,
     borderRadius: themeVars.radii.large,
     backgroundColor: themeVars.backgroundColors.dropdownMenu,
+    padding: themeVars.spacing.medium,
 });
 
 export const menuItem = style({
-    padding: 8,
     userSelect: 'none',
     outline: 'none',
     display: 'flex',
     alignItems: 'center',
-    borderRadius: themeVars.radii.large,
-    selectors: {
-        '&[data-highlighted]': {
-            backgroundColor: themeVars.backgroundColors.primaryButton,
-        },
+    borderRadius: themeVars.radii.medium,
+    fontSize: themeVars.fontSizes.medium,
+    fontWeight: themeVars.fontWeights.normal,
+    letterSpacing: themeVars.typography.letterSpacing,
+    lineHeight: themeVars.typography.lineHeight,
+    ':hover': {
+        backgroundColor: themeVars.backgroundColors.walletItemHover,
     },
 });
 

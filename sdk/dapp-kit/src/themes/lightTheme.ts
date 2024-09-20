@@ -55,15 +55,15 @@ export const lightTheme: ThemeVars = {
         fontFamily:
             'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
         fontStyle: 'normal',
-        lineHeight: '1.3',
-        letterSpacing: '1',
+        lineHeight: '24px',
+        letterSpacing: '0.1px',
     },
     spacing: {
-        xxs: '4px',
-        xs: '8px',
-        sm: '12px',
-        md: '16px',
-        lg: '24px',
-        xl: '32px',
+        xxsmall: '4px',
+        xsmall: '8px',
+        small: '12px',
+        medium: '16px',
+        large: '24px',
+        xlarge: '32px',
     },
 };

@@ -58,12 +58,12 @@ const themeContractValues = {
         letterSpacing: '',
     },
     spacing: {
-        xxs: '',
-        xs: '',
-        sm: '',
-        md: '',
-        lg: '',
-        xl: '',
+        xxsmall: '',
+        xsmall: '',
+        small: '',
+        medium: '',
+        large: '',
+        xlarge: '',
     },
 };
 

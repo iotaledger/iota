@@ -14,7 +14,7 @@ export const walletConnectContainer = style({
 export const walletConnectFooter = style({
     display: 'flex',
     flexDirection: 'column',
-    gap: themeVars.spacing.sm,
+    gap: themeVars.spacing.small,
 });
 
 export const errorContainer = style({
@@ -23,7 +23,7 @@ export const errorContainer = style({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: themeVars.spacing.sm,
+    gap: themeVars.spacing.small,
 });
 
 export const errorMessage = style({
@@ -35,7 +35,7 @@ export const successContainer = style({
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-start',
-    gap: themeVars.spacing.sm,
+    gap: themeVars.spacing.small,
 });
 
 export const openingText = style({

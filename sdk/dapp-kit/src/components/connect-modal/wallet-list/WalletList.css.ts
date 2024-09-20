@@ -8,7 +8,7 @@ import { themeVars } from '../../../themes/themeContract.js';
 export const container = style({
     display: 'flex',
     flexDirection: 'column',
-    gap: themeVars.spacing.xs,
+    gap: themeVars.spacing.xsmall,
     height: '100%',
     width: '100%',
     maxHeight: '330px',

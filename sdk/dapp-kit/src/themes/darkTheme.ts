@@ -59,11 +59,11 @@ export const darkTheme: ThemeVars = {
         letterSpacing: '0.1px',
     },
     spacing: {
-        xxs: '4px',
-        xs: '8px',
-        sm: '12px',
-        md: '16px',
-        lg: '24px',
-        xl: '32px',
+        xxsmall: '4px',
+        xsmall: '8px',
+        small: '12px',
+        medium: '16px',
+        large: '24px',
+        xlarge: '32px',
     },
 };

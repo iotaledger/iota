@@ -13,6 +13,7 @@ interface WalletListProps {
     wallets: WalletWithRequiredFeatures[];
 }
 export function WalletList({ selectedWalletName, onSelect, wallets }: WalletListProps) {
+    console.log('wallets', wallets);
     return (
         <ul className={styles.container}>
             {wallets.map((wallet) => (
