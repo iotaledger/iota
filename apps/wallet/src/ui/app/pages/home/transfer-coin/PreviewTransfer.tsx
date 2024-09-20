@@ -7,6 +7,7 @@ import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { parseAmount, useCoinMetadata } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;

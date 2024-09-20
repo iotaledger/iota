@@ -11,6 +11,7 @@ import { useMemo } from 'react';
 
 import { Badge, BadgeType, Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { CoinItem, ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface BalanceChangesProps {
     changes?: BalanceChangeSummary;
