@@ -73,7 +73,7 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
                                             type={ExplorerLinkType.Address}
                                             address={owner}
                                         >
-                                            {owner}
+                                            {formatAddress(owner)}
                                         </ExplorerLink>
                                     }
                                     fullwidth
