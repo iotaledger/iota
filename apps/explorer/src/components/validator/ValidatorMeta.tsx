@@ -70,9 +70,10 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                     <KeyValueInfo
                         keyText="Address"
                         value={
-                            <AddressLink address={validatorData.iotaAddress}>
-                                {validatorData.iotaAddress}
-                            </AddressLink>
+                            <AddressLink
+                                address={validatorData.iotaAddress}
+                                label={validatorData.iotaAddress}
+                            />
                         }
                         copyText={validatorData.iotaAddress}
                         onCopySuccess={handleOnCopy}
