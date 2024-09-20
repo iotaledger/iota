@@ -8036,23 +8036,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-test-validator"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "axum",
- "clap",
- "http 1.1.0",
- "iota-cluster-test",
- "iota-faucet",
- "telemetry-subscribers",
- "tokio",
- "tower",
- "tower-http",
- "uuid 1.10.0",
-]
-
-[[package]]
 name = "iota-tls"
 version = "0.0.0"
 dependencies = [

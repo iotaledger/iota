@@ -76,7 +76,7 @@ jobs:
       - name: cargo build (release) for ${{ matrix.os }} platform
         shell: bash
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-test-validator --bin iota-indexer
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-indexer
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -84,5 +84,4 @@ jobs:
           name: ${{ env.artifact_name }}
           path: |
             ./target/release/iota
-            ./target/release/iota-test-validator
             ./target/release/iota-indexer
