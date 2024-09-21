@@ -3,131 +3,52 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
-// import { formatAddress } from '@iota/iota-sdk/utils';
 import { Placeholder } from '@iota/ui';
-import { type ReactNode } from 'react';
-// import {
-//     Table,
-//     TableCell,
-//     TableBodyRow,
-//     TableCellType,
-//     TableHeader,
-//     TableHeaderCell,
-//     TableHeaderRow,
-// } from '@iota/apps-ui-kit';
+import { useMemo } from 'react';
 import cx from 'clsx';
-import {
-    ObjectLink,
-    // ObjectVideoImage
-} from '~/components/ui';
-// import { useResolveVideo } from '~/hooks/useResolveVideo';
-// import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
+import { TableCard } from '~/components/ui';
+import { generateObjectListColumns } from '~/lib/ui/utils/generateObjectListColumns';
 
-interface ListViewItemProps {
-    assetCell?: ReactNode;
-    typeCell?: ReactNode;
-    objectIdCell?: ReactNode;
-    objectId: string;
-    loading?: boolean;
-}
-
-function ListViewItem({
-    assetCell,
-    typeCell,
-    objectIdCell,
-    objectId,
-    loading,
-}: ListViewItemProps): JSX.Element {
-    const listViewItemContent = (
+function ListViewItemPlaceholder(): JSX.Element {
+    return (
         <div
             className={cx(
                 'flex items-center justify-around overflow-hidden',
                 '[&_td]:flex [&_td]:items-center',
-                loading && 'group mb-2 justify-between rounded-lg p-1 hover:bg-hero/5',
+                'group mb-2 justify-between rounded-lg p-1 hover:bg-hero/5',
             )}
         >
             <div
                 className={cx(
                     'w-3/12 basis-3/12',
                     '[&_td]:flex [&_td]:items-center',
-                    loading &&
-                        'flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5',
+                    'flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5',
                 )}
             >
-                {loading ? <Placeholder rounded="lg" width="540px" height="20px" /> : assetCell}
+                <Placeholder rounded="lg" width="540px" height="20px" />
             </div>
 
             <div
                 className={cx(
                     'w-6/12 basis-6/12 overflow-hidden [&_td]:flex',
-                    loading && 'hidden max-w-[50%] pr-5 md:flex',
+                    'hidden max-w-[50%] pr-5 md:flex',
                 )}
             >
-                {loading ? <Placeholder rounded="lg" width="540px" height="20px" /> : typeCell}
+                <Placeholder rounded="lg" width="540px" height="20px" />
             </div>
 
             <div
                 className={cx(
                     'w-3/12 basis-3/12',
                     '[&_td]:flex [&_td]:items-center',
-                    loading && 'flex max-w-[34%]',
+                    'flex max-w-[34%]',
                 )}
             >
-                {loading ? <Placeholder rounded="lg" width="540px" height="20px" /> : objectIdCell}
+                <Placeholder rounded="lg" width="540px" height="20px" />
             </div>
         </div>
     );
-
-    if (loading) {
-        return listViewItemContent;
-    }
-
-    return <ObjectLink objectId={objectId} display="block" label={listViewItemContent} />;
 }
-
-// function ListViewItemContainer({ obj }: { obj: IotaObjectResponse }): JSX.Element {
-//     // const video = useResolveVideo(obj);
-//     // const displayMeta = obj.data?.display?.data;
-//     // const name = displayMeta?.name ?? displayMeta?.description ?? '';
-//     // const type = trimStdLibPrefix(parseObjectType(obj));
-//     const objectId = obj.data?.objectId;
-//
-//     return (
-//         <ListViewItem
-//             objectId={objectId!}
-//             assetCell={
-//                 <div>for merging</div>
-//                 // <TableCell
-//                 //     type={TableCellType.AvatarText}
-//                 //     leadingElement={
-//                 //         <ObjectVideoImage
-//                 //             fadeIn
-//                 //             disablePreview
-//                 //             title={name}
-//                 //             subtitle={type}
-//                 //             src={displayMeta?.image_url || ''}
-//                 //             video={video}
-//                 //             variant="xxs"
-//                 //         />
-//                 //     }
-//                 //     label={name ? name : '--'}
-//                 // />
-//             }
-//             typeCell={
-//                 <div>
-//                     for merging
-//                     {/*<TableCell type={TableCellType.Text} label={type} />*/}
-//                 </div>
-//             }
-//             objectIdCell={
-//                 <div>
-//                     for merging
-//                     {/*<TableCell type={TableCellType.Text} label={formatAddress(objectId!)} />*/}
-//                 </div>
-//             }
-//         />
-//     );
-// }
 
 interface ListViewProps {
     data?: IotaObjectResponse[];
@@ -135,50 +56,16 @@ interface ListViewProps {
 }
 
 export function ListView({ data, loading }: ListViewProps): JSX.Element {
+    const tableColumns = useMemo(() => {
+        if (!data) return null;
+        return generateObjectListColumns();
+    }, [data]);
+
     return (
         <div className="flex flex-col overflow-auto">
-            {/*<Table rowIndexes={data?.map((obj, index) => index) ?? []}>*/}
-            {/*    {(!!data?.length || loading) && (*/}
-            {/*        <TableHeader>*/}
-            {/*            <TableHeaderRow>*/}
-            {/*                <div className="flex">*/}
-            {/*                    <div className="w-3/12 basis-3/12 [&_th]:flex [&_th]:items-center">*/}
-            {/*                        <TableHeaderCell columnKey="assets" label="ASSETS" />*/}
-            {/*                    </div>*/}
-            {/*                    <div className="w-6/12 basis-6/12 [&_th]:flex [&_th]:items-center">*/}
-            {/*                        <TableHeaderCell columnKey="type" label="TYPE" />*/}
-            {/*                    </div>*/}
-            {/*                    <div className="w-3/12 basis-3/12 [&_th]:flex [&_th]:items-center">*/}
-            {/*                        <TableHeaderCell columnKey="objectId" label="OBJECT ID" />*/}
-            {/*                    </div>*/}
-            {/*                </div>*/}
-            {/*            </TableHeaderRow>*/}
-            {/*        </TableHeader>*/}
-            {/*    )}*/}
-            {/*</Table>*/}
-
+            {tableColumns && data && <TableCard data={data ?? []} columns={tableColumns} />}
             {loading &&
-                new Array(10)
-                    .fill(0)
-                    .map((_, index) => (
-                        <ListViewItem key={index} objectId={String(index)} loading />
-                    ))}
-
-            <div className="flex h-full w-full flex-col overflow-auto">
-                {data?.map((obj, index) => {
-                    if (!obj.data) {
-                        return null;
-                    }
-                    return (
-                        <div key={obj.data.objectId}>
-                            for merging
-                            {/*<TableBodyRow key={obj.data.objectId} rowIndex={index}>*/}
-                            {/*    <ListViewItemContainer obj={obj} />*/}
-                            {/*</TableBodyRow>*/}
-                        </div>
-                    );
-                })}
-            </div>
+                new Array(10).fill(0).map((_, index) => <ListViewItemPlaceholder key={index} />)}
         </div>
     );
 }
