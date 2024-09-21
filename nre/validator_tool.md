@@ -169,6 +169,8 @@ At this point you are validator candidate and can start to accept self staking a
 
 **If you haven't, start a fullnode now to catch up with the network. When you officially join the committee but is not fully up-to-date, you cannot make meaningful contribution to the network and may be subject to peer reporting hence face the risk of reduced staking rewards for you and your delegators.**
 
+Add stake to a validator's staking pool: https://docs.iota.org/references/framework/iota-system/iota_system#function-request_add_stake
+
 Once you collect enough staking amount, run
 
 ```bash

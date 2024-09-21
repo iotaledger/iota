@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DisplayStats } from '@iota/apps-ui-kit';
+import { DisplayStats, truncate } from '@iota/apps-ui-kit';
 import { formatDate } from '@iota/core';
+import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
 
 interface TransactionDetailsProps {
     sender?: string;
@@ -23,23 +24,23 @@ export function TransactionDetails({
             {sender && (
                 <DisplayStats
                     label="Sender"
-                    value={sender}
-                    valueLink={`/address/${sender}`}
-                    isTruncated
+                    value={<AddressLink address={sender}>{truncate(sender)}</AddressLink>}
                 />
             )}
             {checkpoint && (
                 <DisplayStats
                     label="Checkpoint"
-                    value={Number(checkpoint).toLocaleString()}
-                    valueLink={`/checkpoint/${checkpoint}`}
+                    value={
+                        <CheckpointSequenceLink sequence={checkpoint}>
+                            {Number(checkpoint).toLocaleString()}
+                        </CheckpointSequenceLink>
+                    }
                 />
             )}
             {executedEpoch && (
                 <DisplayStats
                     label="Epoch"
-                    value={executedEpoch}
-                    valueLink={`/epoch/${executedEpoch}`}
+                    value={<EpochLink epoch={executedEpoch}>{executedEpoch}</EpochLink>}
                 />
             )}
 

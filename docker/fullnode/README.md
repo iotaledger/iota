@@ -10,21 +10,25 @@ Follow the steps in this Readme to install and configure a Iota Full node for te
 
 - [Install Docker](https://docs.docker.com/get-docker/)
 - [Install Docker Compose](https://docs.docker.com/compose/install/)
-- Download the Full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/main/docker/fullnode/docker-compose.yaml) file.
+- Download the Full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/docker/fullnode/docker-compose.yaml) file.
 
 ## Configure Iota Full node
 
-Download the latest version of the Iota Full node configuration file [fullnode-template.yaml](https://github.com/iotaledger/iota/raw/main/crates/iota-config/data/fullnode-template.yaml). Use the following command to download the file:
+Download the latest version of the Iota Full node configuration file [fullnode-template.yaml](https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml). Use the following command to download the file:
 
 ```shell
-wget https://github.com/iotaledger/iota/raw/main/crates/iota-config/data/fullnode-template.yaml
+wget https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml
 ```
+
+To ensure you add the appropriate peers for your full node, please refer to the instructions provided at the following link:
+https://docs.iota.org/operator/iota-full-node#set-up-from-source and proceed with step 4.
 
 ### Download the Iota genesis blob
 
-The genesis blob contains the information that defined the Iota network configuration. Before you can start the Full node, you need to download the most recent file to ensure compatibility with the version of Iota you use. Use the following command to download the [genesis.blob](https://github.com/iotaledger/iota-genesis/raw/main/devnet/genesis.blob) from the `devnet` branch of the Iota repository:
+The genesis blob contains the information that defined the Iota network configuration. Before you can start the Full node, you need to download the most recent file to ensure compatibility with the version of Iota you use.
 
-`wget https://github.com/iotaledger/iota-genesis/raw/main/devnet/genesis.blob`
+To download the appropriate genesis.blob file, please refer to the instructions provided at the following link:
+https://docs.iota.org/operator/iota-full-node#set-up-from-source. and proceed with step 3.
 
 ## Start your Iota Full node
 
@@ -42,7 +46,7 @@ After the Full node starts you can test the JSON-RPC interfaces.
 
 ## View activity on your local Full node with Iota Explorer
 
-Iota Explorer supports connecting to a local network. To view activity on your local Full node, open the URL: [https://explorer.iota.io/?network=local](https://explorer.iota.io/?network=local).
+Iota Explorer supports connecting to a local network. To view activity on your local Full node, open the URL: [https://explorer.iota.org/?network=local](https://explorer.iota.org/?network=local).
 
 You can also change the network that Iota Explorer connects to by select it in the Iota Explorer interface.
 

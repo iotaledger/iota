@@ -12,7 +12,7 @@ interface LabelTextProps {
     /**
      * The size of the LabelText.
      */
-    size: LabelTextSize;
+    size?: LabelTextSize;
     /**
      * The position of the LabelText.
      */
@@ -25,10 +25,6 @@ interface LabelTextProps {
      * The text of the LabelText.
      */
     label: string;
-    /**
-     * Show the supporting label.
-     */
-    showSupportingLabel: boolean;
     /**
      * The text of the LabelText.
      */
@@ -44,11 +40,10 @@ interface LabelTextProps {
 }
 
 export function LabelText({
-    size,
+    size = LabelTextSize.Medium,
     isCentered,
     supportingLabel,
     label,
-    showSupportingLabel,
     text,
     tooltipPosition,
     tooltipText,
@@ -66,7 +61,7 @@ export function LabelText({
                 >
                     {text}
                 </span>
-                {showSupportingLabel && supportingLabel && (
+                {supportingLabel && (
                     <span
                         className={cx(
                             'font-inter text-neutral-60 dark:text-neutral-40',
