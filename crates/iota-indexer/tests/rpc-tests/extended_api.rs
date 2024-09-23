@@ -395,22 +395,17 @@ async fn test_get_total_transactions() {
 }
 
 fn add_test_epochs_to_simulacrum(mut sim: &mut Simulacrum, tx_counts_in_epochs: &[u32]) {
-    let (counts_in_finished_epochs, current_epoch_tx_count) = match tx_counts_in_epochs {
-        [counts_in_finished_epochs @ .., current_epoch_tx_count] => {
-            (counts_in_finished_epochs, current_epoch_tx_count)
+    if let [counts_in_finished_epochs @ .., current_epoch_tx_count] = tx_counts_in_epochs {
+        for tx_count in counts_in_finished_epochs {
+            execute_simulacrum_transactions(&mut sim, *tx_count);
+            sim.advance_epoch(false);
         }
-        [] => {
-            return;
-        }
-    };
 
-    for tx_count in counts_in_finished_epochs {
-        execute_simulacrum_transactions(&mut sim, *tx_count);
-        sim.advance_epoch(false);
+        execute_simulacrum_transactions(&mut sim, *current_epoch_tx_count);
+        sim.create_checkpoint();
+    } else {
+        return;
     }
-
-    execute_simulacrum_transactions(&mut sim, *current_epoch_tx_count);
-    sim.create_checkpoint();
 }
 
 async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
