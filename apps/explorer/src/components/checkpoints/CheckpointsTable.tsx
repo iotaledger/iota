@@ -7,7 +7,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo, useState } from 'react';
 import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
-import { generateTableDataFromCheckpointsData } from '~/lib/ui';
+import { generateCheckpointsTableColumns } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';
 
 interface CheckpointsTableProps {
@@ -45,7 +45,7 @@ export function CheckpointsTable({
         }
     }, [countQuery.data, initialCursor, maxCursor, checkpoints, isError]);
 
-    const cardData = data ? generateTableDataFromCheckpointsData(data) : undefined;
+    const tableColumns = generateCheckpointsTableColumns();
 
     return (
         <div className="flex flex-col gap-md text-left xl:pr-10">
@@ -54,7 +54,7 @@ export function CheckpointsTable({
                     Failed to load Checkpoints
                 </div>
             )}
-            {isPending || isFetching || !cardData ? (
+            {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={Number(limit)}
                     rowHeight="16px"
@@ -62,8 +62,8 @@ export function CheckpointsTable({
                 />
             ) : (
                 <TableCard
-                    data={cardData.data}
-                    columns={cardData.columns}
+                    data={data.data}
+                    columns={tableColumns}
                     totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
                     viewAll={!disablePagination ? '/recent?tab=checkpoints' : undefined}
                     paginationOptions={

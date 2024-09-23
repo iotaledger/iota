@@ -156,6 +156,7 @@ const developer = [
                 },
                 items: [
                     'developer/iota-101/create-coin/regulated',
+                    'developer/iota-101/create-coin/migrate-to-coin-manager',
                     'developer/iota-101/create-coin/in-game-token',
                     'developer/iota-101/create-coin/loyalty',
                 ],
