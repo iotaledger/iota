@@ -27,7 +27,7 @@ export const lightTheme: ThemeVars = {
     },
     colors: {
         primaryButton: '#171D26',
-        outlineButton: '#171D26',
+        outlineButtonHover: '#E3EAF6',
         iconButton: '#171D26',
         body: '#171D26',
         bodyMuted: '#545E6E',

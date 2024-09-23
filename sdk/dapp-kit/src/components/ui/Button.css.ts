@@ -29,7 +29,7 @@ export const buttonVariants = recipe({
                 borderWidth: 1,
                 borderStyle: 'solid',
                 borderColor: themeVars.borderColors.outlineButton,
-                color: themeVars.colors.outlineButton,
+                color: themeVars.colors.primaryButton,
                 ':hover': {
                     backgroundColor: themeVars.backgroundColors.outlineButtonHover,
                 },

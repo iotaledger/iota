@@ -27,7 +27,7 @@ const themeContractValues = {
     },
     colors: {
         primaryButton: '',
-        outlineButton: '',
+        outlineButtonHover: '',
         body: '',
         bodyMuted: '',
         bodyDanger: '',

@@ -11,7 +11,7 @@ export const darkTheme: ThemeVars = {
     backgroundColors: {
         primaryButton: '#253041',
         primaryButtonHover: '#313D50',
-        outlineButtonHover: '#F4F4F5',
+        outlineButtonHover: '#313D50',
         modalOverlay: 'rgba(0, 47, 109, 0.72)',
         modalPrimary: '#0f141c',
         modalSecondary: '#171d26',
@@ -27,7 +27,7 @@ export const darkTheme: ThemeVars = {
     },
     colors: {
         primaryButton: '#E3EAF6',
-        outlineButton: '#E3EAF6',
+        outlineButtonHover: '#171D26',
         iconButton: '#E3EAF6',
         body: '#E3EAF6',
         bodyMuted: '#8892A1',
