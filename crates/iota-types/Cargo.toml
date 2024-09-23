@@ -19,12 +19,12 @@ byteorder.workspace = true
 chrono.workspace = true
 consensus-config.workspace = true
 derivative.workspace = true
-iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 enum_dispatch.workspace = true
 eyre.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
+iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 itertools.workspace = true
 jsonrpsee.workspace = true
 move-binary-format.workspace = true

@@ -47,7 +47,6 @@ iota-move-build.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
-
 [[example]]
 name = "coin_read_api"
 path = "examples/coin_read_api.rs"

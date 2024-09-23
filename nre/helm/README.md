@@ -1,40 +1,48 @@
 # Helm Charts
+
 This directory contains helm charts to deploy Iota RPC2.0 infra. These charts are intended to be starting points for RPC2.0 providers. Not everything here will necessarily work out of the box to fit each provider's need. Some of this infra has some scope/setup needed outside of these charts. It's encouraged to clone these files and tweak to your infra needs.
 
 (Currently) Out of Scope of these Helm charts:
+
 - ingress setup
 - db-url/pass secret creation
 - Database provisioning
 
 # Note
+
 ### DB_URL Secret for indexers/graphql
-For RPC2.0 services it's recommended that you create a K8's secret that contains the DB_URL. The indexer-reader/writer and graphql charts will assume a secret exists. Ensure the secret name matches that what is in the env section in the values.yaml file. 
+
+For RPC2.0 services it's recommended that you create a K8's secret that contains the DB_URL. The indexer-reader/writer and graphql charts will assume a secret exists. Ensure the secret name matches that what is in the env section in the values.yaml file.
 
 Example:
+
 ```
 kubectl create secret generic db-secret \
   --from-literal=db-url='postgres://username:password@host:port/dbname'
-  ```
+```
 
 ### Database Provisioning
+
 More Documentation on this coming soon! The storage amount recommendations will increase over time. The below numbers may quickly become outdated.
 
-*Resource Reccomendations*
-- Storage
-    - Mainnet 30TB
-    - Testnet 12TB
-- Self hosted
-    - 16 cores / 32 vCPU
-    - 128G memory
-- Cloud
-    - GCP Cloud SQL
-        - Example machine configuration: db-perf-optimized-N-16
-    - AWS RDS
-        - Example instance class: db.r6g.xlarge
+_Resource Reccomendations_
 
+- Storage
+  - Mainnet 30TB
+  - Testnet 12TB
+- Self hosted
+  - 16 cores / 32 vCPU
+  - 128G memory
+- Cloud
+  - GCP Cloud SQL
+    - Example machine configuration: db-perf-optimized-N-16
+  - AWS RDS
+    - Example instance class: db.r6g.xlarge
 
 # GraphQL
+
 ### Containers
+
 **graphql** - container running iota-graphql rpc endpoint. Requires a Database updated by the indexer-writer.
 
 ### Resource Recommendations
@@ -44,23 +52,28 @@ More Documentation on this coming soon! The storage amount recommendations will 
 **MemRequest:** 96G
 
 # Indexer-Reader
+
 ### Containers
+
 **indexer-reader** - iota-indexer-reader jsonrpc endpoint. This offers backwards compatibility with current iota-node json rpc. This deployment is only needed as we transition to the graphql service. This is not needed if you do not want to support the jsonrpc.
 
 ### Resource Recommendations
+
 **Cpu:** 4 cores / 8 vCPU
 
 **Memory:** 32Gi
 
 # Indexer-Writer
+
 ### Containers
+
 **iota-indexer-writer** - Indexer writer syncs and indexes iota checkpoint data into a Postgres database. Checkpoint data can be pulled from a fullnode or a cloud provider hosted bucket. More info and available buckets can be found in iota [doc site](https://wiki.iota.org/guides/developer/advanced/custom-indexer#remote-reader).
 
 ### Resource Recommendations
+
 **Cpu:** 16 cores / 32 vCPU
 
 **Memory:** 128Gi
-
 
 # How to run Helm for Deployments
 
@@ -74,10 +87,9 @@ More Documentation on this coming soon! The storage amount recommendations will 
 - Iterate on values/templates to fit any specific needs the run `helm upgrade <name> <chart-name>`
 
 ### Other Helm actions
-***review deployment history*** - `helm history <name>`
 
-***uninstall helm provisioned resources*** - `helm uninstall <name>`
+_**review deployment history**_ - `helm history <name>`
+
+_**uninstall helm provisioned resources**_ - `helm uninstall <name>`
 
 Review [Helm docs](https://helm.sh/docs/) for other actions.
-
-

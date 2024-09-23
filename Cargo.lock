@@ -6470,13 +6470,15 @@ dependencies = [
 
 [[package]]
 name = "iota-e2e-tests"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
+ "assert_cmd",
  "async-trait",
  "bcs",
  "clap",
- "eyre",
+ "coset",
+ "expect-test",
  "fastcrypto",
  "fastcrypto-zkp",
  "fs_extra",
@@ -6484,6 +6486,7 @@ dependencies = [
  "indexmap 2.4.0",
  "insta",
  "iota",
+ "iota-bridge",
  "iota-config",
  "iota-core",
  "iota-framework",
@@ -6494,8 +6497,10 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-move-build",
+ "iota-network",
  "iota-node",
  "iota-protocol-config",
+ "iota-rest-api",
  "iota-sdk 0.2.0",
  "iota-simulator",
  "iota-storage",
@@ -6508,6 +6513,10 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-package",
+ "p256 0.13.2",
+ "passkey-authenticator",
+ "passkey-client",
+ "passkey-types",
  "prometheus",
  "rand 0.8.5",
  "serde",
@@ -6518,6 +6527,7 @@ dependencies = [
  "test-cluster",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]

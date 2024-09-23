@@ -13,7 +13,6 @@ image:
   # Ensure this is set to most recent iota indexer version. See github.com/iotaledger/iota for latest releases.
   tag: "testnet-v1.27.2"
 
-
 env:
   RUST_BACKTRACE:
     value: "1"
@@ -38,15 +37,15 @@ env:
         key: "db-url"
 
 podAnnotations:
-    app: iota-indexer
+  app: iota-indexer
 
-resources: 
+resources:
   limits:
-     cpu: 4
-     memory: 12Gi
+    cpu: 4
+    memory: 12Gi
   requests:
-     cpu: 2
-     memory: 8Gi
+    cpu: 2
+    memory: 8Gi
 
 service:
   name: iota-indexer
@@ -87,8 +86,8 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
   hosts:
     - host: iota-indexer.local
       paths:
@@ -99,15 +98,14 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-    #livenessProbe:
-    #httpGet:
-    #path: /json-rpc
-    #port: 9000
-    #readinessProbe:
-    #httpGet:
-    #path: /json-rpc
-    #port: 9000
-
+#livenessProbe:
+#httpGet:
+#path: /json-rpc
+#port: 9000
+#readinessProbe:
+#httpGet:
+#path: /json-rpc
+#port: 9000
 
 # Additional volumes on the output Deployment definition.
 volumes: []
@@ -122,8 +120,8 @@ volumeMounts: []
 #   mountPath: "/etc/foo"
 #   readOnly: true
 
-  #nodeSelector:
-  #node.kubernetes.io/instance-type: n2d-standard-16
+#nodeSelector:
+#node.kubernetes.io/instance-type: n2d-standard-16
 
 tolerations: []
 
