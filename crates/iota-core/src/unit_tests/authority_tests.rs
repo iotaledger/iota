@@ -5004,8 +5004,7 @@ async fn test_consensus_message_processed() {
     );
 }
 
-// TODO: the following test should be enabled when we bump the protocol version.
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/2793"]
 #[test]
 fn test_choose_next_system_packages() {
     telemetry_subscribers::init_for_testing();
