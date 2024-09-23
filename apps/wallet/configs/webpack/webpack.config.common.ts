@@ -17,7 +17,7 @@ import type { Configuration } from 'webpack';
 import packageJson from '../../package.json';
 
 const WALLET_RC = process.env.WALLET_RC === 'true';
-const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 1 : 0;
+const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
 
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -35,14 +35,16 @@ dotenv.config({
 });
 
 // From package.json: x.y.z
-// App version: x.y.z.n where n=0 for production and n>0 for release candidates
-function generateVersion(n: number) {
+// App version (production): x.y.z
+// App version (rc): x.y.z.n
+function generateVersion(n: number | undefined) {
     const sha = gitRevSync.short();
     const packageVersion = packageJson.version;
-    const version = `${packageVersion}.${n}`;
+    const version = n !== undefined ? `${packageVersion}.${n}` : packageVersion;
+    const improved_version = n !== undefined ? `${packageVersion}-rc.${n}` : packageVersion;
     return {
         version,
-        version_name: `${version} (${sha})`,
+        version_name: `${improved_version} (${sha})`,
     };
 }
 
