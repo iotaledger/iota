@@ -17,10 +17,9 @@ use diesel::{
 };
 
 use crate::{
-    blocking_call_is_ok_or_panic,
     db::ConnectionPool,
     errors::{Context, IndexerError},
-    read_only_blocking, run_query,
+    read_only_blocking,
 };
 
 define_sql_function! {
@@ -48,7 +47,7 @@ define_sql_function! {
 pub fn create_large_object<T: R2D2Connection + Send + 'static>(
     pool: &ConnectionPool<T>,
 ) -> Result<u32, IndexerError> {
-    run_query!(pool, |conn| select(lo_create(0)).get_result(conn))
+    read_only_blocking!(pool, |conn| select(lo_create(0)).get_result(conn))
         .map_err(IndexerError::from)
         .context("failed to store large object")
 }
@@ -74,7 +73,7 @@ pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
         // remove dangling chunks (either by using a transaction or by handlng manually)
         //
         // additionally we could apply a backoff retry strategy
-        run_query!(pool, |conn| select(lo_put(oid, offset, chunk))
+        read_only_blocking!(pool, |conn| select(lo_put(oid, offset, chunk))
             .execute(conn))
         .map_err(IndexerError::from)
         .context("failed to insert large object chunk")?;
@@ -97,7 +96,7 @@ pub fn get_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
 
         tracing::trace!("Fetching large-object chunk at offset {}", offset);
 
-        let chunk = run_query!(pool, |conn| {
+        let chunk = read_only_blocking!(pool, |conn| {
             select(lo_get(oid, Some(offset), Some(length))).get_result::<Vec<u8>>(conn)
         })
         .map_err(IndexerError::from)
