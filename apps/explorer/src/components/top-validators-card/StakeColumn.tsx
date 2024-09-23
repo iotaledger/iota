@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CellText } from '@iota/apps-ui-kit';
+import { TableCellText } from '@iota/apps-ui-kit';
 import { useFormatCoin, CoinFormat, formatBalance } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
@@ -23,5 +23,9 @@ export function StakeColumn({
     const label = inNano ? formatBalance(stake, 0, coinFormat) : amount;
     const supportingLabel = inNano ? 'nano' : symbol;
 
-    return <CellText label={label} supportingLabel={supportingLabel} />;
+    return (
+        <span className="whitespace-nowrap">
+            <TableCellText supportingLabel={supportingLabel}>{label}</TableCellText>
+        </span>
+    );
 }
