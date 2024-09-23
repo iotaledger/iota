@@ -68,6 +68,17 @@ export function generateValidatorsTableColumns({
 }: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummary>[] {
     let columns: ColumnDef<IotaValidatorSummary>[] = [
         {
+            header: '#',
+            id: 'number',
+            cell({ row }) {
+                return (
+                    <TableCellBase>
+                        <TableCellText>{row.index + 1}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
             header: 'Name',
             id: 'name',
             cell({ row: { original: validator } }) {
