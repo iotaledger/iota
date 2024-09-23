@@ -7,7 +7,6 @@ import type { WalletAccount } from '@iota/wallet-standard';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import clsx from 'clsx';
 
-import { useResolveIotaNSName } from '../hooks/useResolveIotaNSNames.js';
 import { useAccounts } from '../hooks/wallet/useAccounts.js';
 import { useDisconnectWallet } from '../hooks/wallet/useDisconnectWallet.js';
 import { useSwitchAccount } from '../hooks/wallet/useSwitchAccount.js';
@@ -24,10 +23,6 @@ type AccountDropdownMenuProps = {
 
 export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
     const { mutate: disconnectWallet } = useDisconnectWallet();
-
-    const { data: domain } = useResolveIotaNSName(
-        currentAccount.label ? null : currentAccount.address,
-    );
     const accounts = useAccounts();
 
     return (
@@ -36,9 +31,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                 <DropdownMenu.Trigger asChild>
                     <Button size="lg" className={styles.connectedAccount}>
                         <Text mono weight="bold">
-                            {currentAccount.label ??
-                                domain ??
-                                formatAddress(currentAccount.address)}
+                            {currentAccount.label ?? formatAddress(currentAccount.address)}
                         </Text>
                         <ChevronIcon />
                     </Button>
@@ -76,14 +69,12 @@ export function AccountDropdownMenuItem({
     active?: boolean;
 }) {
     const { mutate: switchAccount } = useSwitchAccount();
-    const { data: domain } = useResolveIotaNSName(account.label ? null : account.address);
-
     return (
         <DropdownMenu.Item
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}
             onSelect={() => switchAccount({ account })}
         >
-            <Text mono>{account.label ?? domain ?? formatAddress(account.address)}</Text>
+            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
             {active ? <CheckIcon /> : null}
         </DropdownMenu.Item>
     );

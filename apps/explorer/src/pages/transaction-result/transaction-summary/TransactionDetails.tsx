@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DisplayStats } from '@iota/apps-ui-kit';
-import { formatDate, useResolveIotaNSName } from '@iota/core';
+import { DisplayStats, truncate } from '@iota/apps-ui-kit';
+import { formatDate } from '@iota/core';
+import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
 
 interface TransactionDetailsProps {
     sender?: string;
@@ -18,30 +19,28 @@ export function TransactionDetails({
     executedEpoch,
     timestamp,
 }: TransactionDetailsProps): JSX.Element {
-    const { data: domainName } = useResolveIotaNSName(sender);
-
     return (
         <div className="grid grid-cols-1 gap-sm md:grid-cols-4">
             {sender && (
                 <DisplayStats
                     label="Sender"
-                    value={sender}
-                    valueLink={domainName ?? `/address/${sender}`}
-                    isTruncated
+                    value={<AddressLink address={sender}>{truncate(sender)}</AddressLink>}
                 />
             )}
             {checkpoint && (
                 <DisplayStats
                     label="Checkpoint"
-                    value={Number(checkpoint).toLocaleString()}
-                    valueLink={`/checkpoint/${checkpoint}`}
+                    value={
+                        <CheckpointSequenceLink sequence={checkpoint}>
+                            {Number(checkpoint).toLocaleString()}
+                        </CheckpointSequenceLink>
+                    }
                 />
             )}
             {executedEpoch && (
                 <DisplayStats
                     label="Epoch"
-                    value={executedEpoch}
-                    valueLink={`/epoch/${executedEpoch}`}
+                    value={<EpochLink epoch={executedEpoch}>{executedEpoch}</EpochLink>}
                 />
             )}
 

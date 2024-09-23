@@ -14,8 +14,8 @@ import {
 } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useEffect, useState } from 'react';
-import { ObjectVideoImage } from '~/components/ui';
+import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
+import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
@@ -82,8 +82,7 @@ function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Object ID"
-            valueLink={`/object/${objectId}`}
-            value={formatAddress(objectId)}
+            value={<ObjectLink objectId={objectId}>{formatAddress(objectId)}</ObjectLink>}
         />
     );
 }
@@ -118,8 +117,11 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Type"
-            valueLink={`${address}?module=${module}`}
-            value={normalizedStructTag}
+            value={
+                <ObjectLink objectId={`${address}?module=${module}`}>
+                    {normalizedStructTag}
+                </ObjectLink>
+            }
             tooltipText={objectType}
             tooltipPosition={TooltipPosition.Right}
         />
@@ -142,11 +144,11 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Last Transaction Block Digest"
-            valueLink={`/txblock/${digest}`}
-            value={formatAddress(digest)}
+            value={<TransactionLink digest={digest}>{formatAddress(digest)}</TransactionLink>}
         />
     );
 }
+
 interface OwnerCardProps {
     objOwner: ObjectOwner;
 }
@@ -163,22 +165,26 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
             : formatAddress(objOwner.AddressOwner);
     }
 
-    function getOwnerLink(objOwner: ObjectOwner): string | null {
-        if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
-            return 'ObjectOwner' in objOwner
-                ? `/object/${objOwner.ObjectOwner}`
-                : `/address/${objOwner.AddressOwner}`;
-        }
-        return null;
-    }
-
     return (
         <DisplayStats
             label="Owner"
-            value={getOwner(objOwner)}
-            valueLink={getOwnerLink(objOwner) ?? undefined}
+            value={<OwnerLink objOwner={objOwner}>{getOwner(objOwner)}</OwnerLink>}
         />
     );
+}
+
+function OwnerLink({
+    children,
+    objOwner,
+}: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
+    if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
+        if ('ObjectOwner' in objOwner) {
+            return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
+        } else {
+            return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
+        }
+    }
+    return null;
 }
 
 interface StorageRebateCardProps {
@@ -297,13 +303,15 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             </div>
             <div className="flex flex-row gap-md">
                 {display && display.link && (
-                    <DisplayStats label="Link" value={display.link} valueLink={display.link} />
+                    <DisplayStats
+                        label="Link"
+                        value={<Link to={display.link}>{display.link}</Link>}
+                    />
                 )}
                 {display && display.project_url && (
                     <DisplayStats
                         label="Website"
-                        value={display.project_url}
-                        valueLink={display.project_url}
+                        value={<Link to={display.project_url}>{display.project_url}</Link>}
                     />
                 )}
             </div>

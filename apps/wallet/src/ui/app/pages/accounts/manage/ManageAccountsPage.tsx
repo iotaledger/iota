@@ -26,7 +26,7 @@ export function ManageAccountsPage() {
             closeOverlay={() => navigate('/home')}
             titleCentered={false}
         >
-            <div className="flex w-full flex-col">
+            <div className="flex h-full w-full flex-col">
                 <div className="flex flex-1 flex-col overflow-y-auto">
                     {Object.entries(groupedAccounts).map(([type, accountGroups]) =>
                         Object.entries(accountGroups).map(([key, accounts]) => {
@@ -41,7 +41,7 @@ export function ManageAccountsPage() {
                         }),
                     )}
                 </div>
-                <div>
+                <div className="pt-sm">
                     <Button
                         type={ButtonType.Primary}
                         text="Add Profile"

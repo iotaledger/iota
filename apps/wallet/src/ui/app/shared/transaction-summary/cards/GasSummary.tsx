@@ -6,8 +6,8 @@ import { useFormatCoin, type GasSummaryType } from '@iota/core';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { KeyValueInfo } from '@iota/apps-ui-kit';
-import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
 import { useActiveAddress } from '_src/ui/app/hooks';
+import { ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
 
 interface GasSummaryProps {
     sender?: string | null;
@@ -20,7 +20,6 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
     const activeAddress = useActiveAddress();
     const address = sender || activeAddress;
     const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, IOTA_TYPE_ARG);
-    const gasOwnerLink = useAddressLink(gasSummary?.owner || null);
 
     const gasValueText = isPending
         ? 'Estimating...'
@@ -29,14 +28,14 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
           : `${gasSummary?.isSponsored ? 0 : gas}`;
 
     if (!gasSummary)
-        return <KeyValueInfo keyText="Gas fee" valueText="0" supportingLabel={symbol} fullwidth />;
+        return <KeyValueInfo keyText="Gas fee" value="0" supportingLabel={symbol} fullwidth />;
 
     return (
         <>
             {address === gasSummary?.owner && (
                 <KeyValueInfo
                     keyText="Gas fee"
-                    valueText={gasValueText}
+                    value={gasValueText}
                     supportingLabel={symbol}
                     fullwidth
                 />
@@ -45,14 +44,20 @@ export function GasSummary({ sender, gasSummary, isPending, isError }: GasSummar
                 <>
                     <KeyValueInfo
                         keyText="Sponsored fee"
-                        valueText={gas}
+                        value={gas}
                         supportingLabel={symbol}
                         fullwidth
                     />
                     <KeyValueInfo
                         keyText="Sponsor"
-                        valueText={formatAddress(gasSummary.owner)}
-                        valueLink={gasOwnerLink.explorerHref}
+                        value={
+                            <ExplorerLink
+                                type={ExplorerLinkType.Address}
+                                address={gasSummary.owner}
+                            >
+                                {formatAddress(gasSummary.owner)}
+                            </ExplorerLink>
+                        }
                         fullwidth
                     />
                 </>

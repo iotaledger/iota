@@ -4,7 +4,8 @@
 
 import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
-import { createContext, useState, type ReactNode } from 'react';
+import { BadgeType, Badge } from '@iota/apps-ui-kit';
+import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
@@ -15,8 +16,8 @@ import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { useResolveIotaNSName } from '@iota/core';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { isMainAccount } from '_src/background/accounts/isMainAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -94,8 +95,9 @@ function LeftContent({
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
 }) {
-    const { data: domainName } = useResolveIotaNSName(account?.address);
-    const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+    const isMain = isMainAccount(account);
+
+    const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
         <Link
@@ -111,6 +113,7 @@ function LeftContent({
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
             <span className="text-title-sm text-neutral-10">{accountName}</span>
+            {isMain && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }

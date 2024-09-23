@@ -751,7 +751,12 @@ impl RpcExampleProvider {
             balance_changes: None,
             timestamp_ms: None,
             transaction: Some(IotaTransactionBlock {
-                data: IotaTransactionBlockData::try_from(data1, &&mut NoOpsModuleResolver).unwrap(),
+                data: IotaTransactionBlockData::try_from(
+                    data1,
+                    &&mut NoOpsModuleResolver,
+                    *tx_digest,
+                )
+                .unwrap(),
                 tx_signatures: signatures.clone(),
             }),
             raw_transaction,
