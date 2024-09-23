@@ -6,6 +6,6 @@
 mod common;
 
 #[cfg(feature = "pg_integration")]
-mod read_api;
-#[cfg(feature = "pg_integration")]
 mod extended_api;
+#[cfg(feature = "pg_integration")]
+mod read_api;

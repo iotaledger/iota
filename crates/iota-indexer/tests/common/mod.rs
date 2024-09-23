@@ -124,6 +124,12 @@ pub mod pg_integration {
         })
     }
 
+    pub fn get_default_fullnode_rpc_api_addr() -> SocketAddr {
+        format!("127.0.0.1:{}", DEFAULT_SERVER_PORT)
+            .parse()
+            .unwrap()
+    }
+
     /// Set up a test indexer fetching from a REST endpoint served by the given
     /// Simulacrum.
     pub async fn start_simulacrum_rest_api_with_write_indexer(
@@ -133,9 +139,7 @@ pub mod pg_integration {
         PgIndexerStore,
         JoinHandle<Result<(), IndexerError>>,
     ) {
-        let server_url: SocketAddr = format!("127.0.0.1:{}", DEFAULT_SERVER_PORT)
-            .parse()
-            .unwrap();
+        let server_url = get_default_fullnode_rpc_api_addr();
 
         let server_handle = tokio::spawn(async move {
             let chain_id = (*sim
@@ -167,40 +171,20 @@ pub mod pg_integration {
         JoinHandle<Result<(), IndexerError>>,
         HttpClient,
     ) {
-        let server_url: SocketAddr = format!("127.0.0.1:{}", DEFAULT_SERVER_PORT)
-            .parse()
-            .unwrap();
-    
-        let server_handle = tokio::spawn(async move {
-            let chain_id = (*sim
-                .get_checkpoint_by_sequence_number(0)
-                .unwrap()
-                .unwrap()
-                .digest())
-            .into();
-    
-            iota_rest_api::RestService::new_without_version(sim, chain_id)
-                .start_service(server_url, Some("/rest".to_owned()))
-                .await;
-        });
-        // Starts indexer
-        let (pg_store, pg_handle) = start_test_indexer(
-            Some(DEFAULT_DB_URL.to_owned()),
-            format!("http://{}", server_url),
-            ReaderWriterConfig::writer_mode(None),
-        )
-        .await;
-    
+        let server_url = get_default_fullnode_rpc_api_addr();
+        let (server_handle, pg_store, pg_handle) =
+            start_simulacrum_rest_api_with_write_indexer(sim).await;
+
         // start indexer in read mode
         start_indexer_reader(format!("http://{}", server_url));
-    
+
         // create an RPC client by using the indexer url
         let rpc_client = HttpClientBuilder::default()
             .build(format!(
                 "http://{DEFAULT_INDEXER_IP}:{DEFAULT_INDEXER_PORT}"
             ))
             .unwrap();
-    
+
         (server_handle, pg_store, pg_handle, rpc_client)
     }
 }

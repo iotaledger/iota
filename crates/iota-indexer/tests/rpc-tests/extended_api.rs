@@ -1,47 +1,31 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{str::FromStr, sync::Arc};
 
-use iota_config::node::RunWithRange;
-use iota_json::call_args;
-use iota_json::type_args;
-use iota_json_rpc_api::{ExtendedApiClient, IndexerApiClient, ReadApiClient};
-use iota_json_rpc_types::EndOfEpochInfo;
-use iota_json_rpc_types::EpochInfo;
-use iota_json_rpc_types::EpochMetrics;
-use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_json_rpc_types::MoveCallMetrics;
-use iota_json_rpc_types::Page;
+use iota_json::{call_args, type_args};
+use iota_json_rpc_api::{
+    ExtendedApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
 use iota_json_rpc_types::{
-    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
+    EndOfEpochInfo, EpochInfo, EpochMetrics, IotaObjectDataOptions, IotaObjectResponseQuery,
+    IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
-
-use iota_json_rpc_api::TransactionBuilderClient;
-use iota_json_rpc_api::WriteApiClient;
-use iota_json_rpc_types::TransactionBlockBytes;
-use iota_types::base_types::IotaAddress;
-use iota_types::gas_coin::GAS;
-use iota_types::iota_serde::BigInt;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::storage::ReadStore;
-use iota_types::IOTA_FRAMEWORK_ADDRESS;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    digests::TransactionDigest,
-    error::IotaObjectResponseError,
-};
-
-use crate::common::pg_integration::{
-    indexer_wait_for_checkpoint, rpc_call_error_msg_matches,
-    start_simulacrum_rest_api_with_read_write_indexer, start_test_cluster_with_read_write_indexer,
+    base_types::{IotaAddress, ObjectID},
+    gas_coin::GAS,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    storage::ReadStore,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 use serial_test::serial;
 use simulacrum::Simulacrum;
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::TestCluster;
+
+use crate::common::pg_integration::{
+    indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_read_write_indexer,
+    start_test_cluster_with_read_write_indexer,
+};
 
 #[tokio::test]
 #[serial]
@@ -319,8 +303,7 @@ async fn test_get_current_epoch() {
 #[tokio::test]
 #[serial]
 async fn test_get_network_metrics() {
-    let (cluster, pg_store, indexer_client) =
-        start_test_cluster_with_read_write_indexer(None).await;
+    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
     let network_metrics = indexer_client.get_network_metrics().await.unwrap();
@@ -355,8 +338,7 @@ async fn test_get_move_call_metrics() {
 #[tokio::test]
 #[serial]
 async fn test_get_latest_address_metrics() {
-    let (cluster, pg_store, indexer_client) =
-        start_test_cluster_with_read_write_indexer(None).await;
+    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
     let address_metrics = indexer_client.get_latest_address_metrics().await.unwrap();
@@ -368,8 +350,7 @@ async fn test_get_latest_address_metrics() {
 #[tokio::test]
 #[serial]
 async fn test_get_checkpoint_address_metrics() {
-    let (cluster, pg_store, indexer_client) =
-        start_test_cluster_with_read_write_indexer(None).await;
+    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
     let address_metrics = indexer_client
@@ -384,8 +365,7 @@ async fn test_get_checkpoint_address_metrics() {
 #[tokio::test]
 #[serial]
 async fn test_get_all_epoch_address_metrics() {
-    let (cluster, pg_store, indexer_client) =
-        start_test_cluster_with_read_write_indexer(None).await;
+    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
     let address_metrics = indexer_client
