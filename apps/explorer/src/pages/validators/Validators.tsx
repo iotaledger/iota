@@ -20,7 +20,7 @@ import {
     TableCard,
     TableHeader,
 } from '~/components';
-import { generateValidatorsTableData } from '~/lib/ui';
+import { generateValidatorsTableColumns } from '~/lib/ui';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -72,14 +72,14 @@ function ValidatorPageResult(): JSX.Element {
         return totalRewards;
     }, [validatorEvents]);
 
-    const validatorsTable = useMemo(() => {
+    const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
+
+    const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
-        return generateValidatorsTableData({
-            validators: [...data.activeValidators].sort(() => 0.5 - Math.random()),
+        return generateValidatorsTableColumns({
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
-            accentValidatorName: true,
         });
     }, [data, validatorEvents, validatorsApy]);
 
@@ -152,10 +152,10 @@ function ValidatorPageResult(): JSX.Element {
                                     />
                                 )}
 
-                                {isSuccess && validatorsTable?.data && (
+                                {isSuccess && tableData && tableColumns && (
                                     <TableCard
-                                        data={validatorsTable.data}
-                                        columns={validatorsTable.columns}
+                                        data={tableData}
+                                        columns={tableColumns}
                                         areHeadersCentered={false}
                                     />
                                 )}

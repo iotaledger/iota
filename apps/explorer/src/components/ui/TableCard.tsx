@@ -5,16 +5,15 @@
 import {
     Table,
     TableBody,
-    TableBodyRow,
-    TableCell,
-    type TableCellProps,
     TableHeader,
     TableHeaderCell,
-    TableHeaderRow,
+    TableRow,
+    TableActionButton,
     type TablePaginationOptions,
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
+    flexRender,
     getCoreRowModel,
     getSortedRowModel,
     type RowData,
@@ -22,8 +21,8 @@ import {
     useReactTable,
 } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { useState } from 'react';
-import { useNavigateWithQuery } from './LinkWithQuery';
+import { Fragment, useState } from 'react';
+import { Link } from './Link';
 
 export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
@@ -48,7 +47,6 @@ export function TableCard<DataType extends object>({
     totalLabel,
     viewAll,
 }: TableCardProps<DataType>): JSX.Element {
-    const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
     const table = useReactTable({
@@ -72,19 +70,18 @@ export function TableCard<DataType extends object>({
             <Table
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
-                actionLabel={viewAll ? 'View All' : undefined}
                 supportingLabel={totalLabel}
-                onActionClick={
-                    viewAll
-                        ? () => {
-                              navigate(viewAll, {});
-                          }
-                        : undefined
+                action={
+                    viewAll ? (
+                        <Link to={viewAll}>
+                            <TableActionButton text="View All" />
+                        </Link>
+                    ) : undefined
                 }
             >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
-                        <TableHeaderRow key={headerGroup.id}>
+                        <TableRow key={headerGroup.id}>
                             {headerGroup.headers.map(({ id, column }) => (
                                 <TableHeaderCell
                                     key={id}
@@ -99,16 +96,18 @@ export function TableCard<DataType extends object>({
                                     isContentCentered={areHeadersCentered}
                                 />
                             ))}
-                        </TableHeaderRow>
+                        </TableRow>
                     ))}
                 </TableHeader>
                 <TableBody>
                     {table.getRowModel().rows.map((row) => (
-                        <TableBodyRow key={row.id} rowIndex={row.index}>
+                        <TableRow key={row.id}>
                             {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
+                                <Fragment key={cell.id}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </Fragment>
                             ))}
-                        </TableBodyRow>
+                        </TableRow>
                     ))}
                 </TableBody>
             </Table>

@@ -10,18 +10,20 @@ import { useNavigate } from 'react-router-dom';
 import { useAccounts } from '_app/hooks/useAccounts';
 import { useExplorerLink } from '_app/hooks/useExplorerLink';
 import toast from 'react-hot-toast';
-import { Account, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { isMainAccount } from '_src/background/accounts/isMainAccount';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
     isLast: boolean;
+    isActive?: boolean;
 }
 
-export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
+export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItemProps) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
@@ -45,7 +47,8 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         if (newWindow) newWindow.opener = null;
     }
 
-    function handleToggleLock() {
+    function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
+        e.stopPropagation();
         if (account.isLocked) {
             unlockAccount(account);
         } else {
@@ -77,20 +80,40 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         }
     }
 
+    function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {
+        e.stopPropagation();
+        setDropdownOpen(true);
+    }
+
+    const isMain = isMainAccount(account);
+
+    const badgeConfig = isMain
+        ? {
+              type: BadgeType.PrimarySoft,
+              text: 'Main',
+          }
+        : {
+              type: undefined,
+              text: undefined,
+          };
+
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount}>
                 <Account
                     isLocked={account.isLocked}
                     isCopyable
+                    isActive={isActive}
                     copyText={account.address}
                     isExternal
                     onOpen={handleOpen}
                     avatarContent={() => <AccountAvatar account={account} />}
                     title={accountName}
+                    badgeType={badgeConfig.type}
+                    badgeText={badgeConfig.text}
                     subtitle={formatAddress(account.address)}
                     onCopy={handleCopySuccess}
-                    onOptionsClick={() => setDropdownOpen(true)}
+                    onOptionsClick={handleOptionsClick}
                     onLockAccountClick={handleToggleLock}
                     onUnlockAccountClick={handleToggleLock}
                 />

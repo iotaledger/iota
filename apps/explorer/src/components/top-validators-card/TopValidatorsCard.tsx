@@ -5,27 +5,11 @@
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
-import { useMemo } from 'react';
 
 import { Banner, Link, PlaceholderTable, TableCard } from '~/components/ui';
-import { generateValidatorsTableData, type ValidatorTableColumn } from '~/lib/ui';
+import { generateValidatorsTableColumns } from '~/lib/ui';
 
 const NUMBER_OF_VALIDATORS = 10;
-
-const VALIDATOR_COLUMNS: ValidatorTableColumn[] = [
-    {
-        header: 'Name',
-        accessorKey: 'name',
-    },
-    {
-        header: 'Address',
-        accessorKey: 'address',
-    },
-    {
-        header: 'Stake',
-        accessorKey: 'stake',
-    },
-];
 
 type TopValidatorsCardProps = {
     limit?: number;
@@ -35,23 +19,16 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
-    const tableData = useMemo(
-        () =>
-            data
-                ? generateValidatorsTableData({
-                      validators: [...data.activeValidators].sort(() => 0.5 - Math.random()),
-                      atRiskValidators: [],
-                      validatorEvents: [],
-                      rollingAverageApys: null,
-                      limit,
-                      showValidatorIcon: showIcon,
-                      columns: VALIDATOR_COLUMNS,
-                  })
-                : null,
-        [data, limit, showIcon],
-    );
+    const tableColumns = generateValidatorsTableColumns({
+        atRiskValidators: [],
+        validatorEvents: [],
+        rollingAverageApys: null,
+        limit,
+        showValidatorIcon: showIcon,
+        includeColumns: ['Name', 'Address', 'Stake'],
+    });
 
-    if (isError || (!isPending && !tableData?.data.length)) {
+    if (isError || (!isPending && !data.activeValidators.length)) {
         return (
             <Banner variant="error" fullWidth>
                 Validator data could not be loaded
@@ -69,9 +46,9 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                 />
             )}
 
-            {isSuccess && tableData && (
+            {isSuccess && (
                 <>
-                    <TableCard data={tableData.data} columns={tableData.columns} />
+                    <TableCard data={data.activeValidators} columns={tableColumns} />
                     <div className="mt-3 flex justify-between">
                         <Link to="/validators">
                             <div className="flex items-center gap-2">
