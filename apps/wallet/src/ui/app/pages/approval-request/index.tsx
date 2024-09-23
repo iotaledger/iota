@@ -15,8 +15,10 @@ import { type RootState } from '../../redux/RootReducer';
 import { txRequestsSelectors } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
+import { useFullHeightApp } from '_hooks';
 
 export function ApprovalRequestPage() {
+    useFullHeightApp();
     const { requestID } = useParams();
     const requestSelector = useMemo(
         () => (state: RootState) =>

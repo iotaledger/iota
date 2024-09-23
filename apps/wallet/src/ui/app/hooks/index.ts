@@ -16,6 +16,7 @@ export { useGetTxnRecipientAddress } from './useGetTxnRecipientAddress';
 export { useGetTransferAmount } from './useGetTransferAmount';
 export { useOwnedNFT } from './useOwnedNFT';
 export { useCopyToClipboard } from './useCopyToClipboard';
+export { default as useFullHeightApp } from './useFullHeightApp';
 
 export * from './useTransactionData';
 export * from './useActiveAddress';
