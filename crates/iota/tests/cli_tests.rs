@@ -18,38 +18,38 @@ use expect_test::expect;
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     client_commands::{
-        estimate_gas_budget, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
-        SwitchResponse,
+        IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
+        estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
-    iota_commands::{parse_host_port, IotaCommand},
-    key_identity::{get_identity_address, KeyIdentity},
+    iota_commands::{IotaCommand, parse_host_port},
+    key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
-    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
+    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    get_new_package_obj_from_response, IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    OwnedObjectRef,
+    IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, OwnedObjectRef,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{iota_client_config::IotaClientConfig, wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
 use iota_swarm_config::{
-    genesis_config::{AccountConfig, GenesisConfig},
-    network_config::{NetworkConfig, NetworkConfigLight},
+    genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
+    network_config::NetworkConfigLight,
 };
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     crypto::{
-        get_key_pair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
-        Secp256k1IotaSignature, SignatureScheme,
+        Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
+        SignatureScheme, get_key_pair,
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
@@ -60,7 +60,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     },
 };
-use move_package::{lock_file::schema::ManagedPackage, BuildConfig as MoveBuildConfig};
+use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
 use serde_json::json;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
@@ -72,23 +72,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
 
-    // TODO is this still obsolete?
-    // let config = working_dir.join(IOTA_NETWORK_CONFIG);
-
-    // // Start network without authorities
-    // let start = IotaCommand::Start {
-    //     config_dir: Some(config),
-    //     force_regenesis: false,
-    //     with_faucet: None,
-    //     fullnode_rpc_port: 9000,
-    //     epoch_duration_ms: None,
-    //     no_full_node: false,
-    //     #[cfg(feature = "indexer")]
-    //     indexer_feature_args: IndexerFeatureArgs::for_testing(),
-    // }
-    // .execute()
-    // .await;
-    // assert!(matches!(start, Err(..)));
     // Genesis
     IotaCommand::Genesis {
         working_dir: Some(working_dir.to_path_buf()),
@@ -98,6 +81,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
+        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        local_migration_snapshots: vec![],
+        remote_migration_snapshots: vec![],
     }
     .execute()
     .await?;
@@ -137,6 +123,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
+        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        local_migration_snapshots: vec![],
+        remote_migration_snapshots: vec![],
     }
     .execute()
     .await;
@@ -156,6 +145,14 @@ async fn test_start() -> Result<(), anyhow::Error> {
         IotaCommand::Start {
             config_dir: Some(working_dir.to_path_buf()),
             no_full_node: false,
+            force_regenesis: false,
+            with_faucet: None,
+            fullnode_rpc_port: 9000,
+            epoch_duration_ms: None,
+            #[cfg(feature = "indexer")]
+            indexer_feature_args: IndexerFeatureArgs::for_testing(),
+            local_migration_snapshots: vec![],
+            remote_migration_snapshots: vec![],
         }
         .execute(),
     )
@@ -3566,7 +3563,7 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     .await?;
 
     // pay iota takes the input coins and transfers from each of them (in order) the
-    // amounts to the respective receipients.
+    // amounts to the respective recipients.
     // check if each recipient has one object, if the tx status is success,
     // and if the gas object used was the first object in the input coins
     // we also check if the balances of each recipient are right!
