@@ -299,7 +299,7 @@ async fn test_get_current_epoch() {
     ));
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
 async fn test_get_network_metrics() {
@@ -334,7 +334,7 @@ async fn test_get_move_call_metrics() {
     assert_eq!(move_call_metrics.rank_30_days.len(), 0);
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
 async fn test_get_latest_address_metrics() {
@@ -346,7 +346,7 @@ async fn test_get_latest_address_metrics() {
     println!("{:#?}", address_metrics);
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
 async fn test_get_checkpoint_address_metrics() {
@@ -361,7 +361,7 @@ async fn test_get_checkpoint_address_metrics() {
     println!("{:#?}", address_metrics);
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
 async fn test_get_all_epoch_address_metrics() {
