@@ -148,7 +148,7 @@ depend against).
 
 An <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></code> can only issue one ticket at a time, to prevent races
 between concurrent updates or a change in its upgrade policy after
-isiotang a ticket, so the ticket is a "Hot Potato" to preserve forward
+issuing a ticket, so the ticket is a "Hot Potato" to preserve forward
 progress.
 
 

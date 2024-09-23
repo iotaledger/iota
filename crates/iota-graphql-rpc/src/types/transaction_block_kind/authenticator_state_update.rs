@@ -99,7 +99,7 @@ impl AuthenticatorStateUpdateTransaction {
 
 #[Object]
 impl ActiveJwk {
-    /// The string (Isiotang Authority) that identifies the OIDC provider.
+    /// The string (Issuing Authority) that identifies the OIDC provider.
     async fn iss(&self) -> &str {
         &self.native.jwk_id.iss
     }

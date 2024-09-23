@@ -111,7 +111,7 @@ export type ActiveJwk = {
   e: Scalars['String']['output'];
   /** The most recent epoch in which the JWK was validated. */
   epoch?: Maybe<Epoch>;
-  /** The string (Isiotang Authority) that identifies the OIDC provider. */
+  /** The string (Issuing Authority) that identifies the OIDC provider. */
   iss: Scalars['String']['output'];
   /**
    * The string (Key ID) that identifies the JWK among a set of JWKs, (RFC

@@ -38,7 +38,7 @@ and <code>borrow_val</code> functions.
 
 - <code>locked</code> - Similar to <code>placed</code> except that <code>take</code> is disabled and the only
 way to move the asset out of the Kiosk is to <code>list</code> it or
-<code>list_with_purchase_cap</code> therefore performing a trade (isiotang a
+<code>list_with_purchase_cap</code> therefore performing a trade (issuing a
 <code>TransferRequest</code>). The check on the <code>lock</code> function makes sure that the
 <code>TransferPolicy</code> exists to not lock the item in a <code><a href="kiosk.md#0x2_kiosk_Kiosk">Kiosk</a></code> forever.
 

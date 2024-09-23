@@ -104,7 +104,7 @@ module iota::package {
     ///
     /// An `UpgradeCap` can only issue one ticket at a time, to prevent races
     /// between concurrent updates or a change in its upgrade policy after
-    /// isiotang a ticket, so the ticket is a "Hot Potato" to preserve forward
+    /// issuing a ticket, so the ticket is a "Hot Potato" to preserve forward
     /// progress.
     public struct UpgradeTicket {
         /// (Immutable) ID of the `UpgradeCap` this originated from.

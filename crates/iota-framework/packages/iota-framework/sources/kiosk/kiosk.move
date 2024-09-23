@@ -30,7 +30,7 @@
 ///
 /// - `locked` - Similar to `placed` except that `take` is disabled and the only
 /// way to move the asset out of the Kiosk is to `list` it or
-/// `list_with_purchase_cap` therefore performing a trade (isiotang a
+/// `list_with_purchase_cap` therefore performing a trade (issuing a
 /// `TransferRequest`). The check on the `lock` function makes sure that the
 /// `TransferPolicy` exists to not lock the item in a `Kiosk` forever.
 ///
