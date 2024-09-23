@@ -5,12 +5,20 @@
 import { useMemo } from 'react';
 
 import { TableCard } from './TableCard';
-import { TableCellType } from '@iota/apps-ui-kit';
+import { TableCellBase, TableCellPlaceholder } from '@iota/apps-ui-kit';
 
 export interface PlaceholderTableProps {
     rowCount: number;
     rowHeight: string;
     colHeadings: string[];
+}
+
+function PlaceholderCell() {
+    return (
+        <TableCellBase>
+            <TableCellPlaceholder />
+        </TableCellBase>
+    );
 }
 
 export function PlaceholderTable({
@@ -19,24 +27,16 @@ export function PlaceholderTable({
     colHeadings,
 }: PlaceholderTableProps): JSX.Element {
     const rowEntry = useMemo(
-        () =>
-            Object.fromEntries(
-                colHeadings.map((header, index) => [
-                    `a${index}`,
-                    {
-                        type: TableCellType.Placeholder,
-                    },
-                ]),
-            ),
+        () => Object.fromEntries(colHeadings.map((index) => [`a${index}`, null])),
         [colHeadings, rowHeight],
     );
 
     const loadingTable = useMemo(
         () => ({
             data: new Array(rowCount).fill(rowEntry),
-            columns: colHeadings.map((header, index) => ({
-                header: header,
-                accessorKey: `a${index}`,
+            columns: colHeadings.map((header) => ({
+                header,
+                cell: PlaceholderCell,
             })),
         }),
         [rowCount, rowEntry, colHeadings],
