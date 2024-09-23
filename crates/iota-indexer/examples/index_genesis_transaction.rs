@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use clap::Parser;
+use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
 use iota_genesis_builder::{Builder as GenesisBuilder, SnapshotSource, SnapshotUrl};
 use iota_indexer::{
     db::{self, reset_database},
@@ -16,10 +17,24 @@ use iota_indexer::{
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
+#[derive(Parser, Debug)]
+#[clap(about = "Example that indexes the genesis transaction into the database")]
+struct Args {
+    /// Remotely stored migration snapshots.
+    #[clap(
+        long,
+        name = "iota|smr|<full-url>",
+        help = "Remote migration snapshots.",
+        default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+    )]
+    #[arg(num_args(0..))]
+    migration_snapshots: Vec<SnapshotUrl>,
+}
+
 const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 
 // Build genesis with `Iota` stardust snapshot
-fn genesis_builder() -> GenesisBuilder {
+fn genesis_builder(migration_sources: Vec<SnapshotSource>) -> GenesisBuilder {
     // Create the builder
     let mut builder = GenesisBuilder::new();
 
@@ -36,9 +51,9 @@ fn genesis_builder() -> GenesisBuilder {
         builder = builder.add_validator(validator_info.info, validator_info.proof_of_possession);
     }
 
-    builder = builder
-        .add_migration_source(SnapshotSource::S3(SnapshotUrl::Iota))
-        .add_migration_source(SnapshotSource::S3(SnapshotUrl::Shimmer));
+    for migration_source in migration_sources {
+        builder = builder.add_migration_source(migration_source);
+    }
 
     for key in &key_pairs {
         builder = builder.add_validator_signature(key);
@@ -52,10 +67,17 @@ pub async fn main() -> Result<(), IndexerError> {
         .with_env()
         .init();
 
+    let args = Args::parse();
+    let migration_sources = args
+        .migration_snapshots
+        .into_iter()
+        .map(SnapshotSource::S3)
+        .collect();
+
     // Create genesis transaction
     let (tx_digest, sender_signed_data, effects, summary) = {
         tokio::task::spawn_blocking(|| {
-            let mut builder = genesis_builder();
+            let mut builder = genesis_builder(migration_sources);
             let genesis = builder.get_or_build_unsigned_genesis();
             tracing::info!("genesis built");
             let summary = genesis.checkpoint.clone();
@@ -85,11 +107,11 @@ pub async fn main() -> Result<(), IndexerError> {
     let expected_transactions = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
     let expected_effects = bcs::to_bytes(&db_txn.effects).unwrap();
 
-    let pg_store = create_pg_store(DEFAULT_DB_URL.to_string().into(), None);
+    let pg_store = create_pg_store::<PgConnection>(DEFAULT_DB_URL.to_string().into(), true);
     reset_database(&mut pg_store.blocking_cp().get().unwrap()).unwrap();
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
-    let mut conn = db::get_pg_pool_connection(&pg_store.blocking_cp())?;
+    let mut conn = db::get_pool_connection(&pg_store.blocking_cp())?;
     let stored = transactions::table
         .filter(transactions::transaction_digest.eq(digest_to_bytes))
         .first::<StoredTransaction>(&mut conn)
@@ -99,7 +121,7 @@ pub async fn main() -> Result<(), IndexerError> {
         .set_genesis_large_object_as_inner_data(&pg_store.blocking_cp())
         .unwrap();
 
-    let reader = IndexerReader::new(DEFAULT_DB_URL.to_owned())?;
+    let reader = IndexerReader::<PgConnection>::new(DEFAULT_DB_URL.to_owned())?;
     // We just want to verify that the call succeeds.
     let _coin_metadata = reader
         .get_coin_metadata_in_blocking_task("0x2::iota::IOTA".parse().unwrap())
