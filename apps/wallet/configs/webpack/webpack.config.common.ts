@@ -200,7 +200,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                                 description: packageJson.description,
                                 ...(IS_DEV
                                     ? {
-                                          key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HTQu/66edl64fM/SKDnHJmCz9SIYqM/QK7NM3vD1LTE2UNXzHX5Clj8geuoWAYS6HE/aFcd//qPnAh8TnPgqTS3IX+IbZsY/+kcokxIEWHly3eKEHWB32tQsGdJx6tgDzx8TRkFZEcCCdE4pFqQO68W3I/+8AQPosdd5fsIoF6OGKZ/i29mpGkYJSmMroCN5zYCQqvpjTBIkiTkI9TTjxmBid77pHyG4TsHz0wda4KxHV9ZtzZQXB4vexTku/Isczdtif7pDqFEDCAqEkpiGPyKoIuqrxc75IfpzIGFsIylycBr0fZellSsl2M6FM34R99/vUrGj5iWcjNmhYvZ8QIDAQAB',
+                                          key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1uOw+go7YTI8xNuHzIQC7J7x6Jw0in2UPptgcR1c+7aA3XSb03TVZkMXSMslCB7KTpaJOOQK1urLN3/FFos55f3vXixsjHT3pVbX/FhUmBK0kLOx8kl5Ns9ywVgBJyCSEnMrR1IlbiiU8GoXH1Bzb4SxkDELSQIZRetd+zTnwsUx/74grPT4EmgVglHBBYO75iJMsiJ/F0zMEsEQ+0SDfmU0v5Qh8slzryZr+8p8Q/mpNADzwS51o74feeGC5nAM5IgX0LyjRzCLXsiEmdC57KOaCpI7yhzDjXpye374oTdZJulv/tVeA1ymLIKQM5rfyeoqnxSOMsgGsvoM60WoYQIDAQAB',
                                       }
                                     : undefined),
                             };
