@@ -153,25 +153,25 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                     <div className="flex flex-col gap-y-sm p-md">
                         <KeyValueInfo
                             keyText="Your Stake"
-                            valueText={totalStakeFormatted}
+                            value={totalStakeFormatted}
                             supportingLabel={totalStakeSymbol}
                             fullwidth
                         />
                         <KeyValueInfo
                             keyText="Earned"
-                            valueText={iotaEarnedFormatted}
+                            value={iotaEarnedFormatted}
                             supportingLabel={iotaEarnedSymbol}
                             fullwidth
                         />
                         <Divider />
                         <KeyValueInfo
                             keyText="APY"
-                            valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                            value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                             fullwidth
                         />
                         <KeyValueInfo
                             keyText="Commission"
-                            valueText={`${commission.toString()}%`}
+                            value={`${commission.toString()}%`}
                             fullwidth
                         />
                     </div>
