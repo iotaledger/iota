@@ -62,7 +62,7 @@ export function ListView({ data, loading }: ListViewProps): JSX.Element {
     }, [data]);
 
     return (
-        <div className="flex flex-col overflow-auto">
+        <div className="h-full w-full [&_div:not(table_div)]:h-full">
             {tableColumns && data && <TableCard data={data ?? []} columns={tableColumns} />}
             {loading &&
                 new Array(10).fill(0).map((_, index) => <ListViewItemPlaceholder key={index} />)}

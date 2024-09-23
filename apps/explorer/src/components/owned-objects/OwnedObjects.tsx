@@ -227,7 +227,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             </div>
                         )}
                     </div>
-                    <div className="p-md">
+                    <div className="flex-2 flex w-full flex-col overflow-hidden p-md">
                         {noAssets && (
                             <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
                                 <Text variant="body/medium" color="steel-dark">
@@ -253,35 +253,35 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                 limit={limit}
                             />
                         )}
-                        {showPagination && (
-                            <div className="mt-auto flex flex-row flex-wrap gap-2">
-                                <Pagination {...pagination} />
-                                <div className="ml-auto flex items-center">
-                                    {!isPending && (
-                                        <Text variant="body/medium" color="steel">
-                                            Showing {start} - {end}
-                                        </Text>
-                                    )}
-                                </div>
-                                <div className="hidden sm:block">
-                                    <select
-                                        className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                        value={limit}
-                                        onChange={(e) => {
-                                            setLimit(Number(e.target.value));
-                                            pagination.onFirst();
-                                        }}
-                                    >
-                                        {PAGE_SIZES.map((size) => (
-                                            <option key={size} value={size}>
-                                                {size} Per Page
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
                     </div>
+                    {showPagination && (
+                        <div className="flex flex-1 flex-row flex-wrap gap-2 p-md pt-none">
+                            <Pagination {...pagination} />
+                            <div className="ml-auto flex items-center">
+                                {!isPending && (
+                                    <Text variant="body/medium" color="steel">
+                                        Showing {start} - {end}
+                                    </Text>
+                                )}
+                            </div>
+                            <div className="hidden sm:block">
+                                <select
+                                    className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
+                                    value={limit}
+                                    onChange={(e) => {
+                                        setLimit(Number(e.target.value));
+                                        pagination.onFirst();
+                                    }}
+                                >
+                                    {PAGE_SIZES.map((size) => (
+                                        <option key={size} value={size}>
+                                            {size} Per Page
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

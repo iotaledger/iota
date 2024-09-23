@@ -26,7 +26,7 @@ function Asset({ object }: { object: IotaObjectResponse }) {
                 video={video}
                 variant="xxs"
             />
-            <div className="text-label-lg">{name ? name : '--'}</div>
+            <div className="whitespace-nowrap text-label-lg">{name ? name : '--'}</div>
         </div>
     );
 }
@@ -74,10 +74,15 @@ export function generateObjectListColumns(): ColumnDef<IotaObjectResponse>[] {
                 const address = formatAddress(objectId!);
                 if (!objectId) return null;
                 return (
-                    <TableCellBase>
-                        <ObjectLink objectId={objectId} label={address}>
-                            <TableCellText>{address}</TableCellText>
-                        </ObjectLink>
+                    <TableCellBase noWrap>
+                        <ObjectLink
+                            objectId={objectId}
+                            label={
+                                <TableCellText>
+                                    <div className="whitespace-nowrap">{address}</div>
+                                </TableCellText>
+                            }
+                        />
                     </TableCellBase>
                 );
             },
