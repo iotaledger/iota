@@ -31,6 +31,12 @@ In `.toml` files, use the hash mark (`#`) to denote a comment.
 ```toml file=<rootDir>/examples/move/first_package/Move.toml
 ```
 
+:::tip Using a local version of IOTA
+
+For local testnet development and testing it is recommended to use the local dependency of the `Iota` framework for faster and more reliable builds. See the commented line in the example above as an example pointing towards your local checkout of the `iota` repository.
+
+:::
+
 ### Package
 
 The `[package]` section describes the package. By default, the `iota move new` command populates only the `name` value
@@ -48,7 +54,7 @@ repository URL or a path to the local directory.
 ```toml file=<rootDir>/examples/move/first_package/Move.toml#L10-L15
 ```
 
-Packages also import addresses from other packages. For example, the IOTA dependency adds the `std` and `iota` addresses
+Packages also import addresses from other packages. For example, the `Iota` dependency adds the `std` and `iota` addresses
 to the project. These addresses can be used in the code as aliases for the addresses.
 
 ### Resolving Version Conflicts with `override`

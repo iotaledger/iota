@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import clsx from 'clsx';
 import { type ReactNode } from 'react';
-
 import {
     CollapsibleCard,
     ExpandableList,
@@ -37,14 +35,9 @@ export function ProgrammableTxnBlockCard({
     const itemsToShow = defaultItemsToShow || items.length;
 
     return (
-        <CollapsibleCard growOnHover collapsible initialClose={initialClose} title={cardTitle}>
+        <CollapsibleCard collapsible initialClose={initialClose} title={cardTitle}>
             <ExpandableList items={items} defaultItemsToShow={itemsToShow} itemsLabel={itemsLabel}>
-                <div
-                    className={clsx(
-                        'flex flex-col gap-6 overflow-y-auto',
-                        !noExpandableList && 'max-h-[300px]',
-                    )}
-                >
+                <div className="flex flex-col gap-6 overflow-y-auto">
                     {noExpandableList ? <>{items}</> : <ExpandableListItems />}
                 </div>
 

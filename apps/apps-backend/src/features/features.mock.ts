@@ -106,7 +106,7 @@ const walletDapps = [
     },
 ];
 
-export const developmentFeatures = {
+export const featuresMock = {
     'mainnet-selection': {
         defaultValue: true,
     },
@@ -433,5 +433,8 @@ export const developmentFeatures = {
                 force: true,
             },
         ],
+    },
+    'account-finder': {
+        defaultValue: false,
     },
 };

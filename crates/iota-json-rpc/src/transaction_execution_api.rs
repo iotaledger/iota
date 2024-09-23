@@ -112,9 +112,11 @@ impl TransactionExecutionApi {
         };
         let transaction = if opts.show_input {
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
             Some(IotaTransactionBlock::try_from(
                 txn.data().clone(),
                 epoch_store.module_cache(),
+                *txn.digest(),
             )?)
         } else {
             None

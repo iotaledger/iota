@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ExplorerLinkType } from '_components';
+import { ExplorerLink, ExplorerLinkType } from '_components';
 import {
     getObjectChangeLabel,
     type ObjectChangesByOwner,
@@ -11,7 +11,6 @@ import {
 } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
-
 import { ExpandableList } from '../../ExpandableList';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
 import { Collapsible } from '../../collapse';
@@ -24,10 +23,7 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
 import { useState } from 'react';
-import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
-import { Link } from 'react-router-dom';
 import { TriangleDown } from '@iota/ui-icons';
 
 interface ObjectDetailProps {
@@ -40,23 +36,9 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
+
     const [open, setOpen] = useState(false);
-
-    const objectLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: change.objectId || '',
-    });
-
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
-    const packageIdLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: packageId || '',
-    });
-    const moduleLink = useExplorerLink({
-        type: ExplorerLinkType.Object,
-        objectID: packageId || '',
-        moduleName,
-    });
 
     return (
         <Collapsible
@@ -81,14 +63,20 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                     />
                     <div className="flex flex-row items-center gap-xxs pr-md">
                         <Badge type={BadgeType.PrimarySoft} label={typeName} />
-                        <Link
-                            to={objectLink || ''}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-body-md text-primary-30 dark:text-primary-80"
-                        >
-                            {formatAddress(change.objectId)}
-                        </Link>
+                        {change.objectId && (
+                            <KeyValueInfo
+                                keyText="Package"
+                                value={
+                                    <ExplorerLink
+                                        type={ExplorerLinkType.Object}
+                                        objectID={change.objectId}
+                                    >
+                                        {formatAddress(packageId)}
+                                    </ExplorerLink>
+                                }
+                                fullwidth
+                            />
+                        )}
                     </div>
                 </div>
             )}
@@ -96,20 +84,42 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
             <div className="flex flex-col gap-y-sm px-md">
                 <KeyValueInfo
                     keyText="Package"
-                    valueText={formatAddress(packageId)}
-                    valueLink={packageIdLink || ''}
+                    value={
+                        <ExplorerLink
+                            objectID={packageId}
+                            type={ExplorerLinkType.Object}
+                            moduleName={moduleName}
+                        >
+                            {formatAddress(packageId)}
+                        </ExplorerLink>
+                    }
                     fullwidth
                 />
+
                 <KeyValueInfo
                     keyText="Module"
-                    valueText={moduleName}
-                    valueLink={moduleLink || ''}
+                    value={
+                        <ExplorerLink
+                            objectID={packageId}
+                            type={ExplorerLinkType.Object}
+                            moduleName={moduleName}
+                        >
+                            {moduleName}
+                        </ExplorerLink>
+                    }
                     fullwidth
                 />
                 <KeyValueInfo
                     keyText="Type"
-                    valueText={typeName}
-                    valueLink={moduleLink || ''}
+                    value={
+                        <ExplorerLink
+                            objectID={packageId}
+                            type={ExplorerLinkType.Object}
+                            moduleName={moduleName}
+                        >
+                            {typeName}
+                        </ExplorerLink>
+                    }
                     fullwidth
                 />
             </div>
@@ -123,12 +133,12 @@ interface ObjectChangeEntryProps {
 }
 
 export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
+    const [open, setOpen] = useState(new Set());
     return (
         <>
             {Object.entries(changes).map(([owner, changes]) => {
-                const ownerAddress = useAddressLink(owner);
                 const label = getObjectChangeLabel(type);
-                const [open, setOpen] = useState(true);
+                const isOpen = open.has(owner);
 
                 return (
                     <Panel key={`${type}-${owner}`} hasBorder>
@@ -136,7 +146,16 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                             <Collapsible
                                 hideBorder
                                 defaultOpen
-                                onOpenChange={(isOpen) => setOpen(isOpen)}
+                                onOpenChange={(isOpen) => {
+                                    setOpen((set) => {
+                                        if (isOpen) {
+                                            set.add(owner);
+                                        } else {
+                                            set.delete(owner);
+                                        }
+                                        return new Set(set);
+                                    });
+                                }}
                                 render={() => (
                                     <Title
                                         size={TitleSize.Small}
@@ -155,7 +174,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                             <ExpandableList
                                                 defaultItemsToShow={5}
                                                 items={
-                                                    open
+                                                    isOpen
                                                         ? changes.changesWithDisplay.map(
                                                               (change) => (
                                                                   <ObjectChangeDisplay
@@ -190,8 +209,14 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                 <Divider />
                                 <KeyValueInfo
                                     keyText="Owner"
-                                    valueText={ownerAddress.address}
-                                    valueLink={ownerAddress.explorerHref}
+                                    value={
+                                        <ExplorerLink
+                                            type={ExplorerLinkType.Address}
+                                            address={owner}
+                                        >
+                                            {formatAddress(owner)}
+                                        </ExplorerLink>
+                                    }
                                     fullwidth
                                 />
                             </div>
