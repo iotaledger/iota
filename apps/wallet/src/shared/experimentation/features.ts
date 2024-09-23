@@ -60,7 +60,7 @@ export function setAttributes(network?: { network: Network; customRpc?: string |
     growthbook.setAttributes({
         network: activeNetwork,
         version: Browser.runtime.getManifest().version,
-        beta: process.env.WALLET_BETA || false,
+        beta: process.env.WALLET_RC || false,
     });
 }
 
