@@ -63,6 +63,8 @@ pub struct IotaInitArgs {
     pub resolve_abort_locations_to_package_id: Option<bool>,
     #[clap(long = "reshare-at-same-initial-version")]
     pub reshare_at_same_initial_version: Option<bool>,
+    #[clap(long = "move-binary-format-version")]
+    pub move_binary_format_version: Option<u32>,
     #[clap(long = "simulator")]
     pub simulator: bool,
     #[clap(long = "custom-validator-account")]

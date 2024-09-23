@@ -2228,11 +2228,11 @@ impl ProtocolConfig {
         self.feature_flags.shared_object_deletion = val;
     }
 
-    pub fn set_resolve_abort_locations_to_package_id(&mut self, val: bool) {
+    pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
         self.feature_flags.resolve_abort_locations_to_package_id = val;
     }
 
-    pub fn set_reshare_at_same_initial_version(&mut self, val: bool) {
+    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
         self.feature_flags.reshare_at_same_initial_version = val;
     }
 
