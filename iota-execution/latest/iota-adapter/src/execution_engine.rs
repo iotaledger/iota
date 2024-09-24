@@ -565,7 +565,7 @@ mod checked {
     }
 
     /// Executes the given transaction based on its `TransactionKind` by
-    /// processing it through various handlers such as epoch changes,
+    /// processing it through corresponding handlers such as epoch changes,
     /// genesis transactions, consensus commit prologues, and programmable
     /// transactions. For each type of transaction, the corresponding logic is
     /// invoked, such as advancing the epoch, setting up consensus commits, or
