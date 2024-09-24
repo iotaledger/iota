@@ -1224,7 +1224,8 @@ mod checked {
         )
     }
 
-    /// Configures a `ProgrammableTransactionBuilder` to create a coin deny list
+    /// Adds to a `ProgrammableTransactionBuilder` a call to the Iota
+    /// framework `deny_list_create` function.
     /// state by invoking the `deny_list_create` function from the Iota
     /// framework. This function adds the necessary Move call and prepares
     /// the transaction for execution.
