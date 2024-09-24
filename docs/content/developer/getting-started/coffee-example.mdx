@@ -11,7 +11,7 @@ Welcome to this beginner-friendly tutorial on [Move](https://move-language.githu
 1. [**Importing modules**](https://moved.network/docs/move-basics/importing-modules): We imported essential Move packages for transactions, tokens, and balances.
 2. [**Defining constants**](https://move-language.github.io/move/constants.html): Used to represent error codes and set a price for coffee.
 3. **Creating [structs](https://move-language.github.io/move/structs-and-resources.html) with [abilities](https://move-language.github.io/move/abilities.html)**: Defined the `COFFEE` and `CoffeeShop` structs to represent tokens and shop data.
-4. [**Initialization with OTW**](../move-overview/one-time-witness.mdx): Set up the shop with its treasury cap for minting tokens.
+4. [**Initialization with OTW**](../iota-101/move-overview/one-time-witness.mdx): Set up the shop with its treasury cap for minting tokens.
 5. [**Control flow with assertions**](https://move-language.github.io/move/loops.html): Ensured correct amounts and balances in transactions.
 6. **Transferring and burning tokens**: Demonstrated how tokens are moved between users and how they can be consumed (burned).
 
@@ -19,17 +19,17 @@ Welcome to this beginner-friendly tutorial on [Move](https://move-language.githu
 
 - Basic understanding of blockchain concepts like [tokens](https://docs.openzeppelin.com/contracts/2.x/tokens#:~:text=A%20token%20is%20a%20representation,them%2C%20create%20or%20destroy%20them.) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
 - Basic understanding of the [Move](https://move-language.github.io/move/)
-- [Install Iota CLI](../../getting-started/iota-install.mdx)
+- [Install Iota CLI](iota-install.mdx)
 
 ## 1. Create an IOTA Move Package
 
-Use the following command to create a standard IOTA Move [package](../../getting-started/create-a-package.mdx) called `coffee_shop`:
+Use the following command to create a standard IOTA Move [package](create-a-package.mdx) called `coffee_shop`:
 
 ``` bash
 iota move new coffee_shop
 ```
 
-The command will create and populate the `coffee_shop` directory with a skeleton for an IOTA Move project. To add a [module](../../getting-started/create-a-module.mdx), create a `.move` file in the sources directory, and call it `coffee.move`. In `coffee.move`, paste the following codes to the `coffee` module:
+The command will create and populate the `coffee_shop` directory with a skeleton for an IOTA Move project. To add a [module](create-a-module.mdx), create a `.move` file in the sources directory, and call it `coffee.move`. In `coffee.move`, paste the following codes to the `coffee` module:
 
 ## 2. Importing Modules from the IOTA Package
 
@@ -47,11 +47,11 @@ The first step in our program is importing necessary modules from the IOTA packa
 ```
 </details>
 
-- [`iota::tx_context::sender`](../../../references/framework/iota-framework/tx_context.mdx): Manages the transaction context.
-- [`iota::coin`](../../../references/framework/iota-framework/coin.mdx): Handles the creation and management of coins.
-- [`iota::balance`](../../../references/framework/iota-framework/balance.mdx): Manages the balance of the shop.
-- [`iota::token`](../../../references/framework/iota-framework/token.mdx): Manages the minting, transfer, and burning of tokens.
-- [`iota::iota::IOTA`](../../../references/framework/iota-framework/iota.mdx): The IOTA cryptocurrency module.
+- [`iota::tx_context::sender`](../../references/framework/iota-framework/tx_context.mdx): Manages the transaction context.
+- [`iota::coin`](../../references/framework/iota-framework/coin.mdx): Handles the creation and management of coins.
+- [`iota::balance`](../../references/framework/iota-framework/balance.mdx): Manages the balance of the shop.
+- [`iota::token`](../../references/framework/iota-framework/token.mdx): Manages the minting, transfer, and burning of tokens.
+- [`iota::iota::IOTA`](../../references/framework/iota-framework/iota.mdx): The IOTA cryptocurrency module.
 
 ## 3. Defining Constants
 
@@ -101,10 +101,10 @@ public struct CoffeeShop has key {
 
 ## 5. Initialization with OneTimeWitness (OTW)
 
-In Move, the [init](../move-overview/init.mdx) function plays a critical role during the module's lifecycle, executing only once at the moment of module publication.
+In Move, the [init](../iota-101/move-overview/init.mdx) function plays a critical role during the module's lifecycle, executing only once at the moment of module publication.
 The init function initializes the CoffeeShop by creating the COFFEE token and defining the shop’s treasury cap and balance.
 
-A [One-Time Witness (OTW)](../move-overview/one-time-witness.mdx) is a unique type in Move, specifically designed to ensure that certain actions within a module can only occur once, providing security for the system's setup.
+A [One-Time Witness (OTW)](../iota-101/move-overview/one-time-witness.mdx) is a unique type in Move, specifically designed to ensure that certain actions within a module can only occur once, providing security for the system's setup.
 
 ### Function Arguments
 
@@ -210,7 +210,7 @@ This function ensures the customer has exactly 4 points, spends them, and emits 
 
 ## 9. Transferring Tokens
 
-The `transfer` function enables customers to [transfer](../../../references/framework/iota-framework/transfer.mdx) their `COFFEE` tokens to others, but with a 1-point fee deducted as commission. This demonstrates how Move can enforce rules and fees during token transfers, ensuring a fair system of exchange.
+The `transfer` function enables customers to [transfer](../../references/framework/iota-framework/transfer.mdx) their `COFFEE` tokens to others, but with a 1-point fee deducted as commission. This demonstrates how Move can enforce rules and fees during token transfers, ensuring a fair system of exchange.
 
 ### Function Arguments
 
@@ -354,13 +354,13 @@ module coffee_shop::coffee {
 
 ## 10. Building your Package
 
-You can use the `iota move build` command to [build](../../getting-started/build-test.mdx) Move packages in the working directory, `coffee_shop` in this case.
+You can use the `iota move build` command to [build](build-test.mdx) Move packages in the working directory, `coffee_shop` in this case.
 
 ```bash
 iota move build
 ```
 
-## 11. Publish the `example` package by running the following command:
+## 11. Publish the `coffee_shop` package by running the following command:
 
 ```bash
 iota client publish --gas-budget 100000000
