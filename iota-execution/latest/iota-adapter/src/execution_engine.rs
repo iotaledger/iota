@@ -270,7 +270,13 @@ mod checked {
     /// handles specific checks for denied certificates and deleted input
     /// objects, and performs conservation checks. It also accounts for
     /// unmetered storage rebates and adjusts for special cases like epoch
-    /// change transactions.
+    /// Executes a transaction by processing the specified `TransactionKind`,
+    /// applying the necessary gas charges and running the main execution logic.
+    /// The function handles certain error conditions such as denied certificate,
+    /// deleted input objects, exceeded execution meter limits, failed conservation
+    /// checks. It also accounts for unmetered storage rebates and adjusts for
+    /// special cases like epoch change transactions. Gas costs are managed
+    /// through the `GasCharger` argument; gas is also charged in case of errors.
     #[instrument(name = "tx_execute", level = "debug", skip_all)]
     fn execute_transaction<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
