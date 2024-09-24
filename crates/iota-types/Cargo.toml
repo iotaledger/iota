@@ -24,7 +24,11 @@ eyre.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
-iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
+iota-stardust-sdk = { version = "1.1", default-features = false, features = [
+  "irc_27",
+  "irc_30",
+  "std",
+], package = "iota-sdk" }
 itertools.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
@@ -77,7 +81,6 @@ passkey-types.workspace = true
 better_any.workspace = true
 derive_more.workspace = true
 lru.workspace = true
-proptest.workspace = true
 proptest-derive = { workspace = true, optional = true }
 typed-store-error.workspace = true
 
