@@ -444,8 +444,7 @@ impl TransactionBlock {
         // the nested queries.
         for mut stored in results {
             if stored.is_genesis() {
-                let mut conn = db.inner.get_pool();
-                stored = stored.set_genesis_large_object_as_inner_data(&mut conn)?;
+                stored = stored.set_genesis_large_object_as_inner_data(db.inner.get_pool())?;
             }
 
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
