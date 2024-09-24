@@ -19,7 +19,6 @@ iota-archival.workspace = true
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-storage.workspace = true
-iota-swarm-config.workspace = true
 iota-types.workspace = true
 
 anyhow.workspace = true
@@ -47,3 +46,4 @@ iota-macros.workspace = true
 telemetry-subscribers.workspace = true
 tempfile = "3.3.0"
 tokio = { workspace = true, features = ["test-util"] }
+iota-swarm-config.workspace = true

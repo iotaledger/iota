@@ -22,13 +22,11 @@ bin-version.workspace = true
 bip32.workspace = true
 camino.workspace = true
 clap.workspace = true
-datatest-stable.workspace = true
-diesel.workspace = true
+diesel = { workspace = true, optional = true }
 futures.workspace = true
 http.workspace = true
 im.workspace = true
 inquire.workspace = true
-insta.workspace = true
 json_to_table.workspace = true
 miette.workspace = true
 num-bigint.workspace = true
@@ -36,14 +34,11 @@ prometheus.workspace = true
 rand.workspace = true
 regex.workspace = true
 reqwest.workspace = true
-rusoto_core.workspace = true
-rusoto_kms.workspace = true
 rustyline = "14.0"
 rustyline-derive = "0.10"
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-shlex.workspace = true
 signature.workspace = true
 tabled.workspace = true
 tap.workspace = true
@@ -56,7 +51,6 @@ url.workspace = true
 uuid.workspace = true
 
 iota-bridge.workspace = true
-iota-cluster-test.workspace = true
 iota-config.workspace = true
 iota-execution = { path = "../../iota-execution" }
 iota-faucet.workspace = true
@@ -79,7 +73,6 @@ iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 shared-crypto.workspace = true
-test-cluster.workspace = true
 
 fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
@@ -109,6 +102,8 @@ expect-test.workspace = true
 fs_extra.workspace = true
 prometheus.workspace = true
 toml.workspace = true
+insta.workspace = true
+shlex.workspace = true
 
 iota-macros.workspace = true
 iota-simulator.workspace = true
@@ -130,4 +125,4 @@ harness = false
 
 [features]
 gas-profiler = ["iota-types/gas-profiler", "iota-execution/gas-profiler"]
-indexer = ["dep:iota-indexer", "dep:iota-graphql-rpc"]
+indexer = ["dep:diesel", "dep:iota-indexer", "dep:iota-graphql-rpc"]

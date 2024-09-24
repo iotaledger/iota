@@ -41,7 +41,6 @@ tracing.workspace = true
 # to not have to pull in the entire iota repo for it.
 
 [dev-dependencies]
-async-recursion.workspace = true
 dirs.workspace = true
 iota-move-build.workspace = true
 rand.workspace = true

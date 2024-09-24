@@ -33,11 +33,9 @@ anyhow.workspace = true
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 fastcrypto.workspace = true
-iota-protocol-config.workspace = true
 once_cell.workspace = true
 
 iota-common.workspace = true
-iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-util-mem.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }
@@ -46,6 +44,7 @@ store = { path = "../../crates/typed-store", package = "typed-store" }
 criterion.workspace = true
 serde_test.workspace = true
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
+iota-metrics.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true
