@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { KeyValueInfo } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
 import { ProgrammableTxnBlockCard } from '~/components';
 import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
+import { useBreakpoint } from '~/hooks';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -14,6 +15,7 @@ interface InputsCardProps {
 }
 
 export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
+    const isMediumOrAbove = useBreakpoint('md');
     if (!inputs?.length) {
         return null;
     }
@@ -47,17 +49,12 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     }
 
                     return (
-                        <div key={key} className="flex items-start justify-between">
-                            <Text variant="pBody/medium" color="steel-dark">
-                                {key}
-                            </Text>
-
-                            <div className="max-w-[66%] break-all text-right">
-                                <Text variant="pBody/medium" color="steel-darker">
-                                    {renderValue}
-                                </Text>
-                            </div>
-                        </div>
+                        <KeyValueInfo
+                            key={key}
+                            keyText={key}
+                            value={renderValue}
+                            fullwidth={!isMediumOrAbove}
+                        />
                     );
                 })}
             </div>

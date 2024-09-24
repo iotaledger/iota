@@ -42,7 +42,7 @@ export function ProgrammableTxnBlockCard({
                 </div>
 
                 {items.length > itemsToShow && (
-                    <div className="mt-6">
+                    <div className="pb-md">
                         <ExpandableListControl />
                     </div>
                 )}
