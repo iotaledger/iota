@@ -42,11 +42,17 @@ const aboutIota = [
         label: 'IOTA Wallet',
         items: [
             'about-iota/iota-wallet/getting-started',
-            'about-iota/iota-wallet/how-to',
-            'about-iota/iota-wallet/multi-account',
-            'about-iota/iota-wallet/staking',
-            'about-iota/iota-wallet/develop',
-            'about-iota/iota-wallet/integrations',
+            {
+                type:'category',
+                label:'How To',
+                items:[
+                     'about-iota/iota-wallet/how-to/basics',
+                     'about-iota/iota-wallet/how-to/stake',
+                     'about-iota/iota-wallet/how-to/multi-account',
+                     'about-iota/iota-wallet/how-to/integrate-ledger',
+                     'about-iota/iota-wallet/how-to/test',
+                ]
+            },
             'about-iota/iota-wallet/FAQ',
         ],
     },
