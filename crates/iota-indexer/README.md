@@ -91,7 +91,7 @@ To run the tests, a running postgres instance is required. The crate provides fo
 - integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
 
 ```sh
-cargo test --features pg_integration
+cargo nextest --features pg_integration --test-threads 1
 ```
 
 ## Steps to run locally with TiDB (experimental)
