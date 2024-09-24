@@ -20,11 +20,17 @@ import { Portal } from '_app/shared/Portal';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
-    isLast: boolean;
+    showDropdownOptionsBottom: boolean;
     isActive?: boolean;
+    outerRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItemProps) {
+export function AccountGroupItem({
+    account,
+    showDropdownOptionsBottom,
+    isActive,
+    outerRef,
+}: AccountGroupItemProps) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [dropdownPosition, setDropdownPosition] = useState({
         y: 0,
@@ -86,11 +92,23 @@ export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItem
     }
 
     function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {
+        const outerTop = outerRef?.current?.getBoundingClientRect().top;
+        const innerTop = anchorRef?.current?.getBoundingClientRect().top;
+        const innerHeight = anchorRef?.current?.getBoundingClientRect().height;
         e.stopPropagation();
-        const OFFSET_WINDOW_TOP = 150;
-        const top = anchorRef?.current?.getBoundingClientRect().top;
+
+        let y = 0;
+
+        if (innerTop && outerTop) {
+            y = innerTop - outerTop;
+        }
+
+        if (showDropdownOptionsBottom && innerHeight) {
+            y = y + innerHeight;
+        }
+
         setDropdownPosition({
-            y: top ? top - OFFSET_WINDOW_TOP : 0,
+            y: y,
         });
         setDropdownOpen(true);
     }
@@ -132,12 +150,11 @@ export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItem
                 {isDropdownOpen && (
                     <div
                         style={{
-                            top: Math.round(dropdownPosition.y),
+                            top: dropdownPosition.y,
                         }}
                         className={clsx(
                             `absolute right-3 z-[100] rounded-lg bg-white`,
-                            // `top-[${}px]`,
-                            // isLast ? 'bottom-3' : 'top-3',
+                            showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >
                         <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
