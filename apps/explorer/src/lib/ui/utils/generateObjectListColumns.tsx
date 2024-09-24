@@ -74,7 +74,7 @@ export function generateObjectListColumns(): ColumnDef<IotaObjectResponse>[] {
                 const address = formatAddress(objectId!);
                 if (!objectId) return null;
                 return (
-                    <TableCellBase noWrap>
+                    <TableCellBase>
                         <ObjectLink
                             objectId={objectId}
                             label={
