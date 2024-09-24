@@ -1,62 +1,101 @@
+---
+description: Frequently asked questions about the IOTA Wallet, covering topics like installation, security, transactions, and staking.
+---
+
 # IOTA Wallet FAQ
 
-## How to Get IOTA Wallet
+## How Do I Get IOTA Wallet?
 
-IOTA Wallet, your comprehensive tool for managing digital assets on the IOTA network, is accessible through a browser extension.
+You can install the IOTA Wallet extension from the [Google Chrome Web Store](#TODO ADD LINK).
+It works across all Chromium-based browsers, including Google Chrome, Microsoft Edge, Firefox, Opera, and Brave.
 
-### For Browser Extension:
-Install the IOTA Wallet extension from the [Google Chrome Web Store](#). It works across all Chromium-based browsers including Google Chrome, Microsoft Edge, Firefox, Opera, and Brave.
+## Can I Use IOTA Wallet on Non-Chromium Browsers?
 
+Currently, IOTA Wallet is designed for Chromium-based browsers.
+There are no plans to expand support to other browser types at this time.
 
-## Can I use IOTA Wallet on browsers not based on Chromium?
-Currently, IOTA Wallet is optimized for Chromium-based browsers, and there are no immediate plans to expand support to other browser types.
+## What Is a Mnemonic Recovery Phrase?
 
-## What is a mnemonic recovery phrase?
-A mnemonic recovery phrase is a unique 24-word text string provided when you create a wallet on IOTA. It's crucial for wallet recovery and transferring your wallet account to another device. Keep it safe and secure.
+A mnemonic recovery phrase is a unique 24-word string that IOTA provides when you create a wallet.
+It is essential for recovering your wallet and transferring it to another device.
+Keep it secure at all times.
 
-## What does it mean to import an existing wallet?
-You can import a wallet account from another wallet if you have the mnemonic recovery phrase for that wallet. It is not possible to import a wallet without the mnemonic recovery phrase.
+## What Does It Mean to Import an Existing Wallet?
 
-## How do I get IOTA into my wallet?
-You can receive IOTA from another address, through exchanges, or directly within the IOTA Wallet using a credit card. Partners like Coinbase, MoonPay, and Transak facilitate these purchases within the wallet.
+[Importing](how-to/multi-account.mdx#import-a-profile) a wallet means bringing an account from another wallet into IOTA Wallet using its mnemonic recovery phrase,
+private key or seed.
 
-## My NFTs are in my wallet, but I can't see the images. Why?
-IOTA Wallet uses the Object Display standard for showing NFT images. If an NFT does not adhere to this standard, the wallet will display the asset without its image.
+## How Do I Get IOTA Into My Wallet?
 
-## How do I send IOTA to another person?
-To send IOTA, you need the recipient's wallet address. Ensure you double-check the address because completed transactions can't be reversed, and IOTA cannot be recovered if sent to an incorrect address.
+You can receive IOTA from another address or acquire it from an exchange.
+
+## My NFTs Are in My Wallet, but I Can’t See the Images. Why?
+
+IOTA Wallet uses the Object Display standard for showing NFT images.
+If an NFT does not follow this standard, the wallet will display the asset without an image.
+
+## How Do I Send IOTA to Another Person?
+
+To send IOTA, you need the recipient’s wallet address.
+Always double-check the address, as IOTA cannot be recovered if sent to the wrong address,
+and transactions cannot be reversed.
 
 ## Failed Transactions and Gas Fees
 
-### Why do I still pay gas fees when my transactions fail?
-Transactions can fail due to issues like incorrect specifications or insufficient gas budgets, but gas fees are still required to compensate validators for processing the transaction attempt.
+### Why Do I Still Pay Gas Fees When My Transaction Fails?
 
-### Why did I pay a negative gas fee on a failed transaction?
-Sometimes, failed transactions may delete gas objects, resulting in storage rebates that exceed the gas fee, effectively giving you a positive IOTA transfer despite the failure.
+Transactions may fail due to incorrect specifications or an insufficient gas budget, but gas fees are still required as
+compensation for validators processing the attempt.
 
-## What is staking?
-Staking allows you to earn rewards by placing your IOTA with validators on the network who verify transactions. Each validator offers different rewards. The minimum staking amount is 1 IOTA.
+### Why Did I Receive a Negative Gas Fee on a Failed Transaction?
 
-## How do I track my stake?
-You can view your stakes on the **Home** tab of IOTA Wallet, including the average APY earned from all the validators you staked with.
+In some cases, a failed transaction may delete gas objects, resulting in storage rebates that exceed the gas fee,
+leading to a positive IOTA transfer despite the failure.
 
-## Can I set up alerts for my stake?
-IOTA Wallet does not support alerts at this time. Stakes are rewarded at the end of each 24-hour epoch, and you can withdraw your stake anytime.
+## What Is Staking?
 
-## What does Active Connections mean?
-Active Connections displays any apps currently connected to your IOTA Wallet. Connections persist until removed, even without transactions. You can disconnect from apps by selecting them in the **Active Connections** tab.
+Staking allows you to earn rewards by delegating your IOTA to validators who help secure the network.
+Each validator offers different reward rates.
+The minimum amount required to stake is 1 IOTA.
 
-## Where can I see more detail about my transactions and activity?
-The **Activity** tab on IOTA Wallet shows a list of all transactions. Click on a transaction to view its details.
+## How Do I Track My Stake?
 
-## My wallet keeps logging me out. How do I stop this?
-IOTA Wallet automatically logs out after a period of inactivity for security. You can adjust the auto-lock timeout to a maximum of 30 minutes in the wallet settings.
+You can monitor your [stakes](how-to/stake.mdx#view-your-current-stakes) on the `Home` tab of the IOTA Wallet.
+This includes viewing the average APY earned from validators you are staked with.
+
+## Can I Set Up Alerts for My Stake?
+
+At this time, IOTA Wallet does not support alerts.
+Rewards are distributed at the end of each 24-hour epoch, and you can withdraw your stake at any time.
+
+## What Does Active Connections Mean?
+
+Active Connections shows the apps currently linked to your IOTA Wallet.
+These connections remain active until manually removed, even if no transactions are made.
+To disconnect, go to the `Active Connections` tab and select the app.
+
+## Where Can I Find Detailed Information About My Transactions?
+
+In the `Activity` tab of IOTA Wallet, you’ll find a list of all your transactions.
+Click on any transaction to view more details.
+
+## My Wallet Keeps Logging Me Out. How Do I Stop This?
+
+For security reasons, IOTA Wallet logs you out after a period of inactivity.
+You can increase the auto-lock timeout to a maximum of 30 minutes by [adjusting your wallet settings](how-to/basics.mdx#enable-auto-lock-for-your-iota-wallet).
 
 ## Network and Version Updates
-Ensure you're connected to the correct network for your activities. Network resets, like on Devnet, may temporarily affect asset visibility.
 
-## I think someone has access to my IOTA Wallet. What should I do?
-Immediately transfer your assets to another wallet if you believe someone has unauthorized access. Also, check for malware, verify your mnemonic recovery phrase is secure, and review activity on a IOTA transaction explorer.
+Make sure you're connected to the correct network for your activities.
+Events like network resets on Devnet may temporarily affect the visibility of your assets.
 
-## Can I update my mnemonic recovery phrase to something more memorable?
-No, the passphrase generated by IOTA Wallet cannot be changed. Always keep your mnemonic recovery phrase secure.
+## I Think Someone Has Access to My IOTA Wallet. What Should I Do?
+
+If you suspect unauthorized access to your wallet, immediately transfer your assets to a new wallet.
+Check for malware, ensure your mnemonic recovery phrase is secure,
+and review recent activity using an IOTA transaction explorer.
+
+## Can I Update My Mnemonic Recovery Phrase to Something More Memorable?
+
+No, the mnemonic recovery phrase provided by IOTA Wallet cannot be changed.
+Always store it securely, as it is essential for wallet recovery.
