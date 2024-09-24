@@ -42,12 +42,11 @@ test('request IOTA from local faucet', async ({ page, extensionUrl }) => {
     const timeout = 30_000;
     test.setTimeout(timeout);
     await createWallet(page, extensionUrl);
-    await page.getByRole('navigation').getByRole('link', { name: 'Home' }).click();
 
     const originalBalance = await page.getByTestId('coin-balance').textContent();
-    await page.getByTestId('faucet-request-button').click();
+    await page.getByText(/Request localnet tokens/i).click();
     await expect(page.getByText(/IOTA Received/i)).toBeVisible({ timeout });
-    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}IOTA`);
+    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`);
 });
 
 test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
