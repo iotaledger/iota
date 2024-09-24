@@ -70,7 +70,7 @@ mod checked {
     };
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
-    /// applying a series of commands to the transaction's context. The
+    /// applying a series of commands to the execution context. The
     /// function initializes the execution context, processes each command
     /// in sequence, and handles errors by recording any loaded runtime objects
     /// before exiting. After successful command execution, it applies the
