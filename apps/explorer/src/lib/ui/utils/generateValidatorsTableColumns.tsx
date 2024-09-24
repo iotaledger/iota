@@ -8,6 +8,7 @@ import { type ApyByValidator, formatPercentageDisplay } from '@iota/core';
 import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
 import { StakeColumn, ValidatorLink, ImageIcon } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/dist/cjs/client';
+import clsx from 'clsx';
 
 interface generateValidatorsTableColumnsArgs {
     atRiskValidators: [string, string][];
@@ -16,9 +17,16 @@ interface generateValidatorsTableColumnsArgs {
     limit?: number;
     showValidatorIcon?: boolean;
     includeColumns?: string[];
+    highlightValidatorName?: boolean;
 }
 
-function ValidatorWithImage({ validator }: { validator: IotaValidatorSummary }) {
+function ValidatorWithImage({
+    validator,
+    highlightValidatorName,
+}: {
+    validator: IotaValidatorSummary;
+    highlightValidatorName?: boolean;
+}) {
     return (
         <ValidatorLink
             address={validator.iotaAddress}
@@ -37,7 +45,13 @@ function ValidatorWithImage({ validator }: { validator: IotaValidatorSummary }) 
                         label={validator.name}
                         fallback={validator.name}
                     />
-                    <span className="text-label-lg">{validator.name}</span>
+                    <span
+                        className={clsx('text-label-lg', {
+                            'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
+                        })}
+                    >
+                        {validator.name}
+                    </span>
                 </div>
             }
         />
@@ -50,8 +64,20 @@ export function generateValidatorsTableColumns({
     rollingAverageApys = null,
     showValidatorIcon = true,
     includeColumns,
+    highlightValidatorName,
 }: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummary>[] {
     let columns: ColumnDef<IotaValidatorSummary>[] = [
+        {
+            header: '#',
+            id: 'number',
+            cell({ row }) {
+                return (
+                    <TableCellBase>
+                        <TableCellText>{row.index + 1}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
         {
             header: 'Name',
             id: 'name',
@@ -59,9 +85,22 @@ export function generateValidatorsTableColumns({
                 return (
                     <TableCellBase>
                         {showValidatorIcon ? (
-                            <ValidatorWithImage validator={validator} />
+                            <ValidatorWithImage
+                                validator={validator}
+                                highlightValidatorName={highlightValidatorName}
+                            />
                         ) : (
-                            <TableCellText>{validator.name}</TableCellText>
+                            <TableCellText>
+                                <span
+                                    className={
+                                        highlightValidatorName
+                                            ? 'text-neutral-10 dark:text-neutral-92'
+                                            : undefined
+                                    }
+                                >
+                                    {validator.name}
+                                </span>
+                            </TableCellText>
                         )}
                     </TableCellBase>
                 );

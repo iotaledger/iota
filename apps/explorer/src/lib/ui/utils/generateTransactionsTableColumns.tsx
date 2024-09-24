@@ -9,6 +9,7 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
 import { formatAddress } from '@iota/iota-sdk/utils';
+import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
  * Generate table columns renderers for the transactions data.
@@ -82,7 +83,9 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 const timestampMs = getValue();
                 return (
                     <TableCellBase>
-                        <TableCellText>{timestampMs?.toString() ?? '--'}</TableCellText>
+                        <TableCellText>
+                            {getElapsedTime(Number(timestampMs), Date.now()) || '--'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
