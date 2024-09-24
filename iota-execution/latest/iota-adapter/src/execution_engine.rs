@@ -737,7 +737,10 @@ mod checked {
     /// using a `ProgrammableTransactionBuilder`. The function takes in the
     /// `AdvanceEpochParams`, serializes the storage and computation
     /// charges, and invokes the reward creation function within the Iota
-    /// framework.
+    /// Prepares invocations for creating both storage and computation rewards
+    /// with a `ProgrammableTransactionBuilder` using the `AdvanceEpochParams`.
+    /// The corresponding functions from the Iota framework can be invoked later
+    /// during execution of the programmable transaction.
     fn mint_epoch_rewards_in_pt(
         builder: &mut ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
