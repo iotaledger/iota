@@ -80,6 +80,18 @@ function ValidatorPageResult(): JSX.Element {
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
+            highlightValidatorName: true,
+            includeColumns: [
+                '#',
+                'Name',
+                'Stake',
+                'Proposed next Epoch gas price',
+                'APY',
+                'Comission',
+                'Last Epoch Rewards',
+                'Voting Power',
+                'Status',
+            ],
         });
     }, [data, validatorEvents, validatorsApy]);
 
