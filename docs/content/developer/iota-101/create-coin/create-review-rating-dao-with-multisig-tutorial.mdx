@@ -42,7 +42,7 @@ Review readers access reviews to make informed decisions on selecting services. 
 
 ### Moderators
 
-Moderators monitor content of the reviews and can delete any reviews that contain inappropriate content.
+Moderators is a multisig setup ensures that multiple parties must authorize significant actions, such as review removal or reward distribution, adding a layer of security and transparency. Decisions require collective agreement, further ensuring accountability within the moderation process. Moderators monitor content of the reviews and can delete any reviews that contain inappropriate content.
 
 The incentive mechanism for moderators is not implemented for this guide, but service owners can all pay into a pool that goes to moderators on a rolling basis. People can stake moderators to influence what portion of the reward each moderator gets, up to a limit (similar to how validators are staked on chain), and moderator decisions are decided by quorum of stake weight. This process installs incentives for moderators to perform their job well.
 
@@ -175,7 +175,7 @@ The pool of `SUI` tokens to be distributed to reviewers is stored in the `reward
 
 #### Storage for reviews
 
-Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../move-overview/collections.mdx#object_table)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
+Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../move-overview/collections.mdx)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
 In other words, anyone can go to a transaction explorer and find a review object by its object ID, but they won't be able to use a review as an input to a transaction by its object ID.
 
 
