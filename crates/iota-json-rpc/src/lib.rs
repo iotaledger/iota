@@ -20,11 +20,11 @@ use iota_json_rpc_api::{
 };
 use iota_open_rpc::{Module, Project};
 use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
-use tokio_util::sync::CancellationToken;
 use jsonrpsee::{types::ErrorObjectOwned, Extensions, RpcModule};
 pub use object_changes::*;
 use prometheus::Registry;
 use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
@@ -236,9 +236,12 @@ impl JsonRpcServerBuilder {
         })?;
 
         let fut = async move {
-            axum::serve(listener, app.into_make_service())
-                .await
-                .unwrap();
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .unwrap();
             if let Some(cancel) = cancel {
                 // Signal that the server is shutting down, so other tasks can clean-up.
                 cancel.cancel();
