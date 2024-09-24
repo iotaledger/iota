@@ -438,7 +438,7 @@ mod tests {
 
         // Construct a valid zkLogin transaction data, signature.
         let (kp, pk_zklogin, inputs) =
-            &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+            &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
 
         let zklogin_addr = (pk_zklogin).into();
         let rgp = test_cluster.get_reference_gas_price().await;
