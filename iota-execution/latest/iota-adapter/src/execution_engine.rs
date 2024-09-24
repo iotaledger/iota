@@ -1172,7 +1172,10 @@ mod checked {
         builder
     }
 
-    /// Sets up and executes a `ProgrammableTransaction` to update the
+    /// Prepares and executes a `ProgrammableTransaction` with a call to
+    /// the Iota framework `randomness_state_update` function passing
+    /// the randomness state object, the randomness round, and the random
+    /// bytes as arguments.
     /// randomness state. The function constructs a transaction that invokes
     /// the `randomness_state_update` function from the Iota framework,
     /// passing the randomness state object, the randomness round,
