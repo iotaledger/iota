@@ -35,4 +35,3 @@ narwhal-config.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }
-tempfile.workspace = true
