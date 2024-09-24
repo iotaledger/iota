@@ -20,7 +20,7 @@ use iota_bridge::{
     abi::{EthBridgeEvent, EthIotaBridgeEvents},
     error::BridgeError,
     eth_client::EthClient,
-    metered_eth_provider::MeteredEthHttpProvier,
+    metered_eth_provider::MeteredEthHttpProvider,
     metrics::BridgeMetrics,
     retry_with_max_elapsed_time,
     types::{EthEvent, RawEthLog},
@@ -31,8 +31,8 @@ use tokio::task::JoinHandle;
 use tracing::info;
 
 use crate::{
-    metrics::BridgeIndexerMetrics, BridgeDataSource, ProcessedTxnData, TokenTransfer,
-    TokenTransferData, TokenTransferStatus,
+    BridgeDataSource, ProcessedTxnData, TokenTransfer, TokenTransferData, TokenTransferStatus,
+    metrics::BridgeIndexerMetrics,
 };
 
 type RawEthData = (RawEthLog, Block<H256>, Transaction);
@@ -166,8 +166,8 @@ impl Datasource<RawEthData> for EthSyncDatasource {
         target_checkpoint: u64,
         data_sender: DataSender<RawEthData>,
     ) -> Result<JoinHandle<Result<(), Error>>, Error> {
-        let client: Arc<EthClient<MeteredEthHttpProvier>> = Arc::new(
-            EthClient::<MeteredEthHttpProvier>::new(
+        let client: Arc<EthClient<MeteredEthHttpProvider>> = Arc::new(
+            EthClient::<MeteredEthHttpProvider>::new(
                 &self.eth_http_url,
                 HashSet::from_iter(vec![self.bridge_address]),
                 self.bridge_metrics.clone(),

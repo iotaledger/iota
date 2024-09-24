@@ -15,7 +15,7 @@ use crate::eth_mock_provider::EthMockProvider;
 use crate::{
     abi::EthBridgeEvent,
     error::{BridgeError, BridgeResult},
-    metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvier},
+    metered_eth_provider::{MeteredEthHttpProvider, new_metered_eth_provider},
     metrics::BridgeMetrics,
     types::{BridgeAction, EthLog, RawEthLog},
 };
@@ -24,7 +24,7 @@ pub struct EthClient<P> {
     contract_addresses: HashSet<EthAddress>,
 }
 
-impl EthClient<MeteredEthHttpProvier> {
+impl EthClient<MeteredEthHttpProvider> {
     pub async fn new(
         provider_url: &str,
         contract_addresses: HashSet<EthAddress>,

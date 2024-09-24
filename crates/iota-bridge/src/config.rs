@@ -6,11 +6,11 @@ use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::anyhow;
 use ethers::{providers::Middleware, types::Address as EthAddress};
-use futures::{future, StreamExt};
+use futures::{StreamExt, future};
 use iota_config::Config;
 use iota_json_rpc_types::Coin;
 use iota_keys::keypair_file::read_key;
-use iota_sdk::{apis::CoinReadApi, IotaClient as IotaSdkClient, IotaClientBuilder};
+use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder, apis::CoinReadApi};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     bridge::BridgeChainId,
@@ -29,9 +29,9 @@ use crate::{
     error::BridgeError,
     eth_client::EthClient,
     iota_client::IotaClient,
-    metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvier},
+    metered_eth_provider::{MeteredEthHttpProvider, new_metered_eth_provider},
     metrics::BridgeMetrics,
-    types::{is_route_valid, BridgeAction},
+    types::{BridgeAction, is_route_valid},
     utils::get_eth_contract_addresses,
 };
 
@@ -229,7 +229,7 @@ impl BridgeNodeConfig {
     async fn prepare_for_eth(
         &self,
         metrics: Arc<BridgeMetrics>,
-    ) -> anyhow::Result<(Arc<EthClient<MeteredEthHttpProvier>>, Vec<EthAddress>)> {
+    ) -> anyhow::Result<(Arc<EthClient<MeteredEthHttpProvider>>, Vec<EthAddress>)> {
         let bridge_proxy_address = EthAddress::from_str(&self.eth.eth_bridge_proxy_address)?;
         let provider = Arc::new(
             new_metered_eth_provider(&self.eth.eth_rpc_url, metrics.clone())
@@ -276,7 +276,7 @@ impl BridgeNodeConfig {
         );
 
         let eth_client = Arc::new(
-            EthClient::<MeteredEthHttpProvier>::new(
+            EthClient::<MeteredEthHttpProvider>::new(
                 &self.eth.eth_rpc_url,
                 HashSet::from_iter(vec![
                     bridge_proxy_address,
@@ -379,7 +379,7 @@ pub struct BridgeServerConfig {
     pub server_listen_port: u16,
     pub metrics_port: u16,
     pub iota_client: Arc<IotaClient<IotaSdkClient>>,
-    pub eth_client: Arc<EthClient<MeteredEthHttpProvier>>,
+    pub eth_client: Arc<EthClient<MeteredEthHttpProvider>>,
     /// A list of approved governance actions. Action in this list will be
     /// signed when requested by client.
     pub approved_governance_actions: Vec<BridgeAction>,
@@ -392,7 +392,7 @@ pub struct BridgeClientConfig {
     pub gas_object_ref: ObjectRef,
     pub metrics_port: u16,
     pub iota_client: Arc<IotaClient<IotaSdkClient>>,
-    pub eth_client: Arc<EthClient<MeteredEthHttpProvier>>,
+    pub eth_client: Arc<EthClient<MeteredEthHttpProvider>>,
     pub db_path: PathBuf,
     pub eth_contracts: Vec<EthAddress>,
     // See `BridgeNodeConfig` for the explanation of following two fields.
