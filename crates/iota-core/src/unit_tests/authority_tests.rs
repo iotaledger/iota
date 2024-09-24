@@ -5004,6 +5004,7 @@ async fn test_consensus_message_processed() {
     );
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/2793"]
 #[test]
 fn test_choose_next_system_packages() {
     telemetry_subscribers::init_for_testing();

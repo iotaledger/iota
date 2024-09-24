@@ -21,7 +21,9 @@
     "narwhal/node/tests/staged/narwhal.yaml",
     "**/pnpm-lock.yaml",
     "external-crates/move/crates/move-stdlib/**/docs/**/*.md",
-    "external-crates/move/move-execution/v0/crates/move-stdlib/**/docs/**/*.md"
+    "external-crates/move/move-execution/v0/crates/move-stdlib/**/docs/**/*.md",
+    "nre/helm/graphql/templates/**/*.yaml",
+    "nre/helm/indexer/templates/**/*.yaml"
   ],
   "toml": {
     "lineWidth": 80

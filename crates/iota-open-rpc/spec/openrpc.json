@@ -833,72 +833,6 @@
       ]
     },
     {
-      "name": "iota_getLoadedChildObjects",
-      "tags": [
-        {
-          "name": "Read API"
-        }
-      ],
-      "params": [
-        {
-          "name": "digest",
-          "required": true,
-          "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
-          }
-        }
-      ],
-      "result": {
-        "name": "IotaLoadedChildObjectsResponse",
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/LoadedChildObjectsResponse"
-        }
-      },
-      "examples": [
-        {
-          "name": "Gets loaded child objects associated with the transaction the request provides.",
-          "params": [
-            {
-              "name": "digest",
-              "value": "6hpz6Qxv6t5VkNT5rcBKQS2Jootr6WHuSuRMLmmN13Jg"
-            }
-          ],
-          "result": {
-            "name": "Result",
-            "value": {
-              "loadedChildObjects": [
-                {
-                  "objectId": "0xb6a23efeb7298cf0a8d0b837b78749c2cfc711c42036cc6b76211639f3606a53",
-                  "sequenceNumber": "2462820"
-                },
-                {
-                  "objectId": "0xf61f3a566963b3eac49fe3bb57d304a454ed2f4859b44f4e49180047d5fa0a82",
-                  "sequenceNumber": "2462820"
-                },
-                {
-                  "objectId": "0xd55c32b09995a0ae1eedfee9c7b1354e805ed10ee3d0800105867da4655eca6d",
-                  "sequenceNumber": "2164186"
-                },
-                {
-                  "objectId": "0x258bfd1ad92af329a07781ee71e60065e00f2de961630d3505f8905a0f4d42c6",
-                  "sequenceNumber": "3350147"
-                },
-                {
-                  "objectId": "0xa78a6ba2b28f68a3299ec3417bbabc6717dcc95b9e341bc3aba1654bdbad707d",
-                  "sequenceNumber": "3560717"
-                },
-                {
-                  "objectId": "0xcd773bd6309363447ef3fe58a960de92aa9377b3482580ee8d5bdc5b824808df",
-                  "sequenceNumber": "3560717"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "iota_getMoveFunctionArgTypes",
       "tags": [
         {
@@ -1366,39 +1300,53 @@
                 "advance_epoch_start_time_in_safe_mode": true,
                 "advance_to_highest_supported_protocol_version": true,
                 "allow_receiving_object_id": true,
+                "authority_capabilities_v2": true,
                 "ban_entry_init": true,
+                "bridge": true,
                 "commit_root_state_digest": true,
                 "consensus_order_end_of_epoch_last": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_adding_abilities_on_upgrade": true,
                 "disallow_change_struct_type_params_on_upgrade": true,
                 "enable_coin_deny_list": true,
+                "enable_coin_deny_list_v2": true,
                 "enable_effects_v2": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_group_ops_native_functions": true,
                 "enable_jwk_consensus_updates": true,
                 "enable_poseidon": true,
+                "enable_vdf": true,
                 "end_of_epoch_transaction_supported": true,
+                "fresh_vm_on_framework_upgrade": true,
                 "hardened_otw_check": true,
                 "include_consensus_digest_in_prologue": true,
                 "loaded_child_object_format": true,
                 "loaded_child_object_format_type": true,
                 "loaded_child_objects_fixed": true,
                 "missing_type_is_compatibility_error": true,
+                "mysticeti_leader_scoring_and_schedule": true,
+                "mysticeti_use_committed_subdag_digest": true,
                 "narwhal_certificate_v2": true,
                 "narwhal_new_leader_election_schedule": true,
                 "narwhal_versioned_metadata": true,
                 "no_extraneous_module_bytes": true,
                 "package_digest_hash_module": true,
                 "package_upgrades": true,
+                "passkey_auth": true,
+                "prepend_prologue_tx_in_consensus_commit_in_checkpoints": true,
                 "random_beacon": true,
                 "receive_objects": true,
                 "recompute_has_public_transfer_in_execution": true,
+                "record_consensus_determined_version_assignments_in_prologue": true,
                 "reject_mutable_random_on_entry_functions": true,
+                "reshare_at_same_initial_version": true,
+                "resolve_abort_locations_to_package_id": true,
+                "rethrow_serialization_type_layout_errors": true,
                 "scoring_decision_with_validity_cutoff": true,
                 "shared_object_deletion": true,
                 "simple_conservation_checks": true,
                 "simplified_unwrap_then_delete": true,
+                "soft_bundle": true,
                 "throughput_aware_consensus_submission": false,
                 "txn_base_cost_as_multiplier": true,
                 "upgraded_multisig_supported": true,
@@ -1421,12 +1369,23 @@
                 "base_tx_cost_per_byte": {
                   "u64": "0"
                 },
+                "bcs_failure_cost": {
+                  "u64": "52"
+                },
+                "bcs_legacy_min_output_size_cost": {
+                  "u64": "1"
+                },
+                "bcs_per_byte_serialized_cost": {
+                  "u64": "2"
+                },
                 "binary_address_identifiers": {
                   "u16": "100"
                 },
                 "binary_constant_pool": {
                   "u16": "4000"
                 },
+                "binary_enum_def_instantiations": null,
+                "binary_enum_defs": null,
                 "binary_field_handles": {
                   "u16": "500"
                 },
@@ -1463,6 +1422,8 @@
                 "binary_struct_handles": {
                   "u16": "300"
                 },
+                "binary_variant_handles": null,
+                "binary_variant_instantiation_handles": null,
                 "bls12381_bls12381_min_pk_verify_cost_base": {
                   "u64": "52"
                 },
@@ -1481,7 +1442,9 @@
                 "bls12381_bls12381_min_sig_verify_msg_cost_per_byte": {
                   "u64": "2"
                 },
-                "bridge_should_try_to_finalize_committee": null,
+                "bridge_should_try_to_finalize_committee": {
+                  "bool": "true"
+                },
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
@@ -1491,20 +1454,36 @@
                 "check_zklogin_issuer_cost_base": {
                   "u64": "200"
                 },
+                "checkpoint_summary_version_specific_data": {
+                  "u64": "1"
+                },
+                "config_read_setting_impl_cost_base": {
+                  "u64": "100"
+                },
+                "config_read_setting_impl_cost_per_byte": {
+                  "u64": "40"
+                },
                 "consensus_bad_nodes_stake_threshold": {
                   "u64": "20"
+                },
+                "consensus_max_num_transactions_in_block": {
+                  "u64": "512"
                 },
                 "consensus_max_transaction_size_bytes": {
                   "u64": "262144"
                 },
                 "consensus_max_transactions_in_block_bytes": {
-                  "u64": "6291456"
+                  "u64": "524288"
                 },
                 "crypto_invalid_arguments_cost": {
                   "u64": "100"
                 },
-                "debug_print_base_cost": null,
-                "debug_print_stack_trace_base_cost": null,
+                "debug_print_base_cost": {
+                  "u64": "52"
+                },
+                "debug_print_stack_trace_base_cost": {
+                  "u64": "52"
+                },
                 "dynamic_field_add_child_object_cost_base": {
                   "u64": "100"
                 },
@@ -1802,12 +1781,24 @@
                 "hash_keccak256_data_cost_per_byte": {
                   "u64": "2"
                 },
-                "hash_sha2_256_base_cost": null,
-                "hash_sha2_256_legacy_min_input_len_cost": null,
-                "hash_sha2_256_per_byte_cost": null,
-                "hash_sha3_256_base_cost": null,
-                "hash_sha3_256_legacy_min_input_len_cost": null,
-                "hash_sha3_256_per_byte_cost": null,
+                "hash_sha2_256_base_cost": {
+                  "u64": "52"
+                },
+                "hash_sha2_256_legacy_min_input_len_cost": {
+                  "u64": "1"
+                },
+                "hash_sha2_256_per_byte_cost": {
+                  "u64": "2"
+                },
+                "hash_sha3_256_base_cost": {
+                  "u64": "52"
+                },
+                "hash_sha3_256_legacy_min_input_len_cost": {
+                  "u64": "1"
+                },
+                "hash_sha3_256_per_byte_cost": {
+                  "u64": "2"
+                },
                 "hmac_hmac_sha3_256_cost_base": {
                   "u64": "52"
                 },
@@ -1816,6 +1807,12 @@
                 },
                 "hmac_hmac_sha3_256_input_cost_per_byte": {
                   "u64": "2"
+                },
+                "max_accumulated_txn_cost_per_object_in_mysticeti_commit": {
+                  "u64": "10"
+                },
+                "max_accumulated_txn_cost_per_object_in_narwhal_commit": {
+                  "u64": "100"
                 },
                 "max_age_of_jwk_in_epochs": {
                   "u64": "1"
@@ -1835,7 +1832,9 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
-                "max_deferral_rounds_for_congestion_control": null,
+                "max_deferral_rounds_for_congestion_control": {
+                  "u64": "10"
+                },
                 "max_dependency_depth": {
                   "u64": "100"
                 },
@@ -1878,10 +1877,13 @@
                 "max_meter_ticks_per_module": {
                   "u64": "16000000"
                 },
-                "max_meter_ticks_per_package": null,
+                "max_meter_ticks_per_package": {
+                  "u64": "16000000"
+                },
                 "max_modules_in_publish": {
                   "u32": "64"
                 },
+                "max_move_enum_variants": null,
                 "max_move_identifier_len": {
                   "u64": "128"
                 },
@@ -1945,7 +1947,9 @@
                 "max_size_written_objects_system_tx": {
                   "u64": "50000000"
                 },
-                "max_soft_bundle_size": null,
+                "max_soft_bundle_size": {
+                  "u64": "5"
+                },
                 "max_struct_definitions": {
                   "u64": "200"
                 },
@@ -1973,10 +1977,14 @@
                 "max_verifier_meter_ticks_per_function": {
                   "u64": "16000000"
                 },
-                "min_checkpoint_interval_ms": null,
-                "min_move_binary_format_version": null,
-                "move_binary_format_version": {
+                "min_checkpoint_interval_ms": {
+                  "u64": "200"
+                },
+                "min_move_binary_format_version": {
                   "u32": "6"
+                },
+                "move_binary_format_version": {
+                  "u32": "7"
                 },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
@@ -2030,22 +2038,22 @@
                   "u64": "10"
                 },
                 "random_beacon_dkg_timeout_round": {
-                  "u32": "200"
+                  "u32": "3000"
+                },
+                "random_beacon_dkg_version": {
+                  "u64": "1"
+                },
+                "random_beacon_min_round_interval_ms": {
+                  "u64": "500"
                 },
                 "random_beacon_reduction_allowed_delta": {
                   "u16": "800"
                 },
                 "random_beacon_reduction_lower_bound": {
-                  "u32": "1600"
+                  "u32": "1000"
                 },
                 "reward_slashing_rate": {
                   "u64": "10000"
-                },
-                "scoring_decision_cutoff_value": {
-                  "f64": "2.5"
-                },
-                "scoring_decision_mad_divisor": {
-                  "f64": "2.3"
                 },
                 "storage_gas_price": {
                   "u64": "76"
@@ -2053,14 +2061,30 @@
                 "storage_rebate_rate": {
                   "u64": "10000"
                 },
-                "string_check_utf8_base_cost": null,
-                "string_check_utf8_per_byte_cost": null,
-                "string_index_of_base_cost": null,
-                "string_index_of_per_byte_pattern_cost": null,
-                "string_index_of_per_byte_searched_cost": null,
-                "string_is_char_boundary_base_cost": null,
-                "string_sub_string_base_cost": null,
-                "string_sub_string_per_byte_cost": null,
+                "string_check_utf8_base_cost": {
+                  "u64": "52"
+                },
+                "string_check_utf8_per_byte_cost": {
+                  "u64": "2"
+                },
+                "string_index_of_base_cost": {
+                  "u64": "52"
+                },
+                "string_index_of_per_byte_pattern_cost": {
+                  "u64": "2"
+                },
+                "string_index_of_per_byte_searched_cost": {
+                  "u64": "2"
+                },
+                "string_is_char_boundary_base_cost": {
+                  "u64": "52"
+                },
+                "string_sub_string_base_cost": {
+                  "u64": "52"
+                },
+                "string_sub_string_per_byte_cost": {
+                  "u64": "2"
+                },
                 "transfer_freeze_object_cost_base": {
                   "u64": "52"
                 },
@@ -2076,8 +2100,12 @@
                 "tx_context_derive_id_cost_base": {
                   "u64": "52"
                 },
-                "type_name_get_base_cost": null,
-                "type_name_get_per_byte_cost": null,
+                "type_name_get_base_cost": {
+                  "u64": "52"
+                },
+                "type_name_get_per_byte_cost": {
+                  "u64": "2"
+                },
                 "types_is_one_time_witness_cost_base": {
                   "u64": "52"
                 },
@@ -2096,16 +2124,36 @@
                 "validator_validate_metadata_data_cost_per_byte": {
                   "u64": "2"
                 },
-                "vdf_hash_to_input_cost": null,
-                "vdf_verify_vdf_cost": null,
-                "vector_borrow_base_cost": null,
-                "vector_destroy_empty_base_cost": null,
-                "vector_empty_base_cost": null,
-                "vector_length_base_cost": null,
-                "vector_pop_back_base_cost": null,
-                "vector_push_back_base_cost": null,
-                "vector_push_back_legacy_per_abstract_memory_unit_cost": null,
-                "vector_swap_base_cost": null
+                "vdf_hash_to_input_cost": {
+                  "u64": "100"
+                },
+                "vdf_verify_vdf_cost": {
+                  "u64": "1500"
+                },
+                "vector_borrow_base_cost": {
+                  "u64": "52"
+                },
+                "vector_destroy_empty_base_cost": {
+                  "u64": "52"
+                },
+                "vector_empty_base_cost": {
+                  "u64": "52"
+                },
+                "vector_length_base_cost": {
+                  "u64": "52"
+                },
+                "vector_pop_back_base_cost": {
+                  "u64": "52"
+                },
+                "vector_push_back_base_cost": {
+                  "u64": "52"
+                },
+                "vector_push_back_legacy_per_abstract_memory_unit_cost": {
+                  "u64": "2"
+                },
+                "vector_swap_base_cost": {
+                  "u64": "52"
+                }
               }
             }
           }
@@ -2386,7 +2434,7 @@
                 "data": {
                   "objectId": "0x504d411325e3c7f89d412044fe99007efb0f94f1e64d2e8090c619a39299d87e",
                   "version": "1",
-                  "digest": "6D2MGzZN1DnALrbg6y9nQWwuipCa6fJERLXAwNGuGtKQ",
+                  "digest": "AibMqH69gKT5t7rVTsDZFy2X5iHtoNDobKaZ62mg3FCU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
                     "AddressOwner": "0xe8070b5f56bb10bafa0e2261d819b2582f82ab308bf9c96dfb22ec7345db1b5f"
@@ -2410,7 +2458,7 @@
                 "data": {
                   "objectId": "0x23618df6438d21a48040e6bb568cafc13246bd847c60448160e0358cac4a1134",
                   "version": "1",
-                  "digest": "HCvnds5SSF8Tn2kANyZDeAJuKa7bY6mf1ykzD8nQY42b",
+                  "digest": "D5W76mT1A3tqCmE1Z5MdV5obNzesMXLfLKpRDHSp1fyz",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
                     "AddressOwner": "0x5594d02890c986dbf328d28d21acece356d10d89e75f565b0934851ba8d5bc59"
@@ -2434,7 +2482,7 @@
                 "data": {
                   "objectId": "0x8b95b4eaa9fd3b22b43f6b2c8e92090bd6d16522a6fd4fa83ec70a5f197ad656",
                   "version": "1",
-                  "digest": "7AVTCGjWUFNAZYmcxtKQvAWbyzbFVn9cbr1fMvngbs9S",
+                  "digest": "H2o2pWgceQgTtYrMacR4xnCi4vqGiuozDA6k2rBc4m3q",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
                     "AddressOwner": "0xda104dde1de9880be827a1a753e502ebcdfec53f33e745e3f021366b7bc47c2b"
@@ -2458,7 +2506,7 @@
                 "data": {
                   "objectId": "0x3fbbd3ebef7dbcc7b02346cdf05674452cc61f316af5d5d7c02b94b023242685",
                   "version": "1",
-                  "digest": "DumsSGokTELtJXW54HKCRLjFKBeHkaySUZ86DDo8QwvR",
+                  "digest": "3ovR1s3bZt6AN1AQ7QhGUfX9BSwgjJPvL6XaczgeSKXU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
                     "AddressOwner": "0x00a65bf5fdccb50582333b61721e6963a25f25ac8ead5916a83f49a7b372eae7"
@@ -2482,7 +2530,7 @@
                 "data": {
                   "objectId": "0x9b5cd5df0df2a168259b7115a41ccc0a372b6fd0026e0c63043492ce4d0c19a6",
                   "version": "1",
-                  "digest": "94nQ4Tz4nyqcVJmbLMUShkucx3eVfhLXGTCR4d1KP6gL",
+                  "digest": "25QdFqrh9FgxhGQyAxZsNEakYmHezqmU3FMPud7JGRB5",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
                     "AddressOwner": "0x3e7f360c51d035a6470f09c8d23716e4085025b89d176840d61dde92a452a72f"
@@ -2552,9 +2600,9 @@
             {
               "name": "digests",
               "value": [
-                "G8weeKrNgg4Li1X5up7yuu9EX8Nbcf6BbkppKdWjusG7",
-                "93HmBnGuPUi2ynhVXnwvMFyV4cZpuT42gcqsMVZ6b24C",
-                "Bf6tjeULrpjBmXYkqSsKn519JT2ECF8jxvPb2KSHMXvX"
+                "Hj12H7iuX6ejEQCtbA2saQpa1i68f9d2CWxxgQo9QbpY",
+                "81rKmx5TmSzq8UK51rwHS6gQdUg618JHoa4oUxB3opb",
+                "AhdWMs5P16iyATKbiZ1vhoAj11Q9xKA7r9XTJDB5wFes"
               ]
             },
             {
@@ -2574,7 +2622,7 @@
             "name": "Result",
             "value": [
               {
-                "digest": "G8weeKrNgg4Li1X5up7yuu9EX8Nbcf6BbkppKdWjusG7",
+                "digest": "Hj12H7iuX6ejEQCtbA2saQpa1i68f9d2CWxxgQo9QbpY",
                 "transaction": {
                   "data": {
                     "messageVersion": "v1",
@@ -2609,7 +2657,7 @@
                         }
                       ]
                     },
-                    "sender": "0x79638ea669ab08d3a0c6114ae06a0dd650186dc0c9f0827a5cb18c984172cc69",
+                    "sender": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905",
                     "gasData": {
                       "payment": [
                         {
@@ -2618,16 +2666,16 @@
                           "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                         }
                       ],
-                      "owner": "0x79638ea669ab08d3a0c6114ae06a0dd650186dc0c9f0827a5cb18c984172cc69",
+                      "owner": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905",
                       "price": "10",
                       "budget": "100000"
                     }
                   },
                   "txSignatures": [
-                    "AN6HFfDg+cBbYdD/+YHGIsiI898ddDCsiTq9b9OPyy+P2Qy8HnWRTNp5BwOycU1ipHTFc2LIsM4Wm2q5VwcbNg834HWK6fGd/e11nJeO7UMQFVm4jiZjwDYb8XNiqcCJOQ=="
+                    "ADXpbKNNpRW1Csi96IkAhv0CbvRO5D4Wx+iZ4S+k7SjACqqMtyW08Y0TFpydk9mrx9vb5qKyFAqgx4GDVgV/fQmnSicGHWn+0mf3oSb/LUa5i+dDAEb1qsgy7LkQ8hbr+w=="
                   ]
                 },
-                "rawTransaction": "AQAAAAAAAgAgCtLDHow2gapPfTVIjPa/ETXS/IcDaQ4IV5fD5PhGooIBAHVJRuGB4A9DQaU7Xole+Ow8c9I3igoRgl4jL6wacOIOAgAAAAAAAAAgDwm8uJB3PRHBq9cXZ7H2eoBAJneIID85dyL8J2rqpzwBAQEBAQABAAB5Y46maasI06DGEUrgag3WUBhtwMnwgnpcsYyYQXLMaQEUb7EwO9YOtL6pvUU+UGkLQjJB8OLpvqvWAbvavygo7gIAAAAAAAAAIJyn5CJ6Yc/4Uf75+2oIrkRMlvmBAnXWr5c8DQItueIaeWOOpmmrCNOgxhFK4GoN1lAYbcDJ8IJ6XLGMmEFyzGkKAAAAAAAAAKCGAQAAAAAAAAFhAN6HFfDg+cBbYdD/+YHGIsiI898ddDCsiTq9b9OPyy+P2Qy8HnWRTNp5BwOycU1ipHTFc2LIsM4Wm2q5VwcbNg834HWK6fGd/e11nJeO7UMQFVm4jiZjwDYb8XNiqcCJOQ==",
+                "rawTransaction": "AQAAAAAAAgAgeo6aDQdPkP3bQs2Sj3S5hsb1Oac089fJp1qcsifsMVcBACSWLuQZPIwNL7KLvg60ul/IeixtGnwSyUVIcsXqBtXhAgAAAAAAAAAgJ+eEST+x3M3niTo6xcZ80sTidUC1LugoCWsqpf5Qp+8BAQEBAQABAAAjXHe2JZL9QQy56zxqd6693R/5Ma7iYJS2cC38H2WpBQGVhdVZFSG/0S3sOjcu/VORCLqAeg2r7W5doPF078P1jgIAAAAAAAAAIP8RnpL1eudNGyUNXfLLUXB4KopDj79oHt7U0eCizX37I1x3tiWS/UEMues8aneuvd0f+TGu4mCUtnAt/B9lqQUKAAAAAAAAAKCGAQAAAAAAAAFhADXpbKNNpRW1Csi96IkAhv0CbvRO5D4Wx+iZ4S+k7SjACqqMtyW08Y0TFpydk9mrx9vb5qKyFAqgx4GDVgV/fQmnSicGHWn+0mf3oSb/LUa5i+dDAEb1qsgy7LkQ8hbr+w==",
                 "effects": {
                   "messageVersion": "v1",
                   "status": {
@@ -2644,7 +2692,7 @@
                   "mutated": [
                     {
                       "owner": {
-                        "AddressOwner": "0x79638ea669ab08d3a0c6114ae06a0dd650186dc0c9f0827a5cb18c984172cc69"
+                        "AddressOwner": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905"
                       },
                       "reference": {
                         "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
@@ -2665,7 +2713,7 @@
                   ],
                   "gasObject": {
                     "owner": {
-                      "ObjectOwner": "0x79638ea669ab08d3a0c6114ae06a0dd650186dc0c9f0827a5cb18c984172cc69"
+                      "ObjectOwner": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905"
                     },
                     "reference": {
                       "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
@@ -2678,7 +2726,7 @@
                 "objectChanges": [
                   {
                     "type": "transferred",
-                    "sender": "0x79638ea669ab08d3a0c6114ae06a0dd650186dc0c9f0827a5cb18c984172cc69",
+                    "sender": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905",
                     "recipient": {
                       "AddressOwner": "0x7a8e9a0d074f90fddb42cd928f74b986c6f539a734f3d7c9a75a9cb227ec3157"
                     },
@@ -2690,7 +2738,7 @@
                 ]
               },
               {
-                "digest": "93HmBnGuPUi2ynhVXnwvMFyV4cZpuT42gcqsMVZ6b24C",
+                "digest": "81rKmx5TmSzq8UK51rwHS6gQdUg618JHoa4oUxB3opb",
                 "transaction": {
                   "data": {
                     "messageVersion": "v1",
@@ -2725,7 +2773,7 @@
                         }
                       ]
                     },
-                    "sender": "0x24b163516365a5c5a6711f174d7ec95f8a4252d2b99f829941fa7c5a4e6aa5a0",
+                    "sender": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c",
                     "gasData": {
                       "payment": [
                         {
@@ -2734,16 +2782,16 @@
                           "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                         }
                       ],
-                      "owner": "0x24b163516365a5c5a6711f174d7ec95f8a4252d2b99f829941fa7c5a4e6aa5a0",
+                      "owner": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c",
                       "price": "10",
                       "budget": "100000"
                     }
                   },
                   "txSignatures": [
-                    "AKHDCv/5lOpN65GEMmvNknlgMOskwk1o3zkspHsMF5kgB0TMQ3xyxnqRwc4bRbXZdLIER1uz6k3FiNQZysUeAAWhtxyxD8zwVSmWjSVhhtf+UKhpW2mTgOA1Wn2xxsedmg=="
+                    "AOTioLzQMACPuS2iB1FJBbTHnd/VTto9n+JwEeO5DtKAcAxQWN+MWuWGl8Th42XkVv2wqe8OG39I+Jji11TORgQLoJG5hufQ9rzjXn1UVSbD7HyPVZykOZAICGCiqQMgGw=="
                   ]
                 },
-                "rawTransaction": "AQAAAAAAAgAgLoToH4ccR8MUniexJQDaiEr99cMLGcAXoNEDiMKN3VkBAHeljiBqzRljnIdaT77PM0K4Jcg4QwCsfjutyCCnW1dCAgAAAAAAAAAgVlPau21sld3X01pC0x86m+u7aD22booGcGhVRnLhN7UBAQEBAQABAAAksWNRY2WlxaZxHxdNfslfikJS0rmfgplB+nxaTmqloAEkuSCqmwBQk7gg3yTvi0NxVJn0//TgVsDNXNgCS0s5pwIAAAAAAAAAIP7ScTSwc9qGOEVBETllGTeeiIyDq68OYAUEeeRW/wE/JLFjUWNlpcWmcR8XTX7JX4pCUtK5n4KZQfp8Wk5qpaAKAAAAAAAAAKCGAQAAAAAAAAFhAKHDCv/5lOpN65GEMmvNknlgMOskwk1o3zkspHsMF5kgB0TMQ3xyxnqRwc4bRbXZdLIER1uz6k3FiNQZysUeAAWhtxyxD8zwVSmWjSVhhtf+UKhpW2mTgOA1Wn2xxsedmg==",
+                "rawTransaction": "AQAAAAAAAgAgw+T4RqKCdUlG4YHgD0NBpTteiV747Dxz0jeKChGCXiMBAC+sGnDiDhRvsTA71g60vqm9RT5QaQtCMkHw4um+q9YBAgAAAAAAAAAg/Cdq6qc8DsEltgkKJ7uvql/DLnVzYS0husigmreRU3QBAQEBAQABAAD1KMVOWqk5eqEKZuxEVf1LSXNawZ5aDe7QUMdVypjSnAG72r8oKO6cp+QiemHP+FH++ftqCK5ETJb5gQJ11q+XPAIAAAAAAAAAIA0CLbniGg8JvLiQdz0RwavXF2ex9nqAQCZ3iCA/OXci9SjFTlqpOXqhCmbsRFX9S0lzWsGeWg3u0FDHVcqY0pwKAAAAAAAAAKCGAQAAAAAAAAFhAOTioLzQMACPuS2iB1FJBbTHnd/VTto9n+JwEeO5DtKAcAxQWN+MWuWGl8Th42XkVv2wqe8OG39I+Jji11TORgQLoJG5hufQ9rzjXn1UVSbD7HyPVZykOZAICGCiqQMgGw==",
                 "effects": {
                   "messageVersion": "v1",
                   "status": {
@@ -2760,7 +2808,7 @@
                   "mutated": [
                     {
                       "owner": {
-                        "AddressOwner": "0x24b163516365a5c5a6711f174d7ec95f8a4252d2b99f829941fa7c5a4e6aa5a0"
+                        "AddressOwner": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c"
                       },
                       "reference": {
                         "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
@@ -2781,7 +2829,7 @@
                   ],
                   "gasObject": {
                     "owner": {
-                      "ObjectOwner": "0x24b163516365a5c5a6711f174d7ec95f8a4252d2b99f829941fa7c5a4e6aa5a0"
+                      "ObjectOwner": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c"
                     },
                     "reference": {
                       "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
@@ -2794,7 +2842,7 @@
                 "objectChanges": [
                   {
                     "type": "transferred",
-                    "sender": "0x24b163516365a5c5a6711f174d7ec95f8a4252d2b99f829941fa7c5a4e6aa5a0",
+                    "sender": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c",
                     "recipient": {
                       "AddressOwner": "0xc3e4f846a282754946e181e00f4341a53b5e895ef8ec3c73d2378a0a11825e23"
                     },
@@ -2806,7 +2854,7 @@
                 ]
               },
               {
-                "digest": "Bf6tjeULrpjBmXYkqSsKn519JT2ECF8jxvPb2KSHMXvX",
+                "digest": "AhdWMs5P16iyATKbiZ1vhoAj11Q9xKA7r9XTJDB5wFes",
                 "transaction": {
                   "data": {
                     "messageVersion": "v1",
@@ -2841,7 +2889,7 @@
                         }
                       ]
                     },
-                    "sender": "0xa1866bbffcea8d367f97ad729aebb1e691d265a3bd283c443b31ac1cfa9ee78c",
+                    "sender": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb",
                     "gasData": {
                       "payment": [
                         {
@@ -2850,16 +2898,16 @@
                           "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                         }
                       ],
-                      "owner": "0xa1866bbffcea8d367f97ad729aebb1e691d265a3bd283c443b31ac1cfa9ee78c",
+                      "owner": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb",
                       "price": "10",
                       "budget": "100000"
                     }
                   },
                   "txSignatures": [
-                    "AK+cGYvRfC9Pq8Q1IVrwqBADv/AjjwNKexxXeT8NDWGew3D0+j9EJ3PHS8FCF0OOfsqc+JZhOSfHe3zjlCQefgrWnfBR88qs+c/GcHXhsNtHEECK8vIjfFKQvXV+9IXwAw=="
+                    "AAUbCJPG4NRwCaIP0fhIYKgbCj73YH4jG+aLybQnwzniioDlLXeALtmzQiVcO/c/muVfegYm9quaAuTXkseXdwrBLYrHKlE7PwRVuJjmBwbiSpqS0m/j+PFnALfPM5bN1Q=="
                   ]
                 },
-                "rawTransaction": "AQAAAAAAAgAg3MhbraSnKdZQ93YiJkMhKXgJJ4OLBtsDRoCP+wZ2CZ0BAOBAizF1n1e2nFLglBCmb5ojw0vpkTtml6XoPgLioPx0AgAAAAAAAAAg5IK3WMI5kDnbvt1dskOF6TTWgrL9ZzRGkavQ78dxlBsBAQEBAQABAAChhmu//OqNNn+XrXKa67HmkdJlo70oPEQ7Mawc+p7njAFwV7oJAeTZseBN516iaZpEEyFWElgeulfr5+WUuAnMzgIAAAAAAAAAIOwr5NrG/2lF1Js+zAQ9BJYR9s/RC8pNUX6UUq1UhtaeoYZrv/zqjTZ/l61ymuux5pHSZaO9KDxEOzGsHPqe54wKAAAAAAAAAKCGAQAAAAAAAAFhAK+cGYvRfC9Pq8Q1IVrwqBADv/AjjwNKexxXeT8NDWGew3D0+j9EJ3PHS8FCF0OOfsqc+JZhOSfHe3zjlCQefgrWnfBR88qs+c/GcHXhsNtHEECK8vIjfFKQvXV+9IXwAw==",
+                "rawTransaction": "AQAAAAAAAgAgA4jCjd1Zd6WOIGrNGWOch1pPvs8zQrglyDhDAKx+O60BAMggp1tXQiS5IKqbAFCTuCDfJO+LQ3FUmfT/9OBWwM1cAgAAAAAAAAAgVUZy4Te1Cxp8iyTYMxDI9sRo5v6QbaCnpymsaNySaNMBAQEBAQABAADBS4Rj87G8UkBDvQPCX2c+xXbeveAJZyf5VSTw9VX2uwHYAktLOaf+0nE0sHPahjhFQRE5ZRk3noiMg6uvDmAFBAIAAAAAAAAAIHnkVv8BP1ZT2rttbJXd19NaQtMfOpvru2g9tm6KBnBowUuEY/OxvFJAQ70Dwl9nPsV23r3gCWcn+VUk8PVV9rsKAAAAAAAAAKCGAQAAAAAAAAFhAAUbCJPG4NRwCaIP0fhIYKgbCj73YH4jG+aLybQnwzniioDlLXeALtmzQiVcO/c/muVfegYm9quaAuTXkseXdwrBLYrHKlE7PwRVuJjmBwbiSpqS0m/j+PFnALfPM5bN1Q==",
                 "effects": {
                   "messageVersion": "v1",
                   "status": {
@@ -2876,7 +2924,7 @@
                   "mutated": [
                     {
                       "owner": {
-                        "AddressOwner": "0xa1866bbffcea8d367f97ad729aebb1e691d265a3bd283c443b31ac1cfa9ee78c"
+                        "AddressOwner": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb"
                       },
                       "reference": {
                         "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
@@ -2897,7 +2945,7 @@
                   ],
                   "gasObject": {
                     "owner": {
-                      "ObjectOwner": "0xa1866bbffcea8d367f97ad729aebb1e691d265a3bd283c443b31ac1cfa9ee78c"
+                      "ObjectOwner": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb"
                     },
                     "reference": {
                       "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
@@ -2910,7 +2958,7 @@
                 "objectChanges": [
                   {
                     "type": "transferred",
-                    "sender": "0xa1866bbffcea8d367f97ad729aebb1e691d265a3bd283c443b31ac1cfa9ee78c",
+                    "sender": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb",
                     "recipient": {
                       "AddressOwner": "0x0388c28ddd5977a58e206acd19639c875a4fbecf3342b825c8384300ac7e3bad"
                     },
@@ -3068,11 +3116,11 @@
               "name": "past_objects",
               "value": [
                 {
-                  "objectId": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d",
+                  "objectId": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf",
                   "version": "4"
                 },
                 {
-                  "objectId": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
+                  "objectId": "0x5cd6fa76ed1d18f05f15e35075252ddec4fb83621d55952d9172fcfcb72feae2",
                   "version": "12"
                 }
               ]
@@ -3096,14 +3144,14 @@
               {
                 "status": "VersionFound",
                 "details": {
-                  "objectId": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d",
+                  "objectId": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf",
                   "version": "4",
-                  "digest": "GcteyqtLYTc7Fig8CKtspCafwf6muuDgMtDUA1jrYKae",
+                  "digest": "5pCqw4G6F1hXcukW3XwhBzas9RqeFrUkvNon5jgX3ewg",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
-                    "AddressOwner": "0xb01f2f3f227a90090e6777f19aa10fd9e64e29dd4e8da119481d1a7c3c050dc5"
+                    "AddressOwner": "0x38b3186a7bb26a1ab2c982a0a9b482aa70f5a010fffc60f20194ef0f597474e8"
                   },
-                  "previousTransaction": "6QcGEYeKTxceVnzLrGuMT2XfPyvsh56cfhXA3ofKtYxY",
+                  "previousTransaction": "EupJisi3AynCmcFyhkX1azsVtR6vun1Uaf7WSRCE82jx",
                   "storageRebate": "100",
                   "content": {
                     "dataType": "moveObject",
@@ -3112,7 +3160,7 @@
                     "fields": {
                       "balance": "10000",
                       "id": {
-                        "id": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d"
+                        "id": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf"
                       }
                     }
                   }
@@ -3121,14 +3169,14 @@
               {
                 "status": "VersionFound",
                 "details": {
-                  "objectId": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
+                  "objectId": "0x5cd6fa76ed1d18f05f15e35075252ddec4fb83621d55952d9172fcfcb72feae2",
                   "version": "12",
-                  "digest": "F34PCnEHm5GAP5ksDKPSdRMKz49JiqrvLUTZsiojqJS2",
+                  "digest": "CE9bNT96Sa2BxQQH2id4PRxTgW5TW7zm6VVhDeRNBegW",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
-                    "AddressOwner": "0xfde53941b2a08a8bf752c20979842732ac019f52835282744318d6d84f3c52b3"
+                    "AddressOwner": "0x54b3c61936f77fcfdaa213c2f7b4fb1b51ef9f3ed66000c0e45697dbee095479"
                   },
-                  "previousTransaction": "EMLrFqmDkZtFvidxKy1T8bwAiHnUiLqramE58kSUcAf8",
+                  "previousTransaction": "hvBGBXvKVhC7XYgVPujuiLjxASR6UGAkSFrCRtVxX1F",
                   "storageRebate": "100",
                   "content": {
                     "dataType": "moveObject",
@@ -3137,7 +3185,7 @@
                     "fields": {
                       "balance": "20000",
                       "id": {
-                        "id": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d"
+                        "id": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf"
                       }
                     }
                   }
@@ -4071,7 +4119,7 @@
                   "data": {
                     "objectId": "0xd87765d1aadec2db8cc24c312542c8359b6b5e3bfeab524e5edaad3a204b4053",
                     "version": "13488",
-                    "digest": "A6v9pFTLH3PkDSvEGgVjW1JhL7CtcUQKwGmgXK8SQNsc",
+                    "digest": "8qCvxDHh5LtDfF95Ci9G7vvQN2P6y4v55S9xoKBYp7FM",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
                       "AddressOwner": "0x0cd4bb4d4f520fe9bbf0cf1cebe3f2549412826c3c9261bff9786c240123749f"
@@ -4084,7 +4132,7 @@
                   "data": {
                     "objectId": "0x26ed170e0427f9416a614d23284116375c16bd317738fd2c7a885362e04923f5",
                     "version": "13488",
-                    "digest": "Fn1HG7LyUcLDps6bhYQkPWXpeUXgisznxRJ2qvn7Q1JN",
+                    "digest": "5Ka3vDaDy9h5UYk3Maz3vssWHrhbcGXQgwg8fL2ygyTi",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
                       "AddressOwner": "0x0cd4bb4d4f520fe9bbf0cf1cebe3f2549412826c3c9261bff9786c240123749f"
@@ -4097,7 +4145,7 @@
                   "data": {
                     "objectId": "0x2aea16d6fb49b7d1ae51f33b01ed8e1ac66916858610c124bb6fd73bb13e141c",
                     "version": "13488",
-                    "digest": "39aXGAwHaY3CiqWwLiBZ7JRaGSvnpvPbHxMSJAwAUY5i",
+                    "digest": "D3hfhfecVcmRcqNEkxkoFMzbuXvBqWj1JkCNU9zbnYMo",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
                       "AddressOwner": "0x0cd4bb4d4f520fe9bbf0cf1cebe3f2549412826c3c9261bff9786c240123749f"
@@ -4185,7 +4233,7 @@
                 "stakingPool": "0xb4eeb46b70f0bebcae832aeef9f7c5db76052ab656e5f81853d0cf701cdbc8eb",
                 "stakes": [
                   {
-                    "stakedIotaId": "0xc041b0f8d0938923ea7e3917608ee62df4376710024f81dd33ab6833482ee803",
+                    "stakedIotaId": "0xf27ab513fc6ef8c344406c78da3d5ad3a5fcc295dc8803c15989a62d33ee8590",
                     "stakeRequestEpoch": "62",
                     "stakeActiveEpoch": "63",
                     "principal": "200000000000",
@@ -4193,7 +4241,7 @@
                     "estimatedReward": "520000000"
                   },
                   {
-                    "stakedIotaId": "0x4e779a48e6ef635c7f856df4905022458bfbd22bbb46f892c42d9ec0ae4de93e",
+                    "stakedIotaId": "0x14cfd5e91c13a481370240e392464c329a203fb9f0a8158aaab9b2a90044b26e",
                     "stakeRequestEpoch": "142",
                     "stakeActiveEpoch": "143",
                     "principal": "200000000000",
@@ -4206,7 +4254,7 @@
                 "stakingPool": "0xbaa75ac72e548aeecf2ce8b4e88530651d6e8f93e0fb79b4bc65a512beb5b9f3",
                 "stakes": [
                   {
-                    "stakedIotaId": "0x82aa70f5a010fffc60f20194ef0f597474e8ceaf9ee4582d3a233101e322a22c",
+                    "stakedIotaId": "0x378423de90ed03b694cecf443c72b5387b29a731d26d98108d7abc4902107d7d",
                     "stakeRequestEpoch": "244",
                     "stakeActiveEpoch": "245",
                     "principal": "200000000000",
@@ -4268,7 +4316,7 @@
               "stakingPool": "0x6710024f81dd33ab6833482ee8034e779a48e6ef635c7f856df4905022458bfb",
               "stakes": [
                 {
-                  "stakedIotaId": "0xb2a5bea2e681ea5af4e59bd1abb0bb4fcb2747866ff92885a3c21a7703f56472",
+                  "stakedIotaId": "0x6a8e0f8fea6fda5488462e58724c034462b6064a08845e2ae2942fe7c4ee816d",
                   "stakeRequestEpoch": "62",
                   "stakeActiveEpoch": "63",
                   "principal": "200000000000",
@@ -4276,7 +4324,7 @@
                   "estimatedReward": "520000000"
                 },
                 {
-                  "stakedIotaId": "0x1c198308aa0c71b771ada6b96c16fc9c0fa754b3c61936f77fcfdaa213c2f7b4",
+                  "stakedIotaId": "0x754eb2eed23e6c6bb32c89fe1f21ab588374445e72e0402aea014b2956105799",
                   "stakeRequestEpoch": "244",
                   "stakeActiveEpoch": "245",
                   "principal": "200000000000",
@@ -7670,6 +7718,30 @@
               }
             },
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "BridgeStateCreate"
+            ],
+            "properties": {
+              "BridgeStateCreate": {
+                "$ref": "#/components/schemas/CheckpointDigest"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "BridgeCommitteeUpdate"
+            ],
+            "properties": {
+              "BridgeCommitteeUpdate": {
+                "$ref": "#/components/schemas/SequenceNumber2"
+              }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -9038,35 +9110,6 @@
           },
           "workerPubkeyBytes": {
             "$ref": "#/components/schemas/Base64"
-          }
-        }
-      },
-      "LoadedChildObject": {
-        "type": "object",
-        "required": [
-          "objectId",
-          "sequenceNumber"
-        ],
-        "properties": {
-          "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
-          },
-          "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber"
-          }
-        }
-      },
-      "LoadedChildObjectsResponse": {
-        "type": "object",
-        "required": [
-          "loadedChildObjects"
-        ],
-        "properties": {
-          "loadedChildObjects": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LoadedChildObject"
-            }
           }
         }
       },

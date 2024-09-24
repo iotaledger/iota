@@ -4,7 +4,7 @@ expression: sdl
 ---
 type ActiveJwk {
 	"""
-	The string (Isiotang Authority) that identifies the OIDC provider.
+	The string (Issuing Authority) that identifies the OIDC provider.
 	"""
 	iss: String!
 	"""

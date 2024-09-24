@@ -4,8 +4,8 @@
 
 module base::base_module {
     public struct X {
-        field0: u64,
         field1: bool,
+        field0: u64,
     }
 
     public fun public_fun(): u64 { 0 }

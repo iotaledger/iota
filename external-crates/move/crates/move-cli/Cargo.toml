@@ -11,14 +11,14 @@ description = "CLI frontend for the Move compiler and VM"
 
 [dependencies]
 anyhow.workspace = true
+clap.workspace = true
+codespan-reporting.workspace = true
 colored.workspace = true
 difference.workspace = true
 serde_yaml.workspace = true
-clap.workspace = true
 tempfile.workspace = true
-walkdir.workspace = true
-codespan-reporting.workspace = true
 toml_edit.workspace = true
+walkdir.workspace = true
 
 bcs.workspace = true
 

@@ -215,7 +215,7 @@ async fn test_generate_lock_file() {
 
         [move]
         version = 2
-        manifest_digest = "8BDC303EBB7D536EAD57F37F6C73A9D6170B779731739A860581007DA95C2487"
+        manifest_digest = "78ED00C216B5A73463BD935B7AD1AB6CAF8ECA9ACD7FFCC19F3462EBD1D83EC3"
         deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
         dependencies = [
           { name = "Examples" },
@@ -229,10 +229,6 @@ async fn test_generate_lock_file() {
         dependencies = [
           { name = "Iota" },
         ]
-
-        [[move.package]]
-        name = "MoveStdlib"
-        source = { local = "../../../../../iota-framework/packages/move-stdlib" }
 
         [[move.package]]
         name = "Iota"

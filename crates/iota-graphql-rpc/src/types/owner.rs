@@ -5,22 +5,19 @@
 use async_graphql::{connection::Connection, *};
 use iota_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
 
-use crate::{
-    data::Db,
-    types::{
-        address::Address,
-        balance::{self, Balance},
-        coin::Coin,
-        coin_metadata::CoinMetadata,
-        cursor::Page,
-        dynamic_field::{DynamicField, DynamicFieldName},
-        iota_address::IotaAddress,
-        move_object::MoveObject,
-        move_package::MovePackage,
-        object::{self, Object, ObjectFilter},
-        stake::StakedIota,
-        type_filter::ExactTypeFilter,
-    },
+use crate::types::{
+    address::Address,
+    balance::{self, Balance},
+    coin::Coin,
+    coin_metadata::CoinMetadata,
+    cursor::Page,
+    dynamic_field::{DynamicField, DynamicFieldName},
+    iota_address::IotaAddress,
+    move_object::MoveObject,
+    move_package::MovePackage,
+    object::{self, Object, ObjectFilter},
+    stake::StakedIota,
+    type_filter::ExactTypeFilter,
 };
 
 #[derive(Clone, Debug)]

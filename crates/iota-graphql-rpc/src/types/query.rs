@@ -540,23 +540,6 @@ impl Query {
             .extend()
     }
 
-    /// Resolves a IotaNS `domain` name to an address, if it has been bound.
-    async fn resolve_iotans_address(
-        &self,
-        ctx: &Context<'_>,
-        domain: Domain,
-    ) -> Result<Option<Address>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        Ok(NameService::resolve_to_record(ctx, &domain, checkpoint)
-            .await
-            .extend()?
-            .and_then(|r| r.target_address)
-            .map(|a| Address {
-                address: a.into(),
-                checkpoint_viewed_at: checkpoint,
-            }))
-    }
-
     /// The coin metadata associated with the given coin type.
     async fn coin_metadata(
         &self,

@@ -17,7 +17,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-const MAX_PROTOCOL_VERSION: u64 = 1;
+pub const MAX_PROTOCOL_VERSION: u64 = 1;
 
 // Record history of protocol version allocations here:
 //
@@ -2226,6 +2226,14 @@ impl ProtocolConfig {
 
     pub fn set_shared_object_deletion_for_testing(&mut self, val: bool) {
         self.feature_flags.shared_object_deletion = val;
+    }
+
+    pub fn set_resolve_abort_locations_to_package_id_for_testing(&mut self, val: bool) {
+        self.feature_flags.resolve_abort_locations_to_package_id = val;
+    }
+
+    pub fn set_reshare_at_same_initial_version_for_testing(&mut self, val: bool) {
+        self.feature_flags.reshare_at_same_initial_version = val;
     }
 
     pub fn set_narwhal_new_leader_election_schedule_for_testing(&mut self, val: bool) {

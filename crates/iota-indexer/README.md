@@ -91,7 +91,7 @@ To run the tests, a running postgres instance is required. The crate provides fo
 - integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
 
 ```sh
-cargo test --features pg_integration
+cargo nextest --features pg_integration --test-threads 1
 ```
 
 ## Steps to run locally with TiDB (experimental)
@@ -111,6 +111,7 @@ brew install mysql@8.0
 ```
 
 3. Install a version of `diesel_cli` that supports MySQL (and probably also Postgres). This version of the CLI needs to be built against the version of MySQL that was installed in the previous step (compatible with the local installation of TiDB, 8.0.37 at time of writing).
+
 ```sh
 MYSQLCLIENT_LIB_DIR=/opt/homebrew/Cellar/mysql@8.0/8.0.37/lib/ cargo install diesel_cli --no-default-features --features postgres --features mysql --force
 ```

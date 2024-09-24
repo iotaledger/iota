@@ -395,7 +395,8 @@ impl CoinMetadata {
 
             let db = ctx.data_unchecked();
 
-            let Some(object) = Object::query_singleton(db, cap_type).await? else {
+            let Some(object) = Object::query_singleton(db, cap_type, checkpoint_viewed_at).await?
+            else {
                 return Ok(None);
             };
 

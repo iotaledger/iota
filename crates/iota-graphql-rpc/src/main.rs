@@ -54,10 +54,9 @@ async fn main() {
                 println!("Write schema to file: {:?}", file);
                 std::fs::write(file, &out).unwrap();
             } else {
-                println!("{}", toml);
+                println!("{}", out);
             }
         }
-
         Command::StartServer {
             ide_title,
             db_url,

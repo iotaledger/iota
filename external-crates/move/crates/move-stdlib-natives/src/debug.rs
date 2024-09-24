@@ -1,8 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use move_vm_runtime::native_functions::{NativeContext, NativeFunction};
@@ -14,13 +16,14 @@ use move_vm_types::{
     values::{Reference, Value},
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
 
-/***************************************************************************************************
- * native fun print
- *
- *   gas cost: base_cost
- **************************************************************************************************/
+use crate::helpers::make_module_natives;
+
+/// ****************************************************************************
+/// native fun print
+///
+///   gas cost: base_cost
+/// ****************************************************************************
 #[derive(Debug, Clone)]
 pub struct PrintGasParameters {
     pub base_cost: InternalGas,
@@ -98,11 +101,12 @@ pub fn make_native_print(
     }
 }
 
-/***************************************************************************************************
- * native fun print_stack_trace
- *
- *   gas cost: base_cost
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun print_stack_trace
+///
+///   gas cost: base_cost
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct PrintStackTraceGasParameters {
     pub base_cost: InternalGas,
@@ -159,9 +163,10 @@ pub fn make_native_print_stack_trace(
     }
 }
 
-/***************************************************************************************************
- * module
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* module
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub print: PrintGasParameters,
@@ -189,6 +194,8 @@ pub fn make_all(
 
 #[cfg(feature = "testing")]
 mod testing {
+    use std::{fmt, fmt::Write};
+
     use move_binary_format::errors::{PartialVMError, PartialVMResult};
     use move_core_types::{
         account_address::AccountAddress, annotated_value as A, language_storage::TypeTag,
@@ -196,7 +203,6 @@ mod testing {
     };
     use move_vm_runtime::native_functions::NativeContext;
     use move_vm_types::{loaded_data::runtime_types::Type, values::Value};
-    use std::{fmt, fmt::Write};
 
     const VECTOR_BEGIN: &str = "[";
 
@@ -247,12 +253,13 @@ mod testing {
         }
     }
 
-    /// Converts a `MoveValue::Vector` of `u8`'s to a `String` by wrapping it in double quotes and
-    /// escaping double quotes and backslashes.
+    /// Converts a `MoveValue::Vector` of `u8`'s to a `String` by wrapping it in
+    /// double quotes and escaping double quotes and backslashes.
     ///
     /// Examples:
     ///  - 'Hello' returns "Hello"
-    ///  - '"Hello?" What are you saying?' returns "\"Hello?\" What are you saying?"
+    ///  - '"Hello?" What are you saying?' returns "\"Hello?\" What are you
+    ///    saying?"
     ///  - '\ and " are escaped' returns "\\ and \" are escaped"
     fn move_value_as_escaped_string(val: A::MoveValue) -> PartialVMResult<String> {
         match val {
@@ -268,8 +275,8 @@ mod testing {
                     )
                 })?;
 
-                // We need to escape displayed double quotes " as \" and, as a result, also escape
-                // displayed \ as \\.
+                // We need to escape displayed double quotes " as \" and, as a result, also
+                // escape displayed \ as \\.
                 Ok(str.replace('\\', "\\\\").replace('"', "\\\""))
             }
             _ => Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
@@ -330,7 +337,9 @@ mod testing {
                     // `print_move_value`, or (2) a struct type, which we can decorate and forward
                     // to `print_move_value`.
                     R::MoveTypeLayout::Vector(_) | R::MoveTypeLayout::Struct(_) => {
-                        // `val` is either a `Vec<Vec<Value>>`, a `Vec<Struct>`,  or a `Vec<signer>`, so we cast `val` as a `Vec<Value>` and call ourselves recursively
+                        // `val` is either a `Vec<Vec<Value>>`, a `Vec<Struct>`,  or a
+                        // `Vec<signer>`, so we cast `val` as a `Vec<Value>` and call ourselves
+                        // recursively
                         let vec = val.value_as::<Vec<Value>>()?;
 
                         let print_inner_value =
@@ -366,8 +375,9 @@ mod testing {
                             true,
                         )?;
                     }
-                    // If the inner type T of this vector<T> is a primitive bool/unsigned integer/address type, we convert the
-                    // vector<T> to a MoveValue and print it.
+                    // If the inner type T of this vector<T> is a primitive bool/unsigned
+                    // integer/address type, we convert the vector<T> to a
+                    // MoveValue and print it.
                     _ => {
                         let ann_ty_layout = context.type_to_fully_annotated_layout(&ty)?.unwrap();
                         let mv = val.as_move_value(&ty_layout).decorate(&ann_ty_layout);
@@ -383,13 +393,14 @@ mod testing {
                     }
                 };
             }
-            // For a struct, we convert it to a MoveValue annotated with its field names and types and print it
+            // For a struct, we convert it to a MoveValue annotated with its field names and types
+            // and print it
             R::MoveTypeLayout::Struct(_) => {
                 let move_struct = match val.as_move_value(&ty_layout) {
                     R::MoveValue::Struct(s) => s,
                     _ => {
                         return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
-                            .with_message("Expected MoveValue::MoveStruct".to_string()))
+                            .with_message("Expected MoveValue::MoveStruct".to_string()));
                     }
                 };
 
@@ -416,7 +427,7 @@ mod testing {
                     R::MoveValue::Variant(v) => v,
                     _ => {
                         return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
-                            .with_message("Expected MoveValue::MoveStruct".to_string()))
+                            .with_message("Expected MoveValue::MoveStruct".to_string()));
                     }
                 };
 
@@ -438,7 +449,8 @@ mod testing {
                     include_int_types,
                 )?;
             }
-            // For non-structs, non-enums, and non-vectors, convert them to a MoveValue and print them
+            // For non-structs, non-enums, and non-vectors, convert them to a MoveValue and print
+            // them
             _ => {
                 let ann_ty_layout = context.type_to_fully_annotated_layout(&ty)?.unwrap();
                 print_move_value(
@@ -456,8 +468,8 @@ mod testing {
         Ok(())
     }
 
-    /// Prints the MoveValue in `mv`, optionally-printing integer types if `include_int_type` is
-    /// true.
+    /// Prints the MoveValue in `mv`, optionally-printing integer types if
+    /// `include_int_type` is true.
     fn print_move_value(
         out: &mut String,
         mv: A::MoveValue,
@@ -506,8 +518,9 @@ mod testing {
             }
             A::MoveValue::Bool(b) => {
                 // Note that when `include_int_types` is enabled, the boolean `true` and `false`
-                // values unambiguously encode their type, since they are different than any integer
-                // type value, address value, signer value, vector value and struct value.
+                // values unambiguously encode their type, since they are different than any
+                // integer type value, address value, signer value, vector value
+                // and struct value.
                 write!(out, "{}", if b { "true" } else { "false" })
                     .map_err(fmt_error_to_partial_vm_error)?;
             }
@@ -747,7 +760,8 @@ mod testing {
         if let Some(first_elem) = iter.next() {
             empty_vec = false;
 
-            // For vectors-of-vectors, and for vectors-of-structs, we start a newline for each element
+            // For vectors-of-vectors, and for vectors-of-structs, we start a newline for
+            // each element
             if !single_line && is_complex_inner_type {
                 writeln!(out).map_err(fmt_error_to_partial_vm_error)?;
                 print_padding_at_depth(out, depth + 1)?;
@@ -768,7 +782,8 @@ mod testing {
             for elem in iter {
                 write!(out, "{}", VECTOR_OR_STRUCT_SEP).map_err(fmt_error_to_partial_vm_error)?;
 
-                // For vectors of vectors or vectors of structs, we start a newline for each element
+                // For vectors of vectors or vectors of structs, we start a newline for each
+                // element
                 if !single_line && is_complex_inner_type {
                     writeln!(out).map_err(fmt_error_to_partial_vm_error)?;
                     print_padding_at_depth(out, depth + 1)?;
@@ -787,7 +802,8 @@ mod testing {
             }
         }
 
-        // For vectors of vectors or vectors of structs, we display the closing ] on a newline
+        // For vectors of vectors or vectors of structs, we display the closing ] on a
+        // newline
         if !single_line && is_complex_inner_type {
             writeln!(out).map_err(fmt_error_to_partial_vm_error)?;
             print_padding_at_depth(out, depth)?;

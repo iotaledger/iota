@@ -18,8 +18,8 @@ use test_cluster::TestClusterBuilder;
 //     let client = IotaClientBuilder::default().build(rpc_url).await?;
 //     let txs = client
 //         .read_api()
-//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(),
-// None, true)         .collect::<Vec<_>>()
+//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(), None, true)
+//         .collect::<Vec<_>>()
 //         .await;
 
 //     assert_eq!(1, txs.len());
@@ -37,8 +37,8 @@ use test_cluster::TestClusterBuilder;
 
 //     let txs = client
 //         .read_api()
-//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(),
-// None, true)         .collect::<Vec<_>>()
+//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(), None, true)
+//         .collect::<Vec<_>>()
 //         .await;
 
 //     assert_eq!(2, txs.len());

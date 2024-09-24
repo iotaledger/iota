@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::SocketAddr;
+
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
@@ -12,9 +15,9 @@ use iota_types::{
         get_key_pair, CompressedSignature, IotaKeyPair, PublicKey, Signature,
         ZkLoginAuthenticatorAsBytes, ZkLoginPublicIdentifier,
     },
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     multisig::{MultiSig, MultiSigPublicKey},
-    multisig_legacy::MultiSigPublicKeyLegacy,
+    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     signature::GenericSignature,
     transaction::Transaction,
     utils::{keys, load_test_vectors, make_upgraded_multisig_tx},
@@ -34,15 +37,13 @@ async fn do_upgraded_multisig_test() -> IotaResult {
         .next()
         .unwrap()
         .authority_client()
-        .handle_transaction(tx)
+        .handle_transaction(tx, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
         .await
         .map(|_| ())
 }
 
 #[sim_test]
 async fn test_upgraded_multisig_feature_deny() {
-    use iota_protocol_config::ProtocolConfig;
-
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_upgraded_multisig_for_testing(false);
         config
@@ -50,13 +51,16 @@ async fn test_upgraded_multisig_feature_deny() {
 
     let err = do_upgraded_multisig_test().await.unwrap_err();
 
-    assert!(matches!(err, IotaError::UnsupportedFeature { .. }));
+    assert!(matches!(
+        err,
+        IotaError::UserInputError {
+            error: UserInputError::Unsupported(..)
+        }
+    ));
 }
 
 #[sim_test]
 async fn test_upgraded_multisig_feature_allow() {
-    use iota_protocol_config::ProtocolConfig;
-
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_upgraded_multisig_for_testing(true);
         config
@@ -66,7 +70,7 @@ async fn test_upgraded_multisig_feature_allow() {
 
     // we didn't make a real transaction with a valid object, but we verify that we
     // pass the feature gate.
-    assert!(matches!(res.unwrap_err(), IotaError::UserInput { .. }));
+    assert!(matches!(res.unwrap_err(), IotaError::UserInputError { .. }));
 }
 
 #[sim_test]
@@ -365,6 +369,11 @@ async fn test_multisig_with_zklogin_scenerios() {
         0b1000,
         multisig_pk.clone(),
     ));
+    let sender = IotaAddress::try_from(&multisig).unwrap();
+    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, IotaAddress::ZERO)
+        .build();
+
     let tx_7 = Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig]);
     let res = context.execute_transaction_may_fail(tx_7).await;
     assert!(
@@ -674,29 +683,75 @@ async fn test_multisig_with_zklogin_scenerios() {
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_expired_epoch_zklogin_in_multisig() {
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10000)
+        .with_epoch_duration_ms(15000)
         .with_default_jwks()
         .build()
         .await;
     test_cluster.wait_for_epoch(Some(3)).await;
-    let tx = construct_simple_zklogin_multisig_tx(&test_cluster)
-        .await
-        .unwrap();
+    // construct tx with max_epoch set to 2.
+    let (tx, legacy_tx) = construct_simple_zklogin_multisig_tx(&test_cluster).await;
+
+    // latest multisig fails for expired epoch.
     let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
     assert!(
         res.unwrap_err()
             .to_string()
             .contains("ZKLogin expired at epoch 2")
     );
+
+    // legacy multisig also faiils for expired epoch.
+    let res = test_cluster
+        .wallet
+        .execute_transaction_may_fail(legacy_tx)
+        .await;
+    assert!(res.is_err());
+}
+
+#[sim_test]
+async fn test_max_epoch_too_large_fail_zklogin_in_multisig() {
+    use iota_protocol_config::ProtocolConfig;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_zklogin_max_epoch_upper_bound_delta_for_testing(Some(1));
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15000)
+        .with_default_jwks()
+        .build()
+        .await;
+    test_cluster.wait_for_authenticator_state_update().await;
+    // both tx with max_epoch set to 2.
+    let (tx, legacy_tx) = construct_simple_zklogin_multisig_tx(&test_cluster).await;
+
+    // max epoch at 2 is larger than current epoch (0) + upper bound (1), tx fails.
+    let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("ZKLogin max epoch too large")
+    );
+
+    // legacy tx fails for the same reason
+    let res = test_cluster
+        .wallet
+        .execute_transaction_may_fail(legacy_tx)
+        .await;
+    assert!(res.is_err());
 }
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_random_zklogin_in_multisig() {
-    let test_vectors = &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")
-        .unwrap()[1..11];
-    let test_cluster = TestClusterBuilder::new().with_default_jwks().build().await;
+    let test_vectors =
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1..11];
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15000)
+        .with_default_jwks()
+        .build()
+        .await;
     test_cluster.wait_for_authenticator_state_update().await;
+
     let rgp = test_cluster.get_reference_gas_price().await;
     let context = &test_cluster.wallet;
 
@@ -778,37 +833,47 @@ async fn test_multisig_legacy_works() {
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_inside_multisig_feature_deny() {
-    use iota_protocol_config::ProtocolConfig;
-
     // if feature disabled, fails to execute.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_accept_zklogin_in_multisig_for_testing(false);
         config
     });
-    let test_cluster = TestClusterBuilder::new().with_default_jwks().build().await;
+    let test_cluster = TestClusterBuilder::new()
+        .with_default_jwks()
+        .with_epoch_duration_ms(15000)
+        .build()
+        .await;
     test_cluster.wait_for_authenticator_state_update().await;
-    let tx = construct_simple_zklogin_multisig_tx(&test_cluster)
-        .await
-        .unwrap();
+    let (tx, legacy_tx) = construct_simple_zklogin_multisig_tx(&test_cluster).await;
+    // feature flag disabled fails latest multisig tx.
     let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
     assert!(
         res.unwrap_err()
             .to_string()
             .contains("zkLogin sig not supported inside multisig")
     );
+
+    // legacy multisig fails for the same reason.
+    let res = test_cluster
+        .wallet
+        .execute_transaction_may_fail(legacy_tx)
+        .await;
+    assert!(res.is_err());
 }
 
 async fn construct_simple_zklogin_multisig_tx(
     test_cluster: &TestCluster,
-) -> eyre::Result<Transaction> {
+) -> (Transaction, Transaction) {
     // construct a multisig address with 1 zklogin pk with threshold = 1.
     let (eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")?[1];
-    let zklogin_pk = PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
-        zklogin_inputs.get_iss(),
-        zklogin_inputs.get_address_seed(),
-    )?);
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+    let zklogin_pk = PublicKey::ZkLogin(
+        ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
+            .unwrap(),
+    );
     let multisig_pk = MultiSigPublicKey::insecure_new(vec![(zklogin_pk.clone(), 1)], 1);
+    let multisig_pk_legacy =
+        MultiSigPublicKeyLegacy::new(vec![zklogin_pk.clone()], vec![1], 1).unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
 
     let multisig_addr = IotaAddress::from(&multisig_pk);
@@ -825,9 +890,14 @@ async fn construct_simple_zklogin_multisig_tx(
         Signature::new_secure(&intent_msg, eph_kp),
     )
     .into();
-    let multisig = GenericSignature::MultiSig(MultiSig::combine(vec![sig_4], multisig_pk.clone())?);
-    Ok(Transaction::from_generic_sig_data(
-        tx_data.clone(),
-        vec![multisig],
-    ))
+    let multisig = GenericSignature::MultiSig(
+        MultiSig::combine(vec![sig_4.clone()], multisig_pk.clone()).unwrap(),
+    );
+    let multisig_legacy = GenericSignature::MultiSigLegacy(
+        MultiSigLegacy::combine(vec![sig_4.clone()], multisig_pk_legacy.clone()).unwrap(),
+    );
+    (
+        Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig]),
+        Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig_legacy]),
+    )
 }

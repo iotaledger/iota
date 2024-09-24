@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-aws-config= "1.5.6"
+aws-config = "1.5.6"
 aws-sdk-dynamodb = "1.42"
 aws-sdk-s3 = "1.50"
 backoff.workspace = true

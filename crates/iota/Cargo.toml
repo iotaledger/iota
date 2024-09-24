@@ -14,6 +14,8 @@ anemo.workspace = true
 anyhow.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
+aws-config = "1.5"
+aws-sdk-kms = "1.44.0"
 axum.workspace = true
 bcs.workspace = true
 bin-version.workspace = true
@@ -36,6 +38,8 @@ regex.workspace = true
 reqwest.workspace = true
 rusoto_core.workspace = true
 rusoto_kms.workspace = true
+rustyline = "14.0"
+rustyline-derive = "0.10"
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
@@ -81,8 +85,6 @@ fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 
 colored.workspace = true
-rustyline.workspace = true
-rustyline-derive.workspace = true
 shell-words.workspace = true
 unescape.workspace = true
 
