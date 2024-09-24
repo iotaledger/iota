@@ -1060,7 +1060,8 @@ mod checked {
         )
     }
 
-    /// Sets up a `ProgrammableTransactionBuilder` to create a new authenticator
+    /// Add to a `ProgrammableTransactionBuilder` a Move call to the Iota framework's
+    /// `authenticator_state_create` function.
     /// state. This function adds a Move call to the Iota framework's
     /// `authenticator_state_create` function, preparing the transaction for
     /// execution.
