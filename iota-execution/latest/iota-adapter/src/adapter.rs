@@ -85,6 +85,8 @@ mod checked {
     /// configuring extensions such as `ObjectRuntime` and
     /// `NativesCostTable`. These extensions manage object resolution, input
     /// objects, metering, protocol configuration, and metrics tracking.
+    /// They are available and mainly used in native function implementations
+    /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
         child_resolver: &'r dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
