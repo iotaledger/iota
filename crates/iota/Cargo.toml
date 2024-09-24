@@ -100,10 +100,10 @@ datatest-stable.workspace = true
 assert_cmd.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
-prometheus.workspace = true
-toml.workspace = true
 insta.workspace = true
+prometheus.workspace = true
 shlex.workspace = true
+toml.workspace = true
 
 iota-macros.workspace = true
 iota-simulator.workspace = true

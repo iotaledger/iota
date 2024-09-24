@@ -42,9 +42,9 @@ store = { path = "../../crates/typed-store", package = "typed-store" }
 
 [dev-dependencies]
 criterion.workspace = true
+iota-metrics.workspace = true
 serde_test.workspace = true
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
-iota-metrics.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true

@@ -8,12 +8,7 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
-async-graphql = { workspace = true, features = [
-    "dataloader",
-    "apollo_tracing",
-    "tracing",
-    "opentelemetry",
-] }
+async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
 async-graphql-axum.workspace = true
 async-graphql-value.workspace = true
 async-trait.workspace = true
