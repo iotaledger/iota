@@ -11,7 +11,7 @@ use crate::{
     balance::Balance,
     base_types::IotaAddress,
     collection_types::{Bag, Table},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::AuthorityPublicKeyBytes,
     error::IotaError,
     iota_system_state::{

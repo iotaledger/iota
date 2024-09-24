@@ -234,7 +234,7 @@ async fn test_passkey_feature_deny() {
     let err = execute_tx(tx, &test_cluster).await.unwrap_err();
     assert!(matches!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::Unsupported(..)
         }
     ));

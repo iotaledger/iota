@@ -28,10 +28,7 @@ use iota_types::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig, Weight,
     },
 };
-use jsonrpsee::{
-    core::{client::ClientT, RpcResult},
-    rpc_params,
-};
+use jsonrpsee::{core::client::ClientT, rpc_params};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[tokio::test]
@@ -197,7 +194,7 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 
     // it should take no more than 4 requests to be added to the blocklist
     for _ in 0..txn_count {
-        let response: RpcResult<IotaTransactionBlockResponse> = jsonrpc_client
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         assert!(
@@ -301,7 +298,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
 
     // it should take no more than 4 requests to be added to the blocklist
     for _ in 0..txn_count {
-        let response: RpcResult<IotaTransactionBlockResponse> = jsonrpc_client
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         if let Err(err) = response {
@@ -356,7 +353,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
             IotaTransactionBlockResponseOptions::new(),
             ExecuteTransactionRequestType::WaitForLocalExecution
         ];
-        let response: RpcResult<IotaTransactionBlockResponse> = jsonrpc_client
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_executeTransactionBlock", params.clone())
             .await;
         if let Err(err) = response {
@@ -509,7 +506,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     assert!(confirmed_local_execution.unwrap());
 
     for _ in 0..txn_count {
-        let response: RpcResult<IotaTransactionBlockResponse> = jsonrpc_client
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         assert!(response.is_ok(), "Expected request to succeed");
@@ -812,7 +809,7 @@ async fn assert_validator_traffic_control_dry_run(
 
     // it should take no more than 4 requests to be added to the blocklist
     for _ in 0..txn_count {
-        let response: RpcResult<IotaTransactionBlockResponse> = jsonrpc_client
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         assert!(

@@ -53,7 +53,7 @@ async fn test_upgraded_multisig_feature_deny() {
 
     assert!(matches!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::Unsupported(..)
         }
     ));
@@ -70,7 +70,7 @@ async fn test_upgraded_multisig_feature_allow() {
 
     // we didn't make a real transaction with a valid object, but we verify that we
     // pass the feature gate.
-    assert!(matches!(res.unwrap_err(), IotaError::UserInputError { .. }));
+    assert!(matches!(res.unwrap_err(), IotaError::UserInput { .. }));
 }
 
 #[sim_test]
@@ -743,8 +743,8 @@ async fn test_max_epoch_too_large_fail_zklogin_in_multisig() {
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_random_zklogin_in_multisig() {
-    let test_vectors =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1..11];
+    let test_vectors = &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")
+        .unwrap()[1..11];
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
         .with_default_jwks()
@@ -866,7 +866,7 @@ async fn construct_simple_zklogin_multisig_tx(
 ) -> (Transaction, Transaction) {
     // construct a multisig address with 1 zklogin pk with threshold = 1.
     let (eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let zklogin_pk = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
             .unwrap(),
