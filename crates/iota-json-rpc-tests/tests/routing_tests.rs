@@ -5,6 +5,8 @@
 use std::env;
 
 use async_trait::async_trait;
+use hyper::{header::HeaderValue, HeaderMap};
+use iota_config::local_ip_utils;
 use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder, ServerType};
 use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 use iota_open_rpc::Module;
@@ -36,7 +38,7 @@ async fn test_rpc_backward_compatibility() {
 
     // try to access old method directly should fail
     let client = HttpClientBuilder::default().build(&url).unwrap();
-    let response: RpcResult<String> = client.request("test_foo_1_5", rpc_params!("string")).await;
+    let response: Result<String, _> = client.request("test_foo_1_5", rpc_params!("string")).await;
     assert!(response.is_err());
 
     // Test with versioned client, version > backward compatible method version
@@ -113,7 +115,7 @@ async fn test_disable_routing() {
 
     // try to access old method directly should fail
     let client = HttpClientBuilder::default().build(&url).unwrap();
-    let response: RpcResult<String> = client.request("test_foo_1_5", rpc_params!("string")).await;
+    let response: Result<String, _> = client.request("test_foo_1_5", rpc_params!("string")).await;
     assert!(response.is_err());
 
     // Test with versioned client, version = backward compatible method version,
@@ -128,7 +130,7 @@ async fn test_disable_routing() {
         .build(&url)
         .unwrap();
 
-    let response: RpcResult<String> = client_with_new_header
+    let response: Result<String, _> = client_with_new_header
         .request(
             "test_foo",
             rpc_params!("old version expect string as input"),
