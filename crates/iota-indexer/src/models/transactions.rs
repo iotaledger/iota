@@ -120,7 +120,7 @@ impl StoredTransaction {
 
         let transaction = if options.show_input {
             let sender_signed_data = self.try_into_sender_signed_data()?;
-            let tx_block = IotaTransactionBlock::try_from(sender_signed_data, module)?;
+            let tx_block = IotaTransactionBlock::try_from(sender_signed_data, module, tx_digest)?;
             Some(tx_block)
         } else {
             None

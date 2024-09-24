@@ -21,6 +21,8 @@ import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation'
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '_shared/experimentation/features';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -64,6 +66,9 @@ export function ProtectAccountPage() {
             setShowVerifyPasswordView(hasPasswordAccounts);
         }
     }, [hasPasswordAccounts, createMutation.isSuccess, createMutation.isPending]);
+
+    const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
+
     const createAccountCallback = useCallback(
         async (password: string, type: AccountsFormType) => {
             try {
@@ -82,6 +87,7 @@ export function ProtectAccountPage() {
                         },
                     });
                 } else if (
+                    featureAccountFinderEnabled &&
                     REDIRECT_TO_ACCOUNTS_FINDER.includes(type) &&
                     (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
                         isSeedSerializedUiAccount(createdAccounts[0]))
@@ -93,7 +99,10 @@ export function ProtectAccountPage() {
                             type: type,
                         },
                     });
-                } else if (isLedgerAccountSerializedUI(createdAccounts[0])) {
+                } else if (
+                    featureAccountFinderEnabled &&
+                    isLedgerAccountSerializedUI(createdAccounts[0])
+                ) {
                     const path = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
                     navigate(path, {
                         replace: true,
@@ -108,7 +117,7 @@ export function ProtectAccountPage() {
                 toast.error((e as Error).message ?? 'Failed to create account');
             }
         },
-        [createMutation, navigate, successRedirect],
+        [featureAccountFinderEnabled, createMutation, navigate, successRedirect],
     );
     const autoLockMutation = useAutoLockMinutesMutation();
     if (!isAllowedAccountType(accountsFormType)) {

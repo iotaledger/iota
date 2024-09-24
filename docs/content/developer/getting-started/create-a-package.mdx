@@ -14,10 +14,10 @@ issuing [transactions](../iota-101/transactions/transactions.mdx).
 Use the following command to create a standard package:
 
 ```shell
-iota move new my_first_package
+iota move new first_package
 ```
 
-The command will create and populate the `my_first_package` directory with a skeleton for an IOTA Move project,
+The command will create and populate the `first_package` directory with a skeleton for an IOTA Move project,
 consisting of the following files and directories:
 
 ## `Move.toml`
@@ -28,44 +28,14 @@ The `Move.toml` file is the package's manifest. It describes the package and its
 In `.toml` files, use the hash mark (`#`) to denote a comment.
 :::
 
-```toml title="my_first_package/Move.toml"
-[package]
-name = "my_first_package"
-edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
-# license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
-# authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
-
-[dependencies]
-Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
-
-# For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
-# Revision can be a branch, a tag, and a commit hash.
-# MyRemotePackage =
-
-# For local dependencies use `local = path`. Path is relative to the package root
-# Local =
-
-# To resolve a version conflict and force a specific version for dependency
-# override use `override = true`
-# Override =
-
-[addresses]
-my_first_package = "0x0"
-
-# Named addresses will be accessible in Move as `@name`. They're also exported:
-# for example, `std = "0x1"` is exported by the Standard Library.
-# alice = "0xA11CE"
-
-[dev-dependencies]
-# The dev-dependencies section allows overriding dependencies for `--test` and
-# `--dev` modes. You can introduce test-only dependencies here.
-# Local =
-
-[dev-addresses]
-# The dev-addresses section allows overwriting named addresses for the `--test`
-# and `--dev` modes.
-# alice = "0xB0B"
+```toml file=<rootDir>/examples/move/first_package/Move.toml
 ```
+
+:::tip Using a local version of IOTA
+
+For local testnet development and testing it is recommended to use the local dependency of the `Iota` framework for faster and more reliable builds. See the commented line in the example above as an example pointing towards your local checkout of the `iota` repository.
+
+:::
 
 ### Package
 
@@ -81,15 +51,10 @@ of the metadata.
 The `[dependencies]` section specifies the dependencies of the project. The dependency specification can be a git
 repository URL or a path to the local directory.
 
-```rust
-# git repository
-iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
-
-# local directory
-MyPackage = { local = "../my-package" }
+```toml file=<rootDir>/examples/move/first_package/Move.toml#L10-L15
 ```
 
-Packages also import addresses from other packages. For example, the IOTA dependency adds the `std` and `iota` addresses
+Packages also import addresses from other packages. For example, the `Iota` dependency adds the `std` and `iota` addresses
 to the project. These addresses can be used in the code as aliases for the addresses.
 
 ### Resolving Version Conflicts with `override`
@@ -98,9 +63,7 @@ If you have two dependencies that use different versions of the same package, yo
 the `[dependencies]` section. To do so, add the `override` field to the dependency. The version specified in
 the `[dependencies]` section will be used instead of the one specified in the dependency itself.
 
-```rust
-[dependencies]
-iota = { override = true, git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+```toml file=<rootDir>/examples/move/first_package/Move.toml#L17-L19
 ```
 
 ### Dev-dependencies

@@ -5,7 +5,6 @@ export * from './useFormatCoin';
 export * from './useTimeAgo';
 export * from './useGetValidatorsEvents';
 export * from './useGetValidatorsApy';
-export * from './nameService';
 export * from './useGetTransferAmount';
 export * from './useGetObject';
 export * from './useGetDynamicFields';

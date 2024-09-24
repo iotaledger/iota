@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { Transaction } from '@iota/iota-sdk';
 import { UserApproveContainer } from '_components';
 import { useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';
 import { type TransactionApprovalRequest } from '_payloads/transactions/ApprovalRequest';
@@ -94,35 +93,29 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                 checkAccountLock
             >
                 <PageMainLayoutTitle title="Approve Transaction" />
-                <div className="flex flex-col">
-                    <div className="flex flex-col gap-4">
-                        <TransactionSummary
-                            isDryRun
-                            isLoading={isDryRunLoading}
-                            isError={isDryRunError}
-                            showGasSummary={false}
-                            summary={summary}
-                        />
-                    </div>
-                    <section className=" -mx-6 bg-white">
-                        <div className="flex flex-col gap-4 p-6">
-                            <GasFees sender={addressForTransaction} transaction={transaction} />
-                            <TransactionDetails
-                                sender={addressForTransaction}
-                                transaction={transaction}
-                            />
-                        </div>
-                    </section>
+                <div className="-mr-3 flex flex-col gap-md">
+                    <TransactionSummary
+                        isDryRun
+                        isLoading={isDryRunLoading}
+                        isError={isDryRunError}
+                        summary={summary}
+                    />
+                    <GasFees
+                        sender={addressForTransaction}
+                        gasSummary={summary?.gas}
+                        isEstimate
+                        isError={isError}
+                        isPending={isDryRunLoading}
+                    />
+                    <TransactionDetails sender={addressForTransaction} transaction={transaction} />
                 </div>
             </UserApproveContainer>
             <ConfirmationModal
                 isOpen={isConfirmationVisible}
-                title="This transaction might fail. Are you sure you still want to approve the transaction?"
-                hint="You will still be charged a gas fee for this transaction."
-                confirmStyle="primary"
+                title="Are you sure you want to approve the transaction?"
+                hint="This transaction might fail. You will still be charged a gas fee for this transaction."
                 confirmText="Approve"
                 cancelText="Reject"
-                cancelStyle="warning"
                 onResponse={async (isConfirmed) => {
                     await dispatch(
                         respondToTransactionRequest({

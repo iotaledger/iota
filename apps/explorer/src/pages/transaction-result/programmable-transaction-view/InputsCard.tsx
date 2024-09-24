@@ -4,7 +4,6 @@
 
 import { type IotaCallArg } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
-
 import { ProgrammableTxnBlockCard } from '~/components';
 import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
 
@@ -21,7 +20,10 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
 
     const expandableItems = inputs.map((input, index) => (
         <CollapsibleSection key={index} title={`Input ${index}`} defaultOpen>
-            <div data-testid="inputs-card-content" className="flex flex-col gap-2">
+            <div
+                data-testid="inputs-card-content"
+                className="flex flex-col gap-2 px-md pb-lg pt-xs"
+            >
                 {Object.entries(input).map(([key, value]) => {
                     let renderValue;
                     const stringValue = String(value);
