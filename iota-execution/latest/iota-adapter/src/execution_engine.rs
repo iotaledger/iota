@@ -70,7 +70,9 @@ mod checked {
     /// processes input objects, manages gas, and handles transaction
     /// execution based on the provided `TransactionKind`. It checks for any
     /// expensive operations, manages shared object references, and ensures
-    /// transaction dependencies are met.
+    /// transaction dependencies are met. All the objects stay unmodified
+    /// until the resulting effects are applied by the caller. Essentially,
+    /// this is the main entry point to the adapter from the execution layer.
     #[instrument(name = "tx_execute_to_effects", level = "debug", skip_all)]
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
