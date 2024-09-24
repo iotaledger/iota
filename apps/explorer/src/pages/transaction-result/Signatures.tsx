@@ -123,11 +123,9 @@ export function Signatures({ transaction }: SignaturesProps) {
     return (
         <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {userSignatures.length > 0 && (
-                <div className="flex flex-col gap-lg">
+                <div className="flex w-full flex-col gap-lg">
                     {userSignatures.map((signature, index) => (
-                        <div key={index}>
-                            <SignaturePanel title="User Signature" signature={signature} />
-                        </div>
+                        <SignaturePanel key={index} title="User Signature" signature={signature} />
                     ))}
                 </div>
             )}
