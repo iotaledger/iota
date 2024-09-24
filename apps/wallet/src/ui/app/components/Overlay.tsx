@@ -55,6 +55,7 @@ export function Overlay({
                         title={title}
                         onClose={closeModal}
                         titleCentered={titleCentered}
+                        e2eTestId="overlay-title"
                     />
                 )}
                 <div className="flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md">

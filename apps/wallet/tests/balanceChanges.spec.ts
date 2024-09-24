@@ -50,6 +50,7 @@ test('request IOTA from local faucet', async ({ page, extensionUrl }) => {
 });
 
 test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
+    const timeout = 30_000;
     const receivedKeypair = await generateKeypairFromMnemonic(receivedAddressMnemonic.join(' '));
     const receivedAddress = receivedKeypair.getPublicKey().toIotaAddress();
 
@@ -57,23 +58,22 @@ test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
     const originAddress = originKeypair.getPublicKey().toIotaAddress();
 
     await importWallet(page, extensionUrl, currentWalletMnemonic);
-    await page.getByRole('navigation').getByRole('link', { name: 'Home' }).click();
 
     await requestIotaFromFaucet(originAddress);
-    await expect(page.getByTestId('coin-balance')).not.toHaveText('0IOTA');
+    await expect(page.getByTestId('coin-balance')).not.toHaveText('0', { timeout });
 
     const originalBalance = await page.getByTestId('coin-balance').textContent();
 
     await page.getByTestId('send-coin-button').click();
-    await page.getByTestId('coin-amount-input').fill(String(COIN_TO_SEND));
-    await page.getByTestId('address-input').fill(receivedAddress);
-    await page.getByRole('button', { name: 'Review' }).click();
-    await page.getByRole('button', { name: 'Send Now' }).click();
+    await page.getByPlaceholder('0.00').fill(String(COIN_TO_SEND));
+    await page.getByPlaceholder('Enter Address').fill(receivedAddress);
+    await page.getByText('Review').click();
+    await page.getByText('Send Now').click();
     await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
 
     await page.getByTestId('close-icon').click();
-    await page.getByTestId('nav-tokens').click();
-    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}IOTA`);
+    await page.getByTestId('nav-home').click();
+    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`);
 });
 
 test('check balance changes in Activity', async ({ page, extensionUrl }) => {

@@ -20,15 +20,15 @@ export async function createWallet(page: Page, extensionUrl: string) {
 
 export async function importWallet(page: Page, extensionUrl: string, mnemonic: string | string[]) {
     await page.goto(extensionUrl);
-    await page.getByRole('link', { name: /More Options/ }).click();
-    await page.getByRole('link', { name: /Import Passphrase/ }).click();
+    await page.getByRole('button', { name: /Add Profile/ }).click();
+    await page.getByText('Mnemonic', { exact: true }).click();
     await page
-        .getByPlaceholder('Password')
+        .getByPlaceholder('Word')
         .first()
         .type(typeof mnemonic === 'string' ? mnemonic : mnemonic.join(' '));
-    await page.getByRole('button', { name: /Add Account/ }).click();
-    await page.getByLabel('Create Account Password').fill(PASSWORD);
-    await page.getByLabel('Confirm Account Password').fill(PASSWORD);
-    await page.getByLabel('I read and agreed to the').click();
+    await page.getByText('Add profile').click();
+    await page.getByTestId('password.input').fill('iotae2etests');
+    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 }
