@@ -890,7 +890,9 @@ mod checked {
         Ok(builder.finish())
     }
 
-    /// Executes the process of advancing the epoch by constructing and
+    /// Advances the epoch by constructing a `ProgrammableTransaction` with
+    /// `construct_advance_epoch_pt` and executing it.
+    /// ...
     /// executing an epoch advancement `ProgrammableTransaction`. If the
     /// transaction fails, it switches to safe mode and retries the
     /// epoch advancement in a more controlled environment. The function also
