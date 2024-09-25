@@ -81,6 +81,7 @@ passkey-types.workspace = true
 better_any.workspace = true
 derive_more.workspace = true
 lru.workspace = true
+proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 typed-store-error.workspace = true
 
@@ -113,4 +114,4 @@ gas-profiler = [
   "move-vm-types/gas-profiler",
   "move-vm-test-utils/gas-profiler",
 ]
-fuzzing = ["move-core-types/fuzzing", "proptest-derive"]
+fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]
