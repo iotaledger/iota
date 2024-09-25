@@ -23,21 +23,39 @@ You can install the IOTA app on your Ledger device from the App Catalog in Ledge
 5. Click **Install** to install the IOTA app on your device.
 6. Your device will show a message indicating the installation progress.
 
-## Import Accounts from Your Device to IOTA Wallet (TODO UPDATE, empieza en manage accounts, add Cluster de ledger in Manage accounts)
+## Import Accounts from Your Device to IOTA Wallet
 
 To connect your device to IOTA Wallet and import accounts:
 
 1. Unlock your Ledger device.
-2. Select the **IOTA app** on the device and press both buttons to start it.
+2. Select the `IOTA` app on the device and press both buttons to start it.
 3. Quit Ledger Live if it's still running.
-4. Open IOTA Wallet and enter your password.
-5. Click the **Settings** menu (three bars at the top-right corner), then click **Accounts**.
-6. Click **Connect Ledger Wallet**.
-7. On the **Connect Ledger Wallet** screen, click **Continue**.
-8. Select your device when prompted and click **Connect**.
-9. Choose the account(s) to import to IOTA Wallet and click **Unlock**.
+4. Open the [IOTA Wallet](#TODO ADD LINK) and enter your password.
+5. Go to `Accounts` by clicking on the address at the top of the `Home` section.
 
-IOTA Wallet will display the accounts you selected on the **Accounts** screen. Accounts imported from your Ledger device will show **LEDGER** next to them.
+   ![Accounts](/img/about-iota/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
+
+6. Click `Add Profile`.
+
+   ![Add Profile](/img/about-iota/iota-wallet/how-to/multi-account/click-add-profile.png)
+ 
+7. Click on the `Ledger` button in the `Import from Ledger` section.
+
+   ![Import From Ledger](/img/about-iota/iota-wallet/how-to/ledger/import-from-ledger.png)
+
+8. On the `Connect Ledger Wallet` screen, click `Continue`.
+
+   ![Connect Ledger Wallet](/img/about-iota/iota-wallet/how-to/ledger/connect-ledger-wallet.png)
+
+9. Choose the wallet(s) to import to IOTA Wallet and click `Next`.
+
+   ![Select Wallets](/img/about-iota/iota-wallet/how-to/ledger/select-wallets.png)
+
+10. Enter your password and click on `Verify`
+
+   ![Verify Password](/img/about-iota/iota-wallet/how-to/ledger/verify-password.png)
+
+IOTA Wallet will display the accounts you selected on the `Manage Accounts` screen under the `Ledger` cluster.
 
 ## View Account Balance
 
@@ -45,28 +63,51 @@ You can view the balance for an account in IOTA Wallet on the **Coins** tab. The
 
 To view coins and tokens in your account imported from Ledger, select an account with **LEDGER** next to it. To view NFTs for the account, click the **NFTs** tab.
 
-## Receive Digital Assets Using IOTA Wallet (TODO check, simplify and add receive button)
+## Receive Digital Assets Using IOTA Wallet 
 
-To receive cryptocurrency or NFTs in IOTA Wallet, follow these steps:
+To receive cryptocurrency or NFTs in the IOTA Wallet, follow these steps:
 
-1. Select the account to receive assets on the **Coins** tab and click the copy icon to copy the address.
-2. Before receiving an asset, verify that the Ledger account is connected:
-    - Open IOTA Wallet and click **Settings** (three bars).
-    - Click **Accounts**.
-    - Click the down arrow next to the Ledger account and click **Verify Ledger Connection**.
-    - Ensure that **Ledger is connected** is displayed.
-3. Send the digital asset to the address for the Ledger account.
+5. Go to `Accounts` by clicking on the address at the top of the `Home` section.
+
+   ![Accounts](/img/about-iota/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
+
+1. Select the account to receive assets on.
+
+   ![Select Account](/img/about-iota/iota-wallet/how-to/ledger/select-account.png)
+
+3. Hit the receive arrow button next to the account balance.
+
+   ![Receive Button](/img/about-iota/iota-wallet/how-to/ledger/receive-button.png)
+ 
+2. Copy your address or share the QR code to receive funds.
+
+   ![Receive QR](/img/about-iota/iota-wallet/how-to/ledger/receive-QR.png)
 
 ## Send Digital Assets Using IOTA Wallet
 
 To send a digital asset from your Ledger account:
 
-1. Open IOTA Wallet and click the **Settings** menu.
-2. Click **Accounts**.
-3. Click the down arrow next to the Ledger account and click **Verify Ledger Connection**.
-4. Click the **Coins** tab and then **Send**.
-5. Enter the amount of IOTA to send and the recipient's address, then click **Review**.
-6. Confirm the transaction details and click **Send Now** if correct.
+1. Go to `Accounts` by clicking on the address at the top of the `Home` section.
+
+   ![Accounts](/img/about-iota/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
+
+2. Select the account to send assets from.
+
+   ![Select Account](/img/about-iota/iota-wallet/how-to/ledger/select-account.png)
+
+3. Click on the blue send button next to your balance.
+
+   ![Send Button](/img/about-iota/iota-wallet/how-to/ledger/receive-button.png)
+
+4. Select the coin type, enter the desired amount to send and the recipient's address, then click `Review`.
+5. Input the recipient’s address and click `Review` to confirm.
+
+   ![Review](/img/about-iota/iota-wallet/how-to/basics/send-review.png)
+
+6. Once you verify the transaction details, click `Send Now ->` to complete the transfer.
+
+   ![Send Review](/img/about-iota/iota-wallet/how-to/basics/send-now.png)
+
 7. Verify the transaction details on your Ledger device:
     - Press the right button to see the full addresses used.
     - Confirm the address matches the one in IOTA Wallet.
@@ -77,9 +118,19 @@ To send a digital asset from your Ledger account:
 You can use IOTA Wallet to stake IOTA in your Ledger account, but you need to enable blind signing to approve staking transactions.
 
 1. Unlock your Ledger device and start the IOTA app.
-2. Enable Blind Signing by pressing the right button until **Blind signing** displays, then press both buttons to enable it.
+2. Enable Blind Signing by pressing the right button until `Blind signing` displays, then press both buttons to enable it.
 3. Open IOTA Wallet and select the Ledger account.
-4. Click **Stake & Earn IOTA**, select a validator, and click **Select Amount**.
-5. Enter an amount of at least 1.0 IOTA and click **Stake Now**.
-6. Press both buttons to approve the transaction.
+4. Click `Start Staking`.
+
+   ![Start Staking](/img/about-iota/iota-wallet/how-to/stake/start-staking.png)
+
+5. Choose a validator and click `Select Amount`.
+
+   ![Select Validator](/img/about-iota/iota-wallet/how-to/stake/select-validator.png)
+
+6. Enter the amount of IOTA you want to stake. Make sure to leave enough IOTA in your wallet for potential transaction fees, then confirm by clicking `Stake`.
+
+   ![Set Stake Amount](/img/about-iota/iota-wallet/how-to/stake/set-stake-amount.png)
+ 
+7. On your Ledger device, review the transaction details and press both buttons to approve the transaction.
 
