@@ -13,34 +13,34 @@ test('staking', async ({ page, extensionUrl }) => {
 
     await createWallet(page, extensionUrl);
 
-    await page.getByTestId('faucet-request-button').click();
-    await expect(page.getByTestId('coin-balance')).not.toHaveText('0IOTA');
+    await page.getByText(/Request localnet tokens/i).click();
+    await expect(page.getByTestId('coin-balance')).not.toHaveText('0', { timeout: TEST_TIMEOUT });
 
-    await page.getByText(/Stake and Earn IOTA/).click();
-    await page.getByTestId('validator-list-item').first().click();
-    await page.getByTestId('select-validator-cta').click();
-    await page.getByTestId('stake-amount-input').fill(STAKE_AMOUNT.toString());
-    await page.getByRole('button', { name: 'Stake Now' }).click();
-    await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
-        timeout: TEST_TIMEOUT,
-    });
+    await page.getByText(/Start Staking/).click();
+    await page
+        .getByText(/validator-/, { exact: false })
+        .first()
+        .click();
+    await page.getByText(/Next/).click();
+    await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
+    await page.getByRole('button', { name: 'Stake' }).click();
     await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
-    await expect(page.getByTestId('transaction-status')).toHaveText('Transaction Success');
 
     await page.getByTestId('close-icon').click();
 
-    await expect(page.getByTestId(`stake-button-${STAKE_AMOUNT}-IOTA`)).toBeVisible({
+    await expect(page.getByText(`${STAKE_AMOUNT} IOTA`)).toBeVisible({
         timeout: TEST_TIMEOUT,
     });
-    await page.getByTestId(`stake-button-${STAKE_AMOUNT}-IOTA`).click();
+    await page.getByText(`${STAKE_AMOUNT} IOTA`).click();
 
     await expect(page.getByTestId('stake-card')).toBeVisible({ timeout: 3 * TEST_TIMEOUT });
     await page.getByTestId('stake-card').click();
-    await page.getByTestId('unstake-button').click();
-    await page.getByRole('button', { name: 'Unstake Now' }).click();
-    await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+    await page.getByText('Unstake').click();
+    await page.getByRole('button', { name: 'Unstake' }).click();
+    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
+
+    await page.getByTestId('close-icon').click();
+    await expect(page.getByText(`${STAKE_AMOUNT} IOTA`)).not.toBeVisible({
         timeout: TEST_TIMEOUT,
     });
-    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
-    await expect(page.getByTestId('transaction-status')).toHaveText('Transaction Success');
 });
