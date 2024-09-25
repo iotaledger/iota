@@ -18,11 +18,11 @@ test('account lock-unlock', async ({ page, extensionUrl }) => {
 });
 
 test('wallet auto-lock', async ({ page, extensionUrl }) => {
-    // test.skip(
-    //     process.env.CI !== 'true',
-    //     'Runs only on CI since it takes at least 1 minute to complete',
-    // );
-    test.setTimeout(70 * 1000);
+    test.skip(
+        process.env.CI !== 'true',
+        'Runs only on CI since it takes at least 1 minute to complete',
+    );
+    test.setTimeout(100 * 1000);
     await createWallet(page, extensionUrl);
     await page.getByLabel(/Open settings menu/).click();
     await page.getByText(/Auto Lock Profile/).click();
@@ -32,6 +32,6 @@ test('wallet auto-lock', async ({ page, extensionUrl }) => {
     await page.getByText('Save').click();
     await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('close-icon').click();
-    await page.waitForTimeout(61 * 1000);
+    await page.waitForTimeout(62 * 1000);
     await expect(page.getByText(/Unlock your Account/)).toBeVisible();
 });

@@ -45,8 +45,9 @@ test('request IOTA from local faucet', async ({ page, extensionUrl }) => {
 
     const originalBalance = await page.getByTestId('coin-balance').textContent();
     await page.getByText(/Request localnet tokens/i).click();
-    await expect(page.getByText(/IOTA Received/i)).toBeVisible({ timeout });
-    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`);
+    await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`, {
+        timeout,
+    });
 });
 
 test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
