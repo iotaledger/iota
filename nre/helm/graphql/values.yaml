@@ -56,7 +56,7 @@ image:
   repository: "iotaledger/iota-graphql-rpc"
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "iota-graphql-rpc-v2024.4.0-release"
+  tag: "iota-graphql-rpc-v2024.9.0-release"
 
 
 imagePullSecrets: []
