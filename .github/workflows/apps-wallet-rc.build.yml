@@ -3,10 +3,6 @@ name: Build Wallet App (RC)
 on:
   workflow_dispatch:
     inputs:
-      iota_branch:
-        description: "IOTA repo release branch to build artifacts from"
-        type: string
-        required: true
       rc_version:
         description: "The RC numeric version (X.Y.Z.RC)"
         type: number
@@ -27,8 +23,6 @@ jobs:
     steps:
       - name: Checking out ${{ env.iota_branch }}
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
-        with:
-          ref: ${{ env.iota_branch }}
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
@@ -37,6 +31,16 @@ jobs:
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: get-npm-version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
+        with:
+          path: apps/wallet
+      - name: Create artifact name
+        shell: bash
+        run: |
+          export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
+          echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Build Wallet
         run: pnpm wallet build:rc
       - name: Upload artifacts
