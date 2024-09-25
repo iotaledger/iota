@@ -54,6 +54,9 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
 
+# Scripts
+/scripts/slipstream/ @muXxer
+
 # Disable code ownership for these auto-generated files
 /Cargo.lock
 /pnpm-lock.yaml

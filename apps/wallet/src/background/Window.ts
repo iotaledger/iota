@@ -6,7 +6,7 @@ import { filter, fromEventPattern, share, take, takeWhile } from 'rxjs';
 import Browser from 'webextension-polyfill';
 
 const POPUP_WIDTH = 360;
-const POPUP_HEIGHT = 680;
+const POPUP_HEIGHT = 710;
 
 const windowRemovedStream = fromEventPattern<number>(
     (handler) => Browser.windows.onRemoved.addListener(handler),
