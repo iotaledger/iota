@@ -64,8 +64,6 @@ function renderApp() {
 function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
     const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
-    const isFullHeight = useAppSelector((state) => state.app.isFullHeight);
-
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <HashRouter>
@@ -97,9 +95,8 @@ function AppWrapper() {
                                         <UnlockAccountProvider>
                                             <div
                                                 className={cn(
-                                                    'relative flex h-screen min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
                                                     isFullscreen && 'rounded-xl shadow-lg',
-                                                    !isFullHeight && 'max-h-popup-height',
                                                 )}
                                             >
                                                 <ErrorBoundary>

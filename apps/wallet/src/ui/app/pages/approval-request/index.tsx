@@ -10,14 +10,13 @@ import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { Loading } from '_components';
-import { useAppSelector, useFullHeightApp } from '../../hooks';
+import { useAppSelector } from '../../hooks';
 import { type RootState } from '../../redux/RootReducer';
 import { txRequestsSelectors } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
 
 export function ApprovalRequestPage() {
-    useFullHeightApp();
     const { requestID } = useParams();
     const requestSelector = useMemo(
         () => (state: RootState) =>

@@ -9,7 +9,7 @@ import {
     SectionHeader,
     UserApproveContainer,
 } from '_components';
-import { useAppDispatch, useAppSelector, useFullHeightApp } from '_hooks';
+import { useAppDispatch, useAppSelector } from '_hooks';
 import type { RootState } from '_redux/RootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
@@ -23,7 +23,6 @@ import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/ui-icons';
 
 function SiteConnectPage() {
-    useFullHeightApp();
     const { requestID } = useParams();
     const permissionsInitialized = useAppSelector(({ permissions }) => permissions.initialized);
     const loading = !permissionsInitialized;
