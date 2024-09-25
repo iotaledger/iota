@@ -32,6 +32,8 @@ anyhow.workspace = true
 hex.workspace = true
 proptest.workspace = true
 
+move-binary-format = { workspace = true, features = ["fuzzing"] }
+
 [features]
 default = []
 fuzzing = ["move-vm-types/fuzzing"]

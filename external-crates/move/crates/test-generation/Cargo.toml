@@ -22,7 +22,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 module-generation.workspace = true
-move-binary-format.workspace = true
+move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
