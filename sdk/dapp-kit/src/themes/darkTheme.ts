@@ -4,34 +4,34 @@
 
 import type { ThemeVars } from './themeContract.js';
 
-export const lightTheme: ThemeVars = {
+export const darkTheme: ThemeVars = {
     blurs: {
         modalOverlay: 'blur(12px)',
     },
     backgroundColors: {
-        primaryButton: '#DDE4F0',
-        primaryButtonHover: '#002F6D14',
-        outlineButtonHover: '#002F6D14',
+        primaryButton: '#253041',
+        primaryButtonHover: '#313D50',
+        outlineButtonHover: '#313D50',
         modalOverlay: 'rgba(0, 47, 109, 0.72)',
-        modalPrimary: '#ffffff',
-        modalSecondary: '#e3eaf6',
+        modalPrimary: '#0f141c',
+        modalSecondary: '#171d26',
         iconButton: 'transparent',
-        dropdownMenu: '#FFFFFF',
-        dropdownMenuSeparator: '#002f6d14',
-        walletItemSelected: '#EFF4FA',
-        walletItemHover: 'rgba(0, 103, 238, 0.12)',
-        scrollThumb: '#cad4e2',
+        dropdownMenu: '#0f141c',
+        dropdownMenuSeparator: '#bed8ff14',
+        walletItemSelected: '#171D26',
+        walletItemHover: 'rgba(190, 216, 255, 0.12)',
+        scrollThumb: '#3c4656',
     },
     borderColors: {
-        outlineButton: '#6E7787',
+        outlineButton: '#8892A1',
     },
     colors: {
-        primaryButton: '#171D26',
-        outlineButtonHover: '#E3EAF6',
-        iconButton: '#171D26',
-        body: '#171D26',
-        bodyMuted: '#545E6E',
-        bodyDanger: '#B51431',
+        primaryButton: '#E3EAF6',
+        outlineButtonHover: '#171D26',
+        iconButton: '#E3EAF6',
+        body: '#E3EAF6',
+        bodyMuted: '#8892A1',
+        bodyDanger: '#FFB0BE',
     },
     radii: {
         small: '6px',
