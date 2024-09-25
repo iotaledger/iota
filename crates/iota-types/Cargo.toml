@@ -26,7 +26,6 @@ im.workspace = true
 indexmap.workspace = true
 iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 itertools.workspace = true
-jsonrpsee.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-command-line-common.workspace = true
@@ -78,7 +77,7 @@ passkey-types.workspace = true
 better_any.workspace = true
 derive_more.workspace = true
 lru.workspace = true
-proptest.workspace = true
+proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 typed-store-error.workspace = true
 
@@ -111,4 +110,4 @@ gas-profiler = [
   "move-vm-types/gas-profiler",
   "move-vm-test-utils/gas-profiler",
 ]
-fuzzing = ["move-core-types/fuzzing", "proptest-derive"]
+fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]

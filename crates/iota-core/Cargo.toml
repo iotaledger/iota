@@ -104,7 +104,6 @@ criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 more-asserts.workspace = true
-narwhal-test-utils.workspace = true
 num-bigint.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true

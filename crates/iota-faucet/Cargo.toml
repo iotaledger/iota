@@ -43,8 +43,6 @@ typed-store.workspace = true
 [dev-dependencies]
 test-cluster.workspace = true
 
-iota.workspace = true
-
 [[bin]]
 name = "iota-faucet"
 path = "src/main.rs"

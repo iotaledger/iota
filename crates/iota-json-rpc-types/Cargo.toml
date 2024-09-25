@@ -37,4 +37,4 @@ iota-types.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 
 [features]
-test-utils = []
+test-utils = ["iota-types/test-utils"]

@@ -15,7 +15,6 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel = { workspace = true, optional = true }
-diesel-derive-enum = { workspace = true, optional = true }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
@@ -61,29 +60,17 @@ secrecy = "0.8.0"
 [features]
 pg_integration = []
 default = ["postgres-feature"]
-postgres-feature = [
-  "diesel/postgres",
-  "diesel/postgres_backend",
-  "diesel-derive-enum/postgres",
-]
-mysql-feature = [
-  "diesel/mysql",
-  "diesel/mysql_backend",
-  "diesel-derive-enum/mysql",
-]
+postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
+mysql-feature = ["diesel/mysql", "diesel/mysql_backend"]
 
 [dev-dependencies]
-criterion.workspace = true
 iota-config.workspace = true
 iota-genesis-builder.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-swarm-config.workspace = true
-iota-test-transaction-builder.workspace = true
-ntest.workspace = true
 rand.workspace = true
 simulacrum.workspace = true
-test-cluster.workspace = true
 
 [[bin]]
 name = "iota-indexer"
