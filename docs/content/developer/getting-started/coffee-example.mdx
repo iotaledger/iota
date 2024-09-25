@@ -4,16 +4,16 @@ title: Getting Started with Move Coffee Token Tutorial
 
 ## Introduction
 
-Welcome to this beginner-friendly tutorial on [Move](https://move-language.github.io/move/) programming! We will build a simple Coffee Shop example that allows customers to buy, claim, and transfer coffee tokens. The example demonstrates fundamental concepts like importing modules, defining [constants](https://move-language.github.io/move/constants.html), creating [structs](https://move-language.github.io/move/structs-and-resources.html), minting and burning tokens, and handling [control](https://move-language.github.io/move/loops.html) flow.
+Welcome to this beginner-friendly tutorial on [Move](https://move-language.github.io/move/) programming! You will build a simple Coffee Shop example that allows customers to buy, claim, and transfer coffee tokens. The example demonstrates fundamental concepts like importing modules, defining [constants](https://move-language.github.io/move/constants.html), creating [structs](https://move-language.github.io/move/structs-and-resources.html), minting and burning tokens, and handling [control](https://move-language.github.io/move/loops.html) flow.
 
 ### Key Concepts Covered
 
-1. [**Importing modules**](https://moved.network/docs/move-basics/importing-modules): We imported essential Move packages for transactions, tokens, and balances.
+1. [**Importing modules**](https://moved.network/docs/move-basics/importing-modules): You will import essential Move packages for transactions, tokens, and balances.
 2. [**Defining constants**](https://move-language.github.io/move/constants.html): Used to represent error codes and set a price for coffee.
 3. **Creating [structs](https://move-language.github.io/move/structs-and-resources.html) with [abilities](https://move-language.github.io/move/abilities.html)**: Defined the `COFFEE` and `CoffeeShop` structs to represent tokens and shop data.
 4. [**Initialization with OTW**](../iota-101/move-overview/one-time-witness.mdx): Set up the shop with its treasury cap for minting tokens.
 5. [**Control flow with assertions**](https://move-language.github.io/move/loops.html): Ensured correct amounts and balances in transactions.
-6. **Transferring and burning tokens**: Demonstrated how tokens are moved between users and how they can be consumed (burned).
+6. **[Transferring](../iota-101/objects/transfers/transfers.mdx) and burning tokens**: Demonstrated how tokens are moved between users and how they can be consumed (burned).
 
 ## Prerequisites
 
@@ -74,7 +74,7 @@ const COFFEE_PRICE: u64 = 10_000_000_000;  // 10 IOTA for a coffee
 
 ## 4. Creating Structs with Abilities
 
-[Structs](https://move-language.github.io/move/structs-and-resources.html) in Move represent data storage objects, and we define two structs in our program.
+[Structs](https://move-language.github.io/move/structs-and-resources.html) in Move represent data storage objects, and you will define two structs in this program.
 
 [Abilities](https://docs.iota.org/developer/getting-started/create-a-module#abilities) in Move are a typing feature in Move that control what actions are permissible for values of a given type.
 
@@ -134,11 +134,11 @@ fun init(otw: COFFEE, ctx: &mut TxContext) {
 
 </details>
 
-Here, we use the OneTimeWitness (OTW) pattern, where `COFFEE` is used as a witness to authorize the creation of a new currency called `COFFEE`. The shop’s balance starts at zero.
+Here, you use the OneTimeWitness (OTW) pattern, where `COFFEE` is used as a witness to authorize the creation of a new currency called `COFFEE`. The shop’s balance starts at zero.
 
 ## 6. Buying a Coffee (Token Transfer)
 
-The `buy_coffee` function enables customers to purchase coffee using IOTA tokens. In this process, we also apply control flow using assertions to ensure the customer has sufficient funds. If the required conditions are met, the transaction proceeds; otherwise, an error is triggered, making this a crucial aspect of program logic.
+The `buy_coffee` function enables customers to purchase coffee using IOTA tokens. In this process, you will also apply control flow using assertions to ensure the customer has sufficient funds. If the required conditions are met, the transaction proceeds; otherwise, an error is triggered, making this a crucial aspect of program logic.
 
 ### Function Arguments
 
@@ -179,7 +179,7 @@ assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
 
 </details>
 
-In this example, we ensure the customer has enough IOTA to buy coffee. If not, it returns the `EIncorrectAmount` error.
+In this example, you will ensure the customer has enough IOTA to buy coffee. If not, it returns the `EIncorrectAmount` error.
 
 ## 8. Claiming a Free Coffee (Burning Tokens)
 
@@ -326,13 +326,13 @@ module coffee_shop::coffee {
         // Check if the customer has enough `COFFEE` points to claim a free one.
         assert!(token::value(&points) == 4, EIncorrectAmount);
 
-        // While we could use `burn`, spend illustrates another way of doing this
+        // While you could use `burn`, spend illustrates another way of doing this
         let request = token::spend(points, ctx);
         token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
         iota::event::emit(CoffeePurchased {})
     }
 
-    /// We allow transfer of `COFFEE` points to other customers but we charge 1
+    /// you will allow transfer of `COFFEE` points to other customers but you charge 1
     /// `COFFEE` point for the transfer.
     public fun transfer(
         app: &mut CoffeeShop,
@@ -370,7 +370,7 @@ The console will respond with the transaction effects. You should pay attention 
 
 ## Conclusion
 
-In this tutorial, we explored the basics of Move programming by building a simple Coffee Shop application. You learned how to import modules, define constants, create structs, mint and burn tokens, and manage control flow with assertions. With this foundational knowledge, you can now begin experimenting with more advanced Move features and expand your decentralized applications. Happy coding!
+In this tutorial, you explored the basics of Move programming by building a simple Coffee Shop application. You learned how to import modules, define constants, create structs, mint and burn tokens, and manage control flow with assertions. With this foundational knowledge, you can now begin experimenting with more advanced Move features and expand your decentralized applications. Happy coding!
 
 
 
