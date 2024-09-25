@@ -133,7 +133,7 @@ test.describe('Wallet interface', () => {
             const newPage = context.waitForEvent('page');
             await demoPage.getByRole('button', { name: 'Send transaction' }).click();
             const walletPage = await newPage;
-            const approve = await walletPage.getByRole('button', {
+            const approve = walletPage.getByRole('button', {
                 name: 'Approve',
             });
             await expect(approve).toBeVisible();
