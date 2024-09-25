@@ -12,6 +12,7 @@ description = "Move Binary Format"
 [dependencies]
 anyhow.workspace = true
 arbitrary = { workspace = true, optional = true, features = ["derive"] }
+enum-compat-util.workspace = true
 move-core-types.workspace = true
 move-proc-macros.workspace = true
 proptest = { workspace = true, optional = true }
@@ -37,3 +38,6 @@ fuzzing = [
   "move-core-types/fuzzing",
 ]
 wasm = ["getrandom"]
+
+[package.metadata.cargo-udeps.ignore]
+development = ["enum-compat-util"]

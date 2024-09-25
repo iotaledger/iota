@@ -3941,6 +3941,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum-compat-util"
+version = "0.1.0"
+dependencies = [
+ "serde_yaml 0.8.26",
+]
+
+[[package]]
 name = "enum_dispatch"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9372,6 +9379,7 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "enum-compat-util",
  "move-core-types",
  "move-proc-macros",
  "proptest",
@@ -9540,6 +9548,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "bcs",
+ "enum-compat-util",
  "ethnum",
  "hex",
  "leb128",
@@ -9730,6 +9739,7 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
+ "enum-compat-util",
  "quote 1.0.37",
  "syn 2.0.76",
 ]

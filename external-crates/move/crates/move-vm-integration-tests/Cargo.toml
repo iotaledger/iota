@@ -30,8 +30,8 @@ memory-stats = "1.0.0"
 
 move-compiler.workspace = true
 move-ir-to-bytecode.workspace = true
-move-stdlib-natives.workspace = true
 move-stdlib.workspace = true
+move-stdlib-natives.workspace = true
 
 [features]
 default = []

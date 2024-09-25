@@ -1494,6 +1494,7 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "enum-compat-util",
  "getrandom 0.2.15",
  "move-core-types",
  "move-proc-macros",
@@ -1675,6 +1676,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "bcs",
+ "enum-compat-util",
  "ethnum",
  "hex",
  "leb128",
@@ -1883,6 +1885,7 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
+ "enum-compat-util",
  "quote 1.0.36",
  "syn 2.0.75",
 ]
