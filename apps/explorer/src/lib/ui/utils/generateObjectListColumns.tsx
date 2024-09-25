@@ -6,7 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 
 import { parseObjectType, trimStdLibPrefix } from '~/lib';
 import { ObjectVideoImage, ObjectLink } from '~/components';
-import type { IotaObjectResponse } from '@iota/iota-sdk/dist/cjs/client';
+import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useResolveVideo } from '~/hooks';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
@@ -71,8 +71,8 @@ export function generateObjectListColumns(): ColumnDef<IotaObjectResponse>[] {
             id: 'objectId',
             cell({ row: { original: object } }) {
                 const objectId = object?.data?.objectId;
-                const address = formatAddress(objectId!);
                 if (!objectId) return null;
+                const address = formatAddress(objectId);
                 return (
                     <TableCellBase>
                         <ObjectLink

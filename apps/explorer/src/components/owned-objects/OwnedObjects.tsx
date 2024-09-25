@@ -230,23 +230,21 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                     <div className="flex-2 flex w-full flex-col overflow-hidden p-md">
                         {noAssets && (
                             <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                                <Text variant="body/medium" color="steel-dark">
-                                    No Assets owned
-                                </Text>
+                                <div className="text-body-lg">No Assets owned</div>
                             </div>
                         )}
 
-                        {viewMode === ObjectViewMode.List && (
+                        {hasAssets && viewMode === ObjectViewMode.List && (
                             <ListView loading={isPending} data={sortedDataByDisplayImages} />
                         )}
-                        {viewMode === ObjectViewMode.SmallThumbnail && (
+                        {hasAssets && viewMode === ObjectViewMode.SmallThumbnail && (
                             <SmallThumbnailsView
                                 loading={isPending}
                                 data={sortedDataByDisplayImages}
                                 limit={limit}
                             />
                         )}
-                        {viewMode === ObjectViewMode.Thumbnail && (
+                        {hasAssets && viewMode === ObjectViewMode.Thumbnail && (
                             <ThumbnailsView
                                 loading={isPending}
                                 data={sortedDataByDisplayImages}
@@ -254,31 +252,33 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             />
                         )}
                     </div>
-                    {showPagination && (
-                        <div className="flex flex-1 flex-row flex-wrap gap-2 p-md pt-none">
-                            <Pagination {...pagination} />
-                            <div className="ml-auto flex items-center">
-                                {!isPending && (
-                                    <Text variant="body/medium" color="steel">
-                                        Showing {start} - {end}
-                                    </Text>
-                                )}
-                            </div>
-                            <div className="hidden sm:block">
-                                <select
-                                    className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                    value={limit}
-                                    onChange={(e) => {
-                                        setLimit(Number(e.target.value));
-                                        pagination.onFirst();
-                                    }}
-                                >
-                                    {PAGE_SIZES.map((size) => (
-                                        <option key={size} value={size}>
-                                            {size} Per Page
-                                        </option>
-                                    ))}
-                                </select>
+                    {showPagination && hasAssets && (
+                        <div className="flex flex-1 items-end p-md pt-none">
+                            <div className="flex w-full flex-row flex-wrap items-center justify-between gap-2">
+                                <Pagination {...pagination} />
+                                <div className="ml-auto flex items-center">
+                                    {!isPending && (
+                                        <Text variant="body/medium" color="steel">
+                                            Showing {start} - {end}
+                                        </Text>
+                                    )}
+                                </div>
+                                <div className="hidden sm:block">
+                                    <select
+                                        className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
+                                        value={limit}
+                                        onChange={(e) => {
+                                            setLimit(Number(e.target.value));
+                                            pagination.onFirst();
+                                        }}
+                                    >
+                                        {PAGE_SIZES.map((size) => (
+                                            <option key={size} value={size}>
+                                                {size} Per Page
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     )}

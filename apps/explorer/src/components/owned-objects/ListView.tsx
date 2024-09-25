@@ -4,7 +4,6 @@
 
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { Placeholder } from '@iota/ui';
-import { useMemo } from 'react';
 import cx from 'clsx';
 import { TableCard } from '~/components/ui';
 import { generateObjectListColumns } from '~/lib/ui/utils/generateObjectListColumns';
@@ -56,10 +55,7 @@ interface ListViewProps {
 }
 
 export function ListView({ data, loading }: ListViewProps): JSX.Element {
-    const tableColumns = useMemo(() => {
-        if (!data) return null;
-        return generateObjectListColumns();
-    }, [data]);
+    const tableColumns = generateObjectListColumns();
 
     return (
         <div className="h-full w-full [&_div:not(table_div)]:h-full">
