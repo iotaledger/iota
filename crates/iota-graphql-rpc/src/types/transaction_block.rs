@@ -442,7 +442,11 @@ impl TransactionBlock {
         // Defer to the provided checkpoint_viewed_at, but if it is not provided, use
         // the current available range. This sets a consistent upper bound for
         // the nested queries.
-        for stored in results {
+        for mut stored in results {
+            if stored.is_genesis() {
+                stored = stored.set_genesis_large_object_as_inner_data(db.inner.get_pool())?;
+            }
+
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
             let transaction = TransactionBlock {
