@@ -8,8 +8,8 @@ on:
         type: string
         required: true
       rc_version:
-        description: "The RC version (X.Y.Z.N)"
-        type: string
+        description: "The RC numeric version (X.Y.Z.RC)"
+        type: number
         required: true
 
 env:
