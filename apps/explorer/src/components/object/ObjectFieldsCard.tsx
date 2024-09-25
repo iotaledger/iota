@@ -156,9 +156,7 @@ export function ObjectFieldsCard({
                                     >
                                         <KeyValueInfo
                                             keyText={name}
-                                            valueText={
-                                                getFieldTypeValue(type, objectType).displayName
-                                            }
+                                            value={getFieldTypeValue(type, objectType).displayName}
                                             isTruncated
                                         />
                                     </ButtonUnstyled>

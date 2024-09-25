@@ -355,6 +355,7 @@ const references = [
             'references/contribute/contribution-process',
             'references/contribute/code-of-conduct',
             'references/contribute/style-guide',
+            'references/contribute/import-code-docs'
         ],
     },
 ];
