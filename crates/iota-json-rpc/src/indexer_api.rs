@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, bail};
@@ -9,8 +10,8 @@ use futures::{Stream, StreamExt};
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
-    cap_page_limit, validate_limit, IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics,
-    ReadApiServer, QUERY_MAX_RESULT_LIMIT,
+    IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT, ReadApiServer,
+    cap_page_limit, validate_limit,
 };
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaObjectDataOptions, IotaObjectResponse,
@@ -28,8 +29,8 @@ use iota_types::{
     event::EventID,
 };
 use jsonrpsee::{
-    core::{RpcResult, SubscriptionResult},
     PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
+    core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
 use move_core_types::language_storage::TypeTag;
@@ -38,10 +39,10 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};
 
 use crate::{
+    IotaRpcModule,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
-    IotaRpcModule,
 };
 
 async fn pipe_from_stream<T: Serialize>(

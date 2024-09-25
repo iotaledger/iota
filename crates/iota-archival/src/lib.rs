@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![allow(dead_code)]
 
 pub mod reader;
@@ -15,13 +16,13 @@ use std::{
     num::NonZeroUsize,
     ops::Range,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -30,13 +31,13 @@ use iota_config::{
     genesis::Genesis, node::ArchiveReaderConfig, object_storage_config::ObjectStoreConfig,
 };
 use iota_storage::{
+    SHA3_BYTES,
     blob::{Blob, BlobEncoding},
     compute_sha3_checksum, compute_sha3_checksum_for_bytes,
     object_store::{
-        util::{get, put},
         ObjectStoreGetExt, ObjectStorePutExt,
+        util::{get, put},
     },
-    SHA3_BYTES,
 };
 use iota_types::{
     base_types::ExecutionData,

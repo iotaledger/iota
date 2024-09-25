@@ -2,6 +2,7 @@
 // Copyright (c) The Move Contributors
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![allow(hidden_glob_reexports)]
 use std::{
     collections::{BTreeMap, HashMap},
@@ -10,17 +11,18 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use move_binary_format::{
+    IndexKind,
     compatibility::Compatibility,
     errors::{Location, VMError},
     file_format::{AbilitySet, CompiledModule, FunctionDefinitionIndex, SignatureToken},
-    normalized, IndexKind,
+    normalized,
 };
 use move_bytecode_utils::Modules;
 use move_command_line_common::files::{FileHash, MOVE_COMPILED_EXTENSION};
 use move_compiler::{
-    diagnostics::{self, report_diagnostics, Diagnostic, Diagnostics},
+    diagnostics::{self, Diagnostic, Diagnostics, report_diagnostics},
     shared::files::FileName,
 };
 use move_core_types::{

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![recursion_limit = "256"]
 
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use diesel::r2d2::R2D2Connection;
 use errors::IndexerError;
