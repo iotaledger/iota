@@ -1657,7 +1657,6 @@ dependencies = [
  "serde_json",
  "similar",
  "stacker",
- "tempfile",
  "vfs",
 ]
 
@@ -1906,7 +1905,6 @@ dependencies = [
  "once_cell",
  "serde",
  "simplelog",
- "tempfile",
  "toml",
  "walkdir",
 ]
