@@ -3,10 +3,6 @@ name: Build Wallet App (RC)
 on:
   workflow_dispatch:
     inputs:
-      iota_branch:
-        description: "IOTA repo release branch to build artifacts from"
-        type: string
-        required: true
       rc_version:
         description: "The RC numeric version (X.Y.Z.RC)"
         type: number
@@ -25,6 +21,11 @@ jobs:
       contents: read
     runs-on: [self-hosted]
     steps:
+      - name: Create artifact name
+        shell: bash
+        run: |
+          export artifact_name="wallet-rc-${{ env.RC_VERSION }}"
+          echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Checking out ${{ env.iota_branch }}
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
         with:
