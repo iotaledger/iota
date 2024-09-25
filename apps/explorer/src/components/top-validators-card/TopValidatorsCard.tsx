@@ -55,7 +55,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                             data={data.activeValidators}
                             columns={tableColumns}
                             viewAll="/validators"
-                            totalLabel={data ? data.activeValidators.length : '--'}
+                            totalLabel={data ? data.activeValidators.length.toString() : '--'}
                         />
                     </ErrorBoundary>
                 )}
