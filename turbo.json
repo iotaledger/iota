@@ -1,5 +1,4 @@
 {
-  "ui": "tui",
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
     "VERCEL_ENV",
