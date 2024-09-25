@@ -1227,6 +1227,7 @@
       "CoinTreasury": {
         "type": "object",
         "required": [
+          "id",
           "total_supply"
         ],
         "properties": {
@@ -3959,6 +3960,7 @@
           "inactive_pools_id",
           "inactive_pools_size",
           "iota_total_supply",
+          "iota_treasury_cap_id",
           "max_validator_count",
           "min_validator_joining_stake",
           "pending_active_validators_id",
@@ -4043,6 +4045,14 @@
             "description": "The current IOTA supply.",
             "type": "string",
             "format": "u64"
+          },
+          "iota_treasury_cap_id": {
+            "description": "The `TreasuryCap<IOTA>` object ID.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
           },
           "max_validator_count": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
