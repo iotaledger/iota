@@ -6,7 +6,6 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import type { WalletAccount } from '@iota/wallet-standard';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import clsx from 'clsx';
-
 import { useAccounts } from '../hooks/wallet/useAccounts.js';
 import { useDisconnectWallet } from '../hooks/wallet/useDisconnectWallet.js';
 import { useSwitchAccount } from '../hooks/wallet/useSwitchAccount.js';
@@ -29,11 +28,9 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
         <DropdownMenu.Root modal={false}>
             <StyleMarker>
                 <DropdownMenu.Trigger asChild>
-                    <Button size="lg" className={styles.connectedAccount}>
-                        <Text mono weight="bold">
-                            {currentAccount.label ?? formatAddress(currentAccount.address)}
-                        </Text>
-                        <ChevronIcon />
+                    <Button size="md" className={styles.connectedAccount}>
+                        <Text>{currentAccount.label ?? formatAddress(currentAccount.address)}</Text>
+                        <ChevronIcon className={styles.icon} />
                     </Button>
                 </DropdownMenu.Trigger>
             </StyleMarker>
@@ -74,7 +71,7 @@ export function AccountDropdownMenuItem({
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}
             onSelect={() => switchAccount({ account })}
         >
-            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
+            <Text>{account.label ?? formatAddress(account.address)}</Text>
             {active ? <CheckIcon /> : null}
         </DropdownMenu.Item>
     );
