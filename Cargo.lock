@@ -3941,13 +3941,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "enum-compat-util"
-version = "0.1.0"
-dependencies = [
- "serde_yaml 0.8.26",
-]
-
-[[package]]
 name = "enum_dispatch"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8431,12 +8424,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json_comments"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dbbfed4e59ba9750e15ba154fdfd9329cee16ff3df539c2666b70f58cc32105"
-
-[[package]]
 name = "json_to_table"
 version = "0.6.0"
 source = "git+https://github.com/zhiburt/tabled/?rev=e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4#e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4"
@@ -9363,7 +9350,6 @@ dependencies = [
  "dunce",
  "im",
  "itertools 0.10.5",
- "json_comments",
  "lsp-server",
  "lsp-types",
  "move-command-line-common",
@@ -9386,7 +9372,6 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "arbitrary",
- "enum-compat-util",
  "move-core-types",
  "move-proc-macros",
  "proptest",
@@ -9555,7 +9540,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "bcs",
- "enum-compat-util",
  "ethnum",
  "hex",
  "leb128",
@@ -9869,15 +9853,12 @@ dependencies = [
  "clap",
  "codespan-reporting",
  "colored",
- "itertools 0.10.5",
  "move-binary-format",
  "move-bytecode-utils",
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
  "move-ir-types",
- "move-model",
- "move-stdlib",
  "move-stdlib-natives",
  "move-symbol-pool",
  "move-vm-profiler",
