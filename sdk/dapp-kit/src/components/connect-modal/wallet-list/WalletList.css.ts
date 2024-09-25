@@ -3,9 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { style } from '@vanilla-extract/css';
+import { themeVars } from '../../../themes/themeContract.js';
 
 export const container = style({
     display: 'flex',
     flexDirection: 'column',
-    gap: 4,
+    gap: themeVars.spacing.xsmall,
+    height: '100%',
+    width: '100%',
+    maxHeight: '330px',
 });

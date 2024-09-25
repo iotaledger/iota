@@ -14,7 +14,7 @@ describe('ConnectButton', () => {
 
         render(<ConnectButton />, { wrapper });
 
-        const connectButtonEl = screen.getByRole('button', { name: 'Connect Wallet' });
+        const connectButtonEl = screen.getByRole('button', { name: 'Connect' });
         expect(connectButtonEl).toBeInTheDocument();
 
         const user = userEvent.setup();
