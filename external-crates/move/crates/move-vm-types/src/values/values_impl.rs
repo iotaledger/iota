@@ -4145,6 +4145,8 @@ pub mod prop {
                 .collect::<Vec<_>>()
                 .prop_map(move |vals| Value::struct_(Struct::pack(vals)))
                 .boxed(),
+
+            L::Enum(_) => todo!(),
         }
     }
 
