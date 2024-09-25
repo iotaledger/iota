@@ -176,7 +176,6 @@ def delete_crates(crates):
 
 # Delete specified folders
 def delete_folders(folders, verbose):
-    print("Deleting folders...")
     for folder in folders:
         if not os.path.exists(folder):
             raise FileNotFoundError(f"Folder not found: {folder}")
@@ -188,7 +187,6 @@ def delete_folders(folders, verbose):
 
 # Delete specified files
 def delete_files(files, verbose):
-    print("Deleting files...")
     for file in files:
         if not os.path.exists(file):
             raise FileNotFoundError(f"File not found: {file}")
@@ -531,7 +529,7 @@ def prepare_docker_turborepo(script_folder):
         os.chdir(current_folder)
 
     # Run the docker command for installing dependencies
-    print("   run install depenencies...")
+    print("   run install dependencies...")
     # cmd: docker run --rm --name turborepo -v {repo_folder}:/home/node/app  --user 1000:1000 turborepo-image sh -c "pnpm i"
     subprocess.run([
         "docker", "run", "--rm",
@@ -540,6 +538,17 @@ def prepare_docker_turborepo(script_folder):
         "--user", f"1000:1000",
         "turborepo-image",
         "sh", "-c", "pnpm i"
+    ], check=True)
+
+    print("   run install of additional depedencies...")
+    # cmd: docker run --rm --name turborepo -v {repo_folder}:/home/node/app  --user 1000:1000 turborepo-image sh -c "pnpm i"
+    subprocess.run([
+        "docker", "run", "--rm",
+        "--name", "turborepo",
+        "-v", f"{current_folder}:/home/node/app",
+        "--user", f"1000:1000",
+        "turborepo-image",
+        "sh", "-c", "pnpm add -w --save-dev eslint-config-next"
     ], check=True)
 
 # Run pnpm prettier:fix using the turborepo docker container
@@ -558,7 +567,7 @@ def run_pnpm_prettier_fix(script_folder, panic_on_errors):
         "-v", f"{current_folder}:/home/node/app",
         "--user", f"1000:1000",
         "turborepo-image",
-        "sh", "-c", "pnpm run prettier:fix"
+        "sh", "-c", "pnpm turbo prettier:fix"
     ], check=panic_on_errors)
 
 # Run pnpm lint:fix using the turborepo docker container
@@ -628,6 +637,25 @@ def revert_git_patches(patches_folder, sem_version, patches_config):
             print(f"   Reverting patch: {patch_file}")
             subprocess.run(['git', 'apply', '-R', '-C2', '--verbose', patch_path], check=True)
 
+# Recompile the framework system packages and bytecode snapshots
+def recompile_framework_packages(verbose):
+    print("Recompiling framework system packages and bytecode snapshots...")
+
+    # Delete the existing framework-snapshot manifest file
+    delete_files(["crates/iota-framework-snapshot/manifest.json"], verbose)
+
+    # Delete the existing framework-snapshot bytecode_snapshot folders
+    delete_folders(["crates/iota-framework-snapshot/bytecode_snapshot"], verbose)
+
+    # Run the cargo build command
+    subprocess.run(["cargo", "build"], check=True)
+    
+    # Rebuild the framework system packages
+    subprocess.run(["cargo", "test", "-p", "iota-framework", "--test", "build-system-packages"], env=dict(os.environ, UPDATE="1"), check=True)
+
+    # Rebuild the framework bytecode snapshots
+    subprocess.run(["cargo", "run", "--bin", "iota-framework-snapshot"], check=True)
+
 # Commit changes
 def commit_changes(commit_message):
     print(f"Committing changes... \"{commit_message}\"")
@@ -667,8 +695,6 @@ if __name__ == "__main__":
     parser.add_argument('--target-folder', default="result", help="The path to the target folder.")
     parser.add_argument('--target-branch', default=None, help="The branch to create and checkout in the target folder.")
     parser.add_argument('--patches-folder', default="patches", help="The path to the patches folder.")
-    parser.add_argument('--skip-gitignore', action='store_true', help="Skip the .gitignore file.")
-    parser.add_argument('--gitignore-path', default="../../.gitignore", help="The path to the .gitignore file.")
     parser.add_argument('--commit-between-steps', action='store_true', help="Create a commit between each step.")
     parser.add_argument('--panic-on-linter-errors', action='store_true', help="Panic on linter errors (typos, cargo fmt, dprint, pnpm lint, cargo clippy).")
     parser.add_argument('--clone-source', action='store_true', help="Clone the upstream repository.")
@@ -686,6 +712,7 @@ if __name__ == "__main__":
     parser.add_argument('--run-pnpm-lint-fix', action='store_true', help="Run pnpm lint:fix.")
     parser.add_argument('--run-shell-commands', action='store_true', help="Run shell commands listed in the config.")
     parser.add_argument('--run-cargo-clippy', action='store_true', help="Run cargo clippy.")
+    parser.add_argument('--recompile-framework-packages', action='store_true', help="Recompile the framework system packages and bytecode snapshots.")
     parser.add_argument('--compare-results', action='store_true', help="Open tool for comparison.")
     parser.add_argument('--compare-source-folder', help="The path to the source folder for comparison.")
     parser.add_argument('--compare-tool-binary', default="meld", help="The binary to use for comparison.")
@@ -700,21 +727,23 @@ if __name__ == "__main__":
     target_folder = os.path.abspath(os.path.expanduser(target_folder))
 
     # Check if the repository URL and tag are set
-    if args.repo_url is None or args.repo_url == "":
-        raise ValueError("The repository URL must be set.")
-    if args.repo_tag is None or args.repo_tag == "":
-        raise ValueError("The repository tag must be set.")
+    if args.clone_source or args.copy_overwrites or args.apply_patches:
+        if args.repo_url is None or args.repo_url == "":
+            raise ValueError("The repository URL must be set.")
+        if args.repo_tag is None or args.repo_tag == "":
+            raise ValueError("The repository tag must be set.")
 
     # Get the current version from the tag
     sem_version = None
-    try:
-        sem_version = extract_sem_version(args.repo_tag)
-    except ValueError as e:
+    if args.copy_overwrites or args.apply_patches:
         try:
-            sem_version = extract_sem_version(args.version)
-        except:
-            print(f"Version not found in tag: \"{args.repo_tag}\", please provide a valid \"--version\" argument.")
-            exit(1)
+            sem_version = extract_sem_version(args.repo_tag)
+        except ValueError as e:
+            try:
+                sem_version = extract_sem_version(args.version)
+            except:
+                print(f"Version not found in tag: \"{args.repo_tag}\", please provide a valid \"--version\" argument.")
+                exit(1)
     
     # get current root folder
     source_folder = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
@@ -757,9 +786,11 @@ if __name__ == "__main__":
         delete_crates(config["deletions"]["crates"])
 
         # Delete specified folders
+        print("Deleting folders...")
         delete_folders(config["deletions"]["folders"], args.verbose)
 
         # Delete specified files
+        print("Deleting files...")
         delete_files(config["deletions"]["files"], args.verbose)
 
         if args.commit_between_steps:
@@ -853,6 +884,13 @@ if __name__ == "__main__":
 
         if args.commit_between_steps:
             commit_changes("fix: reverted patches")
+
+    if args.recompile_framework_packages:
+        # Recompile the framework system packages and bytecode snapshots
+        recompile_framework_packages(args.verbose)
+        
+        if args.commit_between_steps:
+            commit_changes("fix: recompiled framework system packages and bytecode snapshots")
 
     if args.compare_results:
         # Open tool for comparison

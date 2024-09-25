@@ -19,11 +19,22 @@ import { useUnsafeBurnerWallet } from '../hooks/wallet/useUnsafeBurnerWallet.js'
 import { useWalletPropertiesChanged } from '../hooks/wallet/useWalletPropertiesChanged.js';
 import { useWalletsChanged } from '../hooks/wallet/useWalletsChanged.js';
 import { lightTheme } from '../themes/lightTheme.js';
-import type { Theme } from '../themes/themeContract.js';
+import type { DynamicTheme, Theme } from '../themes/themeContract.js';
 import { createInMemoryStore } from '../utils/stateStorage.js';
 import { getRegisteredWallets } from '../utils/walletUtils.js';
 import { createWalletStore } from '../walletStore.js';
 import { InjectedThemeStyles } from './styling/InjectedThemeStyles.js';
+import { darkTheme } from '../themes/darkTheme.js';
+
+const themeWithSelectorAndMediaQuery: DynamicTheme[] = [
+    {
+        selector: '.dark',
+        variables: darkTheme,
+    },
+    {
+        variables: lightTheme,
+    },
+];
 
 export type WalletProviderProps = {
     /** A list of wallets that are sorted to the top of the wallet list, if they are available to connect to. By default, wallets are sorted by the order they are loaded in. */
@@ -59,7 +70,7 @@ export function WalletProvider({
     storageKey = DEFAULT_STORAGE_KEY,
     enableUnsafeBurner = false,
     autoConnect = false,
-    theme = lightTheme,
+    theme = themeWithSelectorAndMediaQuery,
     children,
 }: WalletProviderProps) {
     const storeRef = useRef(
