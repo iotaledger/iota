@@ -38,8 +38,10 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
     return (
         <Panel>
-            <Title title="Top Valdidators" />
-
+            <Title
+                title="Top Validators"
+            />
+            
             <div className="p-md">
                 {isPending && (
                     <PlaceholderTable
@@ -51,12 +53,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
                 {isSuccess && (
                     <ErrorBoundary>
-                        <TableCard
-                            data={data.activeValidators}
-                            columns={tableColumns}
-                            viewAll="/validators"
-                            totalLabel={data ? data.activeValidators.length : '--'}
-                        />
+                        <TableCard data={data.activeValidators} columns={tableColumns} viewAll="/validators" totalLabel={data ? data.activeValidators.length : '--'} />
                     </ErrorBoundary>
                 )}
             </div>
