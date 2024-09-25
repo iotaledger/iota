@@ -13,9 +13,9 @@ on:
         required: true
 
 env:
-  DEFAULT_NETWORK: ${{ secrets.WALLET_RC_BUILD_DEFAULT_NETWORK }}
-  IOTA_NETWORKS: ${{ secrets.WALLET_RC_BUILD_IOTA_NETWORKS }}
-  APPS_BACKEND: ${{ secrets.WALLET_RC_BUILD_APPS_BACKEND }}
+  DEFAULT_NETWORK: ${{ secrets.WALLET_RC_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_RC_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_RC_APPS_BACKEND }}
   RC_VERSION: "${{ github.event.inputs.rc_version }}"
   WALLET_RC: "true"
 
