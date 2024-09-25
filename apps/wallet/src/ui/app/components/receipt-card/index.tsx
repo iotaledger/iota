@@ -63,10 +63,6 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
-    const renderExplorerLinkCard = () => (
-        <ExplorerLinkCard digest={summary?.digest} timestamp={summary?.timestamp ?? undefined} />
-    );
-
     return (
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-md overflow-y-auto overflow-x-hidden">
@@ -90,7 +86,12 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                     </>
                 )}
             </div>
-            <div className="pt-sm">{renderExplorerLinkCard()}</div>
+            <div className="pt-sm">
+                <ExplorerLinkCard
+                    digest={summary?.digest}
+                    timestamp={summary?.timestamp ?? undefined}
+                />
+            </div>
         </div>
     );
 }
