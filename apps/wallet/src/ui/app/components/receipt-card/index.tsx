@@ -67,25 +67,28 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         <ExplorerLinkCard digest={summary?.digest} timestamp={summary?.timestamp ?? undefined} />
     );
 
-    // todo: re-using the existing staking cards for now
-    if (stakedTxn || unstakeTxn)
-        return (
-            <div className="flex h-full w-full flex-col justify-between">
-                {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
-                {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
-                {renderExplorerLinkCard()}
-            </div>
-        );
-
     return (
-        <div className="flex h-full w-full flex-col">
-            <div className="-mr-3 flex flex-col gap-md overflow-y-auto overflow-x-hidden">
+        <div className="flex h-full w-full flex-col justify-between">
+            <div className="flex flex-col gap-md overflow-y-auto overflow-x-hidden">
                 <TransactionStatus
                     success={summary.status === 'success'}
                     timestamp={txn.timestampMs ?? undefined}
                 />
-                <TransactionSummary summary={summary} />
-                {isSender && <GasFees gasSummary={summary?.gas} />}
+                {stakedTxn || unstakeTxn ? (
+                    <>
+                        {stakedTxn ? (
+                            <StakeTxn event={stakedTxn} gasSummary={summary?.gas} />
+                        ) : null}
+                        {unstakeTxn ? (
+                            <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} />
+                        ) : null}
+                    </>
+                ) : (
+                    <>
+                        <TransactionSummary summary={summary} />
+                        {isSender && <GasFees gasSummary={summary?.gas} />}
+                    </>
+                )}
             </div>
             <div className="pt-sm">{renderExplorerLinkCard()}</div>
         </div>
