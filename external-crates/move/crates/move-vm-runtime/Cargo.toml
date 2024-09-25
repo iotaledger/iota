@@ -30,8 +30,6 @@ move-vm-types.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 hex.workspace = true
-move-compiler.workspace = true
-move-ir-compiler.workspace = true
 proptest.workspace = true
 
 [features]

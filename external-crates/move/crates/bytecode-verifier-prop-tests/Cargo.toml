@@ -10,7 +10,6 @@ repository = "https://github.com/diem/diem"
 description = "Diem bytecode verifier tests"
 
 [dev-dependencies]
-fail = { workspace = true, features = ["failpoints"] }
 hex.workspace = true
 petgraph.workspace = true
 proptest.workspace = true

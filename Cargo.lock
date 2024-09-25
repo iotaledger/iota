@@ -9424,7 +9424,6 @@ dependencies = [
  "petgraph 0.5.1",
  "serde",
  "serde-reflection",
- "serde_yaml 0.8.26",
 ]
 
 [[package]]
@@ -9486,8 +9485,6 @@ dependencies = [
  "move-docgen",
  "move-ir-types",
  "move-package",
- "move-prover",
- "move-stdlib",
  "move-stdlib-natives",
  "move-unit-test",
  "move-vm-profiler",
@@ -9749,7 +9746,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote 1.0.37",
  "syn 2.0.76",
 ]
@@ -9806,8 +9802,6 @@ dependencies = [
  "move-core-types",
  "move-docgen",
  "move-prover",
- "move-stdlib-natives",
- "move-vm-runtime",
  "sha2 0.9.9",
  "walkdir",
 ]

@@ -336,7 +336,6 @@ dependencies = [
 name = "bytecode-verifier-prop-tests"
 version = "0.1.0"
 dependencies = [
- "fail",
  "hex",
  "invalid-mutations",
  "move-binary-format",
@@ -352,7 +351,6 @@ dependencies = [
 name = "bytecode-verifier-tests"
 version = "0.1.0"
 dependencies = [
- "fail",
  "hex",
  "move-abstract-interpreter",
  "move-binary-format",
@@ -804,15 +802,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dir-diff"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7ad16bf5f84253b50d6557681c58c3ab67c47c77d39fed9aeb56e947290bd10"
-dependencies = [
- "walkdir",
-]
-
-[[package]]
 name = "dirs"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -948,12 +937,6 @@ name = "fastrand"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fc0510504f03c51ada170672ac806f1f105a88aa97a5281117e1ddc3368e51a"
-
-[[package]]
-name = "file_diff"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31a7a908b8f32538a2143e59a6e4e2508988832d5d4d6f7c156b3cbc762643a5"
 
 [[package]]
 name = "fixed-hash"
@@ -1093,12 +1076,6 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
-name = "hex-literal"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
 
 [[package]]
 name = "iana-time-zone"
@@ -1525,7 +1502,6 @@ dependencies = [
  "proptest-derive",
  "ref-cast",
  "serde",
- "serde_json",
  "variant_count",
 ]
 
@@ -1557,14 +1533,12 @@ dependencies = [
  "petgraph",
  "serde",
  "serde-reflection",
- "serde_yaml",
 ]
 
 [[package]]
 name = "move-bytecode-verifier"
 version = "0.1.0"
 dependencies = [
- "hex-literal",
  "move-abstract-interpreter",
  "move-abstract-stack",
  "move-binary-format",
@@ -1621,8 +1595,6 @@ dependencies = [
  "move-docgen",
  "move-ir-types",
  "move-package",
- "move-prover",
- "move-stdlib",
  "move-stdlib-natives",
  "move-unit-test",
  "move-vm-profiler",
@@ -1913,7 +1885,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote 1.0.36",
  "syn 2.0.75",
 ]
@@ -1925,18 +1896,15 @@ dependencies = [
  "anyhow",
  "clap 4.5.16",
  "codespan-reporting",
- "datatest-stable",
  "itertools",
  "log",
  "move-command-line-common",
  "move-compiler",
  "move-docgen",
  "move-model",
- "move-prover-test-utils",
  "move-stackless-bytecode",
  "once_cell",
  "serde",
- "shell-words",
  "simplelog",
  "tempfile",
  "toml",
@@ -1982,20 +1950,13 @@ name = "move-stdlib"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "dir-diff",
- "file_diff",
  "hex",
  "log",
  "move-binary-format",
- "move-cli",
  "move-command-line-common",
  "move-core-types",
  "move-docgen",
- "move-package",
  "move-prover",
- "move-stdlib-natives",
- "move-unit-test",
- "move-vm-runtime",
  "sha2",
  "tempfile",
  "walkdir",
@@ -2139,9 +2100,7 @@ dependencies = [
  "hex",
  "move-binary-format",
  "move-bytecode-verifier",
- "move-compiler",
  "move-core-types",
- "move-ir-compiler",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-types",
@@ -3116,12 +3075,6 @@ checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
 ]
-
-[[package]]
-name = "shell-words"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shlex"
