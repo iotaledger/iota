@@ -34,21 +34,6 @@ source python_venv_wrapper.sh
 
 $PYTHON_CMD slipstream.py \
     --config config_slipstream.json \
-    --repo-tag "mainnet-v1.32.2" \
     --target-folder result \
-    --target-branch slipstream \
-    --patches-folder patches_slipstream \
-    --commit-between-steps \
-    --clone-source \
-    --create-branch \
-    --delete \
-    --apply-path-renames \
-    --apply-code-renames \
-    --copy-overwrites \
-    --apply-patches \
-    --run-fix-typos \
-    --run-cargo-fmt \
-    --run-dprint-fmt \
-    --run-pnpm-prettier-fix \
-    --run-pnpm-lint-fix \
-    --run-cargo-clippy
+    --compare-results \
+    --compare-source-folder ~/IOTA/iota/
