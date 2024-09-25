@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
+import { CardImage, ImageType, VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
+import { PlaceholderReplace } from '@iota/ui-icons';
 
 export interface NftImageProps {
     src: string | null;
@@ -32,8 +33,13 @@ export function NftImage({ src, title, isHoverable, video, icon, onIconClick }: 
     }
     if (!imgSrc) {
         return (
-            <div className="flex aspect-square h-full w-full items-center justify-center">
-                <span className="text-captionSmall font-medium">No media</span>
+            <div className="relative flex aspect-square h-full w-full items-center justify-center overflow-hidden rounded-xl">
+                {isHoverable && (
+                    <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48" />
+                )}
+                <CardImage type={ImageType.BgTransparent}>
+                    <PlaceholderReplace className="text-neutral-40" />
+                </CardImage>
             </div>
         );
     }
