@@ -1,14 +1,5 @@
 [
   {
-    "questionText": "Which command in the IOTA CLI is used to request test tokens?",
-    "answerOptions": [
-      { "answerText": "iota client faucet", "isCorrect": true },
-      { "answerText": "iota client get-tokens", "isCorrect": false },
-      { "answerText": "iota client request-tokens", "isCorrect": false },
-      { "answerText": "iota faucet request", "isCorrect": false }
-    ]
-  },
-  {
     "questionText": "Which argument allows you to specify a custom address when using 'iota client faucet'?",
     "answerOptions": [
       { "answerText": "--address", "isCorrect": true },

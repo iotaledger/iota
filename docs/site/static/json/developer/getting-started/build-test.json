@@ -1,29 +1,11 @@
 [
     {
-        "questionText": "Which command is used to build Move packages in IOTA?",
-        "answerOptions": [
-            { "answerText": "iota move build", "isCorrect": true },
-            { "answerText": "iota build move", "isCorrect": false },
-            { "answerText": "iota move compile", "isCorrect": false },
-            { "answerText": "iota compile move", "isCorrect": false }
-        ]
-    },
-    {
         "questionText": "What are the characteristics of test functions in Move?",
         "answerOptions": [
             { "answerText": "They are public functions with no parameters and no return values", "isCorrect": true },
             { "answerText": "They are private functions with parameters and return values", "isCorrect": false },
             { "answerText": "They are public functions with parameters and return values", "isCorrect": false },
             { "answerText": "They are private functions with no parameters and no return values", "isCorrect": false }
-        ]
-    },
-    {
-        "questionText": "Which command is used to run unit tests for your IOTA package?",
-        "answerOptions": [
-            { "answerText": "iota move test", "isCorrect": true },
-            { "answerText": "iota test move", "isCorrect": false },
-            { "answerText": "iota move run tests", "isCorrect": false },
-            { "answerText": "iota move unit-test", "isCorrect": false }
         ]
     },
     {
