@@ -34,18 +34,14 @@ export function ManageAccountsPage() {
                         {Object.entries(groupedAccounts).map(([type, accountGroups]) =>
                             Object.entries(accountGroups).map(([key, accounts], index) => {
                                 return (
-                                    <>
-                                        <AccountGroup
-                                            outerRef={outerRef}
-                                            key={`${type}-${key}`}
-                                            accounts={accounts}
-                                            accountSourceID={key}
-                                            type={type as AccountType}
-                                            isLast={
-                                                index === Object.entries(accountGroups).length - 1
-                                            }
-                                        />
-                                    </>
+                                    <AccountGroup
+                                        outerRef={outerRef}
+                                        key={`${type}-${key}`}
+                                        accounts={accounts}
+                                        accountSourceID={key}
+                                        type={type as AccountType}
+                                        isLast={index === Object.entries(accountGroups).length - 1}
+                                    />
                                 );
                             }),
                         )}
