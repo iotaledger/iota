@@ -41,10 +41,10 @@ function generateVersion(n: number | undefined) {
     const sha = gitRevSync.short();
     const packageVersion = packageJson.version;
     const version = n !== undefined ? `${packageVersion}.${n}` : packageVersion;
-    const improved_version = n !== undefined ? `${packageVersion}-rc.${n}` : packageVersion;
+    const version_name = n !== undefined ? `${packageVersion}-rc.${n}` : packageVersion;
     return {
         version,
-        version_name: `${improved_version} (${sha})`,
+        version_name: `${version_name} (${sha})`,
     };
 }
 
