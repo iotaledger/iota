@@ -465,12 +465,12 @@
                 "regex": "x-sUi-RpC-vERSION",
                 "replacement": "x-sui-rpc-version",
                 "comment": "fix wrong casing in older Sui codebase"
-            },            
+            },
             {
                 "regex": "(?<![A-Z])(SUI)(?=[^a-zA-Z]|$)",
                 "replacement": "IOTA",
                 "comment": "replace 'SUI' with 'IOTA' except if prefixed with uppercase letter or followed by alphabetic character"
-            },            
+            },
             {
                 "regex": "Sui Smart Contract Platform",
                 "replacement": "IOTA Smart Contract Platform"
@@ -925,6 +925,12 @@
             "max_sem_version": "",
             "revert": true,
             "comment": "we want to have some extra clippy rules, which we need to revert at the end"
+        },
+        "pnpm-workspace": {
+            "min_sem_version": "",
+            "max_sem_version": "",
+            "revert": true,
+            "comment": "we don't want to lint 'apps' and 'docs' which we simply copied from our repo"
         },
         "iota-authority-aggregation-clone": {
             "min_sem_version": "",
