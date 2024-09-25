@@ -4,9 +4,9 @@
 
 import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
-
 import { Heading } from '../../ui/Heading.js';
 import * as styles from './WalletListItem.css.js';
+import { ArrowRightIcon } from '../../icons/ArrowRightIcon.js';
 
 type WalletListItemProps = {
     name: string;
@@ -23,14 +23,17 @@ export function WalletListItem({ name, icon, onClick, isSelected = false }: Wall
                 type="button"
                 onClick={onClick}
             >
-                {typeof icon === 'string' ? (
-                    <img className={styles.walletIcon} src={icon} alt={`${name} logo`} />
-                ) : (
-                    icon
-                )}
-                <Heading size="md" truncate asChild>
-                    <div>{name}</div>
-                </Heading>
+                <div className={clsx(styles.walletName)}>
+                    {typeof icon === 'string' ? (
+                        <img className={styles.walletIcon} src={icon} alt={`${name} logo`} />
+                    ) : (
+                        icon
+                    )}
+                    <Heading size="md" truncate asChild>
+                        <div>{name}</div>
+                    </Heading>
+                </div>
+                <ArrowRightIcon />
             </button>
         </li>
     );

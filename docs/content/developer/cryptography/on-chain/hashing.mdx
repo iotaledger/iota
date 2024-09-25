@@ -16,52 +16,10 @@ The IOTA Move API supports the following cryptographic hash functions:
 
 The SHA2-256 and SHA3-256 hash functions are available in the Move Standard Library in the `std::hash` module. The following example shows how to use the SHA2-256 hash function in a smart contract:
 
-```move
-module test::hashing_std {
-    use std::hash;
-    use iota::object::{Self, UID};
-    use iota::tx_context::TxContext;
-    use iota::transfer;
-
-    /// Object that holds the output hash value.
-    public struct Output has key, store {
-        id: UID,
-        value: vector<u8>
-    }
-
-    public fun hash_data(data: vector<u8>, recipient: address, ctx: &mut TxContext) {
-        let hashed = Output {
-            id: object::new(ctx),
-            value: hash::sha2_256(data),
-        };
-        // Transfer an output data object holding the hashed data to the recipient.
-        transfer::public_transfer(hashed, recipient)
-    }
-}
+```move file=<rootDir>/docs/examples/move/cryptography/sources/hashing_std.move
 ```
 
 The Keccak256 and Blake2b-256 hash functions are available through the `iota::hash` module in the IOTA Move Library. An example of how to use the Keccak256 hash function in a smart contract is shown below. Notice that here, the input to the hash function is given as a reference. This is the case for both Keccak256 and Blake2b-256.
 
-```move
-module test::hashing_iota {
-    use iota::hash;
-    use iota::object::{Self, UID};
-    use iota::tx_context::TxContext;
-    use iota::transfer;
-
-    /// Object that holds the output hash value.
-    public struct Output has key, store {
-        id: UID,
-        value: vector<u8>
-    }
-
-    public fun hash_data(data: vector<u8>, recipient: address, ctx: &mut TxContext) {
-        let hashed = Output {
-            id: object::new(ctx),
-            value: hash::keccak256(&data),
-        };
-        // Transfer an output data object holding the hashed data to the recipient.
-        transfer::public_transfer(hashed, recipient)
-    }
-}
+```move file=<rootDir>/docs/examples/move/cryptography/sources/hashing_iota.move
 ```

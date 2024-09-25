@@ -464,9 +464,10 @@ impl ReadApi {
         }
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
         let converted_tx_block_resps = temp_response
             .into_iter()
-            .map(|c| convert_to_response(c.1, &opts, epoch_store.module_cache()))
+            .map(|c| convert_to_response(c.1, &opts, epoch_store.module_cache(), *c.0))
             .collect::<Result<Vec<_>, _>>()?;
 
         self.metrics
@@ -862,7 +863,8 @@ impl ReadApiServer for ReadApi {
                 }
             }
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            convert_to_response(temp_response, &opts, epoch_store.module_cache())
+
+            convert_to_response(temp_response, &opts, epoch_store.module_cache(), digest)
         }
         .trace()
         .await
@@ -1331,6 +1333,7 @@ fn convert_to_response(
     cache: IntermediateTransactionResponse,
     opts: &IotaTransactionBlockResponseOptions,
     module_cache: &impl GetModule,
+    tx_digest: TransactionDigest,
 ) -> RpcInterimResult<IotaTransactionBlockResponse> {
     let mut response = IotaTransactionBlockResponse::new(cache.digest);
     response.errors = cache.errors;
@@ -1343,8 +1346,11 @@ fn convert_to_response(
     }
 
     if opts.show_input && cache.transaction.is_some() {
-        let tx_block =
-            IotaTransactionBlock::try_from(cache.transaction.unwrap().into_data(), module_cache)?;
+        let tx_block = IotaTransactionBlock::try_from(
+            cache.transaction.unwrap().into_data(),
+            module_cache,
+            tx_digest,
+        )?;
         response.transaction = Some(tx_block);
     }
 

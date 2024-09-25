@@ -100,6 +100,10 @@ impl IndexerReader {
         })
     }
 
+    pub fn get_pool(&self) -> &crate::db::PgConnectionPool {
+        &self.pool
+    }
+
     fn get_connection(&self) -> Result<PgPoolConnection, IndexerError> {
         self.pool.get().map_err(|e| {
             IndexerError::PgPoolConnectionError(format!(

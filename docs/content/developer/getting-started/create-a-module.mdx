@@ -5,7 +5,14 @@ tags: [move,  getting-started]
 
 # Create a Move Module
 
-A [package](create-a-package.mdx)'s utility is defined by its modules. A module contains the logic for your package. You can create any number of modules per package. To add a module, create a `.move` file in the `sources` directory. For this guide, create a file called `my_module.move` and add the following content:
+A [package](create-a-package.mdx)'s utility is defined by its modules. A module contains the logic for your package. You can create any number of modules per package. To add a module, create a `.move` file in the `sources` directory. For this guide, create a file called `first_package.move` and add the following content:
+
+```move
+module first_package::my_module {
+}
+```
+
+And now let's add some code:
 
 :::tip Comments in `.move` files
 
@@ -14,57 +21,11 @@ In `.move` files, use double slashes (`//`) to denote a comment.
 :::
 
 
-```move
-module my_first_package::my_module {
-
-    // Imports
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-
-    // Struct definitions
-    struct Sword has key, store {
-        id: UID,
-        magic: u64,
-        strength: u64,
-    }
-
-    struct Forge has key, store {
-        id: UID,
-        swords_created: u64,
-    }
-
-    // Module initializer to be executed when this module is published
-    fun init(ctx: &mut TxContext) {
-        let admin = Forge {
-            id: object::new(ctx),
-            swords_created: 0,
-        };
-        // Transfer the forge object to the module/package publisher
-        transfer::public_transfer(admin, tx_context::sender(ctx));
-    }
-
-    // Accessors required to read the struct attributes
-    public fun magic(self: &Sword): u64 {
-        self.magic
-    }
-
-    public fun strength(self: &Sword): u64 {
-        self.strength
-    }
-
-    public fun swords_created(self: &Forge): u64 {
-        self.swords_created
-    }
-
-    // Public/entry functions
-
-    // Private functions
-}
+```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L7-L41
 ```
 ## Module Name
 
-The first line of the module defines the module's name and the package it belongs to. In this case, `my_module` belongs to [`my_first_package`](create-a-package.mdx).
+The first line of the module defines the module's name and the package it belongs to. In this case, `my_module` belongs to [`first_package`](create-a-package.mdx).
 
 ## Imports
 

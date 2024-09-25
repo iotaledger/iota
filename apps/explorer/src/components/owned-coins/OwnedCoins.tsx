@@ -147,16 +147,16 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                     {hasCoinsBalance ? (
                         <>
                             <div className="relative overflow-y-auto p-sm--rs pt-0">
-                                <div className="sticky top-0 z-[1] bg-neutral-100 p-sm dark:bg-neutral-10">
-                                    {filterValue === CoinFilter.Unrecognized && (
+                                {filterValue === CoinFilter.Unrecognized && (
+                                    <div className="sticky top-0 z-[1] bg-neutral-100 p-sm dark:bg-neutral-10">
                                         <InfoBox
                                             icon={<Warning />}
                                             supportingText="These coins have not been recognized by the Iota Foundation."
                                             type={InfoBoxType.Default}
                                             style={InfoBoxStyle.Default}
                                         />
-                                    )}
-                                </div>
+                                    </div>
+                                )}
                                 <CoinList coins={visibleCoins} id={id} />
                             </div>
 

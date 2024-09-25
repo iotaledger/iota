@@ -10,7 +10,6 @@ import {
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { ObjectFilterValue } from '~/lib/enums';
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -19,6 +18,7 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 type TransactionBlocksForAddressProps = {
     address: string;
@@ -110,10 +110,7 @@ export function TransactionBlocksForAddress({
         } as TransactionFilter);
 
     const currentPage = currentPageState[filterValue];
-    const cardData =
-        data && data.pages[currentPage]
-            ? genTableDataFromTxData(data.pages[currentPage].data)
-            : undefined;
+    const tableColumns = generateTransactionsTableColumns();
 
     return (
         <Panel>
@@ -125,7 +122,10 @@ export function TransactionBlocksForAddress({
                     </div>
                 </div>
                 <div className="flex flex-col p-md--rs">
-                    {isPending || isFetching || isFetchingNextPage || !cardData ? (
+                    {isPending ||
+                    isFetching ||
+                    isFetchingNextPage ||
+                    !data?.pages[currentPage].data ? (
                         <PlaceholderTable
                             rowCount={DEFAULT_TRANSACTIONS_LIMIT}
                             rowHeight="16px"
@@ -133,7 +133,7 @@ export function TransactionBlocksForAddress({
                         />
                     ) : (
                         <div>
-                            <TableCard data={cardData.data} columns={cardData.columns} />
+                            <TableCard data={data.pages[currentPage].data} columns={tableColumns} />
                         </div>
                     )}
 
