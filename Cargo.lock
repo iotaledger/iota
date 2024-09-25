@@ -9739,7 +9739,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote 1.0.37",
  "syn 2.0.76",
 ]

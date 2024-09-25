@@ -10,9 +10,5 @@ publish = false
 proc-macro = true
 
 [dependencies]
-enum-compat-util.workspace = true
 quote.workspace = true
 syn = { version = "2", features = ["full", "fold", "extra-traits"] }
-
-[package.metadata.cargo-udeps.ignore]
-development = ["enum-compat-util"]
