@@ -37,9 +37,9 @@ const currentWalletMnemonic = [
 ];
 
 const COIN_TO_SEND = 20;
+const timeout = 30_000;
 
 test('request IOTA from local faucet', async ({ page, extensionUrl }) => {
-    const timeout = 30_000;
     test.setTimeout(timeout);
     await createWallet(page, extensionUrl);
 
@@ -50,7 +50,6 @@ test('request IOTA from local faucet', async ({ page, extensionUrl }) => {
 });
 
 test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
-    const timeout = 30_000;
     const receivedKeypair = await generateKeypairFromMnemonic(receivedAddressMnemonic.join(' '));
     const receivedAddress = receivedKeypair.getPublicKey().toIotaAddress();
 
@@ -81,13 +80,11 @@ test('check balance changes in Activity', async ({ page, extensionUrl }) => {
     const originAddress = originKeypair.getPublicKey().toIotaAddress();
 
     await importWallet(page, extensionUrl, currentWalletMnemonic);
-    await page.getByRole('navigation').getByRole('link', { name: 'Home' }).click();
+    await page.getByTestId('nav-home').click();
 
     await requestIotaFromFaucet(originAddress);
     await page.getByTestId('nav-activity').click();
-    await page
-        .getByText(/Transaction/i)
-        .first()
-        .click();
-    await expect(page.getByText(`${COIN_TO_SEND} IOTA`, { exact: false })).toBeVisible();
+    await expect(page.getByTestId('link-to-txn').first()).toBeVisible({ timeout });
+    await page.getByTestId('link-to-txn').first().click();
+    await expect(page.getByText(`Successfully sent`, { exact: false })).toBeVisible();
 });
