@@ -30,17 +30,17 @@ function IotaCoin(): JSX.Element {
     );
 }
 
-type NonIotaCoinProps = {
+interface NonIotaCoinProps extends VariantProps<typeof imageStyle> {
     coinType: string;
-};
+}
 
-function NonIotaCoin({ coinType }: NonIotaCoinProps): JSX.Element {
+function NonIotaCoin({ coinType, ...styleProps }: NonIotaCoinProps): JSX.Element {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
         <div className="flex h-full w-full items-center justify-center rounded-2xl">
             {coinMeta?.iconUrl ? (
                 <ImageIcon
-                    size="sm"
+                    size={styleProps.size}
                     src={coinMeta.iconUrl}
                     label={coinMeta.name || coinType}
                     fallback={coinMeta.name || coinType}
@@ -62,7 +62,11 @@ interface CoinIconProps extends VariantProps<typeof imageStyle> {
 export function CoinIcon({ coinType, ...styleProps }: CoinIconProps): JSX.Element {
     return (
         <div className={imageStyle(styleProps)}>
-            {coinType === IOTA_TYPE_ARG ? <IotaCoin /> : <NonIotaCoin coinType={coinType} />}
+            {coinType === IOTA_TYPE_ARG ? (
+                <IotaCoin />
+            ) : (
+                <NonIotaCoin coinType={coinType} size={styleProps.size} />
+            )}
         </div>
     );
 }
