@@ -3,7 +3,7 @@
 
 import { ButtonProps } from '../Button';
 
-type ButtonPickedProps = Pick<ButtonProps, 'htmlType'>;
+type ButtonPickedProps = Pick<ButtonProps, 'htmlType' | 'testId'>;
 type PropsFromButtonElement = Omit<React.HTMLProps<HTMLButtonElement>, 'type'>;
 
 export interface ButtonVariantProps extends ButtonPickedProps, PropsFromButtonElement {

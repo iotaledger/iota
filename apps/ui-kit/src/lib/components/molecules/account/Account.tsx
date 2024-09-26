@@ -141,12 +141,15 @@ export function Account({
                         onUnlockAccountClick &&
                         (isLocked ? (
                             <div className="unlock">
-                                <ButtonUnstyled onClick={onUnlockAccountClick}>
+                                <ButtonUnstyled
+                                    onClick={onUnlockAccountClick}
+                                    testId="account-unlock"
+                                >
                                     <LockLocked />
                                 </ButtonUnstyled>
                             </div>
                         ) : (
-                            <ButtonUnstyled onClick={onLockAccountClick}>
+                            <ButtonUnstyled onClick={onLockAccountClick} testId="account-lock">
                                 <LockUnlocked />
                             </ButtonUnstyled>
                         ))}

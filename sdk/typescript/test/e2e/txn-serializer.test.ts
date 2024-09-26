@@ -45,8 +45,7 @@ describe('Transaction Serialization and deserialization', () => {
         expect(reserializedTxnBytes).toEqual(transactionBlockBytes);
     }
 
-    // TODO: Re-enable when this isn't broken
-    it.skip('Move Shared Object Call with mutable reference', async () => {
+    it('Move Shared Object Call with mutable reference', async () => {
         const coins = await toolbox.getGasObjectsOwnedByAddress();
 
         const [{ iotaAddress: validatorAddress }] = await toolbox.getActiveValidators();
