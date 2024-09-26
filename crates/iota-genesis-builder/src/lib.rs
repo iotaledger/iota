@@ -355,6 +355,7 @@ impl Builder {
             effects,
             events,
             objects,
+            migration_txs_effects,
         } = self
             .built_genesis
             .take()
@@ -375,6 +376,7 @@ impl Builder {
             effects,
             events,
             objects,
+            migration_txs_effects,
         )
     }
 
@@ -940,6 +942,8 @@ fn build_unsigned_genesis_data<'info>(
     // Use a throwaway metrics registry for genesis transaction execution.
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
+    let mut migration_txs_effects = vec![];
+    let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
     let (genesis_objects, events) = create_genesis_objects(
         &mut genesis_ctx,
@@ -960,9 +964,19 @@ fn build_unsigned_genesis_data<'info>(
             genesis_stake,
             metrics.clone(),
         );
-    }
 
-    let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
+        // Migration transactions covered by genesis tx type
+        let (_migration_transaction, migration_effects, _migration_events, _objects) =
+            create_genesis_transaction(
+                migration_objects,
+                vec![],
+                &protocol_config,
+                metrics.clone(),
+                &epoch_data,
+            );
+
+        migration_txs_effects.push(migration_effects);
+    }
 
     let (genesis_transaction, genesis_effects, genesis_events, genesis_objects) =
         create_genesis_transaction(
@@ -972,8 +986,13 @@ fn build_unsigned_genesis_data<'info>(
             metrics,
             &epoch_data,
         );
-    let (checkpoint, checkpoint_contents) =
-        create_genesis_checkpoint(parameters, &genesis_transaction, &genesis_effects);
+
+    let (checkpoint, checkpoint_contents) = create_genesis_checkpoint(
+        parameters,
+        &genesis_transaction,
+        &genesis_effects,
+        &migration_txs_effects,
+    );
 
     UnsignedGenesis {
         checkpoint,
@@ -982,6 +1001,7 @@ fn build_unsigned_genesis_data<'info>(
         effects: genesis_effects,
         events: genesis_events,
         objects: genesis_objects,
+        migration_txs_effects,
     }
 }
 
@@ -989,13 +1009,27 @@ fn create_genesis_checkpoint(
     parameters: &GenesisCeremonyParameters,
     transaction: &Transaction,
     effects: &TransactionEffects,
+    migration_txs_effects: &[TransactionEffects],
 ) -> (CheckpointSummary, CheckpointContents) {
     let execution_digests = ExecutionDigests {
         transaction: *transaction.digest(),
         effects: effects.digest(),
     };
-    let contents =
-        CheckpointContents::new_with_digests_and_signatures([execution_digests], vec![vec![]]);
+
+    let mut effects_digests = vec![execution_digests];
+
+    let migration_effects_exec_digests: Vec<ExecutionDigests> = migration_txs_effects
+        .into_iter()
+        .map(|effect| effect.execution_digests())
+        .collect();
+
+    effects_digests.extend(migration_effects_exec_digests);
+    let effects_digests_len = effects_digests.len();
+
+    let contents = CheckpointContents::new_with_digests_and_signatures(
+        effects_digests,
+        vec![vec![]; effects_digests_len],
+    );
     let checkpoint = CheckpointSummary {
         epoch: 0,
         sequence_number: 0,
