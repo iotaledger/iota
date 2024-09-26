@@ -17,22 +17,4 @@
             { "answerText": "Swords", "isCorrect": false }
         ]
     },
-    {
-        "questionText": "According to the example, how many GEMs does a player receive when they purchase a small bundle for 10 IOTA?",
-        "answerOptions": [
-            { "answerText": "5,000 GEMs", "isCorrect": false },
-            { "answerText": "100 GEMs", "isCorrect": true },
-            { "answerText": "10 GEMs", "isCorrect": false },
-            { "answerText": "100,000 GEMs", "isCorrect": false }
-        ]
-    },
-    {
-        "questionText": "Which function in the `examples::gem` module handles the purchase of GEMs?",
-        "answerOptions": [
-            { "answerText": "`init`", "isCorrect": false },
-            { "answerText": "`buy_gems`", "isCorrect": true },
-            { "answerText": "`buy_sword`", "isCorrect": false },
-            { "answerText": "`new_request`", "isCorrect": false }
-        ]
-    }
 ]

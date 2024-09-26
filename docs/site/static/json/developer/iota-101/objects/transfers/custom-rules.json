@@ -1,14 +1,5 @@
 [
   {
-    "questionText": "Which ability must an IOTA object lack to require custom transfer rules?",
-    "answerOptions": [
-      { "answerText": "`store`", "isCorrect": true },
-      { "answerText": "`key`", "isCorrect": false },
-      { "answerText": "`copy`", "isCorrect": false },
-      { "answerText": "`drop`", "isCorrect": false }
-    ]
-  },
-  {
     "questionText": "Which function is used to transfer an IOTA object when implementing custom transfer rules?",
     "answerOptions": [
       { "answerText": "`iota::transfer::public_transfer`", "isCorrect": false },

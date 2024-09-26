@@ -2,19 +2,10 @@
   {
     "questionText": "How does IOTA's coin management paradigm differ from other account-based blockchains?",
     "answerOptions": [
-      { "answerText": "IOTA uses owned objects instead of a centralized balance field.", "isCorrect": true },
       { "answerText": "IOTA does not allow multiple coins per address.", "isCorrect": false },
       { "answerText": "IOTA stores all coins in a single global pool.", "isCorrect": false },
-      { "answerText": "IOTA uses a single coin type for all transactions.", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "What is the primary role of the IOTA SDKs in coin management?",
-    "answerOptions": [
-      { "answerText": "They automatically manage coin merging and assume sequential transaction execution.", "isCorrect": true },
-      { "answerText": "They prevent users from owning multiple coins.", "isCorrect": false },
-      { "answerText": "They handle gas price calculations manually.", "isCorrect": false },
-      { "answerText": "They disable coin splitting to enhance security.", "isCorrect": false }
+      { "answerText": "IOTA uses a single coin type for all transactions.", "isCorrect": false },
+      { "answerText": "IOTA uses owned objects instead of a centralized balance field.", "isCorrect": true }
     ]
   },
   {
@@ -27,64 +18,28 @@
     ]
   },
   {
-    "questionText": "Which coin type is exclusively used for gas payment in IOTA?",
-    "answerOptions": [
-      { "answerText": "`Coin<IOTA>`", "isCorrect": true },
-      { "answerText": "`Coin<ETH>`", "isCorrect": false },
-      { "answerText": "`Coin<USD>`", "isCorrect": false },
-      { "answerText": "`Coin<BTC>`", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Which PTB command is used to combine multiple coins into a single one?",
-    "answerOptions": [
-      { "answerText": "`txb.mergeCoins`", "isCorrect": true },
-      { "answerText": "`txb.splitCoins`", "isCorrect": false },
-      { "answerText": "`txb.combineCoins`", "isCorrect": false },
-      { "answerText": "`txb.aggregateCoins`", "isCorrect": false }
-    ]
-  },
-  {
     "questionText": "What is a potential downside of merging all `Coin<IOTA>` into a single coin?",
     "answerOptions": [
-      { "answerText": "It limits concurrency because the coin becomes locked during transactions.", "isCorrect": true },
       { "answerText": "It increases the gas fees for each transaction.", "isCorrect": false },
       { "answerText": "It prevents the coin from being used in future transactions.", "isCorrect": false },
+      { "answerText": "It limits concurrency because the coin becomes locked during transactions.", "isCorrect": true },
       { "answerText": "It causes the coin to lose its value over time.", "isCorrect": false }
     ]
   },
   {
     "questionText": "When is it recommended to split a coin in IOTA?",
     "answerOptions": [
-      { "answerText": "When executing multiple concurrent transactions requiring separate coins.", "isCorrect": true },
       { "answerText": "When the transaction fee is too high.", "isCorrect": false },
+      { "answerText": "When executing multiple concurrent transactions requiring separate coins.", "isCorrect": true },
       { "answerText": "When the gas price needs to be increased.", "isCorrect": false },
       { "answerText": "When transferring coins to multiple addresses in a single transaction.", "isCorrect": false }
     ]
   },
   {
-    "questionText": "What does the `mergeCoins` command in PTBs do?",
-    "answerOptions": [
-      { "answerText": "Combines multiple coins into a single coin.", "isCorrect": true },
-      { "answerText": "Splits a single coin into multiple smaller coins.", "isCorrect": false },
-      { "answerText": "Transfers coins to a specified address.", "isCorrect": false },
-      { "answerText": "Locks coins for concurrent transactions.", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Why might heavy concurrency be problematic when using a single `Coin<IOTA>`?",
-    "answerOptions": [
-      { "answerText": "The coin becomes locked during transaction execution, preventing parallel use.", "isCorrect": true },
-      { "answerText": "It causes the coin to be duplicated across transactions.", "isCorrect": false },
-      { "answerText": "It increases the likelihood of gas smashing failures.", "isCorrect": false },
-      { "answerText": "It reduces the overall gas budget available.", "isCorrect": false }
-    ]
-  },
-  {
     "questionText": "How does IOTA's gas smashing feature optimize the use of the gas coin?",
     "answerOptions": [
-      { "answerText": "By merging multiple coins into the gas coin, making it available for various commands within the transaction.", "isCorrect": true },
       { "answerText": "By splitting the gas coin into smaller denominations for finer control.", "isCorrect": false },
+      { "answerText": "By merging multiple coins into the gas coin, making it available for various commands within the transaction.", "isCorrect": true },
       { "answerText": "By reserving a separate gas coin that cannot be used for other purposes.", "isCorrect": false },
       { "answerText": "By automatically increasing the gas price based on transaction complexity.", "isCorrect": false }
     ]

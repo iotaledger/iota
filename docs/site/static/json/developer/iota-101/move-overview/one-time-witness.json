@@ -2,17 +2,17 @@
   {
     "questionText": "What is the primary purpose of a One-Time Witness (OTW) in Move?",
     "answerOptions": [
-      { "answerText": "To ensure certain actions within a module can occur only once.", "isCorrect": true },
       { "answerText": "To allow multiple instances of a type to be created.", "isCorrect": false },
       { "answerText": "To provide debugging information during execution.", "isCorrect": false },
+      { "answerText": "To ensure certain actions within a module can occur only once.", "isCorrect": true },
       { "answerText": "To enable global storage access across modules.", "isCorrect": false }
     ]
   },
   {
     "questionText": "Which of the following criteria must a type meet to qualify as a One-Time Witness in Move?",
     "answerOptions": [
-      { "answerText": "The type's name matches its module's name, fully uppercased.", "isCorrect": true },
       { "answerText": "The type has multiple abilities like `store` and `copy`.", "isCorrect": false },
+      { "answerText": "The type's name matches its module's name, fully uppercased.", "isCorrect": true },
       { "answerText": "The type contains several fields of any type.", "isCorrect": false },
       { "answerText": "The type can be instantiated multiple times in any function.", "isCorrect": false }
     ]
@@ -29,10 +29,10 @@
   {
     "questionText": "Which ability must a One-Time Witness type have in Move?",
     "answerOptions": [
-      { "answerText": "It must have the `drop` ability and no other abilities.", "isCorrect": true },
       { "answerText": "It must have both `drop` and `store` abilities.", "isCorrect": false },
       { "answerText": "It must have no abilities at all.", "isCorrect": false },
-      { "answerText": "It must have the `copy` ability only.", "isCorrect": false }
+      { "answerText": "It must have the `copy` ability only.", "isCorrect": false },
+      { "answerText": "It must have the `drop` ability and no other abilities.", "isCorrect": true }
     ]
   }
 ]

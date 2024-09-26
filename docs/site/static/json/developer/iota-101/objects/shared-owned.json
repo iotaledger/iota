@@ -24,12 +24,12 @@
         "questionText": "What is an advantage of using owned objects in IOTA?",
         "answerOptions": [
             {
-                "answerText": "They benefit from very low latency to finality because they bypass consensus.",
-                "isCorrect": true
-            },
-            {
                 "answerText": "They can be accessed and modified by any transaction.",
                 "isCorrect": false
+            },
+            {
+                "answerText": "They benefit from very low latency to finality because they bypass consensus.",
+                "isCorrect": true
             },
             {
                 "answerText": "They are better for processes requiring interaction between multiple parties.",
@@ -45,10 +45,6 @@
         "questionText": "What is a disadvantage of using shared objects in IOTA?",
         "answerOptions": [
             {
-                "answerText": "They require consensus to manage reads and writes, leading to higher gas costs and increased latency.",
-                "isCorrect": true
-            },
-            {
                 "answerText": "Only the owner can access these objects.",
                 "isCorrect": false
             },
@@ -59,48 +55,10 @@
             {
                 "answerText": "They cannot be used in transactions that involve multiple shared objects.",
                 "isCorrect": false
-            }
-        ]
-    },
-    {
-        "questionText": "In the escrow example using owned objects, how is the swap completed?",
-        "answerOptions": [
+            },
             {
-                "answerText": "A third party acts as a custodian, holding the objects until both have arrived, then completing the swap.",
+                "answerText": "They require consensus to manage reads and writes, leading to higher gas costs and increased latency.",
                 "isCorrect": true
-            },
-            {
-                "answerText": "The two parties exchange keys and directly swap the objects without any third party.",
-                "isCorrect": false
-            },
-            {
-                "answerText": "The objects are swapped automatically when both parties agree.",
-                "isCorrect": false
-            },
-            {
-                "answerText": "The network ensures the swap is completed without any need for code.",
-                "isCorrect": false
-            }
-        ]
-    },
-    {
-        "questionText": "In the escrow example using shared objects, what ensures that only the intended recipient can interact with the shared 'Escrow' object?",
-        "answerOptions": [
-            {
-                "answerText": "The Move interface checks that only the original sender and the intended recipient can successfully interact with it.",
-                "isCorrect": true
-            },
-            {
-                "answerText": "The 'Escrow' object is accessible only to the owner.",
-                "isCorrect": false
-            },
-            {
-                "answerText": "The 'Escrow' object is hidden from other users on the network.",
-                "isCorrect": false
-            },
-            {
-                "answerText": "The network prevents anyone else from accessing shared objects.",
-                "isCorrect": false
             }
         ]
     },
@@ -129,10 +87,6 @@
         "questionText": "Why might transactions involving only owned objects have very low latency to finality?",
         "answerOptions": [
             {
-                "answerText": "Because they bypass consensus.",
-                "isCorrect": true
-            },
-            {
                 "answerText": "Because they are processed with higher priority.",
                 "isCorrect": false
             },
@@ -143,6 +97,10 @@
             {
                 "answerText": "Because they are larger in size.",
                 "isCorrect": false
+            },
+            {
+                "answerText": "Because they bypass consensus.",
+                "isCorrect": true
             }
         ]
     },
@@ -150,7 +108,7 @@
         "questionText": "What is a potential issue when multiple shared objects or popular objects are accessed?",
         "answerOptions": [
             {
-                "answerText": "Contention may further increase latency.",
+                "answerText": "Contention may increase latency.",
                 "isCorrect": true
             },
             {

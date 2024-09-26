@@ -17,22 +17,4 @@
             { "answerText": "Once per minute", "isCorrect": false }
         ]
     },
-    {
-        "questionText": "Which function provides the timestamp for the start of the current epoch?",
-        "answerOptions": [
-            { "answerText": "iota::clock::timestamp_ms", "isCorrect": false },
-            { "answerText": "iota::tx_context::epoch_timestamp_ms", "isCorrect": true },
-            { "answerText": "iota::test_scenario::later_epoch", "isCorrect": false },
-            { "answerText": "iota::clock::create_for_testing", "isCorrect": false }
-        ]
-    },
-    {
-        "questionText": "What must be true for a transaction to use the Clock module?",
-        "answerOptions": [
-            { "answerText": "It must be passed as a mutable reference", "isCorrect": false },
-            { "answerText": "It must be passed as an immutable reference", "isCorrect": true },
-            { "answerText": "It must be passed as a value", "isCorrect": false },
-            { "answerText": "It must be created within the transaction", "isCorrect": false }
-        ]
-    }
 ]

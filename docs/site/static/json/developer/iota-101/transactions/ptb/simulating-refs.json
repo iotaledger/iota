@@ -18,15 +18,6 @@
         ]
     },
     {
-        "questionText": "Why is the 'Borrow' object essential in the borrow module?",
-        "answerOptions": [
-            { "answerText": "It allows references to be saved for future transactions", "isCorrect": false },
-            { "answerText": "It ensures that the object retrieved by value is the same as the original", "isCorrect": true },
-            { "answerText": "It prevents objects from being destroyed or transferred", "isCorrect": false },
-            { "answerText": "It allows retrieval of multiple objects simultaneously", "isCorrect": false }
-        ]
-    },
-    {
         "questionText": "What is the primary limitation of PTBs regarding references?",
         "answerOptions": [
             { "answerText": "PTBs do not allow object references returned from one command to be used in another", "isCorrect": true },

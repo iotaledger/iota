@@ -18,15 +18,6 @@
         ]
     },
     {
-        "questionText": "Which function is used to create a regulated coin that allows denying specific addresses?",
-        "answerOptions": [
-            { "answerText": "create_currency", "isCorrect": false },
-            { "answerText": "mint", "isCorrect": false },
-            { "answerText": "create_denylist", "isCorrect": false },
-            { "answerText": "create_regulated_currency", "isCorrect": true }
-        ]
-    },
-    {
         "questionText": "Which module function is used to mint a token in IOTA?",
         "answerOptions": [
             { "answerText": "token::mint", "isCorrect": true },

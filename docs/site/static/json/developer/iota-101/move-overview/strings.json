@@ -2,8 +2,8 @@
   {
     "questionText": "What are the two standard implementations for strings in Move?",
     "answerOptions": [
-      { "answerText": "The `std::string` module for UTF-8 strings and the `std::ascii` module for ASCII strings.", "isCorrect": true },
       { "answerText": "The `std::utf8` and `std::ascii` modules.", "isCorrect": false },
+      { "answerText": "The `std::string` module for UTF-8 strings and the `std::ascii` module for ASCII strings.", "isCorrect": true },
       { "answerText": "The `std::string` and `std::bytes` modules.", "isCorrect": false },
       { "answerText": "The `std::string` and `std::vector` modules.", "isCorrect": false }
     ]
@@ -20,18 +20,18 @@
   {
     "questionText": "Which method should you use in Move to safely create a `String` from bytes that may not be valid UTF-8?",
     "answerOptions": [
-      { "answerText": "`string::try_utf8`", "isCorrect": true },
       { "answerText": "`string::utf8`", "isCorrect": false },
       { "answerText": "`string::from_bytes`", "isCorrect": false },
+      { "answerText": "`string::try_utf8`", "isCorrect": true },
       { "answerText": "`string::safe_utf8`", "isCorrect": false }
     ]
   },
   {
     "questionText": "Why is the `string` module generally preferred over the `ascii` module in Move?",
     "answerOptions": [
-      { "answerText": "Because it includes native implementations and is more efficient than the `ascii` module, which is fully implemented in Move.", "isCorrect": true },
       { "answerText": "Because it supports more methods than the `ascii` module.", "isCorrect": false },
       { "answerText": "Because the `ascii` module is deprecated.", "isCorrect": false },
+      { "answerText": "Because it includes native implementations and is more efficient than the `ascii` module, which is fully implemented in Move.", "isCorrect": true },
       { "answerText": "Because the `ascii` module does not support any string operations.", "isCorrect": false }
     ]
   }

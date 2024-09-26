@@ -11,19 +11,10 @@
   {
     "questionText": "What must be ensured when transferring an object to another object in IOTA?",
     "answerOptions": [
-      { "answerText": "The recipient object exists and is not immutable.", "isCorrect": true },
       { "answerText": "The recipient object has the `drop` ability.", "isCorrect": false },
+      { "answerText": "The recipient object exists and is not immutable.", "isCorrect": true },
       { "answerText": "The recipient object is owned by the same address.", "isCorrect": false },
       { "answerText": "The recipient object is of the same type as the sender.", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Which function should be used to receive a `key`-only object defined in the same module?",
-    "answerOptions": [
-      { "answerText": "`iota::transfer::receive`", "isCorrect": true },
-      { "answerText": "`iota::transfer::public_receive`", "isCorrect": false },
-      { "answerText": "`iota::transfer::transfer`", "isCorrect": false },
-      { "answerText": "`iota::transfer::public_transfer`", "isCorrect": false }
     ]
   },
   {

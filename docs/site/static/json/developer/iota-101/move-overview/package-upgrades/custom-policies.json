@@ -25,14 +25,5 @@
             { "answerText": "It locks the UpgradeCap.", "isCorrect": false },
             { "answerText": "It sets the upgrade policy level.", "isCorrect": false }
         ]
-    },
-    {
-        "questionText": "How is the digest for an UpgradeTicket calculated?",
-        "answerOptions": [
-            { "answerText": "By hashing the bytecode and its dependencies with Blake2B.", "isCorrect": true },
-            { "answerText": "By encoding the package ID in base64.", "isCorrect": false },
-            { "answerText": "By creating a random hash of the package contents.", "isCorrect": false },
-            { "answerText": "By compiling the package and outputting the checksum.", "isCorrect": false }
-        ]
     }
 ]

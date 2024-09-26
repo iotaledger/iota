@@ -16,23 +16,5 @@
       { "answerText": "The transaction is broadcast to the network", "isCorrect": false },
       { "answerText": "The user constructs the GasData object", "isCorrect": false }
     ]
-  },
-  {
-    "questionText": "Which of the following is NOT a common use case for sponsored transactions?",
-    "answerOptions": [
-      { "answerText": "Sponsoring a transaction initiated by the user", "isCorrect": false },
-      { "answerText": "Providing a GasData object for wildcard gas payments", "isCorrect": false },
-      { "answerText": "Transferring gas fees between different IOTA wallets", "isCorrect": true },
-      { "answerText": "Incentivizing user actions by sponsoring specific transactions", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "What is the risk of equivocation in sponsored transactions?",
-    "answerOptions": [
-      { "answerText": "It locks the gas object in multiple non-finalized transactions", "isCorrect": true },
-      { "answerText": "It causes the transaction to fail without execution", "isCorrect": false },
-      { "answerText": "It prevents the user from signing the transaction", "isCorrect": false },
-      { "answerText": "It increases the gas fees for the sponsor", "isCorrect": false }
-    ]
   }
 ]

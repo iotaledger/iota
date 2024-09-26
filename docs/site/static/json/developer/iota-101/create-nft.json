@@ -1,14 +1,5 @@
 [
     {
-        "questionText": "What is the primary purpose of the DevNetNFT module?",
-        "answerOptions": [
-            { "answerText": "To create fungible tokens", "isCorrect": false },
-            { "answerText": "To mint and manage non-fungible tokens (NFTs)", "isCorrect": true },
-            { "answerText": "To store large amounts of data", "isCorrect": false },
-            { "answerText": "To send transactions", "isCorrect": false }
-        ]
-    },
-    {
         "questionText": "What function is used to create a new NFT in the examples::devnet_nft module?",
         "answerOptions": [
             { "answerText": "burn", "isCorrect": false },
@@ -24,15 +15,6 @@
             { "answerText": "TransferCompleted", "isCorrect": false },
             { "answerText": "BurnCompleted", "isCorrect": false },
             { "answerText": "ObjectCreated", "isCorrect": false }
-        ]
-    },
-    {
-        "questionText": "Which function allows updating the description of an NFT?",
-        "answerOptions": [
-            { "answerText": "mint_to_sender", "isCorrect": false },
-            { "answerText": "update_description", "isCorrect": true },
-            { "answerText": "transfer", "isCorrect": false },
-            { "answerText": "burn", "isCorrect": false }
         ]
     }
 ]

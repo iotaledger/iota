@@ -2,82 +2,19 @@
   {
     "questionText": "Which class is imported from the IOTA TypeScript SDK to construct a programmable transaction block (PTB)?",
     "answerOptions": [
-      { "answerText": "`TransactionBlock`", "isCorrect": true },
       { "answerText": "`TransactionBuilder`", "isCorrect": false },
+      { "answerText": "`TransactionBlock`", "isCorrect": true },
       { "answerText": "`PTBConstructor`", "isCorrect": false },
       { "answerText": "`IotaTransaction`", "isCorrect": false }
     ]
   },
   {
-    "questionText": "Which method is used to split the gas coin into multiple coins in a PTB?",
-    "answerOptions": [
-      { "answerText": "`txb.splitCoins()`", "isCorrect": true },
-      { "answerText": "`txb.transferObjects()`", "isCorrect": false },
-      { "answerText": "`txb.mergeCoins()`", "isCorrect": false },
-      { "answerText": "`txb.moveCall()`", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "How do you define a pure value input in a PTB using the TypeScript SDK?",
-    "answerOptions": [
-      { "answerText": "Using `txb.pure(value, type?)`", "isCorrect": true },
-      { "answerText": "Using `txb.object(objectId)`", "isCorrect": false },
-      { "answerText": "Using `txb.addInput(value)`", "isCorrect": false },
-      { "answerText": "Using `txb.defineInput(value)`", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Which transaction command is used to execute a Move call within a PTB?",
-    "answerOptions": [
-      { "answerText": "`txb.moveCall({ target, arguments, typeArguments })`", "isCorrect": true },
-      { "answerText": "`txb.executeMoveCall()`", "isCorrect": false },
-      { "answerText": "`txb.callMoveFunction()`", "isCorrect": false },
-      { "answerText": "`txb.runMove({ target, args })`", "isCorrect": false }
-    ]
-  },
-  {
     "questionText": "How can you use the result of a transaction command as an argument in a subsequent transaction command?",
     "answerOptions": [
-      { "answerText": "By storing the result of the transaction command in a variable and passing it to the next command.", "isCorrect": true },
       { "answerText": "By calling the next command inside the previous command.", "isCorrect": false },
       { "answerText": "By using the gas coin.", "isCorrect": false },
+      { "answerText": "By storing the result of the transaction command in a variable and passing it to the next command.", "isCorrect": true },
       { "answerText": "By starting a new PTB.", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "What property can you use in a PTB to access the gas coin?",
-    "answerOptions": [
-      { "answerText": "`txb.gas`", "isCorrect": true },
-      { "answerText": "`txb.gasCoin`", "isCorrect": false },
-      { "answerText": "`txb.getGas()`", "isCorrect": false },
-      { "answerText": "`txb.gasPayment`", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Which method can you use to serialize a PTB for sending to a wallet?",
-    "answerOptions": [
-      { "answerText": "`txb.serialize()`", "isCorrect": true },
-      { "answerText": "`txb.build()`", "isCorrect": false },
-      { "answerText": "`txb.getBytes()`", "isCorrect": false },
-      { "answerText": "`txb.toJSON()`", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "When building a PTB offline without a provider, how do you define object inputs?",
-    "answerOptions": [
-      { "answerText": "Using `txb.object(Inputs.ObjectRef({ digest, objectId, version }))`", "isCorrect": true },
-      { "answerText": "Using `txb.pure(value, type?)`", "isCorrect": false },
-      { "answerText": "Using `txb.addInput(objectId)`", "isCorrect": false },
-      { "answerText": "Using `txb.defineObjectInput(objectId)`", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Which method is used to explicitly set the gas price in a PTB?",
-    "answerOptions": [
-      { "answerText": "`txb.setGasPrice(gasPrice)`", "isCorrect": true },
-      { "answerText": "`txb.defineGasPrice(gasPrice)`", "isCorrect": false },
-      { "answerText": "`txb.setGas(gasPrice)`", "isCorrect": false },
-      { "answerText": "`txb.gasPrice = gasPrice`", "isCorrect": false }
     ]
   },
   {

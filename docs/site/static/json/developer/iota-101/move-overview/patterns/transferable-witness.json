@@ -29,7 +29,6 @@
   {
     "questionText": "How does the `get_witness` function ensure single-use access control?",
     "answerOptions": [
-
       { "answerText": "By consuming the `WitnessCarrier` when extracting the witness", "isCorrect": true },
       { "answerText": "By locking the witness after it is accessed", "isCorrect": false },
       { "answerText": "By encrypting the witness", "isCorrect": false },

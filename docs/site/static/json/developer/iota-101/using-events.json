@@ -9,24 +9,6 @@
     ]
   },
   {
-    "questionText": "What is the key function used to emit events in Move?",
-    "answerOptions": [
-      { "answerText": "move_event", "isCorrect": false },
-      { "answerText": "emit", "isCorrect": true },
-      { "answerText": "broadcast", "isCorrect": false },
-      { "answerText": "send_event", "isCorrect": false }
-    ]
-  },
-  {
-    "questionText": "Which attribute is NOT part of an event object in IOTA?",
-    "answerOptions": [
-      { "answerText": "packageId", "isCorrect": false },
-      { "answerText": "parsedJson", "isCorrect": false },
-      { "answerText": "transactionModule", "isCorrect": false },
-      { "answerText": "blockHash", "isCorrect": true }
-    ]
-  },
-  {
     "questionText": "Which function allows subscribing to events in the IOTA TypeScript SDK?",
     "answerOptions": [
       { "answerText": "subscribeEvent", "isCorrect": true },

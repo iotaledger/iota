@@ -11,8 +11,8 @@
   {
     "questionText": "In which scenario is the 'hot potato' pattern particularly useful?",
     "answerOptions": [
-      { "answerText": "Implementing flash loans.", "isCorrect": true },
       { "answerText": "Managing user authentication.", "isCorrect": false },
+      { "answerText": "Implementing flash loans.", "isCorrect": true },
       { "answerText": "Data encryption.", "isCorrect": false },
       { "answerText": "Blockchain consensus algorithms.", "isCorrect": false }
     ]

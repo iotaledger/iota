@@ -26,13 +26,4 @@
             { "answerText": "Circular wrapping", "isCorrect": false }
         ]
     },
-    {
-        "questionText": "In the trusted swap example, what is the purpose of the `SwapRequest` struct?",
-        "answerOptions": [
-            { "answerText": "To wrap the object to be swapped and record the original owner.", "isCorrect": true },
-            { "answerText": "To enforce the scarcity of the object.", "isCorrect": false },
-            { "answerText": "To generate a new object ID.", "isCorrect": false },
-            { "answerText": "To delete the object after the swap.", "isCorrect": false }
-        ]
-    }
 ]

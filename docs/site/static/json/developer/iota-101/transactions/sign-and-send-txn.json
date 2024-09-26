@@ -1,38 +1,44 @@
 [
-{
-"questionText": "What does the `IotaKeyPair` commit to when signing a transaction?",
-"answerOptions": [
-{ "answerText": "The full transaction data", "isCorrect": false },
-{ "answerText": "The public key of the sender", "isCorrect": false },
-{ "answerText": "The Blake2b hash digest of the intent message", "isCorrect": true },
-{ "answerText": "The recipient's IOTA address", "isCorrect": false }
-]
-},
-{
-"questionText": "Which signature schemes are supported by IOTA for signing transactions?",
-"answerOptions": [
-{ "answerText": "RSA and Ed448", "isCorrect": false },
-{ "answerText": "Ed25519 Pure, ECDSA Secp256k1, ECDSA Secp256r1, and Multisig", "isCorrect": true },
-{ "answerText": "SHA-256 and RSA", "isCorrect": false },
-{ "answerText": "ECDSA Secp256k2 and Multisig", "isCorrect": false }
-]
-},
-{
-"questionText": "What is the function of the gas coin in IOTA transactions?",
-"answerOptions": [
-{ "answerText": "It is used to pay for transaction fees", "isCorrect": true },
-{ "answerText": "It is used to store transaction data", "isCorrect": false },
-{ "answerText": "It is a backup for failed transactions", "isCorrect": false },
-{ "answerText": "It secures the transaction sender's identity", "isCorrect": false }
-]
-},
-{
-"questionText": "What is a recommended first step if you do not have a gas coin object?",
-"answerOptions": [
-{ "answerText": "Use a multisig transaction", "isCorrect": false },
-{ "answerText": "Perform a splitCoin transaction to create a gas coin", "isCorrect": true },
-{ "answerText": "Transfer IOTA to another wallet", "isCorrect": false },
-{ "answerText": "Use a random coin for gas fees", "isCorrect": false }
-]
-}
+  {
+    "questionText": "What does the `IotaKeyPair` commit to when signing a transaction?",
+    "answerOptions": [
+      {
+        "answerText": "The full transaction data",
+        "isCorrect": false
+      },
+      {
+        "answerText": "The public key of the sender",
+        "isCorrect": false
+      },
+      {
+        "answerText": "The Blake2b hash digest of the intent message",
+        "isCorrect": true
+      },
+      {
+        "answerText": "The recipient's IOTA address",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "questionText": "Which signature schemes are supported by IOTA for signing transactions?",
+    "answerOptions": [
+      {
+        "answerText": "RSA and Ed448",
+        "isCorrect": false
+      },
+      {
+        "answerText": "Ed25519 Pure, ECDSA Secp256k1, ECDSA Secp256r1, and Multisig",
+        "isCorrect": true
+      },
+      {
+        "answerText": "SHA-256 and RSA",
+        "isCorrect": false
+      },
+      {
+        "answerText": "ECDSA Secp256k2 and Multisig",
+        "isCorrect": false
+      }
+    ]
+  }
 ]

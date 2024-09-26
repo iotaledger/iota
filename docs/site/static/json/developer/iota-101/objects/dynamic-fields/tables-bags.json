@@ -24,12 +24,12 @@
         "questionText": "Why do 'Table' and 'Bag' collections in IOTA not have the 'drop' ability?",
         "answerOptions": [
             {
-                "answerText": "To prevent accidental deletion when the collection is not empty.",
-                "isCorrect": true
-            },
-            {
                 "answerText": "Because Move language does not support the 'drop' ability for any collections.",
                 "isCorrect": false
+            },
+            {
+                "answerText": "To prevent accidental deletion when the collection is not empty.",
+                "isCorrect": true
             },
             {
                 "answerText": "Because they are built using dynamic fields that inherently lack the 'drop' ability.",
@@ -45,10 +45,6 @@
         "questionText": "What happens if you attempt to overwrite an existing key in a 'Table' or 'Bag' in IOTA?",
         "answerOptions": [
             {
-                "answerText": "The transaction results in an error.",
-                "isCorrect": true
-            },
-            {
                 "answerText": "The old value is silently overwritten with the new value.",
                 "isCorrect": false
             },
@@ -59,6 +55,10 @@
             {
                 "answerText": "The collection automatically resizes to accommodate the new entry.",
                 "isCorrect": false
+            },
+            {
+                "answerText": "The transaction results in an error.",
+                "isCorrect": true
             }
         ]
     },

@@ -1,20 +1,29 @@
 [
   {
-    "questionText": "What is the primary purpose of the transferable witness pattern in Move?",
+    "questionText": "What is the key distinction between 'Dynamic Field' and 'Dynamic Object Field' in the IOTA framework?",
     "answerOptions": [
-      { "answerText": "To restrict authorization to a single module.", "isCorrect": false },
-      { "answerText": "To provide flexible and controlled authorization across modules or over time.", "isCorrect": true },
-      { "answerText": "To optimize data storage in smart contracts.", "isCorrect": false },
-      { "answerText": "To enhance transaction speeds on the network.", "isCorrect": false }
+      { "answerText": "Dynamic Object Field only stores objects as values", "isCorrect": true },
+      { "answerText": "Dynamic Field supports object storage", "isCorrect": false },
+      { "answerText": "Dynamic Field stores only integers", "isCorrect": false },
+      { "answerText": "Dynamic Object Field allows non-object values", "isCorrect": false }
     ]
   },
   {
-    "questionText": "Which scenario is the transferable witness pattern particularly useful for?",
+    "questionText": "What is a major difference between 'Table' and 'LinkedTable' in IOTA?",
     "answerOptions": [
-      { "answerText": "Implementing data encryption within modules.", "isCorrect": false },
-      { "answerText": "Allowing cross-module authorization and deferred authorization.", "isCorrect": true },
-      { "answerText": "Managing gas fees during transactions.", "isCorrect": false },
-      { "answerText": "Creating immutable data structures.", "isCorrect": false }
+      { "answerText": "LinkedTable does not allow value removal", "isCorrect": false },
+      { "answerText": "LinkedTable maintains ordered insertion and removal", "isCorrect": true },
+      { "answerText": "Table is more efficient than LinkedTable", "isCorrect": false },
+      { "answerText": "Table stores values as linked lists", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which collection type in IOTA is implemented using a max heap?",
+    "answerOptions": [
+      { "answerText": "Priority Queue", "isCorrect": true },
+      { "answerText": "Vec Set", "isCorrect": false },
+      { "answerText": "Table Vec", "isCorrect": false },
+      { "answerText": "Object Bag", "isCorrect": false }
     ]
   }
 ]

@@ -1,38 +1,20 @@
 [
     {
-        "questionText": "Which function is used to make an object accessible to everyone on the IOTA network, turning it into a shared object?",
-        "answerOptions": [
-            { "answerText": "`iota::transfer::public_transfer`", "isCorrect": false },
-            { "answerText": "`iota::transfer::share_object`", "isCorrect": true },
-            { "answerText": "`iota::transfer::transfer`", "isCorrect": false },
-            { "answerText": "`iota::object::make_shared`", "isCorrect": false }
-        ]
-    },
-    {
         "questionText": "What ability must a struct have to be used as a shared object in IOTA?",
         "answerOptions": [
-            { "answerText": "`store`", "isCorrect": false },
-            { "answerText": "`copy`", "isCorrect": false },
-            { "answerText": "`key`", "isCorrect": true },
-            { "answerText": "`drop`", "isCorrect": false }
+            { "answerText": "store", "isCorrect": false },
+            { "answerText": "copy", "isCorrect": false },
+            { "answerText": "key", "isCorrect": true },
+            { "answerText": "drop", "isCorrect": false }
         ]
     },
     {
-        "questionText": "Why must care be taken when using shared objects on the IOTA network?",
+        "questionText": "Why must you be careful when using shared objects on the IOTA network?",
         "answerOptions": [
             { "answerText": "Because they cannot be accessed by anyone.", "isCorrect": false },
             { "answerText": "Because they can be accessed by anyone, so security considerations are important.", "isCorrect": true },
             { "answerText": "Because they are automatically deleted after a transaction.", "isCorrect": false },
             { "answerText": "Because they can only hold primitive data types.", "isCorrect": false }
-        ]
-    },
-    {
-        "questionText": "In the Donut Shop example, how is the ability to collect profits restricted to the shop owner?",
-        "answerOptions": [
-            { "answerText": "By using an `AdminCap` object.", "isCorrect": false },
-            { "answerText": "By requiring a signature from the shop owner.", "isCorrect": false },
-            { "answerText": "By using a `ShopOwnerCap` capability that grants the right to collect profits.", "isCorrect": true },
-            { "answerText": "By restricting the `collect_profits` function to the initial creator.", "isCorrect": false }
         ]
     }
 ]

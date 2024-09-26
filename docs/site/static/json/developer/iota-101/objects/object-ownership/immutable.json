@@ -3,7 +3,7 @@
         "questionText": "What happens to an object in IOTA when it is made immutable?",
         "answerOptions": [
             { "answerText": "It can still be mutated but not transferred.", "isCorrect": false },
-            { "answerText": "It becomes ownerless and cannot be mutated, transferred, or deleted.", "isCorrect": true },
+            { "answerText": "It becomes owner-less and cannot be mutated, transferred, or deleted.", "isCorrect": true },
             { "answerText": "It can be transferred but not mutated.", "isCorrect": false },
             { "answerText": "It is deleted from the network.", "isCorrect": false }
         ]
