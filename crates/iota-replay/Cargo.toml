@@ -47,3 +47,7 @@ iota-sdk.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 shared-crypto.workspace = true
+
+[[example]]
+name = "make_sandbox_snapshot"
+path = "examples/make_sandbox_snapshot.rs"
