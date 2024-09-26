@@ -78,6 +78,7 @@ export function Navbar({
                             'px-xs py-xxs': !isCollapsable,
                             'py-xxs pl-xs pr-sm': isCollapsable,
                         })}
+                        data-testid={`nav-${item.id}`}
                     >
                         <NavbarItem
                             {...item}
