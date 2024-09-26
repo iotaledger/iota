@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KeyValueInfo } from '@iota/apps-ui-kit';
+import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { ProgrammableTxnBlockCard } from '~/components';
-import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
+import { useState } from 'react';
+import { FieldCollapsible, ProgrammableTxnBlockCard, AddressLink, ObjectLink } from '~/components';
 import { useBreakpoint } from '~/hooks';
 
 const REGEX_NUMBER = /^\d+$/;
@@ -15,13 +15,20 @@ interface InputsCardProps {
 }
 
 export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
+    const [open, onOpenChange] = useState(true);
     const isMediumOrAbove = useBreakpoint('md');
     if (!inputs?.length) {
         return null;
     }
 
     const expandableItems = inputs.map((input, index) => (
-        <CollapsibleSection key={index} title={`Input ${index}`} defaultOpen>
+        <FieldCollapsible
+            key={index}
+            name={`Input ${index}`}
+            open={open}
+            onOpenChange={onOpenChange}
+            titleSize={TitleSize.Small}
+        >
             <div
                 data-testid="inputs-card-content"
                 className="flex flex-col gap-2 px-md pb-lg pt-xs"
@@ -58,7 +65,7 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     );
                 })}
             </div>
-        </CollapsibleSection>
+        </FieldCollapsible>
     ));
 
     return (

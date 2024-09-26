@@ -37,7 +37,7 @@ export function ProgrammableTxnBlockCard({
     return (
         <CollapsibleCard collapsible initialClose={initialClose} title={cardTitle}>
             <ExpandableList items={items} defaultItemsToShow={itemsToShow} itemsLabel={itemsLabel}>
-                <div className="flex flex-col overflow-y-auto">
+                <div className="flex flex-col gap-xs overflow-y-auto p-md--rs pt-xs--rs">
                     {noExpandableList ? <>{items}</> : <ExpandableListItems />}
                 </div>
 
