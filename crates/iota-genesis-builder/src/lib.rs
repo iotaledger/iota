@@ -1011,16 +1011,12 @@ fn calculate_migration_transactions(
     let avg_chunk_size = migration_objects.len() / MIGRATION_TX_MAX_AMOUNT;
     let remainder = migration_objects.len() % MIGRATION_TX_MAX_AMOUNT;
 
-    println!("CHUNK SIZE IS - {}", avg_chunk_size);
-    println!("MIGRATION OBJECTS LEN IS - {}", migration_objects.len());
-
     // For the first remainder transactions, the chunk size is chunk_size + 1.
     // For the remaining transactions, the chunk size is just chunk_size.
     let chunks =
         (0..MIGRATION_TX_MAX_AMOUNT).map(|i| avg_chunk_size + if i < remainder { 1 } else { 0 });
 
     let mut start_idx = 0;
-    let mut objects_len = 0;
     for chunk in chunks {
         let objects_per_chunk = match migration_objects.get(start_idx..start_idx + chunk) {
             Some(chunk) => chunk.to_vec(),
@@ -1039,14 +1035,7 @@ fn calculate_migration_transactions(
         migration_txs_effects.push(migration_effects);
 
         start_idx += chunk;
-        objects_len += objects.len();
     }
-
-    println!(
-        "migration_txs_effects LEN IS - {}",
-        migration_txs_effects.len()
-    );
-    println!("migration_txs_effects objects len LEN IS - {}", objects_len);
 }
 
 fn create_genesis_checkpoint(
