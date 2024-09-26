@@ -45,28 +45,26 @@ function KioskDetailsPage() {
                             Kiosk is empty
                         </div>
                     ) : (
-                        <>
-                            <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
-                                {items.map((item) =>
-                                    item.data?.objectId ? (
-                                        <Link
-                                            to={`/nft-details?${new URLSearchParams({
-                                                objectId: item.data.objectId,
-                                            }).toString()}`}
-                                            key={item.data?.objectId}
-                                            className="no-underline"
-                                        >
-                                            <ErrorBoundary>
-                                                <NFTDisplayCard
-                                                    objectId={item.data.objectId}
-                                                    isHoverable
-                                                />
-                                            </ErrorBoundary>
-                                        </Link>
-                                    ) : null,
-                                )}
-                            </div>
-                        </>
+                        <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
+                            {items.map((item) =>
+                                item.data?.objectId ? (
+                                    <Link
+                                        to={`/nft-details?${new URLSearchParams({
+                                            objectId: item.data.objectId,
+                                        }).toString()}`}
+                                        key={item.data?.objectId}
+                                        className="no-underline"
+                                    >
+                                        <ErrorBoundary>
+                                            <NFTDisplayCard
+                                                objectId={item.data.objectId}
+                                                isHoverable
+                                            />
+                                        </ErrorBoundary>
+                                    </Link>
+                                ) : null,
+                            )}
+                        </div>
                     )}
                     <Collapsible defaultOpen title="Details">
                         <div className="flex flex-col gap-y-sm px-md">
