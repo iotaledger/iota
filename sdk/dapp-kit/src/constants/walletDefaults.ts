@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { WalletWithRequiredFeatures } from '@iota/wallet-standard';
+import type { IotaWalletFeatures, WalletWithRequiredFeatures } from '@iota/wallet-standard';
+import { STASHED_WALLET_NAME } from '@iota/zksend';
 
 import { createInMemoryStore } from '../utils/stateStorage.js';
 
@@ -13,8 +14,12 @@ export const DEFAULT_STORAGE =
 
 export const DEFAULT_STORAGE_KEY = 'iota-dapp-kit:wallet-connection-info';
 
-export const DEFAULT_REQUIRED_FEATURES: (keyof WalletWithRequiredFeatures['features'])[] = [
+const SIGN_FEATURES = [
+    'iota:signTransaction',
     'iota:signTransactionBlock',
-];
+] satisfies (keyof IotaWalletFeatures)[];
 
-export const DEFAULT_PREFERRED_WALLETS = [IOTA_WALLET_NAME];
+export const DEFAULT_WALLET_FILTER = (wallet: WalletWithRequiredFeatures) =>
+    SIGN_FEATURES.some((feature) => wallet.features[feature]);
+
+export const DEFAULT_PREFERRED_WALLETS = [IOTA_WALLET_NAME, STASHED_WALLET_NAME];
