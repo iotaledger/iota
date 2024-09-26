@@ -16,5 +16,5 @@
             { "answerText": "Only when a new block is added", "isCorrect": false },
             { "answerText": "Once per minute", "isCorrect": false }
         ]
-    },
+    }
 ]

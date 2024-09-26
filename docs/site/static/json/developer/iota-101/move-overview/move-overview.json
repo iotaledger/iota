@@ -7,5 +7,5 @@
       { "answerText": "To denote a resource that can be stored globally in any account.", "isCorrect": false },
       { "answerText": "To enable the use of global storage operators.", "isCorrect": false }
     ]
-  },
+  }
 ]

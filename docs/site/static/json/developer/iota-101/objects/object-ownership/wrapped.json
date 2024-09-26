@@ -25,5 +25,5 @@
             { "answerText": "Wrapping with `vector`", "isCorrect": false },
             { "answerText": "Circular wrapping", "isCorrect": false }
         ]
-    },
+    }
 ]
