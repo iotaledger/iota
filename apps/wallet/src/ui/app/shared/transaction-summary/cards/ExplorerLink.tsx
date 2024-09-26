@@ -49,7 +49,13 @@ export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
             text="View on Explorer"
             onClick={handleOpen}
             fullWidth
-            icon={shouldShowExplorerLink ? <ArrowTopRight /> : <Loader className="animate-spin" />}
+            icon={
+                shouldShowExplorerLink ? (
+                    <ArrowTopRight />
+                ) : (
+                    <Loader className="animate-spin" data-testid="loading-indicator" />
+                )
+            }
             iconAfterText
             disabled={!shouldShowExplorerLink}
         />
