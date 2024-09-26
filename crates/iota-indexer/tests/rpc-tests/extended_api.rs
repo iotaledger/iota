@@ -299,7 +299,7 @@ async fn get_current_epoch() {
     ));
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
 #[tokio::test]
 #[serial]
 async fn get_network_metrics() {
@@ -311,6 +311,7 @@ async fn get_network_metrics() {
     println!("{:#?}", network_metrics);
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
 #[tokio::test]
 #[serial]
 async fn get_move_call_metrics() {
@@ -334,7 +335,7 @@ async fn get_move_call_metrics() {
     assert_eq!(move_call_metrics.rank_30_days.len(), 0);
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
 #[tokio::test]
 #[serial]
 async fn get_latest_address_metrics() {
@@ -346,7 +347,7 @@ async fn get_latest_address_metrics() {
     println!("{:#?}", address_metrics);
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
 #[tokio::test]
 #[serial]
 async fn get_checkpoint_address_metrics() {
@@ -361,7 +362,7 @@ async fn get_checkpoint_address_metrics() {
     println!("{:#?}", address_metrics);
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
+#[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
 #[tokio::test]
 #[serial]
 async fn get_all_epoch_address_metrics() {
