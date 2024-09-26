@@ -4,8 +4,7 @@
 
 import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { useState } from 'react';
-import { FieldCollapsible, ProgrammableTxnBlockCard, AddressLink, ObjectLink } from '~/components';
+import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
 
 const REGEX_NUMBER = /^\d+$/;
@@ -15,18 +14,16 @@ interface InputsCardProps {
 }
 
 export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
-    const [open, onOpenChange] = useState(true);
     const isMediumOrAbove = useBreakpoint('md');
     if (!inputs?.length) {
         return null;
     }
 
     const expandableItems = inputs.map((input, index) => (
-        <FieldCollapsible
+        <CollapsibleCard
             key={index}
-            name={`Input ${index}`}
-            open={open}
-            onOpenChange={onOpenChange}
+            title={`Input ${index}`}
+            collapsible
             titleSize={TitleSize.Small}
         >
             <div
@@ -65,7 +62,7 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     );
                 })}
             </div>
-        </FieldCollapsible>
+        </CollapsibleCard>
     ));
 
     return (
