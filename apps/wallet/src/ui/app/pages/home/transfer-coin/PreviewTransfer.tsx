@@ -56,9 +56,9 @@ export function PreviewTransfer({
                     value={
                         <ExplorerLink
                             type={ExplorerLinkType.Address}
-                            address={accountAddress || ''}
+                            address={to || ''}
                         >
-                            {formatAddress(accountAddress || '')}
+                            {formatAddress(to || '')}
                         </ExplorerLink>
                     }
                     fullwidth
