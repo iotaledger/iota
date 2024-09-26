@@ -42,42 +42,23 @@ async fn get_epochs() {
 
     assert_eq!(epochs.data.len(), 3);
     assert_eq!(epochs.has_next_page, false);
-    assert!(matches!(
-        epochs.data[0],
-        EpochInfo {
-            epoch: 0,
-            first_checkpoint_id: 0,
-            epoch_total_transactions: 17, // 15 + 1 for genesis + 1 for end of epoch
-            end_of_epoch_info: Some(EndOfEpochInfo {
-                last_checkpoint_id: 1,
-                ..
-            }),
-            ..
-        }
-    ));
-    assert!(matches!(
-        epochs.data[1],
-        EpochInfo {
-            epoch: 1,
-            first_checkpoint_id: 2,
-            epoch_total_transactions: 28, // 17 from previous epoch + 10 + 1 for end of epoch
-            end_of_epoch_info: Some(EndOfEpochInfo {
-                last_checkpoint_id: 2,
-                ..
-            }),
-            ..
-        }
-    ));
-    assert!(matches!(
-        epochs.data[2],
-        EpochInfo {
-            epoch: 2,
-            first_checkpoint_id: 3,
-            epoch_total_transactions: 0, // set to 0 for ongoing epoch, is it intended?
-            end_of_epoch_info: None,
-            ..
-        }
-    ));
+
+    let end_of_epoch_info = epochs.data[0].end_of_epoch_info.as_ref().unwrap();
+    assert_eq!(epochs.data[0].epoch, 0);
+    assert_eq!(epochs.data[0].first_checkpoint_id, 0);
+    assert_eq!(epochs.data[0].epoch_total_transactions, 17);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 1);
+
+    let end_of_epoch_info = epochs.data[1].end_of_epoch_info.as_ref().unwrap();
+    assert_eq!(epochs.data[1].epoch, 1);
+    assert_eq!(epochs.data[1].first_checkpoint_id, 2);
+    assert_eq!(epochs.data[1].epoch_total_transactions, 28);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 2);
+
+    assert_eq!(epochs.data[2].epoch, 2);
+    assert_eq!(epochs.data[2].first_checkpoint_id, 3);
+    assert_eq!(epochs.data[2].epoch_total_transactions, 0);
+    assert!(epochs.data[2].end_of_epoch_info.is_none());
 }
 
 #[tokio::test]
@@ -167,42 +148,23 @@ async fn get_epoch_metrics() {
 
     assert_eq!(epoch_metrics.data.len(), 3);
     assert_eq!(epoch_metrics.has_next_page, false);
-    assert!(matches!(
-        epoch_metrics.data[0],
-        EpochMetrics {
-            epoch: 0,
-            first_checkpoint_id: 0,
-            epoch_total_transactions: 17, // 15 + 1 for genesis + 1 for end of epoch
-            end_of_epoch_info: Some(EndOfEpochInfo {
-                last_checkpoint_id: 1,
-                ..
-            }),
-            ..
-        }
-    ));
-    assert!(matches!(
-        epoch_metrics.data[1],
-        EpochMetrics {
-            epoch: 1,
-            first_checkpoint_id: 2,
-            epoch_total_transactions: 28, // 17 from previous epoch + 10 + 1 for end of epoch
-            end_of_epoch_info: Some(EndOfEpochInfo {
-                last_checkpoint_id: 2,
-                ..
-            }),
-            ..
-        }
-    ));
-    assert!(matches!(
-        epoch_metrics.data[2],
-        EpochMetrics {
-            epoch: 2,
-            first_checkpoint_id: 3,
-            epoch_total_transactions: 0, // set to 0 for ongoing epoch, is it intended?
-            end_of_epoch_info: None,
-            ..
-        }
-    ));
+
+    let end_of_epoch_info = epoch_metrics.data[0].end_of_epoch_info.as_ref().unwrap();
+    assert_eq!(epoch_metrics.data[0].epoch, 0);
+    assert_eq!(epoch_metrics.data[0].first_checkpoint_id, 0);
+    assert_eq!(epoch_metrics.data[0].epoch_total_transactions, 17);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 1);
+
+    let end_of_epoch_info = epoch_metrics.data[1].end_of_epoch_info.as_ref().unwrap();
+    assert_eq!(epoch_metrics.data[1].epoch, 1);
+    assert_eq!(epoch_metrics.data[1].first_checkpoint_id, 2);
+    assert_eq!(epoch_metrics.data[1].epoch_total_transactions, 28);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 2);
+
+    assert_eq!(epoch_metrics.data[2].epoch, 2);
+    assert_eq!(epoch_metrics.data[2].first_checkpoint_id, 3);
+    assert_eq!(epoch_metrics.data[2].epoch_total_transactions, 0);
+    assert!(epoch_metrics.data[2].end_of_epoch_info.is_none());
 }
 
 #[tokio::test]
@@ -287,16 +249,10 @@ async fn get_current_epoch() {
 
     let current_epoch = indexer_client.get_current_epoch().await.unwrap();
 
-    assert!(matches!(
-        current_epoch,
-        EpochInfo {
-            epoch: 2,
-            first_checkpoint_id: 3,
-            epoch_total_transactions: 0, // set to 0 for ongoing epoch, is it intended?
-            end_of_epoch_info: None,
-            ..
-        }
-    ));
+    assert_eq!(current_epoch.epoch, 2);
+    assert_eq!(current_epoch.first_checkpoint_id, 3);
+    assert_eq!(current_epoch.epoch_total_transactions, 0);
+    assert!(current_epoch.end_of_epoch_info.is_none());
 }
 
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
