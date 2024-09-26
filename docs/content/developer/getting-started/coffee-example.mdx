@@ -35,17 +35,8 @@ The command will create and populate the `coffee_shop` directory with a skeleton
 
 The first step in our program is importing necessary modules from the IOTA package. These modules provide functionalities for transaction handling, coins, balances, and tokens.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-    use iota::tx_context::sender;
-    use iota::coin::{Self, TreasuryCap, Coin};
-    use iota::balance::{Self, Balance};
-    use iota::token::{Self, Token};
-    use iota::iota::IOTA;
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L8-L12
 ```
-</details>
 
 - [`iota::tx_context::sender`](../../references/framework/iota-framework/tx_context.mdx): Manages the transaction context.
 - [`iota::coin`](../../references/framework/iota-framework/coin.mdx): Handles the creation and management of coins.
@@ -57,16 +48,8 @@ The first step in our program is importing necessary modules from the IOTA packa
 
 In this step, you should define a few constants that represent different error codes and the price of a coffee. [Constants](https://move-language.github.io/move/constants.html) in Move are useful for defining fixed values used throughout the code.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-const EIncorrectAmount: u64 = 0;
-const ENotEnoughPoints: u64 = 1;
-const COFFEE_PRICE: u64 = 10_000_000_000;  // 10 IOTA for a coffee
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L14-L21
 ```
-
-</details>
 
 - `EIncorrectAmount`: Error when the wrong amount is provided.
 - `ENotEnoughPoints`: Error when there aren’t enough points to complete a transaction.
@@ -81,20 +64,8 @@ const COFFEE_PRICE: u64 = 10_000_000_000;  // 10 IOTA for a coffee
 1. `COFFEE`: A token struct representing coffee points.
 2. `CoffeeShop`: A struct for the coffee shop that includes its treasury cap and IOTA balance.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-public struct COFFEE has drop {}
-
-public struct CoffeeShop has key {
-    id: UID,
-    coffee_points: TreasuryCap<COFFEE>,
-    balance: Balance<IOTA>,
-}
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L23-L34
 ```
-
-</details>
 
 - `COFFEE`: A token with the ability drop, allowing it to be destroyed when no longer needed.
 - `CoffeeShop`: Represents a shop that has an ID, a treasury for minting coffee points, and a balance in IOTA.
@@ -111,28 +82,8 @@ A [One-Time Witness (OTW)](../iota-101/move-overview/one-time-witness.mdx) is a 
 - `otw: COFFEE`: A token witness that allows the creation of the COFFEE tokens. It ensures that the token setup can only happen once during initialization.
 - `ctx: &mut TxContext`: The transaction context, which provides necessary data about the current transaction, including the sender and other blockchain-related information
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-fun init(otw: COFFEE, ctx: &mut TxContext) {
-    let (coffee_points, metadata) = coin::create_currency(
-        otw, 0, b"COFFEE", b"Coffee Point",
-        b"Buy 4 coffees and get 1 free",
-        std::option::none(),
-        ctx
-    );
-
-    iota::transfer::public_freeze_object(metadata);
-    iota::transfer::share_object(CoffeeShop {
-        coffee_points,
-        id: object::new(ctx),
-        balance: balance::zero(),
-    });
-}
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L40-L55
 ```
-
-</details>
 
 Here, you use the OneTimeWitness (OTW) pattern, where `COFFEE` is used as a witness to authorize the creation of a new currency called `COFFEE`. The shop’s balance starts at zero.
 
@@ -146,23 +97,8 @@ The `buy_coffee` function enables customers to purchase coffee using IOTA tokens
 - `payment: Coin<IOTA>`: The amount of IOTA tokens that the customer pays for the coffee. This is a `Coin` type representing IOTA currency.
 - `ctx: &mut TxContext`: The transaction context that handles information about the sender and the blockchain transaction.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-public fun buy_coffee(app: &mut CoffeeShop, payment: Coin<IOTA>, ctx: &mut TxContext) {
-    assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
-
-    let token = token::mint(&mut app.coffee_points, 1, ctx);
-    let request = token::transfer(token, sender(ctx), ctx);
-
-    token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
-    coin::put(&mut app.balance, payment);
-    iota::event::emit(CoffeePurchased {})
-}
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L57-L69
 ```
-
-</details>
 
 This function performs key tasks like checking the customer’s balance, minting 1 new `COFFEE` token, transferring it to the customer, and confirming the transaction.
 
@@ -170,14 +106,8 @@ This function performs key tasks like checking the customer’s balance, minting
 
 Move uses assertions (`assert!`) to enforce logical conditions during execution. If an assertion fails, it aborts the function with the defined error code.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L60-L61
 ```
-
-</details>
 
 In this example, you will ensure the customer has enough IOTA to buy coffee. If not, it returns the `EIncorrectAmount` error.
 
@@ -191,20 +121,8 @@ After purchasing 4 coffees, customers can claim a free coffee by burning their `
 - `points: Token<COFFEE>`: The `COFFEE` tokens that the customer is using to claim a free coffee. The token value must equal 4 for the transaction to proceed.
 - `ctx: &mut TxContext`: The transaction context, which includes details about the sender and the blockchain transaction.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-public fun claim_free(app: &mut CoffeeShop, points: Token<COFFEE>, ctx: &mut TxContext) {
-    assert!(token::value(&points) == 4, EIncorrectAmount);
-
-    let request = token::spend(points, ctx);
-    token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
-    iota::event::emit(CoffeePurchased {})
-}
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L71-L82
 ```
-
-</details>
 
 This function ensures the customer has exactly 4 points, spends them, and emits a purchase event, marking the reward for loyalty.
 
@@ -219,27 +137,8 @@ The `transfer` function enables customers to [transfer](../../references/framewo
 - `recipient: address`: The recipient's blockchain address to which the tokens will be transferred.
 - `ctx: &mut TxContext`: The transaction context that includes details about the sender and manages interaction with the blockchain.
 
-<details>
-<summary>Click to view code</summary>
-
-```move
-public fun transfer(
-    app: &mut CoffeeShop,
-    mut points: Token<COFFEE>,
-    recipient: address,
-    ctx: &mut TxContext
-) {
-    assert!(token::value(&points) > 1, ENotEnoughPoints);
-
-    let commission = token::split(&mut points, 1, ctx);
-    let request = token::transfer(points, recipient, ctx);
-
-    token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
-    token::burn(&mut app.coffee_points, commission);
-    }
+```move file=<rootDir>/examples/move/token/sources/coffee.move#L84-L98
 ```
-
-</details>
 
 The function first checks if the user has enough points, splits off 1 point as the transfer fee, sends the remaining points to the recipient, and burns the 1-point commission from the system's treasury, removing it from circulation.
 
