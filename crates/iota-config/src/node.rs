@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
@@ -14,11 +15,11 @@ use anyhow::Result;
 use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_types::{
-    base_types::{IotaAddress},
+    base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        IotaKeyPair, KeypairTraits, NetworkKeyPair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
+        NetworkKeyPair, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -33,9 +34,9 @@ use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
-    certificate_deny_config::CertificateDenyConfig, genesis,
+    Config, certificate_deny_config::CertificateDenyConfig, genesis,
     object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
-    transaction_deny_config::TransactionDenyConfig, Config,
+    transaction_deny_config::TransactionDenyConfig,
 };
 
 // Default max number of concurrent requests served
@@ -864,13 +865,13 @@ impl Default for AuthorityOverloadConfig {
             execution_queue_latency_hard_limit: default_execution_queue_latency_hard_limit(),
             max_load_shedding_percentage: default_max_load_shedding_percentage(),
             min_load_shedding_percentage_above_hard_limit:
-            default_min_load_shedding_percentage_above_hard_limit(),
+                default_min_load_shedding_percentage_above_hard_limit(),
             safe_transaction_ready_rate: default_safe_transaction_ready_rate(),
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
             max_transaction_manager_per_object_queue_length:
-            default_max_transaction_manager_per_object_queue_length(),
+                default_max_transaction_manager_per_object_queue_length(),
         }
     }
 }
@@ -916,8 +917,8 @@ impl Genesis {
         match &self.location {
             Some(GenesisLocation::InPlace { genesis }) => Ok(genesis),
             Some(GenesisLocation::File {
-                     genesis_file_location,
-                 }) => self
+                genesis_file_location,
+            }) => self
                 .genesis
                 .get_or_try_init(|| genesis::Genesis::load(genesis_file_location)),
             None => anyhow::bail!("no genesis location set"),
@@ -982,7 +983,7 @@ impl KeyPairWithPath {
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
             |e| panic!("Invalid keypair file at path {:?}: {e}", &path),
         )))
-            .expect("Failed to set keypair");
+        .expect("Failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
@@ -1048,7 +1049,7 @@ impl AuthorityKeyPairWithPath {
             read_authority_keypair_from_file(&path)
                 .unwrap_or_else(|_| panic!("Invalid authority keypair file at path {:?}", &path)),
         ))
-            .expect("Failed to set authority keypair");
+        .expect("Failed to set authority keypair");
         Self {
             location: AuthorityKeyPairLocation::File { path },
             keypair: cell,
@@ -1089,9 +1090,9 @@ mod tests {
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_types::crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
     };
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::Genesis;
     use crate::NodeConfig;
@@ -1127,12 +1128,12 @@ mod tests {
             &IotaKeyPair::Ed25519(worker_key_pair.copy()),
             PathBuf::from("worker.key"),
         )
-            .unwrap();
+        .unwrap();
         write_keypair_to_file(
             &IotaKeyPair::Ed25519(network_key_pair.copy()),
             PathBuf::from("network.key"),
         )
-            .unwrap();
+        .unwrap();
 
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();

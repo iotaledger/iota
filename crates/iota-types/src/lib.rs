@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![warn(
     future_incompatible,
     nonstandard_style,
@@ -11,8 +12,8 @@
 use base_types::{IotaAddress, ObjectID, SequenceNumber};
 pub use iota_network_stack::multiaddr;
 use move_binary_format::{
-    file_format::{AbilitySet, SignatureToken},
     CompiledModule,
+    file_format::{AbilitySet, SignatureToken},
 };
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -82,12 +83,12 @@ pub mod programmable_transaction_builder;
 pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
+pub mod signature_verification;
 pub mod smr_coin;
 pub mod stardust;
-pub mod timelock;
-pub mod signature_verification;
 pub mod storage;
 pub mod supported_protocol_versions;
+pub mod timelock;
 pub mod traffic_control;
 pub mod transaction;
 pub mod transaction_executor;
