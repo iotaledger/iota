@@ -29,7 +29,7 @@ use crate::common::pg_integration::{
 
 #[tokio::test]
 #[serial]
-async fn test_get_epochs() {
+async fn get_epochs() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -82,7 +82,7 @@ async fn test_get_epochs() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_epochs_descending() {
+async fn get_epochs_descending() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -109,7 +109,7 @@ async fn test_get_epochs_descending() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_epochs_paging() {
+async fn get_epochs_paging() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -151,7 +151,7 @@ async fn test_get_epochs_paging() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_epoch_metrics() {
+async fn get_epoch_metrics() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -207,7 +207,7 @@ async fn test_get_epoch_metrics() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_epoch_metrics_descending() {
+async fn get_epoch_metrics_descending() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -234,7 +234,7 @@ async fn test_get_epoch_metrics_descending() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_epoch_metrics_paging() {
+async fn get_epoch_metrics_paging() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -276,7 +276,7 @@ async fn test_get_epoch_metrics_paging() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_current_epoch() {
+async fn get_current_epoch() {
     let mut sim = Simulacrum::new();
     add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
@@ -302,7 +302,7 @@ async fn test_get_current_epoch() {
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
-async fn test_get_network_metrics() {
+async fn get_network_metrics() {
     let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
@@ -313,7 +313,7 @@ async fn test_get_network_metrics() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_move_call_metrics() {
+async fn get_move_call_metrics() {
     let (cluster, pg_store, indexer_client) =
         start_test_cluster_with_read_write_indexer(None).await;
 
@@ -337,7 +337,7 @@ async fn test_get_move_call_metrics() {
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
-async fn test_get_latest_address_metrics() {
+async fn get_latest_address_metrics() {
     let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
@@ -349,7 +349,7 @@ async fn test_get_latest_address_metrics() {
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
-async fn test_get_checkpoint_address_metrics() {
+async fn get_checkpoint_address_metrics() {
     let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
@@ -364,7 +364,7 @@ async fn test_get_checkpoint_address_metrics() {
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2368524531"]
 #[tokio::test]
 #[serial]
-async fn test_get_all_epoch_address_metrics() {
+async fn get_all_epoch_address_metrics() {
     let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 10).await;
 
@@ -378,7 +378,7 @@ async fn test_get_all_epoch_address_metrics() {
 
 #[tokio::test]
 #[serial]
-async fn test_get_total_transactions() {
+async fn get_total_transactions() {
     let mut sim = Simulacrum::new();
     execute_simulacrum_transactions(&mut sim, 5);
 
