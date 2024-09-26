@@ -54,10 +54,7 @@ export function PreviewTransfer({
                 <KeyValueInfo
                     keyText={'To'}
                     value={
-                        <ExplorerLink
-                            type={ExplorerLinkType.Address}
-                            address={to || ''}
-                        >
+                        <ExplorerLink type={ExplorerLinkType.Address} address={to || ''}>
                             {formatAddress(to || '')}
                         </ExplorerLink>
                     }
