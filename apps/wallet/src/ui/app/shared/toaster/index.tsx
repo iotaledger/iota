@@ -73,7 +73,7 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
                             text={resolveValue(t.message, t)}
                             type={getSnackbarType(t.type)}
                             showClose={true}
-                            duration={0}
+                            duration={t.duration}
                         />
                     </div>
                 )}
