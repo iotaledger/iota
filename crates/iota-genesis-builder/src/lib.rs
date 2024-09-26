@@ -306,18 +306,7 @@ impl Builder {
             )
             .expect("all validators should have the required stake");
 
-        // If the genesis stake was created, then burn gas objects that were added to
-        // the token distribution schedule, because they will be created on the
-        // Move side during genesis. That means we need to prevent from being
-        // part of the initial genesis objects by evicting them here.
-        self.migration_objects.evict(
-            self.genesis_stake
-                .take_gas_coins_to_burn()
-                .into_iter()
-                .map(|(id, _, _)| id),
-        );
-        let mut objects = self.migration_objects.take_objects();
-        objects.extend(self.objects.values().cloned());
+        let objects = self.objects.clone().into_values().collect::<Vec<_>>();
 
         // Finally build the genesis data
         self.built_genesis = Some(build_unsigned_genesis_data(
@@ -326,6 +315,7 @@ impl Builder {
             self.validators.values(),
             objects,
             &mut self.genesis_stake,
+            &mut self.migration_objects,
         ));
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
@@ -916,6 +906,7 @@ fn build_unsigned_genesis_data<'info>(
     validators: impl Iterator<Item = &'info GenesisValidatorInfo>,
     objects: Vec<Object>,
     genesis_stake: &mut GenesisStake,
+    migration_objects: &mut MigrationObjects,
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
         panic!(
@@ -950,21 +941,37 @@ fn build_unsigned_genesis_data<'info>(
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
 
-    let (objects, events) = create_genesis_objects(
+    let (genesis_objects, events) = create_genesis_objects(
         &mut genesis_ctx,
         objects,
         &genesis_validators,
         &genesis_chain_parameters,
         token_distribution_schedule,
-        genesis_stake,
         system_packages,
         metrics.clone(),
     );
 
+    if !genesis_stake.is_empty() {
+        let migration_objects = create_migration_objects(
+            &mut genesis_ctx,
+            migration_objects.take_objects(),
+            &genesis_objects,
+            &genesis_chain_parameters,
+            genesis_stake,
+            metrics.clone(),
+        );
+    }
+
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
-    let (genesis_transaction, genesis_effects, genesis_events, objects) =
-        create_genesis_transaction(objects, events, &protocol_config, metrics, &epoch_data);
+    let (genesis_transaction, genesis_effects, genesis_events, genesis_objects) =
+        create_genesis_transaction(
+            genesis_objects,
+            events,
+            &protocol_config,
+            metrics,
+            &epoch_data,
+        );
     let (checkpoint, checkpoint_contents) =
         create_genesis_checkpoint(parameters, &genesis_transaction, &genesis_effects);
 
@@ -974,7 +981,7 @@ fn build_unsigned_genesis_data<'info>(
         transaction: genesis_transaction,
         effects: genesis_effects,
         events: genesis_events,
-        objects,
+        objects: genesis_objects,
     }
 }
 
@@ -1097,7 +1104,6 @@ fn create_genesis_objects(
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    genesis_stake: &mut GenesisStake,
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
 ) -> (Vec<Object>, Vec<Event>) {
@@ -1134,18 +1140,6 @@ fn create_genesis_objects(
         store.insert_object(object);
     }
 
-    if !genesis_stake.is_empty() {
-        split_timelocks(
-            &mut store,
-            executor.as_ref(),
-            genesis_ctx,
-            parameters,
-            &genesis_stake.take_timelocks_to_split(),
-            metrics.clone(),
-        )
-        .expect("Splitting timelocks should not fail here");
-    }
-
     generate_genesis_system_object(
         &mut store,
         executor.as_ref(),
@@ -1157,12 +1151,7 @@ fn create_genesis_objects(
     )
     .expect("Genesis creation should not fail here");
 
-    let mut intermediate_store = store.into_inner();
-    // The equivalent of migration_objects evict for timelocks
-    for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
-        intermediate_store.remove(&id);
-    }
-    (intermediate_store.into_values().collect(), events)
+    (store.into_inner().into_values().collect(), events)
 }
 
 pub(crate) fn process_package(
@@ -1386,6 +1375,63 @@ pub fn generate_genesis_system_object(
     store.finish(written);
 
     Ok(())
+}
+
+fn create_migration_objects(
+    genesis_ctx: &mut TxContext,
+    input_objects: Vec<Object>,
+    genesis_objects: &Vec<Object>,
+    parameters: &GenesisChainParameters,
+    genesis_stake: &mut GenesisStake,
+    metrics: Arc<LimitsMetrics>,
+) -> Vec<Object> {
+    // create the temporary store and the executor
+    let mut store = InMemoryStorage::new(genesis_objects.clone());
+    let protocol_config = ProtocolConfig::get_for_version(
+        ProtocolVersion::new(parameters.protocol_version),
+        Chain::Unknown,
+    );
+    let silent = true;
+    let executor = iota_execution::executor(&protocol_config, silent, None)
+        .expect("Creating an executor should not fail here");
+
+    // inputs are all the migration objects
+    for object in input_objects {
+        store.insert_object(object);
+    }
+
+    // First operation: split timelock objects that needs it
+    split_timelocks(
+        &mut store,
+        executor.as_ref(),
+        genesis_ctx,
+        parameters,
+        &genesis_stake.take_timelocks_to_split(),
+        metrics.clone(),
+    )
+    .expect("Splitting timelocks should not fail here");
+
+    // Extract objects from the store
+    let mut intermediate_store = store.into_inner();
+
+    // Second operation: burn gas and timelocks objects.
+    // If the genesis stake was created, then burn gas and timelock objects that
+    // were added to the token distribution schedule, because they will be
+    // created on the Move side during genesis. That means we need to prevent
+    // cloning value by evicting these here.
+    for (id, _, _) in genesis_stake.take_gas_coins_to_burn() {
+        intermediate_store.remove(&id);
+    }
+    for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
+        intermediate_store.remove(&id);
+    }
+
+    // Clean the intermediate store from objects already present in genesis_objects
+    for genesis_object in genesis_objects.into_iter() {
+        intermediate_store.remove(&genesis_object.id());
+    }
+
+    intermediate_store.into_values().collect()
 }
 
 pub fn split_timelocks(
