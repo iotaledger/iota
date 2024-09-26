@@ -20,7 +20,7 @@ clap.workspace = true
 csv.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-gcp-bigquery-client = "0.23"
+gcp-bigquery-client = "=0.18.0"
 iota-analytics-indexer-derive.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
@@ -40,7 +40,6 @@ parquet = "52.1"
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-simulacrum.workspace = true
 snowflake-api = { version = "0.9" }
 strum.workspace = true
 tap = "1.0"

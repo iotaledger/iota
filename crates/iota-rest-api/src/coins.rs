@@ -95,11 +95,16 @@ async fn get_coin_info(
                 )
             })?
             .map(|treasury| CoinTreasury {
-                id: Some(treasury.id.id.bytes.into()),
+                id: treasury.id.id.bytes.into(),
                 total_supply: treasury.total_supply.value,
             })
     } else if iota_types::gas_coin::GAS::is_gas(&core_coin_type) {
-        Some(CoinTreasury::IOTA)
+        let system_state_summary = state.get_system_state_summary()?;
+
+        Some(CoinTreasury {
+            id: system_state_summary.iota_treasury_cap_id,
+            total_supply: system_state_summary.iota_total_supply,
+        })
     } else {
         None
     };
@@ -166,17 +171,8 @@ impl From<iota_types::coin::CoinMetadata> for CoinMetadata {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct CoinTreasury {
-    pub id: Option<ObjectId>,
+    pub id: ObjectId,
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub total_supply: u64,
-}
-
-// TODO: needs to be fixed during the merge, the total IOTA supply should be
-// taken from the related `TreasuryCap`.
-impl CoinTreasury {
-    const IOTA: Self = Self {
-        id: None,
-        total_supply: 0,
-    };
 }

@@ -14,7 +14,7 @@ bcs.workspace = true
 clap.workspace = true
 colored.workspace = true
 futures.workspace = true
-futures-core = "0.3"
+futures-core.workspace = true
 jsonrpsee.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -32,7 +32,7 @@ iota-keys.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
-rustls = "0.23"
+rustls.workspace = true
 shared-crypto.workspace = true
 tracing.workspace = true
 
@@ -41,7 +41,6 @@ tracing.workspace = true
 # to not have to pull in the entire iota repo for it.
 
 [dev-dependencies]
-async-recursion.workspace = true
 dirs.workspace = true
 iota-move-build.workspace = true
 rand.workspace = true

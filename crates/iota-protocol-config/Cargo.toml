@@ -11,7 +11,6 @@ workspace = true
 
 [dependencies]
 clap.workspace = true
-insta.workspace = true
 iota-protocol-config-macros.workspace = true
 move-vm-config.workspace = true
 schemars.workspace = true

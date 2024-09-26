@@ -665,6 +665,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             protocol_version,
             system_state_version,
             iota_total_supply: iota_treasury_cap.total_supply().value,
+            iota_treasury_cap_id: iota_treasury_cap.id().to_owned(),
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),

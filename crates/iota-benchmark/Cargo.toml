@@ -28,7 +28,6 @@ iota-network.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
 iota-storage.workspace = true
-iota-surfer.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true

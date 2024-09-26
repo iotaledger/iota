@@ -90,6 +90,8 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub iota_total_supply: u64,
+    /// The `TreasuryCap<IOTA>` object ID.
+    pub iota_treasury_cap_id: ObjectId,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -433,6 +435,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             protocol_version,
             system_state_version,
             iota_total_supply,
+            iota_treasury_cap_id,
             storage_fund_total_object_storage_rebates,
             storage_fund_non_refundable_balance,
             reference_gas_price,
@@ -468,6 +471,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             protocol_version,
             system_state_version,
             iota_total_supply,
+            iota_treasury_cap_id: iota_treasury_cap_id.into(),
             storage_fund_total_object_storage_rebates,
             storage_fund_non_refundable_balance,
             reference_gas_price,

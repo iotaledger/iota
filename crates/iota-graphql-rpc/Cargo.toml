@@ -35,7 +35,6 @@ iota-sdk.workspace = true
 iota-types.workspace = true
 itertools.workspace = true
 lru.workspace = true
-markdown-gen = "1.2"
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true

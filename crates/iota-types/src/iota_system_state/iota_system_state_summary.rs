@@ -44,6 +44,8 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub iota_total_supply: u64,
+    /// The `TreasuryCap<IOTA>` object ID.
+    pub iota_treasury_cap_id: ObjectID,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "BigInt<u64>")]
@@ -321,6 +323,7 @@ impl Default for IotaSystemStateSummary {
             protocol_version: 1,
             system_state_version: 1,
             iota_total_supply: 0,
+            iota_treasury_cap_id: ObjectID::ZERO,
             storage_fund_total_object_storage_rebates: 0,
             storage_fund_non_refundable_balance: 0,
             reference_gas_price: 1,

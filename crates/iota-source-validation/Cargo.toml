@@ -33,7 +33,7 @@ move-symbol-pool.workspace = true
 flate2.workspace = true
 tar = "0.4"
 tempfile.workspace = true
-ureq = "2.10"
+ureq.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
