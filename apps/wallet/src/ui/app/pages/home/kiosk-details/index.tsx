@@ -67,7 +67,7 @@ function KioskDetailsPage() {
                         </div>
                     )}
                     <Collapsible defaultOpen title="Details">
-                        <div className="flex flex-col gap-y-sm px-md">
+                        <div className="flex flex-col gap-y-sm px-md py-xs">
                             <KeyValueInfo
                                 keyText="Number of Items"
                                 value={items?.length || '0'}
