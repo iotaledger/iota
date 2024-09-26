@@ -73,7 +73,12 @@ export function PageHeader({
                                 {title && (
                                     <div className="flex items-center gap-xxs text-neutral-40 dark:text-neutral-60">
                                         {Icon && <Icon className="shrink-0" />}
-                                        <span className="break-all text-body-ds-lg">{title}</span>
+                                        <span
+                                            className="break-all text-body-ds-lg"
+                                            data-testid="heading-object-id"
+                                        >
+                                            {title}
+                                        </span>
                                         <Copy
                                             onClick={handleCopy}
                                             className="shrink-0 cursor-pointer"
