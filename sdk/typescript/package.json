@@ -21,8 +21,7 @@
         "src",
         "transactions",
         "utils",
-        "verify",
-        "zklogin"
+        "verify"
     ],
     "engines": {
         "node": ">=20"
@@ -76,10 +75,6 @@
         "./verify": {
             "import": "./dist/esm/verify/index.js",
             "require": "./dist/cjs/verify/index.js"
-        },
-        "./zklogin": {
-            "import": "./dist/esm/zklogin/index.js",
-            "require": "./dist/cjs/zklogin/index.js"
         },
         "./graphql/schemas/2024.9": {
             "import": "./dist/esm/graphql/schemas/2024.9/index.js",

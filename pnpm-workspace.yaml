@@ -20,6 +20,5 @@ packages:
   - "!sdk/typescript/transactions"
   - "!sdk/typescript/utils"
   - "!sdk/typescript/verify"
-  - "!sdk/typescript/zklogin"
   - "!sdk/move-bytecode-template/pkg"
   - "!sdk/move-bytecode-template/pkg"

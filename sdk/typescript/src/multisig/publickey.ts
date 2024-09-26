@@ -15,24 +15,17 @@ import {
 } from '../cryptography/signature-scheme.js';
 import type { SignatureFlag, SignatureScheme } from '../cryptography/signature-scheme.js';
 import { parseSerializedSignature } from '../cryptography/signature.js';
-import type { IotaGraphQLClient } from '../graphql/client.js';
 import { normalizeIotaAddress } from '../utils/iota-types.js';
 // eslint-disable-next-line import/no-cycle
 import { publicKeyFromRawBytes } from '../verify/index.js';
-import { toZkLoginPublicIdentifier } from '../zklogin/publickey.js';
 import { MultiSigSigner } from './signer.js';
 
 type CompressedSignature =
     | { ED25519: number[] }
     | { Secp256k1: number[] }
-    | { Secp256r1: number[] }
-    | { ZkLogin: number[] };
+    | { Secp256r1: number[] };
 
-type PublicKeyEnum =
-    | { ED25519: number[] }
-    | { Secp256k1: number[] }
-    | { Secp256r1: number[] }
-    | { ZkLogin: number[] };
+type PublicKeyEnum = { ED25519: number[] } | { Secp256k1: number[] } | { Secp256r1: number[] };
 
 type PubkeyEnumWeightPair = {
     pubKey: PublicKeyEnum;
@@ -77,7 +70,6 @@ export class MultiSigPublicKey extends PublicKey {
          *  MultiSig public key as buffer or base-64 encoded string
          */
         value: string | Uint8Array | MultiSigPublicKeyStruct,
-        options: { client?: IotaGraphQLClient } = {},
     ) {
         super();
 
@@ -114,7 +106,7 @@ export class MultiSigPublicKey extends PublicKey {
             }
 
             return {
-                publicKey: publicKeyFromRawBytes(scheme, Uint8Array.from(bytes), options),
+                publicKey: publicKeyFromRawBytes(scheme, Uint8Array.from(bytes)),
                 weight,
             };
         });
@@ -264,15 +256,7 @@ export class MultiSigPublicKey extends PublicKey {
                 throw new Error('MultiSig is not supported inside MultiSig');
             }
 
-            let publicKey;
-            if (parsed.signatureScheme === 'ZkLogin') {
-                publicKey = toZkLoginPublicIdentifier(
-                    parsed.zkLogin?.addressSeed,
-                    parsed.zkLogin?.iss,
-                ).toRawBytes();
-            } else {
-                publicKey = parsed.publicKey;
-            }
+            const publicKey = parsed.publicKey;
 
             compressedSignatures[i] = {
                 [parsed.signatureScheme]: Array.from(
@@ -315,10 +299,7 @@ export class MultiSigPublicKey extends PublicKey {
 /**
  * Parse multisig structure into an array of individual signatures: signature scheme, the actual individual signature, public key and its weight.
  */
-export function parsePartialSignatures(
-    multisig: MultiSigStruct,
-    options: { client?: IotaGraphQLClient } = {},
-): ParsedPartialMultiSigSignature[] {
+export function parsePartialSignatures(multisig: MultiSigStruct): ParsedPartialMultiSigSignature[] {
     const res: ParsedPartialMultiSigSignature[] = new Array(multisig.sigs.length);
     for (let i = 0; i < multisig.sigs.length; i++) {
         const [signatureScheme, signature] = Object.entries(multisig.sigs[i]).filter(
@@ -332,7 +313,7 @@ export function parsePartialSignatures(
             throw new Error('MultiSig is not supported inside MultiSig');
         }
 
-        const publicKey = publicKeyFromRawBytes(signatureScheme, pkBytes, options);
+        const publicKey = publicKeyFromRawBytes(signatureScheme, pkBytes);
 
         res[i] = {
             signatureScheme,

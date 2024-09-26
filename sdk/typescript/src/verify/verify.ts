@@ -6,13 +6,11 @@ import { fromB64 } from '@iota/bcs';
 
 import type { PublicKey, SignatureFlag, SignatureScheme } from '../cryptography/index.js';
 import { parseSerializedSignature, SIGNATURE_FLAG_TO_SCHEME } from '../cryptography/index.js';
-import type { IotaGraphQLClient } from '../graphql/client.js';
 import { Ed25519PublicKey } from '../keypairs/ed25519/publickey.js';
 import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
 import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
-import { ZkLoginPublicIdentifier } from '../zklogin/publickey.js';
 
 export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
@@ -27,9 +25,8 @@ export async function verifySignature(bytes: Uint8Array, signature: string): Pro
 export async function verifyPersonalMessageSignature(
     message: Uint8Array,
     signature: string,
-    options: { client?: IotaGraphQLClient } = {},
 ): Promise<PublicKey> {
-    const parsedSignature = parseSignature(signature, options);
+    const parsedSignature = parseSignature(signature);
 
     if (
         !(await parsedSignature.publicKey.verifyPersonalMessage(
@@ -46,9 +43,8 @@ export async function verifyPersonalMessageSignature(
 export async function verifyTransactionSignature(
     transaction: Uint8Array,
     signature: string,
-    options: { client?: IotaGraphQLClient } = {},
 ): Promise<PublicKey> {
-    const parsedSignature = parseSignature(signature, options);
+    const parsedSignature = parseSignature(signature);
 
     if (
         !(await parsedSignature.publicKey.verifyTransaction(
@@ -62,7 +58,7 @@ export async function verifyTransactionSignature(
     return parsedSignature.publicKey;
 }
 
-function parseSignature(signature: string, options: { client?: IotaGraphQLClient } = {}) {
+function parseSignature(signature: string) {
     const parsedSignature = parseSerializedSignature(signature);
 
     if (parsedSignature.signatureScheme === 'MultiSig') {
@@ -75,7 +71,6 @@ function parseSignature(signature: string, options: { client?: IotaGraphQLClient
     const publicKey = publicKeyFromRawBytes(
         parsedSignature.signatureScheme,
         parsedSignature.publicKey,
-        options,
     );
     return {
         ...parsedSignature,
@@ -86,7 +81,6 @@ function parseSignature(signature: string, options: { client?: IotaGraphQLClient
 export function publicKeyFromRawBytes(
     signatureScheme: SignatureScheme,
     bytes: Uint8Array,
-    options: { client?: IotaGraphQLClient } = {},
 ): PublicKey {
     switch (signatureScheme) {
         case 'ED25519':
@@ -97,20 +91,15 @@ export function publicKeyFromRawBytes(
             return new Secp256r1PublicKey(bytes);
         case 'MultiSig':
             return new MultiSigPublicKey(bytes);
-        case 'ZkLogin':
-            return new ZkLoginPublicIdentifier(bytes, options);
         default:
             throw new Error(`Unsupported signature scheme ${signatureScheme}`);
     }
 }
 
-export function publicKeyFromIotaBytes(
-    publicKey: string | Uint8Array,
-    options: { client?: IotaGraphQLClient } = {},
-) {
+export function publicKeyFromIotaBytes(publicKey: string | Uint8Array) {
     const bytes = typeof publicKey === 'string' ? fromB64(publicKey) : publicKey;
 
     const signatureScheme = SIGNATURE_FLAG_TO_SCHEME[bytes[0] as SignatureFlag];
 
-    return publicKeyFromRawBytes(signatureScheme, bytes.slice(1), options);
+    return publicKeyFromRawBytes(signatureScheme, bytes.slice(1));
 }

@@ -107,9 +107,6 @@ export type CompressedSignature =
       }
     | {
           Secp256r1: string;
-      }
-    | {
-          ZkLogin: string;
       };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {

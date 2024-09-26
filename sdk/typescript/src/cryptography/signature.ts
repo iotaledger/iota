@@ -6,7 +6,6 @@ import { fromB64, toB64 } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type { MultiSigStruct } from '../multisig/publickey.js';
-import { parseSerializedZkLoginSignature } from '../zklogin/publickey.js';
 import type { PublicKey } from './publickey.js';
 import type { SignatureScheme } from './signature-scheme.js';
 import {
@@ -64,8 +63,6 @@ export function parseSerializedSignature(serializedSignature: string) {
                 multisig,
                 bytes,
             };
-        case 'ZkLogin':
-            return parseSerializedZkLoginSignature(serializedSignature);
         case 'ED25519':
         case 'Secp256k1':
         case 'Secp256r1':
