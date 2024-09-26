@@ -213,7 +213,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                 icon={<Send />}
                                 size={ButtonSize.Small}
                                 disabled={activeAccount?.isLocked || !coinBalances?.length}
-                                e2eTestId="send-coin-button"
+                                testId="send-coin-button"
                             />
                         </div>
                     </div>

@@ -58,7 +58,7 @@ export interface ButtonProps {
     /**
      * The 'data-testid' attribute value (used in e2e tests)
      */
-    e2eTestId?: string;
+    testId?: string;
 }
 
 export function Button({
@@ -72,7 +72,7 @@ export function Button({
     type = ButtonType.Primary,
     iconAfterText = false,
     tabIndex = 0,
-    e2eTestId,
+    testId,
 }: ButtonProps): React.JSX.Element {
     const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
     const textSizes = TEXT_CLASSES[size];
@@ -91,7 +91,7 @@ export function Button({
             )}
             disabled={disabled}
             tabIndex={tabIndex}
-            data-testid={e2eTestId}
+            data-testid={testId}
         >
             {icon && <span className={cx(textColors)}>{icon}</span>}
             {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}

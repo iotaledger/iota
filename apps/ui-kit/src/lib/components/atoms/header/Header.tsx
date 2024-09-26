@@ -25,7 +25,7 @@ interface HeaderProps {
     /**
      * The 'data-testid' attribute value (used in e2e tests)
      */
-    e2eTestId?: string;
+    testId?: string;
 }
 
 export function Header({
@@ -33,7 +33,7 @@ export function Header({
     titleCentered,
     onBack,
     onClose,
-    e2eTestId,
+    testId,
 }: HeaderProps): JSX.Element {
     const titleCenteredClasses = titleCentered ? 'text-center' : onBack ? 'ml-1' : '';
     const keepSpaceForIcon = titleCentered && (!onBack || !onClose);
@@ -52,7 +52,7 @@ export function Header({
             )}
 
             <div className={cx('flex-grow', titleCenteredClasses)}>
-                <span className="font-inter text-title-lg" data-testid={e2eTestId}>
+                <span className="font-inter text-title-lg" data-testid={testId}>
                     {title}
                 </span>
             </div>
@@ -63,7 +63,7 @@ export function Header({
                     type={ButtonType.Ghost}
                     onClick={onClose}
                     icon={<Close />}
-                    e2eTestId={`close-icon`}
+                    testId={`close-icon`}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />

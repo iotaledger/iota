@@ -143,13 +143,13 @@ export function Account({
                             <div className="unlock">
                                 <ButtonUnstyled
                                     onClick={onUnlockAccountClick}
-                                    e2eTestId="account-unlock"
+                                    testId="account-unlock"
                                 >
                                     <LockLocked />
                                 </ButtonUnstyled>
                             </div>
                         ) : (
-                            <ButtonUnstyled onClick={onLockAccountClick} e2eTestId="account-lock">
+                            <ButtonUnstyled onClick={onLockAccountClick} testId="account-lock">
                                 <LockUnlocked />
                             </ButtonUnstyled>
                         ))}
