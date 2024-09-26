@@ -4,7 +4,11 @@
 #[allow(dead_code)]
 #[cfg(feature = "pg_integration")]
 pub mod pg_integration {
-    use std::{net::SocketAddr, sync::Arc, time::Duration};
+    use std::{
+        net::SocketAddr,
+        sync::{Arc, OnceLock},
+        time::Duration,
+    };
 
     use iota_config::node::RunWithRange;
     use iota_indexer::{
@@ -22,12 +26,48 @@ pub mod pg_integration {
     };
     use simulacrum::Simulacrum;
     use test_cluster::{TestCluster, TestClusterBuilder};
-    use tokio::task::JoinHandle;
+    use tokio::{runtime::Runtime, task::JoinHandle};
 
     const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
     const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
     const DEFAULT_INDEXER_PORT: u16 = 9005;
     const DEFAULT_SERVER_PORT: u16 = 3000;
+
+    static GLOBAL_INDEXER_RPC_CLIENT: OnceLock<HttpClient> = OnceLock::new();
+    static GLOBAL_NODE_RPC_CLIENT: OnceLock<HttpClient> = OnceLock::new();
+    static GLOBAL_TEST_CLUSTER_WITH_INDEXER: OnceLock<(
+        Runtime,
+        (TestCluster, PgIndexerStore, HttpClient),
+    )> = OnceLock::new();
+
+    pub fn get_global_indexer_rpc_client() -> &'static HttpClient {
+        GLOBAL_INDEXER_RPC_CLIENT.get_or_init(|| {
+            // create an RPC client by using the indexer url
+            HttpClientBuilder::default()
+                .build("http://0.0.0.0:9124")
+                .unwrap()
+        })
+    }
+    pub fn get_global_node_rpc_client() -> &'static HttpClient {
+        GLOBAL_NODE_RPC_CLIENT.get_or_init(|| {
+            // create an RPC client by using the node url
+            HttpClientBuilder::default()
+                .build("http://0.0.0.0:9000")
+                .unwrap()
+        })
+    }
+
+    pub fn get_global_test_cluster_with_read_write_indexer()
+    -> &'static (Runtime, (TestCluster, PgIndexerStore, HttpClient)) {
+        GLOBAL_TEST_CLUSTER_WITH_INDEXER.get_or_init(|| {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let (test_cluster, pg_store, indexer_client) =
+                runtime.block_on(start_test_cluster_with_read_write_indexer(None));
+
+            (runtime, (test_cluster, pg_store, indexer_client))
+        })
+    }
 
     /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
     /// `Write` indexer
@@ -73,7 +113,7 @@ pub mod pg_integration {
         pg_store: &PgIndexerStore,
         checkpoint_sequence_number: u64,
     ) {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(Duration::from_secs(30), async {
             while {
                 let cp_opt = pg_store
                     .get_latest_tx_checkpoint_sequence_number()
@@ -81,7 +121,7 @@ pub mod pg_integration {
                     .unwrap();
                 cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
             } {
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
             }
         })
         .await
