@@ -88,6 +88,7 @@ const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
 pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
+const MIGRATION_TX_MAX_AMOUNT: usize = 9999;
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -964,18 +965,13 @@ fn build_unsigned_genesis_data<'info>(
             genesis_stake,
             metrics.clone(),
         );
-
-        // Migration transactions covered by genesis tx type
-        let (_migration_transaction, migration_effects, _migration_events, _objects) =
-            create_genesis_transaction(
-                migration_objects,
-                vec![],
-                &protocol_config,
-                metrics.clone(),
-                &epoch_data,
-            );
-
-        migration_txs_effects.push(migration_effects);
+        calculate_migration_transactions(
+            &mut migration_txs_effects,
+            migration_objects,
+            &protocol_config,
+            metrics.clone(),
+            &epoch_data,
+        );
     }
 
     let (genesis_transaction, genesis_effects, genesis_events, genesis_objects) =
@@ -1003,6 +999,54 @@ fn build_unsigned_genesis_data<'info>(
         objects: genesis_objects,
         migration_txs_effects,
     }
+}
+
+fn calculate_migration_transactions(
+    migration_txs_effects: &mut Vec<TransactionEffects>,
+    migration_objects: Vec<Object>,
+    protocol_config: &ProtocolConfig,
+    metrics: Arc<LimitsMetrics>,
+    epoch_data: &EpochData,
+) {
+    let avg_chunk_size = migration_objects.len() / MIGRATION_TX_MAX_AMOUNT;
+    let remainder = migration_objects.len() % MIGRATION_TX_MAX_AMOUNT;
+
+    println!("CHUNK SIZE IS - {}", avg_chunk_size);
+    println!("MIGRATION OBJECTS LEN IS - {}", migration_objects.len());
+
+    // For the first remainder transactions, the chunk size is chunk_size + 1.
+    // For the remaining transactions, the chunk size is just chunk_size.
+    let chunks =
+        (0..MIGRATION_TX_MAX_AMOUNT).map(|i| avg_chunk_size + if i < remainder { 1 } else { 0 });
+
+    let mut start_idx = 0;
+    let mut objects_len = 0;
+    for chunk in chunks {
+        let objects_per_chunk = match migration_objects.get(start_idx..start_idx + chunk) {
+            Some(chunk) => chunk.to_vec(),
+            None => break,
+        };
+
+        let (_migration_transaction, migration_effects, _migration_events, objects) =
+            create_genesis_transaction(
+                objects_per_chunk.to_vec(),
+                vec![],
+                &protocol_config,
+                metrics.clone(),
+                &epoch_data,
+            );
+
+        migration_txs_effects.push(migration_effects);
+
+        start_idx += chunk;
+        objects_len += objects.len();
+    }
+
+    println!(
+        "migration_txs_effects LEN IS - {}",
+        migration_txs_effects.len()
+    );
+    println!("migration_txs_effects objects len LEN IS - {}", objects_len);
 }
 
 fn create_genesis_checkpoint(
