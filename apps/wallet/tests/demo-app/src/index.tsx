@@ -31,7 +31,7 @@ function getAccount(account: ReadonlyWalletAccount, useWrongAccount: boolean) {
 }
 
 function findIotaWallet(wallets: readonly Wallet[]) {
-    return (wallets.find((aWallet) => aWallet.name.includes('Iota Wallet')) ||
+    return (wallets.find((aWallet) => aWallet.name.includes('IOTA Wallet')) ||
         null) as IotaWallet | null;
 }
 
