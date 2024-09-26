@@ -8,8 +8,8 @@ use iota_json_rpc_api::{
     ExtendedApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    EndOfEpochInfo, EpochInfo, EpochMetrics, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseOptions, TransactionBlockBytes,
+    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
+    TransactionBlockBytes,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -31,7 +31,18 @@ use crate::common::pg_integration::{
 #[serial]
 async fn get_epochs() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -47,16 +58,16 @@ async fn get_epochs() {
     assert_eq!(epochs.data[0].epoch, 0);
     assert_eq!(epochs.data[0].first_checkpoint_id, 0);
     assert_eq!(epochs.data[0].epoch_total_transactions, 17);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 1);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 301);
 
     let end_of_epoch_info = epochs.data[1].end_of_epoch_info.as_ref().unwrap();
     assert_eq!(epochs.data[1].epoch, 1);
-    assert_eq!(epochs.data[1].first_checkpoint_id, 2);
-    assert_eq!(epochs.data[1].epoch_total_transactions, 28);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 2);
+    assert_eq!(epochs.data[1].first_checkpoint_id, 302);
+    assert_eq!(epochs.data[1].epoch_total_transactions, 11);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 602);
 
     assert_eq!(epochs.data[2].epoch, 2);
-    assert_eq!(epochs.data[2].first_checkpoint_id, 3);
+    assert_eq!(epochs.data[2].first_checkpoint_id, 603);
     assert_eq!(epochs.data[2].epoch_total_transactions, 0);
     assert!(epochs.data[2].end_of_epoch_info.is_none());
 }
@@ -65,7 +76,18 @@ async fn get_epochs() {
 #[serial]
 async fn get_epochs_descending() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -92,7 +114,18 @@ async fn get_epochs_descending() {
 #[serial]
 async fn get_epochs_paging() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -134,7 +167,18 @@ async fn get_epochs_paging() {
 #[serial]
 async fn get_epoch_metrics() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -153,16 +197,16 @@ async fn get_epoch_metrics() {
     assert_eq!(epoch_metrics.data[0].epoch, 0);
     assert_eq!(epoch_metrics.data[0].first_checkpoint_id, 0);
     assert_eq!(epoch_metrics.data[0].epoch_total_transactions, 17);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 1);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 301);
 
     let end_of_epoch_info = epoch_metrics.data[1].end_of_epoch_info.as_ref().unwrap();
     assert_eq!(epoch_metrics.data[1].epoch, 1);
-    assert_eq!(epoch_metrics.data[1].first_checkpoint_id, 2);
-    assert_eq!(epoch_metrics.data[1].epoch_total_transactions, 28);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 2);
+    assert_eq!(epoch_metrics.data[1].first_checkpoint_id, 302);
+    assert_eq!(epoch_metrics.data[1].epoch_total_transactions, 11);
+    assert_eq!(end_of_epoch_info.last_checkpoint_id, 602);
 
     assert_eq!(epoch_metrics.data[2].epoch, 2);
-    assert_eq!(epoch_metrics.data[2].first_checkpoint_id, 3);
+    assert_eq!(epoch_metrics.data[2].first_checkpoint_id, 603);
     assert_eq!(epoch_metrics.data[2].epoch_total_transactions, 0);
     assert!(epoch_metrics.data[2].end_of_epoch_info.is_none());
 }
@@ -171,7 +215,18 @@ async fn get_epoch_metrics() {
 #[serial]
 async fn get_epoch_metrics_descending() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -198,7 +253,18 @@ async fn get_epoch_metrics_descending() {
 #[serial]
 async fn get_epoch_metrics_paging() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -240,7 +306,18 @@ async fn get_epoch_metrics_paging() {
 #[serial]
 async fn get_current_epoch() {
     let mut sim = Simulacrum::new();
-    add_test_epochs_to_simulacrum(&mut sim, &[15, 10, 5]);
+
+    execute_simulacrum_transactions(&mut sim, 15);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 10);
+    add_checkpoints(&mut sim, 300);
+    sim.advance_epoch(false);
+
+    execute_simulacrum_transactions(&mut sim, 5);
+    add_checkpoints(&mut sim, 300);
+
     let last_checkpoint = sim.get_latest_checkpoint().unwrap();
 
     let (_, pg_store, _, indexer_client) =
@@ -250,7 +327,7 @@ async fn get_current_epoch() {
     let current_epoch = indexer_client.get_current_epoch().await.unwrap();
 
     assert_eq!(current_epoch.epoch, 2);
-    assert_eq!(current_epoch.first_checkpoint_id, 3);
+    assert_eq!(current_epoch.first_checkpoint_id, 603);
     assert_eq!(current_epoch.epoch_total_transactions, 0);
     assert!(current_epoch.end_of_epoch_info.is_none());
 }
@@ -351,20 +428,6 @@ async fn get_total_transactions() {
     assert_eq!(transactions_cnt.into_inner(), 6);
 }
 
-fn add_test_epochs_to_simulacrum(mut sim: &mut Simulacrum, tx_counts_in_epochs: &[u32]) {
-    if let [counts_in_finished_epochs @ .., current_epoch_tx_count] = tx_counts_in_epochs {
-        for tx_count in counts_in_finished_epochs {
-            execute_simulacrum_transactions(&mut sim, *tx_count);
-            sim.advance_epoch(false);
-        }
-
-        execute_simulacrum_transactions(&mut sim, *current_epoch_tx_count);
-        sim.create_checkpoint();
-    } else {
-        return;
-    }
-}
-
 async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -433,5 +496,14 @@ fn execute_simulacrum_transaction(sim: &mut Simulacrum) {
 fn execute_simulacrum_transactions(sim: &mut Simulacrum, transactions_count: u32) {
     for _ in 0..transactions_count {
         execute_simulacrum_transaction(sim);
+    }
+}
+
+fn add_checkpoints(sim: &mut Simulacrum, checkpoints_count: i32) {
+    // Main use of this function is to create more checkpoints than the current
+    // processing batch size, to circumvent the issue described in
+    // https://github.com/iotaledger/iota/issues/2197#issuecomment-2376432709
+    for _ in 0..checkpoints_count {
+        sim.create_checkpoint();
     }
 }
