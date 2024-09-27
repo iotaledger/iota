@@ -1,10 +1,15 @@
 ---
 title: Getting Started with Move Coffee Token Tutorial
+tags:
+  - tutorial
+  - defi
+  - move
+  - getting-started
 ---
 
 ## Introduction
 
-Welcome to this beginner-friendly tutorial on [Move](https://move-language.github.io/move/) programming! You will build a simple Coffee Shop example that allows customers to buy, claim, and transfer coffee tokens. The example demonstrates fundamental concepts like importing modules, defining [constants](https://move-language.github.io/move/constants.html), creating [structs](https://move-language.github.io/move/structs-and-resources.html), minting and burning tokens, and handling [control](https://move-language.github.io/move/loops.html) flow.
+Welcome to this beginner-friendly tutorial on [Move](../iota-101/move-overview/move-overview.mdx) programming! You will build a simple Coffee Shop example that allows customers to buy, claim, and transfer coffee tokens. The example demonstrates fundamental concepts like importing modules, defining [constants](https://move-language.github.io/move/constants.html), creating [structs](https://move-language.github.io/move/structs-and-resources.html), minting and burning tokens, and handling [control](https://move-language.github.io/move/loops.html) flow.
 
 ### Key Concepts Covered
 
@@ -17,8 +22,8 @@ Welcome to this beginner-friendly tutorial on [Move](https://move-language.githu
 
 ## Prerequisites
 
-- Basic understanding of blockchain concepts like [tokens](https://docs.openzeppelin.com/contracts/2.x/tokens#:~:text=A%20token%20is%20a%20representation,them%2C%20create%20or%20destroy%20them.) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
-- Basic understanding of the [Move](https://move-language.github.io/move/)
+- Basic understanding of blockchain concepts like [tokens](../../references/framework/iota-framework/token.mdx) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
+- Basic understanding of the [Move](../iota-101/move-overview/move-overview.mdx)
 - [Install Iota CLI](iota-install.mdx)
 
 ## 1. Create an IOTA Move Package
@@ -61,7 +66,7 @@ In this step, you should define a few constants that represent different error c
 
 [Abilities](https://docs.iota.org/developer/getting-started/create-a-module#abilities) in Move are a typing feature in Move that control what actions are permissible for values of a given type.
 
-1. `COFFEE`: A token struct representing coffee points.
+1. `COFFEE`: A struct representing coffee points.
 2. `CoffeeShop`: A struct for the coffee shop that includes its treasury cap and IOTA balance.
 
 ```move file=<rootDir>/examples/move/token/sources/coffee.move#L23-L34
