@@ -60,7 +60,7 @@ use iota_types::{
     },
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
-        Transaction, TransactionKey,
+        Transaction,
     },
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
 };

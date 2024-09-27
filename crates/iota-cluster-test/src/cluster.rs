@@ -6,8 +6,7 @@ use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
 use iota_config::{
-    genesis::Genesis, migration_tx_data::MigrationTxData, Config, PersistedConfig,
-    IOTA_GENESIS_FILENAME, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, IOTA_KEYSTORE_FILENAME,
+    genesis::Genesis, Config, PersistedConfig, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG,
 };
 use iota_genesis_builder::SnapshotSource;
@@ -208,13 +207,10 @@ impl Cluster for LocalNewCluster {
             let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
             let genesis = Genesis::load(genesis_path)?;
             // Load migration data
-            let migration_tx_data_path = config_dir.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME);
-            let migration_tx_data = MigrationTxData::load(migration_tx_data_path)?;
             let network_config = NetworkConfig {
                 validator_configs,
                 account_keys,
                 genesis,
-                migration_tx_data,
             };
             cluster_builder = cluster_builder.set_network_config(network_config);
 
