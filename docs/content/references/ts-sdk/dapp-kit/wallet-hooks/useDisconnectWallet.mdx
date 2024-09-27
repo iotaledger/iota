@@ -1,28 +1,55 @@
-import { UseDisconnectWalletExample } from '@site/src/components/sdk-examples/wallet-hooks';
-
-# useConnectWallet
+# useDisconnectWallet
 
 The `useConnectWallet` hook is a mutation hook for disconnecting from an active wallet connection,
 if currently connected.
 
-```ts
-import { ConnectButton, useDisconnectWallet } from '@iota/dapp-kit';
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
 
-function MyComponent() {
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseDisconnectWalletExample = withProviders(() => {
     const { mutate: disconnect } = useDisconnectWallet();
     return (
-        <div>
+        <div style={{ padding: 20 }}>
             <ConnectButton />
-
-            <button onClick={() => disconnect()}>Disconnect</button>
+            <div>
+                <button onClick={() => disconnect()}>Disconnect</button>
+            </div>
         </div>
     );
-}
+});
+
+render(<UseDisconnectWalletExample/>)
 ```
-
-## Example
-
-<UseDisconnectWalletExample />
 
 ## Arguments
 

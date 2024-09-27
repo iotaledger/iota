@@ -1,14 +1,41 @@
-import { UseSignPersonalMessageExample } from '@site/src/components/sdk-examples/wallet-hooks';
-
 # useSignPersonalMessage
 
 Use the `useSignPersonalMessage` hook to prompt the user to sign a message with their wallet.
 
-```ts
-import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from '@iota/dapp-kit';
-import { useState } from 'react';
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
 
-function MyComponent() {
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseSignPersonalMessageExample = withProviders(() => {
     const { mutate: signPersonalMessage } = useSignPersonalMessage();
     const [message, setMessage] = useState('hello, World!');
     const [signature, setSignature] = useState('');
@@ -36,7 +63,10 @@ function MyComponent() {
                                     message: new TextEncoder().encode(message),
                                 },
                                 {
-                                    onSuccess: (result) => setSignature(result.signature),
+                                    onSuccess: (result) => {
+                                        console.log('signed message', result);
+                                        setSignature(result.signature);
+                                    },
                                 },
                             );
                         }}
@@ -48,12 +78,10 @@ function MyComponent() {
             )}
         </div>
     );
-}
+});
+
+render(<UseSignPersonalMessageExample/>)
 ```
-
-## Example
-
-<UseSignPersonalMessageExample />
 
 ## Arguments
 

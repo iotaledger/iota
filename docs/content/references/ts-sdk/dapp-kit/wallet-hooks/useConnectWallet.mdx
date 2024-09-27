@@ -1,13 +1,41 @@
-import { UseConnectWalletExample } from '@site/src/components/sdk-examples/wallet-hooks';
-
 # useConnectWallet
 
 The `useConnectWallet` hook is a mutation hook for establishing a connection to a specific wallet.
 
-```ts
-import { ConnectButton, useConnectWallet, useWallets } from '@iota/dapp-kit';
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
 
-function MyComponent() {
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseConnectWalletExample = withProviders(() => {
     const wallets = useWallets();
     const { mutate: connect } = useConnectWallet();
 
@@ -34,12 +62,10 @@ function MyComponent() {
             </ul>
         </div>
     );
-}
+});
+
+render(<UseConnectWalletExample/>)
 ```
-
-## Example
-
-<UseConnectWalletExample />
 
 ## Connect arguments
 

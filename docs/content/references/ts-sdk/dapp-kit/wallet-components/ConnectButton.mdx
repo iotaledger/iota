@@ -1,42 +1,41 @@
-import { ConnectButtonExample } from '@site/src/components/sdk-examples/wallet-components';
-
 # `ConnectButton`
 
 The `ConnectButton` shows the user a button to connect and disconnect a wallet. It automatically
 uses the connected state to show a **connect** or **disconnect** button.
 
-```tsx
-import { ConnectButton } from '@iota/dapp-kit';
+```tsx live noInline
+const NETWORKS = {
+  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
+};
 
-export function YourApp() {
-    return <ConnectButton />;
+function withProviders(Component: () => React.JSX.Element) {
+  return () => {
+
+    if(typeof window === 'undefined') {
+      return null
+    }
+
+    // Work around server-side pre-rendering
+    const queryClient = useMemo(() => new QueryClient(), []);
+
+    return (
+      <QueryClientProvider client={queryClient}>
+        <IotaClientProvider networks={NETWORKS}>
+          <WalletProvider>
+            <Component />
+          </WalletProvider>
+        </IotaClientProvider>
+      </QueryClientProvider>
+    );
+  };
 }
+
+const ConnectButtonExample = withProviders(() => {
+  return <ConnectButton />;
+});
+
+render(<ConnectButtonExample />);
 ```
-
-```jsx live
-function Clock(props) {
-  const [date, setDate] = useState(new Date());
-  useEffect(() => {
-    const timerID = setInterval(() => tick(), 1000);
-
-    return function cleanup() {
-      clearInterval(timerID);
-    };
-  });
-
-  function tick() {
-    setDate(new Date());
-  }
-
-  return (
-    <div>
-      <h2>It is {date.toLocaleTimeString()}.</h2>
-    </div>
-  );
-}
-```
-
-<ConnectButtonExample />
 
 ### Props
 

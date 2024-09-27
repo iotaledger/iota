@@ -1,18 +1,46 @@
-import { UseCurrentWalletExample } from '@site/src/components/sdk-examples/wallet-hooks';
-
 # useCurrentWallet
 
 The `useCurrentWallet` hook retrieves the wallet that is currently connected to the dApp, if one
 exists.
 
-```ts
-import { ConnectButton, useCurrentWallet } from '@iota/dapp-kit';
+```ts live noInline
+function withProviders(
+    Component: React.FunctionComponent<object>,
+    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
+) {
+    // Work around server-side pre-rendering
+    const queryClient = new QueryClient();
+    const networks = {
+        mainnet: { url: getFullnodeUrl('mainnet') },
+    };
 
-function MyComponent() {
+    return () => {
+        const [shouldRender, setShouldRender] = useState(false);
+        useEffect(() => {
+            setShouldRender(true);
+        }, [setShouldRender]);
+
+        if (!shouldRender) {
+            return null;
+        }
+
+        return (
+            <QueryClientProvider client={queryClient}>
+                <IotaClientProvider networks={networks}>
+                    <WalletProvider {...walletProviderProps}>
+                        <Component />
+                    </WalletProvider>
+                </IotaClientProvider>
+            </QueryClientProvider>
+        );
+    };
+}
+
+const UseCurrentWalletExample = withProviders(() => {
     const { currentWallet, connectionStatus } = useCurrentWallet();
 
     return (
-        <div>
+        <div style={{ padding: 20 }}>
             <ConnectButton />
             {connectionStatus === 'connected' ? (
                 <div>
@@ -32,12 +60,10 @@ function MyComponent() {
             )}
         </div>
     );
-}
+});
+
+render(<UseCurrentWalletExample/>)
 ```
-
-## Example
-
-<UseCurrentWalletExample />
 
 ## Wallet properties
 
