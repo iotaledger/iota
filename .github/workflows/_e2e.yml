@@ -75,6 +75,17 @@ jobs:
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust
         run: pnpm turbo --filter=iota-explorer build
 
+      - name: Run Explorer e2e tests
+        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust
+        run: pnpm --filter iota-explorer playwright test
+
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report-explorer
+          path: apps/explorer/playwright-report/
+          retention-days: 30
+
       - name: Run Local net
         run: cargo run --bin iota-test-validator -- --epoch-duration-ms 10000 &
 

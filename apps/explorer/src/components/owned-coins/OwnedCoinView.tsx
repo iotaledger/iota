@@ -33,7 +33,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
         trailingElement: <ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />,
     };
     return (
-        <div>
+        <div data-testid="ownedcoinlabel">
             <Card>
                 <div className="rounded-full border border-neutral-92 dark:border-neutral-10">
                     <CoinIcon coinType={coin.coinType} size="lg" />
