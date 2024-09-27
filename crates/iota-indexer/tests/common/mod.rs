@@ -57,7 +57,7 @@ pub mod pg_integration {
         })
     }
 
-    pub fn get_global_test_cluster_with_read_write_indexer()
+    pub fn get_global_test_cluster_with_read_write_indexer_with_runtime()
     -> &'static (Runtime, (TestCluster, PgIndexerStore, HttpClient)) {
         GLOBAL_TEST_CLUSTER_WITH_INDEXER.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -67,6 +67,26 @@ pub mod pg_integration {
 
             (runtime, (test_cluster, pg_store, indexer_client))
         })
+    }
+
+    pub fn get_global_test_cluster_with_read_write_indexer<F, R>(func: F) -> R::Output
+    where
+        F: FnOnce(&'static TestCluster, &'static PgIndexerStore, &'static HttpClient) -> R
+            + Send
+            + 'static,
+        R: std::future::Future + Send,
+    {
+        let (runtime, (test_cluster, pg_store, indexer_client)) = GLOBAL_TEST_CLUSTER_WITH_INDEXER
+            .get_or_init(|| {
+                let runtime = Runtime::new().unwrap();
+
+                let (test_cluster, pg_store, indexer_client) =
+                    runtime.block_on(start_test_cluster_with_read_write_indexer(None));
+
+                (runtime, (test_cluster, pg_store, indexer_client))
+            });
+
+        runtime.block_on(func(test_cluster, pg_store, indexer_client))
     }
 
     /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
