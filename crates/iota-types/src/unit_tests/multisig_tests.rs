@@ -150,24 +150,20 @@ fn test_multisig_pk_new() {
     let pk3 = keys[2].public();
 
     // Fails on weight 0.
-    assert!(
-        MultiSigPublicKey::new(
-            vec![pk1.clone(), pk2.clone(), pk3.clone()],
-            vec![0, 1, 1],
-            2
-        )
-        .is_err()
-    );
+    assert!(MultiSigPublicKey::new(
+        vec![pk1.clone(), pk2.clone(), pk3.clone()],
+        vec![0, 1, 1],
+        2
+    )
+    .is_err());
 
     // Fails on threshold 0.
-    assert!(
-        MultiSigPublicKey::new(
-            vec![pk1.clone(), pk2.clone(), pk3.clone()],
-            vec![1, 1, 1],
-            0
-        )
-        .is_err()
-    );
+    assert!(MultiSigPublicKey::new(
+        vec![pk1.clone(), pk2.clone(), pk3.clone()],
+        vec![1, 1, 1],
+        0
+    )
+    .is_err());
 
     // Fails on incorrect array length.
     assert!(
@@ -227,14 +223,12 @@ fn test_max_sig() {
     }
 
     // multisig_pk with larger that max number of pks fails.
-    assert!(
-        MultiSigPublicKey::new(
-            pks.clone(),
-            vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG + 1],
-            ThresholdUnit::MAX
-        )
-        .is_err()
-    );
+    assert!(MultiSigPublicKey::new(
+        pks.clone(),
+        vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG + 1],
+        ThresholdUnit::MAX
+    )
+    .is_err());
 
     // multisig_pk with unreachable threshold fails.
     assert!(MultiSigPublicKey::new(pks.clone()[..5].to_vec(), vec![3; 5], 16).is_err());
@@ -264,12 +258,10 @@ fn test_max_sig() {
     )
     .unwrap();
     let sig = Signature::new_secure(&msg, &keys[0]).into();
-    assert!(
-        MultiSig::combine(vec![sig; 1], low_threshold_pk)
-            .unwrap()
-            .init_and_validate()
-            .is_ok()
-    );
+    assert!(MultiSig::combine(vec![sig; 1], low_threshold_pk)
+        .unwrap()
+        .init_and_validate()
+        .is_ok());
 }
 
 #[test]

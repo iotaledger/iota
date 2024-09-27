@@ -14,8 +14,8 @@ mod writer;
 use std::{
     path::PathBuf,
     sync::{
-        Arc,
         atomic::{AtomicU64, Ordering},
+        Arc,
     },
     time::Duration,
 };
@@ -34,14 +34,14 @@ use iota_core::{
 };
 use iota_protocol_config::Chain;
 use iota_storage::{
-    FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
+    compute_sha3_checksum, object_store::util::path_to_filesystem, FileCompression, SHA3_BYTES,
 };
 use iota_types::{
     accumulator::Accumulator,
     base_types::ObjectID,
     iota_system_state::{
-        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
-        get_iota_system_state,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
+        IotaSystemStateTrait,
     },
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };

@@ -1158,8 +1158,8 @@ mod pprof_tests {
 
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/958"]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones()
-    -> Result<(), anyhow::Error> {
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones(
+    ) -> Result<(), anyhow::Error> {
         // This test writes a bunch of objects to objects table, invokes pruning on it
         // and then does a bunch of get(). We open the db with
         // `ignore_range_delete` set to true (default mode). We then record a
@@ -1197,8 +1197,8 @@ mod pprof_tests {
 
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/958"]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush()
-    -> Result<(), anyhow::Error> {
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush(
+    ) -> Result<(), anyhow::Error> {
         // This test writes a bunch of objects to objects table, invokes pruning on it
         // and then does a bunch of get(). We open the db with
         // `ignore_range_delete` set to true (default mode). We then record a

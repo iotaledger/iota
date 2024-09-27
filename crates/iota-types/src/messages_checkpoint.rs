@@ -893,11 +893,9 @@ mod tests {
             CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("Cert is OK");
 
         // Signature is correct on proposal, and with same transactions
-        assert!(
-            checkpoint_cert
-                .verify_with_contents(&committee, Some(&set))
-                .is_ok()
-        );
+        assert!(checkpoint_cert
+            .verify_with_contents(&committee, Some(&set))
+            .is_ok());
 
         // Make a bad proposal
         let signed_checkpoints: Vec<_> = keys

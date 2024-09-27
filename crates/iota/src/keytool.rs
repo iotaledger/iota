@@ -55,9 +55,7 @@ use tabled::{
 };
 use tracing::info;
 
-use crate::{
-    key_identity::{get_identity_address_from_keystore, KeyIdentity},
-};
+use crate::key_identity::{get_identity_address_from_keystore, KeyIdentity};
 #[cfg(test)]
 #[path = "unit_tests/keytool_tests.rs"]
 mod keytool_tests;

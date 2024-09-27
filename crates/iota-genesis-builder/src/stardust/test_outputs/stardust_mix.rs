@@ -235,20 +235,21 @@ fn new_basic_or_nft_outputs(
     add_output_with_unlock_conditions(vec![]);
     add_output_with_unlock_conditions(vec![TimelockUnlockCondition::new(rng.gen())?.into()]);
     add_output_with_unlock_conditions(vec![
-        ExpirationUnlockCondition::new(address, rng.gen())?.into(),
+        ExpirationUnlockCondition::new(address, rng.gen())?.into()
     ]);
-    add_output_with_unlock_conditions(vec![
-        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
-    ]);
+    add_output_with_unlock_conditions(vec![StorageDepositReturnUnlockCondition::new(
+        address,
+        STORAGE_DEPOSIT_AMOUNT,
+        u64::MAX,
+    )?
+    .into()]);
 
-    add_output_with_unlock_conditions(vec![
-        StorageDepositReturnUnlockCondition::new(
-            Ed25519Address::new([0u8; 32]),
-            STORAGE_DEPOSIT_AMOUNT,
-            u64::MAX,
-        )?
-        .into(),
-    ]);
+    add_output_with_unlock_conditions(vec![StorageDepositReturnUnlockCondition::new(
+        Ed25519Address::new([0u8; 32]),
+        STORAGE_DEPOSIT_AMOUNT,
+        u64::MAX,
+    )?
+    .into()]);
     add_output_with_unlock_conditions(vec![
         AddressUnlockCondition::new(Ed25519Address::new([0u8; 32])).into(),
         StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),

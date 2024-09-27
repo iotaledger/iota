@@ -368,18 +368,14 @@ async fn test_request_vote_has_missing_parents() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
     let result = handler.request_vote(request).await;
 
     let expected_missing: HashSet<_> = round_2_missing.iter().map(|c| c.digest()).collect();
@@ -391,18 +387,14 @@ async fn test_request_vote_has_missing_parents() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
     // No additional missing parents will be requested.
     let result = timeout(Duration::from_secs(5), handler.request_vote(request)).await;
     assert!(result.is_err(), "{:?}", result);
@@ -414,18 +406,14 @@ async fn test_request_vote_has_missing_parents() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
     // Because round 1 certificates are not in store, the missing parents will not
     // be accepted yet.
     let result = handler.request_vote(request).await;
@@ -548,18 +536,14 @@ async fn test_request_vote_accept_missing_parents() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
     let result = handler.request_vote(request).await;
 
     let expected_missing: HashSet<_> = round_2_missing.iter().map(|c| c.digest()).collect();
@@ -571,18 +555,14 @@ async fn test_request_vote_accept_missing_parents() {
         header: test_header,
         parents: round_2_missing.clone(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     let result = timeout(Duration::from_secs(5), handler.request_vote(request))
         .await
@@ -708,18 +688,14 @@ async fn test_request_vote_missing_batches() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     let response = handler.request_vote(request).await.unwrap();
     assert!(response.body().vote.is_some());
@@ -833,18 +809,14 @@ async fn test_request_vote_already_voted() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     let response = handler.request_vote(request).await.unwrap();
     assert!(response.body().vote.is_some());
@@ -855,18 +827,14 @@ async fn test_request_vote_already_voted() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     let response = handler.request_vote(request).await.unwrap();
     assert!(response.body().vote.is_some());
@@ -885,18 +853,14 @@ async fn test_request_vote_already_voted() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     let response = handler.request_vote(request).await;
     assert_eq!(
@@ -1210,18 +1174,14 @@ async fn test_request_vote_created_at_in_future() {
         header: test_header.clone(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     // For such a future header we get back an error
     assert!(handler.request_vote(request).await.is_err());
@@ -1244,18 +1204,14 @@ async fn test_request_vote_created_at_in_future() {
         header: test_header.clone().into(),
         parents: Vec::new(),
     });
-    assert!(
-        request
-            .extensions_mut()
-            .insert(network.downgrade())
-            .is_none()
-    );
-    assert!(
-        request
-            .extensions_mut()
-            .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
-            .is_none()
-    );
+    assert!(request
+        .extensions_mut()
+        .insert(network.downgrade())
+        .is_none());
+    assert!(request
+        .extensions_mut()
+        .insert(anemo::PeerId(author.network_public_key().0.to_bytes()))
+        .is_none());
 
     let response = handler.request_vote(request).await.unwrap();
     assert!(response.body().vote.is_some());

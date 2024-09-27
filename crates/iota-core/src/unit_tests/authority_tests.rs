@@ -151,7 +151,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0 .0;
         let mut shared_object = authority
             .get_object(&shared_object_id)
             .await
@@ -357,7 +357,7 @@ async fn test_dev_inspect_object_by_bytes() {
     )
     .await
     .unwrap();
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let created_object = validator
         .get_object(&created_object_id)
         .await
@@ -468,7 +468,7 @@ async fn test_dev_inspect_unowned_object() {
     )
     .await
     .unwrap();
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let created_object = validator
         .get_object(&created_object_id)
         .await
@@ -540,7 +540,7 @@ async fn test_dev_inspect_dynamic_field() {
                 .await
                 .unwrap();
                 assert!(effects.status().is_ok(), "{:#?}", effects.status());
-                let created_object_id = effects.created()[0].0.0;
+                let created_object_id = effects.created()[0].0 .0;
                 let created_object = validator
                     .get_object(&created_object_id)
                     .await
@@ -650,7 +650,7 @@ async fn test_dev_inspect_return_values() {
     )
     .await
     .unwrap();
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let created_object = validator
         .get_object(&created_object_id)
         .await
@@ -1203,16 +1203,16 @@ async fn test_handle_transfer_transaction_bad_signature() {
     let mut bad_signature_transfer_transaction = transfer_transaction.clone().into_inner();
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
-        .tx_signatures_mut_for_testing() = vec![
-        Signature::new_secure(transfer_transaction.data().intent_message(), &unknown_key).into(),
-    ];
+        .tx_signatures_mut_for_testing() =
+        vec![
+            Signature::new_secure(transfer_transaction.data().intent_message(), &unknown_key)
+                .into(),
+        ];
 
-    assert!(
-        client
-            .handle_transaction(bad_signature_transfer_transaction, None)
-            .await
-            .is_err()
-    );
+    assert!(client
+        .handle_transaction(bad_signature_transfer_transaction, None)
+        .await
+        .is_err());
 
     // This metric does not increment because of the early check for correct sender
     // address in verify_user_input (transaction.rs)
@@ -1223,27 +1223,23 @@ async fn test_handle_transfer_transaction_bad_signature() {
         .await
         .unwrap()
         .unwrap();
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &object.compute_object_reference(),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_transaction_lock(
+            &object.compute_object_reference(),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .unwrap()
+        .is_none());
 
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &object.compute_object_reference(),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_transaction_lock(
+            &object.compute_object_reference(),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
@@ -1338,39 +1334,33 @@ async fn test_handle_transfer_transaction_unknown_sender() {
         rgp,
     );
 
-    assert!(
-        authority_state
-            .handle_transaction(&epoch_store, unknown_sender_transfer_transaction)
-            .await
-            .is_err()
-    );
+    assert!(authority_state
+        .handle_transaction(&epoch_store, unknown_sender_transfer_transaction)
+        .await
+        .is_err());
 
     let object = authority_state
         .get_object(&object_id)
         .await
         .unwrap()
         .unwrap();
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &object.compute_object_reference(),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_transaction_lock(
+            &object.compute_object_reference(),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .unwrap()
+        .is_none());
 
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &object.compute_object_reference(),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_transaction_lock(
+            &object.compute_object_reference(),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
@@ -1414,25 +1404,21 @@ async fn test_handle_transfer_transaction_ok() {
     );
 
     // Check the initial state of the locks
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &(object_id, before_object_version, object.digest()),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &(object_id, after_object_version, object.digest()),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .is_err()
-    );
+    assert!(authority_state
+        .get_transaction_lock(
+            &(object_id, before_object_version, object.digest()),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .unwrap()
+        .is_none());
+    assert!(authority_state
+        .get_transaction_lock(
+            &(object_id, after_object_version, object.digest()),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .is_err());
 
     let account_info = authority_state
         .handle_transaction(&epoch_store, transfer_transaction.clone())
@@ -1780,13 +1766,11 @@ async fn test_publish_dependent_module_ok() {
         TxContext::new(&sender, transaction.digest(), &EpochData::new_test()).fresh_id();
 
     // Object does not exist
-    assert!(
-        authority
-            .get_object(&dependent_module_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority
+        .get_object(&dependent_module_id)
+        .await
+        .unwrap()
+        .is_none());
     let signed_effects = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -1895,10 +1879,8 @@ async fn test_publish_non_existing_dependent_module() {
     let response = authority
         .handle_transaction(&epoch_store, transaction)
         .await;
-    assert!(
-        std::string::ToString::to_string(&response.unwrap_err())
-            .contains("DependentPackageNotFound")
-    );
+    assert!(std::string::ToString::to_string(&response.unwrap_err())
+        .contains("DependentPackageNotFound"));
     // Check that gas was not charged.
     assert_eq!(
         authority
@@ -1987,7 +1969,7 @@ async fn test_handle_move_transaction() {
     assert_eq!(effects.created().len(), 1);
     assert_eq!(effects.mutated().len(), 1);
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     // check that transaction actually created an object with the expected ID, owner
     let created_obj = authority_state
         .get_object(&created_object_id)
@@ -2422,25 +2404,21 @@ async fn test_handle_confirmation_transaction_ok() {
     assert_eq!(next_sequence_number, new_account.version());
 
     // Check locks are set and archived correctly
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &(object_id, 1.into(), old_account.digest()),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .is_err()
-    );
-    assert!(
-        authority_state
-            .get_transaction_lock(
-                &(object_id, 2.into(), new_account.digest()),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .expect("Exists")
-            .is_none()
-    );
+    assert!(authority_state
+        .get_transaction_lock(
+            &(object_id, 1.into(), old_account.digest()),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .is_err());
+    assert!(authority_state
+        .get_transaction_lock(
+            &(object_id, 2.into(), new_account.digest()),
+            &authority_state.epoch_store_for_testing()
+        )
+        .await
+        .expect("Exists")
+        .is_none());
 }
 
 #[tokio::test]
@@ -2758,13 +2736,11 @@ async fn test_move_call_delete() {
 async fn test_get_latest_parent_entry_genesis() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     // There should not be any object with ID zero
-    assert!(
-        authority_state
-            .get_object_or_tombstone(ObjectID::ZERO)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_object_or_tombstone(ObjectID::ZERO)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
@@ -2796,7 +2772,7 @@ async fn test_get_latest_parent_entry() {
     .unwrap();
     let (new_object_id2, seq2, _) = effects.created()[0].0;
 
-    let update_version = SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.1]);
+    let update_version = SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0 .1]);
 
     let effects = call_move(
         &authority_state,
@@ -2824,7 +2800,7 @@ async fn test_get_latest_parent_entry() {
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, update_version);
 
-    let delete_version = SequenceNumber::lamport_increment([obj_ref.1, effects.gas_object().0.1]);
+    let delete_version = SequenceNumber::lamport_increment([obj_ref.1, effects.gas_object().0 .1]);
 
     let _effects = call_move(
         &authority_state,
@@ -2848,13 +2824,11 @@ async fn test_get_latest_parent_entry() {
     // Prevent overflow
     x[last_index] = u8::MAX - x[last_index];
     let unknown_object_id: ObjectID = x.try_into().unwrap();
-    assert!(
-        authority_state
-            .get_object_or_tombstone(unknown_object_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_object_or_tombstone(unknown_object_id)
+        .await
+        .unwrap()
+        .is_none());
 
     // Check gas object is returned.
     let obj_ref = authority_state
@@ -2894,13 +2868,11 @@ async fn test_account_state_unknown_account() {
     let sender = dbg_addr(1);
     let unknown_address = dbg_object_id(99);
     let authority_state = init_state_with_object_id(sender, ObjectID::random()).await;
-    assert!(
-        authority_state
-            .get_object(&unknown_address)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state
+        .get_object(&unknown_address)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
@@ -3313,7 +3285,7 @@ async fn test_transfer_iota_no_amount() {
     // balance.
     assert!(effects.status().is_ok());
     assert!(effects.mutated_excluding_gas().is_empty());
-    assert!(gas_ref.1 < effects.gas_object().0.1);
+    assert!(gas_ref.1 < effects.gas_object().0 .1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(recipient));
     let new_balance = iota_types::gas::get_gas_balance(
         &authority_state
@@ -3361,12 +3333,12 @@ async fn test_transfer_iota_with_amount() {
     assert_eq!(effects.created().len(), 1);
     assert_eq!(effects.created()[0].1, Owner::AddressOwner(recipient));
     let new_gas = authority_state
-        .get_object(&effects.created()[0].0.0)
+        .get_object(&effects.created()[0].0 .0)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(iota_types::gas::get_gas_balance(&new_gas).unwrap(), 500);
-    assert!(gas_ref.1 < effects.gas_object().0.1);
+    assert!(gas_ref.1 < effects.gas_object().0 .1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(sender));
     let new_balance = iota_types::gas::get_gas_balance(
         &authority_state
@@ -3495,7 +3467,7 @@ async fn test_store_revert_wrap_move_call() {
 
     // The gas is uncharged
     let gas = db.get_object(&gas_object_id).unwrap().unwrap();
-    assert_eq!(gas.version(), create_effects.gas_object().0.1);
+    assert_eq!(gas.version(), create_effects.gas_object().0 .1);
 }
 
 #[tokio::test]
@@ -3567,7 +3539,7 @@ async fn test_store_revert_unwrap_move_call() {
     assert_eq!(unwrap_effects.deleted().len(), 1);
     assert_eq!(unwrap_effects.deleted()[0].0, wrapper_v0.0);
     assert_eq!(unwrap_effects.unwrapped().len(), 1);
-    assert_eq!(unwrap_effects.unwrapped()[0].0.0, object_v0.0);
+    assert_eq!(unwrap_effects.unwrapped()[0].0 .0, object_v0.0);
 
     let db = &authority_state.database_for_testing();
 
@@ -3582,7 +3554,7 @@ async fn test_store_revert_unwrap_move_call() {
 
     // The gas is uncharged
     let gas = db.get_object(&gas_object_id).unwrap().unwrap();
-    assert_eq!(gas.version(), wrap_effects.gas_object().0.1);
+    assert_eq!(gas.version(), wrap_effects.gas_object().0 .1);
 }
 #[tokio::test]
 async fn test_store_get_dynamic_object() {
@@ -4673,8 +4645,8 @@ async fn make_test_transaction(
     unreachable!("couldn't form cert")
 }
 
-async fn prepare_authority_and_shared_object_cert()
--> (Arc<AuthorityState>, VerifiedCertificate, ObjectID) {
+async fn prepare_authority_and_shared_object_cert(
+) -> (Arc<AuthorityState>, VerifiedCertificate, ObjectID) {
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
@@ -4826,12 +4798,10 @@ async fn test_consensus_commit_prologue_generation() {
         send_batch_consensus_no_execution(&authority_state, &certificates, false).await;
 
     // Consensus commit prologue V2 should be turned on everywhere.
-    assert!(
-        authority_state
-            .epoch_store_for_testing()
-            .protocol_config()
-            .include_consensus_digest_in_prologue()
-    );
+    assert!(authority_state
+        .epoch_store_for_testing()
+        .protocol_config()
+        .include_consensus_digest_in_prologue());
 
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
@@ -5356,7 +5326,7 @@ async fn test_gas_smashing() {
             assert!(effects.status().is_err());
         }
         // gas object in effects is first coin in vector of coins
-        assert_eq!(gas_coin_ids[0], effects.gas_object().0.0);
+        assert_eq!(gas_coin_ids[0], effects.gas_object().0 .0);
         // object is created on success and gas at position 0 mutated
         let created = usize::from(success);
         assert_eq!(
@@ -5366,12 +5336,10 @@ async fn test_gas_smashing() {
         // extra coin are deleted
         assert_eq!(effects.deleted().len() as u64, coin_num - 1);
         for gas_coin_id in &gas_coin_ids[1..] {
-            assert!(
-                effects
-                    .deleted()
-                    .iter()
-                    .any(|deleted| deleted.0 == *gas_coin_id)
-            );
+            assert!(effects
+                .deleted()
+                .iter()
+                .any(|deleted| deleted.0 == *gas_coin_id));
         }
         // balance on first coin is correct
         let balance = iota_types::gas::get_gas_balance(
@@ -6068,13 +6036,11 @@ async fn test_consensus_handler_per_object_congestion_control(
     // should go through.
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], true).await;
     assert_eq!(scheduled_txns.len(), 1);
-    assert!(
-        authority
-            .epoch_store_for_testing()
-            .get_all_deferred_transactions_for_test()
-            .unwrap()
-            .is_empty()
-    );
+    assert!(authority
+        .epoch_store_for_testing()
+        .get_all_deferred_transactions_for_test()
+        .unwrap()
+        .is_empty());
 }
 
 #[sim_test]
@@ -6209,13 +6175,11 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // being cancelled.
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 3); // 3 = 2 user transactions + 1 consensus commit prologue transaction.
-    assert!(
-        authority
-            .epoch_store_for_testing()
-            .get_all_deferred_transactions_for_test()
-            .unwrap()
-            .is_empty()
-    );
+    assert!(authority
+        .epoch_store_for_testing()
+        .get_all_deferred_transactions_for_test()
+        .unwrap()
+        .is_empty());
 
     // Check cancelled transaction shared locks.
     let shared_object_version = authority

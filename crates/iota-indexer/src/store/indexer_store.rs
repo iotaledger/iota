@@ -61,7 +61,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     // update objects snapshot after backfill is done
     async fn update_objects_snapshot(&self, start_cp: u64, end_cp: u64)
-    -> Result<(), IndexerError>;
+        -> Result<(), IndexerError>;
 
     async fn persist_checkpoints(
         &self,

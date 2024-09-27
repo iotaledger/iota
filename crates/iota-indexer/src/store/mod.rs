@@ -282,12 +282,16 @@ pub mod diesel_macro {
 
     #[macro_export]
     macro_rules! run_query_async {
-        ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, false) }};
+        ($pool:expr, $query:expr) => {{
+            spawn_read_only_blocking!($pool, $query, false)
+        }};
     }
 
     #[macro_export]
     macro_rules! run_query_repeatable_async {
-        ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, true) }};
+        ($pool:expr, $query:expr) => {{
+            spawn_read_only_blocking!($pool, $query, true)
+        }};
     }
 
     /// Check that we are in a context conducive to making blocking calls.

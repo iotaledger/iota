@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
+use std::path::Path;
+
 use clap::*;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_coverage::{
@@ -11,7 +12,8 @@ use move_coverage::{
 };
 use move_disassembler::disassembler::Disassembler;
 use move_package::BuildConfig;
-use std::path::Path;
+
+use super::reroot_path;
 
 #[derive(Parser)]
 pub enum CoverageSummaryOptions {

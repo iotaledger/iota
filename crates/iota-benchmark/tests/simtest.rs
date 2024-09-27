@@ -471,7 +471,8 @@ mod test {
     async fn test_simulated_load_shared_object_congestion_control() {
         let mode;
         let checkpoint_budget_factor; // The checkpoint congestion control budget in respect to transaction budget.
-        let txn_count_limit; // When using transaction count as congestion control mode, the limit of transactions per object per commit.
+        let txn_count_limit; // When using transaction count as congestion control mode, the limit of
+                             // transactions per object per commit.
         let max_deferral_rounds;
         {
             let mut rng = thread_rng();
@@ -483,9 +484,11 @@ mod test {
             checkpoint_budget_factor = rng.gen_range(1..20);
             txn_count_limit = rng.gen_range(1..=10);
             max_deferral_rounds = if rng.gen_bool(0.5) {
-                rng.gen_range(0..20) // Short deferral round (testing cancellation)
+                rng.gen_range(0..20) // Short deferral round (testing
+                                     // cancellation)
             } else {
-                rng.gen_range(1000..10000) // Large deferral round (testing liveness)
+                rng.gen_range(1000..10000) // Large deferral round (testing
+                                           // liveness)
             }
         }
 

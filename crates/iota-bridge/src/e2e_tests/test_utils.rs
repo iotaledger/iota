@@ -373,22 +373,18 @@ impl BridgeTestCluster {
                 .iter()
                 .any(|e| &e.type_ == TokenTransferApproved.get().unwrap())
             {
-                assert!(
-                    events
-                        .iter()
-                        .any(|e| &e.type_ == TokenTransferClaimed.get().unwrap()
-                            || &e.type_ == TokenTransferApproved.get().unwrap())
-                );
+                assert!(events
+                    .iter()
+                    .any(|e| &e.type_ == TokenTransferClaimed.get().unwrap()
+                        || &e.type_ == TokenTransferApproved.get().unwrap()));
             } else if events
                 .iter()
                 .any(|e| &e.type_ == TokenTransferAlreadyClaimed.get().unwrap())
             {
-                assert!(
-                    events
-                        .iter()
-                        .all(|e| &e.type_ == TokenTransferAlreadyClaimed.get().unwrap()
-                            || &e.type_ == TokenTransferAlreadyApproved.get().unwrap())
-                );
+                assert!(events
+                    .iter()
+                    .all(|e| &e.type_ == TokenTransferAlreadyClaimed.get().unwrap()
+                        || &e.type_ == TokenTransferAlreadyApproved.get().unwrap()));
             }
             // TODO: check for other events e.g. TokenRegistrationEvent,
             // NewTokenEvent etc

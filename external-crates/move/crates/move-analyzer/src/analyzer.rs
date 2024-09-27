@@ -3,6 +3,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+
 use anyhow::Result;
 use crossbeam::channel::{bounded, select};
 use lsp_server::{Connection, Message, Notification, Request, Response};
@@ -13,18 +19,13 @@ use lsp_types::{
     TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
 use move_compiler::linters::LintLevel;
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use url::Url;
+use vfs::{impls::memory::MemoryFS, VfsPath};
 
 use crate::{
     completion::on_completion_request, context::Context, inlay_hints, symbols,
     vfs::on_text_document_sync_notification,
 };
-use url::Url;
-use vfs::{impls::memory::MemoryFS, VfsPath};
 
 const LINT_NONE: &str = "none";
 const LINT_DEFAULT: &str = "default";
@@ -33,8 +34,9 @@ const LINT_ALL: &str = "all";
 #[allow(deprecated)]
 pub fn run() {
     // stdio is used to communicate Language Server Protocol requests and responses.
-    // stderr is used for logging (and, when Visual Studio Code is used to communicate with this
-    // server, it captures this output in a dedicated "output channel").
+    // stderr is used for logging (and, when Visual Studio Code is used to
+    // communicate with this server, it captures this output in a dedicated
+    // "output channel").
     let exe = std::env::current_exe()
         .unwrap()
         .to_string_lossy()
@@ -142,10 +144,11 @@ pub fn run() {
         lint,
     );
 
-    // If initialization information from the client contains a path to the directory being
-    // opened, try to initialize symbols before sending response to the client. Do not bother
-    // with diagnostics as they will be recomputed whenever the first source file is opened. The
-    // main reason for this is to enable unit tests that rely on the symbolication information
+    // If initialization information from the client contains a path to the
+    // directory being opened, try to initialize symbols before sending response
+    // to the client. Do not bother with diagnostics as they will be recomputed
+    // whenever the first source file is opened. The main reason for this is to
+    // enable unit tests that rely on the symbolication information
     // to be available right after the client is initialized.
     if let Some(uri) = initialize_params.root_uri {
         if let Some(p) = symbols::SymbolicatorRunner::root_dir(&uri.to_file_path().unwrap()) {
@@ -270,10 +273,11 @@ pub fn run() {
     eprintln!("Shut down language server '{}'.", exe);
 }
 
-/// This function returns `true` if shutdown request has been received, and `false` otherwise.
-/// The reason why this information is also passed as an argument is that according to the LSP
-/// spec, if any additional requests are received after shutdownd then the LSP implementation
-/// should respond with a particular type of error.
+/// This function returns `true` if shutdown request has been received, and
+/// `false` otherwise. The reason why this information is also passed as an
+/// argument is that according to the LSP spec, if any additional requests are
+/// received after shutdownd then the LSP implementation should respond with a
+/// particular type of error.
 fn on_request(
     context: &Context,
     request: &Request,

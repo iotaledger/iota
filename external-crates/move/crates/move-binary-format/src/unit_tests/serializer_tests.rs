@@ -39,8 +39,8 @@ fn enum_serialize_version_invalid() {
         });
         let mut v = vec![];
         assert!(module.serialize_with_version(VERSION_6, &mut v).is_err());
-        // Serialization version does not take into account the bytecode version that it is
-        // specified in the module, only the version that is supplied to the
+        // Serialization version does not take into account the bytecode version that it
+        // is specified in the module, only the version that is supplied to the
         // `serialize_with_version` function.
         module.version = VERSION_6;
         assert!(module.serialize_with_version(VERSION_MAX, &mut v).is_ok());
@@ -151,8 +151,9 @@ fn versions_serialization_round_trip() {
     }
 }
 
-// Test that the serialization version is upgraded to the version specified during serialization
-// and not the version specified in the module if an override is provided.
+// Test that the serialization version is upgraded to the version specified
+// during serialization and not the version specified in the module if an
+// override is provided.
 #[test]
 fn serialization_upgrades_version() {
     let mut module = basic_test_module();

@@ -341,16 +341,14 @@ mod object_cost_tests {
         // Read/write to object 1 should go through.
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
-            assert!(
-                shared_object_congestion_tracker
-                    .should_defer_due_to_object_congestion(
-                        &tx,
-                        max_accumulated_txn_cost_per_object_in_commit,
-                        &HashMap::new(),
-                        0,
-                    )
-                    .is_none()
-            );
+            assert!(shared_object_congestion_tracker
+                .should_defer_due_to_object_congestion(
+                    &tx,
+                    max_accumulated_txn_cost_per_object_in_commit,
+                    &HashMap::new(),
+                    0,
+                )
+                .is_none());
         }
 
         // Transactions touching both objects should be deferred, with object 0 as the

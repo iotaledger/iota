@@ -423,11 +423,9 @@ fn post_order_traversal(
                     .map(|successor| (*successor, /* is_first_visit */ true)),
             );
         } else {
-            debug_assert!(
-                dag[&cur]
-                    .iter()
-                    .all(|successor| finished.contains(successor))
-            );
+            debug_assert!(dag[&cur]
+                .iter()
+                .all(|successor| finished.contains(successor)));
             if finished.insert(cur) {
                 post_order.push(cur)
             }

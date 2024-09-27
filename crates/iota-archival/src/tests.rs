@@ -297,16 +297,14 @@ async fn test_verify_archive_with_oneshot_store() -> Result<(), anyhow::Error> {
     );
 
     // Verification should pass
-    assert!(
-        verify_archive_with_local_store(
-            read_store,
-            test_state.remote_store_config.clone(),
-            1,
-            false
-        )
-        .await
-        .is_ok()
-    );
+    assert!(verify_archive_with_local_store(
+        read_store,
+        test_state.remote_store_config.clone(),
+        1,
+        false
+    )
+    .await
+    .is_ok());
     kill.send(())?;
     Ok(())
 }
@@ -373,16 +371,14 @@ async fn test_verify_archive_with_oneshot_store_bad_data() -> Result<(), anyhow:
     );
 
     // Verification should fail
-    assert!(
-        verify_archive_with_local_store(
-            read_store,
-            test_state.remote_store_config.clone(),
-            1,
-            false
-        )
-        .await
-        .is_err()
-    );
+    assert!(verify_archive_with_local_store(
+        read_store,
+        test_state.remote_store_config.clone(),
+        1,
+        false
+    )
+    .await
+    .is_err());
     kill.send(())?;
 
     Ok(())

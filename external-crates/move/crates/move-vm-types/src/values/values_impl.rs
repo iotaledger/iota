@@ -3,10 +3,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    loaded_data::runtime_types::Type,
-    views::{ValueView, ValueVisitor},
+use std::{
+    cell::RefCell,
+    fmt::{self, Debug, Display},
+    iter,
+    ops::Add,
+    rc::Rc,
 };
+
 use move_binary_format::{
     errors::*,
     file_format::{Constant, SignatureToken, VariantTag},
@@ -20,12 +24,10 @@ use move_core_types::{
     vm_status::{sub_status::NFE_VECTOR_ERROR_BASE, StatusCode},
     VARIANT_COUNT_MAX,
 };
-use std::{
-    cell::RefCell,
-    fmt::{self, Debug, Display},
-    iter,
-    ops::Add,
-    rc::Rc,
+
+use crate::{
+    loaded_data::runtime_types::Type,
+    views::{ValueView, ValueVisitor},
 };
 
 /// ****************************************************************************
@@ -233,13 +235,15 @@ pub struct Variant {
 #[derive(Debug)]
 pub struct VariantRef(ContainerRef);
 
-/***************************************************************************************
- *
- * Misc
- *
- *   Miscellaneous helper functions.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Misc
+///
+///   Miscellaneous helper functions.
+///
+/// ****************************************************************************
+/// *******
 
 impl Container {
     fn len(&self) -> usize {
@@ -1403,7 +1407,8 @@ impl Value {
         ))))
     }
 
-    // TODO: consider whether we want to replace these with fn vector(v: Vec<Value>).
+    // TODO: consider whether we want to replace these with fn vector(v:
+    // Vec<Value>).
     pub fn vector_u8(it: impl IntoIterator<Item = u8>) -> Self {
         Self(ValueImpl::Container(Container::VecU8(Rc::new(
             RefCell::new(it.into_iter().collect()),
@@ -2763,13 +2768,15 @@ impl Struct {
     }
 }
 
-/***************************************************************************************
- *
- * Variant Operations
- *
- *   Public APIs for Enums.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Variant Operations
+///
+///   Public APIs for Enums.
+///
+/// ****************************************************************************
+/// *******
 impl Variant {
     pub fn pack<I: IntoIterator<Item = Value>>(tag: VariantTag, vals: I) -> Self {
         Self {
@@ -2792,15 +2799,18 @@ impl Variant {
     }
 }
 
-/***************************************************************************************
- *
- * Global Value Operations
- *
- *   Public APIs for GlobalValue. They allow global values to be created from external
- *   source (a.k.a. storage), and references to be taken from them. At the end of the
- *   transaction execution the dirty ones can be identified and wrote back to storage.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Global Value Operations
+///
+///   Public APIs for GlobalValue. They allow global values to be created from
+/// external   source (a.k.a. storage), and references to be taken from them. At
+/// the end of the   transaction execution the dirty ones can be identified and
+/// wrote back to storage.
+///
+/// ****************************************************************************
+/// *******
 #[allow(clippy::unnecessary_wraps)]
 impl GlobalValueImpl {
     fn cached(
@@ -3704,13 +3714,15 @@ impl<'d, 'a> serde::de::DeserializeSeed<'d> for &MoveRuntimeVariantFieldLayout<'
     }
 }
 
-/***************************************************************************************
-*
-* Constants
-*
-*   Implementation of deserialization of constant data into a runtime value
-*
-**************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Constants
+///
+///   Implementation of deserialization of constant data into a runtime value
+///
+/// ****************************************************************************
+/// *******
 
 impl Value {
     fn constant_sig_token_to_layout(constant_signature: &SignatureToken) -> Option<MoveTypeLayout> {
@@ -3955,7 +3967,8 @@ impl ValueView for VariantRef {
     }
 }
 
-// Note: We may want to add more helpers to retrieve value views behind references here.
+// Note: We may want to add more helpers to retrieve value views behind
+// references here.
 
 impl Struct {
     #[allow(clippy::needless_lifetimes)]

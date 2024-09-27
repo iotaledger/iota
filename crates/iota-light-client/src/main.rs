@@ -628,15 +628,12 @@ mod tests {
         // Change committee
         committee.epoch += 10;
 
-        assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
-        );
+        assert!(extract_verified_effects_and_events(
+            &full_checkpoint,
+            &committee,
+            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk").unwrap(),
+        )
+        .is_err());
     }
 
     #[tokio::test]
@@ -644,15 +641,12 @@ mod tests {
     async fn test_checkpoint_no_transaction() {
         let (committee, full_checkpoint) = read_data().await;
 
-        assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
-        );
+        assert!(extract_verified_effects_and_events(
+            &full_checkpoint,
+            &committee,
+            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
+        )
+        .is_err());
     }
 
     #[tokio::test]
@@ -664,15 +658,12 @@ mod tests {
         let random_contents = FullCheckpointContents::random_for_testing();
         full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
 
-        assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
-        );
+        assert!(extract_verified_effects_and_events(
+            &full_checkpoint,
+            &committee,
+            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
+        )
+        .is_err());
     }
 
     #[tokio::test]
@@ -693,14 +684,11 @@ mod tests {
             }
         }
 
-        assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
-        );
+        assert!(extract_verified_effects_and_events(
+            &full_checkpoint,
+            &committee,
+            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
+        )
+        .is_err());
     }
 }

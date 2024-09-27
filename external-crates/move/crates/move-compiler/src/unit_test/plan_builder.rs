@@ -3,6 +3,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use move_core_types::{
+    account_address::AccountAddress as MoveAddress,
+    language_storage::{ModuleId, TypeTag},
+    runtime_value::MoveValue,
+    u256::U256,
+    vm_status::StatusCode,
+};
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
 use crate::{
     cfgir::ast as G,
     diag,
@@ -22,16 +34,6 @@ use crate::{
         ExpectedFailure, ExpectedMoveError, ModuleTestPlan, MoveErrorType, TestArgument, TestCase,
     },
 };
-use move_core_types::{
-    account_address::AccountAddress as MoveAddress,
-    language_storage::{ModuleId, TypeTag},
-    runtime_value::MoveValue,
-    u256::U256,
-    vm_status::StatusCode,
-};
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
-use std::collections::BTreeMap;
 
 struct Context<'env> {
     env: &'env mut CompilationEnv,
@@ -194,7 +196,8 @@ fn build_test_info<'func>(
                 let generated_type = match convert_builtin_type_to_typetag(&s_type.value) {
                     Some(generated_type) => generated_type,
                     None => {
-                        let msg = "Unsupported type for generated input for test. Only built-in types \
+                        let msg =
+                            "Unsupported type for generated input for test. Only built-in types \
                             are supported for generated test inputs";
                         let mut diag = diag!(
                             Attributes::InvalidTest,

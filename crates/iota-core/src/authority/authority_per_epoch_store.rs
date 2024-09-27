@@ -2363,13 +2363,11 @@ impl AuthorityPerEpochStore {
                 // User signatures are written in the same batch as consensus certificate
                 // processed flag, which means we won't attempt to insert this
                 // twice for the same tx digest
-                assert!(
-                    !self
-                        .tables()?
-                        .user_signatures_for_checkpoints
-                        .contains_key(certificate.digest())
-                        .unwrap()
-                );
+                assert!(!self
+                    .tables()?
+                    .user_signatures_for_checkpoints
+                    .contains_key(certificate.digest())
+                    .unwrap());
             }
         }
         Ok(())

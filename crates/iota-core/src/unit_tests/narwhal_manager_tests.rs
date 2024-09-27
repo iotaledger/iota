@@ -200,13 +200,11 @@ async fn test_narwhal_manager() {
         // ensure that no primary or worker node is running
         assert!(!narwhal_manager.is_running().await);
         assert!(!narwhal_manager.primary_node.is_running().await);
-        assert!(
-            narwhal_manager
-                .worker_nodes
-                .workers_running()
-                .await
-                .is_empty()
-        );
+        assert!(narwhal_manager
+            .worker_nodes
+            .workers_running()
+            .await
+            .is_empty());
 
         let system_state = state
             .get_iota_system_state_object_for_testing()

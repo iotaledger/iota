@@ -55,15 +55,13 @@ async fn advance_epoch_tx_test() {
                 .await
                 .unwrap();
             // Check that the validator didn't commit the transaction yet.
-            assert!(
-                state
-                    .get_signed_effects_and_maybe_resign(
-                        effects.transaction_digest(),
-                        &state.epoch_store_for_testing()
-                    )
-                    .unwrap()
-                    .is_none()
-            );
+            assert!(state
+                .get_signed_effects_and_maybe_resign(
+                    effects.transaction_digest(),
+                    &state.epoch_store_for_testing()
+                )
+                .unwrap()
+                .is_none());
             effects
         })
         .collect();
@@ -107,12 +105,10 @@ async fn test_transaction_expiration() {
         .wallet
         .execute_transaction_may_fail(expired_transaction)
         .await;
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains(&IotaError::TransactionExpired.to_string())
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains(&IotaError::TransactionExpired.to_string()));
 
     // Non expired transaction signed without issue
     *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(10);
@@ -582,10 +578,9 @@ async fn test_inactive_validator_pool_read() {
 
     // Check that this node is no longer a validator.
     validator.with(|node| {
-        assert!(
-            node.state()
-                .is_fullnode(&node.state().epoch_store_for_testing())
-        );
+        assert!(node
+            .state()
+            .is_fullnode(&node.state().epoch_store_for_testing()));
     });
 
     // Check that the validator that just left now shows up in the
@@ -646,10 +641,9 @@ async fn test_reconfig_with_committee_change_basic() {
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
     new_validator_handle.with(|node| {
-        assert!(
-            node.state()
-                .is_validator(&node.state().epoch_store_for_testing())
-        );
+        assert!(node
+            .state()
+            .is_validator(&node.state().epoch_store_for_testing()));
     });
 
     execute_remove_validator_tx(&test_cluster, &new_validator_handle).await;

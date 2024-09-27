@@ -59,13 +59,11 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     }
     let data = TransactionData::new_programmable(
         sender,
-        vec![
-            authority_state
-                .get_object(&all_ids[N])
-                .await?
-                .unwrap()
-                .compute_object_reference(),
-        ],
+        vec![authority_state
+            .get_object(&all_ids[N])
+            .await?
+            .unwrap()
+            .compute_object_reference()],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * (N as u64),
         rgp,
@@ -79,12 +77,10 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         (effects.created().len(), effects.mutated().len()),
         (N, N + 1),
     );
-    assert!(
-        effects
-            .created()
-            .iter()
-            .all(|(_, owner)| owner == &Owner::AddressOwner(sender))
-    );
+    assert!(effects
+        .created()
+        .iter()
+        .all(|(_, owner)| owner == &Owner::AddressOwner(sender)));
     // N of the objects should now be owned by recipient.
     assert_eq!(
         effects
@@ -137,13 +133,11 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         .unwrap();
     let data = TransactionData::new_programmable(
         sender,
-        vec![
-            authority_state
-                .get_object(&all_ids[N])
-                .await?
-                .unwrap()
-                .compute_object_reference(),
-        ],
+        vec![authority_state
+            .get_object(&all_ids[N])
+            .await?
+            .unwrap()
+            .compute_object_reference()],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         rgp,

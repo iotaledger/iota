@@ -470,12 +470,11 @@ impl<'a> ObjectRuntime<'a> {
         // The loaded child objects, and the received objects, should be disjoint. If
         // they are not, this is an error since it could lead to incorrect
         // transaction dependency computations.
-        debug_assert!(
-            self.child_object_store
-                .cached_objects()
-                .keys()
-                .all(|id| !self.state.received.contains_key(id))
-        );
+        debug_assert!(self
+            .child_object_store
+            .cached_objects()
+            .keys()
+            .all(|id| !self.state.received.contains_key(id)));
         self.child_object_store
             .cached_objects()
             .iter()

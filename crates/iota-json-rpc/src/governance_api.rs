@@ -170,10 +170,8 @@ impl GovernanceReadApi {
         let _timer = self.metrics.get_delegated_iota_latency.start_timer();
 
         let self_clone = self.clone();
-        spawn_monitored_task!(
-            self_clone
-                .get_delegated_timelocked_stakes(stakes.into_iter().map(|s| (s, true)).collect())
-        )
+        spawn_monitored_task!(self_clone
+            .get_delegated_timelocked_stakes(stakes.into_iter().map(|s| (s, true)).collect()))
         .await?
     }
 

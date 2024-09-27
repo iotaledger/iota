@@ -111,11 +111,10 @@ impl<'a> TestAuthorityBuilder<'a> {
         // If genesis is already set then setting rgp is meaningless since it will be
         // overwritten.
         assert!(self.genesis.is_none());
-        assert!(
-            self.reference_gas_price
-                .replace(reference_gas_price)
-                .is_none()
-        );
+        assert!(self
+            .reference_gas_price
+            .replace(reference_gas_price)
+            .is_none());
         self
     }
 

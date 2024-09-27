@@ -217,8 +217,8 @@ async fn create_txes(
     ret
 }
 
-async fn run_actual_costs()
--> Result<BTreeMap<CommonTransactionCosts, GasCostSummary>, anyhow::Error> {
+async fn run_actual_costs(
+) -> Result<BTreeMap<CommonTransactionCosts, GasCostSummary>, anyhow::Error> {
     let mut ret = BTreeMap::new();
     let test_cluster = TestClusterBuilder::new()
         .with_accounts(vec![AccountConfig {

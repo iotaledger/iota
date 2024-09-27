@@ -11,18 +11,17 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use move_binary_format::{
-    IndexKind,
     compatibility::Compatibility,
     errors::{Location, VMError},
     file_format::{AbilitySet, CompiledModule, FunctionDefinitionIndex, SignatureToken},
-    normalized,
+    normalized, IndexKind,
 };
 use move_bytecode_utils::Modules;
 use move_command_line_common::files::{FileHash, MOVE_COMPILED_EXTENSION};
 use move_compiler::{
-    diagnostics::{self, Diagnostic, Diagnostics, report_diagnostics},
+    diagnostics::{self, report_diagnostics, Diagnostic, Diagnostics},
     shared::files::FileName,
 };
 use move_core_types::{

@@ -3,6 +3,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fmt, hash::Hash};
+
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
 use crate::{
     diag,
     diagnostics::Diagnostic,
@@ -12,10 +18,6 @@ use crate::{
         NamedAddressMaps, NumericalAddress, TName,
     },
 };
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{fmt, hash::Hash};
 
 macro_rules! new_name {
     ($n:ident) => {

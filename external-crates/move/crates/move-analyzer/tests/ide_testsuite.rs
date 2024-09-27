@@ -269,8 +269,10 @@ impl HintTest {
         let inlay_hints = inlay_hints_internal(
             symbols,
             use_file_path.to_path_buf(),
-            /* type_hints */ true,
-            /* param_hints */ true,
+            // type_hints
+            true,
+            // param_hints
+            true,
         )
         .unwrap();
         let lsp_line = self.use_line - 1; // 0th-based
@@ -534,8 +536,8 @@ fn move_ide_testsuite(test_path: &Path) -> datatest_stable::Result<()> {
 
 datatest_stable::harness!(move_ide_testsuite, "tests/", r".*\.ide$");
 
-/// Generates cursor tests as json -- useful for making a new batch of tests. Update this list,
-/// set `harness = true` for this file in `Cargo.toml`,
+/// Generates cursor tests as json -- useful for making a new batch of tests.
+/// Update this list, set `harness = true` for this file in `Cargo.toml`,
 /// and run `cargo nextest run generate_cursor_tests`.
 #[allow(unused)]
 #[test]

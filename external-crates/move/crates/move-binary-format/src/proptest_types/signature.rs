@@ -3,14 +3,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::file_format::{
-    Ability, AbilitySet, DatatypeHandle, DatatypeHandleIndex, Signature, SignatureToken,
-    TableIndex, TypeParameterIndex,
-};
 use proptest::{
     collection::{vec, SizeRange},
     prelude::*,
     sample::{select, Index as PropIndex},
+};
+
+use crate::file_format::{
+    Ability, AbilitySet, DatatypeHandle, DatatypeHandleIndex, Signature, SignatureToken,
+    TableIndex, TypeParameterIndex,
 };
 
 #[derive(Clone, Debug)]

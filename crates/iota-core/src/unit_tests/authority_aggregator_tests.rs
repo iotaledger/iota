@@ -649,12 +649,10 @@ async fn test_quorum_once_with_timeout() {
     // increasing the parallelism every 50ms
     assert_eq!(
         case(agg.clone(), 100).await,
-        [
-            0, 50, 100, 100, 150, 150, 200, 200, 200, 250, 250, 250, 300, 300, 300
-        ]
-        .iter()
-        .map(|d| Duration::from_millis(*d))
-        .collect::<Vec<Duration>>()
+        [0, 50, 100, 100, 150, 150, 200, 200, 200, 250, 250, 250, 300, 300, 300]
+            .iter()
+            .map(|d| Duration::from_millis(*d))
+            .collect::<Vec<Duration>>()
     );
 }
 

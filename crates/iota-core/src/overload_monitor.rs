@@ -271,7 +271,8 @@ pub fn overload_monitor_accept_tx(
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution driver interaction.
+#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution
+                                     // driver interaction.
 mod tests {
     use std::sync::Arc;
 

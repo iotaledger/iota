@@ -51,7 +51,7 @@ async fn test_same_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let type_param = TypeTag::from_str(format!("{}::m1::Object", package.0).as_str()).unwrap();
 
     let effects = call_move(
@@ -109,7 +109,7 @@ async fn test_different_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let type_param =
         TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
 
@@ -169,7 +169,7 @@ async fn test_nested_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
@@ -235,7 +235,7 @@ async fn test_nested_type_param_different_module() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
@@ -312,7 +312,7 @@ async fn test_different_package_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let type_param =
         TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
 
@@ -383,7 +383,7 @@ async fn test_nested_type_param_different_package() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0 .0;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",

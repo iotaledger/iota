@@ -586,12 +586,10 @@ async fn test_zklogin_transfer_with_large_address_seed() {
     )
     .await;
 
-    assert!(
-        client
-            .handle_transaction(tx, Some(make_socket_addr()))
-            .await
-            .is_err()
-    );
+    assert!(client
+        .handle_transaction(tx, Some(make_socket_addr()))
+        .await
+        .is_err());
 }
 
 #[sim_test]
@@ -701,12 +699,10 @@ async fn zklogin_test_caching_scenarios() {
     )
     .await;
 
-    assert!(
-        client
-            .handle_transaction(txn3, Some(socket_addr))
-            .await
-            .is_ok()
-    );
+    assert!(client
+        .handle_transaction(txn3, Some(socket_addr))
+        .await
+        .is_ok());
 
     assert_eq!(
         epoch_store
@@ -734,12 +730,10 @@ async fn zklogin_test_caching_scenarios() {
         multisig_pk.clone(),
     )
     .await;
-    assert!(
-        client
-            .handle_transaction(multisig_txn, Some(socket_addr))
-            .await
-            .is_ok()
-    );
+    assert!(client
+        .handle_transaction(multisig_txn, Some(socket_addr))
+        .await
+        .is_ok());
 
     assert_eq!(
         epoch_store
@@ -935,12 +929,10 @@ async fn do_zklogin_transaction_test(
 
     post_sign_mutations(&mut transfer_transaction);
 
-    assert!(
-        client
-            .handle_transaction(transfer_transaction, Some(make_socket_addr()))
-            .await
-            .is_err()
-    );
+    assert!(client
+        .handle_transaction(transfer_transaction, Some(make_socket_addr()))
+        .await
+        .is_err());
 
     assert_eq!(
         epoch_store
@@ -965,16 +957,14 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
             .await
             .unwrap()
             .unwrap();
-        assert!(
-            authority_state
-                .get_transaction_lock(
-                    &object.compute_object_reference(),
-                    &authority_state.epoch_store_for_testing()
-                )
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(authority_state
+            .get_transaction_lock(
+                &object.compute_object_reference(),
+                &authority_state.epoch_store_for_testing()
+            )
+            .await
+            .unwrap()
+            .is_none());
     }
 }
 
@@ -1420,12 +1410,11 @@ async fn test_oversized_txn() {
         .handle_transaction(txn, Some(make_socket_addr()))
         .await;
     // The txn should be rejected due to its size.
-    assert!(
-        res.err()
-            .unwrap()
-            .to_string()
-            .contains("serialized transaction size exceeded maximum")
-    );
+    assert!(res
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("serialized transaction size exceeded maximum"));
 }
 
 #[tokio::test]
@@ -1701,7 +1690,7 @@ async fn test_handle_soft_bundle_certificates() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0 .0;
         authority
             .get_object(&shared_object_id)
             .await
@@ -1801,12 +1790,9 @@ async fn test_handle_soft_bundle_certificates() {
     let mut expected_object_version = initial_shared_version;
     for response in responses {
         let input_objects = response.input_objects.unwrap();
-        assert!(
-            input_objects
-                .iter()
-                .any(|obj| obj.id() == shared_object.id()
-                    && obj.version() == expected_object_version)
-        );
+        assert!(input_objects
+            .iter()
+            .any(|obj| obj.id() == shared_object.id() && obj.version() == expected_object_version));
 
         let output_objects = response.output_objects.unwrap();
         let output_object = output_objects
@@ -1862,7 +1848,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0 .0;
         authority
             .get_object(&shared_object_id)
             .await

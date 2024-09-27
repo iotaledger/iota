@@ -466,13 +466,11 @@ mod tests {
         assert!(output_path.join("child").exists());
         assert!(output_path.join("child").join("file1").exists());
         assert!(output_path.join("child").join("grand_child").exists());
-        assert!(
-            output_path
-                .join("child")
-                .join("grand_child")
-                .join("file2")
-                .exists()
-        );
+        assert!(output_path
+            .join("child")
+            .join("grand_child")
+            .join("file2")
+            .exists());
         let content = fs::read_to_string(output_path.join("child").join("file1"))?;
         assert_eq!(content, "Lorem ipsum");
         let content =
@@ -546,13 +544,11 @@ mod tests {
         .await?;
 
         assert!(!input_path.join("child").join("file1").exists());
-        assert!(
-            !input_path
-                .join("child")
-                .join("grand_child")
-                .join("file2")
-                .exists()
-        );
+        assert!(!input_path
+            .join("child")
+            .join("grand_child")
+            .join("file2")
+            .exists());
         Ok(())
     }
 }

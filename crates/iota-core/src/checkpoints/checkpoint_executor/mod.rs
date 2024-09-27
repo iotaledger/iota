@@ -826,7 +826,8 @@ async fn handle_execution_effects(
                 if checkpoint.sequence_number > highest_seq + 1 {
                     trace!(
                         "Checkpoint {} is still executing. Highest executed = {}",
-                        checkpoint.sequence_number, highest_seq
+                        checkpoint.sequence_number,
+                        highest_seq
                     );
                     continue;
                 }
@@ -848,7 +849,11 @@ async fn handle_execution_effects(
                     .zip(all_tx_digests.clone())
                     .filter_map(
                         |(fx, digest)| {
-                            if fx.is_none() { Some(digest) } else { None }
+                            if fx.is_none() {
+                                Some(digest)
+                            } else {
+                                None
+                            }
                         },
                     )
                     .collect();
@@ -991,13 +996,11 @@ fn extract_end_of_epoch_tx(
         *checkpoint_sequence,
     );
 
-    assert!(
-        change_epoch_tx
-            .data()
-            .intent_message()
-            .value
-            .is_end_of_epoch_tx()
-    );
+    assert!(change_epoch_tx
+        .data()
+        .intent_message()
+        .value
+        .is_end_of_epoch_tx());
 
     Some((*digests, change_epoch_tx))
 }

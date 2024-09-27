@@ -982,11 +982,9 @@ mod tests {
             AuthorityIndex::new_for_test(2)
         );
         assert_eq!(leader_swap_table.bad_nodes.len(), 1);
-        assert!(
-            leader_swap_table
-                .bad_nodes
-                .contains_key(&AuthorityIndex::new_for_test(0))
-        );
+        assert!(leader_swap_table
+            .bad_nodes
+            .contains_key(&AuthorityIndex::new_for_test(0)));
         assert_eq!(
             leader_schedule.elect_leader(4, 0),
             AuthorityIndex::new_for_test(2)
@@ -1012,11 +1010,9 @@ mod tests {
             AuthorityIndex::new_for_test(3)
         );
         assert_eq!(leader_swap_table.bad_nodes.len(), 1);
-        assert!(
-            leader_swap_table
-                .bad_nodes
-                .contains_key(&AuthorityIndex::new_for_test(0))
-        );
+        assert!(leader_swap_table
+            .bad_nodes
+            .contains_key(&AuthorityIndex::new_for_test(0)));
     }
 
     #[tokio::test]

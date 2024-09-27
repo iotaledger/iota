@@ -943,15 +943,13 @@ mod test {
 
         // Check uncommitted blocks that do not exist.
         let last_ref = blocks.keys().last().unwrap();
-        assert!(
-            dag_state
-                .get_block(&BlockRef::new(
-                    last_ref.round,
-                    last_ref.author,
-                    BlockDigest::MIN
-                ))
-                .is_none()
-        );
+        assert!(dag_state
+            .get_block(&BlockRef::new(
+                last_ref.round,
+                last_ref.author,
+                BlockDigest::MIN
+            ))
+            .is_none());
 
         // Check slots with uncommitted blocks.
         for round in 1..=num_rounds {
@@ -1004,11 +1002,9 @@ mod test {
         }
 
         // Check rounds without uncommitted blocks.
-        assert!(
-            dag_state
-                .get_uncommitted_blocks_at_round(non_existent_round)
-                .is_empty()
-        );
+        assert!(dag_state
+            .get_uncommitted_blocks_at_round(non_existent_round)
+            .is_empty());
     }
 
     #[tokio::test]
@@ -1160,7 +1156,8 @@ mod test {
             round_11[2].reference(),
             round_11[5].reference(),
         ];
-        expected_refs.sort(); // we need to sort as blocks with same author and round of round 11 (position 1 & 2) might not be in right lexicographical order.
+        expected_refs.sort(); // we need to sort as blocks with same author and round of round 11 (position 1
+                              // & 2) might not be in right lexicographical order.
         assert_eq!(
             ancestors_refs, expected_refs,
             "Expected round 11 ancestors: {:?}. Got: {:?}",

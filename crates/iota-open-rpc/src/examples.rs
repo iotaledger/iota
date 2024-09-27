@@ -232,12 +232,10 @@ impl RpcExampleProvider {
                     ("tx_bytes", json!(tx_bytes.tx_bytes)),
                     (
                         "signatures",
-                        json!(
-                            signatures
-                                .into_iter()
-                                .map(|sig| sig.encode_base64())
-                                .collect::<Vec<_>>()
-                        ),
+                        json!(signatures
+                            .into_iter()
+                            .map(|sig| sig.encode_base64())
+                            .collect::<Vec<_>>()),
                     ),
                     (
                         "options",
@@ -535,12 +533,10 @@ impl RpcExampleProvider {
                     ("digest", json!(result.digest)),
                     (
                         "options",
-                        json!(
-                            IotaTransactionBlockResponseOptions::new()
-                                .with_input()
-                                .with_effects()
-                                .with_events()
-                        ),
+                        json!(IotaTransactionBlockResponseOptions::new()
+                            .with_input()
+                            .with_effects()
+                            .with_events()),
                     ),
                 ],
                 json!(result),
@@ -599,12 +595,10 @@ impl RpcExampleProvider {
                     ("digests", json!(digests)),
                     (
                         "options",
-                        json!(
-                            IotaTransactionBlockResponseOptions::new()
-                                .with_input()
-                                .with_effects()
-                                .with_events()
-                        ),
+                        json!(IotaTransactionBlockResponseOptions::new()
+                            .with_input()
+                            .with_effects()
+                            .with_events()),
                     ),
                 ],
                 json!(data),

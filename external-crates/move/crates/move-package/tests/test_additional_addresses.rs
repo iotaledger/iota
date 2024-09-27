@@ -48,37 +48,33 @@ fn test_additonal_addresses() {
         ..
     } = dep_graph_builder;
 
-    assert!(
-        RG::ResolvedGraph::resolve(
-            dg.clone(),
-            BuildConfig {
-                install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-                additional_named_addresses: BTreeMap::from([(
-                    "A".to_string(),
-                    AccountAddress::from_hex_literal("0x1").unwrap()
-                )]),
-                ..Default::default()
-            },
-            &mut dependency_cache,
-            None,
-            &mut progress_output,
-        )
-        .is_ok()
-    );
+    assert!(RG::ResolvedGraph::resolve(
+        dg.clone(),
+        BuildConfig {
+            install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+            additional_named_addresses: BTreeMap::from([(
+                "A".to_string(),
+                AccountAddress::from_hex_literal("0x1").unwrap()
+            )]),
+            ..Default::default()
+        },
+        &mut dependency_cache,
+        None,
+        &mut progress_output,
+    )
+    .is_ok());
 
-    assert!(
-        RG::ResolvedGraph::resolve(
-            dg,
-            BuildConfig {
-                install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-                ..Default::default()
-            },
-            &mut dependency_cache,
-            None,
-            &mut progress_output,
-        )
-        .is_err()
-    );
+    assert!(RG::ResolvedGraph::resolve(
+        dg,
+        BuildConfig {
+            install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+            ..Default::default()
+        },
+        &mut dependency_cache,
+        None,
+        &mut progress_output,
+    )
+    .is_err());
 }
 
 #[test]
@@ -112,23 +108,21 @@ fn test_additonal_addresses_already_assigned_same_value() {
         ..
     } = dep_graph_builder;
 
-    assert!(
-        RG::ResolvedGraph::resolve(
-            dg,
-            BuildConfig {
-                install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-                additional_named_addresses: BTreeMap::from([(
-                    "A".to_string(),
-                    AccountAddress::from_hex_literal("0x0").unwrap()
-                )]),
-                ..Default::default()
-            },
-            &mut dependency_cache,
-            None,
-            &mut progress_output,
-        )
-        .is_ok()
-    );
+    assert!(RG::ResolvedGraph::resolve(
+        dg,
+        BuildConfig {
+            install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+            additional_named_addresses: BTreeMap::from([(
+                "A".to_string(),
+                AccountAddress::from_hex_literal("0x0").unwrap()
+            )]),
+            ..Default::default()
+        },
+        &mut dependency_cache,
+        None,
+        &mut progress_output,
+    )
+    .is_ok());
 }
 
 #[test]
@@ -162,21 +156,19 @@ fn test_additonal_addresses_already_assigned_different_value() {
         ..
     } = dep_graph_builder;
 
-    assert!(
-        RG::ResolvedGraph::resolve(
-            dg,
-            BuildConfig {
-                install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-                additional_named_addresses: BTreeMap::from([(
-                    "A".to_string(),
-                    AccountAddress::from_hex_literal("0x1").unwrap()
-                )]),
-                ..Default::default()
-            },
-            &mut dependency_cache,
-            None,
-            &mut progress_output,
-        )
-        .is_err()
-    );
+    assert!(RG::ResolvedGraph::resolve(
+        dg,
+        BuildConfig {
+            install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+            additional_named_addresses: BTreeMap::from([(
+                "A".to_string(),
+                AccountAddress::from_hex_literal("0x1").unwrap()
+            )]),
+            ..Default::default()
+        },
+        &mut dependency_cache,
+        None,
+        &mut progress_output,
+    )
+    .is_err());
 }

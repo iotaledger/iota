@@ -36,7 +36,7 @@ async fn test_pay_iota_failure_empty_recipients() {
     let effects = res.txn_result.unwrap().into_data();
     assert_eq!(effects.status(), &ExecutionStatus::Success);
     assert_eq!(effects.mutated().len(), 1);
-    assert_eq!(effects.mutated()[0].0.0, coin_id);
+    assert_eq!(effects.mutated()[0].0 .0, coin_id);
     assert!(effects.deleted().is_empty());
     assert!(effects.created().is_empty());
 }
@@ -171,9 +171,9 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(*effects.status(), ExecutionStatus::Success);
     // make sure each recipient receives the specified amount
     assert_eq!(effects.created().len(), 3);
-    let created_obj_id1 = effects.created()[0].0.0;
-    let created_obj_id2 = effects.created()[1].0.0;
-    let created_obj_id3 = effects.created()[2].0.0;
+    let created_obj_id1 = effects.created()[0].0 .0;
+    let created_obj_id2 = effects.created()[1].0 .0;
+    let created_obj_id3 = effects.created()[2].0 .0;
     let created_obj1 = res
         .authority_state
         .get_object(&created_obj_id1)
@@ -212,7 +212,7 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     // make sure the first object still belongs to the sender,
     // the value is equal to all residual values after amounts transferred and gas
     // payment.
-    assert_eq!(effects.mutated()[0].0.0, object_id);
+    assert_eq!(effects.mutated()[0].0 .0, object_id);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
     let gas_object = res.authority_state.get_object(&object_id).await?.unwrap();
@@ -252,8 +252,8 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
 
     // make sure each recipient receives the specified amount
     assert_eq!(effects.created().len(), 2);
-    let created_obj_id1 = effects.created()[0].0.0;
-    let created_obj_id2 = effects.created()[1].0.0;
+    let created_obj_id1 = effects.created()[0].0 .0;
+    let created_obj_id2 = effects.created()[1].0 .0;
     let created_obj1 = res
         .authority_state
         .get_object(&created_obj_id1)
@@ -279,7 +279,7 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
     // make sure the first input coin still belongs to the sender,
     // the value is equal to all residual values after amounts transferred and gas
     // payment.
-    assert_eq!(effects.mutated()[0].0.0, object_id1);
+    assert_eq!(effects.mutated()[0].0 .0, object_id1);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
     let gas_object = res.authority_state.get_object(&object_id1).await?.unwrap();

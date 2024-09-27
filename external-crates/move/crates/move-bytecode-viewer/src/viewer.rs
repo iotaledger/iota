@@ -4,16 +4,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
+use tui::{
+    style::{Color, Style},
+    text::Spans,
+};
+
 use crate::{
     interfaces::{LeftScreen, RightScreen},
     tui::{
         text_builder::TextBuilder,
         tui_interface::{TUIInterface, TUIOutput},
     },
-};
-use tui::{
-    style::{Color, Style},
-    text::Spans,
 };
 
 #[derive(Debug, Clone)]

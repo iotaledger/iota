@@ -12,8 +12,8 @@
 use base_types::{IotaAddress, ObjectID, SequenceNumber};
 pub use iota_network_stack::multiaddr;
 use move_binary_format::{
-    CompiledModule,
     file_format::{AbilitySet, SignatureToken},
+    CompiledModule,
 };
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{

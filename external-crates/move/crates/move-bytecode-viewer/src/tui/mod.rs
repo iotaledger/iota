@@ -8,11 +8,9 @@
 pub mod text_builder;
 pub mod tui_interface;
 
-use crate::tui::tui_interface::TUIInterface;
 use std::{error::Error, io::Write};
 
 use crossterm::event::{self, Event, KeyCode as Key, KeyEvent};
-
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -20,6 +18,8 @@ use tui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
+
+use crate::tui::tui_interface::TUIInterface;
 
 pub struct TUI<Interface: TUIInterface> {
     current_line_number: u16,
@@ -45,7 +45,8 @@ impl<Interface: TUIInterface> TUI<Interface> {
 
         // Get the bottom offset of the window that the cursor will be displayed
         let window_size = window[0].bottom();
-        // The window will need to be scrolled if the cursor is more than halfway down the screen.
+        // The window will need to be scrolled if the cursor is more than halfway down
+        // the screen.
         let scroll = if self.current_line_number > window_size / 2 {
             self.current_line_number
                 .checked_sub(window_size / 2)
@@ -60,7 +61,8 @@ impl<Interface: TUIInterface> TUI<Interface> {
             .on_redraw(self.current_line_number, self.current_column);
 
         // Left window logic
-        // Create a paragraph for our text, and scroll it if need be (by the amount computed above)
+        // Create a paragraph for our text, and scroll it if need be (by the amount
+        // computed above)
         let input = Paragraph::new(current_interface.left_screen)
             .style(Style::default())
             .block(
@@ -70,9 +72,10 @@ impl<Interface: TUIInterface> TUI<Interface> {
             )
             .scroll((scroll, 0));
 
-        // Set the cursor position in the left window. Numbers incremented by 1 since the screen
-        // border is at position 0 in both x and y coordinates. If we scrolled the text, we need
-        // to subtract that from the line number so that the cursor is over the correct line.
+        // Set the cursor position in the left window. Numbers incremented by 1 since
+        // the screen border is at position 0 in both x and y coordinates. If we
+        // scrolled the text, we need to subtract that from the line number so
+        // that the cursor is over the correct line.
         f.set_cursor(
             self.current_column.checked_add(1).unwrap(),
             self.current_line_number
@@ -95,10 +98,10 @@ impl<Interface: TUIInterface> TUI<Interface> {
         f.render_widget(output, window[1])
     }
 
-    /// Handles keyboard input, and updates state according to those key presses.
-    /// Down, Up => move the cursor up or down a line
-    /// Left, Right => move the cursor to the previous (resp. next) character on the current line
-    /// ESC, q => exit
+    /// Handles keyboard input, and updates state according to those key
+    /// presses. Down, Up => move the cursor up or down a line
+    /// Left, Right => move the cursor to the previous (resp. next) character on
+    /// the current line ESC, q => exit
     pub fn handle_input(&mut self) -> Result<bool, Box<dyn Error>> {
         if let Event::Key(KeyEvent { code: key, .. }) = event::read()? {
             match key {
@@ -115,9 +118,9 @@ impl<Interface: TUIInterface> TUI<Interface> {
                         .interface
                         .bound_column(self.current_line_number, self.current_column);
                 }
-                // Update current line number to move the cursor down a line. If the column number is
-                // past the end of the new line we're on, bound the column number so it isn't past
-                // the last character on the new line.
+                // Update current line number to move the cursor down a line. If the column number
+                // is past the end of the new line we're on, bound the column number
+                // so it isn't past the last character on the new line.
                 Key::Down => {
                     self.current_line_number = self
                         .interface
@@ -134,8 +137,8 @@ impl<Interface: TUIInterface> TUI<Interface> {
                         self.current_column.checked_add(1).unwrap(),
                     );
                 }
-                // Move the cursor to the previous character on the current line. Number is bounded by
-                // the length of the current line.
+                // Move the cursor to the previous character on the current line. Number is bounded
+                // by the length of the current line.
                 Key::Left => {
                     self.current_column = self.current_column.saturating_sub(1);
                 }
@@ -145,4 +148,3 @@ impl<Interface: TUIInterface> TUI<Interface> {
         Ok(false)
     }
 }
-

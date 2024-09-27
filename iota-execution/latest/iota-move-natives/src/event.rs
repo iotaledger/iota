@@ -28,12 +28,12 @@ pub struct EventEmitCostParams {
 /// drop>(event: T)` Adds an event to the transaction's event log
 ///   gas cost: event_emit_cost_base                  |  covers various fixed
 /// costs in the oper
-///              + event_emit_value_size_derivation_cost_per_byte * event_size
-///                | derivation of size
-///              + event_emit_tag_size_derivation_cost_per_byte * tag_size
-///                | converting type
-///              + event_emit_output_cost_per_byte * (tag_size + event_size)
-///                | emitting the actual event
+///              + event_emit_value_size_derivation_cost_per_byte * event_size |
+///                derivation of size
+///              + event_emit_tag_size_derivation_cost_per_byte * tag_size |
+///                converting type
+///              + event_emit_output_cost_per_byte * (tag_size + event_size) |
+///                emitting the actual event
 /// ****************************************************************************
 /// *******************
 pub fn emit(

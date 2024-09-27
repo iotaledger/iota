@@ -200,12 +200,10 @@ fn build_token_bridge_approve_transaction(
             BRIDGE_PACKAGE_ID,
             iota_types::bridge::BRIDGE_MODULE_NAME.to_owned(),
             ident_str!("claim_and_transfer_token").to_owned(),
-            vec![
-                iota_token_type_tags
-                    .get(&token_type)
-                    .ok_or(BridgeError::UnknownTokenId(token_type))?
-                    .clone(),
-            ],
+            vec![iota_token_type_tags
+                .get(&token_type)
+                .ok_or(BridgeError::UnknownTokenId(token_type))?
+                .clone()],
             vec![arg_bridge, arg_clock, source_chain, seq_num],
         );
     }
@@ -824,9 +822,10 @@ mod tests {
             nonce: 0,
             chain_id: BridgeChainId::IotaCustom,
             blocklist_type: BlocklistType::Blocklist,
-            members_to_update: vec![
-                BridgeAuthorityPublicKeyBytes::from_bytes(&victim.bridge_pubkey_bytes).unwrap(),
-            ],
+            members_to_update: vec![BridgeAuthorityPublicKeyBytes::from_bytes(
+                &victim.bridge_pubkey_bytes,
+            )
+            .unwrap()],
         });
         // `approve_action_with_validator_secrets` covers transaction building
         approve_action_with_validator_secrets(
@@ -852,9 +851,10 @@ mod tests {
             nonce: 1,
             chain_id: BridgeChainId::IotaCustom,
             blocklist_type: BlocklistType::Unblocklist,
-            members_to_update: vec![
-                BridgeAuthorityPublicKeyBytes::from_bytes(&victim.bridge_pubkey_bytes).unwrap(),
-            ],
+            members_to_update: vec![BridgeAuthorityPublicKeyBytes::from_bytes(
+                &victim.bridge_pubkey_bytes,
+            )
+            .unwrap()],
         });
         // `approve_action_with_validator_secrets` covers transaction building
         approve_action_with_validator_secrets(

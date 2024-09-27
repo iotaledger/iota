@@ -2,16 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    cmp::max,
+    collections::{btree_map::Entry, BTreeMap},
+};
+
 use move_binary_format::{
     errors::PartialVMResult,
     file_format::{AbilitySet, DatatypeHandleIndex, SignatureToken},
     safe_unwrap, CompiledModule,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
-use std::{
-    cmp::max,
-    collections::{btree_map::Entry, BTreeMap},
-};
 
 const TYPE_ARG_COST: u128 = 1;
 

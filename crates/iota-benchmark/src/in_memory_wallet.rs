@@ -92,7 +92,8 @@ impl InMemoryWallet {
             if let Owner::AddressOwner(a) = owner {
                 if let Some(account) = self.accounts.get_mut(&a) {
                     account.add_or_update(obj);
-                } // else, doesn't belong to an account we can spend from, we don't care
+                } // else, doesn't belong to an account we can spend from, we
+                  // don't care
             } // TODO: support owned, shared objects
         }
         if let Some(sender_account) = self.accounts.get_mut(&effects.sender()) {

@@ -3,6 +3,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
+use move_proc_macros::test_variant_order;
+use serde::{Deserialize, Serialize};
+
 use crate::file_format::{
     AbilitySet, Bytecode as FBytecode, CodeOffset, CompiledModule, DatatypeTyParameter,
     EnumDefinition, FieldDefinition, FieldHandle, FieldHandleIndex, FieldInstantiation,
@@ -12,14 +22,6 @@ use crate::file_format::{
     StructFieldInformation, TypeParameterIndex, VariantDefinition, VariantHandleIndex,
     VariantInstantiationHandleIndex, VariantJumpTable as FFVariantJumpTable, Visibility,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
-use move_proc_macros::test_variant_order;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 /// Defines normalized representations of Move types, fields, kinds, structs,
 /// functions, and modules. These representations are useful in situations that

@@ -4,7 +4,9 @@
 
 use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::IotaRpcModule;
-use iota_json_rpc_api::{    internal_error, validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS};
+use iota_json_rpc_api::{
+    internal_error, validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
+};
 use iota_json_rpc_types::{
     AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
     NetworkMetrics, Page,

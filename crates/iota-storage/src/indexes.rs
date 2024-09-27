@@ -1167,7 +1167,7 @@ impl IndexStore {
             .skip_to(&(object, cursor.unwrap_or(ObjectID::ZERO)))?
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
+            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0 .0 == object))
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 
@@ -1371,9 +1371,7 @@ impl IndexStore {
             })
             .await
             .unwrap()
-            .map_err(|e| {
-                IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
-            });
+            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e)));
         }
 
         self.metrics.balance_lookup_from_total.inc();
@@ -1452,10 +1450,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::Execution(format!(
-                        "Failed to read all balance from DB: {:?}",
-                        e
-                    ))
+                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
                 })
             })
             .await
@@ -1502,12 +1497,7 @@ impl IndexStore {
                 coin_object_count += 1;
             }
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
-                |e| {
-                    IotaError::Execution(format!(
-                        "Failed to parse event sender address: {:?}",
-                        e
-                    ))
-                },
+                |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
             )?));
             balances.insert(
                 coin_type,

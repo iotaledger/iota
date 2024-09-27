@@ -321,13 +321,11 @@ fn coin_ownership() -> Result<()> {
     assert!(coin_manager_object.is_shared());
 
     // Check if the coin manager object has a public transfer.
-    assert!(
-        coin_manager_object
-            .data
-            .try_as_move()
-            .unwrap()
-            .has_public_transfer()
-    );
+    assert!(coin_manager_object
+        .data
+        .try_as_move()
+        .unwrap()
+        .has_public_transfer());
 
     // Check the owner of the treasury cap object.
     assert_eq!(

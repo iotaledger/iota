@@ -181,7 +181,8 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
     /// This function should always succeed with no user errors returned,
     /// barring invariant violations.
     ///
-    /// This MUST NOT be called if there is a previous invocation that failed with an invariant violation.
+    /// This MUST NOT be called if there is a previous invocation that failed
+    /// with an invariant violation.
     pub fn finish(self) -> (VMResult<ChangeSet>, S) {
         let (res, remote) = self.data_cache.into_effects();
         (res.map_err(|e| e.finish(Location::Undefined)), remote)
@@ -191,7 +192,8 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
         self.runtime.loader().vm_config()
     }
 
-    /// Same like `finish`, but also extracts the native context extensions from the session.
+    /// Same like `finish`, but also extracts the native context extensions from
+    /// the session.
     pub fn finish_with_extensions(self) -> (VMResult<(ChangeSet, NativeContextExtensions<'r>)>, S) {
         let Session {
             data_cache,
@@ -222,9 +224,10 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
         Ok(instantiation)
     }
 
-    /// Load a declared type by its name to get the global index that it is referenced by within the
-    /// loader, and the loaded struct information.  This operation also ensures the defining module
-    /// is loaded from the data store and will fail if the type does not exist in that module.
+    /// Load a declared type by its name to get the global index that it is
+    /// referenced by within the loader, and the loaded struct information.
+    /// This operation also ensures the defining module is loaded from the
+    /// data store and will fail if the type does not exist in that module.
     pub fn load_datatype(
         &self,
         module_id: &ModuleId,

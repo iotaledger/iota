@@ -82,7 +82,7 @@ pub trait Cache {
     /// Checks existence of one or more digests.
     fn contains(&self, digest: &CertificateDigest) -> bool;
     fn multi_contains<'a>(&self, digests: impl Iterator<Item = &'a CertificateDigest>)
-    -> Vec<bool>;
+        -> Vec<bool>;
 
     fn remove(&self, digest: &CertificateDigest);
     fn remove_all(&self, digests: Vec<CertificateDigest>);

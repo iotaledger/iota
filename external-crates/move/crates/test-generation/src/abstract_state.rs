@@ -3,17 +3,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{borrow_graph::BorrowGraph, error::VMError};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
+
 use move_binary_format::file_format::{
     empty_module, Ability, AbilitySet, CompiledModule, FieldInstantiation, FieldInstantiationIndex,
     FunctionHandleIndex, FunctionInstantiation, FunctionInstantiationIndex, Signature,
     SignatureIndex, SignatureToken, StructDefInstantiation, StructDefInstantiationIndex,
     StructDefinitionIndex, TableIndex,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+
+use crate::{borrow_graph::BorrowGraph, error::VMError};
 
 /// The BorrowState denotes whether a local is `Available` or
 /// has been moved and is `Unavailable`.

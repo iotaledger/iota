@@ -4173,7 +4173,8 @@ fn parse_use_decl(
         }
         _ => {
             if let Some(vis) = visibility {
-                let msg = "Invalid use declaration. Non-'use fun' declarations cannot have visibility \
+                let msg =
+                    "Invalid use declaration. Non-'use fun' declarations cannot have visibility \
                            modifiers as they are always internal";
                 context.add_diag(diag!(Syntax::InvalidModifier, (vis.loc().unwrap(), msg)));
             }

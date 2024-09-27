@@ -2,8 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
-use crate::NativeFunctionRecord;
+// if unix
+#[cfg(target_family = "unix")]
+use std::os::unix::prelude::ExitStatusExt;
+// if windows
+#[cfg(target_family = "windows")]
+use std::os::windows::process::ExitStatusExt;
+use std::{io::Write, path::Path, process::ExitStatus};
+
 use anyhow::Result;
 use clap::*;
 use move_command_line_common::files::MOVE_COVERAGE_MAP_EXTENSION;
@@ -17,13 +23,9 @@ use move_coverage::coverage_map::{output_map_to_file, CoverageMap};
 use move_package::{compilation::build_plan::BuildPlan, BuildConfig};
 use move_unit_test::UnitTestingConfig;
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::{io::Write, path::Path, process::ExitStatus};
-// if windows
-#[cfg(target_family = "windows")]
-use std::os::windows::process::ExitStatusExt;
-// if unix
-#[cfg(target_family = "unix")]
-use std::os::unix::prelude::ExitStatusExt;
+
+use super::reroot_path;
+use crate::NativeFunctionRecord;
 // if not windows nor unix
 #[cfg(not(any(target_family = "windows", target_family = "unix")))]
 compile_error!("Unsupported OS, currently we only support windows and unix family");

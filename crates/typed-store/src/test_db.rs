@@ -527,14 +527,12 @@ mod test {
         let db = TestDB::open();
         db.insert(&123456789, &"123456789".to_string())
             .expect("Failed to insert");
-        assert!(
-            db.contains_key(&123456789)
-                .expect("Failed to call contains key")
-        );
-        assert!(
-            !db.contains_key(&000000000)
-                .expect("Failed to call contains key")
-        );
+        assert!(db
+            .contains_key(&123456789)
+            .expect("Failed to call contains key"));
+        assert!(!db
+            .contains_key(&000000000)
+            .expect("Failed to call contains key"));
     }
 
     #[test]

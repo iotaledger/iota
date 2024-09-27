@@ -78,12 +78,10 @@ async fn test_server_authorizations() {
             .with_timeout(Duration::from_secs(5));
         // Removing the AllowedPeers RequireAuthorizationLayer for primary should make
         // this succeed.
-        assert!(
-            primary_network
-                .fetch_certificates(&primary_target_name, request)
-                .await
-                .is_err()
-        );
+        assert!(primary_network
+            .fetch_certificates(&primary_target_name, request)
+            .await
+            .is_err());
 
         let worker_network = test_client.get_worker_network(0).await.unwrap();
         let worker_target_name = unreachable_worker_cache
@@ -99,11 +97,9 @@ async fn test_server_authorizations() {
             .with_timeout(Duration::from_secs(5));
         // Removing the AllowedPeers RequireAuthorizationLayer for workers should make
         // this succeed.
-        assert!(
-            worker_network
-                .request_batches(&worker_target_name, request)
-                .await
-                .is_err()
-        );
+        assert!(worker_network
+            .request_batches(&worker_target_name, request)
+            .await
+            .is_err());
     }
 }

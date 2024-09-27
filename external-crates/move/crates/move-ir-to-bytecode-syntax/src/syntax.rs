@@ -3,18 +3,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     str::FromStr,
 };
 
-use crate::lexer::*;
+use anyhow::anyhow;
 use move_command_line_common::files::FileHash;
 use move_core_types::{account_address::AccountAddress, u256};
 use move_ir_types::{ast::*, location::*};
 use move_symbol_pool::Symbol;
+
+use crate::lexer::*;
 
 // FIXME: The following simplified version of ParseError copied from
 // lalrpop-util should be replaced.

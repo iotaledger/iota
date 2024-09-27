@@ -31,8 +31,8 @@ use tokio::task::JoinHandle;
 use tracing::info;
 
 use crate::{
-    BridgeDataSource, ProcessedTxnData, TokenTransfer, TokenTransferData, TokenTransferStatus,
-    metrics::BridgeIndexerMetrics,
+    metrics::BridgeIndexerMetrics, BridgeDataSource, ProcessedTxnData, TokenTransfer,
+    TokenTransferData, TokenTransferStatus,
 };
 
 type RawEthData = (RawEthLog, Block<H256>, Transaction);

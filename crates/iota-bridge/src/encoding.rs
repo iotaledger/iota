@@ -487,8 +487,8 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_message_encoding_regression_emitted_iota_to_eth_token_bridge_v1()
-    -> anyhow::Result<()> {
+    fn test_bridge_message_encoding_regression_emitted_iota_to_eth_token_bridge_v1(
+    ) -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
         iota_metrics::init_metrics(&registry);

@@ -3,10 +3,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::format_module_id;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{Result, Write},
+    sync::Mutex,
+    time::Duration,
+};
+
 use colored::{control, Colorize};
 use move_binary_format::errors::{ExecutionState, Location, VMError};
 use move_command_line_common::error_bitset::ErrorBitset;
+pub use move_compiler::unit_test::ExpectedMoveError as MoveError;
 use move_compiler::{
     diagnostics::{self, Diagnostic, Diagnostics},
     unit_test::{ModuleTestPlan, MoveErrorType, TestPlan},
@@ -16,14 +23,8 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_ir_types::location::Loc;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::{Result, Write},
-    sync::Mutex,
-    time::Duration,
-};
 
-pub use move_compiler::unit_test::ExpectedMoveError as MoveError;
+use crate::format_module_id;
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub enum FailureReason {

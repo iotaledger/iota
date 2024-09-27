@@ -7,8 +7,14 @@
 //! to an abort. A typical patterns is to create a fresh object and share it
 //! within the same function
 
+use std::collections::BTreeMap;
+
 use move_ir_types::location::*;
 
+use super::{
+    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, IOTA_PKG_NAME,
+    LINT_WARNING_PREFIX, PUBLIC_SHARE_FUN, SHARE_FUN, TRANSFER_MOD_NAME,
+};
 use crate::{
     cfgir::{
         absint::JoinResult,
@@ -27,12 +33,6 @@ use crate::{
     },
     parser::ast::Ability_,
     shared::{CompilationEnv, Identifier},
-};
-use std::collections::BTreeMap;
-
-use super::{
-    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX,
-    PUBLIC_SHARE_FUN, SHARE_FUN, IOTA_PKG_NAME, TRANSFER_MOD_NAME,
 };
 
 const SHARE_FUNCTIONS: &[(&str, &str, &str)] = &[

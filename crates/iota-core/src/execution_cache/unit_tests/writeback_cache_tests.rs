@@ -491,11 +491,10 @@ impl Scenario {
                     .unwrap(),
                 *object
             );
-            assert!(
-                self.cache()
-                    .have_received_object_at_version(id, object.version(), 1)
-                    .unwrap()
-            );
+            assert!(self
+                .cache()
+                .have_received_object_at_version(id, object.version(), 1)
+                .unwrap());
         }
     }
 
@@ -780,12 +779,11 @@ async fn test_lt_or_eq_caching() {
         assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version <= 0 does not exist
-        assert!(
-            s.cache()
-                .find_object_lt_or_eq_version(s.obj_id(1), 0.into())
-                .unwrap()
-                .is_none()
-        );
+        assert!(s
+            .cache()
+            .find_object_lt_or_eq_version(s.obj_id(1), 0.into())
+            .unwrap()
+            .is_none());
 
         // query above populates cache
         assert_eq!(
@@ -973,12 +971,11 @@ async fn test_invalidate_package_cache_on_revert() {
         s.cache().revert_state_update(&tx1).unwrap();
         s.clear_state_end_of_epoch().await;
 
-        assert!(
-            s.cache()
-                .get_package_object(&s.obj_id(2))
-                .unwrap()
-                .is_none()
-        );
+        assert!(s
+            .cache()
+            .get_package_object(&s.obj_id(2))
+            .unwrap()
+            .is_none());
     })
     .await;
 }

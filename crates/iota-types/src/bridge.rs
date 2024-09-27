@@ -168,9 +168,7 @@ pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrappe
     let wrapper = object_store
         .get_object(&IOTA_BRIDGE_OBJECT_ID)?
         // Don't panic here on None because object_store is a generic store.
-        .ok_or_else(|| {
-            IotaError::IotaBridgeRead("BridgeWrapper object not found".to_owned())
-        })?;
+        .ok_or_else(|| IotaError::IotaBridgeRead("BridgeWrapper object not found".to_owned()))?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
         IotaError::IotaBridgeRead("BridgeWrapper object must be a Move object".to_owned())
     })?;

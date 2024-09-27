@@ -3,10 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use move_command_line_common::files::FileHash;
 use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
-use std::collections::BTreeMap;
 
 use crate::syntax::ParseError;
 
@@ -278,7 +279,8 @@ impl<'input> Lexer<'input> {
                         _ => (get_name_token(name), len),
                     }
                 } else {
-                    (get_name_token(name), len) // just return the name in spec_mode
+                    (get_name_token(name), len) // just return the name in
+                                                // spec_mode
                 }
             }
             '@' => (Tok::At, 1),

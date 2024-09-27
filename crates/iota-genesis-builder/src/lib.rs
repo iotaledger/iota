@@ -505,11 +505,9 @@ impl Builder {
 
             // Validators should not have duplicate addresses so the result of insertion
             // should be None.
-            assert!(
-                address_to_pool_id
-                    .insert(metadata.iota_address, onchain_validator.staking_pool.id)
-                    .is_none()
-            );
+            assert!(address_to_pool_id
+                .insert(metadata.iota_address, onchain_validator.staking_pool.id)
+                .is_none());
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);

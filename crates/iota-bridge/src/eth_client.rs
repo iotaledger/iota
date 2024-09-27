@@ -15,7 +15,7 @@ use crate::eth_mock_provider::EthMockProvider;
 use crate::{
     abi::EthBridgeEvent,
     error::{BridgeError, BridgeResult},
-    metered_eth_provider::{MeteredEthHttpProvider, new_metered_eth_provider},
+    metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvider},
     metrics::BridgeMetrics,
     types::{BridgeAction, EthLog, RawEthLog},
 };

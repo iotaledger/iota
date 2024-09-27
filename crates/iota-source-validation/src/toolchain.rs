@@ -151,7 +151,8 @@ pub(crate) fn units_for_toolchain(
             bail!("Expected one or more modules, but none found");
         }
         let package_root = SourcePackageLayout::try_find_root(&local_units[0].source_path)?;
-        let install_dir = tempfile::tempdir()?; // place compiled packages in this temp dir, don't pollute this packages build dir
+        let install_dir = tempfile::tempdir()?; // place compiled packages in this temp dir, don't pollute this packages build
+                                                // dir
         download_and_compile(
             package_root.clone(),
             &install_dir,

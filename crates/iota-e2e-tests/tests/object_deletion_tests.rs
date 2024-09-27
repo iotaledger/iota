@@ -208,13 +208,11 @@ mod sim_only_tests {
             .effects
             .unwrap();
         assert_eq!(effects.wrapped().len(), 1);
-        assert!(
-            test_cluster
-                .get_object_or_tombstone_from_fullnode_store(child_id)
-                .await
-                .2
-                .is_wrapped()
-        );
+        assert!(test_cluster
+            .get_object_or_tombstone_from_fullnode_store(child_id)
+            .await
+            .2
+            .is_wrapped());
         effects
     }
 

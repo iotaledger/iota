@@ -385,12 +385,10 @@ mod tests {
         // Test `get_cache_entry` creates a new entry if not exist
         let iota_tx_digest = TransactionDigest::random();
         let iota_event_idx = 42;
-        assert!(
-            iota_signer_with_cache
-                .get_testing_only((iota_tx_digest, iota_event_idx))
-                .await
-                .is_none()
-        );
+        assert!(iota_signer_with_cache
+            .get_testing_only((iota_tx_digest, iota_event_idx))
+            .await
+            .is_none());
         let entry = iota_signer_with_cache
             .get_cache_entry((iota_tx_digest, iota_event_idx))
             .await;
@@ -529,12 +527,10 @@ mod tests {
         // Test `get_cache_entry` creates a new entry if not exist
         let eth_tx_hash = TxHash::random();
         let eth_event_idx = 42;
-        assert!(
-            eth_signer_with_cache
-                .get_testing_only((eth_tx_hash, eth_event_idx))
-                .await
-                .is_none()
-        );
+        assert!(eth_signer_with_cache
+            .get_testing_only((eth_tx_hash, eth_event_idx))
+            .await
+            .is_none());
         let entry = eth_signer_with_cache
             .get_cache_entry((eth_tx_hash, eth_event_idx))
             .await;

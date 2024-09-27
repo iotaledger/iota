@@ -68,7 +68,8 @@ fn check_diff(checked_in: &Path, built: &Path) {
             .output()
             .unwrap();
         if !output.status.success() {
-            let header = "Generated and checked-in iota-framework packages and/or docs do not match.\n\
+            let header =
+                "Generated and checked-in iota-framework packages and/or docs do not match.\n\
                 Re-run with `UPDATE=1` to update checked-in packages and docs. e.g.\n\n\
                 UPDATE=1 cargo test -p iota-framework --test build-system-packages";
 

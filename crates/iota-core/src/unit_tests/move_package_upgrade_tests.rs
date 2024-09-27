@@ -275,18 +275,14 @@ async fn test_upgrade_package_happy_path() {
     let binary_config = to_binary_config(&config);
     let normalized_modules = package.move_package().normalize(&binary_config).unwrap();
     assert!(normalized_modules.contains_key("new_module"));
-    assert!(
-        normalized_modules["new_module"]
-            .functions
-            .contains_key(ident_str!("this_is_a_new_module"))
-    );
-    assert!(
-        normalized_modules["new_module"]
-            .functions
-            .contains_key(ident_str!(
-                "i_can_call_funs_in_other_modules_that_already_existed"
-            ))
-    );
+    assert!(normalized_modules["new_module"]
+        .functions
+        .contains_key(ident_str!("this_is_a_new_module")));
+    assert!(normalized_modules["new_module"]
+        .functions
+        .contains_key(ident_str!(
+            "i_can_call_funs_in_other_modules_that_already_existed"
+        )));
 
     // Call into the upgraded module
     let effects = runner
@@ -687,7 +683,7 @@ async fn test_multiple_upgrades(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-        .0;
+         .0;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
     let (digest, modules) = build_upgrade_test_modules("stage2_basic_compatibility_valid");
@@ -1135,7 +1131,7 @@ async fn test_different_versions_across_calls() {
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-        .0;
+         .0;
 
     // call the same function twice within the same block but from two different
     // module versions

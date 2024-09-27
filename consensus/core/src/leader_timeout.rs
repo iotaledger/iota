@@ -10,7 +10,7 @@ use tokio::{
         watch,
     },
     task::JoinHandle,
-    time::{Instant, sleep_until},
+    time::{sleep_until, Instant},
 };
 use tracing::{debug, warn};
 
@@ -138,7 +138,7 @@ mod tests {
     use async_trait::async_trait;
     use consensus_config::Parameters;
     use parking_lot::Mutex;
-    use tokio::time::{Instant, sleep};
+    use tokio::time::{sleep, Instant};
 
     use crate::{
         block::{BlockRef, Round, VerifiedBlock},

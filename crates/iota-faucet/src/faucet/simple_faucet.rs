@@ -713,11 +713,9 @@ impl SimpleFaucet {
                 number_of_coins, created
             )));
         }
-        assert!(
-            created
-                .iter()
-                .all(|created_coin_owner_ref| created_coin_owner_ref.owner == recipient)
-        );
+        assert!(created
+            .iter()
+            .all(|created_coin_owner_ref| created_coin_owner_ref.owner == recipient));
         let coin_ids: Vec<ObjectID> = created
             .iter()
             .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)

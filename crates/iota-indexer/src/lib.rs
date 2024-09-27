@@ -6,7 +6,7 @@
 
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use diesel::r2d2::R2D2Connection;
 use errors::IndexerError;

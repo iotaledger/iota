@@ -9,6 +9,8 @@
 //! It is important to note that the cost schedule defined in this file does not
 //! track hashing operations or other native operations; the cost of each native
 //! operation will be returned by the native function itself.
+use std::ops::{Add, Mul};
+
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
@@ -35,7 +37,6 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Mul};
 pub enum GasUnit {}
 
 pub type Gas = GasQuantity<GasUnit>;

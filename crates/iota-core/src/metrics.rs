@@ -41,7 +41,8 @@ impl LatencyObserver {
         }
         while data.points.len() > EXPECTED_SAMPLES {
             let pop = data.points.pop_front().expect("data vector is not empty");
-            data.sum -= pop; // This does not underflow because of how running sum is calculated
+            data.sum -= pop; // This does not underflow because of how running
+                             // sum is calculated
         }
         let latency = data.sum.as_millis() as u64 / data.points.len() as u64;
         self.latency_ms.store(latency, Ordering::Relaxed);

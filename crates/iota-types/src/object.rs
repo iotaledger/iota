@@ -35,9 +35,9 @@ use crate::{
     },
     gas_coin::{GasCoin, GAS},
     is_system_package,
-    timelock::timelock::TimeLock,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
+    timelock::timelock::TimeLock,
 };
 
 mod balance_traversal;

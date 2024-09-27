@@ -32,8 +32,8 @@ pub(crate) struct ModelBuilder<'env> {
     pub env: &'env mut GlobalEnv,
     /// A symbol table for datatypes.
     pub datatype_table: BTreeMap<QualifiedSymbol, DatatypeEntry>,
-    /// A reverse mapping from ModuleId/DatatypeId pairs to QualifiedSymbol. This
-    /// is used for visualization of types in error messages.
+    /// A reverse mapping from ModuleId/DatatypeId pairs to QualifiedSymbol.
+    /// This is used for visualization of types in error messages.
     pub reverse_datatype_table: BTreeMap<(ModuleId, DatatypeId), QualifiedSymbol>,
     /// A symbol table for functions.
     pub fun_table: BTreeMap<QualifiedSymbol, FunEntry>,

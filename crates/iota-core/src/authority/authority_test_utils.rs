@@ -500,13 +500,11 @@ pub fn build_test_modules_with_dep_addr(
     for unpublished_dep in &package.dependency_ids.unpublished {
         let published_id = dep_id_mapping.get(unpublished_dep).unwrap();
         // Make sure we aren't overriding a package
-        assert!(
-            package
-                .dependency_ids
-                .published
-                .insert(*unpublished_dep, *published_id)
-                .is_none()
-        )
+        assert!(package
+            .dependency_ids
+            .published
+            .insert(*unpublished_dep, *published_id)
+            .is_none())
     }
 
     // No unpublished deps
@@ -561,7 +559,7 @@ pub async fn publish_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+         .0;
     let cap_object = effects
         .data()
         .created()
@@ -613,6 +611,6 @@ pub async fn upgrade_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+         .0;
     Ok(package_id)
 }

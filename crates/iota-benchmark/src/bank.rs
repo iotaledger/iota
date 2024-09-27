@@ -140,7 +140,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == init_coin.0.0)
+            .find(|(k, _)| k.0 == init_coin.0 .0)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 
@@ -191,7 +191,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == self.primary_coin.0.0)
+            .find(|(k, _)| k.0 == self.primary_coin.0 .0)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 

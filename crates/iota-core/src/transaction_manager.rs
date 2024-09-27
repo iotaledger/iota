@@ -773,11 +773,9 @@ impl TransactionManager {
         trace!(tx_digest = ?pending_certificate.certificate.digest(), "certificate ready");
         assert_eq!(pending_certificate.waiting_input_objects.len(), 0);
         // Record as an executing certificate.
-        assert!(
-            inner
-                .executing_certificates
-                .insert(*pending_certificate.certificate.digest())
-        );
+        assert!(inner
+            .executing_certificates
+            .insert(*pending_certificate.certificate.digest()));
         self.metrics.txn_ready_rate_tracker.lock().record();
         let _ = self.tx_ready_certificates.send(pending_certificate);
         self.metrics.transaction_manager_num_ready.inc();
@@ -1010,7 +1008,7 @@ impl TransactionQueue {
             // entry in the heap that was previously inserted and removed from
             // digests, and we want to ignore it. (see
             // test_transaction_queue_remove_in_order)
-            if self.digests.get(&first.1) == Some(&first.0.0) {
+            if self.digests.get(&first.1) == Some(&first.0 .0) {
                 break;
             }
 

@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::errors::PartialVMResult;
 use std::ops::Mul;
+
+use move_binary_format::errors::PartialVMResult;
 
 pub mod bound;
 pub mod dummy;
@@ -26,11 +27,13 @@ pub trait Meter {
     /// Indicates the begin of a new scope.
     fn enter_scope(&mut self, name: &str, scope: Scope);
 
-    /// Transfer the amount of metering from once scope to the next. If the current scope has
-    /// metered N units, the target scope will be charged with N*factor.
+    /// Transfer the amount of metering from once scope to the next. If the
+    /// current scope has metered N units, the target scope will be charged
+    /// with N*factor.
     fn transfer(&mut self, from: Scope, to: Scope, factor: f32) -> PartialVMResult<()>;
 
-    /// Add the number of units to the meter, returns an error if a limit is hit.
+    /// Add the number of units to the meter, returns an error if a limit is
+    /// hit.
     fn add(&mut self, scope: Scope, units: u128) -> PartialVMResult<()>;
 
     /// Adds the number of items.
@@ -66,7 +69,8 @@ pub trait Meter {
     }
 }
 
-/// Convenience trait implementation to support static dispatch against a trait object.
+/// Convenience trait implementation to support static dispatch against a trait
+/// object.
 impl Meter for &mut dyn Meter {
     fn enter_scope(&mut self, name: &str, scope: Scope) {
         (*self).enter_scope(name, scope)

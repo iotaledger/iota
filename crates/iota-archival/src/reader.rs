@@ -203,16 +203,12 @@ impl ArchiveReader {
         summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
         contents_files.sort_by_key(|f| f.checkpoint_seq_range.start);
 
-        assert!(
-            summary_files
-                .windows(2)
-                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
-        );
-        assert!(
-            contents_files
-                .windows(2)
-                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
-        );
+        assert!(summary_files
+            .windows(2)
+            .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
+        assert!(contents_files
+            .windows(2)
+            .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
 
         let files: Vec<(FileMetadata, FileMetadata)> = summary_files
             .into_iter()

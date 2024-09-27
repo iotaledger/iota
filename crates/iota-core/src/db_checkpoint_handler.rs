@@ -474,11 +474,9 @@ mod tests {
         assert!(remote_epoch0_checkpoint.join("file2").exists());
         assert!(remote_epoch0_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch0_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(
-            local_epoch0_checkpoint
-                .join(UPLOAD_COMPLETED_MARKER)
-                .exists()
-        );
+        assert!(local_epoch0_checkpoint
+            .join(UPLOAD_COMPLETED_MARKER)
+            .exists());
 
         // Drop an extra gc marker meant only for gc to trigger
         let test_marker = local_epoch0_checkpoint.join(TEST_MARKER);
@@ -544,11 +542,9 @@ mod tests {
         assert!(remote_epoch0_checkpoint.join("file2").exists());
         assert!(remote_epoch0_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch0_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(
-            local_epoch0_checkpoint
-                .join(UPLOAD_COMPLETED_MARKER)
-                .exists()
-        );
+        assert!(local_epoch0_checkpoint
+            .join(UPLOAD_COMPLETED_MARKER)
+            .exists());
 
         // Add a new db checkpoint to the local checkpoint directory
         let local_epoch1_checkpoint = checkpoint_dir_path.join("epoch_1");
@@ -580,22 +576,18 @@ mod tests {
         assert!(remote_epoch0_checkpoint.join("file2").exists());
         assert!(remote_epoch0_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch0_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(
-            local_epoch0_checkpoint
-                .join(UPLOAD_COMPLETED_MARKER)
-                .exists()
-        );
+        assert!(local_epoch0_checkpoint
+            .join(UPLOAD_COMPLETED_MARKER)
+            .exists());
 
         let remote_epoch1_checkpoint = remote_checkpoint_dir_path.join("epoch_1");
         assert!(remote_epoch1_checkpoint.join("file1").exists());
         assert!(remote_epoch1_checkpoint.join("file2").exists());
         assert!(remote_epoch1_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch1_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(
-            local_epoch1_checkpoint
-                .join(UPLOAD_COMPLETED_MARKER)
-                .exists()
-        );
+        assert!(local_epoch1_checkpoint
+            .join(UPLOAD_COMPLETED_MARKER)
+            .exists());
 
         // Drop an extra gc marker meant only for gc to trigger
         let test_marker = local_epoch0_checkpoint.join(TEST_MARKER);

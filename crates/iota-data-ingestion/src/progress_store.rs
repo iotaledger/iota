@@ -6,8 +6,7 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use aws_config::BehaviorVersion;
-use aws_config::timeout::TimeoutConfig;
+use aws_config::{timeout::TimeoutConfig, BehaviorVersion};
 use aws_sdk_dynamodb::{error::SdkError, types::AttributeValue, Client};
 use aws_sdk_s3::config::{Credentials, Region};
 use iota_data_ingestion_core::ProgressStore;

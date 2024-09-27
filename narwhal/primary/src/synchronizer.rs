@@ -1498,25 +1498,23 @@ impl State {
             }
         }
         let notify = Arc::new(NotifyOnce::new());
-        assert!(
-            self.suspended
-                .insert(
-                    digest,
-                    SuspendedCertificate {
-                        certificate,
-                        missing_parents: missing_parents_map,
-                        notify: notify.clone(),
-                    }
-                )
-                .is_none()
-        );
+        assert!(self
+            .suspended
+            .insert(
+                digest,
+                SuspendedCertificate {
+                    certificate,
+                    missing_parents: missing_parents_map,
+                    notify: notify.clone(),
+                }
+            )
+            .is_none());
         for d in missing_parents {
-            assert!(
-                self.missing
-                    .entry((missing_round, d))
-                    .or_default()
-                    .insert(digest)
-            );
+            assert!(self
+                .missing
+                .entry((missing_round, d))
+                .or_default()
+                .insert(digest));
         }
         notify
     }
@@ -1676,7 +1674,8 @@ mod tests {
         let ((round, certificate_digest), suspended_certificate) =
             state.run_gc_once(GC_ROUND).unwrap();
 
-        assert_eq!(certificate_digest, certificates[0].digest()); // Ensure that only the missing certificate digest of round 1 gets garbage collected.
+        assert_eq!(certificate_digest, certificates[0].digest()); // Ensure that only the missing certificate digest of round 1 gets garbage
+                                                                  // collected.
         assert_eq!(round, 1);
         assert!(suspended_certificate.is_none()); // We don't have its certificate
 
@@ -1685,11 +1684,9 @@ mod tests {
 
         // 3 certificates of round 2 have been unsuspended
         assert_eq!(suspended_certificates.len(), 3);
-        assert!(
-            suspended_certificates
-                .iter()
-                .all(|c| c.certificate.round() == 2)
-        );
+        assert!(suspended_certificates
+            .iter()
+            .all(|c| c.certificate.round() == 2));
 
         // WHEN trying to trigger again for gc_round 1, it should return None
         assert!(state.run_gc_once(GC_ROUND).is_none());

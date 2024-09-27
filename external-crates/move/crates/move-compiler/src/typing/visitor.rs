@@ -2,6 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_ir_types::location::Loc;
+use move_proc_macros::growing_stack;
+
 use crate::{
     command_line::compiler::Visitor,
     diagnostics::WarningFilters,
@@ -11,9 +14,6 @@ use crate::{
     shared::CompilationEnv,
     typing::ast as T,
 };
-
-use move_ir_types::location::Loc;
-use move_proc_macros::growing_stack;
 
 pub type TypingVisitorObj = Box<dyn TypingVisitor>;
 

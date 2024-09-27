@@ -783,13 +783,12 @@ mod tests {
         // Execution failed so the results are null.
         assert!(res.get("results").unwrap().is_null());
         // Check that the error is not null and contains the error message.
-        assert!(
-            res.get("error")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .contains("UnusedValueWithoutDrop")
-        );
+        assert!(res
+            .get("error")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("UnusedValueWithoutDrop"));
 
         cluster.cleanup_resources().await
     }
@@ -831,14 +830,12 @@ mod tests {
         let binding = res.response_body().data.clone().into_json().unwrap();
 
         // Check that liveObjectSetDigest is not null
-        assert!(
-            !binding
-                .get("epoch")
-                .unwrap()
-                .get("liveObjectSetDigest")
-                .unwrap()
-                .is_null()
-        );
+        assert!(!binding
+            .get("epoch")
+            .unwrap()
+            .get("liveObjectSetDigest")
+            .unwrap()
+            .is_null());
         cluster.cleanup_resources().await
     }
 

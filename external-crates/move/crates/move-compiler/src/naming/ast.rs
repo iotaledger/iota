@@ -362,7 +362,8 @@ pub enum ExpDotted_ {
     Exp(Box<Exp>),
     Dot(Box<ExpDotted>, Field),
     Index(Box<ExpDotted>, Spanned<Vec<Exp>>),
-    DotAutocomplete(Loc, Box<ExpDotted>), // Dot (and its location) where Field could not be parsed
+    DotAutocomplete(Loc, Box<ExpDotted>), /* Dot (and its location) where Field could not be
+                                           * parsed */
 }
 pub type ExpDotted = Spanned<ExpDotted_>;
 

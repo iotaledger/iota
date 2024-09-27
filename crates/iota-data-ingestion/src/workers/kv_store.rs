@@ -11,8 +11,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use aws_config::BehaviorVersion;
-use aws_config::timeout::TimeoutConfig;
+use aws_config::{timeout::TimeoutConfig, BehaviorVersion};
 use aws_sdk_dynamodb::{
     primitives::Blob,
     types::{AttributeValue, PutRequest, WriteRequest},

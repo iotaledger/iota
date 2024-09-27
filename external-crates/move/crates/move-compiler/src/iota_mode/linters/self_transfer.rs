@@ -10,9 +10,8 @@ use std::collections::BTreeMap;
 use move_ir_types::location::*;
 
 use super::{
-    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode,
-    INVALID_LOC, IOTA_PKG_NAME, LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN,
-    TRANSFER_FUN, TRANSFER_MOD_NAME,
+    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, INVALID_LOC, IOTA_PKG_NAME,
+    LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 use crate::{
     cfgir::{
@@ -148,7 +147,8 @@ impl SimpleAbsInt for SelfTransferVerifierAI {
             if let Value::SenderAddress(sender_addr_loc) = args[1] {
                 if is_wrappable_obj_type(&f.arguments[0].ty) {
                     let msg = "Transfer of an object to transaction sender address";
-                    let uid_msg = "Returning an object from a function, allows a caller to use the object \
+                    let uid_msg =
+                        "Returning an object from a function, allows a caller to use the object \
                                and enables composability via programmable transactions.";
                     let mut d = diag!(SELF_TRANSFER_DIAG, (*loc, msg), (self.fn_ret_loc, uid_msg));
                     if sender_addr_loc != INVALID_LOC {

@@ -5,16 +5,27 @@
 pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    #[cfg(feature = "gas-profiler")]
-    use move_vm_config::runtime::VMProfilerConfig;
-    use std::path::PathBuf;
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
     use anyhow::Result;
+    use iota_move_natives::{object_runtime, object_runtime::ObjectRuntime, NativesCostTable};
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        base_types::*,
+        error::{ExecutionError, ExecutionErrorKind, IotaError},
+        execution_config_utils::to_binary_config,
+        metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+        storage::ChildObjectResolver,
+    };
+    use iota_verifier::{
+        check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
+    };
     use move_binary_format::file_format::CompiledModule;
     use move_bytecode_verifier::verify_module_with_config_metered;
     use move_bytecode_verifier_meter::{Meter, Scope};
     use move_core_types::account_address::AccountAddress;
+    #[cfg(feature = "gas-profiler")]
+    use move_vm_config::runtime::VMProfilerConfig;
     use move_vm_config::{
         runtime::{VMConfig, VMRuntimeLimitsConfig},
         verifier::VerifierConfig,
@@ -23,22 +34,7 @@ mod checked {
         move_vm::MoveVM, native_extensions::NativeContextExtensions,
         native_functions::NativeFunctionTable,
     };
-    use iota_move_natives::object_runtime;
-    use iota_types::metrics::BytecodeVerifierMetrics;
-    use iota_verifier::check_for_verifier_timeout;
     use tracing::instrument;
-
-    use iota_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
-    use iota_protocol_config::ProtocolConfig;
-    use iota_types::{
-        base_types::*,
-        error::ExecutionError,
-        error::{ExecutionErrorKind, IotaError},
-        execution_config_utils::to_binary_config,
-        metrics::LimitsMetrics,
-        storage::ChildObjectResolver,
-    };
-    use iota_verifier::verifier::iota_verify_module_metered_check_timeout_only;
 
     pub fn new_move_vm(
         natives: NativeFunctionTable,

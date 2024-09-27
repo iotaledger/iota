@@ -2,15 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use codespan_reporting::files::{Files, SimpleFiles};
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
 use std::{
     collections::{hash_map, BTreeMap, HashMap},
     path::PathBuf,
     sync::Arc,
 };
+
+use codespan_reporting::files::{Files, SimpleFiles};
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 //**************************************************************************************************
 // Types
@@ -21,7 +22,8 @@ pub type FileName = Symbol;
 
 pub type FilesSourceText = HashMap<FileHash, (FileName, Arc<str>)>;
 
-/// A mapping from file ids to file contents along with the mapping of filehash to fileID.
+/// A mapping from file ids to file contents along with the mapping of filehash
+/// to fileID.
 #[derive(Debug, Clone)]
 pub struct MappedFiles {
     files: SimpleFiles<Symbol, Arc<str>>,
@@ -29,7 +31,8 @@ pub struct MappedFiles {
     file_name_mapping: BTreeMap<FileHash, PathBuf>,
 }
 
-/// A file, the line:column start, and line:column end that corresponds to a `Loc`
+/// A file, the line:column start, and line:column end that corresponds to a
+/// `Loc`
 #[allow(dead_code)]
 pub struct FilePositionSpan {
     pub file_hash: FileHash,
@@ -46,8 +49,8 @@ pub struct FilePosition {
     pub position: Position,
 }
 
-/// A position holds the byte offset along with the line and column location in a file.
-/// Both are zero-indexed.
+/// A position holds the byte offset along with the line and column location in
+/// a file. Both are zero-indexed.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Copy)]
 pub struct Position {
     // zero-indexed line offset
@@ -267,8 +270,9 @@ impl MappedFiles {
         })
     }
 
-    /// Given a line number and character number (both 0-indexed) in the file return the `Loc` for
-    /// the line. Note that the end byte is exclusive in the resultant `Loc`.
+    /// Given a line number and character number (both 0-indexed) in the file
+    /// return the `Loc` for the line. Note that the end byte is exclusive
+    /// in the resultant `Loc`.
     pub fn line_char_offset_to_loc_opt(
         &self,
         file_hash: FileHash,
@@ -284,7 +288,8 @@ impl MappedFiles {
         Some(Loc::new(file_hash, offset, offset + 1))
     }
 
-    /// Given a line number (1-indexed) in the file return the `Loc` for the line.
+    /// Given a line number (1-indexed) in the file return the `Loc` for the
+    /// line.
     pub fn line_to_loc_opt(&self, file_hash: &FileHash, line_number: usize) -> Option<Loc> {
         let file_id = self.file_mapping().get(file_hash)?;
         let line_range = self.files().line_range(*file_id, line_number).ok()?;
@@ -295,8 +300,8 @@ impl MappedFiles {
         ))
     }
 
-    /// Given a location `Loc` return a new loc only for source with leading and trailing
-    /// whitespace removed.
+    /// Given a location `Loc` return a new loc only for source with leading and
+    /// trailing whitespace removed.
     pub fn trimmed_loc_opt(&self, loc: &Loc) -> Option<Loc> {
         let source_str = self.source_of_loc_opt(loc)?;
         let trimmed_front = source_str.trim_start();
@@ -306,14 +311,15 @@ impl MappedFiles {
         Some(Loc::new(loc.file_hash(), new_start as u32, new_end as u32))
     }
 
-    /// Given a location `Loc` return the source for the location. This include any leading and
-    /// trailing whitespace.
+    /// Given a location `Loc` return the source for the location. This include
+    /// any leading and trailing whitespace.
     pub fn source_of_loc_opt(&self, loc: &Loc) -> Option<&str> {
         let file_id = *self.file_mapping().get(&loc.file_hash())?;
         Some(&self.files().source(file_id).ok()?[loc.usize_range()])
     }
 
-    /// Given a file_hash `file` and a byte index `byte_index`, compute its `Position`.
+    /// Given a file_hash `file` and a byte index `byte_index`, compute its
+    /// `Position`.
     pub fn byte_index_to_position_opt(
         &self,
         file: &FileHash,

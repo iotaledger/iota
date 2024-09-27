@@ -446,7 +446,7 @@ pub struct ConciseAuthorityPublicKeyBytesRef<'a>(&'a AuthorityPublicKeyBytes);
 
 impl Debug for ConciseAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0.0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0 .0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -463,7 +463,7 @@ pub struct ConciseAuthorityPublicKeyBytes(AuthorityPublicKeyBytes);
 
 impl Debug for ConciseAuthorityPublicKeyBytes {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0.0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0 .0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -1008,8 +1008,8 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
 
         let (sig, pk) = &self.get_verification_inputs()?;
         match scheme {
-            SignatureScheme::ZkLoginAuthenticator => {} /* Pass this check because zk login does
-                                                          * not derive address from pubkey. */
+            SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does
+            // not derive address from pubkey.
             _ => {
                 let address = IotaAddress::from(pk);
                 if author != address {
@@ -1686,8 +1686,8 @@ impl SignatureScheme {
             SignatureScheme::Secp256k1 => 0x01,
             SignatureScheme::Secp256r1 => 0x02,
             SignatureScheme::MultiSig => 0x03,
-            SignatureScheme::BLS12381 => 0x04, /* This is currently not supported for user Iota
-                                                 * Address. */
+            SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Iota
+            // Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
         }

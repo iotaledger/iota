@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::utils::{loc_end_to_lsp_position_opt, loc_start_to_lsp_position_opt};
+use std::{collections::BTreeMap, path::PathBuf};
+
 use codespan_reporting::diagnostic::Severity;
 use lsp_types::{Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range};
 use move_command_line_common::files::FileHash;
 use move_compiler::shared::files::MappedFiles;
 use move_ir_types::location::Loc;
-use std::{collections::BTreeMap, path::PathBuf};
 use url::Url;
+
+use crate::utils::{loc_end_to_lsp_position_opt, loc_start_to_lsp_position_opt};
 
 /// Converts diagnostics from the codespan format to the format understood by
 /// the language server.

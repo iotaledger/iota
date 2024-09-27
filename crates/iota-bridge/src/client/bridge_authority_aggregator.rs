@@ -599,16 +599,14 @@ mod tests {
 
         let sig_0 = sign_action_with_key(&action, &secrets[0]);
         // returns Ok(None)
-        assert!(
-            state
-                .handle_verified_signed_action(
-                    authorities[0].pubkey_bytes().clone(),
-                    authorities[0].voting_power,
-                    VerifiedSignedBridgeAction::new_from_verified(sig_0.clone())
-                )
-                .unwrap()
-                .is_none()
-        );
+        assert!(state
+            .handle_verified_signed_action(
+                authorities[0].pubkey_bytes().clone(),
+                authorities[0].voting_power,
+                VerifiedSignedBridgeAction::new_from_verified(sig_0.clone())
+            )
+            .unwrap()
+            .is_none());
         assert_eq!(state.total_ok_stake, 2500);
 
         // Handling a sig from an already signed authority would fail
@@ -654,16 +652,14 @@ mod tests {
         // Collect signtuare from authority 1 (voting power = 1)
         let sig_1 = sign_action_with_key(&action, &secrets[1]);
         // returns Ok(None)
-        assert!(
-            state
-                .handle_verified_signed_action(
-                    authorities[1].pubkey_bytes().clone(),
-                    authorities[1].voting_power,
-                    VerifiedSignedBridgeAction::new_from_verified(sig_1.clone())
-                )
-                .unwrap()
-                .is_none()
-        );
+        assert!(state
+            .handle_verified_signed_action(
+                authorities[1].pubkey_bytes().clone(),
+                authorities[1].voting_power,
+                VerifiedSignedBridgeAction::new_from_verified(sig_1.clone())
+            )
+            .unwrap()
+            .is_none());
         assert_eq!(state.total_ok_stake, 2501);
 
         // Collect signature from authority 2 - reach validity threshold

@@ -5,8 +5,8 @@
 use std::collections::VecDeque;
 
 use fastcrypto_vdf::{
-    class_group::{QuadraticForm, discriminant::DISCRIMINANT_3072},
-    vdf::{VDF, wesolowski::DefaultVDF},
+    class_group::{discriminant::DISCRIMINANT_3072, QuadraticForm},
+    vdf::{wesolowski::DefaultVDF, VDF},
 };
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
@@ -19,7 +19,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{NativesCostTable, object_runtime::ObjectRuntime};
+use crate::{object_runtime::ObjectRuntime, NativesCostTable};
 
 pub const INVALID_INPUT_ERROR: u64 = 0;
 pub const NOT_SUPPORTED_ERROR: u64 = 1;
@@ -108,9 +108,10 @@ pub fn vdf_verify_internal(
     let vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), iterations);
     let verified = vdf.verify(&input, &output, &proof).is_ok();
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![
-        Value::bool(verified)
-    ]))
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::bool(verified)],
+    ))
 }
 
 /// ****************************************************************************
@@ -169,7 +170,8 @@ pub fn hash_to_input_internal(
         Err(_) => return Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR)),
     };
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![
-        Value::vector_u8(output_bytes)
-    ]))
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u8(output_bytes)],
+    ))
 }

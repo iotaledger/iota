@@ -3,6 +3,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use move_command_line_common::files::{
+    extension_equals, find_filenames_and_keep_specified, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
+    SOURCE_MAP_EXTENSION,
+};
+use move_core_types::language_storage::ModuleId as CompiledModuleId;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use vfs::{
+    impls::{memory::MemoryFS, physical::PhysicalFS},
+    path::VfsFileType,
+    VfsPath,
+};
+
 use crate::{
     cfgir::{
         self,
@@ -25,25 +46,6 @@ use crate::{
     to_bytecode,
     typing::{self, visitor::TypingVisitorObj},
     unit_test,
-};
-use move_command_line_common::files::{
-    extension_equals, find_filenames_and_keep_specified, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
-    SOURCE_MAP_EXTENSION,
-};
-use move_core_types::language_storage::ModuleId as CompiledModuleId;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-    io::{Read, Write},
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use vfs::{
-    impls::{memory::MemoryFS, physical::PhysicalFS},
-    path::VfsFileType,
-    VfsPath,
 };
 
 //**************************************************************************************************

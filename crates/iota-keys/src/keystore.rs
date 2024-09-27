@@ -40,12 +40,12 @@ pub enum Keystore {
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
     fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
-    -> Result<(), anyhow::Error>;
+        -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
 
     fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
-    -> Result<Signature, signature::Error>;
+        -> Result<Signature, signature::Error>;
 
     fn sign_secure<T>(
         &self,

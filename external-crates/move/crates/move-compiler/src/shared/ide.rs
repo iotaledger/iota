@@ -2,6 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
+
+use move_command_line_common::address::NumericalAddress;
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
 use crate::{
     debug_display, diag,
     diagnostics::Diagnostic,
@@ -11,19 +20,9 @@ use crate::{
     },
     naming::ast as N,
     parser::ast as P,
-    shared::string_utils::format_oxford_list,
-    shared::Name,
+    shared::{string_utils::format_oxford_list, Name},
     typing::ast as T,
     unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
-};
-
-use move_command_line_common::address::NumericalAddress;
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
-
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
 };
 
 //*************************************************************************************************
@@ -62,7 +61,8 @@ pub struct MacroCallInfo {
     pub method_name: Option<Name>,
     /// Type params at macro's call site
     pub type_arguments: Vec<N::Type>,
-    /// By-value args (at this point there should only be one, representing receiver arg)
+    /// By-value args (at this point there should only be one, representing
+    /// receiver arg)
     pub by_value_args: Vec<T::SequenceItem>,
 }
 
@@ -76,7 +76,8 @@ pub struct AutocompleteMethod {
 pub struct DotAutocompleteInfo {
     /// Methods that are valid auto-completes
     pub methods: Vec<AutocompleteMethod>,
-    /// Fields that are valid auto-completes (e.g., for a struct) along with their types
+    /// Fields that are valid auto-completes (e.g., for a struct) along with
+    /// their types
     pub fields: Vec<(Symbol, N::Type)>,
 }
 
@@ -94,13 +95,15 @@ pub struct AliasAutocompleteInfo {
 
 #[derive(Debug, Clone)]
 pub struct MissingMatchArmsInfo {
-    /// A vector of arm patterns that can be inserted to make the match complete.
-    /// Note the span information on these is _wrong_ and must be recomputed after insertion.
+    /// A vector of arm patterns that can be inserted to make the match
+    /// complete. Note the span information on these is _wrong_ and must be
+    /// recomputed after insertion.
     pub arms: Vec<PatternSuggestion>,
 }
 
-/// Suggested new entries for a pattern. Note that any location information points to the
-/// definition site. As this is largely suggested text, it lacks location information.
+/// Suggested new entries for a pattern. Note that any location information
+/// points to the definition site. As this is largely suggested text, it lacks
+/// location information.
 #[derive(Debug, Clone)]
 pub enum PatternSuggestion {
     Wildcard,
@@ -239,7 +242,8 @@ impl
             }
         }
 
-        // The member names shadow, though this should be no issue as they should be identical.
+        // The member names shadow, though this should be no issue as they should be
+        // identical.
         for (symbol, entry) in member_names
             .iter()
             .filter(|(symbol, _)| symbol.to_string() != UNIT_TEST_POISON_FUN_NAME.to_string())

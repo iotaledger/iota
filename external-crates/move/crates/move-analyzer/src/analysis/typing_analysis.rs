@@ -2,15 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compiler_info::CompilerInfo,
-    symbols::{
-        add_member_use_def, expansion_mod_ident_to_map_key, find_datatype, type_def_loc, DefInfo,
-        DefMap, LocalDef, MemberDefInfo, ModuleDefs, References, UseDef, UseDefMap,
-    },
-    utils::{ignored_function, loc_start_to_lsp_position_opt},
-};
+use std::collections::BTreeMap;
 
+use im::OrdMap;
+use lsp_types::Position;
 use move_compiler::{
     diagnostics as diag,
     expansion::ast::{self as E, ModuleIdent},
@@ -25,38 +20,48 @@ use move_compiler::{
 use move_ir_types::location::{sp, Loc};
 use move_symbol_pool::Symbol;
 
-use im::OrdMap;
-use lsp_types::Position;
-use std::collections::BTreeMap;
+use crate::{
+    compiler_info::CompilerInfo,
+    symbols::{
+        add_member_use_def, expansion_mod_ident_to_map_key, find_datatype, type_def_loc, DefInfo,
+        DefMap, LocalDef, MemberDefInfo, ModuleDefs, References, UseDef, UseDefMap,
+    },
+    utils::{ignored_function, loc_start_to_lsp_position_opt},
+};
 
 /// Data used during analysis over typed AST
 pub struct TypingAnalysisContext<'a> {
-    /// Outermost definitions in a module (structs, consts, functions), keyd on a ModuleIdent
-    /// string so that we can access it regardless of the ModuleIdent representation
-    /// (e.g., in the parsing AST or in the typing AST)
+    /// Outermost definitions in a module (structs, consts, functions), keyd on
+    /// a ModuleIdent string so that we can access it regardless of the
+    /// ModuleIdent representation (e.g., in the parsing AST or in the
+    /// typing AST)
     pub mod_outer_defs: &'a mut BTreeMap<String, ModuleDefs>,
     /// Mapped file information for translating locations into positions
     pub files: &'a MappedFiles,
-    /// Associates uses for a given definition to allow displaying all references
+    /// Associates uses for a given definition to allow displaying all
+    /// references
     pub references: &'a mut References,
     /// Additional information about definitions
     pub def_info: &'a mut DefMap,
-    /// A UseDefMap for a given module (needs to be appropriately set before the module
-    /// processing starts)
+    /// A UseDefMap for a given module (needs to be appropriately set before the
+    /// module processing starts)
     pub use_defs: UseDefMap,
-    /// Current module identifier string (needs to be appropriately set before the module
-    /// processing starts)
+    /// Current module identifier string (needs to be appropriately set before
+    /// the module processing starts)
     pub current_mod_ident_str: Option<String>,
-    /// Alias lengths in access paths for a given module (needs to be appropriately
-    /// set before the module processing starts)
+    /// Alias lengths in access paths for a given module (needs to be
+    /// appropriately set before the module processing starts)
     pub alias_lengths: &'a BTreeMap<Position, usize>,
-    /// In some cases (e.g., when processing bodies of macros) we want to keep traversing
-    /// the AST but without recording the actual metadata (uses, definitions, types, etc.)
+    /// In some cases (e.g., when processing bodies of macros) we want to keep
+    /// traversing the AST but without recording the actual metadata (uses,
+    /// definitions, types, etc.)
     pub traverse_only: bool,
-    /// Contains type params where relevant (e.g. when processing module members)
+    /// Contains type params where relevant (e.g. when processing module
+    /// members)
     pub type_params: BTreeMap<Symbol, Loc>,
-    /// Associates uses for a given definition to allow displaying all references
-    /// Current expression scope, for use when traversing expressions and recording usage.
+    /// Associates uses for a given definition to allow displaying all
+    /// references Current expression scope, for use when traversing
+    /// expressions and recording usage.
     pub expression_scope: OrdMap<Symbol, LocalDef>,
     /// IDE Annotation Information from the Compiler
     pub compiler_info: &'a mut CompilerInfo,
@@ -90,14 +95,15 @@ fn def_info_to_type_def_loc(
 }
 
 impl TypingAnalysisContext<'_> {
-    /// Returns the `lsp_types::Position` start for a location, but may fail if we didn't see the
-    /// definition already.
+    /// Returns the `lsp_types::Position` start for a location, but may fail if
+    /// we didn't see the definition already.
     fn file_start_position_opt(&self, loc: &Loc) -> Option<Position> {
         self.files.file_start_position_opt(loc).map(|p| p.into())
     }
 
-    /// Returns the `lsp_types::Position` start for a location, but may fail if we didn't see the
-    /// definition already. This should only be used on things we already indexed.
+    /// Returns the `lsp_types::Position` start for a location, but may fail if
+    /// we didn't see the definition already. This should only be used on
+    /// things we already indexed.
     fn file_start_position(&self, loc: &Loc) -> Position {
         loc_start_to_lsp_position_opt(self.files, loc).unwrap()
     }
@@ -213,9 +219,9 @@ impl TypingAnalysisContext<'_> {
                 def_type: def_type.clone(),
             },
         );
-        // in other languages only one definition is allowed per scope but in move an (and
-        // in rust) a variable can be re-defined in the same scope replacing the previous
-        // definition
+        // in other languages only one definition is allowed per scope but in move an
+        // (and in rust) a variable can be re-defined in the same scope
+        // replacing the previous definition
 
         // enter self-definition for def name
         let ident_type_def_loc = type_def_loc(self.mod_outer_defs, &def_type);
@@ -237,8 +243,8 @@ impl TypingAnalysisContext<'_> {
         );
     }
 
-    /// Add a use for and identifier whose definition is expected to be local to a function, and
-    /// pair it with an appropriate definition
+    /// Add a use for and identifier whose definition is expected to be local to
+    /// a function, and pair it with an appropriate definition
     fn add_local_use_def(&mut self, use_name: &Symbol, use_pos: &Loc) {
         if self.traverse_only {
             return;
@@ -282,9 +288,9 @@ impl TypingAnalysisContext<'_> {
             .mod_outer_defs
             .get_mut(&expansion_mod_ident_to_map_key(&module_ident.value))
         else {
-            // this should not happen but due to a fix in unifying generation of mod ident map keys,
-            // but just in case - it's better to report it than to crash the analyzer due to
-            // unchecked unwrap
+            // this should not happen but due to a fix in unifying generation of mod ident
+            // map keys, but just in case - it's better to report it than to
+            // crash the analyzer due to unchecked unwrap
             eprintln!(
                 "WARNING: could not locate module {:?} when processing a call to {}{}",
                 module_ident.value, module_ident.value, fun_def_name
@@ -535,7 +541,8 @@ impl TypingAnalysisContext<'_> {
             self.visit_exp(args);
         }
 
-        // populate call info obtained during parsing with the location of the call site's target function
+        // populate call info obtained during parsing with the location of the call
+        // site's target function
         let Some(use_def) = call_use_def else {
             return;
         };
@@ -616,18 +623,19 @@ impl TypingAnalysisContext<'_> {
 
         if let Some(exp) = &mut arm.guard {
             self.visit_exp(exp);
-            // Enum guard variables have different type (immutable reference) than variables in
-            // patterns and in the RHS of the match arm. However, at the AST level they share
-            // the same definition, stored in the IDE in a map key-ed on the definition's location.
-            // In order to display (on hover) two different types for these variables, we do
+            // Enum guard variables have different type (immutable reference) than variables
+            // in patterns and in the RHS of the match arm. However, at the AST
+            // level they share the same definition, stored in the IDE in a map
+            // key-ed on the definition's location. In order to display (on
+            // hover) two different types for these variables, we do
             // the following:
-            // - remember which `DefInfo::LocalDef`s represent match arm definition (above) and what
-            //   is the position of their arm's guard
+            // - remember which `DefInfo::LocalDef`s represent match arm definition (above)
+            //   and what is the position of their arm's guard
             // - remember which region represents a guard expression (below)
             // - when processing on-hover, we see if for a given use the definition is a
-            //   match arm definition and if this use is inside a correct guard block; if both these
-            //   conditions hold, we change the displayed info for this variable to reflect
-            //   it being an immutable reference
+            //   match arm definition and if this use is inside a correct guard block; if
+            //   both these conditions hold, we change the displayed info for this variable
+            //   to reflect it being an immutable reference
             let guard_loc = exp.exp.loc;
             self.compiler_info
                 .guards
@@ -761,7 +769,8 @@ impl<'a> TypingVisitorContext for TypingAnalysisContext<'a> {
         vdef: &mut N::VariantDefinition,
     ) -> bool {
         let file_hash = variant_name.loc().file_hash();
-        // enter self-definition for variant name (unwrap safe - done when inserting def)
+        // enter self-definition for variant name (unwrap safe - done when inserting
+        // def)
         let vname_start = self.file_start_position(&variant_name.loc());
         let variant_info = self.def_info.get(&variant_name.loc()).unwrap();
         let vtype_def = def_info_to_type_def_loc(self.mod_outer_defs, variant_info);
@@ -850,7 +859,8 @@ impl<'a> TypingVisitorContext for TypingAnalysisContext<'a> {
         assert!(self.current_mod_ident_str.is_none());
         self.current_mod_ident_str = Some(expansion_mod_ident_to_map_key(&module.value));
         let loc = function_name.loc();
-        // first, enter self-definition for function name (unwrap safe - done when inserting def)
+        // first, enter self-definition for function name (unwrap safe - done when
+        // inserting def)
         let name_start = self.file_start_position(&loc);
         let fun_info = self.def_info.get(&loc).unwrap();
         let fun_type_def = def_info_to_type_def_loc(self.mod_outer_defs, fun_info);
@@ -879,7 +889,7 @@ impl<'a> TypingVisitorContext for TypingAnalysisContext<'a> {
                 &pname.loc,
                 &pname.value.name,
                 ptype.clone(),
-                false, /* with_let */
+                false, // with_let
                 matches!(mutability, E::Mutability::Mut(_)),
                 None,
             );
@@ -900,8 +910,9 @@ impl<'a> TypingVisitorContext for TypingAnalysisContext<'a> {
     }
 
     fn visit_lvalue(&mut self, kind: &LValueKind, lvalue: &mut T::LValue) {
-        // Visit an lvalue. If it's just avariable, we add it as a local def. If it'x a field
-        // access, we switch modes (`for_unpack` = true) and record them as field use defs instead.
+        // Visit an lvalue. If it's just avariable, we add it as a local def. If it'x a
+        // field access, we switch modes (`for_unpack` = true) and record them
+        // as field use defs instead.
         let mut for_unpack = false;
         let mut lvalue_queue = vec![lvalue];
         while let Some(next) = lvalue_queue.pop() {
@@ -1168,8 +1179,8 @@ impl<'a> TypingVisitorContext for TypingAnalysisContext<'a> {
             color: _,
         } = use_funs;
 
-        // at typing there should be no unresolved candidates (it's also checked in typing
-        // translaction pass)
+        // at typing there should be no unresolved candidates (it's also checked in
+        // typing translaction pass)
         assert!(implicit_candidates.is_empty());
 
         for uses in resolved.values() {

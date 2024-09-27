@@ -975,10 +975,8 @@ async fn test_authority_txn_execution_pushback() {
     // Clear the validator overload status and retry the certificate. It should
     // succeed.
     authority_state.overload_info.clear_overload();
-    assert!(
-        validator_service
-            .execute_certificate_for_testing(cert)
-            .await
-            .is_ok()
-    );
+    assert!(validator_service
+        .execute_certificate_for_testing(cert)
+        .await
+        .is_ok());
 }

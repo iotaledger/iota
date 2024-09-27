@@ -86,7 +86,11 @@ pub async fn range_query(
         .iter()
         .filter_map(|sample| {
             let v = sample.value();
-            if v.is_nan() { None } else { Some(v) }
+            if v.is_nan() {
+                None
+            } else {
+                Some(v)
+            }
         })
         .collect();
     if samples.is_empty() {

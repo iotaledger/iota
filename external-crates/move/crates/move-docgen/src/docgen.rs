@@ -426,7 +426,11 @@ impl<'env> Docgen<'env> {
     }
 
     fn module_modifier(name: &ModuleName) -> &str {
-        if name.is_script() { "Script" } else { "Module" }
+        if name.is_script() {
+            "Script"
+        } else {
+            "Module"
+        }
     }
 
     /// Computes file location for a module. This considers if the module is a
@@ -457,7 +461,11 @@ impl<'env> Docgen<'env> {
                     let package_name = path.ancestors().find_map(|dir| {
                         let mut path = PathBuf::from(dir);
                         path.push("Move.toml");
-                        if path.exists() { dir.file_stem() } else { None }
+                        if path.exists() {
+                            dir.file_stem()
+                        } else {
+                            None
+                        }
                     });
                     package_name.map(|package_name| {
                         format!(
@@ -1604,7 +1612,7 @@ impl<'env> Docgen<'env> {
 
     /// Display a type parameter.
     fn type_parameter_display(&self, tp: &TypeParameter) -> String {
-        let ability_tokens = self.ability_tokens(tp.1.0);
+        let ability_tokens = self.ability_tokens(tp.1 .0);
         if ability_tokens.is_empty() {
             self.name_string(tp.0).to_string()
         } else {

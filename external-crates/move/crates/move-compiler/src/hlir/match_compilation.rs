@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+
 use crate::{
     expansion::ast::{Fields, ModuleIdent, Mutability, Value, Value_},
     hlir::translate::Context,
@@ -16,14 +21,12 @@ use crate::{
     },
     typing::ast::{self as T, MatchPattern, UnannotatedPat_ as TP},
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 //**************************************************************************************************
 // Match Compilation
 //**************************************************************************************************
-// This mostly follows the classical Maranget (2008) implementation toward optimal decision trees.
+// This mostly follows the classical Maranget (2008) implementation toward
+// optimal decision trees.
 
 type Fringe = VecDeque<FringeEntry>;
 
@@ -331,9 +334,9 @@ fn compile_match_head(
             .expect("ICE non-datatype type in head constructor fringe position");
 
         if context.info.is_struct(&mident, &datatype_name) {
-            // If we have an actual destructuring anywhere, we do that and take the specialized
-            // matrix (which holds the default matrix and bindings, for our purpose). If we don't,
-            // we just take the default matrix.
+            // If we have an actual destructuring anywhere, we do that and take the
+            // specialized matrix (which holds the default matrix and bindings,
+            // for our purpose). If we don't, we just take the default matrix.
             let decl_fields = context.info.struct_fields(&mident, &datatype_name).unwrap();
             let unpack = if let Some((ploc, arg_types)) = matrix.first_struct_ctors() {
                 let fringe_binders =
@@ -853,8 +856,8 @@ fn arm_variant_unpack(
         .iter()
         .all(|(_, _, (_, (_, pat)))| matches!(pat.pat.value, TP::Wildcard))
         || fields.is_empty();
-    // If we are  matching a  ref with no fields under it, we aren't going to drop so
-    // we just continue on.
+    // If we are  matching a  ref with no fields under it, we aren't going to drop
+    // so we just continue on.
     if all_wild && mut_ref.is_some() {
         return None;
     }
@@ -879,8 +882,8 @@ fn arm_struct_unpack(
         .iter()
         .all(|(_, _, (_, (_, pat)))| matches!(pat.pat.value, TP::Wildcard))
         || fields.is_empty();
-    // If we are  matching a  ref with no fields under it, we aren't going to drop so
-    // we just continue on.
+    // If we are  matching a  ref with no fields under it, we aren't going to drop
+    // so we just continue on.
     if all_wild && mut_ref.is_some() {
         return None;
     }
@@ -1032,7 +1035,8 @@ fn make_var_ref(subject: FringeEntry) -> Box<T::Exp> {
     }
 }
 
-// Performs an unpack for the purpose of matching, where we are matching against an imm. ref.
+// Performs an unpack for the purpose of matching, where we are matching against
+// an imm. ref.
 fn make_match_variant_unpack(
     mident: ModuleIdent,
     enum_: DatatypeName,
@@ -1075,7 +1079,8 @@ fn make_match_variant_unpack(
     T::exp(result_type, exp_value)
 }
 
-// Performs a struct unpack for the purpose of matching, where we are matching against an imm. ref.
+// Performs a struct unpack for the purpose of matching, where we are matching
+// against an imm. ref.
 fn make_match_struct_unpack(
     mident: ModuleIdent,
     struct_: DatatypeName,

@@ -170,8 +170,8 @@ fn validate_index_syntax_methods(
         .map(|tp| sp(tp.user_specified_name.loc, N::Type_::Param(tp.clone())))
         .collect::<Vec<_>>();
 
-    // NOTE: This calls the version of `make_function_type_` that does not check function
-    // visibility, since that is not relevant here.
+    // NOTE: This calls the version of `make_function_type_` that does not check
+    // function visibility, since that is not relevant here.
     let index_ty = core::make_function_type_no_visibility_check(
         context,
         index_ann_loc,

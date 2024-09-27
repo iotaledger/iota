@@ -220,7 +220,7 @@ pub trait ValidatorProxy {
     ) -> Result<Vec<(u64, Object)>, anyhow::Error>;
 
     async fn get_latest_system_state_object(&self)
-    -> Result<IotaSystemStateSummary, anyhow::Error>;
+        -> Result<IotaSystemStateSummary, anyhow::Error>;
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
 

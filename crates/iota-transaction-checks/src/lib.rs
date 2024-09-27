@@ -287,30 +287,24 @@ mod checked {
                         );
                         // We should never get here, but if for some reason we do just default to
                         // object not found and reject signing the transaction.
-                        fp_bail!(
-                            UserInputError::ObjectNotFound {
-                                object_id: *object_id,
-                                version: Some(*version),
-                            }
-                            .into()
-                        )
+                        fp_bail!(UserInputError::ObjectNotFound {
+                            object_id: *object_id,
+                            version: Some(*version),
+                        }
+                        .into())
                     }
                     Owner::ObjectOwner(owner) => {
-                        fp_bail!(
-                            UserInputError::InvalidChildObjectArgument {
-                                child_id: object.id(),
-                                parent_id: owner.into(),
-                            }
-                            .into()
-                        )
+                        fp_bail!(UserInputError::InvalidChildObjectArgument {
+                            child_id: object.id(),
+                            parent_id: owner.into(),
+                        }
+                        .into())
                     }
                     Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObjectError.into()),
-                    Owner::Immutable => fp_bail!(
-                        UserInputError::MutableParameterExpected {
-                            object_id: *object_id
-                        }
-                        .into()
-                    ),
+                    Owner::Immutable => fp_bail!(UserInputError::MutableParameterExpected {
+                        object_id: *object_id
+                    }
+                    .into()),
                 };
             }
 

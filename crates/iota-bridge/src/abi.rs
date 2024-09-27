@@ -529,11 +529,10 @@ mod tests {
                 ),
             },
         ));
-        assert!(
-            e.try_into_bridge_action(TxHash::random(), 0)
-                .unwrap()
-                .is_some()
-        );
+        assert!(e
+            .try_into_bridge_action(TxHash::random(), 0)
+            .unwrap()
+            .is_some());
 
         let e = EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
             TokensDepositedFilter {

@@ -910,12 +910,11 @@ impl WritebackCache {
 
         for outputs in all_outputs.iter() {
             let tx_digest = outputs.transaction.digest();
-            assert!(
-                self.dirty
-                    .pending_transaction_writes
-                    .remove(tx_digest)
-                    .is_some()
-            );
+            assert!(self
+                .dirty
+                .pending_transaction_writes
+                .remove(tx_digest)
+                .is_some());
             self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
         }
 
@@ -1035,12 +1034,11 @@ impl WritebackCache {
                 .map(|o| o.transaction.clone())
             else {
                 // tx should exist in the db if it is not in dirty set.
-                debug_assert!(
-                    self.store
-                        .get_transaction_block(tx_digest)
-                        .unwrap()
-                        .is_some()
-                );
+                debug_assert!(self
+                    .store
+                    .get_transaction_block(tx_digest)
+                    .unwrap()
+                    .is_some());
                 // If the transaction is not in dirty, it does not need to be committed.
                 // This situation can happen if we build a checkpoint locally which was just
                 // executed via state sync.

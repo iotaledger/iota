@@ -7,14 +7,15 @@ pub mod dependency_graph;
 pub mod layout;
 pub mod module_cache;
 
-use crate::dependency_graph::DependencyGraph;
+use std::collections::BTreeMap;
+
+use anyhow::{anyhow, Result};
 use move_binary_format::file_format::{CompiledModule, DatatypeHandleIndex, SignatureToken};
 use move_core_types::{
     account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
 };
 
-use anyhow::{anyhow, Result};
-use std::collections::BTreeMap;
+use crate::dependency_graph::DependencyGraph;
 
 /// Set of Move modules indexed by module Id
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -935,7 +935,7 @@ async fn verify_tto_not_locked(
     let fake_parent = *effects
         .created()
         .iter()
-        .find(|(obj_ref, _)| obj_ref.0 != parent.0.0 && obj_ref.0 != child.0.0)
+        .find(|(obj_ref, _)| obj_ref.0 != parent.0 .0 && obj_ref.0 != child.0 .0)
         .unwrap();
 
     // Now get a certificate for fake_parent/child1. This will lock input objects.

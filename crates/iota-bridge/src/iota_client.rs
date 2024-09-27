@@ -122,13 +122,11 @@ where
         let events = self.inner.query_events(filter.clone(), cursor).await?;
 
         // Safeguard check that all events are emitted from requested package and module
-        assert!(
-            events
-                .data
-                .iter()
-                .all(|event| event.type_.address.as_ref() == package.as_ref()
-                    && event.type_.module == module)
-        );
+        assert!(events
+            .data
+            .iter()
+            .all(|event| event.type_.address.as_ref() == package.as_ref()
+                && event.type_.module == module));
         Ok(events)
     }
 

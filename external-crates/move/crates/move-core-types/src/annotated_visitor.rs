@@ -507,7 +507,7 @@ pub(crate) fn visit_variant<V: Visitor + ?Sized>(
         bytes,
         layout,
         variant_layout.1,
-        &variant_layout.0.0,
+        &variant_layout.0 .0,
         tag as u16,
     );
     let res = visitor.visit_variant(&mut driver)?;

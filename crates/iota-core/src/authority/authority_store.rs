@@ -1047,13 +1047,11 @@ impl AuthorityStore {
         ) {
             let Some(live_marker) = live_marker else {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(
-                    UserInputError::ObjectVersionUnavailableForConsumption {
-                        provided_obj_ref: *obj_ref,
-                        current_version: latest_lock.1
-                    }
-                    .into()
-                );
+                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
+                    provided_obj_ref: *obj_ref,
+                    current_version: latest_lock.1
+                }
+                .into());
             };
 
             let live_marker = live_marker.map(|l| l.migrate().into_inner());
@@ -1148,7 +1146,7 @@ impl AuthorityStore {
         Ok(iterator
             .next()
             .and_then(|value| {
-                if value.0.0 == object_id {
+                if value.0 .0 == object_id {
                     Some(value)
                 } else {
                     None
@@ -1176,13 +1174,11 @@ impl AuthorityStore {
         for (lock, obj_ref) in locks.into_iter().zip(objects) {
             if lock.is_none() {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(
-                    UserInputError::ObjectVersionUnavailableForConsumption {
-                        provided_obj_ref: *obj_ref,
-                        current_version: latest_lock.1
-                    }
-                    .into()
-                );
+                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
+                    provided_obj_ref: *obj_ref,
+                    current_version: latest_lock.1
+                }
+                .into());
             }
         }
         Ok(())
@@ -1831,10 +1827,10 @@ impl AuthorityStore {
                                     );
                                 }
                                 if matches!(prev.1.inner(), StoreObject::Wrapped)
-                                    && object_key.0 != prev.0.0
+                                    && object_key.0 != prev.0 .0
                                 {
                                     wrapped_objects_to_remove
-                                        .push(WrappedObject::new(prev.0.0, prev.0.1));
+                                        .push(WrappedObject::new(prev.0 .0, prev.0 .1));
                                 }
 
                                 prev = (object_key, object);
@@ -1846,7 +1842,7 @@ impl AuthorityStore {
                         }
                     }
                     if matches!(prev.1.inner(), StoreObject::Wrapped) {
-                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0.0, prev.0.1));
+                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0 .0, prev.0 .1));
                     }
                     info!(
                         "[Re-accumulate] Task {}: object scanned: {}, wrapped objects: {}",

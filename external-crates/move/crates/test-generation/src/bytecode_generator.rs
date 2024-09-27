@@ -3,15 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    abstract_state::{AbstractState, BorrowState, CallGraph, InstantiableModule},
-    config::{
-        CALL_STACK_LIMIT, INHABITATION_INSTRUCTION_LIMIT, MAX_CFG_BLOCKS, MUTATION_TOLERANCE,
-        NEGATE_PRECONDITIONS, NEGATION_PROBABILITY, VALUE_STACK_LIMIT,
-    },
-    control_flow_graph::CFG,
-    substitute, summaries,
-};
 use move_binary_format::file_format::{
     Bytecode, CodeOffset, CompiledModule, ConstantPoolIndex, FieldHandleIndex,
     FieldInstantiationIndex, FunctionHandle, FunctionHandleIndex, FunctionInstantiation,
@@ -21,6 +12,16 @@ use move_binary_format::file_format::{
 use move_core_types::u256::U256;
 use rand::{rngs::StdRng, Rng};
 use tracing::{debug, error, warn};
+
+use crate::{
+    abstract_state::{AbstractState, BorrowState, CallGraph, InstantiableModule},
+    config::{
+        CALL_STACK_LIMIT, INHABITATION_INSTRUCTION_LIMIT, MAX_CFG_BLOCKS, MUTATION_TOLERANCE,
+        NEGATE_PRECONDITIONS, NEGATION_PROBABILITY, VALUE_STACK_LIMIT,
+    },
+    control_flow_graph::CFG,
+    substitute, summaries,
+};
 
 /// This type represents bytecode instructions that take a `LocalIndex`
 type LocalIndexToBytecode = fn(LocalIndex) -> Bytecode;
@@ -446,7 +447,8 @@ impl<'a> BytecodeGenerator<'a> {
                     && self.rng.gen_range(0..101) > 100 - (NEGATION_PROBABILITY * 100.0) as u8)
                     || unsatisfied_preconditions == 0
                 {
-                    // The size of matches cannot be greater than the number of bytecode instructions
+                    // The size of matches cannot be greater than the number of bytecode
+                    // instructions
                     debug_assert!(matches.len() < usize::MAX);
                     matches.push((*stack_effect, instruction));
                 }

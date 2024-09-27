@@ -839,10 +839,9 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
     let node_handle = test_cluster.swarm.validator_node_handles().pop().unwrap();
     node_handle.with(|node| {
         assert!(node.transaction_orchestrator().is_none());
-        assert!(
-            node.subscribe_to_transaction_orchestrator_effects()
-                .is_err()
-        );
+        assert!(node
+            .subscribe_to_transaction_orchestrator_effects()
+            .is_err());
     });
 }
 
@@ -1261,13 +1260,11 @@ async fn test_access_old_object_pruned() {
                     )
                     .await;
                 // Make sure the old version of the object is already pruned.
-                assert!(
-                    state
-                        .database_for_testing()
-                        .get_object_by_key(&gas_object.0, gas_object.1)
-                        .unwrap()
-                        .is_none()
-                );
+                assert!(state
+                    .database_for_testing()
+                    .get_object_by_key(&gas_object.0, gas_object.1)
+                    .unwrap()
+                    .is_none());
                 let epoch_store = state.epoch_store_for_testing();
                 assert_eq!(
                     state
@@ -1290,15 +1287,13 @@ async fn test_access_old_object_pruned() {
 
     // Check that fullnode would return the same error.
     let result = test_cluster.wallet.execute_transaction_may_fail(tx).await;
-    assert!(
-        result.unwrap_err().to_string().contains(
-            &UserInputError::ObjectVersionUnavailableForConsumption {
-                provided_obj_ref: gas_object,
-                current_version: new_gas_version,
-            }
-            .to_string()
-        )
-    )
+    assert!(result.unwrap_err().to_string().contains(
+        &UserInputError::ObjectVersionUnavailableForConsumption {
+            provided_obj_ref: gas_object,
+            current_version: new_gas_version,
+        }
+        .to_string()
+    ))
 }
 
 async fn transfer_coin(
@@ -1367,13 +1362,11 @@ async fn test_full_node_run_with_range_checkpoint() -> Result<(), anyhow::Error>
     }));
 
     // we dont want transaction orchestrator enabled when run_with_range != None
-    assert!(
-        test_cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| node.transaction_orchestrator())
-            .is_none()
-    );
+    assert!(test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.transaction_orchestrator())
+        .is_none());
     Ok(())
 }
 
@@ -1397,33 +1390,27 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     // ensure we end up at epoch + 1
     // this is because we execute the target epoch, reconfigure, and then send
     // shutdown signal at epoch + 1
-    assert!(
-        test_cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1)
-    );
+    assert!(test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
 
     // epoch duration is 10s for testing, lets sleep long enough that epoch would
     // normally progress
     tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
 
     // ensure we are still at epoch + 1
-    assert!(
-        test_cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1)
-    );
+    assert!(test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
 
     // we dont want transaction orchestrator enabled when run_with_range != None
-    assert!(
-        test_cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| node.transaction_orchestrator())
-            .is_none()
-    );
+    assert!(test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.transaction_orchestrator())
+        .is_none());
 
     Ok(())
 }

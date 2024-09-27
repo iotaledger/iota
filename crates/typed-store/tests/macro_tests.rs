@@ -52,9 +52,9 @@ struct RenameTables2 {
 }
 
 impl<
-    T: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
-    V: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
-> Generic<T, V>
+        T: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
+        V: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
+    > Generic<T, V>
 {
 }
 

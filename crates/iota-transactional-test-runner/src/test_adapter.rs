@@ -575,7 +575,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     Ok(obj) => obj,
                 }
             }};
-            ($fake_id:ident) => {{ get_obj!($fake_id, None) }};
+            ($fake_id:ident) => {{
+                get_obj!($fake_id, None)
+            }};
         }
         match command {
             IotaSubcommand::ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup {
@@ -1758,7 +1760,11 @@ impl<'a> IotaTestAdapter {
         out.push('\n');
         write!(out, "gas summary: {}", gas_summary).unwrap();
 
-        if out.is_empty() { None } else { Some(out) }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
     }
 
     fn list_events(&self, events: &[Event], summarize: bool) -> String {

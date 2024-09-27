@@ -65,7 +65,7 @@ where
     /// Returns an iterator visiting each key-value pair within the specified
     /// bounds in the map.
     fn iter_with_bounds(&'a self, lower_bound: Option<K>, upper_bound: Option<K>)
-    -> Self::Iterator;
+        -> Self::Iterator;
 
     /// Similar to `iter_with_bounds` but allows specifying
     /// inclusivity/exclusivity of ranges explicitly. TODO: find better name

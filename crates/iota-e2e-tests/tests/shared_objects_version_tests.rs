@@ -93,11 +93,10 @@ async fn shared_object_not_found() {
     let env = TestEnvironment::new().await;
     let nonexistent_id = ObjectID::random();
     let initial_shared_seq = SequenceNumber::from_u64(42);
-    assert!(
-        env.increment_shared_counter(nonexistent_id, initial_shared_seq)
-            .await
-            .is_err()
-    );
+    assert!(env
+        .increment_shared_counter(nonexistent_id, initial_shared_seq)
+        .await
+        .is_err());
 }
 
 fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {

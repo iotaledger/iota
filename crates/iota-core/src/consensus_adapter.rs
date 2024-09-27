@@ -484,7 +484,11 @@ impl ConsensusAdapter {
                         let l = Duration::from_millis(HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS);
 
                         // back off according to recorded latency if it's significantly higher
-                        if latency >= 2 * l { latency } else { l }
+                        if latency >= 2 * l {
+                            latency
+                        } else {
+                            l
+                        }
                     }
                 };
             }
@@ -704,7 +708,8 @@ impl ConsensusAdapter {
         epoch_store
             .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store))
             .await
-            .ok(); // result here indicates if epoch ended earlier, we don't care about it
+            .ok(); // result here indicates if epoch ended earlier, we don't
+                   // care about it
     }
 
     #[allow(clippy::option_map_unit_fn)]

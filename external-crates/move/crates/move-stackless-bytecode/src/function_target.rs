@@ -3,25 +3,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    annotations::Annotations,
-    stackless_bytecode::{AttrId, Bytecode, Label},
-};
-use itertools::Itertools;
-use move_binary_format::file_format::CodeOffset;
-use move_model::{
-    model::{DatatypeId, FunId, FunctionEnv, FunctionVisibility, GlobalEnv, Loc, ModuleEnv},
-    symbol::{Symbol, SymbolPool},
-    ty::{Type, TypeDisplayContext},
-};
-
-use crate::function_target_pipeline::FunctionVariant;
-use move_model::ast::TempIndex;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
     ops::Range,
+};
+
+use itertools::Itertools;
+use move_binary_format::file_format::CodeOffset;
+use move_model::{
+    ast::TempIndex,
+    model::{DatatypeId, FunId, FunctionEnv, FunctionVisibility, GlobalEnv, Loc, ModuleEnv},
+    symbol::{Symbol, SymbolPool},
+    ty::{Type, TypeDisplayContext},
+};
+
+use crate::{
+    annotations::Annotations,
+    function_target_pipeline::FunctionVariant,
+    stackless_bytecode::{AttrId, Bytecode, Label},
 };
 
 /// A FunctionTarget is a drop-in replacement for a FunctionEnv which allows to

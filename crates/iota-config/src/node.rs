@@ -18,8 +18,8 @@ use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        IotaKeyPair, KeypairTraits, NetworkKeyPair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -34,9 +34,9 @@ use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
-    Config, certificate_deny_config::CertificateDenyConfig, genesis,
+    certificate_deny_config::CertificateDenyConfig, genesis,
     object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
-    transaction_deny_config::TransactionDenyConfig,
+    transaction_deny_config::TransactionDenyConfig, Config,
 };
 
 // Default max number of concurrent requests served
@@ -1090,9 +1090,9 @@ mod tests {
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_types::crypto::{
-        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
+        get_key_pair_from_rng, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
     };
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::Genesis;
     use crate::NodeConfig;

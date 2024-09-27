@@ -1480,11 +1480,9 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     assert!(delete_effects.status().is_ok());
     let deleted_obj_ver = delete_effects.deleted()[0].1;
 
-    assert!(
-        user_1
-            .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
-            .is_some()
-    );
+    assert!(user_1
+        .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
+        .is_some());
 
     let mutate_effects = res.get(1).unwrap();
     assert!(mutate_effects.status().is_ok());

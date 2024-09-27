@@ -74,7 +74,7 @@ pub trait SimulatorStore:
     fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects>;
 
     fn get_transaction_events(&self, digest: &TransactionEventsDigest)
-    -> Option<TransactionEvents>;
+        -> Option<TransactionEvents>;
 
     fn get_transaction_events_by_tx_digest(
         &self,

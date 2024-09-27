@@ -233,11 +233,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         consensus_output: impl ConsensusOutputAPI,
     ) {
         // This code no longer supports old protocol versions.
-        assert!(
-            self.epoch_store
-                .protocol_config()
-                .consensus_order_end_of_epoch_last()
-        );
+        assert!(self
+            .epoch_store
+            .protocol_config()
+            .consensus_order_end_of_epoch_last());
 
         let last_committed_round = self.last_consensus_stats.index.last_committed_round;
 

@@ -627,7 +627,7 @@ impl<C: fmt::Debug> fmt::Debug for BcsCursor<C> {
 
 impl<C: Clone> Clone for JsonCursor<C> {
     fn clone(&self) -> Self {
-        JsonCursor::new(self.0.0.clone())
+        JsonCursor::new(self.0 .0.clone())
     }
 }
 

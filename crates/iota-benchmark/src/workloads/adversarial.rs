@@ -492,7 +492,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
             .unwrap();
 
         for o in &created {
-            let obj = proxy.get_object(o.0.0).await.unwrap();
+            let obj = proxy.get_object(o.0 .0).await.unwrap();
             if let Some(tag) = obj.data.struct_tag() {
                 if tag.to_string().contains("::adversarial::Obj") {
                     self.df_parent_obj_ref = o.0;
@@ -503,10 +503,10 @@ impl Workload<dyn Payload> for AdversarialWorkload {
             self.df_parent_obj_ref.0 != ObjectID::ZERO,
             "Dynamic field parent must be created"
         );
-        self.package_id = package_obj.0.0;
+        self.package_id = package_obj.0 .0;
 
         let gas_ref = proxy
-            .get_object(gas.0.0)
+            .get_object(gas.0 .0)
             .await
             .unwrap()
             .compute_object_reference();
@@ -517,7 +517,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         let transaction = move_call_pt_impl(
             gas.1,
             &gas.2,
-            package_obj.0.0,
+            package_obj.0 .0,
             "adversarial",
             "create_min_size_shared_objects",
             vec![],
@@ -536,7 +536,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         // read them in MaxReads workload
         self.shared_objs = created
             .iter()
-            .map(|o| BenchMoveCallArg::Shared((o.0.0, o.0.1, false)))
+            .map(|o| BenchMoveCallArg::Shared((o.0 .0, o.0 .1, false)))
             .collect();
     }
 

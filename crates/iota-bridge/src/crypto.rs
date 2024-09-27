@@ -81,7 +81,7 @@ pub struct ConciseBridgeAuthorityPublicKeyBytesRef<'a>(&'a BridgeAuthorityPublic
 
 impl Debug for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0.0.0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0 .0 .0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -94,7 +94,7 @@ impl Display for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
 
 impl AsRef<[u8]> for BridgeAuthorityPublicKeyBytes {
     fn as_ref(&self) -> &[u8] {
-        self.0.0.as_ref()
+        self.0 .0.as_ref()
     }
 }
 

@@ -97,19 +97,17 @@ impl<'backing> TemporaryStore<'backing> {
         #[cfg(debug_assertions)]
         {
             // Ensure that input objects and receiving objects must not overlap.
-            assert!(
-                objects
-                    .keys()
-                    .collect::<HashSet<_>>()
-                    .intersection(
-                        &receiving_objects
-                            .iter()
-                            .map(|oref| &oref.0)
-                            .collect::<HashSet<_>>()
-                    )
-                    .next()
-                    .is_none()
-            );
+            assert!(objects
+                .keys()
+                .collect::<HashSet<_>>()
+                .intersection(
+                    &receiving_objects
+                        .iter()
+                        .map(|oref| &oref.0)
+                        .collect::<HashSet<_>>()
+                )
+                .next()
+                .is_none());
         }
         Self {
             store,
@@ -1007,18 +1005,14 @@ impl<'backing> ChildObjectResolver for TemporaryStore<'backing> {
         // You should never be able to try and receive an object after deleting it or
         // writing it in the same transaction since `Receiving` doesn't have
         // copy.
-        debug_assert!(
-            !self
-                .execution_results
-                .written_objects
-                .contains_key(receiving_object_id)
-        );
-        debug_assert!(
-            !self
-                .execution_results
-                .deleted_object_ids
-                .contains(receiving_object_id)
-        );
+        debug_assert!(!self
+            .execution_results
+            .written_objects
+            .contains_key(receiving_object_id));
+        debug_assert!(!self
+            .execution_results
+            .deleted_object_ids
+            .contains(receiving_object_id));
         self.store.get_object_received_at_version(
             owner,
             receiving_object_id,

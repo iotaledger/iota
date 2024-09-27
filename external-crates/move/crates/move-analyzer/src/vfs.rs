@@ -11,14 +11,16 @@
 //! reality, it is basically just a mapping from file identifier (this could be
 //! the file's path were it to be saved) to its textual contents.
 
-use crate::symbols;
+use std::{io::Write, path::PathBuf};
+
 use lsp_server::Notification;
 use lsp_types::{
     notification::Notification as _, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams,
 };
-use std::{io::Write, path::PathBuf};
 use vfs::VfsPath;
+
+use crate::symbols;
 
 /// A mapping from identifiers (file names, potentially, but not necessarily) to
 /// their contents.

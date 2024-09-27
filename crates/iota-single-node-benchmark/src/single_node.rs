@@ -17,6 +17,7 @@ use iota_core::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    mock_consensus::{ConsensusMode, MockConsensusClient},
     state_accumulator::StateAccumulator,
 };
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
@@ -36,11 +37,8 @@ use iota_types::{
     },
 };
 use tokio::sync::broadcast;
-use iota_core::mock_consensus::{ConsensusMode, MockConsensusClient};
-use crate::{
-    command::Component,
-    mock_storage::InMemoryObjectStore,
-};
+
+use crate::{command::Component, mock_storage::InMemoryObjectStore};
 
 #[derive(Clone)]
 pub struct SingleValidator {

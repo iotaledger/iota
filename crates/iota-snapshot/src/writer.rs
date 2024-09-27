@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::{HashMap, hash_map::Entry::Vacant},
+    collections::{hash_map::Entry::Vacant, HashMap},
     fs,
     fs::{File, OpenOptions},
     io::{BufWriter, Seek, SeekFrom, Write},
@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use byteorder::{BigEndian, ByteOrder};
 use fastcrypto::hash::MultisetHash;
 use futures::StreamExt;
@@ -22,23 +22,23 @@ use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
     authority::{
-        CHAIN_IDENTIFIER,
         authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+        CHAIN_IDENTIFIER,
     },
     state_accumulator::StateAccumulator,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::{
-    blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
+    blob::{Blob, BlobEncoding, BLOB_ENCODING_BYTES},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
 };
 use iota_types::{
     accumulator::Accumulator,
     base_types::{ObjectID, ObjectRef},
-    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
+    iota_system_state::{get_iota_system_state, IotaSystemStateTrait},
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
-use object_store::{DynObjectStore, path::Path};
+use object_store::{path::Path, DynObjectStore};
 use tokio::{
     sync::{
         mpsc,
@@ -50,9 +50,9 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::debug;
 
 use crate::{
-    FILE_MAX_BYTES, FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
-    Manifest, ManifestV1, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC,
-    SEQUENCE_NUM_BYTES, compute_sha3_checksum, create_file_metadata,
+    compute_sha3_checksum, create_file_metadata, FileCompression, FileMetadata, FileType, Manifest,
+    ManifestV1, FILE_MAX_BYTES, MAGIC_BYTES, MANIFEST_FILE_MAGIC, OBJECT_FILE_MAGIC,
+    OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
 };
 
 /// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj

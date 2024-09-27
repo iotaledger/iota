@@ -16,13 +16,13 @@ use std::{
     num::NonZeroUsize,
     ops::Range,
     sync::{
-        Arc,
         atomic::{AtomicU64, Ordering},
+        Arc,
     },
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -31,13 +31,13 @@ use iota_config::{
     genesis::Genesis, node::ArchiveReaderConfig, object_storage_config::ObjectStoreConfig,
 };
 use iota_storage::{
-    SHA3_BYTES,
     blob::{Blob, BlobEncoding},
     compute_sha3_checksum, compute_sha3_checksum_for_bytes,
     object_store::{
-        ObjectStoreGetExt, ObjectStorePutExt,
         util::{get, put},
+        ObjectStoreGetExt, ObjectStorePutExt,
     },
+    SHA3_BYTES,
 };
 use iota_types::{
     base_types::ExecutionData,
@@ -196,11 +196,9 @@ impl Manifest {
                     .filter(|f| f.file_type == FileType::CheckpointSummary)
                     .collect();
                 summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
-                assert!(
-                    summary_files
-                        .windows(2)
-                        .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
-                );
+                assert!(summary_files
+                    .windows(2)
+                    .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
                 assert_eq!(summary_files.first().unwrap().checkpoint_seq_range.start, 0);
                 summary_files
                     .iter()

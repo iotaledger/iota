@@ -18,11 +18,9 @@ fn closure_metric_basic() {
     )
     .unwrap();
 
-    assert!(
-        prometheus::default_registry()
-            .register(Box::new(metric0))
-            .is_ok()
-    );
+    assert!(prometheus::default_registry()
+        .register(Box::new(metric0))
+        .is_ok());
 
     // Gather the metrics.
     let metric_families = prometheus::default_registry().gather();

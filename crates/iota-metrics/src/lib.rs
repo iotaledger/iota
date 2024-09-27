@@ -194,7 +194,9 @@ pub fn add_server_timing(name: &str) {
 
 #[macro_export]
 macro_rules! monitored_future {
-    ($fut: expr) => {{ monitored_future!(futures, $fut, "", INFO, false) }};
+    ($fut: expr) => {{
+        monitored_future!(futures, $fut, "", INFO, false)
+    }};
 
     ($metric: ident, $fut: expr, $name: expr, $logging_level: ident, $logging_enabled: expr) => {{
         let location: &str = if $name.is_empty() {

@@ -79,9 +79,9 @@ pub trait CFGIRVisitorContext {
         false
     }
 
-    /// By default, the visitor will visit all all expressions in all functions in all modules. A
-    /// custom version should of this function should be created if different type of analysis is
-    /// required.
+    /// By default, the visitor will visit all all expressions in all functions
+    /// in all modules. A custom version should of this function should be
+    /// created if different type of analysis is required.
     fn visit(&mut self, program: &mut G::Program) {
         for (mident, mdef) in program.modules.key_cloned_iter_mut() {
             self.add_warning_filter_scope(mdef.warning_filter.clone());

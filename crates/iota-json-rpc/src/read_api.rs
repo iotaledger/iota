@@ -703,7 +703,10 @@ impl ReadApiServer for ReadApi {
                         .map(|e| e.to_string())
                         .collect::<Vec<String>>()
                         .join("; ");
-                    Err(anyhow!("{error_string}").into()) // Collects errors not related to IotaPastObjectResponse variants
+                    Err(anyhow!("{error_string}").into()) // Collects errors not
+                                                          // related to
+                                                          // IotaPastObjectResponse
+                                                          // variants
                 } else {
                     Ok(success)
                 }

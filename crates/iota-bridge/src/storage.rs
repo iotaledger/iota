@@ -215,12 +215,10 @@ mod tests {
         // update eth event cursor
         let eth_contract_address = ethers::types::Address::random();
         let eth_block_num = 199999u64;
-        assert!(
-            store
-                .get_eth_event_cursors(&[eth_contract_address])
-                .unwrap()[0]
-                .is_none()
-        );
+        assert!(store
+            .get_eth_event_cursors(&[eth_contract_address])
+            .unwrap()[0]
+            .is_none());
         store
             .update_eth_event_cursor(eth_contract_address, eth_block_num)
             .unwrap();
@@ -238,12 +236,10 @@ mod tests {
             tx_digest: TransactionDigest::random(),
             event_seq: 1,
         };
-        assert!(
-            store
-                .get_iota_event_cursors(&[iota_module.clone()])
-                .unwrap()[0]
-                .is_none()
-        );
+        assert!(store
+            .get_iota_event_cursors(&[iota_module.clone()])
+            .unwrap()[0]
+            .is_none());
         store
             .update_iota_event_cursor(iota_module.clone(), iota_cursor)
             .unwrap();

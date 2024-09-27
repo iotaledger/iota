@@ -5,7 +5,8 @@
 
 //! Implementation of native functions for utf8 strings.
 
-use crate::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::{InternalGas, InternalGasPerByte, NumBytes};
 use move_vm_runtime::{
@@ -18,7 +19,8 @@ use move_vm_types::{
     pop_arg,
     values::{Value, VectorRef},
 };
-use std::{collections::VecDeque, sync::Arc};
+
+use crate::helpers::make_module_natives;
 
 // The implementation approach delegates all utf8 handling to Rust.
 // This is possible without copying of bytes because (a) we can
@@ -28,12 +30,13 @@ use std::{collections::VecDeque, sync::Arc};
 // create a `&str` view on the bytes without a copy. Once we have this
 // view, we can call ut8 functions like length, substring, etc.
 
-/***************************************************************************************************
- * native fun internal_check_utf8
- *
- *   gas cost: base_cost + unit_cost * length_in_bytes
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun internal_check_utf8
+///
+///   gas cost: base_cost + unit_cost * length_in_bytes
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct CheckUtf8GasParameters {
     pub base: InternalGas,
@@ -68,12 +71,13 @@ pub fn make_native_check_utf8(gas_params: CheckUtf8GasParameters) -> NativeFunct
     )
 }
 
-/***************************************************************************************************
- * native fun internal_is_char_boundary
- *
- *   gas cost: base_cost
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun internal_is_char_boundary
+///
+///   gas cost: base_cost
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct IsCharBoundaryGasParameters {
     pub base: InternalGas,
@@ -108,12 +112,13 @@ pub fn make_native_is_char_boundary(gas_params: IsCharBoundaryGasParameters) -> 
     )
 }
 
-/***************************************************************************************************
- * native fun internal_sub_string
- *
- *   gas cost: base_cost + unit_cost * sub_string_length_in_bytes
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun internal_sub_string
+///
+///   gas cost: base_cost + unit_cost * sub_string_length_in_bytes
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct SubStringGasParameters {
     pub base: InternalGas,
@@ -158,12 +163,13 @@ pub fn make_native_sub_string(gas_params: SubStringGasParameters) -> NativeFunct
     )
 }
 
-/***************************************************************************************************
- * native fun internal_index_of
- *
- *   gas cost: base_cost + unit_cost * bytes_searched
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun internal_index_of
+///
+///   gas cost: base_cost + unit_cost * bytes_searched
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct IndexOfGasParameters {
     pub base: InternalGas,
@@ -199,8 +205,8 @@ fn native_index_of(
         None => s_str.len(),
     };
     // TODO(Gas): What is the algorithm used for the search?
-    //            Ideally it should be something like KMP with O(n) time complexity...
-    // Charge search fee
+    //            Ideally it should be something like KMP with O(n) time
+    // complexity... Charge search fee
     native_charge_gas_early_exit!(
         context,
         gas_params.per_byte_searched * NumBytes::new(pos as u64)
@@ -216,9 +222,10 @@ pub fn make_native_index_of(gas_params: IndexOfGasParameters) -> NativeFunction 
     )
 }
 
-/***************************************************************************************************
- * module
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* module
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub check_utf8: CheckUtf8GasParameters,

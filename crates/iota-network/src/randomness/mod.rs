@@ -635,8 +635,8 @@ impl RandomnessEventLoop {
             sig_range,
         ) {
             Ok(sig) => sig,
-            Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, /* wait for more
-                                                                                  * input */
+            Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, // wait for more
+            // input
             Err(e) => {
                 error!("error while aggregating randomness partial signatures: {e:?}");
                 return;

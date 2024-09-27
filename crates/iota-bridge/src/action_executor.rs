@@ -871,11 +871,9 @@ mod tests {
         assert_eq!(tx_subscription.recv().await.unwrap(), tx_digest);
 
         // The retry is still going on, action still in WAL
-        assert!(
-            store
-                .get_all_pending_actions()
-                .contains_key(&action.digest())
-        );
+        assert!(store
+            .get_all_pending_actions()
+            .contains_key(&action.digest()));
 
         // Now let it succeed
         let mut event = IotaEvent::random_for_testing();
@@ -892,11 +890,9 @@ mod tests {
         // Give it 1 second to retry and succeed
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         // The action is successful and should be removed from WAL now
-        assert!(
-            !store
-                .get_all_pending_actions()
-                .contains_key(&action.digest())
-        );
+        assert!(!store
+            .get_all_pending_actions()
+            .contains_key(&action.digest()));
     }
 
     #[tokio::test]
@@ -1018,11 +1014,9 @@ mod tests {
         // Expect to see the transaction to be requested and succeed
         assert_eq!(tx_subscription.recv().await.unwrap(), tx_digest);
         // The action is removed from WAL
-        assert!(
-            !store
-                .get_all_pending_actions()
-                .contains_key(&action.digest())
-        );
+        assert!(!store
+            .get_all_pending_actions()
+            .contains_key(&action.digest()));
     }
 
     #[tokio::test]

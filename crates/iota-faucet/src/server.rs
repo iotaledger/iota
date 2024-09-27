@@ -28,7 +28,6 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-
 use crate::{
     faucet::Faucet, AppState, BatchFaucetResponse, BatchStatusFaucetResponse, FaucetConfig,
     FaucetError, FaucetRequest, FaucetResponse, RequestMetricsLayer,
@@ -252,7 +251,6 @@ async fn request_gas(
         }
     }
 }
-
 
 pub fn create_wallet_context(
     timeout_secs: u64,

@@ -89,10 +89,10 @@ pub enum ToolCommand {
         /// prints tabular output suitable for processing with unix tools. For
         /// instance, to quickly check that all validators agree on the history
         /// of an object: ```text
-        /// $ iota-tool fetch-object --id 0x260efde76ebccf57f4c5e951157f5c361cde822c \
-        ///      --genesis $HOME/.iota/iota_config/genesis.blob \
-        ///      --verbosity concise --concise-no-header
-        /// ```
+        /// $ iota-tool fetch-object --id
+        /// 0x260efde76ebccf57f4c5e951157f5c361cde822c \      --genesis
+        /// $HOME/.iota/iota_config/genesis.blob \      --verbosity
+        /// concise --concise-no-header ```
         #[arg(
             value_enum,
             long = "verbosity",

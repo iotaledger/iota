@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
-use clap::*;
-use move_docgen::DocgenOptions;
-use move_package::{BuildConfig, ModelConfig};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
+
+use clap::*;
+use move_docgen::DocgenOptions;
+use move_package::{BuildConfig, ModelConfig};
+
+use super::reroot_path;
 
 /// Generate javadoc style documentation for Move packages
 #[derive(Parser)]

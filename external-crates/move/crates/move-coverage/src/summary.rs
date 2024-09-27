@@ -290,13 +290,11 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                             }
 
                             for (path_end_scc, path_end_reachability) in reachability.into_iter() {
-                                assert!(
-                                    path_nums
-                                        .get_mut(&path_end_scc)
-                                        .unwrap()
-                                        .insert(scc_idx, path_end_reachability)
-                                        .is_none()
-                                );
+                                assert!(path_nums
+                                    .get_mut(&path_end_scc)
+                                    .unwrap()
+                                    .insert(scc_idx, path_end_reachability)
+                                    .is_none());
                             }
 
                             // move to branch info if there are more than one branches

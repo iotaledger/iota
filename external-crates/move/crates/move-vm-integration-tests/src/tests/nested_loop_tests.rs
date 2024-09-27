@@ -44,7 +44,8 @@ fn test_publish_module_with_nested_loops() {
             move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
-                /* silent debug */ true,
+                // silent debug
+                true,
             ),
             VMConfig {
                 verifier: VerifierConfig {
@@ -68,7 +69,8 @@ fn test_publish_module_with_nested_loops() {
             move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
-                /* silent debug */ true,
+                // silent debug
+                true,
             ),
             VMConfig {
                 verifier: VerifierConfig {

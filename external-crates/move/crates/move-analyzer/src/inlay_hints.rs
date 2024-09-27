@@ -2,20 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
+use lsp_server::Request;
+use lsp_types::{
+    InlayHint, InlayHintKind, InlayHintLabel, InlayHintLabelPart, InlayHintParams,
+    InlayHintTooltip, Position,
+};
+use move_compiler::{naming::ast as N, shared::Identifier};
+
 use crate::{
     context::Context,
     symbols::{
         on_hover_markup, type_to_ide_string, DefInfo, ModuleDefs, SymbolicatorRunner, Symbols,
     },
 };
-use lsp_server::Request;
-use lsp_types::{
-    InlayHint, InlayHintKind, InlayHintLabel, InlayHintLabelPart, InlayHintParams,
-    InlayHintTooltip, Position,
-};
-
-use move_compiler::{naming::ast as N, shared::Identifier};
-use std::path::PathBuf;
 
 /// Handles inlay hints request of the language server
 pub fn on_inlay_hint_request(context: &Context, request: &Request) {

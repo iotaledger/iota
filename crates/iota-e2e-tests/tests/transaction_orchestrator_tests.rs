@@ -85,13 +85,11 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
         handle.state(),
     ));
 
-    assert!(
-        handle
-            .state()
-            .get_executed_transaction_and_effects(digest, kv_store)
-            .await
-            .is_ok()
-    );
+    assert!(handle
+        .state()
+        .get_executed_transaction_and_effects(digest, kv_store)
+        .await
+        .is_ok());
 
     Ok(())
 }

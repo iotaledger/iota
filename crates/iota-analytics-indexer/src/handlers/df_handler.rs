@@ -165,12 +165,13 @@ impl DynamicFieldHandler {
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {
-                let object = all_written_objects.get(&object_id).ok_or(
-                    IndexerError::UncategorizedError(anyhow::anyhow!(
+                let object =
+                    all_written_objects
+                        .get(&object_id)
+                        .ok_or(IndexerError::UncategorizedError(anyhow::anyhow!(
                         "Failed to find object_id {:?} when trying to create dynamic field info",
                         object_id
-                    )),
-                )?;
+                    )))?;
                 let version = object.version().value();
                 let digest = object.digest().to_string();
                 let object_type = object.data.type_().unwrap().clone();

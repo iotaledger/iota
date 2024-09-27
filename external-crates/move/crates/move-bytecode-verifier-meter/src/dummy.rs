@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{Meter, Scope};
 use move_binary_format::errors::PartialVMResult;
+
+use crate::{Meter, Scope};
 
 /// Meter that does nothing.
 pub struct DummyMeter;

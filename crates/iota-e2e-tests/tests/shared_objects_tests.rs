@@ -368,16 +368,12 @@ async fn call_shared_object_contract() {
             .unwrap();
         // Check that all reads must depend on the creation of the counter, but not to
         // any previous reads.
-        assert!(
-            effects
-                .dependencies()
-                .contains(&counter_creation_transaction)
-        );
-        assert!(
-            prev_assert_value_txs
-                .iter()
-                .all(|tx| { !effects.dependencies().contains(tx) })
-        );
+        assert!(effects
+            .dependencies()
+            .contains(&counter_creation_transaction));
+        assert!(prev_assert_value_txs
+            .iter()
+            .all(|tx| { !effects.dependencies().contains(tx) }));
         prev_assert_value_txs.push(*effects.transaction_digest());
     }
 
@@ -393,18 +389,14 @@ async fn call_shared_object_contract() {
         .effects
         .unwrap();
     let increment_transaction = *effects.transaction_digest();
-    assert!(
-        effects
-            .dependencies()
-            .contains(&counter_creation_transaction)
-    );
+    assert!(effects
+        .dependencies()
+        .contains(&counter_creation_transaction));
     // Previously executed assert_value transaction(s) are not a dependency because
     // they took immutable reference to shared object
-    assert!(
-        prev_assert_value_txs
-            .iter()
-            .all(|tx| { !effects.dependencies().contains(tx) })
-    );
+    assert!(prev_assert_value_txs
+        .iter()
+        .all(|tx| { !effects.dependencies().contains(tx) }));
 
     // assert_value can take both mutable and immutable references
     // it is allowed to pass mutable shared object arg to move call taking immutable
@@ -474,11 +466,9 @@ async fn call_shared_object_contract() {
         }
         .into()
     );
-    assert!(
-        effects
-            .dependencies()
-            .contains(&assert_value_mut_transaction)
-    );
+    assert!(effects
+        .dependencies()
+        .contains(&assert_value_mut_transaction));
 }
 
 #[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
@@ -595,16 +585,14 @@ async fn shared_object_sync() {
     // transaction was sent to.
     for validator in test_cluster.swarm.validator_node_handles() {
         if slow_validators.contains(&validator.state().name) {
-            assert!(
-                validator
-                    .state()
-                    .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                        counter_id,
-                        LayoutGenerationOption::None,
-                    ))
-                    .await
-                    .is_ok()
-            );
+            assert!(validator
+                .state()
+                .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
+                    counter_id,
+                    LayoutGenerationOption::None,
+                ))
+                .await
+                .is_ok());
         }
     }
 
@@ -612,16 +600,14 @@ async fn shared_object_sync() {
     // counter object
     for validator in test_cluster.swarm.validator_node_handles() {
         if fast_validators.contains(&validator.state().name) {
-            assert!(
-                validator
-                    .state()
-                    .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                        counter_id,
-                        LayoutGenerationOption::None,
-                    ))
-                    .await
-                    .is_err()
-            );
+            assert!(validator
+                .state()
+                .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
+                    counter_id,
+                    LayoutGenerationOption::None,
+                ))
+                .await
+                .is_err());
         }
     }
 

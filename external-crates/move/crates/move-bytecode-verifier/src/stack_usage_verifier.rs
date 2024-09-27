@@ -3,13 +3,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying that basic blocks in the bytecode instruction
-//! sequence of a function use the evaluation stack in a balanced manner. Every basic block,
-//! except those that end in Ret (return to caller) opcode, must leave the stack height the
-//! same as at the beginning of the block. A basic block that ends in Ret opcode must increase
-//! the stack height by the number of values returned by the function as indicated in its
-//! signature. Additionally, the stack height must not dip below that at the beginning of the
-//! block for any basic block.
+//! This module implements a checker for verifying that basic blocks in the
+//! bytecode instruction sequence of a function use the evaluation stack in a
+//! balanced manner. Every basic block, except those that end in Ret (return to
+//! caller) opcode, must leave the stack height the same as at the beginning of
+//! the block. A basic block that ends in Ret opcode must increase
+//! the stack height by the number of values returned by the function as
+//! indicated in its signature. Additionally, the stack height must not dip
+//! below that at the beginning of the block for any basic block.
 use move_abstract_interpreter::{
     absint::FunctionContext,
     control_flow_graph::{BlockId, ControlFlowGraph},
