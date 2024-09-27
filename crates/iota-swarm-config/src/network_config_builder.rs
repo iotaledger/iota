@@ -11,6 +11,7 @@ use std::{
 
 use iota_config::{
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
+    migration_tx_data,
     node::AuthorityOverloadConfig,
 };
 use iota_macros::nondeterministic;
@@ -352,7 +353,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let genesis = {
+        let (genesis, migration_tx_data) = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
@@ -427,6 +428,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             validator_configs,
             genesis,
             account_keys,
+            migration_tx_data,
         }
     }
 }

@@ -35,7 +35,8 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
 
+    let (genesis, _migration_tx_data) = builder.build();
     // Save to file
-    builder.build().save("genesis-vanilla.blob")?;
+    genesis.save("genesis-vanilla.blob")?;
     Ok(())
 }

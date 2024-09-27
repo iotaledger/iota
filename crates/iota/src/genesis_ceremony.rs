@@ -10,7 +10,7 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
-    IOTA_GENESIS_FILENAME,
+    IOTA_GENESIS_FILENAME, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
 };
 use iota_genesis_builder::{Builder, SnapshotSource, SnapshotUrl, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
@@ -327,8 +327,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
             check_protocol_version(&builder, protocol_version)?;
 
-            let genesis = builder.build();
-
+            let (genesis, migration_tx_data) = builder.build();
             genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
             println!("Successfully built {IOTA_GENESIS_FILENAME}");
@@ -336,6 +335,8 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 "{IOTA_GENESIS_FILENAME} blake2b-256: {}",
                 Hex::encode(genesis.hash())
             );
+            migration_tx_data.save(dir.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME))?;
+            println!("Successfully built {IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME}");
         }
     }
 

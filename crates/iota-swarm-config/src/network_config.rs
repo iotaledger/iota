@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_config::{genesis, node, Config, NodeConfig};
+use iota_config::{genesis, migration_tx_data::MigrationTxData, node, Config, NodeConfig};
 use iota_types::{
     committee::CommitteeWithNetworkMetadata, crypto::AccountKeyPair, multiaddr::Multiaddr,
 };
@@ -17,6 +17,7 @@ pub struct NetworkConfig {
     pub validator_configs: Vec<NodeConfig>,
     pub account_keys: Vec<AccountKeyPair>,
     pub genesis: genesis::Genesis,
+    pub migration_tx_data: MigrationTxData,
 }
 
 impl Config for NetworkConfig {}

@@ -15,9 +15,12 @@ use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use flate2::bufread::GzDecoder;
-use iota_config::genesis::{
-    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
-    UnsignedGenesis,
+use iota_config::{
+    genesis::{
+        Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
+        UnsignedGenesis,
+    },
+    migration_tx_data::{MigrationTxData, TransactionsData},
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
@@ -57,7 +60,7 @@ use iota_types::{
     },
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
-        Transaction,
+        Transaction, TransactionKey,
     },
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
 };
@@ -84,6 +87,7 @@ const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distributi
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
 const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
+const GENESIS_BUILDER_MIGRATION_TX_DATA_FILE: &str = "migration-txs-data";
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
@@ -101,6 +105,7 @@ pub struct Builder {
     migration_objects: MigrationObjects,
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
+    migration_tx_data: MigrationTxData,
 }
 
 impl Default for Builder {
@@ -121,6 +126,7 @@ impl Builder {
             migration_objects: Default::default(),
             genesis_stake: Default::default(),
             migration_sources: Default::default(),
+            migration_tx_data: Default::default(),
         }
     }
 
@@ -309,15 +315,17 @@ impl Builder {
 
         let objects = self.objects.clone().into_values().collect::<Vec<_>>();
 
-        // Finally build the genesis data
-        self.built_genesis = Some(build_unsigned_genesis_data(
+        // Finally build the genesis and migration data
+        let (unsigned_genesis, migration_tx_data) = build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
             self.validators.values(),
             objects,
             &mut self.genesis_stake,
             &mut self.migration_objects,
-        ));
+        );
+        self.built_genesis = Some(unsigned_genesis);
+        self.migration_tx_data = migration_tx_data;
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
     }
@@ -341,7 +349,7 @@ impl Builder {
         self.parameters.protocol_version
     }
 
-    pub fn build(mut self) -> Genesis {
+    pub fn build(mut self) -> (Genesis, MigrationTxData) {
         if self.built_genesis.is_none() {
             self.build_and_cache_unsigned_genesis();
         }
@@ -370,14 +378,17 @@ impl Builder {
             CertifiedCheckpointSummary::new(checkpoint, signatures, &committee).unwrap()
         };
 
-        Genesis::new(
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
-            migration_txs_effects,
+        (
+            Genesis::new(
+                checkpoint,
+                checkpoint_contents,
+                transaction,
+                effects,
+                events,
+                objects,
+                migration_txs_effects,
+            ),
+            self.migration_tx_data,
         )
     }
 
@@ -769,6 +780,14 @@ impl Builder {
             signatures.insert(sigs.authority, sigs);
         }
 
+        // Load migration txs data
+        let migration_tx_data_file = path.join(GENESIS_BUILDER_MIGRATION_TX_DATA_FILE);
+        let migration_tx_data =
+            serde_json::from_slice(&fs::read(&migration_tx_data_file).context(format!(
+                "unable to read genesis migration transaction data file {migration_tx_data_file}"
+            ))?)
+            .context("unable to deserialize genesis migration transaction data")?;
+
         let mut builder = Self {
             parameters,
             token_distribution_schedule,
@@ -779,6 +798,7 @@ impl Builder {
             migration_objects: Default::default(),
             genesis_stake: Default::default(),
             migration_sources,
+            migration_tx_data,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -860,6 +880,10 @@ impl Builder {
             fs::write(file, serde_json::to_string(&self.migration_sources)?)?;
         }
 
+        // Write migration transations data
+        let file = path.join(GENESIS_BUILDER_MIGRATION_TX_DATA_FILE);
+        fs::write(file, serde_json::to_string(&self.migration_tx_data)?)?;
+
         Ok(())
     }
 }
@@ -910,7 +934,7 @@ fn build_unsigned_genesis_data<'info>(
     objects: Vec<Object>,
     genesis_stake: &mut GenesisStake,
     migration_objects: &mut MigrationObjects,
-) -> UnsignedGenesis {
+) -> (UnsignedGenesis, MigrationTxData) {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
         panic!(
             "insertion of extra objects at genesis time is prohibited due to 'allow_insertion_of_extra_objects' parameter"
@@ -944,6 +968,7 @@ fn build_unsigned_genesis_data<'info>(
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let mut migration_txs_effects = vec![];
+    let mut txs_data: TransactionsData = BTreeMap::new();
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
     let (genesis_objects, events) = create_genesis_objects(
@@ -965,8 +990,9 @@ fn build_unsigned_genesis_data<'info>(
             genesis_stake,
             metrics.clone(),
         );
-        calculate_migration_transactions(
+        extract_migration_transactions_data(
             &mut migration_txs_effects,
+            &mut txs_data,
             migration_objects,
             &protocol_config,
             metrics.clone(),
@@ -990,19 +1016,23 @@ fn build_unsigned_genesis_data<'info>(
         &migration_txs_effects,
     );
 
-    UnsignedGenesis {
-        checkpoint,
-        checkpoint_contents,
-        transaction: genesis_transaction,
-        effects: genesis_effects,
-        events: genesis_events,
-        objects: genesis_objects,
-        migration_txs_effects,
-    }
+    (
+        UnsignedGenesis {
+            checkpoint,
+            checkpoint_contents,
+            transaction: genesis_transaction,
+            effects: genesis_effects,
+            events: genesis_events,
+            objects: genesis_objects,
+            migration_txs_effects,
+        },
+        MigrationTxData::new(txs_data),
+    )
 }
 
-fn calculate_migration_transactions(
+fn extract_migration_transactions_data(
     migration_txs_effects: &mut Vec<TransactionEffects>,
+    txs_data: &mut TransactionsData,
     migration_objects: Vec<Object>,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
@@ -1023,7 +1053,7 @@ fn calculate_migration_transactions(
             None => break,
         };
 
-        let (_migration_transaction, migration_effects, _migration_events, objects) =
+        let (migration_transaction, migration_effects, migration_events, objects) =
             create_genesis_transaction(
                 objects_per_chunk.to_vec(),
                 vec![],
@@ -1033,7 +1063,10 @@ fn calculate_migration_transactions(
             );
 
         migration_txs_effects.push(migration_effects);
-
+        txs_data.insert(
+            migration_transaction.key(),
+            (migration_transaction, migration_events, objects),
+        );
         start_idx += chunk;
     }
 }

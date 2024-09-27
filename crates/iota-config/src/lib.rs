@@ -15,6 +15,7 @@ use tracing::trace;
 pub mod certificate_deny_config;
 pub mod genesis;
 pub mod local_ip_utils;
+pub mod migration_tx_data;
 pub mod node;
 pub mod node_config_metrics;
 pub mod object_storage_config;
@@ -33,6 +34,7 @@ pub const IOTA_KEYSTORE_FILENAME: &str = "iota.keystore";
 pub const IOTA_KEYSTORE_ALIASES_FILENAME: &str = "iota.aliases";
 pub const IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
 pub const IOTA_GENESIS_FILENAME: &str = "genesis.blob";
+pub const IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME: &str = "migration.blob";
 pub const IOTA_DEV_NET_URL: &str = "https://fullnode.devnet.iota.io:443";
 
 pub const AUTHORITIES_DB_NAME: &str = "authorities_db";
