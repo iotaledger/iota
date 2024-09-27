@@ -1,9 +1,8 @@
 {
     "name": "@iota/create-dapp",
-    "private": true,
     "author": "IOTA Foundation <contact@iota.org>",
     "description": "A CLI for creating new Iota dApps",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",

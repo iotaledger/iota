@@ -14,6 +14,7 @@ export interface AddressInputProps {
     placeholder?: string;
     name: string;
     label?: string;
+    shouldValidateManually?: boolean;
 }
 
 export function AddressInput({
@@ -21,10 +22,11 @@ export function AddressInput({
     placeholder = '0x...',
     name = 'to',
     label = 'Enter Recipient Address',
+    shouldValidateManually,
 }: AddressInputProps) {
     const [field, meta] = useField(name);
 
-    const { isSubmitting, setFieldValue } = useFormikContext();
+    const { isSubmitting, setFieldValue, validateField } = useFormikContext();
     const iotaAddressValidation = useIotaAddressValidation();
 
     const disabled = forcedDisabled !== undefined ? forcedDisabled : isSubmitting;
@@ -32,6 +34,11 @@ export function AddressInput({
         (e) => {
             const address = e.currentTarget.value;
             setFieldValue(name, iotaAddressValidation.cast(address));
+            if (shouldValidateManually) {
+                setTimeout(() => {
+                    validateField(name);
+                }, 0);
+            }
         },
         [setFieldValue, name, iotaAddressValidation],
     );

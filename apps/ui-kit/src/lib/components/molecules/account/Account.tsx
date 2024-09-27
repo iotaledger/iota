@@ -103,12 +103,8 @@ export function Account({
     return (
         <div
             className={cx(
-                'group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
+                'state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
                 isActive && 'state-active',
-                {
-                    'opacity-60': isLocked,
-                    'state-layer': !isLocked,
-                },
             )}
         >
             <div className="flex items-center space-x-3">
@@ -141,12 +137,15 @@ export function Account({
                         onUnlockAccountClick &&
                         (isLocked ? (
                             <div className="unlock">
-                                <ButtonUnstyled onClick={onUnlockAccountClick}>
+                                <ButtonUnstyled
+                                    onClick={onUnlockAccountClick}
+                                    testId="account-unlock"
+                                >
                                     <LockLocked />
                                 </ButtonUnstyled>
                             </div>
                         ) : (
-                            <ButtonUnstyled onClick={onLockAccountClick}>
+                            <ButtonUnstyled onClick={onLockAccountClick} testId="account-lock">
                                 <LockUnlocked />
                             </ButtonUnstyled>
                         ))}
