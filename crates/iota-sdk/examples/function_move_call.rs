@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
+
 use anyhow::anyhow;
 use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};

@@ -8,6 +8,7 @@
 //! cargo run --example sign_tx_guide
 
 mod utils;
+
 use anyhow::anyhow;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,

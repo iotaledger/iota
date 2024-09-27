@@ -13,6 +13,7 @@ mod pay_iota;
 mod query_transactions;
 mod rpc_command_processor;
 mod validation;
+
 use core::default::Default;
 use std::time::Duration;
 

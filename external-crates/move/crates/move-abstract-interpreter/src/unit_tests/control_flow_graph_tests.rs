@@ -192,9 +192,9 @@ fn out_of_order_blocks_variant_switch() {
             (
                 i,
                 vec![
-                    Bytecode::Pop,      // Pop the value from the variant switch
+                    Bytecode::Pop, // Pop the value from the variant switch
                     Bytecode::LdU16(i), /* Ld the number so we can track what block this is
-                                         * canonically */
+                                    * canonically */
                     Bytecode::Pop, // Then pop it
                     Bytecode::Ret, // Then ret
                 ],

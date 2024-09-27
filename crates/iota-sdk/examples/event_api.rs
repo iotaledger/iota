@@ -10,6 +10,7 @@
 //! cargo run --example event_api
 
 mod utils;
+
 use futures::stream::StreamExt;
 use iota_sdk::{rpc_types::EventFilter, IotaClientBuilder};
 use utils::{setup_for_write, split_coin_digest};

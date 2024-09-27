@@ -834,8 +834,7 @@ fn flatten_or(pat: MatchPattern) -> Vec<MatchPattern> {
 //
 //  match (Option::Some(5)) {
 //    Option::Some(y @ _match_var) if (_match_var#guard == &CONST && y#guard ==
-// 0) => rhs0,    Option::Some(x) if (x#guard == 1) => rhs1,
-//    _ => rhs2
+// 0) => rhs0,    Option::Some(x) if (x#guard == 1) => rhs1, _ => rhs2
 //  }
 //
 // At this point, match compilation can proceed normally.

@@ -22,9 +22,10 @@ extern crate alloc;
 
 // default allocator used
 mod memory_stats_noop;
-use memory_stats_noop as memory_stats;
 
 pub mod allocators;
+
+use memory_stats_noop as memory_stats;
 
 #[cfg(any(
     any(target_os = "macos", target_os = "ios"),

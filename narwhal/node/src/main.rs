@@ -10,6 +10,7 @@
     rust_2021_compatibility
 )]
 mod benchmark_client;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -509,7 +510,7 @@ fn setup_telemetry(
 //     let filter = EnvFilter::builder()
 //         .with_default_directive(LevelFilter::INFO.into())
 //         .parse(format!(
-//             
+//
 // "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},
 // hyper={network_tracing_level},tonic::transport={network_tracing_level},
 // {custom_directive}"         ))?;
