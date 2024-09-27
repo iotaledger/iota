@@ -17,7 +17,6 @@
 		"@iota/core",
 		"@iota/ui",
 		"@iota/apps-ui-kit",
-		"@iota/create-dapp",
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli",

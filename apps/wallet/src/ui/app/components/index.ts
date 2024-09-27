@@ -5,8 +5,6 @@ export * from './DAppInfoCard';
 export * from './DAppPermissionList';
 export * from './HideShowDisplayBox';
 export * from './IconButton';
-export * from './LabelValueItem';
-export * from './LabelValuesContainer';
 export * from './NoData';
 export * from './Overlay';
 export * from './PageTemplate';
