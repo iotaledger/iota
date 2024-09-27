@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 description = "Move framework for Iota platform"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true

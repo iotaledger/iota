@@ -7,7 +7,7 @@ use std::str::FromStr;
 use anyhow::ensure;
 use move_core_types::{
     account_address::AccountAddress,
-    annotated_value::{MoveStruct, MoveStructLayout},
+    annotated_value::{MoveDatatypeLayout, MoveValue},
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::StructTag,
@@ -101,7 +101,7 @@ impl EventEnvelope {
 
 /// Specific type of event
 #[serde_as]
-#[derive(PartialEq, Eq, Debug, Clone, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct Event {
     pub package_id: ObjectID,
     pub transaction_module: Identifier,
@@ -127,11 +127,11 @@ impl Event {
             contents,
         }
     }
-    pub fn move_event_to_move_struct(
+    pub fn move_event_to_move_value(
         contents: &[u8],
-        layout: MoveStructLayout,
-    ) -> IotaResult<MoveStruct> {
-        BoundedVisitor::deserialize_struct(contents, &layout).map_err(|e| {
+        layout: MoveDatatypeLayout,
+    ) -> IotaResult<MoveValue> {
+        BoundedVisitor::deserialize_value(contents, &layout.into_layout()).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
             }

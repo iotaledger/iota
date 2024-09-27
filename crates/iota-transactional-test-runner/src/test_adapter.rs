@@ -40,6 +40,7 @@ use iota_types::{
     base_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber, IOTA_ADDRESS_LENGTH,
     },
+    committee::EpochId,
     crypto::{get_authority_key_pair, get_key_pair_from_rng, AccountKeyPair, RandomnessRound},
     digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -58,10 +59,11 @@ use iota_types::{
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
-    DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID,
-    IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
+    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID,
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS,
+    STARDUST_PACKAGE_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -84,12 +86,12 @@ use move_transactional_test_runner::{
     framework::{
         compile_any, store_modules, CompiledState, MaybeNamedCompiledModule, MoveTestAdapter,
     },
-    tasks::{InitCommand, RunCommand, SyntaxChoice, TaskInput},
+    tasks::{InitCommand, RunCommand, SyntaxChoice, TaskCommand, TaskInput},
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use tempfile::NamedTempFile;
+use tempfile::{tempdir, NamedTempFile};
 
 use crate::{
     args::*, programmable_transaction_test_parser::parser::ParsedCommand,
@@ -165,6 +167,7 @@ struct TxnSummary {
     deleted: Vec<ObjectID>,
     unwrapped_then_deleted: Vec<ObjectID>,
     wrapped: Vec<ObjectID>,
+    unchanged_shared: Vec<ObjectID>,
     events: Vec<Event>,
     gas_summary: GasCostSummary,
 }
@@ -176,6 +179,34 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
     type ExtraInitArgs = IotaInitArgs;
     type ExtraValueArgs = IotaExtraValueArgs;
     type Subcommand = IotaSubcommand<Self::ExtraValueArgs, Self::ExtraRunArgs>;
+
+    fn render_command_input(
+        &self,
+        task: &TaskInput<
+            TaskCommand<
+                Self::ExtraInitArgs,
+                Self::ExtraPublishArgs,
+                Self::ExtraValueArgs,
+                Self::ExtraRunArgs,
+                Self::Subcommand,
+            >,
+        >,
+    ) -> Option<String> {
+        match &task.command {
+            TaskCommand::Subcommand(IotaSubcommand::ProgrammableTransaction(..)) => {
+                let data_str = std::fs::read_to_string(task.data.as_ref()?)
+                    .ok()?
+                    .trim()
+                    .to_string();
+                Some(format!("{}\n{}", task.task_text, data_str))
+            }
+            TaskCommand::Init(_, _)
+            | TaskCommand::PrintBytecode(_)
+            | TaskCommand::Publish(_, _)
+            | TaskCommand::Run(_, _)
+            | TaskCommand::Subcommand(..) => None,
+        }
+    }
 
     fn compiled_state(&mut self) -> &mut CompiledState {
         &mut self.compiled_state
@@ -227,6 +258,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     protocol_version,
                     max_gas,
                     shared_object_deletion,
+                    resolve_abort_locations_to_package_id,
+                    reshare_at_same_initial_version,
+                    move_binary_format_version,
                     simulator,
                     custom_validator_account,
                     reference_gas_price,
@@ -247,7 +281,16 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     ProtocolConfig::get_for_max_version_UNSAFE()
                 };
                 if let Some(enable) = shared_object_deletion {
-                    protocol_config.set_shared_object_deletion(enable);
+                    protocol_config.set_shared_object_deletion_for_testing(enable);
+                }
+                if let Some(enable) = resolve_abort_locations_to_package_id {
+                    protocol_config.set_resolve_abort_locations_to_package_id_for_testing(enable);
+                }
+                if let Some(enable) = reshare_at_same_initial_version {
+                    protocol_config.set_reshare_at_same_initial_version_for_testing(enable);
+                }
+                if let Some(version) = move_binary_format_version {
+                    protocol_config.set_move_binary_format_version_for_testing(version);
                 }
                 if let Some(mx_tx_gas_override) = max_gas {
                     if simulator {
@@ -333,7 +376,7 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     AccountAddress::ZERO.into_bytes(),
                     NumberFormat::Hex,
                 )),
-                Some(Edition::E2024_ALPHA),
+                Some(Edition::DEVELOPMENT),
                 flavor.or(Some(Flavor::Iota)),
             ),
             package_upgrade_mapping: BTreeMap::new(),
@@ -390,7 +433,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
             .iter()
             .map(|m| {
                 let mut module_bytes = vec![];
-                m.module.serialize(&mut module_bytes).unwrap();
+                m.module
+                    .serialize_with_version(m.module.version, &mut module_bytes)
+                    .unwrap();
                 Ok(module_bytes)
             })
             .collect::<anyhow::Result<_>>()?;
@@ -510,15 +555,17 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         } = task;
         macro_rules! get_obj {
             ($fake_id:ident, $version:expr) => {{
                 let id = match self.fake_to_real_object_id($fake_id) {
                     None => bail!(
-                        "task {}, lines {}-{}. Unbound fake id {}",
+                        "task {}, lines {}-{}\n{}\n. Unbound fake id {}",
                         number,
                         start_line,
                         command_lines_stop,
+                        task_text,
                         $fake_id
                     ),
                     Some(res) => res,
@@ -651,7 +698,7 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                                 .unwrap();
 
                         self.stabilize_str(format!(
-                            "Owner: {}\nVersion: {}\nContents: {}",
+                            "Owner: {}\nVersion: {}\nContents: {:#}",
                             &obj.owner,
                             obj.version().value(),
                             move_struct
@@ -705,11 +752,12 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
             IotaSubcommand::ConsensusCommitPrologue(ConsensusCommitPrologueCommand {
                 timestamp_ms,
             }) => {
-                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
+                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
                     0,
                     0,
                     timestamp_ms,
                     ConsensusCommitDigest::default(),
+                    Vec::new(),
                 );
                 let summary = self.execute_txn(transaction.into()).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
@@ -749,7 +797,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                                     .iter()
                                     .map(|m| {
                                         let mut buf = vec![];
-                                        m.module.serialize(&mut buf).unwrap();
+                                        m.module
+                                            .serialize_with_version(m.module.version, &mut buf)
+                                            .unwrap();
                                         buf
                                     })
                                     .collect();
@@ -943,7 +993,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     .iter()
                     .map(|m| {
                         let mut buf = vec![];
-                        m.module.serialize(&mut buf).unwrap();
+                        m.module
+                            .serialize_with_version(m.module.version, &mut buf)
+                            .unwrap();
                         buf
                     })
                     .collect::<Vec<_>>();
@@ -1270,7 +1322,8 @@ impl<'a> IotaTestAdapter {
             .iter()
             .map(|m| {
                 let mut module_bytes = vec![];
-                m.module.serialize(&mut module_bytes)?;
+                m.module
+                    .serialize_with_version(m.module.version, &mut module_bytes)?;
                 Ok(module_bytes)
             })
             .collect::<anyhow::Result<Vec<Vec<u8>>>>()?;
@@ -1460,6 +1513,12 @@ impl<'a> IotaTestAdapter {
             self.enumerate_fake(id);
         }
 
+        let mut unchanged_shared_ids = effects
+            .unchanged_shared_objects()
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+
         // Treat unwrapped objects as writes (even though sometimes this is the first
         // time we can refer to them at their id in storage).
 
@@ -1470,6 +1529,7 @@ impl<'a> IotaTestAdapter {
         deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
+        unchanged_shared_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
             ExecutionStatus::Success { .. } => {
@@ -1486,6 +1546,7 @@ impl<'a> IotaTestAdapter {
                     deleted: deleted_ids,
                     unwrapped_then_deleted: unwrapped_then_deleted_ids,
                     wrapped: wrapped_ids,
+                    unchanged_shared: unchanged_shared_ids,
                 })
             }
             ExecutionStatus::Failure { error, command } => {
@@ -1567,6 +1628,8 @@ impl<'a> IotaTestAdapter {
                     deleted: deleted_ids,
                     unwrapped_then_deleted: unwrapped_then_deleted_ids,
                     wrapped: wrapped_ids,
+                    // TODO: Properly propagate unchanged shared objects in dev_inspect.
+                    unchanged_shared: vec![],
                 })
             }
             IotaExecutionStatus::Failure { error } => Err(anyhow::anyhow!(self.stabilize_str(
@@ -1632,6 +1695,7 @@ impl<'a> IotaTestAdapter {
             deleted,
             unwrapped_then_deleted,
             wrapped,
+            unchanged_shared,
         }: &TxnSummary,
         summarize: bool,
     ) -> Option<String> {
@@ -1679,6 +1743,17 @@ impl<'a> IotaTestAdapter {
                 out.push('\n')
             }
             write!(out, "wrapped: {}", self.list_objs(wrapped, summarize)).unwrap();
+        }
+        if !unchanged_shared.is_empty() {
+            if !out.is_empty() {
+                out.push('\n')
+            }
+            write!(
+                out,
+                "unchanged_shared: {}",
+                self.list_objs(unchanged_shared, summarize)
+            )
+            .unwrap();
         }
         out.push('\n');
         write!(out, "gas summary: {}", gas_summary).unwrap();
@@ -1867,6 +1942,13 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
+    map.insert(
+        "bridge".to_string(),
+        NumericalAddress::new(
+            BRIDGE_ADDRESS.into_bytes(),
+            move_compiler::shared::NumberFormat::Hex,
+        ),
+    );
     map
 });
 
@@ -1900,6 +1982,11 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         flavor: Flavor::Iota,
         ..Default::default()
     };
+    let bridge_sources = {
+        let mut buf = iota_files.to_path_buf();
+        buf.extend(["packages", "bridge", "sources"]);
+        buf.to_string_lossy().to_string()
+    };
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: Some(("iota-framework".into(), config)),
@@ -1908,11 +1995,13 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
                 iota_sources,
                 iota_deps,
                 deepbook_sources,
+                bridge_sources,
             ],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,
         Flags::empty(),
+        None,
     )
     .unwrap();
     match fully_compiled_res {
@@ -2100,15 +2189,18 @@ async fn init_sim_executor(
     // Create the simulator with the specific account configs, which also crates
     // objects
 
-    let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
-        rng,
-        DEFAULT_CHAIN_START_TIMESTAMP,
-        protocol_config.version,
-        acc_cfgs,
-        key_copy.map(|q| vec![q]),
-        reference_gas_price,
-        None,
-    );
+    let (mut sim, read_replica) =
+        PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
+            rng,
+            DEFAULT_CHAIN_START_TIMESTAMP,
+            protocol_config.version,
+            acc_cfgs,
+            key_copy.map(|q| vec![q]),
+            reference_gas_price,
+            None,
+        );
+    let data_ingestion_path = tempdir().unwrap().into_path();
+    sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Hash the file path to create custom unique DB name
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -2135,6 +2227,7 @@ async fn init_sim_executor(
             object_snapshot_max_checkpoint_lag,
             Some(1),
         )),
+        data_ingestion_path,
     )
     .await;
 
@@ -2259,6 +2352,10 @@ impl ObjectStore for IotaTestAdapter {
 }
 
 impl ReadStore for IotaTestAdapter {
+    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        self.executor.get_latest_epoch_id()
+    }
+
     fn get_committee(
         &self,
         epoch: iota_types::committee::EpochId,

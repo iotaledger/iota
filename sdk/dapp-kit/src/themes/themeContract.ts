@@ -18,16 +18,16 @@ const themeContractValues = {
         modalPrimary: '',
         modalSecondary: '',
         iconButton: '',
-        iconButtonHover: '',
         dropdownMenu: '',
         dropdownMenuSeparator: '',
+        scrollThumb: ''
     },
     borderColors: {
         outlineButton: '',
     },
     colors: {
         primaryButton: '',
-        outlineButton: '',
+        outlineButtonHover: '',
         body: '',
         bodyMuted: '',
         bodyDanger: '',
@@ -38,10 +38,7 @@ const themeContractValues = {
         medium: '',
         large: '',
         xlarge: '',
-    },
-    shadows: {
-        primaryButton: '',
-        walletItemSelected: '',
+        full: ''
     },
     fontWeights: {
         normal: '',
@@ -59,6 +56,14 @@ const themeContractValues = {
         fontStyle: '',
         lineHeight: '',
         letterSpacing: '',
+    },
+    spacing: {
+        xxsmall: '',
+        xsmall: '',
+        small: '',
+        medium: '',
+        large: '',
+        xlarge: '',
     },
 };
 

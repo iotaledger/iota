@@ -189,6 +189,11 @@ mod checked {
             }
         }
 
+        /// Returns the `TreasuryCap<IOTA>` object ID.
+        pub fn id(&self) -> &ObjectID {
+            self.inner.id.object_id()
+        }
+
         /// Returns the total `Supply` of `Coin<IOTA>`.
         pub fn total_supply(&self) -> &Supply {
             &self.inner.total_supply

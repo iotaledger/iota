@@ -1,0 +1,58 @@
+[package]
+name = "iota-bridge"
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+arc-swap.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+backoff.workspace = true
+bcs.workspace = true
+bin-version.workspace = true
+clap.workspace = true
+enum_dispatch.workspace = true
+ethers = "2.0"
+eyre.workspace = true
+fastcrypto.workspace = true
+futures.workspace = true
+iota-authority-aggregation.workspace = true
+iota-config.workspace = true
+iota-json-rpc-api.workspace = true
+iota-json-rpc-types.workspace = true
+iota-keys.workspace = true
+iota-metrics.workspace = true
+iota-sdk.workspace = true
+iota-test-transaction-builder.workspace = true
+iota-types.workspace = true
+lru.workspace = true
+move-core-types.workspace = true
+num_enum.workspace = true
+once_cell.workspace = true
+prometheus.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+shared-crypto.workspace = true
+tap.workspace = true
+telemetry-subscribers.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+typed-store.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+hex-literal = "0.3.4"
+iota-config.workspace = true
+iota-json-rpc-types = { workspace = true, features = ["test-utils"] }
+iota-test-transaction-builder.workspace = true
+iota-types = { workspace = true, features = ["test-utils"] }
+maplit = "1.0.2"
+test-cluster.workspace = true

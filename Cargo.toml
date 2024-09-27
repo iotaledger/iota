@@ -3,14 +3,15 @@ resolver = "2"
 
 exclude = [
   "external-crates/move/crates/bytecode-interpreter-crypto",
-  "external-crates/move/crates/bytecode-interpreter-testsuite",
   "external-crates/move/crates/bytecode-verifier-libfuzzer",
   "external-crates/move/crates/bytecode-verifier-tests",
+  "external-crates/move/crates/bytecode-verifier-prop-tests",
   "external-crates/move/crates/bytecode-verifier-transactional-tests",
   "external-crates/move/crates/enum-compat-util",
   "external-crates/move/crates/invalid-mutations",
   "external-crates/move/crates/language-benchmarks",
   "external-crates/move/crates/module-generation",
+  "external-crates/move/crates/move-abstract-interpreter",
   "external-crates/move/crates/move-abstract-stack",
   "external-crates/move/crates/move-analyzer",
   "external-crates/move/crates/move-binary-format",
@@ -18,6 +19,7 @@ exclude = [
   "external-crates/move/crates/move-bytecode-source-map",
   "external-crates/move/crates/move-bytecode-utils",
   "external-crates/move/crates/move-bytecode-verifier",
+  "external-crates/move/crates/move-bytecode-verifier-meter",
   "external-crates/move/crates/move-bytecode-viewer",
   "external-crates/move/crates/move-cli",
   "external-crates/move/crates/move-command-line-common",
@@ -27,8 +29,6 @@ exclude = [
   "external-crates/move/crates/move-coverage",
   "external-crates/move/crates/move-disassembler",
   "external-crates/move/crates/move-docgen",
-  "external-crates/move/crates/move-errmapgen",
-  "external-crates/move/crates/move-explain",
   "external-crates/move/crates/move-ir-compiler",
   "external-crates/move/crates/move-ir-compiler-transactional-tests",
   "external-crates/move/crates/move-ir-to-bytecode",
@@ -39,10 +39,9 @@ exclude = [
   "external-crates/move/crates/move-proc-macros",
   "external-crates/move/crates/move-prover",
   "external-crates/move/crates/move-prover-test-utils",
-  "external-crates/move/crates/move-read-write-set-types",
   "external-crates/move/crates/move-stackless-bytecode",
-  "external-crates/move/crates/move-stackless-bytecode-interpreter",
   "external-crates/move/crates/move-stdlib",
+  "external-crates/move/crates/move-stdlib-natives",
   "external-crates/move/crates/move-symbol-pool",
   "external-crates/move/crates/move-transactional-test-runner",
   "external-crates/move/crates/move-unit-test",
@@ -58,12 +57,14 @@ exclude = [
   "external-crates/move/move-execution/v0/crates/move-bytecode-verifier",
   "external-crates/move/move-execution/v0/crates/move-stdlib",
   "external-crates/move/move-execution/v0/crates/move-vm-runtime",
+  "external-crates/move/move-execution/v0/crates/move-stdlib-natives",
   "sdk/move-bytecode-template",
 ]
 
 members = [
   "consensus/config",
   "consensus/core",
+  "crates/bin-version",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
   "crates/iota-analytics-indexer",
@@ -72,6 +73,9 @@ members = [
   "crates/iota-authority-aggregation",
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
+  "crates/iota-bridge",
+  "crates/iota-bridge-cli",
+  "crates/iota-bridge-indexer",
   "crates/iota-cluster-test",
   "crates/iota-common",
   "crates/iota-config",
@@ -86,11 +90,13 @@ members = [
   "crates/iota-framework-snapshot",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
+  "crates/iota-graphql-config",
   "crates/iota-graphql-e2e-tests",
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
   "crates/iota-indexer",
+  "crates/iota-indexer-builder",
   "crates/iota-json",
   "crates/iota-json-rpc",
   "crates/iota-json-rpc-api",
@@ -103,11 +109,14 @@ members = [
   "crates/iota-metrics",
   "crates/iota-move",
   "crates/iota-move-build",
+  "crates/iota-move-lsp",
   "crates/iota-network",
   "crates/iota-network-stack",
   "crates/iota-node",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
+  "crates/iota-package-dump",
+  "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
   "crates/iota-protocol-config",
@@ -117,6 +126,7 @@ members = [
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
+  "crates/iota-service",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
@@ -127,7 +137,7 @@ members = [
   "crates/iota-swarm",
   "crates/iota-swarm-config",
   "crates/iota-test-transaction-builder",
-  "crates/iota-test-validator",
+  "crates/iota-tls",
   "crates/iota-tool",
   "crates/iota-transaction-builder",
   "crates/iota-transaction-checks",
@@ -146,15 +156,13 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
+  "crates/typed-store-workspace-hack",
   "docs/examples/rust",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
   "iota-execution/latest/iota-move-natives",
   "iota-execution/latest/iota-verifier",
-  "iota-execution/v0/iota-adapter",
-  "iota-execution/v0/iota-move-natives",
-  "iota-execution/v0/iota-verifier",
   "narwhal/config",
   "narwhal/crypto",
   "narwhal/executor",
@@ -169,7 +177,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.1.6"
+version = "0.2.0"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -205,134 +213,239 @@ overflow-checks = true
 # opt-level 1 gives >5x speedup for simulator tests without slowing down build times very much.
 opt-level = 1
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
+
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
-anyhow = "1.0"
-arc-swap = { version = "1.5", features = ["serde"] }
-async-graphql = "7.0"
-async-recursion = "1.0"
-async-trait = "0.1"
-aws-config = { version = "1.5", features = ["behavior-version-latest"] }
+anyhow = "1.0.71"
+arc-swap = { version = "1.5.1", features = ["serde"] }
+arrow = "52"
+arrow-array = "52"
+assert_cmd = "2.0.6"
+async-graphql = "=7.0.1"
+async-graphql-axum = "=7.0.1"
+async-graphql-value = "=7.0.1"
+async-recursion = "1.0.4"
+async-trait = "0.1.61"
+atomic_float = "0.1"
+aws-config = "0.56"
+aws-sdk-dynamodb = "0.29.0"
+aws-sdk-ec2 = "0.29.0"
+aws-sdk-s3 = "0.29.0"
+aws-smithy-http = "0.56"
+aws-smithy-runtime-api = "0.56"
 axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
-axum-extra = "0.9"
-backoff = { version = "0.4", features = ["tokio"] }
-base64 = "0.22"
-base64-url = "3.0"
-bcs = "0.1"
-better_any = { version = "0.2", features = ["derive"] }
-bincode = "1.3"
-bip32 = "0.5"
-byteorder = "1.4"
-bytes = { version = "1.7", features = ["serde"] }
-cached = { version = "0.53", features = ["async"] }
-camino = "1.1"
-cfg-if = "1.0"
-chrono = { version = "0.4", features = ["clock", "serde"] }
-clap = { version = "4.5", features = ["derive", "wrap_help"] }
-colored = "2.0"
-comfy-table = "7.1"
-const-str = "0.5"
-criterion = { version = "0.5", features = ["async", "async_tokio", "html_reports"] }
-crossterm = "0.28"
-csv = "1.2"
-dashmap = "6.0"
+axum-extra = { version = "0.9", features = ["typed-header"] }
+axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
+backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
+base64 = "0.21.2"
+base64-url = "2"
+bcs = "0.1.4"
+better_any = "0.1.1"
+bimap = "0.6.2"
+bincode = "1.3.3"
+bip32 = "0.4.0"
+byteorder = "1.4.3"
+bytes = { version = "1.5.0", features = ["serde"] }
+cached = "0.43.0"
+camino = "1.1.1"
+cfg-if = "1.0.0"
+chrono = { version = "0.4.26", features = ["clock", "serde"] }
+clap = { version = "4.4", features = ["derive", "wrap_help"] }
+collectable = "0.0.2"
+color-eyre = "0.6.2"
+colored = "2.0.0"
+comfy-table = "6.1.3"
+console-subscriber = "0.2"
+const-str = "0.5.3"
+count-min-sketch = "0.1.7"
+criterion = { version = "0.5.0", features = ["async", "async_tokio", "html_reports"] }
+crossterm = "0.25.0"
+csv = "1.2.1"
+cynic = { version = "3.7.3", features = ["http-reqwest"] }
+cynic-codegen = "= 3.7.3"
+dashmap = "5.5.3"
+# datatest-stable = "0.1.2"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
-derivative = "2.2"
-diesel = { version = "2.2", features = ["chrono", "postgres", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes", "postgres_backend"] }
-dirs = "5.0"
-ed25519-consensus = { version = "2.0", features = ["serde"] }
-either = "1.8"
+derivative = "2.2.0"
+derive-syn-parse = "0.1.5"
+derive_builder = "0.12.0"
+derive_more = "0.99.17"
+diesel = { version = "2.1.0", features = ["chrono", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
+diesel-derive-enum = { version = "2.0.1" }
+diesel_migrations = { version = "2.0.0" }
+dirs = "4.0.0"
+duration-str = "0.5.0"
+ed25519 = { version = "1.5.0", features = ["pkcs8", "alloc", "zeroize"] }
+ed25519-consensus = { version = "2.0.1", features = ["serde"] }
+either = "1.8.0"
 enum_dispatch = "^0.3"
-expect-test = "1.4"
-eyre = "0.6"
-fdlimit = "0.3"
-flate2 = "1.0"
-fs_extra = "1.3"
-futures = "0.3"
-git-version = "0.3"
-governor = "0.6"
-hdrhistogram = "7.5"
-hex = "0.4"
-http = "1.1"
-http-body-util = "0.1"
-humantime = "2.1"
-hyper = { version = "1.3", features = ["http2"] }
-hyper-util = { version = "0.1", default-features = false }
-im = "15.1"
-indexmap = { version = "2.1", features = ["serde"] }
-indicatif = "0.17"
-insta = { version = "1.21", features = ["redactions", "yaml", "json"] }
-integer-encoding = "4.0"
-itertools = "0.13"
-json_to_table = "0.6" # Version 0.8 is incompatable with tabled
+expect-test = "1.4.0"
+eyre = "0.6.8"
+fdlimit = "0.2.1"
+flate2 = "1.0.28"
+fs_extra = "1.3.0"
+futures = "0.3.28"
+futures-core = "0.3.21"
+git-version = "0.3.5"
+glob = "0.3.1"
+governor = "0.6.0"
+hashbrown = "0.12"
+hdrhistogram = "7.5.1"
+hex = "0.4.3"
+hex-literal = "0.3.4"
+http = "1"
+http-body = "1"
+humantime = "2.1.0"
+hyper = "1"
+hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http2", "ring", "tls12"] }
+hyper-util = "0.1.6"
+im = "15"
+impl-trait-for-tuples = "0.2.0"
+indexmap = { version = "2.1.0", features = ["serde"] }
+indicatif = "0.17.2"
+inquire = "0.6.0"
+insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
+integer-encoding = "3.0.1"
+ipnetwork = "0.20.0"
+itertools = "0.13.0"
+jemalloc-ctl = "^0.5"
+json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
-leb128 = "0.2"
-lru = "0.12"
-mockall = "0.13"
-more-asserts = "0.3"
+leb128 = "0.2.5"
+linked-hash-map = "0.5.6"
+lru = "0.10"
+match_opt = "0.1.2"
+miette = { version = "7", features = ["fancy"] }
+mime = "0.3"
+mockall = "0.11.4"
+moka = { version = "0.12", default-features = false, features = ["sync", "atomic64"] }
+more-asserts = "0.3.1"
 msim = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim" }
-notify = "6.1"
-num-bigint = "0.4"
-num_cpus = "1.15"
-num_enum = "0.7"
+msim-macros = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim-macros" }
+multiaddr = "0.17.0"
+nexlint = { git = "https://github.com/nextest-rs/nexlint.git", rev = "7ce56bd591242a57660ed05f14ca2483c37d895b" }
+nexlint-lints = { git = "https://github.com/nextest-rs/nexlint.git", rev = "7ce56bd591242a57660ed05f14ca2483c37d895b" }
+nonempty = "0.9.0"
+notify = "6.1.1"
+ntest = "0.9.0"
+num-bigint = "0.4.4"
+num_cpus = "1.15.0"
+num_enum = "0.6.1"
 object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
-once_cell = "1.18"
-parking_lot = "0.12"
-pretty_assertions = "1.3"
-proc-macro2 = "1.0"
-prometheus = "0.13"
-proptest = "1.1"
-proptest-derive = "0.5"
+once_cell = "1.18.0"
+ouroboros = "0.17"
+parking_lot = "0.12.1"
+parquet = "52"
+petgraph = "0.5.1"
+pkcs8 = { version = "0.9.0", features = ["std"] }
+pprof = { version = "0.13.0", features = ["cpp", "frame-pointer"] }
+pretty_assertions = "1.3.0"
+prettytable-rs = "0.10.0"
+proc-macro2 = "1.0.47"
+prometheus = "0.13.3"
+prometheus-http-query = { version = "0.8", default-features = false, features = ["rustls-tls"] }
+prometheus-parse = { git = "https://github.com/asonnino/prometheus-parser.git", rev = "75334db" }
+proptest = "1.1.0"
+proptest-derive = "0.3.0"
 prost = "0.13"
-quinn-proto = "0.10" # Version 0.11 is incompatable with prometheus
-quote = "1.0"
-rand = "0.8"
-regex = "1.7"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
-roaring = "0.10"
-rocksdb = { version = "0.22", features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"], default-features = false }
-rstest = "0.22"
-schemars = { version = "0.8", features = ["either"] }
+prost-build = "0.13"
+protobuf = { version = "2.28", features = ["with-bytes"] }
+quinn-proto = "0.11.6"
+quote = "1.0.23"
+rand = "0.8.5"
+rayon = "1.5.3"
+rcgen = "0.13"
+regex = "1.7.1"
+reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
+roaring = "0.10.6"
+rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
+ron = "0.8.0"
+rstest = "0.16.0"
+rusoto_core = { version = "0.48.0", default-features = false, features = ["rustls"] }
+rusoto_kms = { version = "0.48.0", default-features = false, features = ["rustls"] }
+russh = "0.38.0"
+russh-keys = "0.38.0"
+rust-version = "1.56.1"
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+rustls-pemfile = "2"
+rustversion = "1.0.9"
+rustyline = "9.1.2"
+rustyline-derive = "0.7.0"
+schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
-serde = { version = "1.0", features = ["derive", "rc"] }
+serde = { version = "1.0.144", features = ["derive", "rc"] }
+serde-name = "0.2.1"
 serde-reflection = "0.4"
-serde_json = { version = "1.0", features = ["preserve_order", "arbitrary_precision"] }
-serde_with = { version = "2.3", features = ["hex"] } # Version 3 is incompatable with fastcrypto
-serde_yaml = "0.9"
-shellexpand = "3.1"
-signature = "2.2"
-similar = "2.4"
-smallvec = "1.10"
-snap = "1.1"
-static_assertions = "1.1"
-strum = { version = "0.26", features = ["derive"] }
-syn = { version = "1.0", features = ["full", "derive", "extra-traits"] }
-tabled = "0.12" # Version 0.16 is incompatable with ratatui
-tap = "1.0"
-tempfile = "3.12"
-test-fuzz = "5.2"
-thiserror = "1.0"
-# tokio is defined at a specific version to support patching with iota-sim
-# Do not upgrade without updating https://github.com/iotaledger/iota-sim first
-tokio = "=1.39.2"
-tokio-stream = { version = "0.1", features = ["sync", "net"] }
-tokio-util = "0.7"
-toml = { version = "0.8", features = ["preserve_order"] }
-tonic = { version = "0.12", features = ["transport", "tls"] }
+serde_json = { version = "1.0.95", features = ["preserve_order"] }
+serde_repr = "0.1"
+serde_test = "1.0.147"
+serde_with = "3.8"
+# serde_yaml = "0.9.21"
+serde_yaml = "0.8.26"
+serial_test = "2.0.0"
+shell-words = "1.1.0"
+shellexpand = "3.1.0"
+shlex = "1.3.0"
+signature = "1.6.0"
+similar = "2.4.0"
+simple-server-timing-header = "0.1.1"
+smallvec = "1.10.0"
+snap = "1.1.0"
+snowflake-api = "0.9.0"
+static_assertions = "1.1.0"
+strum = { version = "0.26.3", features = ["derive"] }
+strum_macros = "0.26.4"
+syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
+# syn = { version = "2", features = ["full", "fold", "extra-traits"] }
+synstructure = "0.12"
+tabled = { version = "0.12" }
+tap = "1.0.1"
+tar = "0.4.40"
+tempfile = "3.3.0"
+test-fuzz = "3.0.4"
+thiserror = "1.0.40"
+tokio = "1.36.0"
+tokio-retry = "0.3"
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"] }
+tokio-stream = { version = "0.1.14", features = ["sync", "net"] }
+tokio-util = "0.7.10"
+toml = { version = "0.7.4", features = ["preserve_order"] }
+toml_edit = { version = "0.19.10" }
+# NOTE: do not enable the `tls` feature on tonic. It will break custom TLS handling
+# for self signed certificates. Unit tests under consensus/core and other integration
+# tests will fail.
+tonic = { version = "0.12", features = ["transport"] }
 tonic-build = { version = "0.12", features = ["prost", "transport"] }
 tonic-health = "0.12"
-tower = { version = "0.4", features = ["full", "util", "timeout", "load-shed", "limit"] }
+tower = { version = "0.4.12", features = ["full", "util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
-unescape = "0.1"
-url = "2.3"
-uuid = { version = "1.1", features = ["v4", "fast-rng"] }
+tower-layer = "0.3.2"
+tracing = "0.1.37"
+tracing-appender = "0.2.2"
+tracing-subscriber = { version = "0.3.15", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
+ttl_cache = "0.5.1"
+twox-hash = "1.6.3"
+uint = "0.9.4"
+unescape = "0.1.0"
+ureq = "2.9.1"
+url = "2.3.1"
+uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
+versions = "4.1.0"
+webpki = { version = "0.102", package = "rustls-webpki", features = ["alloc", "std"] }
+x509-parser = "0.14.0"
+zeroize = "1.6.0"
+zstd = "0.12.3"
 
 # Move dependencies
+move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
+move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
 move-binary-format = { path = "external-crates/move/crates/move-binary-format" }
+move-bytecode-source-map = { path = "external-crates/move/crates/move-bytecode-source-map" }
 move-bytecode-utils = { path = "external-crates/move/crates/move-bytecode-utils" }
+move-bytecode-verifier-meter = { path = "external-crates/move/crates/move-bytecode-verifier-meter" }
 move-cli = { path = "external-crates/move/crates/move-cli" }
 move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
 move-compiler = { path = "external-crates/move/crates/move-compiler" }
@@ -340,23 +453,37 @@ move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
+move-prover = { path = "external-crates/move/crates/move-prover" }
+move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
+move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }
 move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
 move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
+move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
 
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "fastcrypto-zkp-v0.1.3", package = "fastcrypto" }
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "fastcrypto-zkp-v0.1.3", package = "fastcrypto-tbls" }
-fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "fastcrypto-zkp-v0.1.3", package = "fastcrypto-zkp" }
+coset = "0.3"
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", features = ["experimental"] }
+fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", package = "fastcrypto-zkp" }
+p256 = { version = "0.13.2", features = ["ecdsa"] }
+passkey-authenticator = { version = "0.2.0" }
+passkey-client = { version = "0.2.0" }
+passkey-types = { version = "0.2.0" }
 
 # anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
-anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+
+# core-types with json format for REST api
+iota-sdk2 = { package = "sui-sdk", git = "ssh://git@github.com/iotaledger/iota-rust-sdk.git", rev = "bd233b6879b917fb95e17f21927c198e7a60c924", features = ["hash", "serde", "schemars"] }
 
 ### Workspace Members ###
+bin-version = { path = "crates/bin-version" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
@@ -364,6 +491,7 @@ iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" 
 iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-benchmark = { path = "crates/iota-benchmark" }
+iota-bridge = { path = "crates/iota-bridge" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
 iota-common = { path = "crates/iota-common" }
 iota-config = { path = "crates/iota-config" }
@@ -378,10 +506,12 @@ iota-framework = { path = "crates/iota-framework" }
 iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
 iota-framework-tests = { path = "crates/iota-framework-tests" }
 iota-genesis-builder = { path = "crates/iota-genesis-builder" }
+iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
 iota-indexer = { path = "crates/iota-indexer" }
+iota-indexer-builder = { path = "crates/iota-indexer-builder" }
 iota-json = { path = "crates/iota-json" }
 iota-json-rpc = { path = "crates/iota-json-rpc" }
 iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
@@ -392,11 +522,14 @@ iota-metric-checker = { path = "crates/iota-metric-checker" }
 iota-metrics = { path = "crates/iota-metrics" }
 iota-move = { path = "crates/iota-move" }
 iota-move-build = { path = "crates/iota-move-build" }
+iota-move-lsp = { path = "crates/iota-move-lsp" }
 iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }
 iota-open-rpc = { path = "crates/iota-open-rpc" }
 iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
+iota-package-dump = { path = "crates/iota-package-dump" }
+iota-package-management = { path = "crates/iota-package-management" }
 iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
@@ -406,6 +539,7 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
+iota-service = { path = "crates/iota-service" }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -415,7 +549,7 @@ iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
-iota-test-validator = { path = "crates/iota-test-validator" }
+iota-tls = { path = "crates/iota-tls" }
 iota-tool = { path = "crates/iota-tool" }
 iota-transaction-builder = { path = "crates/iota-transaction-builder" }
 iota-transaction-checks = { path = "crates/iota-transaction-checks" }
@@ -450,3 +584,5 @@ narwhal-types = { path = "narwhal/types" }
 narwhal-worker = { path = "narwhal/worker" }
 
 iota-execution = { path = "iota-execution" }
+
+[patch.crates-io]

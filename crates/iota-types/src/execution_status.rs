@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{self, Display, Formatter};
 
 use iota_macros::EnumVariantOrder;
 use move_binary_format::file_format::{CodeOffset, TypeParameterIndex};
@@ -10,7 +10,7 @@ use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::ObjectID;
+use crate::{base_types::IotaAddress, ObjectID};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_status_tests.rs"]
@@ -26,6 +26,18 @@ pub enum ExecutionStatus {
         /// Which command the error occurred
         command: Option<CommandIndex>,
     },
+}
+
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
+pub struct CongestedObjects(pub Vec<ObjectID>);
+
+impl fmt::Display for CongestedObjects {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        for obj in &self.0 {
+            write!(f, "{}, ", obj)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, EnumVariantOrder)]
@@ -181,6 +193,21 @@ pub enum ExecutionFailureStatus {
 
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
+
+    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}")]
+    ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
+
+    #[error("Address {address:?} is denied for coin {coin_type}")]
+    AddressDeniedForCoin {
+        address: IotaAddress,
+        coin_type: String,
+    },
+
+    #[error("Coin type is globally paused for use: {coin_type}")]
+    CoinTypeGlobalPause { coin_type: String },
+
+    #[error("Certificate is cancelled because randomness could not be generated this epoch")]
+    ExecutionCancelledDueToRandomnessUnavailable,
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.
 }

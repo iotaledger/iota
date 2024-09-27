@@ -19,7 +19,7 @@ proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 ref-cast.workspace = true
 serde.workspace = true
-variant_count = "1.1"
+variant_count.workspace = true
 
 # wasm support (requires js feature of getrandom)
 getrandom = { workspace = true, features = ["js"], optional = true }
@@ -38,3 +38,6 @@ fuzzing = [
   "move-core-types/fuzzing",
 ]
 wasm = ["getrandom"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["enum-compat-util"]

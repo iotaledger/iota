@@ -15,13 +15,12 @@ use iota_json_rpc_types::{
     Balance, Checkpoint, CheckpointId, CheckpointPage, Coin, CoinPage, DelegatedStake,
     DevInspectArgs, DevInspectResults, DynamicFieldPage, EventFilter, EventPage, IotaCoinMetadata,
     IotaCommittee, IotaData, IotaEvent, IotaExecutionStatus, IotaGetPastObjectRequest,
-    IotaLoadedChildObject, IotaLoadedChildObjectsResponse, IotaMoveAbility, IotaMoveAbilitySet,
-    IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
-    IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectRef, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockData,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
+    IotaMoveNormalizedStruct, IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock,
+    IotaTransactionBlockData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
@@ -115,7 +114,6 @@ impl RpcExampleProvider {
             self.iotax_get_dynamic_fields(),
             self.iotax_get_dynamic_field_object(),
             self.iotax_get_owned_objects(),
-            self.iota_get_loaded_child_objects(),
             self.iota_get_move_function_arg_types(),
             self.iota_get_normalized_move_function(),
             self.iota_get_normalized_move_module(),
@@ -751,7 +749,12 @@ impl RpcExampleProvider {
             balance_changes: None,
             timestamp_ms: None,
             transaction: Some(IotaTransactionBlock {
-                data: IotaTransactionBlockData::try_from(data1, &&mut NoOpsModuleResolver).unwrap(),
+                data: IotaTransactionBlockData::try_from(
+                    data1,
+                    &&mut NoOpsModuleResolver,
+                    *tx_digest,
+                )
+                .unwrap(),
                 tx_signatures: signatures.clone(),
             }),
             raw_transaction,
@@ -986,33 +989,6 @@ impl RpcExampleProvider {
             vec![ExamplePairing::new(
                 "Gets total supply for the type of coin provided.",
                 vec![("coin_type", json!(coin))],
-                json!(result),
-            )],
-        )
-    }
-
-    fn iota_get_loaded_child_objects(&mut self) -> Examples {
-        let mut sequence = SequenceNumber::from_u64(self.rng.gen_range(24506..6450624));
-        let seqs = (0..6)
-            .map(|x| {
-                if x % 2 == 0 || x % 3 == 0 {
-                    sequence = SequenceNumber::from_u64(self.rng.gen_range(24506..6450624));
-                }
-
-                IotaLoadedChildObject::new(ObjectID::new(self.rng.gen()), sequence)
-            })
-            .collect::<Vec<_>>();
-        let result = {
-            IotaLoadedChildObjectsResponse {
-                loaded_child_objects: seqs,
-            }
-        };
-
-        Examples::new(
-            "iota_getLoadedChildObjects",
-            vec![ExamplePairing::new(
-                "Gets loaded child objects associated with the transaction the request provides.",
-                vec![("digest", json!(ObjectDigest::new(self.rng.gen())))],
                 json!(result),
             )],
         )

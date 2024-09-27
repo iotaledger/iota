@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
 use axum::{extract::State, Extension, Json};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{
@@ -19,12 +20,14 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
+    signature_verification::{verify_sender_signed_data_message_signatures, VerifiedDigestCache},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     errors::Error,
+    operations::Operations,
     types::{
         Amount, ConstructionCombineRequest, ConstructionCombineResponse, ConstructionDeriveRequest,
         ConstructionDeriveResponse, ConstructionHashRequest, ConstructionMetadata,
@@ -75,7 +78,7 @@ pub async fn payloads(
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
-    hasher.update(&bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
+    hasher.update(bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
     let digest = hasher.finalize().digest;
 
     Ok(ConstructionPayloadsResponse {
@@ -119,7 +122,16 @@ pub async fn combine(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
         )?],
     );
-    signed_tx.verify_signature(&VerifyParams::default())?;
+    // TODO: this will likely fail with zklogin authenticator, since we do not know
+    // the current epoch. As long as coinbase doesn't need to use zklogin for
+    // custodial wallets this is okay.
+    let place_holder_epoch = 0;
+    verify_sender_signed_data_message_signatures(
+        &signed_tx,
+        place_holder_epoch,
+        &VerifyParams::default(),
+        Arc::new(VerifiedDigestCache::new_empty()), // no need to use cache in rosetta
+    )?;
     let signed_tx_bytes = bcs::to_bytes(&signed_tx)?;
 
     Ok(ConstructionCombineResponse {
@@ -384,20 +396,29 @@ pub async fn parse(
 ) -> Result<ConstructionParseResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let data = if request.signed {
+    let (tx_data, tx_digest) = if request.signed {
         let tx: Transaction = bcs::from_bytes(&request.transaction.to_vec()?)?;
-        tx.into_data().intent_message().value.clone()
+        let tx_digest = *tx.digest();
+
+        (
+            tx.into_data().intent_message().value.clone(),
+            Some(tx_digest),
+        )
     } else {
         let intent: IntentMessage<TransactionData> =
             bcs::from_bytes(&request.transaction.to_vec()?)?;
-        intent.value
+
+        (intent.value, None)
     };
+
     let account_identifier_signers = if request.signed {
-        vec![data.sender().into()]
+        vec![tx_data.sender().into()]
     } else {
         vec![]
     };
-    let operations = data.try_into()?;
+
+    let operations = Operations::from_transaction_data(tx_data, tx_digest)?;
+
     Ok(ConstructionParseResponse {
         operations,
         account_identifier_signers,

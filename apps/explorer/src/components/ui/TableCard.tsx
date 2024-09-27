@@ -2,33 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight12 } from '@iota/icons';
+import {
+    Table,
+    TableBody,
+    TableHeader,
+    TableHeaderCell,
+    TableRow,
+    TableActionButton,
+    type TablePaginationOptions,
+} from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
     flexRender,
     getCoreRowModel,
     getSortedRowModel,
+    type RowData,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { useMemo, useState } from 'react';
+import { Fragment, useState } from 'react';
+import { Link } from './Link';
 
-export interface TableCardProps<DataType extends object> {
+export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
     data: DataType[];
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
-}
-
-function AscDescIcon({ sorting }: { sorting: 'asc' | 'desc' }): JSX.Element {
-    return (
-        <ArrowRight12
-            fill="currentColor"
-            className={clsx(sorting === 'asc' ? '-rotate-90' : 'rotate-90', ' text-steel-darker')}
-        />
-    );
+    areHeadersCentered?: boolean;
+    paginationOptions?: TablePaginationOptions;
+    totalLabel?: string;
+    viewAll?: string;
 }
 
 export function TableCard<DataType extends object>({
@@ -37,25 +42,16 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    areHeadersCentered,
+    paginationOptions,
+    totalLabel,
+    viewAll,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
-    // Use Columns to create a table
-    const processedcol = useMemo<ColumnDef<DataType>[]>(
-        () =>
-            columns.map((column) => ({
-                ...column,
-                // cell renderer for each column from react-table
-                // cell should be in the column definition
-                //TODO: move cell to column definition
-                ...(!sortTable && { cell: ({ getValue }) => getValue() }),
-            })),
-        [columns, sortTable],
-    );
-
     const table = useReactTable({
         data,
-        columns: processedcol,
+        columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
@@ -70,67 +66,51 @@ export function TableCard<DataType extends object>({
     });
 
     return (
-        <div
-            className={clsx(
-                'w-full overflow-x-auto border-b border-gray-45 pb-4',
-                refetching && 'opacity-50',
-            )}
-        >
-            <table className="w-full min-w-max border-collapse text-left">
-                <thead>
+        <div className={clsx('w-full overflow-x-auto', refetching && 'opacity-50')}>
+            <Table
+                rowIndexes={table.getRowModel().rows.map((row) => row.index)}
+                paginationOptions={paginationOptions}
+                supportingLabel={totalLabel}
+                action={
+                    viewAll ? (
+                        <Link to={viewAll}>
+                            <TableActionButton text="View All" />
+                        </Link>
+                    ) : undefined
+                }
+            >
+                <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={headerGroup.id}>
-                            {headerGroup.headers.map(
-                                ({ id, colSpan, column, isPlaceholder, getContext }) => (
-                                    <th
-                                        key={id}
-                                        colSpan={colSpan}
-                                        scope="col"
-                                        className="h-7.5 text-left text-subtitle font-semibold uppercase text-steel-dark"
-                                        onClick={
-                                            column.columnDef.enableSorting
-                                                ? column.getToggleSortingHandler()
-                                                : undefined
-                                        }
-                                    >
-                                        <div
-                                            className={clsx(
-                                                'flex items-center gap-1',
-                                                column.columnDef.enableSorting &&
-                                                    'cursor-pointer text-steel-darker',
-                                            )}
-                                        >
-                                            {isPlaceholder
-                                                ? null
-                                                : flexRender(column.columnDef.header, getContext())}
-
-                                            {column.getIsSorted() && (
-                                                <AscDescIcon
-                                                    sorting={column.getIsSorted() as 'asc' | 'desc'}
-                                                />
-                                            )}
-                                        </div>
-                                    </th>
-                                ),
-                            )}
-                        </tr>
-                    ))}
-                </thead>
-                <tbody>
-                    {table.getRowModel().rows.map((row) => (
-                        <tr key={row.id} className="group">
-                            {row.getVisibleCells().map(({ column, id, getContext }) => (
-                                <td
+                        <TableRow key={headerGroup.id}>
+                            {headerGroup.headers.map(({ id, column }) => (
+                                <TableHeaderCell
                                     key={id}
-                                    className="h-7.5 text-body text-gray-75 group-hover:bg-gray-40 group-hover:text-gray-90 group-hover:first:rounded-l group-hover:last:rounded-r"
-                                >
-                                    {flexRender(column.columnDef.cell, getContext())}
-                                </td>
+                                    columnKey={id}
+                                    label={column.columnDef.header?.toString()}
+                                    hasSort={column.columnDef.enableSorting}
+                                    onSortClick={
+                                        column.columnDef.enableSorting
+                                            ? column.getToggleSortingHandler()
+                                            : undefined
+                                    }
+                                    isContentCentered={areHeadersCentered}
+                                />
                             ))}
-                        </tr>
+                        </TableRow>
                     ))}
-                </tbody>
-            </table>
+                </TableHeader>
+                <TableBody>
+                    {table.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                            {row.getVisibleCells().map((cell) => (
+                                <Fragment key={cell.id}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </Fragment>
+                            ))}
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
         </div>
     );
 }

@@ -29,23 +29,30 @@ use iota_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         TxContext,
     },
+    bridge::{BridgeChainId, BRIDGE_CREATE_FUNCTION_NAME, BRIDGE_MODULE_NAME},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthoritySignature, DefaultHash, IotaAuthoritySignature,
     },
-    deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
+    event::Event,
     gas::IotaGasStatus,
     gas_coin::{GasCoin, GAS},
     governance::StakedIota,
+    id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{get_iota_system_state, IotaSystemState, IotaSystemStateTrait},
+    is_system_package,
     message_envelope::Message,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
+    },
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -58,7 +65,7 @@ use iota_types::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
     },
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
+    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
@@ -342,7 +349,10 @@ impl Builder {
     fn committee(objects: &[Object]) -> Committee {
         let iota_system_object =
             get_iota_system_state(&objects).expect("Iota System State object must always exist");
-        iota_system_object.get_current_epoch_committee().committee
+        iota_system_object
+            .get_current_epoch_committee()
+            .committee()
+            .clone()
     }
 
     pub fn protocol_version(&self) -> ProtocolVersion {
@@ -472,7 +482,12 @@ impl Builder {
         );
 
         assert_eq!(
-            protocol_config.enable_coin_deny_list(),
+            protocol_config.enable_bridge(),
+            unsigned_genesis.has_bridge_object()
+        );
+
+        assert_eq!(
+            protocol_config.enable_coin_deny_list_v1(),
             unsigned_genesis.coin_deny_list_state().is_some(),
         );
 
@@ -693,7 +708,7 @@ impl Builder {
             assert!(staked_iota_objects.is_empty());
         }
 
-        let committee = system_state.get_current_epoch_committee().committee;
+        let committee = system_state.get_current_epoch_committee();
         for signature in self.signatures.values() {
             if !self.validators.contains_key(&signature.authority) {
                 panic!("found signature for unknown validator: {:#?}", signature);
@@ -703,7 +718,7 @@ impl Builder {
                 .verify_secure(
                     unsigned_genesis.checkpoint(),
                     Intent::iota_app(IntentScope::CheckpointSummary),
-                    &committee,
+                    committee.committee(),
                 )
                 .expect("signature should be valid");
         }
@@ -882,11 +897,11 @@ fn create_genesis_context(
 ) -> TxContext {
     let mut hasher = DefaultHash::default();
     hasher.update(b"iota-genesis");
-    hasher.update(&bcs::to_bytes(genesis_chain_parameters).unwrap());
-    hasher.update(&bcs::to_bytes(genesis_validators).unwrap());
-    hasher.update(&bcs::to_bytes(token_distribution_schedule).unwrap());
+    hasher.update(bcs::to_bytes(genesis_chain_parameters).unwrap());
+    hasher.update(bcs::to_bytes(genesis_validators).unwrap());
+    hasher.update(bcs::to_bytes(token_distribution_schedule).unwrap());
     for system_package in system_packages {
-        hasher.update(&bcs::to_bytes(system_package.bytes()).unwrap());
+        hasher.update(bcs::to_bytes(system_package.bytes()).unwrap());
     }
 
     let hash = hasher.finalize();
@@ -933,9 +948,14 @@ fn build_unsigned_genesis_data<'info>(
     // Get the correct system packages for our protocol version. If we cannot find
     // the snapshot that means that we must be at the latest version and we
     // should use the latest version of the framework.
-    let system_packages =
+    let mut system_packages =
         iota_framework_snapshot::load_bytecode_snapshot(parameters.protocol_version.as_u64())
             .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
+
+    // if system packages are provided in `objects`, update them with the provided
+    // bytes. This is a no-op under normal conditions and only an issue with
+    // certain tests.
+    update_system_packages_from_objects(&mut system_packages, &objects);
 
     let mut genesis_ctx = create_genesis_context(
         &epoch_data,
@@ -949,7 +969,7 @@ fn build_unsigned_genesis_data<'info>(
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
 
-    let objects = create_genesis_objects(
+    let (objects, events) = create_genesis_objects(
         &mut genesis_ctx,
         objects,
         &genesis_validators,
@@ -963,9 +983,13 @@ fn build_unsigned_genesis_data<'info>(
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
     let (genesis_transaction, genesis_effects, genesis_events, objects) =
-        create_genesis_transaction(objects, &protocol_config, metrics, &epoch_data);
-    let (checkpoint, checkpoint_contents) =
-        create_genesis_checkpoint(parameters, &genesis_transaction, &genesis_effects);
+        create_genesis_transaction(objects, events, &protocol_config, metrics, &epoch_data);
+    let (checkpoint, checkpoint_contents) = create_genesis_checkpoint(
+        &protocol_config,
+        parameters,
+        &genesis_transaction,
+        &genesis_effects,
+    );
 
     UnsignedGenesis {
         checkpoint,
@@ -977,7 +1001,47 @@ fn build_unsigned_genesis_data<'info>(
     }
 }
 
+// Some tests provide an override of the system packages via objects to the
+// genesis builder. When that happens we need to update the system packages with
+// the new bytes provided. Mock system packages in protocol config tests are an
+// example of that (today the only example).
+// The problem here arises from the fact that if regular system packages are
+// pushed first *AND* if any of them is loaded in the loader cache, there is no
+// way to override them with the provided object (no way to mock properly).
+// System packages are loaded only from internal dependencies (a system package
+// depending on some other), and in that case they would be loaded in the
+// VM/loader cache. The Bridge is an example of that and what led to this code.
+// The bridge depends on `iota_system` which is mocked in some tests, but would
+// be in the loader cache courtesy of the Bridge, thus causing the problem.
+fn update_system_packages_from_objects(
+    system_packages: &mut Vec<SystemPackage>,
+    objects: &[Object],
+) {
+    // Filter `objects` for system packages, and make `SystemPackage`s out of them.
+    let system_package_overrides: BTreeMap<ObjectID, Vec<Vec<u8>>> = objects
+        .iter()
+        .filter_map(|obj| {
+            let pkg = obj.data.try_as_package()?;
+            is_system_package(pkg.id()).then(|| {
+                (
+                    pkg.id(),
+                    pkg.serialized_module_map().values().cloned().collect(),
+                )
+            })
+        })
+        .collect();
+
+    // Replace packages in `system_packages` that are present in `objects` with
+    // their counterparts from the previous step.
+    for package in system_packages {
+        if let Some(overrides) = system_package_overrides.get(&package.id).cloned() {
+            package.bytes = overrides;
+        }
+    }
+}
+
 fn create_genesis_checkpoint(
+    protocol_config: &ProtocolConfig,
     parameters: &GenesisCeremonyParameters,
     transaction: &Transaction,
     effects: &TransactionEffects,
@@ -988,6 +1052,15 @@ fn create_genesis_checkpoint(
     };
     let contents =
         CheckpointContents::new_with_digests_and_signatures([execution_digests], vec![vec![]]);
+    let version_specific_data =
+        match protocol_config.checkpoint_summary_version_specific_data_as_option() {
+            None | Some(0) => Vec::new(),
+            Some(1) => bcs::to_bytes(&CheckpointVersionSpecificData::V1(
+                CheckpointVersionSpecificDataV1::default(),
+            ))
+            .unwrap(),
+            _ => unimplemented!("unrecognized version_specific_data version for CheckpointSummary"),
+        };
     let checkpoint = CheckpointSummary {
         epoch: 0,
         sequence_number: 0,
@@ -997,7 +1070,7 @@ fn create_genesis_checkpoint(
         epoch_rolling_gas_cost_summary: Default::default(),
         end_of_epoch_data: None,
         timestamp_ms: parameters.chain_start_timestamp_ms,
-        version_specific_data: Vec::new(),
+        version_specific_data,
         checkpoint_commitments: Default::default(),
     };
 
@@ -1006,6 +1079,7 @@ fn create_genesis_checkpoint(
 
 fn create_genesis_transaction(
     objects: Vec<Object>,
+    events: Vec<Event>,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
     epoch_data: &EpochData,
@@ -1038,8 +1112,11 @@ fn create_genesis_transaction(
             })
             .collect();
 
-        iota_types::transaction::VerifiedTransaction::new_genesis_transaction(genesis_objects)
-            .into_inner()
+        iota_types::transaction::VerifiedTransaction::new_genesis_transaction(
+            genesis_objects,
+            events,
+        )
+        .into_inner()
     };
 
     let genesis_digest = *genesis_transaction.digest();
@@ -1095,8 +1172,9 @@ fn create_genesis_objects(
     genesis_stake: &mut GenesisStake,
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
-) -> Vec<Object> {
+) -> (Vec<Object>, Vec<Event>) {
     let mut store = InMemoryStorage::new(Vec::new());
+    let mut events = Vec::new();
     // We don't know the chain ID here since we haven't yet created the genesis
     // checkpoint. However since we know there are no chain specific protool
     // config options in genesis, we use Chain::Unknown here.
@@ -1110,7 +1188,7 @@ fn create_genesis_objects(
         .expect("Creating an executor should not fail here");
 
     for system_package in system_packages.into_iter() {
-        process_package(
+        let tx_events = process_package(
             &mut store,
             executor.as_ref(),
             genesis_ctx,
@@ -1120,6 +1198,8 @@ fn create_genesis_objects(
             metrics.clone(),
         )
         .expect("Processing a package should not fail here");
+
+        events.extend(tx_events.data.into_iter());
     }
 
     for object in input_objects {
@@ -1154,7 +1234,7 @@ fn create_genesis_objects(
     for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
         intermediate_store.remove(&id);
     }
-    intermediate_store.into_values().collect()
+    (intermediate_store.into_values().collect(), events)
 }
 
 pub(crate) fn process_package(
@@ -1165,7 +1245,7 @@ pub(crate) fn process_package(
     dependencies: Vec<ObjectID>,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<TransactionEvents> {
     let dependency_objects = store.get_objects(&dependencies);
     // When publishing genesis packages, since the std framework packages all have
     // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
@@ -1203,7 +1283,7 @@ pub(crate) fn process_package(
         .iter()
         .map(|m| {
             let mut buf = vec![];
-            m.serialize(&mut buf).unwrap();
+            m.serialize_with_version(m.version, &mut buf).unwrap();
             buf
         })
         .collect();
@@ -1213,7 +1293,9 @@ pub(crate) fn process_package(
         builder.command(Command::Publish(module_bytes, dependencies));
         builder.finish()
     };
-    let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
+    let InnerTemporaryStore {
+        written, events, ..
+    } = executor.update_genesis_state(
         &*store,
         protocol_config,
         metrics,
@@ -1224,7 +1306,7 @@ pub(crate) fn process_package(
 
     store.finish(written);
 
-    Ok(())
+    Ok(events)
 }
 
 pub fn generate_genesis_system_object(
@@ -1281,7 +1363,7 @@ pub fn generate_genesis_system_object(
                 vec![],
             )?;
         }
-        if protocol_config.enable_coin_deny_list() {
+        if protocol_config.enable_coin_deny_list_v1() {
             builder.move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 DENY_LIST_MODULE.to_owned(),
@@ -1289,6 +1371,24 @@ pub fn generate_genesis_system_object(
                 vec![],
                 vec![],
             )?;
+        }
+
+        if protocol_config.enable_bridge() {
+            let bridge_uid = builder
+                .input(CallArg::Pure(
+                    UID::new(IOTA_BRIDGE_OBJECT_ID).to_bcs_bytes(),
+                ))
+                .unwrap();
+            // TODO(bridge): this needs to be passed in as a parameter for next testnet
+            // regenesis Hardcoding chain id to IotaCustom
+            let bridge_chain_id = builder.pure(BridgeChainId::IotaCustom).unwrap();
+            builder.programmable_move_call(
+                BRIDGE_ADDRESS.into(),
+                BRIDGE_MODULE_NAME.to_owned(),
+                BRIDGE_CREATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![bridge_uid, bridge_chain_id],
+            );
         }
 
         // Step 4: Create the IOTA Coin Treasury Cap.

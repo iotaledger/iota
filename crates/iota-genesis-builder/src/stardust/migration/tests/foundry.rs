@@ -142,7 +142,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
     assert_eq!(type_origin_table.len(), 1);
     let coin_type_origin = type_origin_table[0].clone();
     assert_eq!(coin_type_origin.module_name, "doge");
-    assert_eq!(coin_type_origin.struct_name, "DOGE");
+    assert_eq!(coin_type_origin.datatype_name, "DOGE");
 
     // Check the coin object.
     let coin = coin_object
@@ -231,7 +231,7 @@ fn foundry_with_special_metadata() -> Result<()> {
     assert_eq!(type_origin_table.len(), 1);
     let coin_type_origin = type_origin_table[0].clone();
     assert_eq!(coin_type_origin.module_name, "doge");
-    assert_eq!(coin_type_origin.struct_name, "DOGE");
+    assert_eq!(coin_type_origin.datatype_name, "DOGE");
 
     // Check the coin object.
     let coin = coin_object

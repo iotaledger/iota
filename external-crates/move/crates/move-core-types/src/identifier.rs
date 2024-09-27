@@ -243,6 +243,12 @@ impl Borrow<IdentStr> for Identifier {
     }
 }
 
+impl Borrow<str> for Identifier {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
 impl ToOwned for IdentStr {
     type Owned = Identifier;
 

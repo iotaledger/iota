@@ -16,18 +16,18 @@ export const lightTheme: ThemeVars = {
         modalPrimary: 'white',
         modalSecondary: '#F7F8F8',
         iconButton: 'transparent',
-        iconButtonHover: '#F0F1F2',
         dropdownMenu: '#FFFFFF',
         dropdownMenuSeparator: '#F3F6F8',
         walletItemSelected: 'white',
         walletItemHover: '#3C424226',
+        scrollThumb: '#cad4e2'
     },
     borderColors: {
         outlineButton: '#E4E4E7',
     },
     colors: {
         primaryButton: '#373737',
-        outlineButton: '#373737',
+        outlineButtonHover: '#373737',
         iconButton: '#000000',
         body: '#182435',
         bodyMuted: '#767A81',
@@ -38,10 +38,7 @@ export const lightTheme: ThemeVars = {
         medium: '8px',
         large: '12px',
         xlarge: '16px',
-    },
-    shadows: {
-        primaryButton: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-        walletItemSelected: '0px 2px 6px rgba(0, 0, 0, 0.05)',
+        full: '120px'
     },
     fontWeights: {
         normal: '400',
@@ -60,5 +57,13 @@ export const lightTheme: ThemeVars = {
         fontStyle: 'normal',
         lineHeight: '1.3',
         letterSpacing: '1',
+    },
+    spacing: {
+        xxsmall: '4px',
+        xsmall: '8px',
+        small: '12px',
+        medium: '16px',
+        large: '24px',
+        xlarge: '32px',
     },
 };

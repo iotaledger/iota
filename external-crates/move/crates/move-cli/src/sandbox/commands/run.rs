@@ -10,7 +10,6 @@ use move_binary_format::file_format::CompiledModule;
 use move_command_line_common::files::try_exists;
 use move_core_types::{
     account_address::AccountAddress,
-    errmap::ErrorMapping,
     identifier::IdentStr,
     language_storage::TypeTag,
     runtime_value::MoveValue,
@@ -31,7 +30,6 @@ use crate::{
 pub fn run(
     natives: impl IntoIterator<Item = NativeFunctionRecord>,
     cost_table: &CostTable,
-    error_descriptions: &ErrorMapping,
     state: &OnDiskStateView,
     _package: &CompiledPackage,
     module_file: &Path,
@@ -112,7 +110,6 @@ pub fn run(
 
     if let Err(err) = res {
         explain_execution_error(
-            error_descriptions,
             err,
             state,
             &script_type_parameters,
@@ -122,7 +119,7 @@ pub fn run(
             txn_args,
         )
     } else {
-        let (_changeset, _events) = session.finish().0?;
+        let _changeset = session.finish().0?;
         Ok(())
     }
 }

@@ -15,6 +15,7 @@
 //!   histograms takes extra CPU
 //! - tracing-timing records latencies using HDRHistogram, which is great, but
 //!   uses extra memory when one is already using Prometheus
+//!
 //! Thus this is a much smaller and more focused module.
 //!
 //! ## Making spans visible

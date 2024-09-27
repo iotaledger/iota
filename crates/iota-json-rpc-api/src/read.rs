@@ -4,7 +4,7 @@
 
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaLoadedChildObjectsResponse, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectDataOptions, IotaObjectResponse,
     IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     ProtocolConfigResponse,
 };
@@ -84,6 +84,20 @@ pub trait ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse>;
 
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and
+    /// version exists/existed. The result may vary across nodes depending
+    /// on their pruning policies. Returns the latest object information
+    /// with a version less than or equal to the given version
+    #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
+    async fn try_get_object_before_version(
+        &self,
+        /// the ID of the queried object
+        object_id: ObjectID,
+        /// the version of the queried object
+        version: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse>;
+
     /// Note there is no software-level guarantee/SLA that objects with past versions
     /// can be retrieved by this API, even if the object and version exists/existed.
     /// The result may vary across nodes depending on their pruning policies.
@@ -97,12 +111,6 @@ pub trait ReadApi {
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>>;
-
-    #[method(name = "getLoadedChildObjects")]
-    async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse>;
 
     /// Return a checkpoint
     #[rustfmt::skip]

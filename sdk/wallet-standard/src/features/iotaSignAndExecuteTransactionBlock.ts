@@ -14,6 +14,8 @@ import type { IotaSignTransactionBlockInput } from './iotaSignTransactionBlock.j
 export type IotaSignAndExecuteTransactionBlockVersion = '1.0.0';
 
 /**
+ * @deprecated Use `iota:signAndExecuteTransaction` instead.
+ *
  * A Wallet Standard feature for signing a transaction, and submitting it to the
  * network. The wallet is expected to submit the transaction to the network via RPC,
  * and return the transaction response.
@@ -23,10 +25,12 @@ export type IotaSignAndExecuteTransactionBlockFeature = {
     'iota:signAndExecuteTransactionBlock': {
         /** Version of the feature API. */
         version: IotaSignAndExecuteTransactionBlockVersion;
+        /** @deprecated Use `iota:signAndExecuteTransaction` instead. */
         signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod;
     };
 };
 
+/** @deprecated Use `iota:signAndExecuteTransaction` instead. */
 export type IotaSignAndExecuteTransactionBlockMethod = (
     input: IotaSignAndExecuteTransactionBlockInput,
 ) => Promise<IotaSignAndExecuteTransactionBlockOutput>;
@@ -34,8 +38,7 @@ export type IotaSignAndExecuteTransactionBlockMethod = (
 /** Input for signing and sending transactions. */
 export interface IotaSignAndExecuteTransactionBlockInput extends IotaSignTransactionBlockInput {
     /**
-     * `WaitForEffectsCert` or `WaitForLocalExecution`, see details in `ExecuteTransactionRequestType`.
-     * Defaults to `WaitForLocalExecution` if options.showEffects or options.showEvents is true
+     * @deprecated requestType will be ignored by JSON RPC in the future
      */
     requestType?: ExecuteTransactionRequestType;
     /** specify which fields to return (e.g., transaction, effects, events, etc). By default, only the transaction digest will be returned. */

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatBalance, formatDate } from '@iota/core';
+import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
@@ -75,6 +75,10 @@ export function TransactionsCardGraph() {
     const lastEpochTotalTransactions =
         epochMetrics?.[epochMetrics.length - 1]?.epochTotalTransactions;
 
+    const lastEpochTotalTransactionsFormatted = lastEpochTotalTransactions
+        ? formatBalance(lastEpochTotalTransactions, 0, CoinFormat.ROUNDED)
+        : '--';
+
     return (
         <Panel>
             <Title title="Transaction Blocks" size={TitleSize.Medium} />
@@ -85,7 +89,6 @@ export function TransactionsCardGraph() {
                             size={LabelTextSize.Large}
                             label="Total"
                             text={totalTransactions ? formatBalance(totalTransactions, 0) : '--'}
-                            showSupportingLabel={false}
                         />
                     </div>
 
@@ -93,12 +96,7 @@ export function TransactionsCardGraph() {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Last epoch"
-                            text={
-                                lastEpochTotalTransactions
-                                    ? lastEpochTotalTransactions.toString()
-                                    : '--'
-                            }
-                            showSupportingLabel={false}
+                            text={lastEpochTotalTransactionsFormatted}
                         />
                     </div>
                 </div>
@@ -123,7 +121,6 @@ export function TransactionsCardGraph() {
                                             getY={({ epochTotalTransactions }) =>
                                                 Number(epochTotalTransactions)
                                             }
-                                            color="yellow"
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}
                                         />
@@ -132,9 +129,12 @@ export function TransactionsCardGraph() {
                             </ErrorBoundary>
                         </div>
                     ) : (
-                        <Text color="steel" variant="body/medium">
-                            No historical data available
-                        </Text>
+                        <div className="flex flex-col items-center gap-1">
+                            <LoadingIndicator />
+                            <Text color="steel" variant="body/medium">
+                                No historical data available
+                            </Text>
+                        </div>
                     )}
                 </div>
             </div>

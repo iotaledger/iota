@@ -151,6 +151,7 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
             None,
             None,
             None,
+            None,
         )
         .await?
         .check_effects()?;
@@ -163,6 +164,7 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
             tx,
             ExpensiveSafetyCheckConfig::default(),
             false,
+            None,
             None,
             None,
             None,

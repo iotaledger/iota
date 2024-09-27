@@ -7,7 +7,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -25,7 +25,6 @@ use iota_types::{
     dynamic_field::{self, DynamicFieldInfo},
     effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
-    execution::DynamicallyLoadedObjectMetadata,
     inner_temporary_store::TxCoins,
     object::{Object, Owner},
     parse_iota_struct_tag,
@@ -42,9 +41,8 @@ use tracing::{debug, trace};
 use typed_store::{
     rocks::{default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf},
     traits::{Map, TableSummary, TypedStoreDebug},
-    TypedStoreError,
+    DBMapUtils, TypedStoreError,
 };
-use typed_store_derive::DBMapUtils;
 
 use crate::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 
@@ -163,12 +161,12 @@ pub struct IndexStoreTables {
     transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that used that object id as input.
-    #[default_options_override_fn = "transactions_by_input_object_id_table_default_config"]
+    #[deprecated]
     transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that modified/created that object
     /// id.
-    #[default_options_override_fn = "transactions_by_mutated_object_id_table_default_config"]
+    #[deprecated]
     transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
 
     /// Index from package id, module and function identifier to transactions
@@ -186,6 +184,7 @@ pub struct IndexStoreTables {
     /// DEPRECATED. DO NOT USE
     #[allow(dead_code)]
     #[default_options_override_fn = "timestamps_table_default_config"]
+    #[deprecated]
     timestamps: DBMap<TransactionDigest, u64>,
 
     /// Ordering of all indexed transactions.
@@ -216,6 +215,7 @@ pub struct IndexStoreTables {
     dynamic_field_index: DBMap<DynamicFieldKey, DynamicFieldInfo>,
 
     /// This is an index of all the versions of loaded child objects
+    #[deprecated]
     loaded_child_object_versions: DBMap<TransactionDigest, Vec<(ObjectID, SequenceNumber)>>,
 
     #[default_options_override_fn = "index_table_default_config"]
@@ -251,41 +251,38 @@ pub struct IndexStore {
     caches: IndexStoreCaches,
     metrics: Arc<IndexStoreMetrics>,
     max_type_length: u64,
+    remove_deprecated_tables: bool,
 }
 
 // These functions are used to initialize the DB tables
 fn transactions_order_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn transactions_seq_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn transactions_from_addr_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn transactions_to_addr_table_default_config() -> DBOptions {
-    default_db_options()
-}
-fn transactions_by_input_object_id_table_default_config() -> DBOptions {
-    default_db_options()
-}
-fn transactions_by_mutated_object_id_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn transactions_by_move_function_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn timestamps_table_default_config() -> DBOptions {
-    default_db_options().optimize_for_point_lookup(64)
+    default_db_options()
+        .optimize_for_point_lookup(64)
+        .disable_write_throttling()
 }
 fn owner_index_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn dynamic_field_index_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn index_table_default_config() -> DBOptions {
-    default_db_options()
+    default_db_options().disable_write_throttling()
 }
 fn coin_index_table_default_config() -> DBOptions {
     default_db_options()
@@ -293,12 +290,23 @@ fn coin_index_table_default_config() -> DBOptions {
         .optimize_for_read(
             read_size_from_env(ENV_VAR_COIN_INDEX_BLOCK_CACHE_SIZE_MB).unwrap_or(5 * 1024),
         )
+        .disable_write_throttling()
 }
 
 impl IndexStore {
-    pub fn new(path: PathBuf, registry: &Registry, max_type_length: Option<u64>) -> Self {
-        let tables =
-            IndexStoreTables::open_tables_read_write(path, MetricConf::new("index"), None, None);
+    pub fn new(
+        path: PathBuf,
+        registry: &Registry,
+        max_type_length: Option<u64>,
+        remove_deprecated_tables: bool,
+    ) -> Self {
+        let tables = IndexStoreTables::open_tables_read_write_with_deprecation_option(
+            path,
+            MetricConf::new("index"),
+            None,
+            None,
+            remove_deprecated_tables,
+        );
         let metrics = IndexStoreMetrics::new(registry);
         let caches = IndexStoreCaches {
             per_coin_type_balance: ShardedLruCache::new(1_000_000, 1000),
@@ -320,6 +328,7 @@ impl IndexStore {
             caches,
             metrics: Arc::new(metrics),
             max_type_length: max_type_length.unwrap_or(128),
+            remove_deprecated_tables,
         }
     }
 
@@ -361,19 +370,17 @@ impl IndexStore {
         let (input_coins, written_coins) = tx_coins.unwrap();
         // 1. Delete old owner if the object is deleted or transferred to a new owner,
         // by looking at `object_index_changes.deleted_owners`.
-        // Objects in `deleted_owners` must be owned by `Owner::Address` before the tx,
-        // hence must appear in the tx inputs.
-        // They also mut be coin type (see `AuthorityState::commit_certificate`).
+        // Objects in `deleted_owners` must be coin type (see
+        // `AuthorityState::commit_certificate`).
         let coin_delete_keys = object_index_changes
             .deleted_owners
             .iter()
             .filter_map(|(owner, obj_id)| {
-                // If it's not in `input_coins`, then it's not a coin type. Skip.
-                let object = input_coins.get(obj_id)?;
+                let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
                 let coin_type_tag = object.coin_type_maybe().unwrap_or_else(|| {
                     panic!(
-                        "object_id: {:?} in input_coins is not a coin type, input_coins: {:?}, tx_digest: {:?}",
-                        obj_id, input_coins, digest
+                        "object_id: {:?} is not a coin type, input_coins: {:?}, written_coins: {:?}, tx_digest: {:?}",
+                        obj_id, input_coins, written_coins, digest
                     )
                 });
                 let map = balance_changes.entry(*owner).or_default();
@@ -484,7 +491,6 @@ impl IndexStore {
         digest: &TransactionDigest,
         timestamp_ms: u64,
         tx_coins: Option<TxCoins>,
-        loaded_child_objects: &BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
     ) -> IotaResult<u64> {
         let sequence = self.next_sequence_number.fetch_add(1, Ordering::SeqCst);
         let mut batch = self.tables.transactions_from_addr.batch();
@@ -504,17 +510,20 @@ impl IndexStore {
             std::iter::once(((sender, sequence), *digest)),
         )?;
 
-        batch.insert_batch(
-            &self.tables.transactions_by_input_object_id,
-            active_inputs.map(|id| ((id, sequence), *digest)),
-        )?;
+        #[allow(deprecated)]
+        if !self.remove_deprecated_tables {
+            batch.insert_batch(
+                &self.tables.transactions_by_input_object_id,
+                active_inputs.map(|id| ((id, sequence), *digest)),
+            )?;
 
-        batch.insert_batch(
-            &self.tables.transactions_by_mutated_object_id,
-            mutated_objects
-                .clone()
-                .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
-        )?;
+            batch.insert_batch(
+                &self.tables.transactions_by_mutated_object_id,
+                mutated_objects
+                    .clone()
+                    .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
+            )?;
+        }
 
         batch.insert_batch(
             &self.tables.transactions_by_move_function,
@@ -627,16 +636,6 @@ impl IndexStore {
             }),
         )?;
 
-        // Loaded child objects table
-        let loaded_child_objects: Vec<_> = loaded_child_objects
-            .iter()
-            .map(|(oid, meta)| (*oid, meta.version))
-            .collect();
-        batch.insert_batch(
-            &self.tables.loaded_child_object_versions,
-            std::iter::once((*digest, loaded_child_objects)),
-        )?;
-
         let invalidate_caches =
             read_size_from_env(ENV_VAR_INVALIDATE_INSTEAD_OF_UPDATE).unwrap_or(0) > 0;
 
@@ -745,17 +744,6 @@ impl IndexStore {
         }
     }
 
-    /// Return loaded child objects table for a tx
-    pub fn loaded_child_object_versions(
-        &self,
-        transaction_digest: &TransactionDigest,
-    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
-        self.tables
-            .loaded_child_object_versions
-            .get(transaction_digest)
-            .map_err(|err| err.into())
-    }
-
     fn get_transactions_from_index<KeyT: Clone + Serialize + DeserializeOwned + PartialEq>(
         index: &DBMap<(KeyT, TxSequenceNumber), TransactionDigest>,
         key: KeyT,
@@ -800,6 +788,10 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
+        if self.remove_deprecated_tables {
+            return Ok(vec![]);
+        }
+        #[allow(deprecated)]
         Self::get_transactions_from_index(
             &self.tables.transactions_by_input_object_id,
             input_object,
@@ -816,6 +808,10 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
+        if self.remove_deprecated_tables {
+            return Ok(vec![]);
+        }
+        #[allow(deprecated)]
         Self::get_transactions_from_index(
             &self.tables.transactions_by_mutated_object_id,
             mutated_object,
@@ -1375,7 +1371,9 @@ impl IndexStore {
             })
             .await
             .unwrap()
-            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e)));
+            .map_err(|e| {
+                IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
+            });
         }
 
         self.metrics.balance_lookup_from_total.inc();
@@ -1454,7 +1452,10 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                    IotaError::Execution(format!(
+                        "Failed to read all balance from DB: {:?}",
+                        e
+                    ))
                 })
             })
             .await
@@ -1501,7 +1502,12 @@ impl IndexStore {
                 coin_object_count += 1;
             }
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
-                |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
+                |e| {
+                    IotaError::Execution(format!(
+                        "Failed to parse event sender address: {:?}",
+                        e
+                    ))
+                },
             )?));
             balances.insert(
                 coin_type,
@@ -1630,7 +1636,7 @@ mod tests {
         // again and read balance. The balance should be 700 and verified from
         // both db and cache. This tests make sure we are invalidating entries
         // in the cache and always reading latest balance.
-        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128));
+        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128), false);
         let address: IotaAddress = AccountAddress::random().into();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
@@ -1671,7 +1677,6 @@ mod tests {
                 &TransactionDigest::random(),
                 1234,
                 Some(tx_coins),
-                &BTreeMap::new(),
             )
             .await?;
 
@@ -1716,7 +1721,6 @@ mod tests {
                 &TransactionDigest::random(),
                 1234,
                 Some(tx_coins),
-                &BTreeMap::new(),
             )
             .await?;
         let balance_from_db = IndexStore::get_balance_from_db(

@@ -219,24 +219,28 @@ async fn read_and_scan_commits(
         TrustedCommit::new_for_test(
             1,
             CommitDigest::MIN,
+            1,
             BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::default()),
             vec![],
         ),
         TrustedCommit::new_for_test(
             2,
             CommitDigest::MIN,
+            2,
             BlockRef::new(2, AuthorityIndex::new_for_test(0), BlockDigest::default()),
             vec![],
         ),
         TrustedCommit::new_for_test(
             3,
             CommitDigest::MIN,
+            3,
             BlockRef::new(3, AuthorityIndex::new_for_test(0), BlockDigest::default()),
             vec![],
         ),
         TrustedCommit::new_for_test(
             4,
             CommitDigest::MIN,
+            4,
             BlockRef::new(4, AuthorityIndex::new_for_test(0), BlockDigest::default()),
             vec![],
         ),
@@ -259,14 +263,14 @@ async fn read_and_scan_commits(
 
     {
         let scanned_commits = store
-            .scan_commits(20..25)
+            .scan_commits((20..=24).into())
             .expect("Scan commits should not fail");
         assert!(scanned_commits.is_empty(), "{:?}", scanned_commits);
     }
 
     {
         let scanned_commits = store
-            .scan_commits(3..5)
+            .scan_commits((3..=4).into())
             .expect("Scan commits should not fail");
         assert_eq!(scanned_commits.len(), 2, "{:?}", scanned_commits);
         assert_eq!(
@@ -277,7 +281,7 @@ async fn read_and_scan_commits(
 
     {
         let scanned_commits = store
-            .scan_commits(0..3)
+            .scan_commits((0..=2).into())
             .expect("Scan commits should not fail");
         assert_eq!(scanned_commits.len(), 2, "{:?}", scanned_commits);
         assert_eq!(
@@ -288,7 +292,7 @@ async fn read_and_scan_commits(
 
     {
         let scanned_commits = store
-            .scan_commits(0..5)
+            .scan_commits((0..=4).into())
             .expect("Scan commits should not fail");
         assert_eq!(scanned_commits.len(), 4, "{:?}", scanned_commits);
         assert_eq!(scanned_commits, written_commits,);

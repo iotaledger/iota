@@ -16,7 +16,6 @@ export const VaryingWidth: StoryObj<PlaceholderTableProps> = {
             rowCount={5}
             rowHeight="16px"
             colHeadings={['Sardine', 'Herring', 'Salmon', 'Barracuda']}
-            colWidths={['38px', '90px', '120px', '204px']}
         />
     ),
 };

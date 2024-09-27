@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example connects to the Iota testnet
-//! and collects information about the stakes in the network,
-//! the committee information,
-//! lists all the validators' name, description, and iota address,
-//! and prints the reference gas price.
+//! This example connects to the Iota testnet and collects information about the
+//! stakes in the network, the committee information, lists all the validators'
+//! name, description, and iota address, and prints the reference gas price.
 //!
 //! cargo run --example governance_api
 
@@ -16,8 +14,6 @@ use utils::setup_for_read;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
-
-    // ************ GOVERNANCE API ************ //
 
     // Stakes
     let stakes = client.governance_api().get_stakes(active_address).await?;
@@ -64,6 +60,5 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", reference_gas_price);
     println!(" *** Reference Gas Price ***\n");
 
-    // ************ END OF GOVERNANCE API ************ //
     Ok(())
 }

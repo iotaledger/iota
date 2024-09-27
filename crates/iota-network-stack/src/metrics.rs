@@ -4,8 +4,10 @@
 
 use std::time::Duration;
 
-use http::{HeaderName, HeaderValue, Request, Response};
-use tonic::{Code, Status};
+use tonic::{
+    codegen::http::{header::HeaderName, HeaderValue, Request, Response},
+    Code, Status,
+};
 use tower_http::{
     classify::GrpcFailureClass,
     trace::{OnFailure, OnRequest, OnResponse},

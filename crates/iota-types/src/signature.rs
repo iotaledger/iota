@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::hash::Hash;
+use std::{hash::Hash, sync::Arc};
 
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
@@ -28,9 +28,12 @@ use crate::{
         CompressedSignature, IotaSignature, PublicKey, Signature, SignatureScheme,
         ZkLoginAuthenticatorAsBytes,
     },
+    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     multisig::MultiSig,
     multisig_legacy::MultiSigLegacy,
+    passkey_authenticator::PasskeyAuthenticator,
+    signature_verification::VerifiedDigestCache,
     zk_login_authenticator::ZkLoginAuthenticator,
 };
 #[derive(Default, Debug, Clone)]
@@ -41,6 +44,7 @@ pub struct VerifyParams {
     pub zk_login_env: ZkLoginEnv,
     pub verify_legacy_zklogin_address: bool,
     pub accept_zklogin_in_multisig: bool,
+    pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
 }
 
 impl VerifyParams {
@@ -50,6 +54,7 @@ impl VerifyParams {
         zk_login_env: ZkLoginEnv,
         verify_legacy_zklogin_address: bool,
         accept_zklogin_in_multisig: bool,
+        zklogin_max_epoch_upper_bound_delta: Option<u64>,
     ) -> Self {
         Self {
             oidc_provider_jwks,
@@ -57,6 +62,7 @@ impl VerifyParams {
             zk_login_env,
             verify_legacy_zklogin_address,
             accept_zklogin_in_multisig,
+            zklogin_max_epoch_upper_bound_delta,
         }
     }
 }
@@ -64,38 +70,18 @@ impl VerifyParams {
 /// A lightweight trait that all members of [enum GenericSignature] implement.
 #[enum_dispatch]
 pub trait AuthenticatorTrait {
-    fn verify_user_authenticator_epoch(&self, epoch: EpochId) -> IotaResult;
+    fn verify_user_authenticator_epoch(
+        &self,
+        epoch: EpochId,
+        max_epoch_upper_bound_delta: Option<u64>,
+    ) -> IotaResult;
 
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
         author: IotaAddress,
         aux_verify_data: &VerifyParams,
-    ) -> IotaResult
-    where
-        T: Serialize;
-
-    fn verify_authenticator<T>(
-        &self,
-        value: &IntentMessage<T>,
-        author: IotaAddress,
-        epoch: Option<EpochId>,
-        aux_verify_data: &VerifyParams,
-    ) -> IotaResult
-    where
-        T: Serialize,
-    {
-        if let Some(epoch) = epoch {
-            self.verify_user_authenticator_epoch(epoch)?;
-        }
-        self.verify_claims(value, author, aux_verify_data)
-    }
-
-    fn verify_uncached_checks<T>(
-        &self,
-        value: &IntentMessage<T>,
-        author: IotaAddress,
-        aux_verify_data: &VerifyParams,
+        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize;
@@ -113,15 +99,37 @@ pub enum GenericSignature {
     MultiSigLegacy,
     Signature,
     ZkLoginAuthenticator,
+    PasskeyAuthenticator,
 }
 
 impl GenericSignature {
     pub fn is_zklogin(&self) -> bool {
         matches!(self, GenericSignature::ZkLoginAuthenticator(_))
     }
+    pub fn is_passkey(&self) -> bool {
+        matches!(self, GenericSignature::PasskeyAuthenticator(_))
+    }
 
     pub fn is_upgraded_multisig(&self) -> bool {
         matches!(self, GenericSignature::MultiSig(_))
+    }
+
+    pub fn verify_authenticator<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: IotaAddress,
+        epoch: EpochId,
+        verify_params: &VerifyParams,
+        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        self.verify_user_authenticator_epoch(
+            epoch,
+            verify_params.zklogin_max_epoch_upper_bound_delta,
+        )?;
+        self.verify_claims(value, author, verify_params, zklogin_inputs_cache)
     }
 
     /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig
@@ -237,6 +245,10 @@ impl ToFromBytes for GenericSignature {
                     let zk_login = ZkLoginAuthenticator::from_bytes(bytes)?;
                     Ok(GenericSignature::ZkLoginAuthenticator(zk_login))
                 }
+                SignatureScheme::PasskeyAuthenticator => {
+                    let passkey = PasskeyAuthenticator::from_bytes(bytes)?;
+                    Ok(GenericSignature::PasskeyAuthenticator(passkey))
+                }
                 _ => Err(FastCryptoError::InvalidInput),
             },
             Err(_) => Err(FastCryptoError::InvalidInput),
@@ -252,6 +264,7 @@ impl AsRef<[u8]> for GenericSignature {
             GenericSignature::MultiSigLegacy(s) => s.as_ref(),
             GenericSignature::Signature(s) => s.as_ref(),
             GenericSignature::ZkLoginAuthenticator(s) => s.as_ref(),
+            GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
         }
     }
 }
@@ -292,18 +305,7 @@ impl<'de> ::serde::Deserialize<'de> for GenericSignature {
 /// This ports the wrapper trait to the verify_secure defined on [enum
 /// Signature].
 impl AuthenticatorTrait for Signature {
-    fn verify_user_authenticator_epoch(&self, _: EpochId) -> IotaResult {
-        Ok(())
-    }
-    fn verify_uncached_checks<T>(
-        &self,
-        _value: &IntentMessage<T>,
-        _author: IotaAddress,
-        _aux_verify_data: &VerifyParams,
-    ) -> IotaResult
-    where
-        T: Serialize,
-    {
+    fn verify_user_authenticator_epoch(&self, _: EpochId, _: Option<EpochId>) -> IotaResult {
         Ok(())
     }
 
@@ -312,6 +314,7 @@ impl AuthenticatorTrait for Signature {
         value: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
+        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

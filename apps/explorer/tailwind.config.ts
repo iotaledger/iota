@@ -5,10 +5,10 @@
 import preset from '@iota/core/tailwind.config';
 import colors from 'tailwindcss/colors';
 import { type Config } from 'tailwindcss';
-import { uiKitStaticPreset } from '@iota/apps-ui-kit';
+import { uiKitResponsivePreset } from '@iota/apps-ui-kit';
 
 export default {
-    presets: [preset, uiKitStaticPreset],
+    presets: [preset, uiKitResponsivePreset],
     content: [
         './src/**/*.{js,jsx,ts,tsx}',
         './node_modules/@iota/ui/src/**/*.{js,jsx,ts,tsx}',
@@ -16,7 +16,7 @@ export default {
     ],
     theme: {
         // This COLOR are duplicated from @iota/core tailwind.config.ts!!!
-        // They are repeated here cause uiKitStaticPreset overwrites the colors, and they are still used throughout Explorer
+        // They are repeated here cause uiKitResponsivePreset overwrites the colors, and they are still used throughout Explorer
         // REMOVE THIS COLORS ONCE @iota/core TAILWIND IS NOT NEEDED ANYMORE
         extend: {
             colors: {
@@ -88,12 +88,6 @@ export default {
                     200: '#CBE5BE',
                 },
             },
-        },
-        screens: {
-            sm: '600px',
-            md: '905px',
-            lg: '1240kpx',
-            xl: '1440px',
         },
     },
 } satisfies Partial<Config>;

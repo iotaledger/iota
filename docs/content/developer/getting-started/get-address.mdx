@@ -5,6 +5,10 @@ tags:
     - cli
     - address
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/get-address.json';
+
+
 # Create an Address
 
 ## What's an Account?
@@ -17,7 +21,7 @@ transactions.
 ## What's an Address?
 
 An address is a way to uniquely and anonymously identify an [account](#whats-an-account)
-or [package](../iota-101/iota-move-concepts/packages/packages.mdx). In the same way your email or ID number is
+or [package](../iota-101/move-overview/package-upgrades/introduction.mdx). In the same way your email or ID number is
 unique, addresses have to be unique as they are your account's identifier to send and receive transactions. You
 can [create any number of addresses](#create-an-iota-address), all of which will be unique.
 
@@ -67,7 +71,7 @@ IOTA provides multiple ways to obtain an IOTA address. The following are the two
 
 :::note Supported Address Types
 
-IOTA supports multiple cryptographic algorithms for account generation. The two supported curves
+IOTA supports multiple signature schemes for account generation. The currently supported curves
 are `ed25519`, `secp256k1`, and `secp256r1`.
 
 :::
@@ -122,3 +126,6 @@ the `~/.iota/iota_config/iota.keystore` file. Anyone who can access that file ca
 should not share it with anyone.
 
 :::
+
+
+<Quiz questions={questions} />

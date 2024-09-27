@@ -17,8 +17,8 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     Balance, CoinPage, DelegatedStake, DelegatedTimelockedStake, IotaCoinMetadata,
-    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaExecutionStatus, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, ObjectChange, ObjectsPage, StakeStatus,
     TransactionBlockBytes,
 };
@@ -30,8 +30,9 @@ use iota_swarm_config::genesis_config::{
 };
 use iota_types::{
     balance::Supply,
-    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     coin::{TreasuryCap, COIN_MODULE_NAME},
+    collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::{ObjectDigest, TransactionDigest},
     gas_coin::GAS,
@@ -39,6 +40,7 @@ use iota_types::{
     object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
+    stardust::output::{Irc27Metadata, Nft},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -207,11 +209,11 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         .await?;
     let gas = objects.data.first().unwrap().object().unwrap();
 
-    let compiled_package = BuildConfig::new_for_testing()
-        .build(Path::new("../../iota_programmability/examples/fungible_tokens").to_path_buf())?;
+    let compiled_package =
+        BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .publish(
@@ -469,10 +471,10 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::new_for_testing().build(path)?;
+    let compiled_package = BuildConfig::new_for_testing().build(&path)?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .publish(
@@ -553,10 +555,10 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::default().build(path)?;
+    let compiled_package = BuildConfig::default().build(&path)?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .publish(
@@ -1315,6 +1317,116 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         stake_copy.expiration_timestamp_ms
     );
     assert_eq!(stake.label, stake_copy.label);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_nft_display_object() -> Result<(), anyhow::Error> {
+    // Create a cluster
+    let (address, _) = deterministic_random_account_key();
+
+    let nft = Nft {
+        id: UID::new(ObjectID::random()),
+        legacy_sender: Some(IotaAddress::ZERO),
+        metadata: Some(String::from("metadata value").into_bytes()),
+        tag: Some(String::from("tag value").into_bytes()),
+        immutable_issuer: Some(
+            IotaAddress::from_str(
+                "0x1000000000000000002000000000000003000000000000040000000000000005",
+            )
+            .unwrap(),
+        ),
+        immutable_metadata: Irc27Metadata {
+            version: String::from("version value"),
+            media_type: String::from("media type value"),
+            uri: String::from("url value").try_into().unwrap(),
+            name: String::from("name value"),
+            collection_name: Some(String::from("collection name value")),
+            royalties: VecMap { contents: vec![] },
+            issuer_name: Some(String::from("issuer name value")),
+            description: Some(String::from("description value")),
+            attributes: VecMap { contents: vec![] },
+            non_standard_fields: VecMap { contents: vec![] },
+        },
+    };
+
+    let nft_move_object = unsafe {
+        MoveObject::new_from_execution(
+            MoveObjectType::stardust_nft(),
+            true,
+            OBJECT_START_VERSION,
+            bcs::to_bytes(&nft).unwrap(),
+            &ProtocolConfig::get_for_min_version(),
+        )
+        .unwrap()
+    };
+    let nft_object = ObjectInner {
+        owner: Owner::AddressOwner(address),
+        data: Data::Move(nft_move_object),
+        previous_transaction: TransactionDigest::genesis_marker(),
+        storage_rebate: 0,
+    };
+
+    let cluster = TestClusterBuilder::new()
+        .with_accounts(
+            [AccountConfig {
+                address: Some(address),
+                gas_amounts: [100_000_000].into(),
+            }]
+            .into(),
+        )
+        .with_objects([nft_object.into()])
+        .build()
+        .await;
+
+    // Check owned objects
+    let http_client = cluster.rpc_client();
+
+    let objects: ObjectsPage = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new(
+                Some(IotaObjectDataFilter::StructType(Nft::tag())),
+                Some(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction()
+                        .with_display(),
+                ),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    assert_eq!(1, objects.data.len());
+
+    // Check the Nft display
+    let nft_display = objects.data[0]
+        .data
+        .as_ref()
+        .unwrap()
+        .display
+        .as_ref()
+        .unwrap()
+        .data
+        .as_ref()
+        .unwrap();
+
+    assert_eq!(8, nft_display.len());
+
+    assert_eq!(nft_display["collection_name"], "collection name value");
+    assert_eq!(nft_display["creator"], "issuer name value");
+    assert_eq!(nft_display["description"], "description value");
+    assert_eq!(nft_display["image_url"], "url value");
+    assert_eq!(
+        nft_display["immutable_issuer"],
+        "0x1000000000000000002000000000000003000000000000040000000000000005"
+    );
+    assert_eq!(nft_display["media_type"], "media type value");
+    assert_eq!(nft_display["name"], "name value");
+    assert_eq!(nft_display["version"], "version value");
 
     Ok(())
 }

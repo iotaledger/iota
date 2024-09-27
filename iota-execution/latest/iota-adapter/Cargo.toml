@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 description = "Adapter and accompanying CLI for local iota development"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
 bcs.workspace = true
@@ -14,8 +17,10 @@ leb128.workspace = true
 serde.workspace = true
 tracing.workspace = true
 
+iota-metrics.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
+move-bytecode-verifier-meter.workspace = true
 move-core-types.workspace = true
 move-vm-config.workspace = true
 move-vm-types.workspace = true
