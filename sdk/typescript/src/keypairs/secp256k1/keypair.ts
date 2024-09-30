@@ -98,7 +98,7 @@ export class Secp256k1Keypair extends Keypair {
      * @param seed seed byte array
      */
     static fromSeed(seed: Uint8Array): Secp256k1Keypair {
-        let publicKey = secp256k1.getPublicKey(seed, true);
+        const publicKey = secp256k1.getPublicKey(seed, true);
         return new Secp256k1Keypair({ publicKey, secretKey: seed });
     }
 

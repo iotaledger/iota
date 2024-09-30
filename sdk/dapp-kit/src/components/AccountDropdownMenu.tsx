@@ -31,8 +31,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                 <DropdownMenu.Trigger asChild>
                     <Button size="lg" className={styles.connectedAccount}>
                         <Text mono weight="bold">
-                            {currentAccount.label ??
-                                formatAddress(currentAccount.address)}
+                            {currentAccount.label ?? formatAddress(currentAccount.address)}
                         </Text>
                         <ChevronIcon />
                     </Button>
