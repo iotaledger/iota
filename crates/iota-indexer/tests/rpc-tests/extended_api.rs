@@ -22,7 +22,7 @@ use serial_test::serial;
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
 
-use crate::common::pg_integration::{
+use crate::common::{
     indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_read_write_indexer,
     start_test_cluster_with_read_write_indexer,
 };
