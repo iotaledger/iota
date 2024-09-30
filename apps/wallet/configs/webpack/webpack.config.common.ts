@@ -19,6 +19,9 @@ import packageJson from '../../package.json';
 const WALLET_RC = process.env.WALLET_RC === 'true';
 const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
 
+console.log("RC_VERSION", RC_VERSION);
+console.log("WALLET_RC", WALLET_RC);
+
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
 const CONFIGS_ROOT = resolve(PROJECT_ROOT, 'configs');
