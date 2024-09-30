@@ -15,8 +15,7 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     iota_config_dir, node::Genesis, p2p::SeedPeer, Config, PersistedConfig, FULL_NODE_DB_PATH,
     IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
-    IOTA_GENESIS_FILENAME, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG,
+    IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
 };
 use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
@@ -224,16 +223,11 @@ impl IotaCommand {
                     ))
                 })?;
                 let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
-                let migration_tx_data_path =
-                    config_dir.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME);
                 let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
-                let migration_tx_data =
-                    iota_config::migration_tx_data::MigrationTxData::load(migration_tx_data_path)?;
                 let network_config = NetworkConfig {
                     validator_configs,
                     account_keys,
                     genesis,
-                    migration_tx_data,
                 };
                 let mut swarm_builder = Swarm::builder()
                     .dir(iota_config_dir()?)
@@ -442,7 +436,6 @@ async fn genesis(
 
     let network_path = iota_config_dir.join(IOTA_NETWORK_CONFIG);
     let genesis_path = iota_config_dir.join(IOTA_GENESIS_FILENAME);
-    let migration_tx_data_path = iota_config_dir.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME);
 
     let mut genesis_conf = match from_config {
         Some(path) => PersistedConfig::read(&path)?,
@@ -511,11 +504,9 @@ async fn genesis(
         validator_configs,
         account_keys,
         genesis,
-        migration_tx_data,
     } = network_config;
     let mut network_config = NetworkConfigLight::new(validator_configs, account_keys, &genesis);
     genesis.save(&genesis_path)?;
-    migration_tx_data.save(&migration_tx_data_path)?;
     let genesis = iota_config::node::Genesis::new_from_file(&genesis_path);
     for validator in &mut network_config.validator_configs {
         validator.genesis = genesis.clone();

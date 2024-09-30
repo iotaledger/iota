@@ -23,7 +23,6 @@ use fastcrypto::traits::KeyPair;
 use insta::assert_yaml_snapshot;
 use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
-    migration_tx_data,
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
 use iota_genesis_builder::{validator_info::ValidatorInfo, Builder};
@@ -91,7 +90,7 @@ fn populated_genesis_snapshot_matches() {
         builder.build()
     };
 
-    let (genesis, _migration_tx_data) = Builder::new()
+    let (genesis, _) = Builder::new()
         .with_token_distribution_schedule(token_distribution_schedule)
         .add_validator(validator, pop)
         .with_parameters(GenesisCeremonyParameters {

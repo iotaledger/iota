@@ -11,8 +11,8 @@ use std::{
 
 use iota_config::{
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
-    migration_tx_data,
     node::AuthorityOverloadConfig,
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
 };
 use iota_macros::nondeterministic;
 use iota_protocol_config::SupportedProtocolVersions;
@@ -353,7 +353,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let (genesis, migration_tx_data) = {
+        let (genesis, migration_tx_data_option) = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
@@ -379,6 +379,15 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             builder.build()
         };
+
+        if let Some(migration_tx_data) = migration_tx_data_option {
+            migration_tx_data
+                .save(
+                    self.config_directory
+                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
+                )
+                .expect("Should be able to save the migration data");
+        }
 
         let validator_configs = validators
             .into_iter()
@@ -428,7 +437,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             validator_configs,
             genesis,
             account_keys,
-            migration_tx_data,
         }
     }
 }
