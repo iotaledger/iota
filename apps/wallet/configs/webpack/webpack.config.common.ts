@@ -98,6 +98,8 @@ async function generateAliasFromTs() {
 const commonConfig: () => Promise<Configuration> = async () => {
     const alias = await generateAliasFromTs();
     console.log("RC_VERSION", RC_VERSION);
+    console.log(process.env.RC_VERSION, process.env.WALLET_RC)
+
     const walletVersionDetails = generateVersion(RC_VERSION);
     console.log("walletVersionDetails", walletVersionDetails);
     
