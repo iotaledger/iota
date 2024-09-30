@@ -5,7 +5,7 @@
 use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{
-    internal_error, validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
+    ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, internal_error, validate_limit,
 };
 use iota_json_rpc_types::{
     AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
@@ -13,7 +13,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::indexer_reader::IndexerReader;
 

@@ -12,9 +12,9 @@ use std::{
 use anyhow::anyhow;
 use aws_config::BehaviorVersion;
 use aws_sdk_kms::{
+    Client as KmsClient,
     primitives::Blob,
     types::{MessageType, SigningAlgorithmSpec},
-    Client as KmsClient,
 };
 use bip32::DerivationPath;
 use clap::*;
@@ -36,8 +36,8 @@ use iota_keys::{
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey,
-        SignatureScheme,
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
+        get_authority_key_pair,
     },
     error::IotaResult,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
@@ -45,17 +45,17 @@ use iota_types::{
     signature_verification::VerifiedDigestCache,
     transaction::{TransactionData, TransactionDataAPI},
 };
-use json_to_table::{json_to_table, Orientation};
+use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage};
 use tabled::{
     builder::Builder,
-    settings::{object::Rows, Modify, Rotate, Width},
+    settings::{Modify, Rotate, Width, object::Rows},
 };
 use tracing::info;
 
-use crate::key_identity::{get_identity_address_from_keystore, KeyIdentity};
+use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
 #[cfg(test)]
 #[path = "unit_tests/keytool_tests.rs"]
 mod keytool_tests;

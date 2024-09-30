@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{random_object_ref, IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,
@@ -19,8 +19,8 @@ use iota_types::{
 use itertools::Itertools;
 use move_core_types::identifier::Identifier;
 use rand::{
-    distributions::{Distribution, Standard},
     Rng,
+    distributions::{Distribution, Standard},
 };
 use regex::Regex;
 use strum::{EnumCount, IntoEnumIterator};
@@ -28,16 +28,16 @@ use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use tracing::debug;
 
 use super::{
-    workload::{Workload, WorkloadBuilder, MAX_GAS_FOR_TESTING},
     WorkloadBuilderInfo, WorkloadParams,
+    workload::{MAX_GAS_FOR_TESTING, Workload, WorkloadBuilder},
 };
 use crate::{
+    BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, ValidatorProxy,
     convert_move_call_args,
     drivers::Interval,
-    in_memory_wallet::{move_call_pt_impl, InMemoryWallet},
+    in_memory_wallet::{InMemoryWallet, move_call_pt_impl},
     system_state_observer::{SystemState, SystemStateObserver},
-    workloads::{payload::Payload, Gas, GasCoinConfig},
-    BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, ValidatorProxy,
+    workloads::{Gas, GasCoinConfig, payload::Payload},
 };
 
 /// Number of vectors to create in LargeTransientRuntimeVectors workload
@@ -492,7 +492,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
             .unwrap();
 
         for o in &created {
-            let obj = proxy.get_object(o.0 .0).await.unwrap();
+            let obj = proxy.get_object(o.0.0).await.unwrap();
             if let Some(tag) = obj.data.struct_tag() {
                 if tag.to_string().contains("::adversarial::Obj") {
                     self.df_parent_obj_ref = o.0;
@@ -503,10 +503,10 @@ impl Workload<dyn Payload> for AdversarialWorkload {
             self.df_parent_obj_ref.0 != ObjectID::ZERO,
             "Dynamic field parent must be created"
         );
-        self.package_id = package_obj.0 .0;
+        self.package_id = package_obj.0.0;
 
         let gas_ref = proxy
-            .get_object(gas.0 .0)
+            .get_object(gas.0.0)
             .await
             .unwrap()
             .compute_object_reference();
@@ -517,7 +517,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         let transaction = move_call_pt_impl(
             gas.1,
             &gas.2,
-            package_obj.0 .0,
+            package_obj.0.0,
             "adversarial",
             "create_min_size_shared_objects",
             vec![],
@@ -536,7 +536,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         // read them in MaxReads workload
         self.shared_objs = created
             .iter()
-            .map(|o| BenchMoveCallArg::Shared((o.0 .0, o.0 .1, false)))
+            .map(|o| BenchMoveCallArg::Shared((o.0.0, o.0.1, false)))
             .collect();
     }
 

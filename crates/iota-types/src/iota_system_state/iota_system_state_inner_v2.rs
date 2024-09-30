@@ -5,10 +5,10 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
+    AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     iota_system_state_inner_v1::ValidatorV1,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    AdvanceEpochParams, IotaSystemStateTrait,
 };
 use crate::{
     balance::Balance,
@@ -133,13 +133,10 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                    }),
                 )
             })
             .collect();

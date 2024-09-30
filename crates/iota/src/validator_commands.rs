@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::{
@@ -34,13 +34,14 @@ use iota_keys::{
     },
     keystore::AccountKeystore,
 };
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
-        generate_proof_of_possession, get_authority_key_pair, AuthorityKeyPair, AuthorityPublicKey,
-        AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable,
-        SignatureScheme, DEFAULT_EPOCH_ID,
+        AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
+        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
+        generate_proof_of_possession, get_authority_key_pair,
     },
     iota_system_state::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
@@ -49,7 +50,6 @@ use iota_types::{
     multiaddr::Multiaddr,
     object::Owner,
     transaction::{CallArg, ObjectArg, Transaction, TransactionData},
-    IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_core_types::ident_str;
 use serde::Serialize;

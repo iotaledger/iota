@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use futures::stream::FuturesUnordered;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    crypto::{get_account_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_account_key_pair},
     object::Object,
 };
 
@@ -44,14 +44,11 @@ pub async fn batch_create_account_and_gas(
             .iter()
             .map(|o| o.compute_object_reference())
             .collect();
-        accounts.insert(
+        accounts.insert(sender, Account {
             sender,
-            Account {
-                sender,
-                keypair: Arc::new(keypair),
-                gas_objects: Arc::new(gas_object_refs),
-            },
-        );
+            keypair: Arc::new(keypair),
+            gas_objects: Arc::new(gas_object_refs),
+        });
         genesis_gas_objects.extend(gas_objects);
     }
     (accounts, genesis_gas_objects)

@@ -11,8 +11,10 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
-use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
+use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
@@ -21,8 +23,6 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{MoveObject, Owner},
     storage::ChildObjectResolver,
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -470,26 +470,24 @@ impl<'a> ObjectRuntime<'a> {
         // The loaded child objects, and the received objects, should be disjoint. If
         // they are not, this is an error since it could lead to incorrect
         // transaction dependency computations.
-        debug_assert!(self
-            .child_object_store
-            .cached_objects()
-            .keys()
-            .all(|id| !self.state.received.contains_key(id)));
+        debug_assert!(
+            self.child_object_store
+                .cached_objects()
+                .keys()
+                .all(|id| !self.state.received.contains_key(id))
+        );
         self.child_object_store
             .cached_objects()
             .iter()
             .filter_map(|(id, obj_opt)| {
                 obj_opt.as_ref().map(|obj| {
-                    (
-                        *id,
-                        DynamicallyLoadedObjectMetadata {
-                            version: obj.version(),
-                            digest: obj.digest(),
-                            storage_rebate: obj.storage_rebate,
-                            owner: obj.owner,
-                            previous_transaction: obj.previous_transaction,
-                        },
-                    )
+                    (*id, DynamicallyLoadedObjectMetadata {
+                        version: obj.version(),
+                        digest: obj.digest(),
+                        storage_rebate: obj.storage_rebate,
+                        owner: obj.owner,
+                        previous_transaction: obj.previous_transaction,
+                    })
                 })
             })
             .chain(
@@ -535,13 +533,10 @@ impl ObjectRuntimeState {
         let mut loaded_child_objects: BTreeMap<_, _> = loaded_child_objects
             .into_iter()
             .map(|(id, metadata)| {
-                (
-                    id,
-                    LoadedRuntimeObject {
-                        version: metadata.version,
-                        is_modified: false,
-                    },
-                )
+                (id, LoadedRuntimeObject {
+                    version: metadata.version,
+                    is_modified: false,
+                })
             })
             .collect();
         for (child, child_object_effect) in child_object_effects {

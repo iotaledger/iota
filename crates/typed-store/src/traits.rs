@@ -5,7 +5,7 @@
 use std::{borrow::Borrow, collections::BTreeMap, error::Error, ops::RangeBounds};
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::TypedStoreError;
 
@@ -65,7 +65,7 @@ where
     /// Returns an iterator visiting each key-value pair within the specified
     /// bounds in the map.
     fn iter_with_bounds(&'a self, lower_bound: Option<K>, upper_bound: Option<K>)
-        -> Self::Iterator;
+    -> Self::Iterator;
 
     /// Similar to `iter_with_bounds` but allows specifying
     /// inclusivity/exclusivity of ranges explicitly. TODO: find better name

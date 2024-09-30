@@ -53,19 +53,19 @@ use std::{
     sync::Arc,
 };
 
-use dashmap::{mapref::entry::Entry as DashMapEntry, DashMap};
-use futures::{future::BoxFuture, FutureExt};
+use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
+use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_macros::fail_point_async;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::{get_bridge, Bridge},
+    bridge::{Bridge, get_bridge},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
-    iota_system_state::{get_iota_system_state, IotaSystemState},
+    iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -79,20 +79,20 @@ use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::{
-    cache_types::CachedVersionMap, implement_passthrough_traits, object_locks::ObjectLocks,
     CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
-    TransactionCacheRead,
+    TransactionCacheRead, cache_types::CachedVersionMap, implement_passthrough_traits,
+    object_locks::ObjectLocks,
 };
 use crate::{
     authority::{
+        AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{
             ExecutionLockWriteGuard, IotaLockResult, LockDetailsDeprecated, ObjectLockStatus,
         },
         authority_store_tables::LiveObject,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        AuthorityStore,
     },
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
@@ -910,11 +910,12 @@ impl WritebackCache {
 
         for outputs in all_outputs.iter() {
             let tx_digest = outputs.transaction.digest();
-            assert!(self
-                .dirty
-                .pending_transaction_writes
-                .remove(tx_digest)
-                .is_some());
+            assert!(
+                self.dirty
+                    .pending_transaction_writes
+                    .remove(tx_digest)
+                    .is_some()
+            );
             self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
         }
 
@@ -1034,11 +1035,12 @@ impl WritebackCache {
                 .map(|o| o.transaction.clone())
             else {
                 // tx should exist in the db if it is not in dirty set.
-                debug_assert!(self
-                    .store
-                    .get_transaction_block(tx_digest)
-                    .unwrap()
-                    .is_some());
+                debug_assert!(
+                    self.store
+                        .get_transaction_block(tx_digest)
+                        .unwrap()
+                        .is_some()
+                );
                 // If the transaction is not in dirty, it does not need to be committed.
                 // This situation can happen if we build a checkpoint locally which was just
                 // executed via state sync.

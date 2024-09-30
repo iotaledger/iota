@@ -6,8 +6,8 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
     block::{
-        genesis_blocks, BlockAPI, BlockRef, BlockTimestampMs, SignedBlock, VerifiedBlock,
-        GENESIS_ROUND,
+        BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, VerifiedBlock,
+        genesis_blocks,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -554,9 +554,11 @@ mod test {
                 .set_timestamp_ms(1500)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
-            assert!(verifier
-                .check_ancestors(&verified_block, &ancestor_blocks)
-                .is_ok());
+            assert!(
+                verifier
+                    .check_ancestors(&verified_block, &ancestor_blocks)
+                    .is_ok()
+            );
         }
 
         // Block not respecting timestamp invariant.

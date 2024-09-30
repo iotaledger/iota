@@ -5,10 +5,13 @@
 //! Multi mnemonics, multi accounts, multi addresses.
 
 use iota_sdk::{
-    client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
+    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
     types::block::{
         address::{AliasAddress, Ed25519Address},
         output::{
+            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
+            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
+            UnlockCondition,
             feature::{
                 Feature, Irc27Metadata, Irc30Metadata, IssuerFeature, MetadataFeature,
                 SenderFeature, TagFeature,
@@ -18,16 +21,13 @@ use iota_sdk::{
                 ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
                 StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
             },
-            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
-            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
-            UnlockCondition,
         },
     },
 };
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
+    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
     types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
 };
 
@@ -235,21 +235,20 @@ fn new_basic_or_nft_outputs(
     add_output_with_unlock_conditions(vec![]);
     add_output_with_unlock_conditions(vec![TimelockUnlockCondition::new(rng.gen())?.into()]);
     add_output_with_unlock_conditions(vec![
-        ExpirationUnlockCondition::new(address, rng.gen())?.into()
+        ExpirationUnlockCondition::new(address, rng.gen())?.into(),
     ]);
-    add_output_with_unlock_conditions(vec![StorageDepositReturnUnlockCondition::new(
-        address,
-        STORAGE_DEPOSIT_AMOUNT,
-        u64::MAX,
-    )?
-    .into()]);
+    add_output_with_unlock_conditions(vec![
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
+    ]);
 
-    add_output_with_unlock_conditions(vec![StorageDepositReturnUnlockCondition::new(
-        Ed25519Address::new([0u8; 32]),
-        STORAGE_DEPOSIT_AMOUNT,
-        u64::MAX,
-    )?
-    .into()]);
+    add_output_with_unlock_conditions(vec![
+        StorageDepositReturnUnlockCondition::new(
+            Ed25519Address::new([0u8; 32]),
+            STORAGE_DEPOSIT_AMOUNT,
+            u64::MAX,
+        )?
+        .into(),
+    ]);
     add_output_with_unlock_conditions(vec![
         AddressUnlockCondition::new(Ed25519Address::new([0u8; 32])).into(),
         StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),

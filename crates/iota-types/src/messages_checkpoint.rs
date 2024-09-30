@@ -23,12 +23,12 @@ pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
     accumulator::Accumulator,
     base_types::{
-        random_object_ref, AuthorityName, ExecutionData, ExecutionDigests, VerifiedExecutionData,
+        AuthorityName, ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref,
     },
     committee::{Committee, EpochId, ProtocolVersion, StakeUnit},
     crypto::{
-        default_hash, get_key_pair, AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo,
-        AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, RandomnessRound,
+        AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
+        AuthorityStrongQuorumSignInfo, RandomnessRound, default_hash, get_key_pair,
     },
     digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
@@ -253,13 +253,10 @@ impl CheckpointSummary {
     }
 
     pub fn verify_epoch(&self, epoch: EpochId) -> IotaResult {
-        fp_ensure!(
-            self.epoch == epoch,
-            IotaError::WrongEpoch {
-                expected_epoch: epoch,
-                actual_epoch: self.epoch,
-            }
-        );
+        fp_ensure!(self.epoch == epoch, IotaError::WrongEpoch {
+            expected_epoch: epoch,
+            actual_epoch: self.epoch,
+        });
         Ok(())
     }
 
@@ -799,7 +796,7 @@ pub struct CheckpointVersionSpecificDataV1 {
 #[cfg(feature = "test-utils")]
 mod tests {
     use fastcrypto::traits::KeyPair;
-    use rand::{prelude::StdRng, SeedableRng};
+    use rand::{SeedableRng, prelude::StdRng};
 
     use super::*;
     use crate::{
@@ -893,9 +890,11 @@ mod tests {
             CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("Cert is OK");
 
         // Signature is correct on proposal, and with same transactions
-        assert!(checkpoint_cert
-            .verify_with_contents(&committee, Some(&set))
-            .is_ok());
+        assert!(
+            checkpoint_cert
+                .verify_with_contents(&committee, Some(&set))
+                .is_ok()
+        );
 
         // Make a bad proposal
         let signed_checkpoints: Vec<_> = keys

@@ -14,13 +14,13 @@ use itertools::Itertools;
 use tracing::info;
 
 use crate::{
+    ValidatorProxy,
     util::UpdatedAndNewlyMintedGasCoins,
     workloads::{
-        payload::Payload,
-        workload::{Workload, WorkloadBuilder, MAX_BUDGET},
         Gas, GasCoinConfig,
+        payload::Payload,
+        workload::{MAX_BUDGET, Workload, WorkloadBuilder},
     },
-    ValidatorProxy,
 };
 
 /// Bank is used for generating gas for running the benchmark.
@@ -140,7 +140,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == init_coin.0 .0)
+            .find(|(k, _)| k.0 == init_coin.0.0)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 
@@ -191,7 +191,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == self.primary_coin.0 .0)
+            .find(|(k, _)| k.0 == self.primary_coin.0.0)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 

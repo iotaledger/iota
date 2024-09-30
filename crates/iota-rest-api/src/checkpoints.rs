@@ -10,11 +10,11 @@ use iota_types::storage::ReadStore;
 use tap::Pipe;
 
 use crate::{
+    Direction, Page, RestService, Result,
     accept::AcceptFormat,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
     response::ResponseContent,
-    Direction, Page, RestService, Result,
 };
 
 pub struct GetCheckpointFull;

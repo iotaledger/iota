@@ -19,7 +19,7 @@ use tracing::{debug, info, instrument, trace};
 
 use super::{CheckpointMetrics, CheckpointStore};
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, StableSyncAuthoritySigner},
+    authority::{StableSyncAuthoritySigner, authority_per_epoch_store::AuthorityPerEpochStore},
     consensus_adapter::SubmitToConsensus,
     epoch::reconfiguration::ReconfigurationInitiator,
 };
@@ -143,8 +143,7 @@ impl CheckpointOutput for LogCheckpointOutput {
     ) -> IotaResult {
         trace!(
             "Including following transactions in checkpoint {}: {:?}",
-            summary.sequence_number,
-            contents
+            summary.sequence_number, contents
         );
         info!(
             "Creating checkpoint {:?} at epoch {}, sequence {}, previous digest {:?}, transactions count {}, content digest {:?}, end_of_epoch_data {:?}",

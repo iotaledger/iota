@@ -5,12 +5,12 @@
 //! BridgeAuthorityAggregator aggregates signatures from BridgeCommittee.
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     sync::Arc,
     time::Duration,
 };
 
-use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout_and_prefs, ReduceOutput};
+use iota_authority_aggregation::{ReduceOutput, quorum_map_then_reduce_with_timeout_and_prefs};
 use iota_types::{
     base_types::ConciseableName,
     committee::{StakeUnit, TOTAL_VOTING_POWER},
@@ -340,10 +340,13 @@ mod tests {
         let mock3 = BridgeRequestMockHandler::new();
 
         // start servers
-        let (_handles, authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
-            vec![2500, 2500, 2500, 2500],
-            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
-        );
+        let (_handles, authorities, secrets) =
+            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
+                mock0.clone(),
+                mock1.clone(),
+                mock2.clone(),
+                mock3.clone(),
+            ]);
 
         let committee = BridgeCommittee::new(authorities).unwrap();
 
@@ -434,10 +437,13 @@ mod tests {
         let mock3 = BridgeRequestMockHandler::new();
 
         // start servers
-        let (_handles, mut authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
-            vec![2500, 2500, 2500, 2500],
-            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
-        );
+        let (_handles, mut authorities, secrets) =
+            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
+                mock0.clone(),
+                mock1.clone(),
+                mock2.clone(),
+                mock3.clone(),
+            ]);
         // 0 and 1 are blocklisted
         authorities[0].is_blocklisted = true;
         authorities[1].is_blocklisted = true;
@@ -599,14 +605,16 @@ mod tests {
 
         let sig_0 = sign_action_with_key(&action, &secrets[0]);
         // returns Ok(None)
-        assert!(state
-            .handle_verified_signed_action(
-                authorities[0].pubkey_bytes().clone(),
-                authorities[0].voting_power,
-                VerifiedSignedBridgeAction::new_from_verified(sig_0.clone())
-            )
-            .unwrap()
-            .is_none());
+        assert!(
+            state
+                .handle_verified_signed_action(
+                    authorities[0].pubkey_bytes().clone(),
+                    authorities[0].voting_power,
+                    VerifiedSignedBridgeAction::new_from_verified(sig_0.clone())
+                )
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(state.total_ok_stake, 2500);
 
         // Handling a sig from an already signed authority would fail
@@ -652,14 +660,16 @@ mod tests {
         // Collect signtuare from authority 1 (voting power = 1)
         let sig_1 = sign_action_with_key(&action, &secrets[1]);
         // returns Ok(None)
-        assert!(state
-            .handle_verified_signed_action(
-                authorities[1].pubkey_bytes().clone(),
-                authorities[1].voting_power,
-                VerifiedSignedBridgeAction::new_from_verified(sig_1.clone())
-            )
-            .unwrap()
-            .is_none());
+        assert!(
+            state
+                .handle_verified_signed_action(
+                    authorities[1].pubkey_bytes().clone(),
+                    authorities[1].voting_power,
+                    VerifiedSignedBridgeAction::new_from_verified(sig_1.clone())
+                )
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(state.total_ok_stake, 2501);
 
         // Collect signature from authority 2 - reach validity threshold

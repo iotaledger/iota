@@ -15,7 +15,7 @@ use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
-use iota_test_transaction_builder::{make_transfer_iota_transaction, TestTransactionBuilder};
+use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
     base_types::IotaAddress,
     effects::TransactionEffectsAPI,
@@ -23,8 +23,8 @@ use iota_types::{
     gas::GasCostSummary,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
-        get_validator_from_table, iota_system_state_summary::get_validator_by_pool_id,
-        IotaSystemStateTrait,
+        IotaSystemStateTrait, get_validator_from_table,
+        iota_system_state_summary::get_validator_by_pool_id,
     },
     message_envelope::Message,
     transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
@@ -55,13 +55,15 @@ async fn advance_epoch_tx_test() {
                 .await
                 .unwrap();
             // Check that the validator didn't commit the transaction yet.
-            assert!(state
-                .get_signed_effects_and_maybe_resign(
-                    effects.transaction_digest(),
-                    &state.epoch_store_for_testing()
-                )
-                .unwrap()
-                .is_none());
+            assert!(
+                state
+                    .get_signed_effects_and_maybe_resign(
+                        effects.transaction_digest(),
+                        &state.epoch_store_for_testing()
+                    )
+                    .unwrap()
+                    .is_none()
+            );
             effects
         })
         .collect();
@@ -105,10 +107,12 @@ async fn test_transaction_expiration() {
         .wallet
         .execute_transaction_may_fail(expired_transaction)
         .await;
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains(&IotaError::TransactionExpired.to_string()));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(&IotaError::TransactionExpired.to_string())
+    );
 
     // Non expired transaction signed without issue
     *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(10);
@@ -578,9 +582,10 @@ async fn test_inactive_validator_pool_read() {
 
     // Check that this node is no longer a validator.
     validator.with(|node| {
-        assert!(node
-            .state()
-            .is_fullnode(&node.state().epoch_store_for_testing()));
+        assert!(
+            node.state()
+                .is_fullnode(&node.state().epoch_store_for_testing())
+        );
     });
 
     // Check that the validator that just left now shows up in the
@@ -641,9 +646,10 @@ async fn test_reconfig_with_committee_change_basic() {
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
     new_validator_handle.with(|node| {
-        assert!(node
-            .state()
-            .is_validator(&node.state().epoch_store_for_testing()));
+        assert!(
+            node.state()
+                .is_validator(&node.state().epoch_store_for_testing())
+        );
     });
 
     execute_remove_validator_tx(&test_cluster, &new_validator_handle).await;

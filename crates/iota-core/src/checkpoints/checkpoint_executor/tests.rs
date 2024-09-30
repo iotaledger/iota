@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use broadcast::{Receiver, Sender};
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
+use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
     gas::GasCostSummary,
@@ -21,9 +21,9 @@ use typed_store::Map;
 use super::*;
 use crate::{
     authority::{
+        AuthorityState,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     checkpoints::CheckpointStore,
     state_accumulator::StateAccumulator,
@@ -47,10 +47,12 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CommitteeFixture,
     ) = init_executor_test(buffer_size, checkpoint_store.clone()).await;
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none()
+    );
     let checkpoints = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
@@ -133,10 +135,12 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     let epoch = epoch_store.epoch();
     assert_eq!(epoch, 0);
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none()
+    );
 
     // sync 20 checkpoints
     let cold_start_checkpoints = sync_new_checkpoints(
@@ -195,11 +199,13 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     .await;
 
     // Ensure root state hash for epoch does not exist before we close epoch
-    assert!(authority_state
-        .get_accumulator_store()
-        .get_root_state_accumulator_for_epoch(0)
-        .unwrap()
-        .is_none());
+    assert!(
+        authority_state
+            .get_accumulator_store()
+            .get_root_state_accumulator_for_epoch(0)
+            .unwrap()
+            .is_none()
+    );
 
     // Ensure executor reaches end of epoch in a timely manner
     timeout(Duration::from_secs(5), async {
@@ -300,10 +306,12 @@ pub async fn test_reconfig_crash_recovery() {
     )
     .await;
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none()
+    );
 
     // sync 1 checkpoint
     let checkpoint = sync_new_checkpoints(

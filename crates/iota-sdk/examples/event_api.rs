@@ -12,7 +12,7 @@
 mod utils;
 
 use futures::stream::StreamExt;
-use iota_sdk::{rpc_types::EventFilter, IotaClientBuilder};
+use iota_sdk::{IotaClientBuilder, rpc_types::EventFilter};
 use utils::{setup_for_write, split_coin_digest};
 
 #[tokio::main]

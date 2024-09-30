@@ -10,8 +10,8 @@ use std::{
 
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
-    zk_login_api::{verify_zk_login, ZkLoginEnv},
+    zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs},
+    zk_login_api::{ZkLoginEnv, verify_zk_login},
 };
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
@@ -297,11 +297,7 @@ impl AddressSeed {
         }
 
         // If the value is '0' then just return a slice of length 1 of the final byte
-        if buf.is_empty() {
-            &self.0[31..]
-        } else {
-            buf
-        }
+        if buf.is_empty() { &self.0[31..] } else { buf }
     }
 
     pub fn padded(&self) -> &[u8] {

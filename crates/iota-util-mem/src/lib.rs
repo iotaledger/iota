@@ -102,7 +102,7 @@ impl MemoryAllocationTracker {
 mod test {
     use std::sync::Arc;
 
-    use super::{malloc_size, MallocSizeOf, MallocSizeOfExt};
+    use super::{MallocSizeOf, MallocSizeOfExt, malloc_size};
 
     #[test]
     fn test_arc() {

@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_bridge::{crypto::BridgeAuthorityKeyPair, BRIDGE_ENABLE_PROTOCOL_VERSION};
+use iota_bridge::{BRIDGE_ENABLE_PROTOCOL_VERSION, crypto::BridgeAuthorityKeyPair};
 use iota_json_rpc_api::BridgeReadApiClient;
 use iota_macros::sim_test;
 use iota_types::{
-    bridge::{get_bridge, BridgeTrait},
-    crypto::get_key_pair,
     IOTA_BRIDGE_OBJECT_ID,
+    bridge::{BridgeTrait, get_bridge},
+    crypto::get_key_pair,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -25,12 +25,13 @@ async fn test_create_bridge_state_object() {
     // no node has the bridge state object yet
     for h in &handles {
         h.with(|node| {
-            assert!(node
-                .state()
-                .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_BRIDGE_OBJECT_ID)
-                .unwrap()
-                .is_none());
+            assert!(
+                node.state()
+                    .get_object_cache_reader()
+                    .get_latest_object_ref_or_tombstone(IOTA_BRIDGE_OBJECT_ID)
+                    .unwrap()
+                    .is_none()
+            );
         });
     }
 

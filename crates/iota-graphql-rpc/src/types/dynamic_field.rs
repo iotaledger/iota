@@ -7,12 +7,12 @@ use async_graphql::{
     *,
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
-use iota_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
+use iota_types::dynamic_field::{DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id};
 use move_core_types::annotated_value::{self as A, MoveStruct};
 
 use crate::{
-    consistency::{build_objects_query, View},
-    data::{package_resolver::PackageResolver, Db, QueryExecutor},
+    consistency::{View, build_objects_query},
+    data::{Db, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter,
     raw_query::RawQuery,
@@ -23,7 +23,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, deserialize_move_struct, Object, ObjectKind},
+        object::{self, Object, ObjectKind, deserialize_move_struct},
         type_filter::ExactTypeFilter,
     },
 };

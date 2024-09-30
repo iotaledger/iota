@@ -9,8 +9,8 @@ use std::{
 };
 
 use anemo::{
-    types::{PeerEvent, PeerInfo},
     Network, Peer, PeerId, Request, Response,
+    types::{PeerEvent, PeerInfo},
 };
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
@@ -285,8 +285,8 @@ impl DiscoveryEventLoop {
                 !info.addresses.is_empty() // Peer has addresses we can dial
                 && !state.connected_peers.contains_key(peer_id) // We're not already connected
                 && !self.pending_dials.contains_key(peer_id) // There is no
-                                                             // pending dial to
-                                                             // this node
+                // pending dial to
+                // this node
             })
             .collect::<Vec<_>>();
 

@@ -19,7 +19,7 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope, INTENT_PREFIX_LENGTH};
+use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage, IntentScope};
 
 ////////////////////////////////////////////////////////////////////////
 /// Type aliases selecting the signature algorithm for the code base.

@@ -11,17 +11,17 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{anyhow, bail, ensure, Context};
+use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        enum_dispatch, get_key_pair_from_rng, EncodeDecodeBase64, IotaKeyPair, PublicKey,
-        Signature, SignatureScheme,
+        EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme, enum_dispatch,
+        get_key_pair_from_rng,
     },
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -40,12 +40,12 @@ pub enum Keystore {
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
     fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
-        -> Result<(), anyhow::Error>;
+    -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
 
     fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
-        -> Result<Signature, signature::Error>;
+    -> Result<Signature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
@@ -240,13 +240,10 @@ impl AccountKeystore for FileBasedKeystore {
     ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
-        self.aliases.insert(
-            address,
-            Alias {
-                alias,
-                public_key_base64: keypair.public().encode_base64(),
-            },
-        );
+        self.aliases.insert(address, Alias {
+            alias,
+            public_key_base64: keypair.public().encode_base64(),
+        });
         self.keys.insert(address, keypair);
         self.save()?;
         Ok(())
@@ -392,13 +389,10 @@ impl FileBasedKeystore {
                 .zip(names)
                 .map(|((iota_address, ikp), alias)| {
                     let public_key_base64 = ikp.public().encode_base64();
-                    (
-                        *iota_address,
-                        Alias {
-                            alias,
-                            public_key_base64,
-                        },
-                    )
+                    (*iota_address, Alias {
+                        alias,
+                        public_key_base64,
+                    })
                 })
                 .collect::<BTreeMap<_, _>>();
             let aliases_store = serde_json::to_string_pretty(&aliases.values().collect::<Vec<_>>())
@@ -617,13 +611,10 @@ impl InMemKeystore {
             .zip(random_names(HashSet::new(), keys.len()))
             .map(|((iota_address, ikp), alias)| {
                 let public_key_base64 = ikp.public().encode_base64();
-                (
-                    *iota_address,
-                    Alias {
-                        alias,
-                        public_key_base64,
-                    },
-                )
+                (*iota_address, Alias {
+                    alias,
+                    public_key_base64,
+                })
             })
             .collect::<BTreeMap<_, _>>();
 

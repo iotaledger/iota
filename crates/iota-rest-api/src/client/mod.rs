@@ -5,6 +5,7 @@
 pub mod sdk;
 
 use iota_types::{
+    TypeTag,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
@@ -12,7 +13,6 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     transaction::Transaction,
-    TypeTag,
 };
 pub use reqwest;
 use sdk::Result;

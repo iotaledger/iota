@@ -6,14 +6,14 @@ use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
 use iota_config::{
-    genesis::Genesis, Config, PersistedConfig, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG,
+    Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
+    genesis::Genesis,
 };
 use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
-use iota_indexer::test_utils::{start_test_indexer, ReaderWriterConfig};
+use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
@@ -26,7 +26,7 @@ use iota_swarm_config::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair, AccountKeyPair, IotaKeyPair, KeypairTraits},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
 };
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};

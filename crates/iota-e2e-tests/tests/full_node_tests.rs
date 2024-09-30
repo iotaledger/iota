@@ -19,14 +19,14 @@ use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_test_transaction_builder::{
-    batch_make_transfer_transactions, create_nft, delete_nft, increment_counter,
-    publish_basics_package, publish_basics_package_and_make_counter, publish_nfts_package,
-    TestTransactionBuilder,
+    TestTransactionBuilder, batch_make_transfer_transactions, create_nft, delete_nft,
+    increment_counter, publish_basics_package, publish_basics_package_and_make_counter,
+    publish_nfts_package,
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
-    crypto::{get_key_pair, IotaKeyPair},
+    crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     message_envelope::Message,
     messages_grpc::TransactionInfoRequest,
@@ -37,8 +37,8 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionKind,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -48,7 +48,7 @@ use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
 use tokio::{
     sync::Mutex,
-    time::{sleep, Duration},
+    time::{Duration, sleep},
 };
 use tracing::info;
 
@@ -149,34 +149,27 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
-    let tx_data = TransactionData::new_with_gas_data(
-        kind,
-        sender,
-        GasData {
-            payment: vec![gas_obj],
-            owner: sponsor,
-            price: rgp,
-            budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        },
-    );
+    let tx_data = TransactionData::new_with_gas_data(kind, sender, GasData {
+        payment: vec![gas_obj],
+        owner: sponsor,
+        price: rgp,
+        budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    });
 
-    let tx = to_sender_signed_transaction_with_multi_signers(
-        tx_data,
-        vec![
-            test_cluster
-                .wallet
-                .config
-                .keystore
-                .get_key(&sender)
-                .unwrap(),
-            test_cluster
-                .wallet
-                .config
-                .keystore
-                .get_key(&sponsor)
-                .unwrap(),
-        ],
-    );
+    let tx = to_sender_signed_transaction_with_multi_signers(tx_data, vec![
+        test_cluster
+            .wallet
+            .config
+            .keystore
+            .get_key(&sender)
+            .unwrap(),
+        test_cluster
+            .wallet
+            .config
+            .keystore
+            .get_key(&sponsor)
+            .unwrap(),
+    ]);
 
     test_cluster.execute_transaction(tx).await;
 
@@ -839,9 +832,10 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
     let node_handle = test_cluster.swarm.validator_node_handles().pop().unwrap();
     node_handle.with(|node| {
         assert!(node.transaction_orchestrator().is_none());
-        assert!(node
-            .subscribe_to_transaction_orchestrator_effects()
-            .is_err());
+        assert!(
+            node.subscribe_to_transaction_orchestrator_effects()
+                .is_err()
+        );
     });
 }
 
@@ -1260,11 +1254,13 @@ async fn test_access_old_object_pruned() {
                     )
                     .await;
                 // Make sure the old version of the object is already pruned.
-                assert!(state
-                    .database_for_testing()
-                    .get_object_by_key(&gas_object.0, gas_object.1)
-                    .unwrap()
-                    .is_none());
+                assert!(
+                    state
+                        .database_for_testing()
+                        .get_object_by_key(&gas_object.0, gas_object.1)
+                        .unwrap()
+                        .is_none()
+                );
                 let epoch_store = state.epoch_store_for_testing();
                 assert_eq!(
                     state
@@ -1287,13 +1283,15 @@ async fn test_access_old_object_pruned() {
 
     // Check that fullnode would return the same error.
     let result = test_cluster.wallet.execute_transaction_may_fail(tx).await;
-    assert!(result.unwrap_err().to_string().contains(
-        &UserInputError::ObjectVersionUnavailableForConsumption {
-            provided_obj_ref: gas_object,
-            current_version: new_gas_version,
-        }
-        .to_string()
-    ))
+    assert!(
+        result.unwrap_err().to_string().contains(
+            &UserInputError::ObjectVersionUnavailableForConsumption {
+                provided_obj_ref: gas_object,
+                current_version: new_gas_version,
+            }
+            .to_string()
+        )
+    )
 }
 
 async fn transfer_coin(
@@ -1362,11 +1360,13 @@ async fn test_full_node_run_with_range_checkpoint() -> Result<(), anyhow::Error>
     }));
 
     // we dont want transaction orchestrator enabled when run_with_range != None
-    assert!(test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.transaction_orchestrator())
-        .is_none());
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.transaction_orchestrator())
+            .is_none()
+    );
     Ok(())
 }
 
@@ -1390,27 +1390,33 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     // ensure we end up at epoch + 1
     // this is because we execute the target epoch, reconfigure, and then send
     // shutdown signal at epoch + 1
-    assert!(test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1)
+    );
 
     // epoch duration is 10s for testing, lets sleep long enough that epoch would
     // normally progress
     tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
 
     // ensure we are still at epoch + 1
-    assert!(test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1)
+    );
 
     // we dont want transaction orchestrator enabled when run_with_range != None
-    assert!(test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.transaction_orchestrator())
-        .is_none());
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.transaction_orchestrator())
+            .is_none()
+    );
 
     Ok(())
 }

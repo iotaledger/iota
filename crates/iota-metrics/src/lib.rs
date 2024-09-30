@@ -11,18 +11,18 @@ use std::{
     time::Instant,
 };
 
-use axum::{extract::Extension, http::StatusCode, routing::get, Router};
+use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
-    register_histogram_with_registry, register_int_gauge_vec_with_registry, Histogram, IntGaugeVec,
-    Registry, TextEncoder,
+    Histogram, IntGaugeVec, Registry, TextEncoder, register_histogram_with_registry,
+    register_int_gauge_vec_with_registry,
 };
 pub use scopeguard;
 use simple_server_timing_header::Timer;
 use tap::TapFallible;
-use tracing::{warn, Span};
+use tracing::{Span, warn};
 use uuid::Uuid;
 
 mod guards;
@@ -194,9 +194,7 @@ pub fn add_server_timing(name: &str) {
 
 #[macro_export]
 macro_rules! monitored_future {
-    ($fut: expr) => {{
-        monitored_future!(futures, $fut, "", INFO, false)
-    }};
+    ($fut: expr) => {{ monitored_future!(futures, $fut, "", INFO, false) }};
 
     ($metric: ident, $fut: expr, $name: expr, $logging_level: ident, $logging_enabled: expr) => {{
         let location: &str = if $name.is_empty() {

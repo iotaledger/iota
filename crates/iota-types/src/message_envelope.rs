@@ -9,7 +9,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use once_cell::sync::OnceCell;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{Intent, IntentScope};
 
 use crate::{
@@ -249,7 +249,7 @@ where
     T: Message + Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0 .0)
+        write!(f, "{:?}", self.0.0)
     }
 }
 
@@ -267,11 +267,11 @@ impl<T: Message, S> VerifiedEnvelope<T, S> {
     }
 
     pub fn into_inner(self) -> Envelope<T, S> {
-        self.0 .0
+        self.0.0
     }
 
     pub fn inner(&self) -> &Envelope<T, S> {
-        &self.0 .0
+        &self.0.0
     }
 
     pub fn into_message(self) -> T {
@@ -309,7 +309,7 @@ impl<T: Message, S> From<TrustedEnvelope<T, S>> for VerifiedEnvelope<T, S> {
 impl<T: Message, S> Deref for VerifiedEnvelope<T, S> {
     type Target = Envelope<T, S>;
     fn deref(&self) -> &Self::Target {
-        &self.0 .0
+        &self.0.0
     }
 }
 
@@ -328,7 +328,7 @@ impl<T: Message, S> DerefMut for Envelope<T, S> {
 
 impl<T: Message, S> From<VerifiedEnvelope<T, S>> for Envelope<T, S> {
     fn from(v: VerifiedEnvelope<T, S>) -> Self {
-        v.0 .0
+        v.0.0
     }
 }
 
@@ -337,7 +337,7 @@ where
     Envelope<T, S>: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.0 .0 == other.0 .0
+        self.0.0 == other.0.0
     }
 }
 
@@ -349,7 +349,7 @@ where
     Envelope<T, S>: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0 .0)
+        write!(f, "{}", self.0.0)
     }
 }
 

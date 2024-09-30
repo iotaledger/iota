@@ -10,8 +10,8 @@ use config::AuthorityIdentifier;
 use crypto::KeyPair;
 use fastcrypto::traits::KeyPair as _;
 use rand::{
-    rngs::{OsRng, StdRng},
     SeedableRng,
+    rngs::{OsRng, StdRng},
 };
 use test_utils::CommitteeFixture;
 use types::{Certificate, CertificateAPI, SignatureVerificationState, Vote, VoteAPI};
@@ -27,9 +27,11 @@ fn test_empty_certificate_verification() {
     assert!(Certificate::new_unverified(&committee, header.clone(), Vec::new()).is_err());
 
     let certificate = Certificate::new_unsigned(&committee, header, Vec::new()).unwrap();
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_err());
+    assert!(
+        certificate
+            .verify(&committee, &fixture.worker_cache())
+            .is_err()
+    );
 }
 
 #[test]
@@ -75,9 +77,11 @@ fn test_certificate_insufficient_signatures() {
 
     let certificate = Certificate::new_unsigned(&committee, header, signatures).unwrap();
 
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_err());
+    assert!(
+        certificate
+            .verify(&committee, &fixture.worker_cache())
+            .is_err()
+    );
 }
 
 #[test]
@@ -101,9 +105,11 @@ fn test_certificate_validly_repeated_public_keys() {
     assert!(certificate_res.is_ok());
     let certificate = certificate_res.unwrap();
 
-    assert!(certificate
-        .verify(&committee, &fixture.worker_cache())
-        .is_ok());
+    assert!(
+        certificate
+            .verify(&committee, &fixture.worker_cache())
+            .is_ok()
+    );
 }
 
 #[test]

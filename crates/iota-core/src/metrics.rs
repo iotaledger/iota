@@ -42,7 +42,7 @@ impl LatencyObserver {
         while data.points.len() > EXPECTED_SAMPLES {
             let pop = data.points.pop_front().expect("data vector is not empty");
             data.sum -= pop; // This does not underflow because of how running
-                             // sum is calculated
+            // sum is calculated
         }
         let latency = data.sum.as_millis() as u64 / data.points.len() as u64;
         self.latency_ms.store(latency, Ordering::Relaxed);
@@ -154,7 +154,7 @@ impl RateTracker {
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
     use tokio::time::advance;
 
     use super::*;

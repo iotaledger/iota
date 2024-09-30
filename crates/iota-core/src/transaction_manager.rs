@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::{max, Reverse},
-    collections::{hash_map, BTreeSet, BinaryHeap, HashMap, HashSet},
+    cmp::{Reverse, max},
+    collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
     sync::Arc,
     time::Duration,
 };
@@ -29,7 +29,7 @@ use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityMetrics},
+    authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
 
@@ -773,9 +773,11 @@ impl TransactionManager {
         trace!(tx_digest = ?pending_certificate.certificate.digest(), "certificate ready");
         assert_eq!(pending_certificate.waiting_input_objects.len(), 0);
         // Record as an executing certificate.
-        assert!(inner
-            .executing_certificates
-            .insert(*pending_certificate.certificate.digest()));
+        assert!(
+            inner
+                .executing_certificates
+                .insert(*pending_certificate.certificate.digest())
+        );
         self.metrics.txn_ready_rate_tracker.lock().record();
         let _ = self.tx_ready_certificates.send(pending_certificate);
         self.metrics.transaction_manager_num_ready.inc();
@@ -1008,7 +1010,7 @@ impl TransactionQueue {
             // entry in the heap that was previously inserted and removed from
             // digests, and we want to ignore it. (see
             // test_transaction_queue_remove_in_order)
-            if self.digests.get(&first.1) == Some(&first.0 .0) {
+            if self.digests.get(&first.1) == Some(&first.0.0) {
                 break;
             }
 

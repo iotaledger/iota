@@ -7,20 +7,21 @@ use std::{
     future::Future,
     ops::Deref,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Instant,
 };
 
 use arc_swap::{ArcSwap, ArcSwapOption};
 use bytes::Bytes;
-use dashmap::{try_result::TryResult, DashMap};
+use dashmap::{DashMap, try_result::TryResult};
 use futures::{
-    future::{select, Either},
-    pin_mut, FutureExt,
+    FutureExt,
+    future::{Either, select},
+    pin_mut,
 };
-use iota_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
+use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
 use iota_protocol_config::ProtocolConfig;
 use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
 use iota_types::{
@@ -35,10 +36,10 @@ use narwhal_types::{TransactionProto, TransactionsClient};
 use narwhal_worker::LazyNarwhalClient;
 use parking_lot::RwLockReadGuard;
 use prometheus::{
+    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry, Histogram, HistogramVec, IntCounterVec, IntGauge,
-    IntGaugeVec, Registry,
+    register_int_gauge_with_registry,
 };
 use tap::prelude::*;
 use tokio::{
@@ -50,7 +51,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
-    consensus_handler::{classify, SequencedConsensusTransactionKey},
+    consensus_handler::{SequencedConsensusTransactionKey, classify},
     consensus_throughput_calculator::{ConsensusThroughputProfiler, Level},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
@@ -484,11 +485,7 @@ impl ConsensusAdapter {
                         let l = Duration::from_millis(HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS);
 
                         // back off according to recorded latency if it's significantly higher
-                        if latency >= 2 * l {
-                            latency
-                        } else {
-                            l
-                        }
+                        if latency >= 2 * l { latency } else { l }
                     }
                 };
             }
@@ -709,7 +706,7 @@ impl ConsensusAdapter {
             .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store))
             .await
             .ok(); // result here indicates if epoch ended earlier, we don't
-                   // care about it
+        // care about it
     }
 
     #[allow(clippy::option_map_unit_fn)]
@@ -1174,9 +1171,9 @@ mod adapter_tests {
     use iota_types::{
         base_types::TransactionDigest,
         committee::Committee,
-        crypto::{get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKeyBytes},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
     use crate::consensus_adapter::{

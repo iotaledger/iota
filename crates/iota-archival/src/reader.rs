@@ -7,19 +7,19 @@ use std::{
     future,
     ops::Range,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
 
-use anyhow::{anyhow, Context, Result};
-use bytes::{buf::Reader, Buf, Bytes};
+use anyhow::{Context, Result, anyhow};
+use bytes::{Buf, Bytes, buf::Reader};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::node::ArchiveReaderConfig;
 use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
-    object_store::{http::HttpDownloaderBuilder, util::get, ObjectStoreGetExt},
+    object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
     verify_checkpoint,
 };
 use iota_types::{
@@ -30,13 +30,13 @@ use iota_types::{
     },
     storage::WriteStore,
 };
-use prometheus::{register_int_counter_vec_with_registry, IntCounterVec, Registry};
+use prometheus::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
 use rand::seq::SliceRandom;
-use tokio::sync::{oneshot, oneshot::Sender, Mutex};
+use tokio::sync::{Mutex, oneshot, oneshot::Sender};
 use tracing::info;
 
 use crate::{
-    read_manifest, FileMetadata, FileType, Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
+    CHECKPOINT_FILE_MAGIC, FileMetadata, FileType, Manifest, SUMMARY_FILE_MAGIC, read_manifest,
 };
 
 #[derive(Debug)]
@@ -203,12 +203,16 @@ impl ArchiveReader {
         summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
         contents_files.sort_by_key(|f| f.checkpoint_seq_range.start);
 
-        assert!(summary_files
-            .windows(2)
-            .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
-        assert!(contents_files
-            .windows(2)
-            .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
+        assert!(
+            summary_files
+                .windows(2)
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+        );
+        assert!(
+            contents_files
+                .windows(2)
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+        );
 
         let files: Vec<(FileMetadata, FileMetadata)> = summary_files
             .into_iter()

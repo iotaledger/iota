@@ -9,8 +9,8 @@ use std::{
 
 use iota_core::{
     authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
-        test_authority_builder::TestAuthorityBuilder, AuthorityState,
+        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::LiveObject, test_authority_builder::TestAuthorityBuilder,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::checkpoint_executor::CheckpointExecutor,
@@ -32,8 +32,8 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, Transaction, TransactionDataAPI, VerifiedCertificate,
-        VerifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, Transaction, TransactionDataAPI,
+        VerifiedCertificate, VerifiedTransaction,
     },
 };
 use tokio::sync::broadcast;

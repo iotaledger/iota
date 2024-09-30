@@ -7,7 +7,7 @@ use std::{fs, io::Read, path::PathBuf};
 use anyhow::anyhow;
 use iota_light_client::{
     construct::construct_proof,
-    proof::{verify_proof, Proof, ProofTarget},
+    proof::{Proof, ProofTarget, verify_proof},
 };
 use iota_rest_api::CheckpointData;
 use iota_types::{
@@ -65,10 +65,12 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
 #[tokio::test]
 async fn check_can_read_test_data() {
     let (_committee, full_checkpoint) = read_data(15918264, 16005062).await;
-    assert!(full_checkpoint
-        .checkpoint_summary
-        .end_of_epoch_data
-        .is_some());
+    assert!(
+        full_checkpoint
+            .checkpoint_summary
+            .end_of_epoch_data
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -151,11 +153,13 @@ async fn test_fail_incorrect_cert() {
         targets: ProofTarget::new(),
     };
 
-    assert!(verify_proof(
-        &new_committee, // WRONG
-        &committee_proof
-    )
-    .is_err());
+    assert!(
+        verify_proof(
+            &new_committee, // WRONG
+            &committee_proof
+        )
+        .is_err()
+    );
 }
 
 #[tokio::test]

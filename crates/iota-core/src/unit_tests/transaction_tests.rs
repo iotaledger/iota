@@ -8,15 +8,16 @@ use std::{
 };
 
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
-use fastcrypto_zkp::bn254::zk_login::{parse_jwks, OIDCProvider, ZkLoginInputs};
+use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, ZkLoginInputs, parse_jwks};
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     authenticator_state::ActiveJwk,
     base_types::dbg_addr,
     crypto::{
-        get_key_pair, AccountKeyPair, IotaKeyPair, IotaSignature, PublicKey, Signature,
-        ToFromBytes, ZkLoginPublicIdentifier,
+        AccountKeyPair, IotaKeyPair, IotaSignature, PublicKey, Signature, ToFromBytes,
+        ZkLoginPublicIdentifier, get_key_pair,
     },
     error::{IotaError, UserInputError},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
@@ -30,10 +31,9 @@ use iota_types::{
     utils::{get_one_zklogin_inputs, load_test_vectors, to_sender_signed_transaction},
     zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::DEFAULT_JWK_BYTES,
-    IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_core_types::ident_str;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
@@ -102,13 +102,10 @@ async fn test_handle_transfer_transaction_no_signature() {
             *tx.data_mut_for_testing().tx_signatures_mut_for_testing() = vec![];
         },
         |err| {
-            assert_matches!(
-                err,
-                IotaError::SignerSignatureNumberMismatch {
-                    expected: 1,
-                    actual: 0
-                }
-            );
+            assert_matches!(err, IotaError::SignerSignatureNumberMismatch {
+                expected: 1,
+                actual: 0
+            });
         },
     )
     .await;
@@ -124,13 +121,10 @@ async fn test_handle_transfer_transaction_extra_signature() {
             sigs.push(sigs[0].clone());
         },
         |err| {
-            assert_matches!(
-                err,
-                IotaError::SignerSignatureNumberMismatch {
-                    expected: 1,
-                    actual: 2
-                }
-            );
+            assert_matches!(err, IotaError::SignerSignatureNumberMismatch {
+                expected: 1,
+                actual: 2
+            });
         },
     )
     .await;
@@ -145,12 +139,9 @@ async fn test_empty_gas_data() {
         },
         |_| {},
         |err| {
-            assert_matches!(
-                err,
-                IotaError::UserInput {
-                    error: UserInputError::MissingGasPayment
-                }
-            );
+            assert_matches!(err, IotaError::UserInput {
+                error: UserInputError::MissingGasPayment
+            });
         },
     )
     .await;
@@ -167,12 +158,9 @@ async fn test_duplicate_gas_data() {
         },
         |_| {},
         |err| {
-            assert_matches!(
-                err,
-                IotaError::UserInput {
-                    error: UserInputError::MutableObjectUsedMoreThanOnce { .. }
-                }
-            );
+            assert_matches!(err, IotaError::UserInput {
+                error: UserInputError::MutableObjectUsedMoreThanOnce { .. }
+            });
         },
     )
     .await;
@@ -207,13 +195,10 @@ async fn test_gas_wrong_owner() {
         },
         |_| {},
         |err| {
-            assert_matches!(
-                err,
-                IotaError::SignerSignatureNumberMismatch {
-                    expected: 2,
-                    actual: 1
-                }
-            );
+            assert_matches!(err, IotaError::SignerSignatureNumberMismatch {
+                expected: 2,
+                actual: 1
+            });
         },
     )
     .await;
@@ -297,12 +282,9 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
         },
         |_| {},
         |err| {
-            assert_matches!(
-                err,
-                IotaError::UserInput {
-                    error: UserInputError::Unsupported { .. }
-                }
-            );
+            assert_matches!(err, IotaError::UserInput {
+                error: UserInputError::Unsupported { .. }
+            });
         },
     )
     .await;
@@ -586,10 +568,12 @@ async fn test_zklogin_transfer_with_large_address_seed() {
     )
     .await;
 
-    assert!(client
-        .handle_transaction(tx, Some(make_socket_addr()))
-        .await
-        .is_err());
+    assert!(
+        client
+            .handle_transaction(tx, Some(make_socket_addr()))
+            .await
+            .is_err()
+    );
 }
 
 #[sim_test]
@@ -699,10 +683,12 @@ async fn zklogin_test_caching_scenarios() {
     )
     .await;
 
-    assert!(client
-        .handle_transaction(txn3, Some(socket_addr))
-        .await
-        .is_ok());
+    assert!(
+        client
+            .handle_transaction(txn3, Some(socket_addr))
+            .await
+            .is_ok()
+    );
 
     assert_eq!(
         epoch_store
@@ -730,10 +716,12 @@ async fn zklogin_test_caching_scenarios() {
         multisig_pk.clone(),
     )
     .await;
-    assert!(client
-        .handle_transaction(multisig_txn, Some(socket_addr))
-        .await
-        .is_ok());
+    assert!(
+        client
+            .handle_transaction(multisig_txn, Some(socket_addr))
+            .await
+            .is_ok()
+    );
 
     assert_eq!(
         epoch_store
@@ -929,10 +917,12 @@ async fn do_zklogin_transaction_test(
 
     post_sign_mutations(&mut transfer_transaction);
 
-    assert!(client
-        .handle_transaction(transfer_transaction, Some(make_socket_addr()))
-        .await
-        .is_err());
+    assert!(
+        client
+            .handle_transaction(transfer_transaction, Some(make_socket_addr()))
+            .await
+            .is_err()
+    );
 
     assert_eq!(
         epoch_store
@@ -957,14 +947,16 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
             .await
             .unwrap()
             .unwrap();
-        assert!(authority_state
-            .get_transaction_lock(
-                &object.compute_object_reference(),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            authority_state
+                .get_transaction_lock(
+                    &object.compute_object_reference(),
+                    &authority_state.epoch_store_for_testing()
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }
 
@@ -1410,11 +1402,12 @@ async fn test_oversized_txn() {
         .handle_transaction(txn, Some(make_socket_addr()))
         .await;
     // The txn should be rejected due to its size.
-    assert!(res
-        .err()
-        .unwrap()
-        .to_string()
-        .contains("serialized transaction size exceeded maximum"));
+    assert!(
+        res.err()
+            .unwrap()
+            .to_string()
+            .contains("serialized transaction size exceeded maximum")
+    );
 }
 
 #[tokio::test]
@@ -1563,13 +1556,10 @@ async fn test_handle_certificate_errors() {
         .handle_certificate_v2(ct.clone(), Some(socket_addr))
         .await
         .unwrap_err();
-    assert_matches!(
-        err,
-        IotaError::WrongEpoch {
-            expected_epoch: 0,
-            actual_epoch: 1
-        }
-    );
+    assert_matches!(err, IotaError::WrongEpoch {
+        expected_epoch: 0,
+        actual_epoch: 1
+    });
 
     // Test handle certificate with invalid user input
     let signed_transaction = VerifiedSignedTransaction::new(
@@ -1615,13 +1605,10 @@ async fn test_handle_certificate_errors() {
         .await
         .unwrap_err();
 
-    assert_matches!(
-        err,
-        IotaError::SignerSignatureNumberMismatch {
-            expected: 1,
-            actual: 0
-        }
-    );
+    assert_matches!(err, IotaError::SignerSignatureNumberMismatch {
+        expected: 1,
+        actual: 0
+    });
 
     let mut absent_sig_tx = transfer_transaction.clone();
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
@@ -1690,7 +1677,7 @@ async fn test_handle_soft_bundle_certificates() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0 .0;
+        let shared_object_id = effects.created()[0].0.0;
         authority
             .get_object(&shared_object_id)
             .await
@@ -1790,9 +1777,12 @@ async fn test_handle_soft_bundle_certificates() {
     let mut expected_object_version = initial_shared_version;
     for response in responses {
         let input_objects = response.input_objects.unwrap();
-        assert!(input_objects
-            .iter()
-            .any(|obj| obj.id() == shared_object.id() && obj.version() == expected_object_version));
+        assert!(
+            input_objects
+                .iter()
+                .any(|obj| obj.id() == shared_object.id()
+                    && obj.version() == expected_object_version)
+        );
 
         let output_objects = response.output_objects.unwrap();
         let output_object = output_objects
@@ -1848,7 +1838,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0 .0;
+        let shared_object_id = effects.created()[0].0.0;
         authority
             .get_object(&shared_object_id)
             .await
@@ -1954,12 +1944,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
             )
             .await;
         assert!(response.is_err());
-        assert_matches!(
-            response.unwrap_err(),
-            IotaError::UserInput {
-                error: UserInputError::TooManyTransactionsInSoftBundle { .. },
-            }
-        );
+        assert_matches!(response.unwrap_err(), IotaError::UserInput {
+            error: UserInputError::TooManyTransactionsInSoftBundle { .. },
+        });
     }
 
     // Case 2: submit a soft bundle with tx containing no shared object.
@@ -2000,12 +1987,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
             )
             .await;
         assert!(response.is_err());
-        assert_matches!(
-            response.unwrap_err(),
-            IotaError::UserInput {
-                error: UserInputError::NoSharedObjectError { .. },
-            }
-        );
+        assert_matches!(response.unwrap_err(), IotaError::UserInput {
+            error: UserInputError::NoSharedObjectError { .. },
+        });
     }
 
     // Case 3: submit a soft bundle with txs of different gas prices.
@@ -2087,12 +2071,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
             )
             .await;
         assert!(response.is_err());
-        assert_matches!(
-            response.unwrap_err(),
-            IotaError::UserInput {
-                error: UserInputError::GasPriceMismatchError { .. },
-            }
-        );
+        assert_matches!(response.unwrap_err(), IotaError::UserInput {
+            error: UserInputError::GasPriceMismatchError { .. },
+        });
     }
 
     // Case 4: submit a soft bundle with txs whose consensus message has been
@@ -2176,12 +2157,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
             )
             .await;
         assert!(response.is_err());
-        assert_matches!(
-            response.unwrap_err(),
-            IotaError::UserInput {
-                error: UserInputError::CeritificateAlreadyProcessed { .. },
-            }
-        );
+        assert_matches!(response.unwrap_err(), IotaError::UserInput {
+            error: UserInputError::CeritificateAlreadyProcessed { .. },
+        });
     }
 }
 

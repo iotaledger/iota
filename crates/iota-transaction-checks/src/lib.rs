@@ -15,6 +15,8 @@ mod checked {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID,
         base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
@@ -27,8 +29,6 @@ mod checked {
             ObjectReadResultKind, ReceivingObjectReadResult, ReceivingObjects, TransactionData,
             TransactionDataAPI, TransactionKind,
         },
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
     };
     use tracing::{error, instrument};
 
@@ -287,24 +287,30 @@ mod checked {
                         );
                         // We should never get here, but if for some reason we do just default to
                         // object not found and reject signing the transaction.
-                        fp_bail!(UserInputError::ObjectNotFound {
-                            object_id: *object_id,
-                            version: Some(*version),
-                        }
-                        .into())
+                        fp_bail!(
+                            UserInputError::ObjectNotFound {
+                                object_id: *object_id,
+                                version: Some(*version),
+                            }
+                            .into()
+                        )
                     }
                     Owner::ObjectOwner(owner) => {
-                        fp_bail!(UserInputError::InvalidChildObjectArgument {
-                            child_id: object.id(),
-                            parent_id: owner.into(),
-                        }
-                        .into())
+                        fp_bail!(
+                            UserInputError::InvalidChildObjectArgument {
+                                child_id: object.id(),
+                                parent_id: owner.into(),
+                            }
+                            .into()
+                        )
                     }
                     Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObjectError.into()),
-                    Owner::Immutable => fp_bail!(UserInputError::MutableParameterExpected {
-                        object_id: *object_id
-                    }
-                    .into()),
+                    Owner::Immutable => fp_bail!(
+                        UserInputError::MutableParameterExpected {
+                            object_id: *object_id
+                        }
+                        .into()
+                    ),
                 };
             }
 
@@ -425,10 +431,9 @@ mod checked {
                 );
             }
             InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
-                fp_ensure!(
-                    !object.is_package(),
-                    UserInputError::MovePackageAsObject { object_id }
-                );
+                fp_ensure!(!object.is_package(), UserInputError::MovePackageAsObject {
+                    object_id
+                });
                 fp_ensure!(
                     sequence_number < SequenceNumber::MAX,
                     UserInputError::InvalidSequenceNumber

@@ -7,8 +7,9 @@ use std::{collections::BTreeSet, path::PathBuf, str::FromStr, sync::Arc};
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
@@ -20,20 +21,18 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 
 use crate::authority::{
+    AuthorityState,
     authority_test_utils::build_test_modules_with_dep_addr,
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
-        build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
+        UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
         build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps, run_multi_txns,
-        UpgradeData,
     },
     test_authority_builder::TestAuthorityBuilder,
-    AuthorityState,
 };
 
 #[macro_export]
@@ -275,14 +274,18 @@ async fn test_upgrade_package_happy_path() {
     let binary_config = to_binary_config(&config);
     let normalized_modules = package.move_package().normalize(&binary_config).unwrap();
     assert!(normalized_modules.contains_key("new_module"));
-    assert!(normalized_modules["new_module"]
-        .functions
-        .contains_key(ident_str!("this_is_a_new_module")));
-    assert!(normalized_modules["new_module"]
-        .functions
-        .contains_key(ident_str!(
-            "i_can_call_funs_in_other_modules_that_already_existed"
-        )));
+    assert!(
+        normalized_modules["new_module"]
+            .functions
+            .contains_key(ident_str!("this_is_a_new_module"))
+    );
+    assert!(
+        normalized_modules["new_module"]
+            .functions
+            .contains_key(ident_str!(
+                "i_can_call_funs_in_other_modules_that_already_existed"
+            ))
+    );
 
     // Call into the upgraded module
     let effects = runner
@@ -306,12 +309,10 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     // First upgrade introduces a new type, B.
     let (digest, modules) = build_upgrade_test_modules("new_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -320,12 +321,10 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     // Second upgrade introduces an entry function that creates `B`s.
     let (digest, modules) = build_upgrade_test_modules("makes_new_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -355,15 +354,12 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(
-        b.data.struct_tag().unwrap(),
-        StructTag {
-            address: *package_v2,
-            module: ident_str!("base").to_owned(),
-            name: ident_str!("B").to_owned(),
-            type_params: vec![],
-        },
-    );
+    assert_eq!(b.data.struct_tag().unwrap(), StructTag {
+        address: *package_v2,
+        module: ident_str!("base").to_owned(),
+        name: ident_str!("B").to_owned(),
+        type_params: vec![],
+    },);
 
     // Delete the instance we just created
     let effects = runner
@@ -577,12 +573,10 @@ async fn test_upgrade_package_dep_only_mode() {
 
     let (digest, modules) = build_upgrade_test_modules("dep_only_upgrade");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::DEP_ONLY,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -683,7 +677,7 @@ async fn test_multiple_upgrades(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-         .0;
+        .0;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
     let (digest, modules) = build_upgrade_test_modules("stage2_basic_compatibility_valid");
@@ -1027,12 +1021,10 @@ async fn test_upgraded_types_in_one_txn() {
     // First upgrade (version 2) introduces a new type, B.
     let (digest, modules) = build_upgrade_test_modules("makes_new_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1041,12 +1033,10 @@ async fn test_upgraded_types_in_one_txn() {
     // Second upgrade (version 3) introduces a new type, C.
     let (digest, modules) = build_upgrade_test_modules("makes_another_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1131,7 +1121,7 @@ async fn test_different_versions_across_calls() {
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-         .0;
+        .0;
 
     // call the same function twice within the same block but from two different
     // module versions
@@ -1273,12 +1263,10 @@ async fn test_upgrade_cross_module_refs() {
     // Upgrade and cross module, cross version type usage
     let (digest, modules) = build_upgrade_test_modules("object_cross_module_ref1");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1300,12 +1288,10 @@ async fn test_upgrade_cross_module_refs() {
     // Upgrade and cross module, cross version type usage
     let (digest, modules) = build_upgrade_test_modules("object_cross_module_ref2");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1432,13 +1418,10 @@ async fn test_upgrade_more_than_max_packages_error() {
     let err = run_multi_txns(&authority, sender, &sender_key, &gas_object_id, builder)
         .await
         .unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::MaxPublishCountExceeded {
-                max_publish_commands: max_pub_cmd,
-                publish_count: max_pub_cmd + 2,
-            }
+    assert_eq!(err, IotaError::UserInput {
+        error: UserInputError::MaxPublishCountExceeded {
+            max_publish_commands: max_pub_cmd,
+            publish_count: max_pub_cmd + 2,
         }
-    );
+    });
 }

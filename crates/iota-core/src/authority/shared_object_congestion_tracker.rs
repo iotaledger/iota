@@ -173,8 +173,8 @@ impl SharedObjectCongestionTracker {
 mod object_cost_tests {
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{random_object_ref, SequenceNumber},
-        crypto::{get_key_pair, AccountKeyPair},
+        base_types::{SequenceNumber, random_object_ref},
+        crypto::{AccountKeyPair, get_key_pair},
         transaction::{CallArg, ObjectArg, VerifiedTransaction},
     };
     use rstest::rstest;
@@ -341,14 +341,16 @@ mod object_cost_tests {
         // Read/write to object 1 should go through.
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
-            assert!(shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none());
+            assert!(
+                shared_object_congestion_tracker
+                    .should_defer_due_to_object_congestion(
+                        &tx,
+                        max_accumulated_txn_cost_per_object_in_commit,
+                        &HashMap::new(),
+                        0,
+                    )
+                    .is_none()
+            );
         }
 
         // Transactions touching both objects should be deferred, with object 0 as the
@@ -420,12 +422,9 @@ mod object_cost_tests {
         }
 
         // Insert `tx`` as previously deferred transaction due to randomness.
-        previously_deferred_tx_digests.insert(
-            *tx.digest(),
-            DeferralKey::Randomness {
-                deferred_from_round: 4,
-            },
-        );
+        previously_deferred_tx_digests.insert(*tx.digest(), DeferralKey::Randomness {
+            deferred_from_round: 4,
+        });
 
         // New deferral key should have deferred_from_round equal to the deferred
         // randomness round.
@@ -448,13 +447,10 @@ mod object_cost_tests {
         }
 
         // Insert `tx`` as previously deferred consensus transaction.
-        previously_deferred_tx_digests.insert(
-            *tx.digest(),
-            DeferralKey::ConsensusRound {
-                future_round: 10,
-                deferred_from_round: 5,
-            },
-        );
+        previously_deferred_tx_digests.insert(*tx.digest(), DeferralKey::ConsensusRound {
+            future_round: 10,
+            deferred_from_round: 5,
+        });
 
         // New deferral key should have deferred_from_round equal to the one in the old
         // deferral key.

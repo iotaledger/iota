@@ -8,8 +8,8 @@ use fastcrypto::{
     error::FastCryptoError,
     hash::{Keccak256, Sha256},
     secp256k1::{
-        recoverable::Secp256k1RecoverableSignature, Secp256k1KeyPair, Secp256k1PrivateKey,
-        Secp256k1PublicKey, Secp256k1Signature,
+        Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
+        recoverable::Secp256k1RecoverableSignature,
     },
     traits::{RecoverableSignature, RecoverableSigner, ToFromBytes},
 };
@@ -23,7 +23,7 @@ use move_vm_types::{
     pop_arg,
     values::{self, Value, VectorRef},
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use smallvec::smallvec;
 
 use crate::NativesCostTable;
@@ -150,10 +150,9 @@ pub fn ecrecover(
     };
 
     match pk {
-        Ok(pk) => Ok(NativeResult::ok(
-            cost,
-            smallvec![Value::vector_u8(pk.as_bytes().to_vec())],
-        )),
+        Ok(pk) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+            pk.as_bytes().to_vec()
+        )])),
         Err(_) => Ok(NativeResult::err(cost, FAIL_TO_RECOVER_PUBKEY)),
     }
 }
@@ -190,10 +189,9 @@ pub fn decompress_pubkey(
     match Secp256k1PublicKey::from_bytes(&pubkey_ref) {
         Ok(pubkey) => {
             let uncompressed = &pubkey.pubkey.serialize_uncompressed();
-            Ok(NativeResult::ok(
-                cost,
-                smallvec![Value::vector_u8(uncompressed.to_vec())],
-            ))
+            Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+                uncompressed.to_vec()
+            )]))
         }
         Err(_) => Ok(NativeResult::err(cost, INVALID_PUBKEY)),
     }
@@ -279,10 +277,9 @@ pub fn secp256k1_verify(
             // error is masked by OUT_OF_GAS error
             context.charge_gas(crypto_invalid_arguments_cost);
 
-            return Ok(NativeResult::ok(
-                context.gas_used(),
-                smallvec![Value::bool(false)],
-            ));
+            return Ok(NativeResult::ok(context.gas_used(), smallvec![
+                Value::bool(false)
+            ]));
         }
     };
     // Charge the base cost for this oper
@@ -373,10 +370,9 @@ pub fn secp256k1_sign(
         _ => return Ok(NativeResult::err(cost, INVALID_HASH_FUNCTION)),
     };
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::vector_u8(signature)],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+        signature
+    )]))
 }
 
 /// ****************************************************************************
@@ -412,11 +408,7 @@ pub fn secp256k1_keypair_from_seed(
     let pk_bytes = kp.public().as_bytes().to_vec();
     let sk_bytes = kp.private().as_bytes().to_vec();
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::struct_(values::Struct::pack(vec![
-            Value::vector_u8(sk_bytes),
-            Value::vector_u8(pk_bytes),
-        ]))],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::struct_(
+        values::Struct::pack(vec![Value::vector_u8(sk_bytes), Value::vector_u8(pk_bytes),])
+    )]))
 }

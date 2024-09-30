@@ -6,11 +6,11 @@ use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::anyhow;
 use ethers::{providers::Middleware, types::Address as EthAddress};
-use futures::{future, StreamExt};
+use futures::{StreamExt, future};
 use iota_config::Config;
 use iota_json_rpc_types::Coin;
 use iota_keys::keypair_file::read_key;
-use iota_sdk::{apis::CoinReadApi, IotaClient as IotaSdkClient, IotaClientBuilder};
+use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder, apis::CoinReadApi};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     bridge::BridgeChainId,
@@ -29,9 +29,9 @@ use crate::{
     error::BridgeError,
     eth_client::EthClient,
     iota_client::IotaClient,
-    metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvider},
+    metered_eth_provider::{MeteredEthHttpProvider, new_metered_eth_provider},
     metrics::BridgeMetrics,
-    types::{is_route_valid, BridgeAction},
+    types::{BridgeAction, is_route_valid},
     utils::get_eth_contract_addresses,
 };
 

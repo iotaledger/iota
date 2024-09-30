@@ -14,21 +14,21 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Key
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AuthorityKeyPair, Ed25519IotaSignature,
-        EncodeDecodeBase64, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
-        Secp256r1IotaSignature, Signature, SignatureScheme,
+        AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
+        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
+        SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
-    transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentScope};
 use tempfile::TempDir;
 use tokio::test;
 
-use super::{write_keypair_to_file, KeyToolCommand};
+use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
     key_identity::KeyIdentity,
-    keytool::{read_authority_keypair_from_file, read_keypair_from_file, CommandOutput},
+    keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
 };
 
 const TEST_MNEMONIC: &str = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
@@ -416,55 +416,65 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
 #[test]
 async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::ED25519,
-        derivation_path: Some("m/44'/1'/0'/0/0".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_err());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::ED25519,
+            derivation_path: Some("m/44'/1'/0'/0/0".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_err()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::ED25519,
-        derivation_path: Some("m/0'/4218'/0'/0/0".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_err());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::ED25519,
+            derivation_path: Some("m/0'/4218'/0'/0/0".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_err()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::ED25519,
-        derivation_path: Some("m/54'/4218'/0'/0/0".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_err());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::ED25519,
+            derivation_path: Some("m/54'/4218'/0'/0/0".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_err()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::Secp256k1,
-        derivation_path: Some("m/54'/4218'/0'/0'/0'".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_err());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::Secp256k1,
+            derivation_path: Some("m/54'/4218'/0'/0'/0'".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_err()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::Secp256k1,
-        derivation_path: Some("m/44'/4218'/0'/0/0".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_err());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::Secp256k1,
+            derivation_path: Some("m/44'/4218'/0'/0/0".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_err()
+    );
 
     Ok(())
 }
@@ -472,55 +482,65 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
 #[test]
 async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::ED25519,
-        derivation_path: Some("m/44'/4218'/0'/0'/0'".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_ok());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::ED25519,
+            derivation_path: Some("m/44'/4218'/0'/0'/0'".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_ok()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::ED25519,
-        derivation_path: Some("m/44'/4218'/0'/0'/1'".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_ok());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::ED25519,
+            derivation_path: Some("m/44'/4218'/0'/0'/1'".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_ok()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::ED25519,
-        derivation_path: Some("m/44'/4218'/1'/0'/1'".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_ok());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::ED25519,
+            derivation_path: Some("m/44'/4218'/1'/0'/1'".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_ok()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::Secp256k1,
-        derivation_path: Some("m/54'/4218'/0'/0/1".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_ok());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::Secp256k1,
+            derivation_path: Some("m/54'/4218'/0'/0/1".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_ok()
+    );
 
-    assert!(KeyToolCommand::Import {
-        alias: None,
-        input_string: TEST_MNEMONIC.to_string(),
-        key_scheme: SignatureScheme::Secp256k1,
-        derivation_path: Some("m/54'/4218'/1'/0/1".parse().unwrap()),
-    }
-    .execute(&mut keystore)
-    .await
-    .is_ok());
+    assert!(
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: TEST_MNEMONIC.to_string(),
+            key_scheme: SignatureScheme::Secp256k1,
+            derivation_path: Some("m/54'/4218'/1'/0/1".parse().unwrap()),
+        }
+        .execute(&mut keystore)
+        .await
+        .is_ok()
+    );
     Ok(())
 }
 

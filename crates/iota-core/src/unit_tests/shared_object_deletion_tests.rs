@@ -9,7 +9,7 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     committee::EpochId,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError},
     execution_status::{
@@ -19,14 +19,15 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        ObjectArg, ProgrammableTransaction, Transaction, VerifiedCertificate,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction,
+        VerifiedCertificate,
     },
 };
 use move_core_types::ident_str;
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_test_utils::execute_sequenced_certificate_to_effects,
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
@@ -34,7 +35,6 @@ use crate::{
         },
         move_integration_tests::build_and_publish_test_package,
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     move_call,
 };
@@ -1480,9 +1480,11 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     assert!(delete_effects.status().is_ok());
     let deleted_obj_ver = delete_effects.deleted()[0].1;
 
-    assert!(user_1
-        .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
-        .is_some());
+    assert!(
+        user_1
+            .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
+            .is_some()
+    );
 
     let mutate_effects = res.get(1).unwrap();
     assert!(mutate_effects.status().is_ok());

@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use iota_core::{
     authority_aggregator::AuthorityAggregator,
     authority_client::NetworkAuthorityClient,
-    quorum_driver::{reconfig_observer::ReconfigObserver, QuorumDriver},
+    quorum_driver::{QuorumDriver, reconfig_observer::ReconfigObserver},
 };
 use iota_network::default_iota_network_config;
 use iota_types::iota_system_state::IotaSystemStateTrait;
@@ -56,8 +56,7 @@ impl EmbeddedReconfigObserver {
                 if new_epoch <= cur_epoch {
                     trace!(
                         cur_epoch,
-                        new_epoch,
-                        "Ignored Committee from a previous or current epoch",
+                        new_epoch, "Ignored Committee from a previous or current epoch",
                     );
                     return Ok(auth_agg);
                 }

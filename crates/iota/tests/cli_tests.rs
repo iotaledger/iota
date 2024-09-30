@@ -18,38 +18,38 @@ use expect_test::expect;
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     client_commands::{
-        estimate_gas_budget, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
-        SwitchResponse,
+        IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
+        estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
-    iota_commands::{parse_host_port, IotaCommand},
-    key_identity::{get_identity_address, KeyIdentity},
+    iota_commands::{IotaCommand, parse_host_port},
+    key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
-    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
+    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    get_new_package_obj_from_response, IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    OwnedObjectRef,
+    IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, OwnedObjectRef,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{iota_client_config::IotaClientConfig, wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
 use iota_swarm_config::{
-    genesis_config::{AccountConfig, GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES},
+    genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::NetworkConfigLight,
 };
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     crypto::{
-        get_key_pair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
-        Secp256k1IotaSignature, SignatureScheme,
+        Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
+        SignatureScheme, get_key_pair,
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
@@ -60,7 +60,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     },
 };
-use move_package::{lock_file::schema::ManagedPackage, BuildConfig as MoveBuildConfig};
+use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
 use serde_json::json;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
@@ -1458,8 +1458,8 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_package_publish_command_with_unpublished_dependency_succeeds(
-) -> Result<(), anyhow::Error> {
+async fn test_package_publish_command_with_unpublished_dependency_succeeds()
+-> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = true; // Value under test, results in successful response.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -1528,8 +1528,8 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds(
 }
 
 #[sim_test]
-async fn test_package_publish_command_with_unpublished_dependency_fails(
-) -> Result<(), anyhow::Error> {
+async fn test_package_publish_command_with_unpublished_dependency_fails()
+-> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = false; // Value under test, results in error response.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -1583,7 +1583,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails(
 async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result<(), anyhow::Error>
 {
     let with_unpublished_dependencies = true; // Value under test, incompatible with dependencies that specify non-zero
-                                              // address.
+    // address.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1626,7 +1626,7 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
 #[sim_test]
 async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = true; // Invalid packages should fail to publish, even if we allow unpublished
-                                              // dependencies.
+    // dependencies.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -3810,10 +3810,12 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
             2,
             "Expected to have two coins when calling transfer iota the 2nd time"
         );
-        assert!(objs_refs
-            .data
-            .iter()
-            .any(|x| x.object().unwrap().object_id == object_id1));
+        assert!(
+            objs_refs
+                .data
+                .iter()
+                .any(|x| x.object().unwrap().object_id == object_id1)
+        );
     } else {
         panic!("TransferIota test failed");
     }

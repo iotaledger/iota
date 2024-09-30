@@ -20,7 +20,7 @@ use crate::{
         big_int::BigInt,
         iota_address::IotaAddress,
         json::Json,
-        move_type::{unexpected_signer_error, MoveType},
+        move_type::{MoveType, unexpected_signer_error},
     },
 };
 
@@ -766,13 +766,10 @@ mod tests {
 
         let v = data(
             l,
-            (
-                vec![] as Vec<Vec<u8>>,
-                vec![
-                    (44u16, vec!["Hello, world!"], address("0x45")),
-                    (46u16, vec![], address("0x47")),
-                ],
-            ),
+            (vec![] as Vec<Vec<u8>>, vec![
+                (44u16, vec!["Hello, world!"], address("0x45")),
+                (46u16, vec![], address("0x47")),
+            ]),
         );
 
         let expect = expect![[r#"
@@ -937,13 +934,10 @@ mod tests {
 
         let v = json(
             l,
-            (
-                vec![] as Vec<Vec<u8>>,
-                vec![
-                    (44u16, vec!["Hello, world!"], address("0x45")),
-                    (46u16, vec![], address("0x47")),
-                ],
-            ),
+            (vec![] as Vec<Vec<u8>>, vec![
+                (44u16, vec!["Hello, world!"], address("0x45")),
+                (46u16, vec![], address("0x47")),
+            ]),
         )
         .unwrap();
 
@@ -974,10 +968,10 @@ mod tests {
 
     #[test]
     fn signer_nested_data() {
-        let v = data(
-            vector_layout!(L::Signer),
-            vec![address("0x42"), address("0x43")],
-        );
+        let v = data(vector_layout!(L::Signer), vec![
+            address("0x42"),
+            address("0x43"),
+        ]);
         let expect = expect![[r#"
             Err(
                 Internal(
@@ -989,10 +983,10 @@ mod tests {
 
     #[test]
     fn signer_nested_json() {
-        let err = json(
-            vector_layout!(L::Signer),
-            vec![address("0x42"), address("0x43")],
-        )
+        let err = json(vector_layout!(L::Signer), vec![
+            address("0x42"),
+            address("0x43"),
+        ])
         .unwrap_err();
 
         let expect = expect![[r#"Internal("Unexpected value of type: signer.")"#]];

@@ -25,7 +25,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
 };
 pub use rpc_command_processor::{
-    load_addresses_from_file, load_digests_from_file, load_objects_from_file, RpcCommandProcessor,
+    RpcCommandProcessor, load_addresses_from_file, load_digests_from_file, load_objects_from_file,
 };
 use strum::EnumString;
 

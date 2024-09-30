@@ -12,7 +12,7 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
     error::{IotaError, IotaResult, UserInputError},
-    passkey_authenticator::{to_signing_digest, to_signing_message, PasskeyAuthenticator},
+    passkey_authenticator::{PasskeyAuthenticator, to_signing_digest, to_signing_message},
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
 };
@@ -20,6 +20,7 @@ use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserValidationMethod};
 use passkey_client::Client;
 use passkey_types::{
+    Bytes, Passkey,
     ctap2::Aaguid,
     rand::random_vec,
     webauthn::{
@@ -28,9 +29,8 @@ use passkey_types::{
         PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
-    Bytes, Passkey,
 };
-use shared_crypto::intent::{Intent, IntentMessage, INTENT_PREFIX_LENGTH};
+use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use url::Url;
 
@@ -233,12 +233,9 @@ async fn test_passkey_feature_deny() {
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let tx = make_good_passkey_tx(response);
     let err = execute_tx(tx, &test_cluster).await.unwrap_err();
-    assert!(matches!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInput {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]
@@ -267,12 +264,9 @@ async fn test_passkey_fails_mismatched_challenge() {
     let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid challenge".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid challenge".to_string()
+    });
 
     // Tweak tx_digest bytes in challenge that is sent to passkey.
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, true).await;
@@ -287,12 +281,9 @@ async fn test_passkey_fails_mismatched_challenge() {
     let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid challenge".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid challenge".to_string()
+    });
 }
 
 #[sim_test]
@@ -316,12 +307,9 @@ async fn test_passkey_fails_to_verify_sig() {
     let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Fails to verify".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Fails to verify".to_string()
+    });
 }
 
 #[sim_test]

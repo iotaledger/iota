@@ -86,10 +86,10 @@ pub struct TransactionDataGenBuilder<
 }
 
 impl<
-        K: Strategy<Value = TransactionKind>,
-        G: Strategy<Value = GasData>,
-        E: Strategy<Value = TransactionExpiration>,
-    > TransactionDataGenBuilder<K, G, E>
+    K: Strategy<Value = TransactionKind>,
+    G: Strategy<Value = GasData>,
+    E: Strategy<Value = TransactionExpiration>,
+> TransactionDataGenBuilder<K, G, E>
 {
     pub fn new(sender: IotaAddress) -> Self {
         Self {

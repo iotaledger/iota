@@ -5,7 +5,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
@@ -128,7 +128,7 @@ async fn publish_move_random_package(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-         .0
+        .0
 }
 
 async fn check_oog_transaction<F>(
@@ -214,16 +214,18 @@ where
         ExecutionFailureStatus::InsufficientGas
     );
     // gas object in effects is first coin in vector of coins
-    assert_eq!(gas_coin_ids[0], effects.gas_object().0 .0);
+    assert_eq!(gas_coin_ids[0], effects.gas_object().0.0);
     //  gas at position 0 mutated
     assert_eq!(effects.mutated().len(), 1);
     // extra coins are deleted
     assert_eq!(effects.deleted().len() as u64, coin_num - 1);
     for gas_coin_id in &gas_coin_ids[1..] {
-        assert!(effects
-            .deleted()
-            .iter()
-            .any(|deleted| deleted.0 == *gas_coin_id));
+        assert!(
+            effects
+                .deleted()
+                .iter()
+                .any(|deleted| deleted.0 == *gas_coin_id)
+        );
     }
     let gas_ref = effects.gas_object().0;
     let gas_object = authority_state

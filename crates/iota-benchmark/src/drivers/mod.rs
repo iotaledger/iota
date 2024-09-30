@@ -9,7 +9,7 @@ use std::{fmt::Formatter, str::FromStr, time::Duration};
 
 use comfy_table::{Cell, Color, ContentArrangement, Row, Table};
 use duration_str::parse;
-use hdrhistogram::{serialization::Serializer, Histogram};
+use hdrhistogram::{Histogram, serialization::Serializer};
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub enum Interval {

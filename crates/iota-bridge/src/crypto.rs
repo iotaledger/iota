@@ -13,8 +13,8 @@ use fastcrypto::{
     error::FastCryptoError,
     hash::{HashFunction, Keccak256},
     secp256k1::{
-        recoverable::Secp256k1RecoverableSignature, Secp256k1KeyPair, Secp256k1PublicKey,
-        Secp256k1PublicKeyAsBytes,
+        Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes,
+        recoverable::Secp256k1RecoverableSignature,
     },
     traits::{KeyPair, RecoverableSigner, ToFromBytes, VerifyRecoverable},
 };
@@ -81,7 +81,7 @@ pub struct ConciseBridgeAuthorityPublicKeyBytesRef<'a>(&'a BridgeAuthorityPublic
 
 impl Debug for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0 .0 .0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0.0.0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -94,7 +94,7 @@ impl Display for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
 
 impl AsRef<[u8]> for BridgeAuthorityPublicKeyBytes {
     fn as_ref(&self) -> &[u8] {
-        self.0 .0.as_ref()
+        self.0.0.as_ref()
     }
 }
 

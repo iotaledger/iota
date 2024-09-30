@@ -22,7 +22,7 @@ use iota_types::{
     iota_system_state::get_iota_system_state,
     message_envelope::Message,
     storage::{
-        get_module, BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore,
+        BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
     },
 };
 use itertools::izip;
@@ -34,9 +34,9 @@ use tokio::{
 };
 use tracing::{debug, info, trace};
 use typed_store::{
-    rocks::{util::is_ref_count_value, DBBatch, DBMap},
-    traits::Map,
     TypedStoreError,
+    rocks::{DBBatch, DBMap, util::is_ref_count_value},
+    traits::Map,
 };
 
 use super::{
@@ -51,8 +51,8 @@ use crate::{
         },
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{
-            get_store_object_pair, ObjectContentDigest, StoreObject, StoreObjectPair,
-            StoreObjectWrapper,
+            ObjectContentDigest, StoreObject, StoreObjectPair, StoreObjectWrapper,
+            get_store_object_pair,
         },
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -982,14 +982,14 @@ impl AuthorityStore {
         self.delete_live_object_markers(write_batch, locks_to_delete)?;
 
         write_batch
-            .insert_batch(
-                &self.perpetual_tables.effects,
-                [(effects_digest, effects.clone())],
-            )?
-            .insert_batch(
-                &self.perpetual_tables.executed_effects,
-                [(transaction_digest, effects_digest)],
-            )?;
+            .insert_batch(&self.perpetual_tables.effects, [(
+                effects_digest,
+                effects.clone(),
+            )])?
+            .insert_batch(&self.perpetual_tables.executed_effects, [(
+                transaction_digest,
+                effects_digest,
+            )])?;
 
         debug!(effects_digest = ?effects.digest(), "commit_certificate finished");
 
@@ -1047,11 +1047,13 @@ impl AuthorityStore {
         ) {
             let Some(live_marker) = live_marker else {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
-                    provided_obj_ref: *obj_ref,
-                    current_version: latest_lock.1
-                }
-                .into());
+                fp_bail!(
+                    UserInputError::ObjectVersionUnavailableForConsumption {
+                        provided_obj_ref: *obj_ref,
+                        current_version: latest_lock.1
+                    }
+                    .into()
+                );
             };
 
             let live_marker = live_marker.map(|l| l.migrate().into_inner());
@@ -1146,7 +1148,7 @@ impl AuthorityStore {
         Ok(iterator
             .next()
             .and_then(|value| {
-                if value.0 .0 == object_id {
+                if value.0.0 == object_id {
                     Some(value)
                 } else {
                     None
@@ -1174,11 +1176,13 @@ impl AuthorityStore {
         for (lock, obj_ref) in locks.into_iter().zip(objects) {
             if lock.is_none() {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
-                    provided_obj_ref: *obj_ref,
-                    current_version: latest_lock.1
-                }
-                .into());
+                fp_bail!(
+                    UserInputError::ObjectVersionUnavailableForConsumption {
+                        provided_obj_ref: *obj_ref,
+                        current_version: latest_lock.1
+                    }
+                    .into()
+                );
             }
         }
         Ok(())
@@ -1464,14 +1468,14 @@ impl AuthorityStore {
     ) -> Result<(), TypedStoreError> {
         let mut write_batch = self.perpetual_tables.transactions.batch();
         write_batch
-            .insert_batch(
-                &self.perpetual_tables.transactions,
-                [(transaction.digest(), transaction.serializable_ref())],
-            )?
-            .insert_batch(
-                &self.perpetual_tables.effects,
-                [(transaction_effects.digest(), transaction_effects)],
-            )?;
+            .insert_batch(&self.perpetual_tables.transactions, [(
+                transaction.digest(),
+                transaction.serializable_ref(),
+            )])?
+            .insert_batch(&self.perpetual_tables.effects, [(
+                transaction_effects.digest(),
+                transaction_effects,
+            )])?;
 
         write_batch.write()?;
         Ok(())
@@ -1484,14 +1488,14 @@ impl AuthorityStore {
         let mut write_batch = self.perpetual_tables.transactions.batch();
         for tx in transactions {
             write_batch
-                .insert_batch(
-                    &self.perpetual_tables.transactions,
-                    [(tx.transaction.digest(), tx.transaction.serializable_ref())],
-                )?
-                .insert_batch(
-                    &self.perpetual_tables.effects,
-                    [(tx.effects.digest(), &tx.effects)],
-                )?;
+                .insert_batch(&self.perpetual_tables.transactions, [(
+                    tx.transaction.digest(),
+                    tx.transaction.serializable_ref(),
+                )])?
+                .insert_batch(&self.perpetual_tables.effects, [(
+                    tx.effects.digest(),
+                    &tx.effects,
+                )])?;
         }
 
         write_batch.write()?;
@@ -1827,10 +1831,10 @@ impl AuthorityStore {
                                     );
                                 }
                                 if matches!(prev.1.inner(), StoreObject::Wrapped)
-                                    && object_key.0 != prev.0 .0
+                                    && object_key.0 != prev.0.0
                                 {
                                     wrapped_objects_to_remove
-                                        .push(WrappedObject::new(prev.0 .0, prev.0 .1));
+                                        .push(WrappedObject::new(prev.0.0, prev.0.1));
                                 }
 
                                 prev = (object_key, object);
@@ -1842,7 +1846,7 @@ impl AuthorityStore {
                         }
                     }
                     if matches!(prev.1.inner(), StoreObject::Wrapped) {
-                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0 .0, prev.0 .1));
+                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0.0, prev.0.1));
                     }
                     info!(
                         "[Re-accumulate] Task {}: object scanned: {}, wrapped objects: {}",

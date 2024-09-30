@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use axum::{extract::State, Extension, Json};
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -21,12 +21,13 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
-    signature_verification::{verify_sender_signed_data_message_signatures, VerifiedDigestCache},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
+    IotaEnv, OnlineServerContext,
     errors::Error,
     operations::Operations,
     types::{
@@ -38,7 +39,6 @@ use crate::{
         InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
         TransactionIdentifierResponse,
     },
-    IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
@@ -109,18 +109,18 @@ pub async fn combine(
         .ok_or_else(|| Error::MissingInput("Signature".to_string()))?;
     let sig_bytes = sig.hex_bytes.to_vec()?;
     let pub_key = sig.public_key.hex_bytes.to_vec()?;
-    let flag = vec![match sig.signature_type {
-        SignatureType::Ed25519 => SignatureScheme::ED25519,
-        SignatureType::Ecdsa => SignatureScheme::Secp256k1,
-    }
-    .flag()];
+    let flag = vec![
+        match sig.signature_type {
+            SignatureType::Ed25519 => SignatureScheme::ED25519,
+            SignatureType::Ecdsa => SignatureScheme::Secp256k1,
+        }
+        .flag(),
+    ];
 
-    let signed_tx = Transaction::from_generic_sig_data(
-        intent_msg.value,
-        vec![GenericSignature::from_bytes(
+    let signed_tx =
+        Transaction::from_generic_sig_data(intent_msg.value, vec![GenericSignature::from_bytes(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
-        )?],
-    );
+        )?]);
     // TODO: this will likely fail with zklogin authenticator, since we do not know
     // the current epoch. As long as coinbase doesn't need to use zklogin for
     // custodial wallets this is okay.

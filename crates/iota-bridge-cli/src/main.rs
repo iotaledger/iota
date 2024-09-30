@@ -4,7 +4,7 @@
 
 use std::{
     collections::HashMap,
-    str::{from_utf8, FromStr},
+    str::{FromStr, from_utf8},
     sync::Arc,
     time::Duration,
 };
@@ -20,14 +20,14 @@ use iota_bridge::{
     iota_transaction_builder::build_iota_transaction,
     types::BridgeActionType,
     utils::{
-        examine_key, generate_bridge_authority_key_and_write_to_file,
+        EthBridgeContracts, examine_key, generate_bridge_authority_key_and_write_to_file,
         generate_bridge_client_key_and_write_to_file,
-        generate_bridge_node_config_and_write_to_file, get_eth_contracts, EthBridgeContracts,
+        generate_bridge_node_config_and_write_to_file, get_eth_contracts,
     },
 };
 use iota_bridge_cli::{
-    make_action, select_contract_address, Args, BridgeCliConfig, BridgeCommand,
-    LoadedBridgeCliConfig, Network, SEPOLIA_BRIDGE_PROXY_ADDR,
+    Args, BridgeCliConfig, BridgeCommand, LoadedBridgeCliConfig, Network,
+    SEPOLIA_BRIDGE_PROXY_ADDR, make_action, select_contract_address,
 };
 use iota_config::Config;
 use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder};

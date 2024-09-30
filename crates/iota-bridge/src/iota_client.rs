@@ -15,6 +15,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder};
 use iota_types::{
+    BRIDGE_PACKAGE_ID, IOTA_BRIDGE_OBJECT_ID, Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     bridge::{
         BridgeSummary, BridgeTreasurySummary, MoveTypeCommitteeMember,
@@ -29,7 +30,6 @@ use iota_types::{
         Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         Transaction, TransactionKind,
     },
-    Identifier, TypeTag, BRIDGE_PACKAGE_ID, IOTA_BRIDGE_OBJECT_ID,
 };
 use serde::de::DeserializeOwned;
 use tokio::sync::OnceCell;
@@ -122,11 +122,13 @@ where
         let events = self.inner.query_events(filter.clone(), cursor).await?;
 
         // Safeguard check that all events are emitted from requested package and module
-        assert!(events
-            .data
-            .iter()
-            .all(|event| event.type_.address.as_ref() == package.as_ref()
-                && event.type_.module == module));
+        assert!(
+            events
+                .data
+                .iter()
+                .all(|event| event.type_.address.as_ref() == package.as_ref()
+                    && event.type_.module == module)
+        );
         Ok(events)
     }
 
@@ -628,10 +630,11 @@ mod tests {
 
     use super::*;
     use crate::{
+        BRIDGE_ENABLE_PROTOCOL_VERSION,
         crypto::BridgeAuthorityKeyPair,
         events::{
-            init_all_struct_tags, EmittedIotaToEthTokenBridgeV1, IotaToEthTokenBridgeV1,
-            MoveTokenDepositedEvent,
+            EmittedIotaToEthTokenBridgeV1, IotaToEthTokenBridgeV1, MoveTokenDepositedEvent,
+            init_all_struct_tags,
         },
         iota_mock_client::IotaMockClient,
         test_utils::{
@@ -639,7 +642,6 @@ mod tests {
             get_test_eth_to_iota_bridge_action, get_test_iota_to_eth_bridge_action,
         },
         types::IotaToEthBridgeAction,
-        BRIDGE_ENABLE_PROTOCOL_VERSION,
     };
 
     #[tokio::test]
@@ -692,15 +694,12 @@ mod tests {
         let mut iota_event_3 = iota_event_1.clone();
         iota_event_3.type_.address = AccountAddress::random();
 
-        mock_client.add_events_by_tx_digest(
-            tx_digest,
-            vec![
-                iota_event_1.clone(),
-                iota_event_2.clone(),
-                iota_event_1.clone(),
-                iota_event_3.clone(),
-            ],
-        );
+        mock_client.add_events_by_tx_digest(tx_digest, vec![
+            iota_event_1.clone(),
+            iota_event_2.clone(),
+            iota_event_1.clone(),
+            iota_event_3.clone(),
+        ]);
         let expected_action_1 = BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
             iota_tx_digest: tx_digest,
             iota_tx_event_index: 0,

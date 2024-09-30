@@ -10,8 +10,8 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -34,14 +34,14 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::{sync::OwnedMutexGuard, task::spawn_blocking};
 use tracing::{debug, trace};
 use typed_store::{
-    rocks::{default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf},
-    traits::{Map, TableSummary, TypedStoreDebug},
     DBMapUtils, TypedStoreError,
+    rocks::{DBBatch, DBMap, DBOptions, MetricConf, default_db_options, read_size_from_env},
+    traits::{Map, TableSummary, TypedStoreDebug},
 };
 
 use crate::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
@@ -1167,7 +1167,7 @@ impl IndexStore {
             .skip_to(&(object, cursor.unwrap_or(ObjectID::ZERO)))?
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0 .0 == object))
+            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 
@@ -1499,13 +1499,10 @@ impl IndexStore {
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
                 |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
             )?));
-            balances.insert(
-                coin_type,
-                TotalBalance {
-                    num_coins: coin_object_count,
-                    balance: total_balance,
-                },
-            );
+            balances.insert(coin_type, TotalBalance {
+                num_coins: coin_object_count,
+                balance: total_balance,
+            });
         }
         Ok(Arc::new(balances))
     }
@@ -1615,7 +1612,7 @@ mod tests {
     use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
 
-    use crate::{indexes::ObjectIndexChanges, IndexStore};
+    use crate::{IndexStore, indexes::ObjectIndexChanges};
 
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {
@@ -1634,17 +1631,14 @@ mod tests {
         let mut new_objects = vec![];
         for _i in 0..10 {
             let object = object::Object::new_gas_with_balance_and_owner_for_testing(100, address);
-            new_objects.push((
-                (address, object.id()),
-                ObjectInfo {
-                    object_id: object.id(),
-                    version: object.version(),
-                    digest: object.digest(),
-                    type_: ObjectType::Struct(object.type_().unwrap().clone()),
-                    owner: Owner::AddressOwner(address),
-                    previous_transaction: object.previous_transaction,
-                },
-            ));
+            new_objects.push(((address, object.id()), ObjectInfo {
+                object_id: object.id(),
+                version: object.version(),
+                digest: object.digest(),
+                type_: ObjectType::Struct(object.type_().unwrap().clone()),
+                owner: Owner::AddressOwner(address),
+                previous_transaction: object.previous_transaction,
+            }));
             object_map.insert(object.id(), object.clone());
             written_objects.insert(object.data.id(), object);
         }

@@ -102,7 +102,7 @@ async fn test_multiple_epochs() {
         assert_eq!(1, round.0);
         assert_ne!(0, bytes.len());
         assert!(rx.try_recv().is_err()); // there should not be anything else
-                                         // ready yet
+        // ready yet
     }
     for (authority, handle) in handles.iter() {
         // update to epoch 1

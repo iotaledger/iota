@@ -12,20 +12,20 @@ use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     object::Object,
-    SYSTEM_PACKAGE_ADDRESSES,
 };
 use tap::tap::TapFallible;
 use tokio::sync::Mutex;
 use tracing::warn;
 
 use crate::{
-    handlers::{get_move_struct, AnalyticsHandler},
+    FileType,
+    handlers::{AnalyticsHandler, get_move_struct},
     package_store::{LocalDBPackageStore, PackageCache},
     tables::DynamicFieldEntry,
-    FileType,
 };
 
 pub struct DynamicFieldHandler {
@@ -165,13 +165,12 @@ impl DynamicFieldHandler {
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {
-                let object =
-                    all_written_objects
-                        .get(&object_id)
-                        .ok_or(IndexerError::UncategorizedError(anyhow::anyhow!(
+                let object = all_written_objects.get(&object_id).ok_or(
+                    IndexerError::UncategorizedError(anyhow::anyhow!(
                         "Failed to find object_id {:?} when trying to create dynamic field info",
                         object_id
-                    )))?;
+                    )),
+                )?;
                 let version = object.version().value();
                 let digest = object.digest().to_string();
                 let object_type = object.data.type_().unwrap().clone();

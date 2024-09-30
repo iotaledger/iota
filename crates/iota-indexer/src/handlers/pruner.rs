@@ -12,7 +12,7 @@ use super::checkpoint_handler::CheckpointHandler;
 use crate::{
     errors::IndexerError,
     metrics::IndexerMetrics,
-    store::{pg_partition_manager::PgPartitionManager, IndexerStore},
+    store::{IndexerStore, pg_partition_manager::PgPartitionManager},
     types::IndexerResult,
 };
 

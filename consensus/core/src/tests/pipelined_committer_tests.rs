@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::{
     block::{BlockAPI, Slot, TestBlock, Transaction, VerifiedBlock},
-    commit::{DecidedLeader, DEFAULT_WAVE_LENGTH},
+    commit::{DEFAULT_WAVE_LENGTH, DecidedLeader},
     context::Context,
     dag_state::DagState,
     leader_schedule::{LeaderSchedule, LeaderSwapTable},

@@ -57,12 +57,12 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use self::metrics::CheckpointExecutorMetrics;
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     checkpoints::{
+        CheckpointStore,
         checkpoint_executor::data_ingestion_handler::{
             load_checkpoint_data, store_checkpoint_locally,
         },
-        CheckpointStore,
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     state_accumulator::StateAccumulator,
@@ -826,8 +826,7 @@ async fn handle_execution_effects(
                 if checkpoint.sequence_number > highest_seq + 1 {
                     trace!(
                         "Checkpoint {} is still executing. Highest executed = {}",
-                        checkpoint.sequence_number,
-                        highest_seq
+                        checkpoint.sequence_number, highest_seq
                     );
                     continue;
                 }
@@ -849,11 +848,7 @@ async fn handle_execution_effects(
                     .zip(all_tx_digests.clone())
                     .filter_map(
                         |(fx, digest)| {
-                            if fx.is_none() {
-                                Some(digest)
-                            } else {
-                                None
-                            }
+                            if fx.is_none() { Some(digest) } else { None }
                         },
                     )
                     .collect();
@@ -996,11 +991,13 @@ fn extract_end_of_epoch_tx(
         *checkpoint_sequence,
     );
 
-    assert!(change_epoch_tx
-        .data()
-        .intent_message()
-        .value
-        .is_end_of_epoch_tx());
+    assert!(
+        change_epoch_tx
+            .data()
+            .intent_message()
+            .value
+            .is_end_of_epoch_tx()
+    );
 
     Some((*digests, change_epoch_tx))
 }

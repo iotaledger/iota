@@ -6,8 +6,8 @@
 #[cfg(msim)]
 mod simtests {
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
 
     use iota_macros::{register_fail_point, sim_test};

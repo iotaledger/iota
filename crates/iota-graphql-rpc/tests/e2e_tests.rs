@@ -8,17 +8,17 @@ mod tests {
 
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_graphql_rpc::{
-        client::{simple_client::GraphqlQueryVariable, ClientError},
+        client::{ClientError, simple_client::GraphqlQueryVariable},
         config::ConnectionConfig,
-        test_infra::cluster::{ExecutorCluster, DEFAULT_INTERNAL_DATA_SOURCE_PORT},
+        test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
     };
     use iota_types::{
+        DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         digests::ChainIdentifier,
         gas_coin::GAS,
         transaction::{CallArg, ObjectArg, TransactionDataAPI},
-        DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
     };
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
     use serial_test::serial;
     use simulacrum::Simulacrum;
@@ -731,15 +731,10 @@ mod tests {
             .test_transaction_builder()
             .await
             // A split coin that goes nowhere -> execution failure
-            .move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                "coin",
-                "split",
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                    CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
-                ],
-            )
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "coin", "split", vec![
+                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
+                CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
+            ])
             .with_type_args(vec![GAS::type_tag()])
             .build();
         let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
@@ -783,12 +778,13 @@ mod tests {
         // Execution failed so the results are null.
         assert!(res.get("results").unwrap().is_null());
         // Check that the error is not null and contains the error message.
-        assert!(res
-            .get("error")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .contains("UnusedValueWithoutDrop"));
+        assert!(
+            res.get("error")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .contains("UnusedValueWithoutDrop")
+        );
 
         cluster.cleanup_resources().await
     }
@@ -830,12 +826,14 @@ mod tests {
         let binding = res.response_body().data.clone().into_json().unwrap();
 
         // Check that liveObjectSetDigest is not null
-        assert!(!binding
-            .get("epoch")
-            .unwrap()
-            .get("liveObjectSetDigest")
-            .unwrap()
-            .is_null());
+        assert!(
+            !binding
+                .get("epoch")
+                .unwrap()
+                .get("liveObjectSetDigest")
+                .unwrap()
+                .is_null()
+        );
         cluster.cleanup_resources().await
     }
 

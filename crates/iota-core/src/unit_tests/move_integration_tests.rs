@@ -7,14 +7,14 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
-    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -25,8 +25,8 @@ use move_core_types::{
 
 use super::*;
 use crate::authority::authority_tests::{
-    call_move, call_move_, execute_programmable_transaction, init_state_with_ids,
-    send_and_confirm_transaction, TestCallArg,
+    TestCallArg, call_move, call_move_, execute_programmable_transaction, init_state_with_ids,
+    send_and_confirm_transaction,
 };
 
 #[tokio::test]
@@ -74,7 +74,7 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(child_object_ref.1, create_child_version);
 
     let wrapped_version =
-        SequenceNumber::lamport_increment([child_object_ref.1, effects.gas_object().0 .1]);
+        SequenceNumber::lamport_increment([child_object_ref.1, effects.gas_object().0.1]);
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -119,7 +119,7 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(parent_object_ref.1, wrapped_version);
 
     let unwrapped_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0 .1]);
+        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.1]);
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -151,14 +151,14 @@ async fn test_object_wrapping_unwrapping() {
         (2, 0, 1)
     );
     // Make sure that version increments again when unwrapped.
-    assert_eq!(effects.unwrapped()[0].0 .1, unwrapped_version);
+    assert_eq!(effects.unwrapped()[0].0.1, unwrapped_version);
     check_latest_object_ref(&authority, &effects.unwrapped()[0].0, false).await;
     let child_object_ref = effects.unwrapped()[0].0;
 
     let rewrap_version = SequenceNumber::lamport_increment([
         parent_object_ref.1,
         child_object_ref.1,
-        effects.gas_object().0 .1,
+        effects.gas_object().0.1,
     ]);
 
     // Wrap the child to the parent again.
@@ -197,7 +197,7 @@ async fn test_object_wrapping_unwrapping() {
     let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().0;
 
     let deleted_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0 .1]);
+        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.1]);
 
     // Now delete the parent object, which will in turn delete the child object.
     let effects = call_move(
@@ -226,9 +226,11 @@ async fn test_object_wrapping_unwrapping() {
         deleted_version,
         ObjectDigest::OBJECT_DIGEST_DELETED,
     );
-    assert!(effects
-        .unwrapped_then_deleted()
-        .contains(&expected_child_object_ref));
+    assert!(
+        effects
+            .unwrapped_then_deleted()
+            .contains(&expected_child_object_ref)
+    );
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
     let expected_parent_object_ref = (
         parent_object_ref.0,
@@ -873,12 +875,9 @@ async fn test_entry_point_vector_empty() {
     )
     .await
     .unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::EmptyCommandInput
-        }
-    );
+    assert_eq!(err, IotaError::UserInput {
+        error: UserInputError::EmptyCommandInput
+    });
 
     // call a function with an empty vector whose type is generic
     let pt = {
@@ -903,12 +902,9 @@ async fn test_entry_point_vector_empty() {
     )
     .await
     .unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::EmptyCommandInput
-        }
-    );
+    assert_eq!(err, IotaError::UserInput {
+        error: UserInputError::EmptyCommandInput
+    });
 }
 
 #[tokio::test]
@@ -1277,16 +1273,13 @@ async fn test_entry_point_vector_error() {
     .await;
     // should fail as we have the same object passed in vector and as a separate
     // by-value argument
-    assert_eq!(
-        result.unwrap().status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidValueUsage,
-            },
-            command: Some(1)
-        }
-    );
+    assert_eq!(result.unwrap().status(), &ExecutionStatus::Failure {
+        error: ExecutionErrorKind::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidValueUsage,
+        },
+        command: Some(1)
+    });
 
     // mint an owned object
     let effects = call_move(
@@ -1327,16 +1320,13 @@ async fn test_entry_point_vector_error() {
     .await;
     // should fail as we have the same object passed in vector and as a separate
     // by-reference argument
-    assert_eq!(
-        result.unwrap().status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidValueUsage,
-            },
-            command: Some(1)
-        }
-    );
+    assert_eq!(result.unwrap().status(), &ExecutionStatus::Failure {
+        error: ExecutionErrorKind::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidValueUsage,
+        },
+        command: Some(1)
+    });
 }
 
 #[tokio::test]
@@ -1669,16 +1659,13 @@ async fn test_entry_point_vector_any_error() {
     .await;
     // should fail as we have the same object passed in vector and as a separate
     // by-value argument
-    assert_eq!(
-        result.unwrap().status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidValueUsage,
-            },
-            command: Some(1)
-        }
-    );
+    assert_eq!(result.unwrap().status(), &ExecutionStatus::Failure {
+        error: ExecutionErrorKind::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidValueUsage,
+        },
+        command: Some(1)
+    });
 
     // mint an owned object
     let effects = call_move(
@@ -1717,16 +1704,13 @@ async fn test_entry_point_vector_any_error() {
         ],
     )
     .await;
-    assert_eq!(
-        result.unwrap().status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidValueUsage,
-            },
-            command: Some(1)
-        }
-    );
+    assert_eq!(result.unwrap().status(), &ExecutionStatus::Failure {
+        error: ExecutionErrorKind::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidValueUsage,
+        },
+        command: Some(1)
+    });
 }
 
 #[tokio::test]
@@ -2039,16 +2023,13 @@ async fn test_entry_point_string_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 
     // pass a invalid ascii string
     let ascii_str = "SomeString";
@@ -2074,16 +2055,13 @@ async fn test_entry_point_string_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 
     // pass a invalid utf8 string
     let utf8_str = "çå∞≠¢õß∂ƒ∫";
@@ -2109,16 +2087,13 @@ async fn test_entry_point_string_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 }
 
 #[tokio::test]
@@ -2165,16 +2140,13 @@ async fn test_entry_point_string_vec_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 }
 
 #[tokio::test]
@@ -2211,16 +2183,13 @@ async fn test_entry_point_string_option_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 
     // pass an utf8 string option with an invalid string
     let utf8_str = "çå∞≠¢";
@@ -2241,16 +2210,13 @@ async fn test_entry_point_string_option_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 
     // pass a vector as an option
     let utf8_str_1 = "çå∞≠¢";
@@ -2269,16 +2235,13 @@ async fn test_entry_point_string_option_error() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
-            },
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CommandArgumentError {
+            arg_idx: 0,
+            kind: CommandArgumentError::InvalidBCSBytes
+        },
+        command: Some(0)
+    });
 }
 
 async fn test_make_move_vec_for_type<T: Clone + Serialize>(
@@ -2578,16 +2541,13 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::TypeMismatch,
-                0
-            ),
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::command_argument_error(
+            CommandArgumentError::TypeMismatch,
+            0
+        ),
+        command: Some(0)
+    });
 
     // invalid BCS for any Move value
     const ALWAYS_INVALID_BYTES: &[u8] = &[255, 255, 255];
@@ -2607,16 +2567,13 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
-                0
-            ),
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::command_argument_error(
+            CommandArgumentError::InvalidBCSBytes,
+            0
+        ),
+        command: Some(0)
+    });
 
     // invalid bcs bytes at end
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -2638,16 +2595,13 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     )
     .await
     .unwrap();
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
-                3,
-            ),
-            command: Some(0)
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::command_argument_error(
+            CommandArgumentError::InvalidBCSBytes,
+            3,
+        ),
+        command: Some(0)
+    });
 }
 
 macro_rules! make_vec_error_tests_for_type {
@@ -2761,12 +2715,9 @@ async fn test_make_move_vec_empty() {
     )
     .await
     .unwrap_err();
-    assert_eq!(
-        result,
-        IotaError::UserInput {
-            error: UserInputError::EmptyCommandInput
-        }
-    );
+    assert_eq!(result, IotaError::UserInput {
+        error: UserInputError::EmptyCommandInput
+    });
 }
 
 fn resolved_struct(

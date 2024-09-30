@@ -4,8 +4,8 @@
 
 use async_trait::async_trait;
 use diesel::r2d2::R2D2Connection;
-use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
-use iota_json_rpc_api::{internal_error, ReadApiServer, QUERY_MAX_RESULT_LIMIT};
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
+use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
@@ -20,7 +20,7 @@ use iota_types::{
     iota_serde::BigInt,
     object::ObjectRead,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 

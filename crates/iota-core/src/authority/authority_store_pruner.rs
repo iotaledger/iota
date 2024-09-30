@@ -24,15 +24,15 @@ use iota_types::{
 };
 use once_cell::sync::Lazy;
 use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 use tokio::{
     sync::oneshot::{self, Sender},
     time::Instant,
 };
 use tracing::{debug, error, info, warn};
-use typed_store::{rocksdb::LiveFile, Map, TypedStoreError};
+use typed_store::{Map, TypedStoreError, rocksdb::LiveFile};
 
 use super::authority_store_tables::AuthorityPerpetualTables;
 use crate::{
@@ -294,13 +294,10 @@ impl AuthorityStorePruner {
         checkpoints_batch
             .delete_batch(&checkpoint_db.checkpoint_by_digest, checkpoints_to_prune)?;
 
-        checkpoints_batch.insert_batch(
-            &checkpoint_db.watermarks,
-            [(
-                &CheckpointWatermark::HighestPruned,
-                &(checkpoint_number, CheckpointDigest::random()),
-            )],
-        )?;
+        checkpoints_batch.insert_batch(&checkpoint_db.watermarks, [(
+            &CheckpointWatermark::HighestPruned,
+            &(checkpoint_number, CheckpointDigest::random()),
+        )])?;
 
         if let Some(rest_index) = rest_index {
             rest_index.prune(&checkpoint_content_to_prune)?;
@@ -772,8 +769,8 @@ mod tests {
     use prometheus::Registry;
     use tracing::log::info;
     use typed_store::{
-        rocks::{util::reference_count_merge_operator, DBMap, MetricConf, ReadWriteOptions},
         Map,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, util::reference_count_merge_operator},
     };
 
     use super::AuthorityStorePruner;
@@ -781,8 +778,8 @@ mod tests {
         authority_store_pruner::AuthorityStorePruningMetrics,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{
-            get_store_object_pair, ObjectContentDigest, StoreData, StoreObject, StoreObjectPair,
-            StoreObjectWrapper,
+            ObjectContentDigest, StoreData, StoreObject, StoreObjectPair, StoreObjectWrapper,
+            get_store_object_pair,
         },
     };
 
@@ -847,16 +844,16 @@ mod tests {
                     Object::immutable_with_id_for_testing(id),
                     indirect_object_threshold,
                 );
-                batch.insert_batch(
-                    &db.objects,
-                    [(ObjectKey(id, SequenceNumber::from(seq)), obj.clone())],
-                )?;
+                batch.insert_batch(&db.objects, [(
+                    ObjectKey(id, SequenceNumber::from(seq)),
+                    obj.clone(),
+                )])?;
                 if let StoreObject::Value(o) = obj.into_inner() {
                     if let StoreData::IndirectObject(metadata) = o.data {
-                        batch.merge_batch(
-                            &db.indirect_move_objects,
-                            [(metadata.digest, indirect_obj.unwrap())],
-                        )?;
+                        batch.merge_batch(&db.indirect_move_objects, [(
+                            metadata.digest,
+                            indirect_obj.unwrap(),
+                        )])?;
                     }
                 }
             }
@@ -865,10 +862,10 @@ mod tests {
             if num_object_versions_to_retain == 0 {
                 let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
                 println!("Adding tombstone object {:?}", tombstone_key);
-                batch.insert_batch(
-                    &db.objects,
-                    [(tombstone_key, StoreObjectWrapper::V1(StoreObject::Deleted))],
-                )?;
+                batch.insert_batch(&db.objects, [(
+                    tombstone_key,
+                    StoreObjectWrapper::V1(StoreObject::Deleted),
+                )])?;
                 tombstones.push(tombstone_key);
             }
         }
@@ -1093,13 +1090,13 @@ mod pprof_tests {
     use pprof::Symbol;
     use prometheus::Registry;
     use tracing::log::{error, info};
-    use typed_store::{rocks::DBMap, Map};
+    use typed_store::{Map, rocks::DBMap};
 
     use super::AuthorityStorePruner;
     use crate::authority::{
-        authority_store_pruner::{tests, tests::lock_table, AuthorityStorePruningMetrics},
+        authority_store_pruner::{AuthorityStorePruningMetrics, tests, tests::lock_table},
         authority_store_tables::AuthorityPerpetualTables,
-        authority_store_types::{get_store_object_pair, StoreObjectWrapper},
+        authority_store_types::{StoreObjectWrapper, get_store_object_pair},
     };
 
     fn insert_keys(
@@ -1158,8 +1155,8 @@ mod pprof_tests {
 
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/958"]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones(
-    ) -> Result<(), anyhow::Error> {
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones()
+    -> Result<(), anyhow::Error> {
         // This test writes a bunch of objects to objects table, invokes pruning on it
         // and then does a bunch of get(). We open the db with
         // `ignore_range_delete` set to true (default mode). We then record a
@@ -1197,8 +1194,8 @@ mod pprof_tests {
 
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/958"]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush(
-    ) -> Result<(), anyhow::Error> {
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush()
+    -> Result<(), anyhow::Error> {
         // This test writes a bunch of objects to objects table, invokes pruning on it
         // and then does a bunch of get(). We open the db with
         // `ignore_range_delete` set to true (default mode). We then record a

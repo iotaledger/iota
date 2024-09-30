@@ -20,12 +20,13 @@ async fn test_create_randomness_state_object() {
     // no node has the randomness state object yet
     for h in &handles {
         h.with(|node| {
-            assert!(node
-                .state()
-                .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
-                .unwrap()
-                .is_none());
+            assert!(
+                node.state()
+                    .get_object_cache_reader()
+                    .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                    .unwrap()
+                    .is_none()
+            );
         });
     }
 

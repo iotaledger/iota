@@ -13,7 +13,7 @@ use narwhal_node::{
 use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::NodeStorage;
-use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, temp_dir};
 use tokio::{sync::mpsc::channel, time::sleep};
 use worker::TrivialTransactionValidator;
 

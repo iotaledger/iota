@@ -9,17 +9,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use aws_config::{timeout::TimeoutConfig, BehaviorVersion};
+use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{
+    Client,
     primitives::Blob,
     types::{AttributeValue, PutRequest, WriteRequest},
-    Client,
 };
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::config::{Credentials, Region};
-use backoff::{backoff::Backoff, ExponentialBackoff};
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use iota_data_ingestion_core::Worker;
 use iota_storage::http_key_value_store::TaggedKey;
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};

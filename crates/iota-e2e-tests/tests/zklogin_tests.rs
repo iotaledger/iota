@@ -10,6 +10,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
     base_types::IotaAddress,
     committee::EpochId,
     crypto::Signature,
@@ -21,7 +22,6 @@ use iota_types::{
         make_zklogin_tx,
     },
     zk_login_authenticator::ZkLoginAuthenticator,
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -81,12 +81,9 @@ async fn test_zklogin_feature_deny() {
         .await
         .unwrap_err();
 
-    assert!(matches!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInput {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]
@@ -138,10 +135,12 @@ async fn zklogin_end_to_end_test() {
 
     // a txn with max_epoch mismatch with proof, fails to execute.
     let signed_txn_with_wrong_max_epoch = build_zklogin_tx(&test_cluster, 1).await;
-    assert!(context
-        .execute_transaction_may_fail(signed_txn_with_wrong_max_epoch)
-        .await
-        .is_err());
+    assert!(
+        context
+            .execute_transaction_may_fail(signed_txn_with_wrong_max_epoch)
+            .await
+            .is_err()
+    );
 }
 
 #[sim_test]
@@ -163,10 +162,11 @@ async fn test_max_epoch_too_large_fail_tx() {
     // signature should fail.
     let signed_txn = build_zklogin_tx(&test_cluster, 2).await;
     let res = context.execute_transaction_may_fail(signed_txn).await;
-    assert!(res
-        .unwrap_err()
-        .to_string()
-        .contains("ZKLogin max epoch too large"));
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("ZKLogin max epoch too large")
+    );
 }
 
 #[sim_test]
@@ -214,10 +214,11 @@ async fn test_expired_zklogin_sig() {
     let res = context
         .execute_transaction_may_fail(signed_txn_expired)
         .await;
-    assert!(res
-        .unwrap_err()
-        .to_string()
-        .contains("ZKLogin expired at epoch 2"));
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("ZKLogin expired at epoch 2")
+    );
 }
 
 #[sim_test]
@@ -252,12 +253,13 @@ async fn test_create_authenticator_state_object() {
     // no node has the authenticator state object yet
     for h in &handles {
         h.with(|node| {
-            assert!(node
-                .state()
-                .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
-                .unwrap()
-                .is_none());
+            assert!(
+                node.state()
+                    .get_object_cache_reader()
+                    .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                    .unwrap()
+                    .is_none()
+            );
         });
     }
 

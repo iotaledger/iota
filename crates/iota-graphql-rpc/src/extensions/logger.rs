@@ -5,12 +5,12 @@
 use std::{fmt::Write, net::SocketAddr, sync::Arc};
 
 use async_graphql::{
+    PathSegment, Response, ServerError, ServerResult, ValidationResult, Variables,
     extensions::{
         Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery, NextResolve,
         NextValidation, ResolveInfo,
     },
     parser::types::{ExecutableDocument, OperationType, Selection},
-    PathSegment, Response, ServerError, ServerResult, ValidationResult, Variables,
 };
 use async_graphql_value::ConstValue;
 use tracing::{debug, error, info, warn};

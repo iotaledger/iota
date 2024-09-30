@@ -2450,14 +2450,16 @@ mod test {
         );
 
         // We didnt have this in version 1 on Mainnet
-        assert!(prot
-            .lookup_attr("poseidon_bn254_cost_base".to_string())
-            .is_none());
-        assert!(prot
-            .attr_map()
-            .get("poseidon_bn254_cost_base")
-            .unwrap()
-            .is_none());
+        assert!(
+            prot.lookup_attr("poseidon_bn254_cost_base".to_string())
+                .is_none()
+        );
+        assert!(
+            prot.attr_map()
+                .get("poseidon_bn254_cost_base")
+                .unwrap()
+                .is_none()
+        );
 
         // But we did in version 1 on Devnet
         let prot: ProtocolConfig =
@@ -2476,14 +2478,17 @@ mod test {
         let prot: ProtocolConfig =
             ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Mainnet);
         // Does not exist
-        assert!(prot
-            .feature_flags
-            .lookup_attr("some random string".to_owned())
-            .is_none());
-        assert!(!prot
-            .feature_flags
-            .attr_map()
-            .contains_key("some random string"));
+        assert!(
+            prot.feature_flags
+                .lookup_attr("some random string".to_owned())
+                .is_none()
+        );
+        assert!(
+            !prot
+                .feature_flags
+                .attr_map()
+                .contains_key("some random string")
+        );
 
         // Was false in v1 on Mainnet
         assert!(prot.feature_flags.lookup_attr("enable_poseidon".to_owned()) == Some(false));

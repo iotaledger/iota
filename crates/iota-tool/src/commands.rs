@@ -7,17 +7,17 @@ use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use clap::*;
 use fastcrypto::encoding::Encoding;
-use futures::{future::join_all, StreamExt};
+use futures::{StreamExt, future::join_all};
 use iota_archival::{read_manifest_as_json, write_manifest_from_json};
 use iota_config::{
+    Config,
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-    Config,
 };
 use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_client::AuthorityAPI};
 use iota_protocol_config::Chain;
-use iota_replay::{execute_replay_command, ReplayToolCommand};
-use iota_sdk::{rpc_types::IotaTransactionBlockResponseOptions, IotaClient, IotaClientBuilder};
+use iota_replay::{ReplayToolCommand, execute_replay_command};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -28,12 +28,12 @@ use iota_types::{
 use telemetry_subscribers::TracingHandle;
 
 use crate::{
+    ConciseObjectOutput, GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
     check_completed_snapshot,
-    db_tool::{execute_db_tool_command, print_db_all_tables, DbToolCommand},
+    db_tool::{DbToolCommand, execute_db_tool_command, print_db_all_tables},
     download_db_snapshot, download_formal_snapshot, dump_checkpoints_from_archive,
     get_latest_available_epoch, get_object, get_transaction_block, make_clients,
-    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum, ConciseObjectOutput,
-    GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
+    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum,
 };
 
 #[derive(Parser, Clone, ValueEnum)]

@@ -4,12 +4,12 @@
 
 use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
 
-#[cfg(test)]
-use consensus_config::{local_committee_and_keys, Stake};
 use consensus_config::{AuthorityIndex, ProtocolKeyPair};
+#[cfg(test)]
+use consensus_config::{Stake, local_committee_and_keys};
 use iota_macros::fail_point;
 #[cfg(test)]
-use iota_metrics::monitored_mpsc::{unbounded_channel, UnboundedReceiver};
+use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -19,10 +19,15 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 
+#[cfg(test)]
+use crate::{
+    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
+    storage::mem_store::MemStore,
+};
 use crate::{
     block::{
-        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, Round, SignedBlock, Slot,
-        VerifiedBlock, GENESIS_ROUND,
+        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, GENESIS_ROUND, Round, SignedBlock,
+        Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
     commit::CommittedSubDag,
@@ -35,13 +40,8 @@ use crate::{
     threshold_clock::ThresholdClock,
     transaction::TransactionConsumer,
     universal_committer::{
-        universal_committer_builder::UniversalCommitterBuilder, UniversalCommitter,
+        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
-};
-#[cfg(test)]
-use crate::{
-    block_verifier::NoopBlockVerifier, storage::mem_store::MemStore, CommitConsumer,
-    TransactionClient,
 };
 
 // Maximum number of commit votes to include in a block.
@@ -963,14 +963,14 @@ mod test {
 
     use super::*;
     use crate::{
-        block::{genesis_blocks, TestBlock},
+        CommitConsumer, CommitIndex,
+        block::{TestBlock, genesis_blocks},
         block_verifier::NoopBlockVerifier,
         commit::{CommitAPI as _, CommitRange},
         leader_scoring::ReputationScores,
-        storage::{mem_store::MemStore, Store, WriteBatch},
+        storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionClient,
-        CommitConsumer, CommitIndex,
     };
 
     /// Recover Core and continue proposing from the last round which forms a

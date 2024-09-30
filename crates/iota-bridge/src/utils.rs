@@ -28,12 +28,12 @@ use iota_keys::keypair_file::read_key;
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    BRIDGE_PACKAGE_ID,
     base_types::IotaAddress,
-    bridge::{BridgeChainId, BRIDGE_MODULE_NAME, BRIDGE_REGISTER_FOREIGN_TOKEN_FUNCTION_NAME},
-    crypto::{get_key_pair, IotaKeyPair, ToFromBytes},
+    bridge::{BRIDGE_MODULE_NAME, BRIDGE_REGISTER_FOREIGN_TOKEN_FUNCTION_NAME, BridgeChainId},
+    crypto::{IotaKeyPair, ToFromBytes, get_key_pair},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, TransactionData},
-    BRIDGE_PACKAGE_ID,
 };
 
 use crate::{

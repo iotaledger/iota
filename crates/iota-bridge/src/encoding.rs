@@ -399,9 +399,9 @@ mod tests {
         traits::ToFromBytes,
     };
     use iota_types::{
+        TypeTag,
         base_types::{IotaAddress, TransactionDigest},
         bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDC},
-        TypeTag,
     };
     use prometheus::Registry;
 
@@ -487,8 +487,8 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_message_encoding_regression_emitted_iota_to_eth_token_bridge_v1(
-    ) -> anyhow::Result<()> {
+    fn test_bridge_message_encoding_regression_emitted_iota_to_eth_token_bridge_v1()
+    -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
         iota_metrics::init_metrics(&registry);

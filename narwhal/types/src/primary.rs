@@ -11,9 +11,8 @@ use std::{
 
 use config::{AuthorityIdentifier, Committee, Epoch, Stake, WorkerCache, WorkerId};
 use crypto::{
-    to_intent_message, AggregateSignature, AggregateSignatureBytes,
-    NarwhalAuthorityAggregateSignature, NarwhalAuthoritySignature, NetworkPublicKey, PublicKey,
-    Signature,
+    AggregateSignature, AggregateSignatureBytes, NarwhalAuthorityAggregateSignature,
+    NarwhalAuthoritySignature, NetworkPublicKey, PublicKey, Signature, to_intent_message,
 };
 use derive_builder::Builder;
 use enum_dispatch::enum_dispatch;
@@ -503,13 +502,10 @@ impl HeaderV1 {
 
     pub fn validate(&self, committee: &Committee, worker_cache: &WorkerCache) -> DagResult<()> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch
-            }
-        );
+        ensure!(self.epoch == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch
+        });
 
         // Ensure the header digest is well formed.
         ensure!(
@@ -1115,13 +1111,10 @@ impl CertificateV2 {
         worker_cache: &WorkerCache,
     ) -> DagResult<Certificate> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch() == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch()
-            }
-        );
+        ensure!(self.epoch() == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch()
+        });
 
         // Genesis certificates are always valid.
         if self.round() == 0 && Self::genesis(committee).contains(&self) {

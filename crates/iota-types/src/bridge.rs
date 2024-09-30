@@ -10,16 +10,16 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
+    IOTA_BRIDGE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     collection_types::{Bag, LinkedTable, LinkedTableNode, VecMap},
-    dynamic_field::{get_dynamic_field_from_store, Field},
+    dynamic_field::{Field, get_dynamic_field_from_store},
     error::{IotaError, IotaResult},
     id::UID,
     iota_serde::{BigInt, Readable},
     object::Owner,
     storage::ObjectStore,
     versioned::Versioned,
-    IOTA_BRIDGE_OBJECT_ID,
 };
 
 pub type BridgeInnerDynamicField = Field<u64, BridgeInnerV1>;
