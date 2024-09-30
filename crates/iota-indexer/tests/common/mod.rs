@@ -41,7 +41,7 @@ pub struct ApiTestSetup {
 }
 
 impl ApiTestSetup {
-    pub fn new_static() -> &'static ApiTestSetup {
+    pub fn get_or_init() -> &'static ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 

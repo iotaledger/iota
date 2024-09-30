@@ -51,7 +51,7 @@ fn get_object_with_options(options: IotaObjectDataOptions) {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
@@ -85,7 +85,7 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
@@ -123,7 +123,7 @@ fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptio
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
@@ -169,7 +169,7 @@ fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockRespon
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -219,7 +219,7 @@ fn get_checkpoint_by_seq_num() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
@@ -246,7 +246,7 @@ fn get_checkpoint_by_seq_num_not_found() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
@@ -268,7 +268,7 @@ fn get_checkpoint_by_digest() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -294,7 +294,7 @@ fn get_checkpoint_by_digest_not_found() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
@@ -317,7 +317,7 @@ fn get_checkpoints_all_ascending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
@@ -341,7 +341,7 @@ fn get_checkpoints_all_descending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -364,7 +364,7 @@ fn get_checkpoints_by_cursor_and_limit_one_descending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -391,7 +391,7 @@ fn get_checkpoints_by_cursor_and_limit_one_ascending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -418,7 +418,7 @@ fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -445,7 +445,7 @@ fn get_checkpoints_by_cursor_zero_and_limit_descending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -472,7 +472,7 @@ fn get_checkpoints_by_cursor_and_limit_ascending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 6).await;
 
@@ -499,7 +499,7 @@ fn get_checkpoints_by_cursor_and_limit_descending() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
@@ -528,7 +528,7 @@ fn get_checkpoints_invalid_limit() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
@@ -549,7 +549,7 @@ fn get_object() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
@@ -577,7 +577,7 @@ fn get_object_not_found() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -661,7 +661,7 @@ fn multi_get_objects() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
@@ -691,7 +691,7 @@ fn multi_get_objects_not_found() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -741,7 +741,7 @@ fn multi_get_objects_found_and_not_found() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
@@ -842,7 +842,7 @@ fn get_events() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -868,7 +868,7 @@ fn get_events_not_found() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -888,7 +888,7 @@ fn get_transaction_block() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -913,7 +913,7 @@ fn get_transaction_block_not_found() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -994,7 +994,7 @@ fn multi_get_transaction_blocks() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
@@ -1093,7 +1093,7 @@ fn get_protocol_config() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -1120,7 +1120,7 @@ fn get_protocol_config_invalid_protocol_version() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -1142,7 +1142,7 @@ fn get_chain_identifier() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -1162,7 +1162,7 @@ fn get_total_transaction_blocks() {
         cluster,
         store,
         client,
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, checkpoint).await;
@@ -1196,7 +1196,7 @@ fn get_latest_checkpoint_sequence_number() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, checkpoint).await;
@@ -1226,7 +1226,7 @@ fn try_get_past_object() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -1247,7 +1247,7 @@ fn try_multi_get_past_objects() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -1274,7 +1274,7 @@ fn get_loaded_child_objects() {
         store,
         client,
         ..
-    } = ApiTestSetup::new_static();
+    } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 

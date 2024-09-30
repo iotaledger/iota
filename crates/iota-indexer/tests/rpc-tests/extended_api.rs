@@ -52,7 +52,7 @@ async fn get_epochs() {
     let epochs = indexer_client.get_epochs(None, None, None).await.unwrap();
 
     assert_eq!(epochs.data.len(), 3);
-    assert_eq!(epochs.has_next_page, false);
+    assert!(!epochs.has_next_page);
 
     let end_of_epoch_info = epochs.data[0].end_of_epoch_info.as_ref().unwrap();
     assert_eq!(epochs.data[0].epoch, 0);
@@ -106,7 +106,7 @@ async fn get_epochs_descending() {
         .collect::<Vec<u64>>();
 
     assert_eq!(epochs.data.len(), 3);
-    assert_eq!(epochs.has_next_page, false);
+    assert!(!epochs.has_next_page);
     assert_eq!(actual_epochs_order, [2, 1, 0])
 }
 
@@ -143,7 +143,7 @@ async fn get_epochs_paging() {
         .collect::<Vec<u64>>();
 
     assert_eq!(epochs.data.len(), 2);
-    assert_eq!(epochs.has_next_page, true);
+    assert!(epochs.has_next_page);
     assert_eq!(epochs.next_cursor, Some(1.into()));
     assert_eq!(actual_epochs_order, [0, 1]);
 
@@ -158,7 +158,7 @@ async fn get_epochs_paging() {
         .collect::<Vec<u64>>();
 
     assert_eq!(epochs.data.len(), 1);
-    assert_eq!(epochs.has_next_page, false);
+    assert!(!epochs.has_next_page);
     assert_eq!(epochs.next_cursor, Some(2.into()));
     assert_eq!(actual_epochs_order, [2]);
 }
@@ -191,7 +191,7 @@ async fn get_epoch_metrics() {
         .unwrap();
 
     assert_eq!(epoch_metrics.data.len(), 3);
-    assert_eq!(epoch_metrics.has_next_page, false);
+    assert!(!epoch_metrics.has_next_page);
 
     let end_of_epoch_info = epoch_metrics.data[0].end_of_epoch_info.as_ref().unwrap();
     assert_eq!(epoch_metrics.data[0].epoch, 0);
@@ -245,7 +245,7 @@ async fn get_epoch_metrics_descending() {
         .collect::<Vec<u64>>();
 
     assert_eq!(epochs.data.len(), 3);
-    assert_eq!(epochs.has_next_page, false);
+    assert!(!epochs.has_next_page);
     assert_eq!(actual_epochs_order, [2, 1, 0])
 }
 
@@ -282,7 +282,7 @@ async fn get_epoch_metrics_paging() {
         .collect::<Vec<u64>>();
 
     assert_eq!(epochs.data.len(), 2);
-    assert_eq!(epochs.has_next_page, true);
+    assert!(epochs.has_next_page);
     assert_eq!(epochs.next_cursor, Some(1.into()));
     assert_eq!(actual_epochs_order, [0, 1]);
 
@@ -297,7 +297,7 @@ async fn get_epoch_metrics_paging() {
         .collect::<Vec<u64>>();
 
     assert_eq!(epochs.data.len(), 1);
-    assert_eq!(epochs.has_next_page, false);
+    assert!(!epochs.has_next_page);
     assert_eq!(epochs.next_cursor, Some(2.into()));
     assert_eq!(actual_epochs_order, [2]);
 }

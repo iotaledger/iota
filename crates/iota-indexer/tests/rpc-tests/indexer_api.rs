@@ -11,7 +11,7 @@ use iota_types::{
 };
 use serial_test::serial;
 
-use crate::common::pg_integration::{
+use crate::common::{
     indexer_wait_for_checkpoint, rpc_call_error_msg_matches,
     start_test_cluster_with_read_write_indexer,
 };
