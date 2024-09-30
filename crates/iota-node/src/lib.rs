@@ -26,6 +26,7 @@ use futures::TryFutureExt;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
+    migration_tx_data,
     node::{ConsensusProtocol, DBCheckpointConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -425,6 +426,9 @@ impl IotaNode {
         iota_metrics::init_metrics(&prometheus_registry);
 
         let genesis = config.genesis()?;
+        let migration_path = config.migration_data_path();
+        let mut migration_tx_data =
+            iota_config::migration_tx_data::MigrationTxData::load(migration_path)?;
 
         let secret = Arc::pin(config.protocol_key_pair().copy());
         let genesis_committee = genesis.committee()?;
@@ -450,6 +454,7 @@ impl IotaNode {
                 .expensive_safety_check_config
                 .enable_epoch_iota_conservation_check(),
             &prometheus_registry,
+            migration_tx_data,
         )
         .await?;
         let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(&prometheus_registry));

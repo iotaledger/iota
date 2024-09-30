@@ -1060,9 +1060,9 @@ fn extract_migration_transactions_data(
             create_genesis_transaction(
                 objects_per_chunk.to_vec(),
                 vec![],
-                &protocol_config,
+                protocol_config,
                 metrics.clone(),
-                &epoch_data,
+                epoch_data,
             );
 
         migration_txs_effects.push(migration_effects);
@@ -1088,7 +1088,7 @@ fn create_genesis_checkpoint(
     let mut effects_digests = vec![execution_digests];
 
     let migration_effects_exec_digests: Vec<ExecutionDigests> = migration_txs_effects
-        .into_iter()
+        .iter()
         .map(|effect| effect.execution_digests())
         .collect();
 

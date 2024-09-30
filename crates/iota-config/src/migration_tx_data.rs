@@ -25,8 +25,8 @@ impl MigrationTxData {
         Self { inner: txs_data }
     }
 
-    pub fn txs_data(&self) -> &TransactionsData {
-        &self.inner
+    pub fn extract_txs_data(self) -> TransactionsData {
+        self.inner
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {

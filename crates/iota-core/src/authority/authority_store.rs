@@ -8,6 +8,7 @@ use either::Either;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
+use iota_config::migration_tx_data::MigrationTxData;
 use iota_macros::fail_point_arg;
 use iota_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
 use iota_types::{
@@ -150,6 +151,7 @@ impl AuthorityStore {
         indirect_objects_threshold: usize,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
+        migration_tx_data: MigrationTxData,
     ) -> IotaResult<Arc<Self>> {
         let epoch_start_configuration = if perpetual_tables.database_is_empty()? {
             info!("Creating new epoch start config from genesis");
@@ -185,6 +187,7 @@ impl AuthorityStore {
             indirect_objects_threshold,
             enable_epoch_iota_conservation_check,
             registry,
+            migration_tx_data,
         )
         .await?;
         this.update_epoch_flags_metrics(&[], epoch_start_configuration.flags());
@@ -238,6 +241,7 @@ impl AuthorityStore {
             indirect_objects_threshold,
             true,
             &Registry::new(),
+            MigrationTxData::default(),
         )
         .await
     }
@@ -248,6 +252,7 @@ impl AuthorityStore {
         indirect_objects_threshold: usize,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
+        migration_tx_data: MigrationTxData,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
@@ -294,6 +299,53 @@ impl AuthorityStore {
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
             store.perpetual_tables.events.multi_insert(events).unwrap();
+
+            let mut txs_data = migration_tx_data.extract_txs_data();
+
+            let mut genesis_migrated_transactions: HashMap<TransactionDigest, TransactionEffects> =
+                genesis
+                    .migration_txs_effects()
+                    .iter()
+                    .map(|tx| (*tx.transaction_digest(), tx.clone()))
+                    .collect();
+
+            txs_data.retain(|tx_key, (tx, events, objects)| {
+                if let Some(tx_effects) =
+                    genesis_migrated_transactions.remove(tx_key.unwrap_digest())
+                {
+                    let transaction = VerifiedTransaction::new_unchecked(tx.clone());
+
+                    store
+                        .bulk_insert_genesis_objects(objects)
+                        .expect("Cannot bulk insert migrated objects");
+
+                    store
+                        .perpetual_tables
+                        .transactions
+                        .insert(transaction.digest(), transaction.serializable_ref())
+                        .unwrap();
+
+                    store
+                        .perpetual_tables
+                        .effects
+                        .insert(&tx_effects.digest(), &tx_effects)
+                        .unwrap();
+
+                    let events = events
+                        .data
+                        .iter()
+                        .enumerate()
+                        .map(|(i, e)| ((events.digest(), i), e));
+                    store.perpetual_tables.events.multi_insert(events).unwrap();
+
+                    false // Remove from txs_data as it's processed
+                } else {
+                    true // This tx was has not been processed 
+                }
+            });
+            // Assert that all transactions have been successfully processed.
+            assert!(genesis_migrated_transactions.is_empty());
+            assert!(txs_data.is_empty());
         }
 
         Ok(store)

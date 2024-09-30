@@ -93,7 +93,6 @@ impl ValidatorConfigBuilder {
         let db_path = config_directory
             .join(AUTHORITIES_DB_NAME)
             .join(key_path.clone());
-
         let network_address = validator.network_address;
         let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
@@ -157,6 +156,7 @@ impl ValidatorConfigBuilder {
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.worker_key_pair)),
+            config_dir: config_directory,
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -410,6 +410,7 @@ impl FullnodeConfigBuilder {
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
                 IotaKeyPair::Ed25519(validator_config.network_key_pair),
             )),
+            config_dir: config_directory.clone(),
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),

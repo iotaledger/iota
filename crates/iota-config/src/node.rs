@@ -35,6 +35,7 @@ use crate::{
     certificate_deny_config::CertificateDenyConfig, genesis,
     object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
     transaction_deny_config::TransactionDenyConfig, Config,
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
 };
 
 // Default max number of concurrent requests served
@@ -59,6 +60,8 @@ pub struct NodeConfig {
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
 
+    #[serde(default)]
+    pub config_dir: PathBuf,
     pub db_path: PathBuf,
     #[serde(default = "default_grpc_address")]
     pub network_address: Multiaddr,
@@ -287,6 +290,11 @@ impl NodeConfig {
 
     pub fn db_path(&self) -> PathBuf {
         self.db_path.join("live")
+    }
+
+    pub fn migration_data_path(&self) -> PathBuf {
+        self.config_dir
+            .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME)
     }
 
     pub fn db_checkpoint_path(&self) -> PathBuf {
