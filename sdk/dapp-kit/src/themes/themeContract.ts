@@ -20,7 +20,7 @@ const themeContractValues = {
         iconButton: '',
         dropdownMenu: '',
         dropdownMenuSeparator: '',
-        scrollThumb: ''
+        scrollThumb: '',
     },
     borderColors: {
         outlineButton: '',
@@ -38,7 +38,7 @@ const themeContractValues = {
         medium: '',
         large: '',
         xlarge: '',
-        full: ''
+        full: '',
     },
     fontWeights: {
         normal: '',

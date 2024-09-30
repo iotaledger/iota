@@ -305,7 +305,10 @@ describe('Publickey', () => {
         const sig1 = await k1.signPersonalMessage(data);
         const sig2 = await k2.signPersonalMessage(data);
 
-        const multisig = multiSigPublicKey.combinePartialSignatures([sig1.signature, sig2.signature]);
+        const multisig = multiSigPublicKey.combinePartialSignatures([
+            sig1.signature,
+            sig2.signature,
+        ]);
 
         const intentMessage = messageWithIntent(
             'PersonalMessage',
