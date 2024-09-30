@@ -23,12 +23,12 @@ The `examples::gem` module creates the in-game currency, GEMs. Users spend IOTA 
 
 The module's `init` function uses `coin::create_currency` to create the GEM. The `init` function, which runs only the one time when the module publishes, also sets the policies for the in-game currency, freezes the metadata for the coin, and transfers the policy capability to the publisher of the package.
 
-```move file=<rootDir>/examples/move/token/sources/gems.move#L77-L100
+```move file=<rootDir>/examples/move/token/sources/gems.move#L76-L100
 ```
 
 The module handles the purchase of GEMs with the `buy_gems` function.
 
-```move file=<rootDir>/examples/move/token/sources/gems.move#L105-L130
+```move file=<rootDir>/examples/move/token/sources/gems.move#L104-L125
 ```
 
 <details>

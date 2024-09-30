@@ -17,7 +17,7 @@ Use the `timestamp_ms` function from the `iota::clock` module to extract a unix 
 
 The example below demonstrates an entry function that emits an event containing a timestamp from the `Clock`:
 
-```move file=<rootDir>/examples/move/basics/sources/clock.move#L4-L14
+```move file=<rootDir>/examples/move/basics/sources/clock.move#L5-L15
 ```
 
 A call to the previous entry function takes the following form, passing `0x6` as the address for the `Clock` parameter:
@@ -57,7 +57,7 @@ The preceding function returns the point in time when the current epoch started,
 Tests based on `iota::test_scenario` can use `later_epoch` (following code), to exercise time-sensitive code that uses `epoch_timestamp_ms` (previous code):
 
 
-```move file=<rootDir>/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move#L129-L136
+```move file=<rootDir>/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move#L141-L148
 ```
 
 `later_epoch` behaves like `iota::test_scenario::next_epoch` (finishes the current transaction and epoch in the test scenario), but also increments the timestamp by `delta_ms` milliseconds to simulate the progress of time.

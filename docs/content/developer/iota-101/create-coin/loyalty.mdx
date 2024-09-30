@@ -14,23 +14,23 @@ The Loyalty Token example illustrates a loyalty token that is created with the C
 
 The loyalty.move source file contains the `examples::loyalty` module code that creates the loyalty token. The module includes the one-time witness (OTW) that creates the coin (with the same name as the module, `LOYALTY`), possesses only the `drop` ability, and has no fields. These are the characteristics of a OTW, which ensures the `LOYALTY` type has a single instance.
 
-```move file=<rootDir>/examples/move/token/sources/loyalty.move#L24
+```move file=<rootDir>/examples/move/token/sources/loyalty.move#L22-L23
 ```
 
 The `init` function of the module uses the `LOYALTY` OTW to create the token. All `init` functions run one time only at the package publish event. The initializer function makes use of the OTW `LOYALTY` type defined previously in its call to `create_currency`. The function also defines a policy, sending both the policy capability and trasury capability to the address associated with the publish event. The holder of these transferrable capabilities can mint new `LOYALTY` tokens and modify their policies.
 
-```move file=<rootDir>/examples/move/token/sources/loyalty.move#L38-L64
+```move file=<rootDir>/examples/move/token/sources/loyalty.move#L37-L63
 ```
 
 The `LOYALTY` minting function is called `reward_user`. As mentioned previously, the holder of the `TreasuryCap` can call this function to mint new loyalty tokens and send them to the desired address. The function uses the `token::mint` function to create the token and `token::transfer` to send it to the intended recipient.
 
-```move file=<rootDir>/examples/move/token/sources/loyalty.move#L72-L82
+```move file=<rootDir>/examples/move/token/sources/loyalty.move#L71-L81
 ```
 
 Finally, the example includes a `buy_a_gift` function to handle the redemption of `LOYALTY` tokens for `Gift` types. The function ensures the gift price matches the number of loyalty tokens spent, then uses the `token::spend` function to handle the treasury bookkeeping.
 
 
-```move file=<rootDir>/examples/move/token/sources/loyalty.move#L86-L99
+```move file=<rootDir>/examples/move/token/sources/loyalty.move#L85-L100
 ```
 
 <details>
