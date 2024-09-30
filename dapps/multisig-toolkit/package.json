@@ -16,8 +16,8 @@
         "shadcnui": "pnpm dlx shadcn-ui@latest"
     },
     "dependencies": {
-        "@fontsource-variable/inter": "^5.0.19",
-        "@fontsource-variable/red-hat-mono": "^5.0.19",
+        "@fontsource-variable/inter": "^5.0.5",
+        "@fontsource-variable/red-hat-mono": "^5.0.6",
         "@hookform/resolvers": "^3.9.0",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
@@ -30,15 +30,15 @@
         "@tanstack/react-query": "^5.50.1",
         "class-variance-authority": "^0.7.0",
         "clsx": "^2.1.1",
-        "cmdk": "^1.0.0",
+        "cmdk": "^0.2.0",
         "lucide-react": "^0.406.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
-        "react-hook-form": "^7.52.1",
+        "react-hook-form": "^7.45.2",
         "react-hot-toast": "^2.4.1",
         "react-router-dom": "^6.24.1",
         "tailwind-merge": "^2.4.0",
-        "zod": "^3.23.8"
+        "zod": "^3.21.4"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.7",
@@ -47,11 +47,11 @@
         "@types/react-dom": "^18.3.0",
         "@vitejs/plugin-react": "^4.3.1",
         "autoprefixer": "^10.4.19",
-        "postcss": "^8.4.39",
-        "tailwindcss": "^3.4.4",
+        "postcss": "^8.4.31",
+        "tailwindcss": "^3.3.3",
         "tailwindcss-animate": "^1.0.7",
         "typescript": "^5.5.3",
         "vite": "^5.3.3",
-        "vite-tsconfig-paths": "^4.3.2"
+        "vite-tsconfig-paths": "^4.2.0"
     }
 }
