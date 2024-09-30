@@ -35,10 +35,15 @@ pub mod pg_integration {
 
     static GLOBAL_INDEXER_RPC_CLIENT: OnceLock<HttpClient> = OnceLock::new();
     static GLOBAL_NODE_RPC_CLIENT: OnceLock<HttpClient> = OnceLock::new();
-    static GLOBAL_TEST_CLUSTER_WITH_INDEXER: OnceLock<(
-        Runtime,
-        (TestCluster, PgIndexerStore, HttpClient),
-    )> = OnceLock::new();
+    static GLOBAL_TEST_CLUSTER_WITH_INDEXER: OnceLock<ApiTestSetup> = OnceLock::new();
+
+    pub struct ApiTestSetup {
+        pub runtime: Runtime,
+        pub cluster: TestCluster,
+        pub store: PgIndexerStore,
+        /// Indexer RPC Client
+        pub client: HttpClient,
+    }
 
     pub fn get_global_indexer_rpc_client() -> &'static HttpClient {
         GLOBAL_INDEXER_RPC_CLIENT.get_or_init(|| {
@@ -57,15 +62,19 @@ pub mod pg_integration {
         })
     }
 
-    pub fn get_global_test_cluster_with_read_write_indexer()
-    -> &'static (Runtime, (TestCluster, PgIndexerStore, HttpClient)) {
+    pub fn setup_api_tests() -> &'static ApiTestSetup {
         GLOBAL_TEST_CLUSTER_WITH_INDEXER.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
-            let (test_cluster, pg_store, indexer_client) =
+            let (cluster, store, client) =
                 runtime.block_on(start_test_cluster_with_read_write_indexer(None));
 
-            (runtime, (test_cluster, pg_store, indexer_client))
+            ApiTestSetup {
+                runtime,
+                cluster,
+                store,
+                client,
+            }
         })
     }
 

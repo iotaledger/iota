@@ -20,8 +20,7 @@ mod integration_tests {
     };
 
     use crate::common::pg_integration::{
-        get_global_test_cluster_with_read_write_indexer, indexer_wait_for_checkpoint,
-        rpc_call_error_msg_matches,
+        indexer_wait_for_checkpoint, rpc_call_error_msg_matches, setup_api_tests,
     };
 
     fn is_ascending(vec: &[u64]) -> bool {
@@ -54,14 +53,14 @@ mod integration_tests {
     }
 
     fn get_object_with_options(options: IotaObjectDataOptions) {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
-            let address = cluster.get_address_0();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
+            let address = api_test_setup.cluster.get_address_0();
 
-            let fullnode_objects = cluster
+            let fullnode_objects = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_owned_objects(
                     address,
@@ -73,7 +72,8 @@ mod integration_tests {
                 .unwrap();
 
             for obj in fullnode_objects.data {
-                let indexer_obj = indexer_client
+                let indexer_obj = api_test_setup
+                    .client
                     .get_object(obj.object_id().unwrap(), Some(options.clone()))
                     .await
                     .unwrap();
@@ -84,14 +84,14 @@ mod integration_tests {
     }
 
     fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
-            let address = cluster.get_address_0();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
+            let address = api_test_setup.cluster.get_address_0();
 
-            let fullnode_objects = cluster
+            let fullnode_objects = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_owned_objects(
                     address,
@@ -108,7 +108,8 @@ mod integration_tests {
                 .map(|iota_object| iota_object.object_id().unwrap())
                 .collect::<Vec<ObjectID>>();
 
-            let indexer_objects = indexer_client
+            let indexer_objects = api_test_setup
+                .client
                 .multi_get_objects(object_ids, Some(options))
                 .await
                 .unwrap();
@@ -118,13 +119,13 @@ mod integration_tests {
     }
 
     fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptions) {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_checkpoint = cluster
+            let fullnode_checkpoint = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoint(CheckpointId::SequenceNumber(0))
                 .await
@@ -132,13 +133,15 @@ mod integration_tests {
 
             let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
 
-            let fullnode_tx = cluster
+            let fullnode_tx = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_transaction_block(tx_digest, Some(options.clone()))
                 .await
                 .unwrap();
 
-            let tx = indexer_client
+            let tx = api_test_setup
+                .client
                 .get_transaction_block(tx_digest, Some(options.clone()))
                 .await
                 .unwrap();
@@ -160,12 +163,12 @@ mod integration_tests {
     }
 
     fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let fullnode_checkpoints = cluster
+            let fullnode_checkpoints = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoints(None, Some(3), false)
                 .await
@@ -177,13 +180,15 @@ mod integration_tests {
                 .flat_map(|c| c.transactions)
                 .collect::<Vec<TransactionDigest>>();
 
-            let fullnode_txs = cluster
+            let fullnode_txs = api_test_setup
+                .cluster
                 .rpc_client()
                 .multi_get_transaction_blocks(digests.clone(), Some(options.clone()))
                 .await
                 .unwrap();
 
-            let indexer_txs = indexer_client
+            let indexer_txs = api_test_setup
+                .client
                 .multi_get_transaction_blocks(digests, Some(options.clone()))
                 .await
                 .unwrap();
@@ -206,19 +211,20 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoint_by_seq_num() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_checkpoint = cluster
+            let fullnode_checkpoint = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoint(CheckpointId::SequenceNumber(0))
                 .await
                 .unwrap();
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoint(CheckpointId::SequenceNumber(0))
                 .await
                 .unwrap();
@@ -229,13 +235,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoint_by_seq_num_not_found() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-        indexer_wait_for_checkpoint(pg_store, 1).await;
+        api_test_setup.runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-        let result = indexer_client
+        let result = api_test_setup.client
             .get_checkpoint(CheckpointId::SequenceNumber(100000000000))
             .await;
         assert!(rpc_call_error_msg_matches(
@@ -247,18 +252,19 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoint_by_digest() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_checkpoint = cluster
+            let fullnode_checkpoint = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoint(CheckpointId::SequenceNumber(0))
                 .await
                 .unwrap();
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoint(CheckpointId::Digest(fullnode_checkpoint.digest))
                 .await
                 .unwrap();
@@ -269,13 +275,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoint_by_digest_not_found() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-        indexer_wait_for_checkpoint(pg_store, 1).await;
+        api_test_setup.runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-        let result = indexer_client
+        let result = api_test_setup.client
             .get_checkpoint(CheckpointId::Digest([0; 32].into()))
             .await;
 
@@ -288,13 +293,13 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_all_ascending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(None, None, false)
                 .await
                 .unwrap();
@@ -311,12 +316,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_all_descending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(None, None, true)
                 .await
                 .unwrap();
@@ -333,12 +338,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_one_descending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(Some(1.into()), Some(1), true)
                 .await
                 .unwrap();
@@ -356,12 +361,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_one_ascending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(Some(1.into()), Some(1), false)
                 .await
                 .unwrap();
@@ -379,12 +384,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(Some(0.into()), Some(3), false)
                 .await
                 .unwrap();
@@ -402,12 +407,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_by_cursor_zero_and_limit_descending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(Some(0.into()), Some(3), true)
                 .await
                 .unwrap();
@@ -425,12 +430,12 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_ascending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 6).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 6).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(Some(3.into()), Some(3), false)
                 .await
                 .unwrap();
@@ -448,13 +453,13 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_descending() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let indexer_checkpoint = indexer_client
+            let indexer_checkpoint = api_test_setup
+                .client
                 .get_checkpoints(Some(3.into()), Some(3), true)
                 .await
                 .unwrap();
@@ -473,13 +478,15 @@ mod integration_tests {
 
     #[test]
     fn get_checkpoints_invalid_limit() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
+        let api_test_setup = setup_api_tests();
 
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let result = indexer_client.get_checkpoints(None, Some(0), false).await;
+            let result = api_test_setup
+                .client
+                .get_checkpoints(None, Some(0), false)
+                .await;
 
             assert!(rpc_call_error_msg_matches(
                 result,
@@ -490,20 +497,21 @@ mod integration_tests {
 
     #[test]
     fn get_object() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
-            let address = cluster.get_address_0();
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
+            let address = api_test_setup.cluster.get_address_0();
 
-            let fullnode_objects = cluster
+            let fullnode_objects = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_owned_objects(address, None, None, None)
                 .await
                 .unwrap();
 
             for obj in fullnode_objects.data {
-                let indexer_obj = indexer_client
+                let indexer_obj = api_test_setup
+                    .client
                     .get_object(obj.object_id().unwrap(), None)
                     .await
                     .unwrap();
@@ -514,12 +522,12 @@ mod integration_tests {
 
     #[test]
     fn get_object_not_found() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let indexer_obj = indexer_client
+            let indexer_obj = api_test_setup
+                .client
                 .get_object(
                     ObjectID::from_str(
                         "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
@@ -595,13 +603,13 @@ mod integration_tests {
 
     #[test]
     fn multi_get_objects() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
-            let address = cluster.get_address_0();
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
+            let address = api_test_setup.cluster.get_address_0();
 
-            let fullnode_objects = cluster
+            let fullnode_objects = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_owned_objects(address, None, None, None)
                 .await
@@ -613,7 +621,8 @@ mod integration_tests {
                 .map(|iota_object| iota_object.object_id().unwrap())
                 .collect();
 
-            let indexer_objects = indexer_client
+            let indexer_objects = api_test_setup
+                .client
                 .multi_get_objects(object_ids, None)
                 .await
                 .unwrap();
@@ -624,10 +633,9 @@ mod integration_tests {
 
     #[test]
     fn multi_get_objects_not_found() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
             let object_ids = vec![
                 ObjectID::from_str(
@@ -640,7 +648,8 @@ mod integration_tests {
                 .unwrap(),
             ];
 
-            let indexer_objects = indexer_client
+            let indexer_objects = api_test_setup
+                .client
                 .multi_get_objects(object_ids, None)
                 .await
                 .unwrap();
@@ -673,13 +682,13 @@ mod integration_tests {
 
     #[test]
     fn multi_get_objects_found_and_not_found() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
-            let address = cluster.get_address_0();
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
+            let address = api_test_setup.cluster.get_address_0();
 
-            let fullnode_objects = cluster
+            let fullnode_objects = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_owned_objects(address, None, None, None)
                 .await
@@ -702,7 +711,8 @@ mod integration_tests {
                 .unwrap(),
             ]);
 
-            let indexer_objects = indexer_client
+            let indexer_objects = api_test_setup
+                .client
                 .multi_get_objects(object_ids, None)
                 .await
                 .unwrap();
@@ -775,18 +785,19 @@ mod integration_tests {
 
     #[test]
     fn get_events() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_checkpoint = cluster
+            let fullnode_checkpoint = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoint(CheckpointId::SequenceNumber(0))
                 .await
                 .unwrap();
 
-            let events = indexer_client
+            let events = api_test_setup
+                .client
                 .get_events(*fullnode_checkpoint.transactions.first().unwrap())
                 .await
                 .unwrap();
@@ -797,12 +808,11 @@ mod integration_tests {
 
     #[test]
     fn get_events_not_found() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-        indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-        let result = indexer_client.get_events(TransactionDigest::ZERO).await;
+        let result = api_test_setup.client.get_events(TransactionDigest::ZERO).await;
 
         assert!(rpc_call_error_msg_matches(
             result,
@@ -813,12 +823,12 @@ mod integration_tests {
 
     #[test]
     fn get_transaction_block() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_checkpoint = cluster
+            let fullnode_checkpoint = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoint(CheckpointId::SequenceNumber(0))
                 .await
@@ -826,7 +836,8 @@ mod integration_tests {
 
             let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
 
-            let tx = indexer_client
+            let tx = api_test_setup
+                .client
                 .get_transaction_block(tx_digest, None)
                 .await
                 .unwrap();
@@ -837,12 +848,11 @@ mod integration_tests {
 
     #[test]
     fn get_transaction_block_not_found() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-        indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-        let result = indexer_client
+        let result = api_test_setup.client
             .get_transaction_block(TransactionDigest::ZERO, None)
             .await;
 
@@ -916,12 +926,12 @@ mod integration_tests {
 
     #[test]
     fn multi_get_transaction_blocks() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 3).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 3).await;
 
-            let fullnode_checkpoints = cluster
+            let fullnode_checkpoints = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_checkpoints(None, Some(3), false)
                 .await
@@ -933,13 +943,15 @@ mod integration_tests {
                 .flat_map(|c| c.transactions)
                 .collect::<Vec<TransactionDigest>>();
 
-            let fullnode_txs = cluster
+            let fullnode_txs = api_test_setup
+                .cluster
                 .rpc_client()
                 .multi_get_transaction_blocks(digests.clone(), None)
                 .await
                 .unwrap();
 
-            let indexer_txs = indexer_client
+            let indexer_txs = api_test_setup
+                .client
                 .multi_get_transaction_blocks(digests, None)
                 .await
                 .unwrap();
@@ -1013,22 +1025,27 @@ mod integration_tests {
 
     #[test]
     fn get_protocol_config() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_protocol_config = cluster
+            let fullnode_protocol_config = api_test_setup
+                .cluster
                 .rpc_client()
                 .get_protocol_config(None)
                 .await
                 .unwrap();
 
-            let indexer_protocol_config = indexer_client.get_protocol_config(None).await.unwrap();
+            let indexer_protocol_config = api_test_setup
+                .client
+                .get_protocol_config(None)
+                .await
+                .unwrap();
 
             assert_eq!(fullnode_protocol_config, indexer_protocol_config);
 
-            let indexer_protocol_config = indexer_client
+            let indexer_protocol_config = api_test_setup
+                .client
                 .get_protocol_config(Some(1u64.into()))
                 .await
                 .unwrap();
@@ -1039,12 +1056,11 @@ mod integration_tests {
 
     #[test]
     fn get_protocol_config_invalid_protocol_version() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-        indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-        let result = indexer_client
+        let result = api_test_setup.client
             .get_protocol_config(Some(100u64.into()))
             .await;
 
@@ -1057,15 +1073,19 @@ mod integration_tests {
 
     #[test]
     fn get_chain_identifier() {
-        let (runtime, (cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let fullnode_chain_identifier =
-                cluster.rpc_client().get_chain_identifier().await.unwrap();
+            let fullnode_chain_identifier = api_test_setup
+                .cluster
+                .rpc_client()
+                .get_chain_identifier()
+                .await
+                .unwrap();
 
-            let indexer_chain_identifier = indexer_client.get_chain_identifier().await.unwrap();
+            let indexer_chain_identifier =
+                api_test_setup.client.get_chain_identifier().await.unwrap();
 
             assert_eq!(fullnode_chain_identifier, indexer_chain_identifier)
         });
@@ -1169,12 +1189,12 @@ mod integration_tests {
 
     #[test]
     fn try_get_past_object() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let result = indexer_client
+            let result = api_test_setup
+                .client
                 .try_get_past_object(ObjectID::random(), SequenceNumber::new(), None)
                 .await;
             assert!(rpc_call_error_msg_matches(
@@ -1186,12 +1206,12 @@ mod integration_tests {
 
     #[test]
     fn try_multi_get_past_objects() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let result = indexer_client
+            let result = api_test_setup
+                .client
                 .try_multi_get_past_objects(
                     vec![IotaGetPastObjectRequest {
                         object_id: ObjectID::random(),
@@ -1209,12 +1229,12 @@ mod integration_tests {
 
     #[test]
     fn get_loaded_child_objects() {
-        let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer();
-        runtime.block_on(async move {
-            indexer_wait_for_checkpoint(pg_store, 1).await;
+        let api_test_setup = setup_api_tests();
+        api_test_setup.runtime.block_on(async move {
+            indexer_wait_for_checkpoint(&api_test_setup.store, 1).await;
 
-            let result = indexer_client
+            let result = api_test_setup
+                .client
                 .get_loaded_child_objects(TransactionDigest::ZERO)
                 .await;
             assert!(rpc_call_error_msg_matches(
