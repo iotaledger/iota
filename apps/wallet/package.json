@@ -25,7 +25,7 @@
         "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/shared/analytics/ampli/index.ts",
         "demoApp:dev": "pnpm vite -c ./tests/demo-app/vite.config.ts ./tests/demo-app/ --port 5181",
         "test-1": "node ./test.js",
-        "test-2": "cross-env ./test.js"
+        "test-2": "cross-env WALLET_RC_VERSION=$WALLET_RC_VERSION node ./test.js"
     },
     "repository": {
         "type": "git",
