@@ -50,6 +50,7 @@ diesel_migrations = "2.2"
 
 [features]
 pg_integration = []
+rpc_tests = ["pg_integration"]
 
 [dev-dependencies]
 iota-config.workspace = true

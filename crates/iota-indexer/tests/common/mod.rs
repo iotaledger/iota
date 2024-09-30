@@ -33,8 +33,6 @@ pub mod pg_integration {
     const DEFAULT_INDEXER_PORT: u16 = 9005;
     const DEFAULT_SERVER_PORT: u16 = 3000;
 
-    static GLOBAL_INDEXER_RPC_CLIENT: OnceLock<HttpClient> = OnceLock::new();
-    static GLOBAL_NODE_RPC_CLIENT: OnceLock<HttpClient> = OnceLock::new();
     static GLOBAL_TEST_CLUSTER_WITH_INDEXER: OnceLock<ApiTestSetup> = OnceLock::new();
 
     pub struct ApiTestSetup {
@@ -44,24 +42,6 @@ pub mod pg_integration {
         /// Indexer RPC Client
         pub client: HttpClient,
     }
-
-    pub fn get_global_indexer_rpc_client() -> &'static HttpClient {
-        GLOBAL_INDEXER_RPC_CLIENT.get_or_init(|| {
-            // create an RPC client by using the indexer url
-            HttpClientBuilder::default()
-                .build("http://0.0.0.0:9124")
-                .unwrap()
-        })
-    }
-    pub fn get_global_node_rpc_client() -> &'static HttpClient {
-        GLOBAL_NODE_RPC_CLIENT.get_or_init(|| {
-            // create an RPC client by using the node url
-            HttpClientBuilder::default()
-                .build("http://0.0.0.0:9000")
-                .unwrap()
-        })
-    }
-
     pub fn setup_api_tests() -> &'static ApiTestSetup {
         GLOBAL_TEST_CLUSTER_WITH_INDEXER.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
