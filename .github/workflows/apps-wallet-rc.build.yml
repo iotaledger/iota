@@ -5,7 +5,7 @@ on:
     inputs:
       rc_version:
         description: "The RC numeric version (X.Y.Z.RC)"
-        type: string
+        type: number
         required: true
 
 env:
@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
-          export WALLET_RC_VERSION="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
+          export WALLET_RC_VERSION=${{ env.RC_VERSION }}
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
           echo "WALLET_RC_VERSION=${WALLET_RC_VERSION}" >> $GITHUB_ENV
       - name: Build Wallet
