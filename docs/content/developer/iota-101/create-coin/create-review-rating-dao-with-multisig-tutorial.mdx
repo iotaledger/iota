@@ -375,7 +375,6 @@ For example, `SERVICE OWNERS` are given `AdminCap` and `MODERATORS` are given `M
 
 To learn more about the capabilities pattern, see [The Move Book](https://move-book.com/programmability/capability.html).
 
-## Deployment
+## Conclusion
 
-Navigate to the [setup folder](https://github.com/MystenLabs/reviews-ratings-poc/tree/main/setup) of the repository and execute the `publish.sh` script. Refer to the [README instructions](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/README.md) for deploying the smart contracts.
-
+This tutorial outlined the creation of a decentralized review rating platform using multisig on Sui. Service Owners list their services, Reviewers submit reviews, Review Readers vote on them, and Moderators ensure quality control. Reviews are scored based on content, upvotes, and proof of experience (PoE), with top reviews earning rewards. Multisig moderation adds security by requiring multiple parties to approve key actions like removing reviews or distributing rewards. The platform ensures transparency and fairness by storing the review algorithm and data on-chain, leveraging Move-based smart contracts.
