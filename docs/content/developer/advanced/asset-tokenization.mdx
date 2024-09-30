@@ -728,7 +728,7 @@ You can also view a multitude of information and transactional effects.
 
 You should choose and store the `package ID` and the `registry ID` from the created objects in the respective fields within your .env file.
 
-Afterward, it's necessary to modify the `Move.toml` file. Under the `[addresses]` section, replace `0x0` with the same `package ID`. Optionally, under the `[package]` section, add `published-at = <package ID>` (this step is not needed if you see a `Move.lock` file after running `iota client publish`).
+Afterward, it's necessary to modify the `Move.toml` file. Under the `[addresses]` section, replace `0x0` with the same `package ID`.
 
 #### Automatically
 
@@ -778,7 +778,7 @@ You should choose and store the `package ID`, asset `metadata ID`, `asset cap ID
 The process of automatic deployment for the template package refers to publishing a new asset via the WASM library. Quick start steps:
 
 - Ensure that the `asset_tokenization` package address is set in the `[addresses]` section of `asset_tokenization/Move.toml`. This address should be the same as the original package deployment.
-- If a `Move.lock` file exists after running`iota client publish`, go on to the next step. If not, ensure that the `asset_tokenization/Move.toml` file has its `published-at` field uncommented and populated with the address of the latest package deployment.
+- If a `Move.lock` file exists after running`iota client publish`, go on to the next step. 
 - Make any changes to the template fields by changing the input parameters of the `publishNewAsset` function.
 - Run `npm run publish-template`.
 - You should choose and store the _Template Package ID_, _asset metadata ID_, _asset cap ID_ and the _publisher ID_ from the created objects in the respective fields within your **.env** file.

@@ -92,7 +92,7 @@ It’s advisable to create such a flag if you anticipate needing to perform migr
 
 <AutomatedAddressManagement />
 
-When dealing with shared objects within your packages, versioning and upgrade considerations become crucial as *all prior versions of a package still exist on-chain**. 
+When dealing with shared objects within your packages, versioning and upgrade considerations become crucial as **all prior versions of a package still exist on-chain**. 
 You can limit access to only the latest version of your package by introducing version tracking within your shared objects which can effectively safeguard your shared objects from being accessed from old versions of your package.
 
 Here’s how you might implement a versioned `counter` module:
@@ -488,32 +488,12 @@ You can identify these objects using the `Object.objectType` value:
 * **UpgradeCap**: Identified by `String("0x2::package::UpgradeCap")`.
 * **Package**: Identified by `String("<PACKAGE-ID>::iota_package::<MODULE-NAME>"`).
 
-### Updating the Manifest
-
-To make your package usable as a dependency for other packages, you should update the `Move.toml` manifest.
-You need to adjust the alias address and add a `published-at` entry in the `[package]` section to reflect the on-chain ID:
-
-```toml
-[package]
-name = "iota_package"
-version = "0.0.0"
-edition = "2024.beta"
-published-at = "<ORIGINAL-PACKAGE-ID>"
-
-[addresses]
-iota_package = "<ORIGINAL-PACKAGE-ID>"
-```
-
-The `published-at` value in your manifest is crucial
-as it allows the Move compiler to verify dependencies against the on-chain versions of those packages.
-
 ### Preparing for an Upgrade
 
 After some time, you may decide to enhance your `iota_package` by adding new features.
 Before executing the upgrade, you need to modify the package manifest:
 
 1. **Update the Address**: In the `[addresses]` section, change the `iota_package` address value to `0x0`. This action prompts the validator to issue a new address for the upgraded package.
-2. **Keep `published-at` Unchanged**: Since the `published-at` value is only referenced by the toolchain during the publishing of dependent packages, you can leave it as is.
 
 Your updated manifest should look like this:
 
@@ -522,7 +502,6 @@ Your updated manifest should look like this:
 name = "iota_package"
 version = "0.0.1"
 edition = "2024.beta"
-published-at = "<ORIGINAL-PACKAGE-ID>"
 
 [addresses]
 iota_package = "0x0"
@@ -631,10 +610,7 @@ After successfully upgrading your `iota_package`, the result will include a new 
 
 ### Updating the Manifest
 
-To reflect the new package ID, edit your manifest as follows:
-
-1. **Update `published-at`**: Replace the existing `published-at` value with the new upgraded package ID.
-2. **Restore the Original Address**: In the `[addresses]` section, return the `iota_package` value to the original package ID.
+To reflect the new package ID, in the `[addresses]` section, return the `iota_package` value to the original package ID.
 
 Your updated manifest should look like this:
 
@@ -644,12 +620,10 @@ Your updated manifest should look like this:
 name = "iota_package"
 version = "0.0.1"
 edition = "2024.beta"
-published-at = "<UPGRADED-PACKAGE-ID>"
 
 [addresses]
 iota_package = "<ORIGINAL-PACKAGE-ID>"
 ```
 
-* The `published-at` value will change with each upgrade to reflect the new package ID.
 * The `iota_package` address in the `[addresses]` section should always point back to the original package ID after an upgrade.
 * Before running any subsequent upgrade commands, always set the `iota_package` address to `0x0` in the `[addresses]` section. This ensures the validator assigns a new ID for the upgrade.
