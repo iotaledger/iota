@@ -37,9 +37,9 @@ jobs:
         with:
           path: apps/wallet
       - name: Test envs with node
-        run: pnpm --filter=apps/wallet test-1
+        run: pnpm --filter=iota-wallet test-1
       - name: Test envs with cross-env
-        run: pnpm --filter=apps/wallet test-2
+        run: pnpm --filter=iota-wallet test-2
       - name: Create artifact name
         shell: bash
         run: |
