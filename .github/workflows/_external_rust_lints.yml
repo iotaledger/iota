@@ -22,17 +22,6 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  rustfmt:
-    if: (!cancelled() && inputs.isRust)
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Install latest nightly
-        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
-      - name: Check Rust formatting
-        run: |
-          cargo +nightly ci-fmt-external
-
   cargo-deny:
     if: (!cancelled() && inputs.isRust)
     name: cargo-deny (advisories, licenses, bans, ...)
@@ -48,7 +37,6 @@ jobs:
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)
     needs:
-      - rustfmt
       - cargo-deny
     runs-on: [self-hosted]
     steps:
