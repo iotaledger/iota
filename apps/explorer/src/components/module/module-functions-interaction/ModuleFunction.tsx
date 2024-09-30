@@ -9,7 +9,11 @@ import {
     useIotaClient,
     useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import {
+    getPureBcsSchema,
+    normalizedTypeToMoveTypeSignature,
+    Transaction,
+} from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useWatch } from 'react-hook-form';
@@ -32,11 +36,6 @@ import {
     ButtonHtmlType,
     TitleSize,
 } from '@iota/apps-ui-kit';
-
-import {
-    getPureBcsSchema,
-    normalizedTypeToMoveTypeSignature,
-} from '@iota/iota-sdk/src/transactions/serializer';
 
 const argsSchema = z.object({
     params: z.optional(z.array(z.string().trim().min(1))),
