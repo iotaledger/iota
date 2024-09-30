@@ -27,28 +27,50 @@ use crate::monitored_scope;
 type Point = u64;
 type HistogramMessage = (HistogramLabels, Point);
 
+/// Represents a histogram metric used for collecting and recording data
+/// distributions. The `Histogram` struct contains `labels` that categorize the
+/// histogram and a `channel` for sending `HistogramMessage` instances to record
+/// the data.
 #[derive(Clone)]
 pub struct Histogram {
     labels: HistogramLabels,
     channel: mpsc::Sender<HistogramMessage>,
 }
 
+/// A guard used for timing the duration of an operation and recording it in a
+/// `Histogram`. The `HistogramTimerGuard` starts a timer upon creation and,
+/// when dropped, records the elapsed time into the associated `Histogram`.
 pub struct HistogramTimerGuard<'a> {
     histogram: &'a Histogram,
     start: Instant,
 }
 
+/// Represents a collection of histograms for managing multiple labeled metrics.
+/// The `HistogramVec` struct allows for sending `HistogramMessage` instances
+/// via a channel to record data in a particular histogram, providing a way to
+/// track different metrics concurrently.
 #[derive(Clone)]
 pub struct HistogramVec {
     channel: mpsc::Sender<HistogramMessage>,
 }
 
+/// Collects histogram data by receiving `HistogramMessage` instances and
+/// passing them to the `HistogramReporter`. The `HistogramCollector` manages an
+/// asynchronous channel for receiving messages and uses a `Mutex`-protected
+/// `HistogramReporter` to process and report the collected data. It also stores
+/// the name of the collector for identification.
 struct HistogramCollector {
     reporter: Arc<Mutex<HistogramReporter>>,
     channel: mpsc::Receiver<HistogramMessage>,
     _name: String,
 }
 
+/// Reports histogram metrics by aggregating and processing data collected from
+/// multiple histograms. The `HistogramReporter` maintains various metrics,
+/// including a gauge (`gauge`), total sum (`sum`), and count (`count`) for
+/// tracking histogram values. It uses `known_labels` to manage label sets for
+/// data categorization, and `percentiles` to calculate specific statistical
+/// measurements for the collected data.
 struct HistogramReporter {
     gauge: IntGaugeVec,
     sum: IntCounterVec,
@@ -59,6 +81,9 @@ struct HistogramReporter {
 
 type HistogramLabels = Arc<HistogramLabelsInner>;
 
+/// Represents the inner structure of histogram labels, containing a list of
+/// labels (`labels`) and a precomputed hash (`hash`) for efficient lookup and
+/// categorization.
 struct HistogramLabelsInner {
     labels: Vec<String>,
     hash: u64,
@@ -154,6 +179,10 @@ impl HistogramVec {
         Self { channel: sender }
     }
 
+    /// Creates a new `Histogram` with the specified label values. The function
+    /// takes a slice of label strings, converts them into a
+    /// `HistogramLabelsInner` structure, and returns a new `Histogram`
+    /// instance that shares the same data channel as the original.
     pub fn with_label_values(&self, labels: &[&str]) -> Histogram {
         let labels = labels.iter().map(ToString::to_string).collect();
         let labels = HistogramLabelsInner::new(labels);
@@ -189,14 +218,21 @@ impl Hash for HistogramLabelsInner {
 }
 
 impl Histogram {
+    /// Creates a new `Histogram` instance in the specified `Registry` with the
+    /// given `name` and `desc`. It initializes the histogram in the
+    /// `registry`, with no labels by default.
     pub fn new_in_registry(name: &str, desc: &str, registry: &Registry) -> Self {
         HistogramVec::new_in_registry(name, desc, &[], registry).with_label_values(&[])
     }
 
+    /// Observes a value in the histogram by reporting the given `Point`.
     pub fn observe(&self, v: Point) {
         self.report(v)
     }
 
+    /// Reports a value (`Point`) to the histogram by sending it through the
+    /// internal channel. This method manages the process of collecting and
+    /// reporting metrics for the histogram.
     pub fn report(&self, v: Point) {
         match self.channel.try_send((self.labels.clone(), v)) {
             Ok(()) => {}
@@ -207,6 +243,8 @@ impl Histogram {
         }
     }
 
+    /// Starts a timer and returns a `HistogramTimerGuard` that, when dropped,
+    /// will record the elapsed time in the associated histogram.
     pub fn start_timer(&self) -> HistogramTimerGuard {
         HistogramTimerGuard {
             histogram: self,
@@ -216,6 +254,11 @@ impl Histogram {
 }
 
 impl HistogramCollector {
+    /// Runs the histogram collection process asynchronously, cycling at a
+    /// specified interval (`HISTOGRAM_WINDOW_SEC`). It calculates the next
+    /// deadline and continuously processes incoming data points. The
+    /// process stops when `cycle` returns an error, which typically
+    /// indicates that the histogram no longer exists.
     pub async fn run(mut self) {
         let mut deadline = Instant::now();
         loop {
@@ -232,6 +275,13 @@ impl HistogramCollector {
         }
     }
 
+    /// Collects histogram data points until a deadline or a maximum number of
+    /// points (`MAX_POINTS`) is reached. The function collects data points
+    /// into `labeled_data` while receiving them from the channel, breaking
+    /// when either the deadline is reached or the histogram channel is closed.
+    /// If the number of data points exceeds the limit, some points are
+    /// dropped, and an error is logged. After processing, the data is
+    /// handed off to the reporter for aggregation and analysis.
     async fn cycle(&mut self, deadline: Instant) -> Result<(), ()> {
         let mut labeled_data: HashMap<HistogramLabels, Vec<Point>> = HashMap::new();
         let mut count = 0usize;
@@ -276,6 +326,13 @@ impl HistogramCollector {
 }
 
 impl HistogramReporter {
+    /// Reports the collected histogram data by aggregating it and updating the
+    /// corresponding metrics. It first sorts the data points and then
+    /// calculates specific percentiles as defined by `self.percentiles`.
+    /// Each calculated percentile value is set in the `IntGaugeVec`. It also
+    /// computes the total sum and count of the data points, updating the
+    /// respective metrics (`sum` and `count`). If any labels are no longer in
+    /// use, their metrics are reset to zero.
     pub fn report(&mut self, labeled_data: HashMap<HistogramLabels, Vec<Point>>) {
         let _scope = monitored_scope("HistogramReporter::report");
         let mut reset_labels = self.known_labels.clone();
@@ -312,6 +369,10 @@ impl HistogramReporter {
         }
     }
 
+    /// Constructs a vector of label values for a gauge metric. It takes a
+    /// `HistogramLabels` instance and a percentile string (`pct_str`),
+    /// returning a combined list of label values to be used for identifying
+    /// the gauge metric.
     fn gauge_labels<'a>(label: &'a HistogramLabels, pct_str: &'a str) -> Vec<&'a str> {
         let labels = label.labels.iter().map(|s| &s[..]).chain([pct_str]);
         labels.collect()
@@ -322,12 +383,17 @@ impl HistogramReporter {
         len * pct1000 / 1000
     }
 
+    /// Formats a given percentile value (`pct1000`) as a string by converting
+    /// it to a decimal percentage. The `pct1000` parameter is divided by 10
+    /// to represent the correct percentile value (e.g., 250 -> "25.0").
     fn format_pct1000(pct1000: usize) -> String {
         format!("{}", (pct1000 as f64) / 10.)
     }
 }
 
 impl<'a> Drop for HistogramTimerGuard<'a> {
+    /// Reports the elapsed time in milliseconds to the associated histogram
+    /// when the `HistogramTimerGuard` is dropped.
     fn drop(&mut self) {
         self.histogram
             .report(self.start.elapsed().as_millis() as u64);

@@ -106,6 +106,10 @@ impl<T> Sender<T> {
         self.inner.capacity()
     }
 
+    /// Downgrades the current `Sender` to a `WeakSender`, which holds a weak
+    /// reference to the underlying channel. This allows the channel to be
+    /// safely dropped without affecting the weak reference, which can later be
+    /// upgraded back to a strong reference if needed.
     pub fn downgrade(&self) -> WeakSender<T> {
         let sender = self.inner.downgrade();
         WeakSender {
@@ -150,6 +154,11 @@ pub struct Permit<'a, T> {
 }
 
 impl<'a, T> Permit<'a, T> {
+    /// Creates a new `Permit` instance using the provided `mpsc::Permit`, as
+    /// well as optional references to `IntGauge` values for tracking
+    /// inflight and sent items. The `Permit` allows sending a message into a
+    /// channel, while the optional gauges can be used to track resource
+    /// utilization and activity.
     pub fn new(
         permit: mpsc::Permit<'a, T>,
         inflight_ref: &'a Option<IntGauge>,
@@ -162,6 +171,12 @@ impl<'a, T> Permit<'a, T> {
         }
     }
 
+    /// Sends a value into the channel using the held `Permit`. After
+    /// successfully sending the value, it increments the sent gauge (if
+    /// available) to reflect that an item has been sent.
+    /// Uses `std::mem::forget(self)` to skip the drop logic of the permit,
+    /// ensuring that unnecessary decrement operations are avoided, and thus
+    /// maintaining proper resource tracking.
     pub fn send(mut self, value: T) {
         let sender = self.permit.take().expect("Permit invariant violated!");
         sender.send(value);
@@ -186,6 +201,9 @@ impl<'a, T> Drop for Permit<'a, T> {
     }
 }
 
+/// Sends a value into the channel using the held `Permit`. After successfully
+/// sending the value, it increments the sent gauge (if available) to reflect
+/// that an item has been sent.
 #[async_trait::async_trait]
 pub trait WithPermit<T> {
     async fn with_permit<F: Future + Send>(&self, f: F) -> Option<(Permit<T>, F::Output)>
@@ -195,6 +213,13 @@ pub trait WithPermit<T> {
 
 #[async_trait::async_trait]
 impl<T: Send> WithPermit<T> for Sender<T> {
+    /// Asynchronously reserves a permit for sending a message and then executes
+    /// the given future (`f`). If a permit is successfully reserved, it
+    /// returns a tuple containing the `Permit` and the result of the future
+    /// (`F::Output`). If the permit reservation fails, `None` is returned,
+    /// indicating that no slot is available. This method ensures that the
+    /// future only proceeds if the channel has available capacity, allowing
+    /// for controlled access to the channel.
     async fn with_permit<F: Future + Send>(&self, f: F) -> Option<(Permit<T>, F::Output)> {
         let permit = self.reserve().await.ok()?;
         Some((permit, f.await))
@@ -210,6 +235,12 @@ pub struct WeakSender<T> {
 }
 
 impl<T> WeakSender<T> {
+    /// Upgrades the weak reference (`WeakSender`) to a strong `Sender`, if the
+    /// underlying channel still exists. This allows the weak reference to
+    /// regain full control over the channel, enabling message sending again.
+    /// If the underlying channel has been dropped, `None` is returned.
+    /// Otherwise, it returns a `Sender` with the upgraded reference,
+    /// including the associated inflight and sent gauges for resource tracking.
     pub fn upgrade(&self) -> Option<Sender<T>> {
         self.inner.upgrade().map(|s| Sender {
             inner: s,
@@ -269,6 +300,11 @@ impl<T> Receiver<T> {
         })
     }
 
+    /// Receives a value from the channel in a blocking manner. Upon receiving a
+    /// value, the function decrements the inflight gauge (if available) to
+    /// indicate that an item has been processed, and increments the
+    /// received gauge (if available) to track the total number of received
+    /// items.
     pub fn blocking_recv(&mut self) -> Option<T> {
         self.inner.blocking_recv().map(|val| {
             if let Some(inflight) = &self.inflight {
@@ -412,6 +448,13 @@ pub struct WeakUnboundedSender<T> {
 }
 
 impl<T> WeakUnboundedSender<T> {
+    /// Upgrades the `WeakUnboundedSender` to a strong `UnboundedSender` if the
+    /// underlying channel still exists. This allows the
+    /// `WeakUnboundedSender` to regain full control over the channel, enabling
+    /// it to send messages again. If the underlying channel has been
+    /// dropped, `None` is returned. Otherwise, it returns an `UnboundedSender`
+    /// with the upgraded reference, including the associated inflight and sent
+    /// gauges for resource tracking.
     pub fn upgrade(&self) -> Option<UnboundedSender<T>> {
         self.inner.upgrade().map(|s| UnboundedSender {
             inner: s,
@@ -471,6 +514,10 @@ impl<T> UnboundedReceiver<T> {
         })
     }
 
+    /// Receives a value from the channel in a blocking manner. When a value is
+    /// received, the inflight gauge is decremented to indicate that an item
+    /// has been processed, and the received gauge (if available)
+    /// is incremented to track the total number of items received.
     pub fn blocking_recv(&mut self) -> Option<T> {
         self.inner.blocking_recv().map(|val| {
             if let Some(inflight) = &self.inflight {

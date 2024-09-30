@@ -41,6 +41,12 @@ impl<T> Clone for Sender<T> {
 }
 
 impl<T> Sender<T> {
+    /// Downgrades the current `Sender` to a `WeakSender`, which holds a weak
+    /// reference to the underlying channel. This allows the `Sender` to be
+    /// safely dropped without affecting the channel while maintaining
+    /// the ability to upgrade back to a strong reference later if needed.
+    /// Returns a `WeakSender` that holds the weak reference and the
+    /// associated gauge for resource tracking.
     pub fn downgrade(&self) -> WeakSender<T> {
         let sender = self.inner.downgrade();
         WeakSender {
@@ -68,6 +74,12 @@ impl<T> Clone for WeakSender<T> {
 }
 
 impl<T> WeakSender<T> {
+    /// Upgrades the `WeakSender` to a strong `Sender`, if the underlying
+    /// channel still exists. This allows the `WeakSender` to regain full
+    /// control over the channel, enabling it to send messages again. If the
+    /// underlying channel has been dropped, `None` is returned. Otherwise, it
+    /// returns a `Sender` with the upgraded reference and the associated
+    /// gauge for resource tracking.
     pub fn upgrade(&self) -> Option<Sender<T>> {
         self.inner.upgrade().map(|s| Sender {
             inner: s,
@@ -114,6 +126,11 @@ impl<T> Receiver<T> {
         })
     }
 
+    /// Receives a value from the channel in a blocking manner. When a value is
+    /// received, the gauge is decremented to indicate that an item has been
+    /// processed, and the `total_gauge` (if available) is incremented to
+    /// keep track of the total number of received items. Returns the received
+    /// value if successful, or `None` if the channel is closed.
     pub fn blocking_recv(&mut self) -> Option<T> {
         self.inner.blocking_recv().map(|val| {
             self.gauge.dec();
@@ -155,6 +172,9 @@ pub struct Permit<'a, T> {
 }
 
 impl<'a, T> Permit<'a, T> {
+    /// Creates a new `Permit` instance using the provided `mpsc::Permit` and a
+    /// reference to an `IntGauge`. The `Permit` allows sending a message
+    /// into a channel and is used to ensure a slot is available before sending.
     pub fn new(permit: mpsc::Permit<'a, T>, gauge_ref: &'a IntGauge) -> Permit<'a, T> {
         Permit {
             permit: Some(permit),
@@ -162,6 +182,10 @@ impl<'a, T> Permit<'a, T> {
         }
     }
 
+    /// Sends a value into the channel using the held `Permit`. After sending
+    /// the value, the function uses `std::mem::forget(self)` to skip the
+    /// drop logic of the permit, avoiding double decrement of the gauge or
+    /// other unintended side effects.
     pub fn send(mut self, value: T) {
         let sender = self.permit.take().expect("Permit invariant violated!");
         sender.send(value);
@@ -171,6 +195,11 @@ impl<'a, T> Permit<'a, T> {
 }
 
 impl<'a, T> Drop for Permit<'a, T> {
+    /// Custom drop logic for the `Permit` to handle cases where the permit is
+    /// dropped without sending a value. This ensures that the occupancy of
+    /// the channel is correctly updated by decrementing the associated gauge
+    /// if the permit was not used. This prevents any overestimation of active
+    /// items in the channel.
     fn drop(&mut self) {
         // in the case the permit is dropped without sending, we still want to decrease
         // the occupancy of the channel
@@ -294,7 +323,8 @@ impl<T> ReceiverStream<T> {
 
 impl<T> Stream for ReceiverStream<T> {
     type Item = T;
-
+    /// Polls the inner `Receiver` for the next item, enabling the
+    /// `ReceiverStream` to yield values in a stream-like manner.
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -304,18 +334,21 @@ impl<T> Stream for ReceiverStream<T> {
 }
 
 impl<T> AsRef<Receiver<T>> for ReceiverStream<T> {
+    /// Get a reference to the inner `Receiver`.
     fn as_ref(&self) -> &Receiver<T> {
         &self.inner
     }
 }
 
 impl<T> AsMut<Receiver<T>> for ReceiverStream<T> {
+    /// Get a mutable reference to the inner `Receiver`.
     fn as_mut(&mut self) -> &mut Receiver<T> {
         &mut self.inner
     }
 }
 
 impl<T> From<Receiver<T>> for ReceiverStream<T> {
+    /// Convert a `Receiver` into a `ReceiverStream`.
     fn from(recv: Receiver<T>) -> Self {
         Self::new(recv)
     }
@@ -370,6 +403,8 @@ pub fn channel_with_total<T>(
     )
 }
 
+/// Defines an asynchronous method `with_permit` for working with a permit to
+/// send a message.
 #[async_trait]
 pub trait WithPermit<T> {
     async fn with_permit<F: Future + Send>(&self, f: F) -> Option<(Permit<T>, F::Output)>;
@@ -377,6 +412,12 @@ pub trait WithPermit<T> {
 
 #[async_trait]
 impl<T: Send> WithPermit<T> for Sender<T> {
+    /// Asynchronously reserves a permit for sending a message and then executes
+    /// the given future (`f`). If a permit can be successfully reserved, it
+    /// returns a tuple containing the `Permit` and the result of the future.
+    /// If the permit reservation fails, `None` is returned, indicating that no
+    /// slot is available. This method ensures that the future only proceeds
+    /// if the channel has available capacity.
     async fn with_permit<F: Future + Send>(&self, f: F) -> Option<(Permit<T>, F::Output)> {
         let permit = self.reserve().await.ok()?;
         Some((permit, f.await))
