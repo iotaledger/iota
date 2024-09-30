@@ -206,7 +206,6 @@ impl Cluster for LocalNewCluster {
             // Add genesis objects
             let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
             let genesis = Genesis::load(genesis_path)?;
-            // Load migration data
             let network_config = NetworkConfig {
                 validator_configs,
                 account_keys,
