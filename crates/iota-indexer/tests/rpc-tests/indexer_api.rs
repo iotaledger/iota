@@ -141,10 +141,6 @@ async fn query_events_supported_events() {
         let result = indexer_client
             .query_events(event_filter, None, None, None)
             .await;
-
-        assert!(!rpc_call_error_msg_matches(
-            result,
-            r#"{"code":-32603,"message": "Indexer does not support the feature with error: `This type of EventFilter is not supported.`"}"#,
-        ));
+        assert!(result.is_ok());
     }
 }
