@@ -17,7 +17,7 @@ import type { Configuration } from 'webpack';
 import packageJson from '../../package.json';
 
 const WALLET_RC = process.env.WALLET_RC === 'true';
-const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
+const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) : undefined;
 
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
