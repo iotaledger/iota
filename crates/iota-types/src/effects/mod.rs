@@ -2,34 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use effects_v1::TransactionEffectsV1;
 pub use effects_v2::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
-use iota_protocol_config::ProtocolConfig;
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::IntentScope;
+use shared_crypto::intent::{Intent, IntentScope};
 pub use test_effects_builder::TestEffectsBuilder;
 
 use self::effects_v2::TransactionEffectsV2;
 use crate::{
     base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
-    committee::EpochId,
-    crypto::{default_hash, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, EmptySignInfo},
+    committee::{Committee, EpochId},
+    crypto::{
+        default_hash, AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo,
+        EmptySignInfo,
+    },
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
-    error::{IotaError, IotaResult},
+    error::IotaResult,
     event::Event,
     execution::SharedInput,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    message_envelope::{
-        Envelope, Message, TrustedEnvelope, UnauthenticatedMessage, VerifiedEnvelope,
-    },
+    message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     object::Owner,
     storage::WriteKind,
-    transaction::VersionedProtocolMessage,
 };
 
 mod effects_v1;
@@ -63,33 +62,6 @@ pub enum TransactionEffects {
     V2(TransactionEffectsV2),
 }
 
-impl VersionedProtocolMessage for TransactionEffects {
-    fn message_version(&self) -> Option<u64> {
-        Some(match self {
-            Self::V1(_) => 1,
-            Self::V2(_) => 2,
-        })
-    }
-
-    fn check_version_supported(&self, protocol_config: &ProtocolConfig) -> IotaResult {
-        match self {
-            Self::V1(_) => Ok(()),
-            Self::V2(_) => {
-                if protocol_config.enable_effects_v2() {
-                    Ok(())
-                } else {
-                    Err(IotaError::WrongMessageVersion {
-                        error: format!(
-                            "TransactionEffectsV2 is not supported at protocol {:?}.",
-                            protocol_config.version
-                        ),
-                    })
-                }
-            }
-        }
-    }
-}
-
 impl Message for TransactionEffects {
     type DigestType = TransactionEffectsDigest;
     const SCOPE: IntentScope = IntentScope::TransactionEffects;
@@ -97,19 +69,7 @@ impl Message for TransactionEffects {
     fn digest(&self) -> Self::DigestType {
         TransactionEffectsDigest::new(default_hash(self))
     }
-
-    fn verify_user_input(&self) -> IotaResult {
-        Ok(())
-    }
-
-    fn verify_epoch(&self, _: EpochId) -> IotaResult {
-        // Authorities are allowed to re-sign effects from prior epochs, so we do not
-        // verify the epoch here.
-        Ok(())
-    }
 }
-
-impl UnauthenticatedMessage for TransactionEffects {}
 
 // TODO: Get rid of this and use TestEffectsBuilder instead.
 impl Default for TransactionEffects {
@@ -169,6 +129,7 @@ impl TransactionEffects {
         executed_epoch: EpochId,
         gas_used: GasCostSummary,
         shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
         lamport_version: SequenceNumber,
         changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
@@ -181,6 +142,7 @@ impl TransactionEffects {
             executed_epoch,
             gas_used,
             shared_objects,
+            loaded_per_epoch_config_objects,
             transaction_digest,
             lamport_version,
             changed_objects,
@@ -319,6 +281,7 @@ pub enum InputSharedObject {
     ReadOnly(ObjectRef),
     ReadDeleted(ObjectID, SequenceNumber),
     MutateDeleted(ObjectID, SequenceNumber),
+    Cancelled(ObjectID, SequenceNumber),
 }
 
 impl InputSharedObject {
@@ -333,6 +296,9 @@ impl InputSharedObject {
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
                 (*id, *version, ObjectDigest::OBJECT_DIGEST_DELETED)
+            }
+            InputSharedObject::Cancelled(id, version) => {
+                (*id, *version, ObjectDigest::OBJECT_DIGEST_CANCELLED)
             }
         }
     }
@@ -353,12 +319,13 @@ pub trait TransactionEffectsAPI {
     /// this transaction. It includes objects that are mutated, wrapped and
     /// deleted. This API is only available on effects v2 and above.
     fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
-    /// Returns the list of shared objects used in the input, with full object
-    /// reference and use kind. This is needed in effects because in
-    /// transaction we only have object ID for shared objects. Their version
-    /// and digest can only be figured out after sequencing. Also provides
-    /// the use kind to indicate whether the object was mutated or read-only.
-    /// Down the road it could also indicate use-of-deleted.
+    /// Returns the list of sequenced shared objects used in the input.
+    /// This is needed in effects because in transaction we only have object ID
+    /// for shared objects. Their version and digest can only be figured out
+    /// after sequencing. Also provides the use kind to indicate whether the
+    /// object was mutated or read-only. It does not include per epoch
+    /// config objects since they do not require sequencing. TODO: Rename
+    /// this function to indicate sequencing requirement.
     fn input_shared_objects(&self) -> Vec<InputSharedObject>;
     fn created(&self) -> Vec<(ObjectRef, Owner)>;
     fn mutated(&self) -> Vec<(ObjectRef, Owner)>;
@@ -388,10 +355,15 @@ pub trait TransactionEffectsAPI {
                 InputSharedObject::MutateDeleted(id, _) => Some(id),
                 InputSharedObject::Mutate(..)
                 | InputSharedObject::ReadOnly(..)
-                | InputSharedObject::ReadDeleted(..) => None,
+                | InputSharedObject::ReadDeleted(..)
+                | InputSharedObject::Cancelled(..) => None,
             })
             .collect()
     }
+
+    /// Returns all root shared objects (i.e. not child object) that are
+    /// read-only in the transaction.
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
 
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates, and dependencies don't get built with cfg(test) set as far as I
@@ -463,3 +435,18 @@ pub type VerifiedTransactionEffectsEnvelope<S> = VerifiedEnvelope<TransactionEff
 pub type VerifiedSignedTransactionEffects = VerifiedTransactionEffectsEnvelope<AuthoritySignInfo>;
 pub type VerifiedCertifiedTransactionEffects =
     VerifiedTransactionEffectsEnvelope<AuthorityStrongQuorumSignInfo>;
+
+impl CertifiedTransactionEffects {
+    pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
+        self.auth_sig().verify_secure(
+            self.data(),
+            Intent::iota_app(IntentScope::TransactionEffects),
+            committee,
+        )
+    }
+
+    pub fn verify(self, committee: &Committee) -> IotaResult<VerifiedCertifiedTransactionEffects> {
+        self.verify_authority_signatures(committee)?;
+        Ok(VerifiedCertifiedTransactionEffects::new_from_verified(self))
+    }
+}

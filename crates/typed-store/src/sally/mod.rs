@@ -16,9 +16,8 @@
 //!     sally::{SallyColumn, SallyDBOptions},
 //!     test_db::*,
 //!     traits::{TableSummary, TypedStoreDebug},
-//!     *,
+//!     SallyDB, *,
 //! };
-//! use typed_store_derive::SallyDB;
 //!
 //! use crate::typed_store::Map;
 //!

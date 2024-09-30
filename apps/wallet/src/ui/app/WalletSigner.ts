@@ -11,7 +11,7 @@ import {
     type IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
 import { IntentScope, messageWithIntent } from '@iota/iota-sdk/cryptography';
-import { isTransactionBlock, type TransactionBlock } from '@iota/iota-sdk/transactions';
+import { isTransaction, type Transaction } from '@iota/iota-sdk/transactions';
 import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 
 export type SignedTransaction = {
@@ -41,8 +41,8 @@ export abstract class WalletSigner {
     ): Promise<SignedMessage> {
         const signature = await this.signData(
             messageWithIntent(
-                IntentScope.PersonalMessage,
-                bcs.ser(['vector', 'u8'], input.message).toBytes(),
+                'PersonalMessage',
+                bcs.vector(bcs.u8()).serialize(input.message).toBytes(),
             ),
         );
 
@@ -53,9 +53,9 @@ export abstract class WalletSigner {
     }
 
     protected async prepareTransactionBlock(
-        transactionBlock: Uint8Array | TransactionBlock | string,
+        transactionBlock: Uint8Array | Transaction | string,
     ) {
-        if (isTransactionBlock(transactionBlock)) {
+        if (isTransaction(transactionBlock)) {
             // If the sender has not yet been set on the transaction, then set it.
             // NOTE: This allows for signing transactions with mismatched senders, which is important for sponsored transactions.
             transactionBlock.setSenderIfNotSet(await this.getAddress());
@@ -76,13 +76,13 @@ export abstract class WalletSigner {
 
     async signTransactionBlock(
         input: {
-            transactionBlock: Uint8Array | TransactionBlock;
+            transactionBlock: Uint8Array | Transaction;
         },
         clientIdentifier?: string,
     ): Promise<SignedTransaction> {
         const bytes = await this.prepareTransactionBlock(input.transactionBlock);
         const signature = await this.signData(
-            messageWithIntent(IntentScope.TransactionData, bytes),
+            messageWithIntent('TransactionData', bytes),
         );
 
         return {
@@ -91,9 +91,9 @@ export abstract class WalletSigner {
         };
     }
 
-    async signAndExecuteTransactionBlock(
+    async signAndExecuteTransaction(
         input: {
-            transactionBlock: Uint8Array | TransactionBlock;
+            transactionBlock: Uint8Array | Transaction;
             options?: IotaTransactionBlockResponseOptions;
             requestType?: ExecuteTransactionRequestType;
         },
@@ -113,7 +113,7 @@ export abstract class WalletSigner {
     }
 
     async dryRunTransactionBlock(input: {
-        transactionBlock: TransactionBlock | string | Uint8Array;
+        transactionBlock: Transaction | string | Uint8Array;
     }): Promise<DryRunTransactionBlockResponse> {
         return this.client.dryRunTransactionBlock({
             transactionBlock: await this.prepareTransactionBlock(input.transactionBlock),

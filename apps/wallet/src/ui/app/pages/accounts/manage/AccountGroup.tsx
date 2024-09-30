@@ -39,10 +39,14 @@ export function AccountGroup({
     accounts,
     type,
     accountSourceID,
+    isLast,
+    outerRef,
 }: {
     accounts: SerializedUIAccount[];
     type: AccountType;
     accountSourceID?: string;
+    isLast: boolean;
+    outerRef?: React.RefObject<HTMLDivElement>;
 }) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const navigate = useNavigate();
@@ -145,15 +149,19 @@ export function AccountGroup({
             >
                 {accounts.map((account, index) => (
                     <AccountGroupItem
+                        outerRef={outerRef}
                         isActive={activeAccount?.address === account.address}
                         key={account.id}
                         account={account}
-                        isLast={index === accounts.length - 1}
+                        showDropdownOptionsBottom={
+                            isLast &&
+                            (index === accounts.length - 1 || index === accounts.length - 2)
+                        }
                     />
                 ))}
             </Collapsible>
             <div
-                className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-3 top-3 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>

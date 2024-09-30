@@ -18,7 +18,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
 pub use metrics::DataIngestionMetrics;
-pub use progress_store::{FileProgressStore, ProgressStore};
+pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
 pub use reader::ReaderOptions;
 pub use util::create_remote_store_client;
 pub use worker_pool::WorkerPool;
@@ -36,5 +36,9 @@ pub trait Worker: Send + Sync {
         sequence_number: CheckpointSequenceNumber,
     ) -> Option<CheckpointSequenceNumber> {
         Some(sequence_number)
+    }
+
+    fn preprocess_hook(&self, _: CheckpointData) -> Result<()> {
+        Ok(())
     }
 }

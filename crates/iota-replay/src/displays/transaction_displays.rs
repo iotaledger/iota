@@ -9,7 +9,7 @@ use std::{
 
 use iota_execution::Executor;
 use iota_types::{
-    execution_mode::ExecutionResult,
+    execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{
         write_sep, Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
@@ -311,7 +311,10 @@ fn resolve_to_layout(
         }
         TypeTag::Struct(inner) => {
             let mut layout_resolver = executor.type_layout_resolver(Box::new(store_factory));
-            MoveTypeLayout::Struct(layout_resolver.get_annotated_layout(inner).unwrap())
+            layout_resolver
+                .get_annotated_layout(inner)
+                .unwrap()
+                .into_layout()
         }
         TypeTag::Bool => MoveTypeLayout::Bool,
         TypeTag::U8 => MoveTypeLayout::U8,

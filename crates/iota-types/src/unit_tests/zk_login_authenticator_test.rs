@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use fastcrypto_zkp::{
@@ -18,7 +18,8 @@ use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use crate::{
     base_types::IotaAddress,
     crypto::{PublicKey, SignatureScheme, ZkLoginPublicIdentifier},
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    signature::{GenericSignature, VerifyParams},
+    signature_verification::VerifiedDigestCache,
     utils::{
         get_zklogin_user_address, load_test_vectors, make_zklogin_tx, sign_zklogin_personal_msg,
         SHORT_ADDRESS_SEED,
@@ -107,9 +108,14 @@ fn zklogin_sign_personal_message() {
 
     // Construct the required info to verify a zk login authenticator, jwks,
     // supported providers list and env (prod/test).
-    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true);
-    let res =
-        authenticator.verify_authenticator(&intent_msg, user_address, Some(0), &aux_verify_data);
+    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true, Some(30));
+    let res = authenticator.verify_authenticator(
+        &intent_msg,
+        user_address,
+        0,
+        &aux_verify_data,
+        Arc::new(VerifiedDigestCache::new_empty()),
+    );
     // Verify passes.
     assert!(res.is_ok());
 }

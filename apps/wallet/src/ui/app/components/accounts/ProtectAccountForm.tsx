@@ -112,6 +112,7 @@ export function ProtectAccountForm({
                     errorMessage={form.formState.errors.password?.input?.message}
                     {...register('password.input')}
                     name="password.input"
+                    data-testid="password.input"
                 />
                 <Input
                     type={InputType.Password}
@@ -121,6 +122,7 @@ export function ProtectAccountForm({
                     errorMessage={form.formState.errors.password?.confirmation?.message}
                     {...register('password.confirmation')}
                     name="password.confirmation"
+                    data-testid="password.confirmation"
                 />
                 <AutoLockSelector />
             </div>

@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use once_cell::sync::OnceCell;
@@ -19,7 +17,7 @@ use crate::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -528,24 +526,26 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (
+                        validator.voting_power,
+                        NetworkMetadata {
+                            network_address: verified_metadata.net_address.clone(),
+                            narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        },
+                    ),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -665,6 +665,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             protocol_version,
             system_state_version,
             iota_total_supply: iota_treasury_cap.total_supply().value,
+            iota_treasury_cap_id: iota_treasury_cap.id().to_owned(),
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),

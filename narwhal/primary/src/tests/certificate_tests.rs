@@ -155,7 +155,7 @@ proptest::proptest! {
             signatures.push((vote.author(), vote.signature().clone()));
         }
 
-        let certificate = Certificate::new_unverified( &committee, header, signatures).unwrap();
+        let certificate = Certificate::new_unverified(&committee, header, signatures).unwrap();
 
         assert!(certificate
             .verify(&committee, &fixture.worker_cache())

@@ -9,29 +9,15 @@ use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{node::RunWithRange, Config, NodeConfig};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::IotaNode;
-use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
+    supported_protocol_versions::SupportedProtocolVersions,
 };
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]

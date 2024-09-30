@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
@@ -32,6 +32,7 @@ use crate::{
     multisig::{as_indices, MultiSig, MAX_SIGNER_IN_MULTISIG},
     multisig_legacy::bitmap_to_u16,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    signature_verification::VerifiedDigestCache,
     utils::{
         keys, load_test_vectors, make_transaction_data, make_zklogin_tx, DEFAULT_ADDRESS_SEED,
         SHORT_ADDRESS_SEED,
@@ -441,8 +442,13 @@ fn zklogin_in_multisig_works_with_both_addresses() {
         .into_iter()
         .collect();
 
-    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true);
-    let res = multisig.verify_claims(intent_msg, multisig_address, &aux_verify_data);
+    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true, Some(30));
+    let res = multisig.verify_claims(
+        intent_msg,
+        multisig_address,
+        &aux_verify_data,
+        Arc::new(VerifiedDigestCache::new_empty()),
+    );
     // since the zklogin inputs is crafted, it is expected that the proof verify
     // failed, but all checks before passes.
     assert!(
@@ -478,8 +484,12 @@ fn zklogin_in_multisig_works_with_both_addresses() {
         multisig_pk_padded,
     );
 
-    let res =
-        multisig_padded.verify_claims(intent_msg_padded, multisig_address_padded, &aux_verify_data);
+    let res = multisig_padded.verify_claims(
+        intent_msg_padded,
+        multisig_address_padded,
+        &aux_verify_data,
+        Arc::new(VerifiedDigestCache::new_empty()),
+    );
     assert!(
         matches!(res, Err(crate::error::IotaError::InvalidSignature { error }) if error.contains("General cryptographic error: Groth16 proof verify failed"))
     );

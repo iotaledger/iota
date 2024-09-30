@@ -4,6 +4,8 @@ tags: [move, testing, how-to, cli]
 ---
 
 import TestingCheatSheet from "../../_snippets/testing-cheat-sheet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/build-test.json';
 
 # Build and Test Packages
 
@@ -416,3 +418,6 @@ fun test_sword_transactions() {
 ```
 
 You can refer to the source code for the package (with all the tests and functions properly adjusted) in the [first_package](https://github.com/iotaledger/iota/tree/develop/examples/move/first_package/sources/example.move) module in the `iota/examples` directory.
+
+
+<Quiz questions={questions} />

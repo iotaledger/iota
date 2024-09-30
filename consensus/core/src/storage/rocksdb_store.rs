@@ -2,17 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::VecDeque,
-    ops::{
-        Bound::{Excluded, Included},
-        Range,
-    },
-    time::Duration,
-};
+use std::{collections::VecDeque, ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
+use iota_macros::fail_point;
 use typed_store::{
     metrics::SamplingInterval,
     reopen,
@@ -23,7 +17,7 @@ use typed_store::{
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, Slot, VerifiedBlock},
-    commit::{CommitAPI as _, CommitDigest, CommitIndex, TrustedCommit},
+    commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -33,12 +27,12 @@ pub(crate) struct RocksDBStore {
     blocks: DBMap<(Round, AuthorityIndex, BlockDigest), Bytes>,
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockDigest), ()>,
-    /// Maps commit index to content.
+    /// Maps commit index to Commit.
     commits: DBMap<(CommitIndex, CommitDigest), Bytes>,
     /// Collects votes on commits.
     /// TODO: batch multiple votes into a single row.
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
-    /// Stores the latest values of a few properties.
+    /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
 }
 
@@ -100,6 +94,8 @@ impl RocksDBStore {
 
 impl Store for RocksDBStore {
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
+        fail_point!("consensus-store-before-write");
+
         let mut batch = self.blocks.batch();
         for block in write_batch.blocks {
             let block_ref = block.reference();
@@ -118,35 +114,36 @@ impl Store for RocksDBStore {
                     [((block_ref.author, block_ref.round, block_ref.digest), ())],
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
-            for commit in block.commit_votes() {
+            for vote in block.commit_votes() {
                 batch
                     .insert_batch(
                         &self.commit_votes,
-                        [((commit.index, commit.digest, block_ref), ())],
+                        [((vote.index, vote.digest, block_ref), ())],
                     )
                     .map_err(ConsensusError::RocksDBFailure)?;
             }
         }
-        if let Some(last_commit) = write_batch.commits.last().cloned() {
-            for commit in write_batch.commits {
-                batch
-                    .insert_batch(
-                        &self.commits,
-                        [((commit.index(), commit.digest()), commit.serialized())],
-                    )
-                    .map_err(ConsensusError::RocksDBFailure)?;
-            }
-            let commit_info = CommitInfo {
-                last_committed_rounds: write_batch.last_committed_rounds,
-            };
+
+        for commit in write_batch.commits {
             batch
                 .insert_batch(
-                    &self.commit_info,
-                    [((last_commit.index(), last_commit.digest()), commit_info)],
+                    &self.commits,
+                    [((commit.index(), commit.digest()), commit.serialized())],
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
+
+        for (commit_ref, commit_info) in write_batch.commit_info {
+            batch
+                .insert_batch(
+                    &self.commit_info,
+                    [((commit_ref.index, commit_ref.digest), commit_info)],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+        }
+
         batch.write()?;
+        fail_point!("consensus-store-after-write");
         Ok(())
     }
 
@@ -208,7 +205,7 @@ impl Store for RocksDBStore {
             refs.push(BlockRef::new(round, author, digest));
         }
         let results = self.read_blocks(refs.as_slice())?;
-        let mut blocks = vec![];
+        let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results.into_iter()) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {:?} not found!", r)),
@@ -265,11 +262,11 @@ impl Store for RocksDBStore {
         Ok(Some(commit))
     }
 
-    fn scan_commits(&self, range: Range<CommitIndex>) -> ConsensusResult<Vec<TrustedCommit>> {
+    fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>> {
         let mut commits = vec![];
         for result in self.commits.safe_range_iter((
-            Included((range.start, CommitDigest::MIN)),
-            Excluded((range.end, CommitDigest::MIN)),
+            Included((range.start(), CommitDigest::MIN)),
+            Included((range.end(), CommitDigest::MAX)),
         )) {
             let ((_index, digest), serialized) = result?;
             let commit = TrustedCommit::new_trusted(
@@ -282,11 +279,23 @@ impl Store for RocksDBStore {
         Ok(commits)
     }
 
-    fn read_last_commit_info(&self) -> ConsensusResult<Option<CommitInfo>> {
+    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
+        let mut votes = Vec::new();
+        for vote in self.commit_votes.safe_range_iter((
+            Included((commit_index, CommitDigest::MIN, BlockRef::MIN)),
+            Included((commit_index, CommitDigest::MAX, BlockRef::MAX)),
+        )) {
+            let ((_, _, block_ref), _) = vote?;
+            votes.push(block_ref);
+        }
+        Ok(votes)
+    }
+
+    fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
         let Some(result) = self.commit_info.safe_iter().skip_to_last().next() else {
             return Ok(None);
         };
-        let (_, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
-        Ok(Some(commit_info))
+        let (key, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
+        Ok(Some((CommitRef::new(key.0, key.1), commit_info)))
     }
 }
