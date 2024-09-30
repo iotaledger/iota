@@ -12,7 +12,7 @@ import questions from '/json/developer/getting-started/create-a-module.json';
 A [package](create-a-package.mdx)'s utility is defined by its modules. A module contains the logic for your package. You can create any number of modules per package. To add a module, create a `.move` file in the `sources` directory. For this guide, create a file called `first_package.move` and add the following content:
 
 ```move
-module first_package::my_module {
+module first_package::first_package {
 }
 ```
 
@@ -29,7 +29,7 @@ In `.move` files, use double slashes (`//`) to denote a comment.
 ```
 ## Module Name
 
-The first line of the module defines the module's name and the package it belongs to. In this case, `my_module` belongs to [`first_package`](create-a-package.mdx).
+The first line of the module defines the module's name and the package it belongs to. In this case, `first_package` belongs to [`first_package`](create-a-package.mdx).
 
 ## Imports
 
