@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
 
-    let (_genesis, _migration_tx_data) = builder.build();
+    let (_genesis, _) = builder.build();
 
     info!("Genesis built successfully");
 

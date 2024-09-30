@@ -105,7 +105,7 @@ pub struct Builder {
     migration_objects: MigrationObjects,
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
-    migration_tx_data: MigrationTxData,
+    migration_tx_data: Option<MigrationTxData>,
 }
 
 impl Default for Builder {
@@ -324,9 +324,12 @@ impl Builder {
             &mut self.genesis_stake,
             &mut self.migration_objects,
         );
+        self.migration_tx_data = if !unsigned_genesis.migration_txs_effects.is_empty() {
+            Some(migration_tx_data)
+        } else {
+            None
+        };
         self.built_genesis = Some(unsigned_genesis);
-        self.migration_tx_data = migration_tx_data;
-
         self.token_distribution_schedule = Some(token_distribution_schedule);
     }
 
@@ -349,7 +352,7 @@ impl Builder {
         self.parameters.protocol_version
     }
 
-    pub fn build(mut self) -> (Genesis, MigrationTxData) {
+    pub fn build(mut self) -> (Genesis, Option<MigrationTxData>) {
         if self.built_genesis.is_none() {
             self.build_and_cache_unsigned_genesis();
         }
