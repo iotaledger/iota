@@ -40,11 +40,10 @@ jobs:
         shell: bash
         run: |
           export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
-          export WALLET_RC_VERSION=${{ env.RC_VERSION }}
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
-          echo "WALLET_RC_VERSION=${WALLET_RC_VERSION}" >> $GITHUB_ENV
+          echo "WALLET_RC_VERSION=${{ env.RC_VERSION }}" >> $GITHUB_ENV
       - name: Build Wallet
-        run: pnpm wallet build:rc
+        run: WALLET_RC_VERSION=${{ env.WALLET_RC_VERSION }} pnpm wallet build:rc
         env: 
          WALLET_RC_VERSION: ${{ env.WALLET_RC_VERSION }}
       - name: Upload artifacts
