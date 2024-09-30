@@ -344,8 +344,8 @@ impl AuthorityStore {
                 }
             });
             // Assert that all transactions have been successfully processed.
-            assert!(genesis_migrated_transactions.is_empty());
-            assert!(txs_data.is_empty());
+            assert!(genesis_migrated_transactions.is_empty(), "Migration data hasn't been processed correctly");
+            assert!(txs_data.is_empty(), "Migration data hasn't been processed correctly");
         }
 
         Ok(store)
