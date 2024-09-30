@@ -25,7 +25,7 @@ import { getCustomNetwork, type NetworkEnvType } from '_src/shared/api-env';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { getNetwork, Network, type ChainType } from '@iota/iota-sdk/client';
-import { isTransactionBlock } from '@iota/iota-sdk/transactions';
+import { isTransaction } from '@iota/iota-sdk/transactions';
 import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 import {
     ReadonlyWalletAccount,
@@ -41,11 +41,14 @@ import {
     type IotaSignPersonalMessageMethod,
     type IotaSignTransactionBlockMethod,
     type Wallet,
+    IotaSignTransactionMethod,
+    IotaSignAndExecuteTransactionMethod,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
+import { bcs } from '@iota/iota-sdk/bcs';
 
 type WalletEventsMap = {
     [E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -93,9 +96,17 @@ export class IotaWallet implements Wallet {
                 version: '1.0.0',
                 signTransactionBlock: this.#signTransactionBlock,
             },
+            'iota:signTransaction': {
+                version: '2.0.0',
+                signTransaction: this.#signTransaction,
+            },
             'iota:signAndExecuteTransactionBlock': {
                 version: '1.0.0',
                 signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
+            },
+            'iota:signAndExecuteTransaction': {
+                version: '2.0.0',
+                signAndExecuteTransaction: this.#signAndExecuteTransaction,
             },
             'iota:signMessage': {
                 version: '1.0.0',
@@ -196,7 +207,7 @@ export class IotaWallet implements Wallet {
         account,
         ...input
     }) => {
-        if (!isTransactionBlock(transactionBlock)) {
+        if (!isTransaction(transactionBlock)) {
             throw new Error(
                 'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
             );
@@ -217,8 +228,36 @@ export class IotaWallet implements Wallet {
         );
     };
 
+    #signTransaction: IotaSignTransactionMethod = async ({
+        transaction,
+        account,
+        ...input
+    }) => {
+        if (!isTransaction(transaction)) {
+            throw new Error(
+                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
+            );
+        }
+
+        return mapToPromise(
+            this.#send<SignTransactionRequest, SignTransactionResponse>({
+                type: 'sign-transaction-request',
+                transaction: {
+                    ...input,
+                    // account might be undefined if previous version of adapters is used
+                    // in that case use the first account address
+                    account: account?.address || this.#accounts[0]?.address || '',
+                    transaction: await transaction.toJSON(),
+                },
+            }),
+            ({ result: { signature, transactionBlockBytes: bytes}}) => ({
+                signature, bytes
+            }),
+        );
+    };
+
     #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = async (input) => {
-        if (!isTransactionBlock(input.transactionBlock)) {
+        if (!isTransaction(input.transactionBlock)) {
             throw new Error(
                 'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
             );
@@ -239,6 +278,42 @@ export class IotaWallet implements Wallet {
             (response) => response.result,
         );
     };
+
+    #signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = async (input) => {
+        return mapToPromise(
+          this.#send<ExecuteTransactionRequest, ExecuteTransactionResponse>({
+            type: 'execute-transaction-request',
+            transaction: {
+              type: 'transaction',
+              data: await input.transaction.toJSON(),
+              options: {
+                showRawEffects: true,
+                showRawInput: true,
+              },
+              // account might be undefined if previous version of adapters is used
+              // in that case use the first account address
+              account: input.account?.address || this.#accounts[0]?.address || '',
+            },
+          }),
+          ({ result: { rawEffects, rawTransaction, digest } }) => {
+            const [
+              {
+                txSignatures: [signature],
+                intentMessage: { value: bcsTransaction },
+              },
+            ] = bcs.SenderSignedData.parse(fromB64(rawTransaction!));
+    
+            const bytes = bcs.TransactionData.serialize(bcsTransaction).toBase64();
+    
+            return {
+              digest,
+              signature,
+              bytes,
+              effects: toB64(new Uint8Array(rawEffects!)),
+            };
+          },
+        );
+      };
 
     #signMessage: IotaSignMessageMethod = async ({ message, account }) => {
         return mapToPromise(

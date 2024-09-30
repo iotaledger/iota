@@ -60,7 +60,7 @@ function TransferCoinPage() {
             // const sentryTransaction = Sentry.startTransaction({
             // 	name: 'send-tokens',
             // });
-            return signer.signAndExecuteTransactionBlock({
+            return signer.signAndExecuteTransaction({
                 transactionBlock: transaction,
                 options: {
                     showInput: true,

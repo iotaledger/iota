@@ -345,6 +345,7 @@ impl Inner {
 /// - Validating and accepting certificates received from peers.
 /// - Triggering fetching for certificates and batches.
 /// - Broadcasting created certificates.
+///
 /// `Synchronizer` contains most of the certificate processing logic in Narwhal.
 #[derive(Clone)]
 pub struct Synchronizer {

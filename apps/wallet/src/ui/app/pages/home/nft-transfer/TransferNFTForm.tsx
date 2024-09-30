@@ -9,7 +9,7 @@ import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { createNftSendValidationSchema, useGetKioskContents } from '@iota/core';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -46,10 +46,10 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                 return transferKioskItem.mutateAsync({ to });
             }
 
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.transferObjects([tx.object(objectId)], to);
 
-            return signer.signAndExecuteTransactionBlock({
+            return signer.signAndExecuteTransaction({
                 transactionBlock: tx,
                 options: {
                     showInput: true,

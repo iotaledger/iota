@@ -15,16 +15,7 @@ export const overlay = style({
 });
 
 export const title = style({
-    color: themeVars.colors.body,
-    fontSize: themeVars.fontSizes.xlarge,
-    fontWeight: themeVars.fontWeights.medium,
-    margin: 0,
-});
-
-export const separator = style({
-    height: 1,
-    backgroundColor: themeVars.backgroundColors.dropdownMenuSeparator,
-    width: '100%',
+    paddingLeft: 8,
 });
 
 export const content = style({
@@ -32,23 +23,50 @@ export const content = style({
     borderRadius: themeVars.radii.xlarge,
     color: themeVars.colors.body,
     position: 'fixed',
-    top: 0,
-    left: '50%',
+    bottom: 16,
+    left: 16,
+    right: 16,
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: 'space-between',
     overflow: 'hidden',
     minHeight: '50vh',
     maxHeight: '85vh',
-    width: '330px',
-    transform: 'translate(-50%, 100%)',
+    maxWidth: 700,
     '@media': {
         'screen and (min-width: 768px)': {
             flexDirection: 'row',
+            width: '100%',
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
         },
     },
+});
+
+export const whatIsAWalletButton = style({
+    backgroundColor: themeVars.backgroundColors.modalSecondary,
+    padding: 16,
+    '@media': {
+        'screen and (min-width: 768px)': {
+            display: 'none',
+        },
+    },
+});
+
+export const viewContainer = style({
+    display: 'none',
+    padding: 20,
+    flexGrow: 1,
+    '@media': {
+        'screen and (min-width: 768px)': {
+            display: 'flex',
+        },
+    },
+});
+
+export const selectedViewContainer = style({
+    display: 'flex',
 });
 
 export const backButtonContainer = style({
@@ -71,14 +89,37 @@ export const closeButtonContainer = style({
 export const walletListContent = style({
     display: 'flex',
     flexDirection: 'column',
-    width: '100%',
     flexGrow: 1,
-    gap: themeVars.spacing.medium,
-    padding: themeVars.spacing.medium,
+    gap: 24,
+    padding: 20,
     backgroundColor: themeVars.backgroundColors.modalPrimary,
     '@media': {
         'screen and (min-width: 768px)': {
             backgroundColor: themeVars.backgroundColors.modalSecondary,
+        },
+    },
+});
+
+export const walletListContainer = style({
+    display: 'flex',
+    justifyContent: 'space-between',
+    flexDirection: 'column',
+    flexGrow: 1,
+    '@media': {
+        'screen and (min-width: 768px)': {
+            flexDirection: 'row',
+            flexBasis: 240,
+            flexGrow: 0,
+            flexShrink: 0,
+        },
+    },
+});
+
+export const walletListContainerWithViewSelected = style({
+    display: 'none',
+    '@media': {
+        'screen and (min-width: 768px)': {
+            display: 'flex',
         },
     },
 });

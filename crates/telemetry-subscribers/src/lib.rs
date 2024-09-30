@@ -380,6 +380,7 @@ impl TelemetryConfig {
         let mut file_output = CachedOpenFile::new::<&str>(None).unwrap();
         let mut provider = None;
         let sampler = SamplingFilter::new(config.sample_rate);
+        let service_name = env::var("OTEL_SERVICE_NAME").unwrap_or("iota-node".to_owned());
 
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
@@ -387,7 +388,7 @@ impl TelemetryConfig {
             let config = opentelemetry_sdk::trace::Config::default()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
-                    "iota-node",
+                    service_name.clone(),
                 )]))
                 .with_sampler(Sampler::ParentBased(Box::new(sampler.clone())));
 
@@ -406,7 +407,7 @@ impl TelemetryConfig {
                     .with_span_processor(processor)
                     .build();
 
-                let tracer = p.tracer("iota-node");
+                let tracer = p.tracer(service_name);
                 provider = Some(p);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)

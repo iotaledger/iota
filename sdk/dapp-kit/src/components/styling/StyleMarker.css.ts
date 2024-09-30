@@ -47,18 +47,3 @@ globalStyle(':where(h1, h2, h3, h4, h5, h6)', {
     fontWeight: 'inherit',
     margin: 0,
 });
-
-globalStyle('::-webkit-scrollbar', {
-    width: '14px',
-});
-
-globalStyle('::-webkit-scrollbar-track', {
-    borderRadius: themeVars.radii.xlarge,
-    backgroundColor: 'transparent',
-});
-
-globalStyle('::-webkit-scrollbar-thumb', {
-    boxShadow: `inset 0 0 10px 10px ${themeVars.backgroundColors.scrollThumb}`,
-    borderRadius: themeVars.radii.xlarge,
-    border: '4px solid transparent',
-});

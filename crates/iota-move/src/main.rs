@@ -11,22 +11,8 @@ use iota_types::exit_main;
 use move_package::BuildConfig as MoveBuildConfig;
 use tracing::debug;
 
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
 #[clap(
@@ -81,7 +67,7 @@ async fn main() {
     debug!("Iota-Move CLI version: {VERSION}");
 
     exit_main!(execute_move_command(
-        args.package_path,
+        args.package_path.as_deref(),
         args.build_config,
         args.cmd
     ));

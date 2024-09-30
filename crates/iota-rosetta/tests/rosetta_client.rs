@@ -30,24 +30,24 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use tokio::task::JoinHandle;
 
-pub async fn start_rosetta_test_server(
-    client: IotaClient,
-) -> (RosettaClient, Vec<JoinHandle<std::io::Result<()>>>) {
+pub async fn start_rosetta_test_server(client: IotaClient) -> (RosettaClient, Vec<JoinHandle<()>>) {
     let online_server = RosettaOnlineServer::new(IotaEnv::LocalNet, client);
     let offline_server = RosettaOfflineServer::new(IotaEnv::LocalNet);
     let local_ip = local_ip_utils::localhost_for_testing();
     let port = local_ip_utils::get_available_port(&local_ip);
     let rosetta_address = format!("{}:{}", local_ip, port);
-    let online_handle = online_server
-        .serve(SocketAddr::from_str(&rosetta_address).unwrap())
-        .await
-        .unwrap();
+    let online_handle = tokio::spawn(async move {
+        online_server
+            .serve(SocketAddr::from_str(&rosetta_address).unwrap())
+            .await
+    });
     let offline_port = local_ip_utils::get_available_port(&local_ip);
     let offline_address = format!("{}:{}", local_ip, offline_port);
-    let offline_handle = offline_server
-        .serve(SocketAddr::from_str(&offline_address).unwrap())
-        .await
-        .unwrap();
+    let offline_handle = tokio::spawn(async move {
+        offline_server
+            .serve(SocketAddr::from_str(&offline_address).unwrap())
+            .await
+    });
 
     // allow rosetta to process the genesis block.
     tokio::task::yield_now().await;

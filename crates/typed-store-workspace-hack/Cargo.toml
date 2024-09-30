@@ -1,0 +1,20 @@
+# This file is generated is used by the typed-store crate in order to force
+# rocksdb to be built a single time, regaurdless of where in the workspace a
+# package is being built.
+#
+# This was generated using `cargo hakari` plus `cargo tree` to select only the
+# dependencies that were relevant for rocksdb.
+
+[package]
+name = "typed-store-workspace-hack"
+version = "0.0.0"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+libc = { version = "0.2", features = ["extra_traits"] }
+memchr = { version = "2" }
+
+[build-dependencies]
+memchr = { version = "2" }
+libc = { version = "0.2", features = ["extra_traits"] }

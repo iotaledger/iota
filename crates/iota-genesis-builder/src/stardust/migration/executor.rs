@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 use iota_adapter_v0::{
-    adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
+    adapter::new_move_vm, execution_mode, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
 };
 use iota_framework::BuiltInFramework;
@@ -24,7 +24,6 @@ use iota_types::{
     coin_manager::{CoinManager, CoinManagerTreasuryCap},
     collection_types::Bag,
     dynamic_field::Field,
-    execution_mode,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -116,7 +115,11 @@ impl Executor {
                 metrics.clone(),
             )?;
         }
-        let move_vm = Arc::new(new_move_vm(all_natives(silent), &protocol_config, None)?);
+        let move_vm = Arc::new(new_move_vm(
+            all_natives(silent, &protocol_config),
+            &protocol_config,
+            None,
+        )?);
 
         let system_packages_and_objects = store.objects().keys().copied().collect();
         Ok(Self {
@@ -190,12 +193,14 @@ impl Executor {
         pt: ProgrammableTransaction,
     ) -> Result<InnerTemporaryStore> {
         let input_objects = input_objects.into_inner();
+        let epoch_id = 0; // Genesis
         let mut temporary_store = TemporaryStore::new(
             &self.store,
             input_objects,
             vec![],
             self.tx_context.digest(),
             &self.protocol_config,
+            epoch_id,
         );
         let mut gas_charger = GasCharger::new_unmetered(self.tx_context.digest());
         programmable_transactions::execution::execute::<execution_mode::Normal>(
@@ -833,7 +838,7 @@ impl FoundryLedgerData {
                 .package
                 .to_canonical_string(with_prefix),
             self.coin_type_origin.module_name,
-            self.coin_type_origin.struct_name
+            self.coin_type_origin.datatype_name
         )
     }
 }

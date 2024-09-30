@@ -3,94 +3,180 @@ processed 20 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1 'publish'. lines 10-78:
+task 1, lines 10-78:
+//# publish
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 9659600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 80-80:
+task 2, line 80:
+//# run test::m::mint_s --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 3442800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'view-object'. lines 82-82:
+task 3, line 82:
+//# view-object 2,0
 Owner: Account Address ( A )
 Version: 2
-Contents: test::m::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}}
+Contents: test::m::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+}
 
-task 4 'view-object'. lines 84-84:
+task 4, line 84:
+//# view-object 2,1
 Owner: Account Address ( fake(2,0) )
 Version: 2
-Contents: test::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}}
+Contents: test::m::S {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+}
 
-task 5 'programmable'. lines 86-88:
+task 5, lines 86-88:
+//# programmable --sender A --inputs object(2,0) receiving(2,1)
+//> 0: test::m::receive_s(Input(0), Input(1));
+//> 1: test::m::destroy_s(Result(0));
 mutated: object(0,0), object(2,0)
 deleted: object(2,1)
 gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3442800, non_refundable_storage_fee: 0
 
-task 6 'run'. lines 90-90:
+task 6, line 90:
+//# run test::m::mint_cup --sender A --type-args u64
 created: object(6,0), object(6,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7 'view-object'. lines 92-92:
+task 7, line 92:
+//# view-object 6,0
 Owner: Account Address ( fake(6,1) )
 Version: 4
-Contents: test::m::Cup<u64> {id: iota::object::UID {id: iota::object::ID {bytes: fake(6,0)}}}
+Contents: test::m::Cup<u64> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+}
 
-task 8 'view-object'. lines 94-94:
+task 8, line 94:
+//# view-object 6,1
 Owner: Account Address ( A )
 Version: 4
-Contents: test::m::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(6,1)}}}
+Contents: test::m::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,1),
+        },
+    },
+}
 
-task 9 'programmable'. lines 96-100:
+task 9, lines 96-100:
+//# programmable --sender A --inputs object(6,1) receiving(6,0)
+//> 0: test::m::receive_cup<u64>(Input(0), Input(1));
+//> 1: test::m::destroy_cup<u64>(Result(0));
+// Try to directly call `public_receive` and `receive` on an object without public transfer.
 mutated: object(0,0), object(6,1)
 deleted: object(6,0)
 gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3465600, non_refundable_storage_fee: 0
 
-task 10 'run'. lines 102-102:
+task 10, line 102:
+//# run test::m::mint_s --sender A
 created: object(10,0), object(10,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 3442800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 11 'view-object'. lines 104-104:
+task 11, line 104:
+//# view-object 10,0
 Owner: Account Address ( A )
 Version: 6
-Contents: test::m::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(10,0)}}}
+Contents: test::m::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(10,0),
+        },
+    },
+}
 
-task 12 'view-object'. lines 106-106:
+task 12, line 106:
+//# view-object 10,1
 Owner: Account Address ( fake(10,0) )
 Version: 6
-Contents: test::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(10,1)}}}
+Contents: test::m::S {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(10,1),
+        },
+    },
+}
 
-task 13 'programmable'. lines 108-110:
+task 13, lines 108-110:
+//# programmable --sender A --inputs object(10,0) receiving(10,1)
+//> 0: test::m::parent_uid(Input(0));
+//> 1: iota::transfer::public_receive<test::m::S>(Result(0), Input(1));
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMVerificationOrDeserializationError, source: Some(VMError { major_status: CONSTRAINT_NOT_SATISFIED, sub_status: None, message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [] }), command: Some(1) } }
 
-task 14 'programmable'. lines 112-118:
+task 14, lines 112-118:
+//# programmable --sender A --inputs object(10,0) receiving(10,1)
+//> 0: test::m::parent_uid(Input(0));
+//> 1: iota::transfer::receive<test::m::S>(Result(0), Input(1));
+// Now publish one with store. We should:
+// 1. Not be able to call `receive` to receive it.
+// 2. Be able to call `public_receive` to receive it.
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::transfer::receive. Use the public variant instead, iota::transfer::public_receive"), command: Some(1) } }
 
-task 15 'run'. lines 120-120:
+task 15, line 120:
+//# run test::m::mint_store --sender A
 created: object(15,0), object(15,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 3473200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 16 'view-object'. lines 122-122:
+task 16, line 122:
+//# view-object 15,0
 Owner: Account Address ( A )
 Version: 9
-Contents: test::m::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(15,0)}}}
+Contents: test::m::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(15,0),
+        },
+    },
+}
 
-task 17 'view-object'. lines 124-124:
+task 17, line 124:
+//# view-object 15,1
 Owner: Account Address ( fake(15,0) )
 Version: 9
-Contents: test::m::Store {id: iota::object::UID {id: iota::object::ID {bytes: fake(15,1)}}}
+Contents: test::m::Store {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(15,1),
+        },
+    },
+}
 
-task 18 'programmable'. lines 126-130:
+task 18, lines 126-130:
+//# programmable --sender A --inputs object(15,0) receiving(15,1)
+//> 0: test::m::parent_uid(Input(0));
+//> 1: iota::transfer::receive<test::m::Store>(Result(0), Input(1));
+// Can receive it via a direct `public_receive` call since `Store` has the `store` ability.
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::transfer::receive. Use the public variant instead, iota::transfer::public_receive"), command: Some(1) } }
 
-task 19 'programmable'. lines 131-135:
+task 19, lines 131-135:
+//# programmable --sender A --inputs object(15,0) receiving(15,1)
+//> 0: test::m::parent_uid(Input(0));
+//> 1: iota::transfer::public_receive<test::m::Store>(Result(0), Input(1));
+//> 2: test::m::destroy_store(Result(1));
+//> 3: iota::object::delete(Result(0));
 mutated: object(0,0)
 deleted: object(15,0), object(15,1)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 3473200, non_refundable_storage_fee: 0

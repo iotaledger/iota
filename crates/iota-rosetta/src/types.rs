@@ -22,7 +22,7 @@ use iota_types::{
 };
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use strum::{EnumIter, EnumString};
+use strum_macros::{EnumIter, EnumString};
 
 use crate::{
     errors::{Error, ErrorType},
@@ -341,6 +341,10 @@ impl From<IotaPublicKey> for PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::ZkLogin, // inaccurate but added for completeness.
             },
+            IotaPublicKey::Passkey(k) => PublicKey {
+                hex_bytes: Hex::from_bytes(&k.0),
+                curve_type: CurveType::Secp256r1,
+            },
         }
     }
 }
@@ -423,7 +427,8 @@ impl From<&IotaTransactionBlockKind> for OperationType {
             IotaTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
             IotaTransactionBlockKind::ConsensusCommitPrologue(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_) => {
+            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
+            | IotaTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {

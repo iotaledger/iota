@@ -21,8 +21,7 @@
         "src",
         "transactions",
         "utils",
-        "verify",
-        "zklogin"
+        "verify"
     ],
     "engines": {
         "node": ">=20"
@@ -49,10 +48,6 @@
             "import": "./dist/esm/graphql/index.js",
             "require": "./dist/cjs/graphql/index.js"
         },
-        "./graphql/schemas/2024-01": {
-            "import": "./dist/esm/graphql/schemas/2024-01/index.js",
-            "require": "./dist/cjs/graphql/schemas/2024-01/index.js"
-        },
         "./keypairs/ed25519": {
             "import": "./dist/esm/keypairs/ed25519/index.js",
             "require": "./dist/cjs/keypairs/ed25519/index.js"
@@ -70,8 +65,8 @@
             "require": "./dist/cjs/multisig/index.js"
         },
         "./transactions": {
-            "import": "./dist/esm/transactions/export.js",
-            "require": "./dist/cjs/transactions/export.js"
+            "import": "./dist/esm/transactions/index.js",
+            "require": "./dist/cjs/transactions/index.js"
         },
         "./utils": {
             "import": "./dist/esm/utils/index.js",
@@ -81,9 +76,9 @@
             "import": "./dist/esm/verify/index.js",
             "require": "./dist/cjs/verify/index.js"
         },
-        "./zklogin": {
-            "import": "./dist/esm/zklogin/index.js",
-            "require": "./dist/cjs/zklogin/index.js"
+        "./graphql/schemas/2024.9": {
+            "import": "./dist/esm/graphql/schemas/2024.9/index.js",
+            "require": "./dist/cjs/graphql/schemas/2024.9/index.js"
         }
     },
     "scripts": {
@@ -97,7 +92,7 @@
         "test:unit": "vitest run unit __tests__",
         "test:e2e": "wait-on http://127.0.0.1:9123 -l --timeout 180000 && vitest run e2e",
         "test:e2e:nowait": "vitest run e2e",
-        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator -- --with-indexer --pg-port 5435 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
+        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota --features indexer --profile dev && cross-env RUST_LOG=warn,iota=error,anemo_tower=warn,consensus=off ../../target/debug/iota start --with-faucet --force-regenesis --with-indexer --pg-port 5435 --pg-db-name iota_indexer_v2 --with-graphql",
         "prepublishOnly": "pnpm build",
         "size": "size-limit",
         "analyze": "size-limit --why",
@@ -106,46 +101,51 @@
         "eslint:check": "eslint --max-warnings=0 .",
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
-        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "update-graphql-schema": "pnpm run generate-schema -c src/graphql/generated/2024.9/tsconfig.tada.json",
+        "update-graphql-schemas": "pnpm tsx scripts/update-graphql-schemas.ts",
+        "update-open-rpc-schema": "pnpm tsx scripts/generate.ts",
+        "generate-schema": "gql.tada generate-output"
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
     },
     "devDependencies": {
-        "@0no-co/graphqlsp": "^1.7.1",
-        "@graphql-codegen/add": "^5.0.2",
+        "@0no-co/graphqlsp": "^1.12.11",
+        "@graphql-codegen/add": "^5.0.3",
         "@graphql-codegen/cli": "^5.0.2",
-        "@graphql-codegen/typed-document-node": "^5.0.4",
-        "@graphql-codegen/typescript": "4.0.4",
-        "@graphql-codegen/typescript-operations": "^4.1.2",
+        "@graphql-codegen/typed-document-node": "^5.0.9",
+        "@graphql-codegen/typescript": "4.0.9",
+        "@graphql-codegen/typescript-operations": "^4.2.3",
         "@iarna/toml": "^2.2.5",
         "@iota/build-scripts": "workspace:^",
-        "@types/node": "^20.4.2",
-        "@types/tmp": "^0.2.3",
-        "@types/ws": "^8.5.9",
+        "@types/node": "^20.14.10",
+        "@types/tmp": "^0.2.6",
+        "@types/ws": "^8.5.10",
         "cross-env": "^7.0.3",
         "dotenv": "^16.4.5",
         "graphql-config": "^5.0.3",
-        "tmp": "^0.2.1",
-        "ts-retry-promise": "^0.7.0",
-        "typescript": "^5.3.3",
-        "vite": "^4.4.4",
-        "vitest": "^0.33.0",
-        "wait-on": "^7.0.1",
-        "ws": "^8.17.1"
+        "msw": "^2.3.1",
+        "tmp": "^0.2.3",
+        "ts-retry-promise": "^0.8.1",
+        "typescript": "^5.5.3",
+        "vite": "^5.3.3",
+        "vitest": "^2.0.1",
+        "wait-on": "^7.2.0",
+        "ws": "^8.18.0"
     },
     "dependencies": {
         "@graphql-typed-document-node/core": "^3.2.0",
         "@iota/bcs": "workspace:*",
-        "@noble/curves": "^1.1.0",
-        "@noble/hashes": "^1.3.1",
-        "@scure/bip32": "^1.3.1",
-        "@scure/bip39": "^1.2.1",
+        "@noble/curves": "^1.4.2",
+        "@noble/hashes": "^1.4.0",
+        "@scure/bip32": "^1.4.0",
+        "@scure/bip39": "^1.3.0",
         "@suchipi/femver": "^1.0.0",
         "bech32": "^2.0.0",
-        "gql.tada": "^1.4.1",
-        "graphql": "^16.8.1",
-        "superstruct": "^1.0.3",
-        "tweetnacl": "^1.0.3"
+        "gql.tada": "^1.8.2",
+        "graphql": "^16.9.0",
+        "tweetnacl": "^1.0.3",
+        "valibot": "^0.36.0"
     }
 }

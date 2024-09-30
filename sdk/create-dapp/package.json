@@ -30,14 +30,17 @@
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
     },
+    "publishConfig": {
+        "access": "public"
+    },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
-        "typescript": "^5.3.3"
+        "typescript": "^5.5.3"
     },
     "dependencies": {
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
-        "@types/node": "^20.4.2",
+        "@types/node": "^20.14.10",
         "enquirer": "^2.4.1"
     },
     "sideEffects": false,

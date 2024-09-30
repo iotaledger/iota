@@ -23,7 +23,8 @@ use rand::{
     Rng,
 };
 use regex::Regex;
-use strum::{EnumCount, EnumIter, IntoEnumIterator};
+use strum::{EnumCount, IntoEnumIterator};
+use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use tracing::debug;
 
 use super::{
@@ -44,7 +45,7 @@ const NUM_VECTORS: u64 = 1_000;
 
 // TODO: Need to fix Large* workloads, which are currently failing due to
 // InsufficientGas
-#[derive(Debug, EnumCount, EnumIter, Clone)]
+#[derive(Debug, EnumCountMacro, EnumIter, Clone)]
 pub enum AdversarialPayloadType {
     Random = 0,
     LargeObjects,

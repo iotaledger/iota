@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS } from '@iota/iota-sdk/utils';
 
 interface CreateUnlockTimelockedObjectTransactionOptions {
@@ -13,8 +13,8 @@ export function createUnlockTimelockedObjectsTransaction({
     address,
     objectIds,
 }: CreateUnlockTimelockedObjectTransactionOptions) {
-    const ptb = new TransactionBlock();
-    const coins: { index: number; resultIndex: number; kind: 'NestedResult' }[] = [];
+    const ptb = new Transaction();
+    const coins: { $kind: 'NestedResult'; NestedResult: [number, number] }[] = [];
 
     for (const objectId of objectIds) {
         const [unlock] = ptb.moveCall({

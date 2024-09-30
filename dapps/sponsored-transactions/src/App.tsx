@@ -5,11 +5,11 @@
 import {
     ConnectButton,
     useCurrentAccount,
-    useSignTransactionBlock,
+    useSignTransaction,
     useIotaClient,
 } from '@iota/dapp-kit';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { ComponentProps, ReactNode, useMemo, useState } from 'react';
 
 import { sponsorTransaction } from './utils/sponsorTransaction';
@@ -42,21 +42,21 @@ const CodePanel = ({
 export function App() {
     const client = useIotaClient();
     const currentAccount = useCurrentAccount();
-    const { mutateAsync: signTransactionBlock } = useSignTransactionBlock();
+    const { mutateAsync: signTransaction } = useSignTransaction();
     const [loading, setLoading] = useState(false);
     const [sponsoredTx, setSponsoredTx] = useState<Awaited<
         ReturnType<typeof sponsorTransaction>
     > | null>(null);
-    const [signedTx, setSignedTx] = useState<Awaited<
-        ReturnType<typeof signTransactionBlock>
-    > | null>(null);
+    const [signedTx, setSignedTx] = useState<Awaited<ReturnType<typeof signTransaction>> | null>(
+        null,
+    );
     const [executedTx, setExecutedTx] = useState<IotaTransactionBlockResponse | null>(null);
 
     const tx = useMemo(() => {
         if (!currentAccount) return null;
-        const tx = new TransactionBlock();
-        const [coin] = tx.splitCoins(tx.gas, [tx.pure(1)]);
-        tx.transferObjects([coin], tx.pure(currentAccount.address));
+        const tx = new Transaction();
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], currentAccount.address);
         return tx;
     }, [currentAccount]);
 
@@ -65,7 +65,7 @@ export function App() {
             <div className="grid grid-cols-4 gap-8">
                 <CodePanel
                     title="Transaction details"
-                    json={tx?.blockData}
+                    json={tx?.getData()}
                     action={<ConnectButton className="!bg-indigo-600 !text-white" />}
                 />
 
@@ -106,8 +106,8 @@ export function App() {
                             onClick={async () => {
                                 setLoading(true);
                                 try {
-                                    const signed = await signTransactionBlock({
-                                        transactionBlock: TransactionBlock.from(sponsoredTx!.bytes),
+                                    const signed = await signTransaction({
+                                        transaction: Transaction.from(sponsoredTx!.bytes),
                                     });
                                     setSignedTx(signed);
                                 } finally {
@@ -129,7 +129,7 @@ export function App() {
                                 setLoading(true);
                                 try {
                                     const executed = await client.executeTransactionBlock({
-                                        transactionBlock: signedTx!.transactionBlockBytes,
+                                        transactionBlock: signedTx!.bytes,
                                         signature: [signedTx!.signature, sponsoredTx!.signature],
                                         options: {
                                             showEffects: true,

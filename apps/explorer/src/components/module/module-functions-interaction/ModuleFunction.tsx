@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useZodForm } from '@iota/core';
-import { ConnectModal, useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { TransactionBlock, getPureSerializationType } from '@iota/iota-sdk/transactions';
+import { ConnectModal, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { Transaction, getPureSerializationType } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useWatch } from 'react-hook-form';
@@ -49,7 +49,7 @@ export function ModuleFunction({
     functionDetails,
 }: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
-    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransaction();
     const { handleSubmit, formState, register, control } = useZodForm({
         schema: argsSchema,
     });
@@ -68,7 +68,7 @@ export function ModuleFunction({
 
     const execute = useMutation({
         mutationFn: async ({ params, types }: TypeOf<typeof argsSchema>) => {
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.moveCall({
                 target: `${packageId}::${moduleName}::${functionName}`,
                 typeArguments: types ?? [],
@@ -80,7 +80,7 @@ export function ModuleFunction({
                     ) ?? [],
             });
             const result = await signAndExecuteTransactionBlock({
-                transactionBlock: tx,
+                transaction: tx,
                 options: {
                     showEffects: true,
                     showEvents: true,

@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use async_trait::async_trait;
 use cached::{proc_macro::cached, SizedCache};
+use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
@@ -29,12 +30,12 @@ use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 
 #[derive(Clone)]
-pub struct GovernanceReadApi {
-    inner: IndexerReader,
+pub struct GovernanceReadApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl GovernanceReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 
@@ -52,7 +53,7 @@ impl GovernanceReadApi {
             self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let exchange_rate_table = exchange_rates(self, system_state_summary).await?;
+        let exchange_rate_table = exchange_rates(self, &system_state_summary).await?;
 
         let apys = iota_json_rpc::governance_api::calculate_apys(exchange_rate_table);
 
@@ -157,7 +158,7 @@ impl GovernanceReadApi {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, system_state_summary)
+        let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
             .map(|rates| (rates.pool_id, rates))
@@ -215,7 +216,7 @@ impl GovernanceReadApi {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, system_state_summary)
+        let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
             .map(|rates| (rates.pool_id, rates))
@@ -292,19 +293,19 @@ fn stake_status(
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
 #[cached(
-    ty = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
+    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
     convert = "{ system_state_summary.epoch }",
     result = true
 )]
-async fn exchange_rates(
-    state: &GovernanceReadApi,
-    system_state_summary: IotaSystemStateSummary,
+pub async fn exchange_rates(
+    state: &GovernanceReadApi<impl R2D2Connection>,
+    system_state_summary: &IotaSystemStateSummary,
 ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
     // Get validator rate tables
     let mut tables = vec![];
 
-    for validator in system_state_summary.active_validators {
+    for validator in &system_state_summary.active_validators {
         tables.push((
             validator.iota_address,
             validator.staking_pool_id,
@@ -385,7 +386,7 @@ async fn exchange_rates(
 
 /// Cache a map representing the validators' APYs for this epoch
 #[cached(
-    ty = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
+    type = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
     create = "{ SizedCache::with_size(1) }",
     convert = " {apys.epoch} "
 )]
@@ -394,7 +395,7 @@ fn validators_apys_map(apys: ValidatorApys) -> BTreeMap<IotaAddress, f64> {
 }
 
 #[async_trait]
-impl GovernanceReadApiServer for GovernanceReadApi {
+impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<T> {
     async fn get_stakes_by_ids(
         &self,
         staked_iota_ids: Vec<ObjectID>,
@@ -464,7 +465,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 }
 
-impl IotaRpcModule for GovernanceReadApi {
+impl<T: R2D2Connection> IotaRpcModule for GovernanceReadApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
