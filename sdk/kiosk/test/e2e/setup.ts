@@ -133,7 +133,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 export async function publishExtensionsPackage(toolbox: TestToolbox): Promise<string> {
     const packagePath = __dirname + '/../../../../kiosk';
     const { packageId } = await publishPackage(packagePath, toolbox);
-    return packageId
+    return packageId;
 }
 
 export async function publishHeroPackage(toolbox: TestToolbox): Promise<string> {
