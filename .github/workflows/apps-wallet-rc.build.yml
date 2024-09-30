@@ -5,7 +5,7 @@ on:
     inputs:
       rc_version:
         description: "The RC numeric version (X.Y.Z.RC)"
-        type: number
+        type: string
         required: true
 
 env:
@@ -42,9 +42,7 @@ jobs:
           export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Build Wallet
-        run: pnpm wallet build:rc
-        env:
-          WALLET_RC_VERSION: ${{ env.RC_VERSION }}
+        run: WALLET_RC_VERSION=${{ env.RC_VERSION }} pnpm wallet build:rc
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
