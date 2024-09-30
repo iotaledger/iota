@@ -406,6 +406,8 @@ tar = "0.4.40"
 tempfile = "3.3.0"
 test-fuzz = "3.0.4"
 thiserror = "1.0.40"
+# tokio is defined at a specific version to support patching with iota-sim
+# Do not upgrade without updating https://github.com/iotaledger/iota-sim first
 tokio = "=1.39.2"
 tokio-retry = "0.3"
 tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"] }
