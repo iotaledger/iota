@@ -20,8 +20,7 @@ mod integration_tests {
     };
 
     use crate::common::pg_integration::{
-        get_global_test_cluster_with_read_write_indexer,
-        get_global_test_cluster_with_read_write_indexer_with_runtime, indexer_wait_for_checkpoint,
+        get_global_test_cluster_with_read_write_indexer, indexer_wait_for_checkpoint,
         rpc_call_error_msg_matches,
     };
 
@@ -55,486 +54,495 @@ mod integration_tests {
     }
 
     fn get_object_with_options(options: IotaObjectDataOptions) {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
-                let address = cluster.get_address_0();
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let fullnode_objects = cluster
-                    .rpc_client()
-                    .get_owned_objects(
-                        address,
-                        Some(IotaObjectResponseQuery::new_with_options(options.clone())),
-                        None,
-                        None,
-                    )
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
+            let address = cluster.get_address_0();
+
+            let fullnode_objects = cluster
+                .rpc_client()
+                .get_owned_objects(
+                    address,
+                    Some(IotaObjectResponseQuery::new_with_options(options.clone())),
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+
+            for obj in fullnode_objects.data {
+                let indexer_obj = indexer_client
+                    .get_object(obj.object_id().unwrap(), Some(options.clone()))
                     .await
                     .unwrap();
 
-                for obj in fullnode_objects.data {
-                    let indexer_obj = indexer_client
-                        .get_object(obj.object_id().unwrap(), Some(options.clone()))
-                        .await
-                        .unwrap();
-
-                    assert_eq!(obj, indexer_obj);
-                }
-            },
-        );
+                assert_eq!(obj, indexer_obj);
+            }
+        });
     }
 
     fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
-                let address = cluster.get_address_0();
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let fullnode_objects = cluster
-                    .rpc_client()
-                    .get_owned_objects(
-                        address,
-                        Some(IotaObjectResponseQuery::new_with_options(options.clone())),
-                        None,
-                        None,
-                    )
-                    .await
-                    .unwrap();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
+            let address = cluster.get_address_0();
 
-                let object_ids = fullnode_objects
-                    .data
-                    .iter()
-                    .map(|iota_object| iota_object.object_id().unwrap())
-                    .collect::<Vec<ObjectID>>();
+            let fullnode_objects = cluster
+                .rpc_client()
+                .get_owned_objects(
+                    address,
+                    Some(IotaObjectResponseQuery::new_with_options(options.clone())),
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
 
-                let indexer_objects = indexer_client
-                    .multi_get_objects(object_ids, Some(options))
-                    .await
-                    .unwrap();
+            let object_ids = fullnode_objects
+                .data
+                .iter()
+                .map(|iota_object| iota_object.object_id().unwrap())
+                .collect::<Vec<ObjectID>>();
 
-                assert_eq!(fullnode_objects.data, indexer_objects);
-            },
-        );
+            let indexer_objects = indexer_client
+                .multi_get_objects(object_ids, Some(options))
+                .await
+                .unwrap();
+
+            assert_eq!(fullnode_objects.data, indexer_objects);
+        });
     }
 
     fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptions) {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let fullnode_checkpoint = cluster
-                    .rpc_client()
-                    .get_checkpoint(CheckpointId::SequenceNumber(0))
-                    .await
-                    .unwrap();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
+            let fullnode_checkpoint = cluster
+                .rpc_client()
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap();
 
-                let fullnode_tx = cluster
-                    .rpc_client()
-                    .get_transaction_block(tx_digest, Some(options.clone()))
-                    .await
-                    .unwrap();
+            let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
 
-                let tx = indexer_client
-                    .get_transaction_block(tx_digest, Some(options.clone()))
-                    .await
-                    .unwrap();
+            let fullnode_tx = cluster
+                .rpc_client()
+                .get_transaction_block(tx_digest, Some(options.clone()))
+                .await
+                .unwrap();
 
-                // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
-                // not match all options filters but is still good to check if both tx does
-                // match
-                assert_eq!(fullnode_tx, tx);
+            let tx = indexer_client
+                .get_transaction_block(tx_digest, Some(options.clone()))
+                .await
+                .unwrap();
 
-                assert!(
-                    match_transaction_block_resp_options(&options, &[fullnode_tx]),
-                    "fullnode transaction block assertion failed"
-                );
-                assert!(
-                    match_transaction_block_resp_options(&options, &[tx]),
-                    "indexer transaction block assertion failed"
-                );
-            },
-        );
+            // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
+            // not match all options filters but is still good to check if both tx does
+            // match
+            assert_eq!(fullnode_tx, tx);
+
+            assert!(
+                match_transaction_block_resp_options(&options, &[fullnode_tx]),
+                "fullnode transaction block assertion failed"
+            );
+            assert!(
+                match_transaction_block_resp_options(&options, &[tx]),
+                "indexer transaction block assertion failed"
+            );
+        });
     }
 
     fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let fullnode_checkpoints = cluster
-                    .rpc_client()
-                    .get_checkpoints(None, Some(3), false)
-                    .await
-                    .unwrap();
+            let fullnode_checkpoints = cluster
+                .rpc_client()
+                .get_checkpoints(None, Some(3), false)
+                .await
+                .unwrap();
 
-                let digests = fullnode_checkpoints
-                    .data
-                    .into_iter()
-                    .flat_map(|c| c.transactions)
-                    .collect::<Vec<TransactionDigest>>();
+            let digests = fullnode_checkpoints
+                .data
+                .into_iter()
+                .flat_map(|c| c.transactions)
+                .collect::<Vec<TransactionDigest>>();
 
-                let fullnode_txs = cluster
-                    .rpc_client()
-                    .multi_get_transaction_blocks(digests.clone(), Some(options.clone()))
-                    .await
-                    .unwrap();
+            let fullnode_txs = cluster
+                .rpc_client()
+                .multi_get_transaction_blocks(digests.clone(), Some(options.clone()))
+                .await
+                .unwrap();
 
-                let indexer_txs = indexer_client
-                    .multi_get_transaction_blocks(digests, Some(options.clone()))
-                    .await
-                    .unwrap();
+            let indexer_txs = indexer_client
+                .multi_get_transaction_blocks(digests, Some(options.clone()))
+                .await
+                .unwrap();
 
-                // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
-                // not match all options filters but is still good to check if both tx does
-                // match
-                assert_eq!(fullnode_txs, indexer_txs);
+            // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
+            // not match all options filters but is still good to check if both tx does
+            // match
+            assert_eq!(fullnode_txs, indexer_txs);
 
-                assert!(
-                    match_transaction_block_resp_options(&options, &fullnode_txs),
-                    "fullnode multi transaction blocks assertion failed"
-                );
-                assert!(
-                    match_transaction_block_resp_options(&options, &indexer_txs),
-                    "indexer multi transaction blocks assertion failed"
-                );
-            },
-        );
+            assert!(
+                match_transaction_block_resp_options(&options, &fullnode_txs),
+                "fullnode multi transaction blocks assertion failed"
+            );
+            assert!(
+                match_transaction_block_resp_options(&options, &indexer_txs),
+                "indexer multi transaction blocks assertion failed"
+            );
+        });
     }
 
     #[test]
     fn get_checkpoint_by_seq_num() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let fullnode_checkpoint = cluster
-                    .rpc_client()
-                    .get_checkpoint(CheckpointId::SequenceNumber(0))
-                    .await
-                    .unwrap();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoint(CheckpointId::SequenceNumber(0))
-                    .await
-                    .unwrap();
+            let fullnode_checkpoint = cluster
+                .rpc_client()
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap();
 
-                assert_eq!(fullnode_checkpoint, indexer_checkpoint);
-            },
-        )
+            let indexer_checkpoint = indexer_client
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap();
+
+            assert_eq!(fullnode_checkpoint, indexer_checkpoint);
+        })
     }
 
     #[test]
     fn get_checkpoint_by_seq_num_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let result = indexer_client
-                    .get_checkpoint(CheckpointId::SequenceNumber(100000000000))
-                    .await;
-                assert!(rpc_call_error_msg_matches(
-                    result,
-                    r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint SequenceNumber(100000000000) not found`"}"#,
-                ));
-            },
-        );
+        runtime.block_on(async move {
+        indexer_wait_for_checkpoint(pg_store, 1).await;
+
+        let result = indexer_client
+            .get_checkpoint(CheckpointId::SequenceNumber(100000000000))
+            .await;
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint SequenceNumber(100000000000) not found`"}"#,
+        ));
+    });
     }
 
     #[test]
     fn get_checkpoint_by_digest() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let fullnode_checkpoint = cluster
-                    .rpc_client()
-                    .get_checkpoint(CheckpointId::SequenceNumber(0))
-                    .await
-                    .unwrap();
+            let fullnode_checkpoint = cluster
+                .rpc_client()
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap();
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoint(CheckpointId::Digest(fullnode_checkpoint.digest))
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoint(CheckpointId::Digest(fullnode_checkpoint.digest))
+                .await
+                .unwrap();
 
-                assert_eq!(fullnode_checkpoint, indexer_checkpoint);
-            },
-        );
+            assert_eq!(fullnode_checkpoint, indexer_checkpoint);
+        });
     }
 
     #[test]
     fn get_checkpoint_by_digest_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let result = indexer_client
-                    .get_checkpoint(CheckpointId::Digest([0; 32].into()))
-                    .await;
+        runtime.block_on(async move {
+        indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                assert!(rpc_call_error_msg_matches(
-                    result,
-                    r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(CheckpointDigest(11111111111111111111111111111111)) not found`"}"#,
-                ));
-            },
-        );
+        let result = indexer_client
+            .get_checkpoint(CheckpointId::Digest([0; 32].into()))
+            .await;
+
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(CheckpointDigest(11111111111111111111111111111111)) not found`"}"#,
+        ));
+    });
     }
 
     #[test]
     fn get_checkpoints_all_ascending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(None, None, false)
-                    .await
-                    .unwrap();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let seq_numbers = indexer_checkpoint
-                    .data
-                    .iter()
-                    .map(|c| c.sequence_number)
-                    .collect::<Vec<u64>>();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(None, None, false)
+                .await
+                .unwrap();
 
-                assert!(is_ascending(&seq_numbers));
-            },
-        );
+            let seq_numbers = indexer_checkpoint
+                .data
+                .iter()
+                .map(|c| c.sequence_number)
+                .collect::<Vec<u64>>();
+
+            assert!(is_ascending(&seq_numbers));
+        });
     }
 
     #[test]
     fn get_checkpoints_all_descending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(None, None, true)
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(None, None, true)
+                .await
+                .unwrap();
 
-                let seq_numbers = indexer_checkpoint
-                    .data
-                    .iter()
-                    .map(|c| c.sequence_number)
-                    .collect::<Vec<u64>>();
+            let seq_numbers = indexer_checkpoint
+                .data
+                .iter()
+                .map(|c| c.sequence_number)
+                .collect::<Vec<u64>>();
 
-                assert!(is_descending(&seq_numbers));
-            },
-        );
+            assert!(is_descending(&seq_numbers));
+        });
     }
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_one_descending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(Some(1.into()), Some(1), true)
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(Some(1.into()), Some(1), true)
+                .await
+                .unwrap();
 
-                assert_eq!(
-                    vec![0],
-                    indexer_checkpoint
-                        .data
-                        .into_iter()
-                        .map(|c| c.sequence_number)
-                        .collect::<Vec<u64>>()
-                );
-            },
-        );
+            assert_eq!(
+                vec![0],
+                indexer_checkpoint
+                    .data
+                    .into_iter()
+                    .map(|c| c.sequence_number)
+                    .collect::<Vec<u64>>()
+            );
+        });
     }
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_one_ascending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(Some(1.into()), Some(1), false)
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(Some(1.into()), Some(1), false)
+                .await
+                .unwrap();
 
-                assert_eq!(
-                    vec![2],
-                    indexer_checkpoint
-                        .data
-                        .into_iter()
-                        .map(|c| c.sequence_number)
-                        .collect::<Vec<u64>>()
-                );
-            },
-        );
+            assert_eq!(
+                vec![2],
+                indexer_checkpoint
+                    .data
+                    .into_iter()
+                    .map(|c| c.sequence_number)
+                    .collect::<Vec<u64>>()
+            );
+        });
     }
 
     #[test]
     fn get_checkpoints_by_cursor_zero_and_limit_ascending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(Some(0.into()), Some(3), false)
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(Some(0.into()), Some(3), false)
+                .await
+                .unwrap();
 
-                assert_eq!(
-                    vec![1, 2, 3],
-                    indexer_checkpoint
-                        .data
-                        .into_iter()
-                        .map(|c| c.sequence_number)
-                        .collect::<Vec<u64>>()
-                );
-            },
-        );
+            assert_eq!(
+                vec![1, 2, 3],
+                indexer_checkpoint
+                    .data
+                    .into_iter()
+                    .map(|c| c.sequence_number)
+                    .collect::<Vec<u64>>()
+            );
+        });
     }
 
     #[test]
     fn get_checkpoints_by_cursor_zero_and_limit_descending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(Some(0.into()), Some(3), true)
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(Some(0.into()), Some(3), true)
+                .await
+                .unwrap();
 
-                assert_eq!(
-                    Vec::<u64>::default(),
-                    indexer_checkpoint
-                        .data
-                        .into_iter()
-                        .map(|c| c.sequence_number)
-                        .collect::<Vec<u64>>()
-                );
-            },
-        );
+            assert_eq!(
+                Vec::<u64>::default(),
+                indexer_checkpoint
+                    .data
+                    .into_iter()
+                    .map(|c| c.sequence_number)
+                    .collect::<Vec<u64>>()
+            );
+        });
     }
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_ascending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 6).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 6).await;
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(Some(3.into()), Some(3), false)
-                    .await
-                    .unwrap();
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(Some(3.into()), Some(3), false)
+                .await
+                .unwrap();
 
-                assert_eq!(
-                    vec![4, 5, 6],
-                    indexer_checkpoint
-                        .data
-                        .into_iter()
-                        .map(|c| c.sequence_number)
-                        .collect::<Vec<u64>>()
-                );
-            },
-        );
+            assert_eq!(
+                vec![4, 5, 6],
+                indexer_checkpoint
+                    .data
+                    .into_iter()
+                    .map(|c| c.sequence_number)
+                    .collect::<Vec<u64>>()
+            );
+        });
     }
 
     #[test]
     fn get_checkpoints_by_cursor_and_limit_descending() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let indexer_checkpoint = indexer_client
-                    .get_checkpoints(Some(3.into()), Some(3), true)
-                    .await
-                    .unwrap();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                assert_eq!(
-                    // vec![2, 1, 5],
-                    vec![2, 1, 0],
-                    indexer_checkpoint
-                        .data
-                        .into_iter()
-                        .map(|c| c.sequence_number)
-                        .collect::<Vec<u64>>()
-                );
-            },
-        );
+            let indexer_checkpoint = indexer_client
+                .get_checkpoints(Some(3.into()), Some(3), true)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                // vec![2, 1, 5],
+                vec![2, 1, 0],
+                indexer_checkpoint
+                    .data
+                    .into_iter()
+                    .map(|c| c.sequence_number)
+                    .collect::<Vec<u64>>()
+            );
+        });
     }
 
     #[test]
     fn get_checkpoints_invalid_limit() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
 
-                let result = indexer_client.get_checkpoints(None, Some(0), false).await;
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                assert!(rpc_call_error_msg_matches(
-                    result,
-                    r#"{"code":-32602,"message":"Page size limit cannot be smaller than 1"}"#,
-                ));
-            },
-        );
+            let result = indexer_client.get_checkpoints(None, Some(0), false).await;
+
+            assert!(rpc_call_error_msg_matches(
+                result,
+                r#"{"code":-32602,"message":"Page size limit cannot be smaller than 1"}"#,
+            ));
+        });
     }
 
     #[test]
     fn get_object() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
-                let address = cluster.get_address_0();
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
+            let address = cluster.get_address_0();
 
-                let fullnode_objects = cluster
-                    .rpc_client()
-                    .get_owned_objects(address, None, None, None)
+            let fullnode_objects = cluster
+                .rpc_client()
+                .get_owned_objects(address, None, None, None)
+                .await
+                .unwrap();
+
+            for obj in fullnode_objects.data {
+                let indexer_obj = indexer_client
+                    .get_object(obj.object_id().unwrap(), None)
                     .await
                     .unwrap();
-
-                for obj in fullnode_objects.data {
-                    let indexer_obj = indexer_client
-                        .get_object(obj.object_id().unwrap(), None)
-                        .await
-                        .unwrap();
-                    assert_eq!(obj, indexer_obj)
-                }
-            },
-        );
+                assert_eq!(obj, indexer_obj)
+            }
+        });
     }
 
     #[test]
     fn get_object_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let indexer_obj = indexer_client
-                    .get_object(
-                        ObjectID::from_str(
-                            "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
-                        )
-                        .unwrap(),
-                        None,
+            let indexer_obj = indexer_client
+                .get_object(
+                    ObjectID::from_str(
+                        "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                     )
-                    .await
-                    .unwrap();
-
-                assert_eq!(
-                    indexer_obj,
-                    IotaObjectResponse {
-                        data: None,
-                        error: Some(IotaObjectResponseError::NotExists {
-                            object_id:
-                                "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
-                                    .parse()
-                                    .unwrap()
-                        })
-                    }
+                    .unwrap(),
+                    None,
                 )
-            },
-        );
+                .await
+                .unwrap();
+
+            assert_eq!(
+                indexer_obj,
+                IotaObjectResponse {
+                    data: None,
+                    error: Some(IotaObjectResponseError::NotExists {
+                        object_id:
+                            "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
+                                .parse()
+                                .unwrap()
+                    })
+                }
+            )
+        });
     }
 
     #[test]
@@ -587,58 +595,59 @@ mod integration_tests {
 
     #[test]
     fn multi_get_objects() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
-                let address = cluster.get_address_0();
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
+            let address = cluster.get_address_0();
 
-                let fullnode_objects = cluster
-                    .rpc_client()
-                    .get_owned_objects(address, None, None, None)
-                    .await
-                    .unwrap();
+            let fullnode_objects = cluster
+                .rpc_client()
+                .get_owned_objects(address, None, None, None)
+                .await
+                .unwrap();
 
-                let object_ids = fullnode_objects
-                    .data
-                    .iter()
-                    .map(|iota_object| iota_object.object_id().unwrap())
-                    .collect();
+            let object_ids = fullnode_objects
+                .data
+                .iter()
+                .map(|iota_object| iota_object.object_id().unwrap())
+                .collect();
 
-                let indexer_objects = indexer_client
-                    .multi_get_objects(object_ids, None)
-                    .await
-                    .unwrap();
+            let indexer_objects = indexer_client
+                .multi_get_objects(object_ids, None)
+                .await
+                .unwrap();
 
-                assert_eq!(fullnode_objects.data, indexer_objects);
-            },
-        );
+            assert_eq!(fullnode_objects.data, indexer_objects);
+        });
     }
 
     #[test]
     fn multi_get_objects_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let object_ids = vec![
-                    ObjectID::from_str(
-                        "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
-                    )
-                    .unwrap(),
-                    ObjectID::from_str(
-                        "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
-                    )
-                    .unwrap(),
-                ];
+            let object_ids = vec![
+                ObjectID::from_str(
+                    "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
+                )
+                .unwrap(),
+                ObjectID::from_str(
+                    "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
+                )
+                .unwrap(),
+            ];
 
-                let indexer_objects = indexer_client
-                    .multi_get_objects(object_ids, None)
-                    .await
-                    .unwrap();
+            let indexer_objects = indexer_client
+                .multi_get_objects(object_ids, None)
+                .await
+                .unwrap();
 
-                assert_eq!(
-                    indexer_objects,
-                    vec![
+            assert_eq!(
+                indexer_objects,
+                vec![
                     IotaObjectResponse {
                         data: None,
                         error: Some(IotaObjectResponseError::NotExists {
@@ -658,61 +667,60 @@ mod integration_tests {
                         })
                     }
                 ]
-                )
-            },
-        );
+            )
+        });
     }
 
     #[test]
     fn multi_get_objects_found_and_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
-                let address = cluster.get_address_0();
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
+            let address = cluster.get_address_0();
 
-                let fullnode_objects = cluster
-                    .rpc_client()
-                    .get_owned_objects(address, None, None, None)
-                    .await
-                    .unwrap();
+            let fullnode_objects = cluster
+                .rpc_client()
+                .get_owned_objects(address, None, None, None)
+                .await
+                .unwrap();
 
-                let mut object_ids = fullnode_objects
-                    .data
-                    .iter()
-                    .map(|iota_object| iota_object.object_id().unwrap())
-                    .collect::<Vec<ObjectID>>();
+            let mut object_ids = fullnode_objects
+                .data
+                .iter()
+                .map(|iota_object| iota_object.object_id().unwrap())
+                .collect::<Vec<ObjectID>>();
 
-                object_ids.extend_from_slice(&[
-                    ObjectID::from_str(
-                        "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
-                    )
-                    .unwrap(),
-                    ObjectID::from_str(
-                        "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
-                    )
-                    .unwrap(),
-                ]);
+            object_ids.extend_from_slice(&[
+                ObjectID::from_str(
+                    "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
+                )
+                .unwrap(),
+                ObjectID::from_str(
+                    "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
+                )
+                .unwrap(),
+            ]);
 
-                let indexer_objects = indexer_client
-                    .multi_get_objects(object_ids, None)
-                    .await
-                    .unwrap();
+            let indexer_objects = indexer_client
+                .multi_get_objects(object_ids, None)
+                .await
+                .unwrap();
 
-                let obj_found_num = indexer_objects
-                    .iter()
-                    .filter(|obj_response| obj_response.data.is_some())
-                    .count();
+            let obj_found_num = indexer_objects
+                .iter()
+                .filter(|obj_response| obj_response.data.is_some())
+                .count();
 
-                assert_eq!(5, obj_found_num);
+            assert_eq!(5, obj_found_num);
 
-                let obj_not_found_num = indexer_objects
-                    .iter()
-                    .filter(|obj_response| obj_response.error.is_some())
-                    .count();
+            let obj_not_found_num = indexer_objects
+                .iter()
+                .filter(|obj_response| obj_response.error.is_some())
+                .count();
 
-                assert_eq!(2, obj_not_found_num);
-            },
-        );
+            assert_eq!(2, obj_not_found_num);
+        });
     }
 
     #[test]
@@ -767,82 +775,82 @@ mod integration_tests {
 
     #[test]
     fn get_events() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let fullnode_checkpoint = cluster
-                    .rpc_client()
-                    .get_checkpoint(CheckpointId::SequenceNumber(0))
-                    .await
-                    .unwrap();
+            let fullnode_checkpoint = cluster
+                .rpc_client()
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap();
 
-                let events = indexer_client
-                    .get_events(*fullnode_checkpoint.transactions.first().unwrap())
-                    .await
-                    .unwrap();
+            let events = indexer_client
+                .get_events(*fullnode_checkpoint.transactions.first().unwrap())
+                .await
+                .unwrap();
 
-                assert!(!events.is_empty());
-            },
-        );
+            assert!(!events.is_empty());
+        });
     }
 
     #[test]
     fn get_events_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+        indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let result = indexer_client.get_events(TransactionDigest::ZERO).await;
+        let result = indexer_client.get_events(TransactionDigest::ZERO).await;
 
-                assert!(rpc_call_error_msg_matches(
-                    result,
-                    r#"{"code":-32603,"message":"Indexer failed to read PostgresDB with error: `Record not found`"}"#,
-                ))
-            },
-        );
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Indexer failed to read PostgresDB with error: `Record not found`"}"#,
+        ))
+    });
     }
 
     #[test]
     fn get_transaction_block() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let fullnode_checkpoint = cluster
-                    .rpc_client()
-                    .get_checkpoint(CheckpointId::SequenceNumber(0))
-                    .await
-                    .unwrap();
+            let fullnode_checkpoint = cluster
+                .rpc_client()
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap();
 
-                let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
+            let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
 
-                let tx = indexer_client
-                    .get_transaction_block(tx_digest, None)
-                    .await
-                    .unwrap();
+            let tx = indexer_client
+                .get_transaction_block(tx_digest, None)
+                .await
+                .unwrap();
 
-                assert_eq!(tx_digest, tx.digest);
-            },
-        );
+            assert_eq!(tx_digest, tx.digest);
+        });
     }
 
     #[test]
     fn get_transaction_block_not_found() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+        indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let result = indexer_client
-                    .get_transaction_block(TransactionDigest::ZERO, None)
-                    .await;
+        let result = indexer_client
+            .get_transaction_block(TransactionDigest::ZERO, None)
+            .await;
 
-                assert!(rpc_call_error_msg_matches(
-                    result,
-                    r#"{"code":-32603,"message":"Invalid argument with error: `Transaction 11111111111111111111111111111111 not found`"}"#,
-                ));
-            },
-        );
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Transaction 11111111111111111111111111111111 not found`"}"#,
+        ));
+    });
     }
 
     #[test]
@@ -908,36 +916,36 @@ mod integration_tests {
 
     #[test]
     fn multi_get_transaction_blocks() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 3).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 3).await;
 
-                let fullnode_checkpoints = cluster
-                    .rpc_client()
-                    .get_checkpoints(None, Some(3), false)
-                    .await
-                    .unwrap();
+            let fullnode_checkpoints = cluster
+                .rpc_client()
+                .get_checkpoints(None, Some(3), false)
+                .await
+                .unwrap();
 
-                let digests = fullnode_checkpoints
-                    .data
-                    .into_iter()
-                    .flat_map(|c| c.transactions)
-                    .collect::<Vec<TransactionDigest>>();
+            let digests = fullnode_checkpoints
+                .data
+                .into_iter()
+                .flat_map(|c| c.transactions)
+                .collect::<Vec<TransactionDigest>>();
 
-                let fullnode_txs = cluster
-                    .rpc_client()
-                    .multi_get_transaction_blocks(digests.clone(), None)
-                    .await
-                    .unwrap();
+            let fullnode_txs = cluster
+                .rpc_client()
+                .multi_get_transaction_blocks(digests.clone(), None)
+                .await
+                .unwrap();
 
-                let indexer_txs = indexer_client
-                    .multi_get_transaction_blocks(digests, None)
-                    .await
-                    .unwrap();
+            let indexer_txs = indexer_client
+                .multi_get_transaction_blocks(digests, None)
+                .await
+                .unwrap();
 
-                assert_eq!(fullnode_txs, indexer_txs);
-            },
-        );
+            assert_eq!(fullnode_txs, indexer_txs);
+        });
     }
 
     #[test]
@@ -1005,63 +1013,62 @@ mod integration_tests {
 
     #[test]
     fn get_protocol_config() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let fullnode_protocol_config = cluster
-                    .rpc_client()
-                    .get_protocol_config(None)
-                    .await
-                    .unwrap();
+            let fullnode_protocol_config = cluster
+                .rpc_client()
+                .get_protocol_config(None)
+                .await
+                .unwrap();
 
-                let indexer_protocol_config =
-                    indexer_client.get_protocol_config(None).await.unwrap();
+            let indexer_protocol_config = indexer_client.get_protocol_config(None).await.unwrap();
 
-                assert_eq!(fullnode_protocol_config, indexer_protocol_config);
+            assert_eq!(fullnode_protocol_config, indexer_protocol_config);
 
-                let indexer_protocol_config = indexer_client
-                    .get_protocol_config(Some(1u64.into()))
-                    .await
-                    .unwrap();
+            let indexer_protocol_config = indexer_client
+                .get_protocol_config(Some(1u64.into()))
+                .await
+                .unwrap();
 
-                assert_eq!(fullnode_protocol_config, indexer_protocol_config);
-            },
-        );
+            assert_eq!(fullnode_protocol_config, indexer_protocol_config);
+        });
     }
 
     #[test]
     fn get_protocol_config_invalid_protocol_version() {
-        get_global_test_cluster_with_read_write_indexer(
-            |_cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (_cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+        indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let result = indexer_client
-                    .get_protocol_config(Some(100u64.into()))
-                    .await;
+        let result = indexer_client
+            .get_protocol_config(Some(100u64.into()))
+            .await;
 
-                assert!(rpc_call_error_msg_matches(
-                    result,
-                    r#"{"code":-32603,"message":"Unsupported protocol version requested. Min supported: 1, max supported: 1"}"#,
-                ));
-            },
-        );
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Unsupported protocol version requested. Min supported: 1, max supported: 1"}"#,
+        ));
+    });
     }
 
     #[test]
     fn get_chain_identifier() {
-        get_global_test_cluster_with_read_write_indexer(
-            |cluster, pg_store, indexer_client| async move {
-                indexer_wait_for_checkpoint(pg_store, 1).await;
+        let (runtime, (cluster, pg_store, indexer_client)) =
+            get_global_test_cluster_with_read_write_indexer();
+        runtime.block_on(async move {
+            indexer_wait_for_checkpoint(pg_store, 1).await;
 
-                let fullnode_chain_identifier =
-                    cluster.rpc_client().get_chain_identifier().await.unwrap();
+            let fullnode_chain_identifier =
+                cluster.rpc_client().get_chain_identifier().await.unwrap();
 
-                let indexer_chain_identifier = indexer_client.get_chain_identifier().await.unwrap();
+            let indexer_chain_identifier = indexer_client.get_chain_identifier().await.unwrap();
 
-                assert_eq!(fullnode_chain_identifier, indexer_chain_identifier)
-            },
-        );
+            assert_eq!(fullnode_chain_identifier, indexer_chain_identifier)
+        });
     }
 
     // #[test]
@@ -1160,13 +1167,10 @@ mod integration_tests {
     // fullnode_latest_checkpoint_seq_number)     );
     // }
 
-    // these 3 tests does showcase an alternative approach by manually invoking the
-    // runtime which get_global_test_cluster_with_read_write_indexer hides
-
     #[test]
     fn try_get_past_object() {
         let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer_with_runtime();
+            get_global_test_cluster_with_read_write_indexer();
         runtime.block_on(async move {
             indexer_wait_for_checkpoint(pg_store, 1).await;
 
@@ -1183,7 +1187,7 @@ mod integration_tests {
     #[test]
     fn try_multi_get_past_objects() {
         let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer_with_runtime();
+            get_global_test_cluster_with_read_write_indexer();
         runtime.block_on(async move {
             indexer_wait_for_checkpoint(pg_store, 1).await;
 
@@ -1206,7 +1210,7 @@ mod integration_tests {
     #[test]
     fn get_loaded_child_objects() {
         let (runtime, (_cluster, pg_store, indexer_client)) =
-            get_global_test_cluster_with_read_write_indexer_with_runtime();
+            get_global_test_cluster_with_read_write_indexer();
         runtime.block_on(async move {
             indexer_wait_for_checkpoint(pg_store, 1).await;
 
