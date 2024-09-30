@@ -221,12 +221,12 @@ public struct Service has key, store {
 }
 ```
 
-#### Reward distribution
+### Reward distribution
 
 The same amount is rewarded to top reviewers, and the reward is distributed to 10 participants at most.
 The pool of `SUI` tokens to be distributed to reviewers is stored in the `reward_pool` field, and the amount of `SUI` tokens awarded to each participant is configured in `reward` field.
 
-#### Storage for reviews
+### Storage for reviews
 
 Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../move-overview/collections.mdx)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
 In other words, anyone can go to a transaction explorer and find a review object by its object ID, but they won't be able to use a review as an input to a transaction by its object ID.
@@ -235,7 +235,7 @@ In other words, anyone can go to a transaction explorer and find a review object
 The top rated reviews are stored in `top_reviews` field, which has `vector<ID>` type. A simple vector can store the top rated reviews because the maximum number of reviews that can be rewarded is 10.
 The elements of `top_reviews` are sorted by the `total_score` of the reviews, with the highest rated reviews coming first. The vector contains the `ID` of the reviews, which can be used to retrieve content and vote count from the relevant `reviews`.
 
-#### Casting votes
+### Casting votes
 
 A reader can cast a vote on a review to rate it as follows:
 
@@ -355,7 +355,7 @@ fun prune_top_reviews(
 Whenever someone casts a vote on a review, the `total_score` of the review is updated and the `update_top_reviews` function updates the `top_reviews` field, as needed.
 Casting a vote also triggers a reordering of the `top_reviews` field to ensure that the top rated reviews are always at the top.
 
-#### Authorization
+### Authorization
 
 ```move
 /// A capability that can be used to perform admin operations on a service
