@@ -43,6 +43,8 @@ jobs:
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Build Wallet
         run: RC_VERSION=${{ env.RC_VERSION }} pnpm wallet build:rc
+        env:
+          RC_VERSION: ${{ env.RC_VERSION }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
