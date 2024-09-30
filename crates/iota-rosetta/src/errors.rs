@@ -14,7 +14,8 @@ use fastcrypto::error::FastCryptoError;
 use iota_types::error::IotaError;
 use serde::{Serialize, Serializer};
 use serde_json::{json, Value};
-use strum::{Display, EnumDiscriminants, EnumIter, EnumProperty, IntoEnumIterator};
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{Display, EnumDiscriminants, EnumIter};
 use thiserror::Error;
 use typed_store::TypedStoreError;
 

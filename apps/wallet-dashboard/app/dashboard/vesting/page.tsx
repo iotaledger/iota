@@ -72,7 +72,7 @@ function VestingDashboardPage(): JSX.Element {
 
     function handleOnSuccess(digest: string): void {
         iotaClient
-            .waitForTransactionBlock({
+            .waitForTransaction({
                 digest,
             })
             .then(() => {

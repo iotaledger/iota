@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_package_resolver::Resolver;
 use iota_types::object::bounded_visitor::BoundedVisitor;
 use move_core_types::{
     account_address::AccountAddress,
@@ -13,11 +12,16 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{base64::Base64, big_int::BigInt, iota_address::IotaAddress, move_type::MoveType};
 use crate::{
-    context_data::package_cache::PackageCache,
+    data::package_resolver::PackageResolver,
     error::Error,
-    types::{json::Json, move_type::unexpected_signer_error},
+    types::{
+        base64::Base64,
+        big_int::BigInt,
+        iota_address::IotaAddress,
+        json::Json,
+        move_type::{unexpected_signer_error, MoveType},
+    },
 };
 
 const STD: AccountAddress = AccountAddress::ONE;
@@ -57,7 +61,11 @@ type MoveData =
   | { String:  string }
   | { Vector:  [MoveData] }
   | { Option:   MoveData? }
-  | { Struct:  [{ name: string, value: MoveData }] }"
+  | { Struct:  [{ name: string , value: MoveData }] }
+  | { Variant: {
+      name: string,
+      fields: [{ name: string, value: MoveData }],
+  }"
 );
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,6 +81,13 @@ pub(crate) enum MoveData {
     Vector(Vec<MoveData>),
     Option(Option<Box<MoveData>>),
     Struct(Vec<MoveField>),
+    Variant(MoveVariant),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct MoveVariant {
+    name: String,
+    fields: Vec<MoveField>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -86,7 +101,7 @@ pub(crate) struct MoveField {
 impl MoveValue {
     /// Structured contents of a Move value.
     async fn data(&self, ctx: &Context<'_>) -> Result<MoveData> {
-        let resolver: &Resolver<PackageCache> = ctx
+        let resolver: &PackageResolver = ctx
             .data()
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
@@ -111,8 +126,8 @@ impl MoveValue {
     /// This form is offered as a less verbose convenience in cases where the
     /// layout of the type is known by the client.
     async fn json(&self, ctx: &Context<'_>) -> Result<Json> {
-        let resolver = ctx
-            .data::<Resolver<PackageCache>>()
+        let resolver: &PackageResolver = ctx
+            .data()
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
@@ -199,6 +214,22 @@ impl TryFrom<A::MoveValue> for MoveData {
                 }
             }
 
+            V::Variant(A::MoveVariant {
+                type_: _,
+                variant_name,
+                tag: _,
+                fields,
+            }) => {
+                let fields = fields
+                    .into_iter()
+                    .map(MoveField::try_from)
+                    .collect::<Result<_, _>>()?;
+                Self::Variant(MoveVariant {
+                    name: variant_name.to_string(),
+                    fields,
+                })
+            }
+
             // Iota does not support `signer` as a type.
             V::Signer(_) => return Err(unexpected_signer_error()),
         })
@@ -271,6 +302,22 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
             }
         }
 
+        V::Variant(A::MoveVariant {
+            type_: _,
+            variant_name,
+            tag: _,
+            fields,
+        }) => {
+            let fields = fields
+                .into_iter()
+                .map(|(name, value)| Ok((Name::new(name.to_string()), try_to_json_value(value)?)))
+                .collect::<Result<_, Error>>()?;
+            Value::Object(
+                vec![(Name::new(variant_name.to_string()), Value::Object(fields))]
+                    .into_iter()
+                    .collect(),
+            )
+        }
         // Iota does not support `signer` as a type.
         V::Signer(_) => return Err(unexpected_signer_error()),
     })
@@ -900,9 +947,7 @@ mod tests {
         )
         .unwrap();
 
-        let expect = expect![[
-            r#"{baz: null, qux: [{quy: 44, quz: "Hello, world!", frob: "0x0000000000000000000000000000000000000000000000000000000000000045"}, {quy: 46, quz: null, frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
-        ]];
+        let expect = expect![[r#"{baz: null,qux: [{quy: 44,quz: "Hello, world!",frob: "0x0000000000000000000000000000000000000000000000000000000000000045"},{quy: 46,quz: null,frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#]];
         expect.assert_eq(&format!("{v}"));
     }
 

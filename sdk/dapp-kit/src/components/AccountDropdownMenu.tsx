@@ -31,7 +31,8 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                 <DropdownMenu.Trigger asChild>
                     <Button size="lg" className={styles.connectedAccount}>
                         <Text mono weight="bold">
-                            {currentAccount.label ?? formatAddress(currentAccount.address)}
+                            {currentAccount.label ??
+                                formatAddress(currentAccount.address)}
                         </Text>
                         <ChevronIcon />
                     </Button>
@@ -69,6 +70,7 @@ export function AccountDropdownMenuItem({
     active?: boolean;
 }) {
     const { mutate: switchAccount } = useSwitchAccount();
+
     return (
         <DropdownMenu.Item
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}

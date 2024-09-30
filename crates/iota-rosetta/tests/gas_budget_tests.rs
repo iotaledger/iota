@@ -30,7 +30,8 @@ mod rosetta_client;
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum TransactionIdentifierResponseResult {
-    Success(#[allow(dead_code)] TransactionIdentifierResponse),
+    #[allow(unused)]
+    Success(TransactionIdentifierResponse),
     Error(RosettaSubmitGasError),
 }
 

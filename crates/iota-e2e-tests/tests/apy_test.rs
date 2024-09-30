@@ -95,7 +95,7 @@ async fn test_apy() {
         .active_validators()
         .next()
         .unwrap()
-        .config
+        .config()
         .iota_address();
     let transaction = TestTransactionBuilder::new(address, gas_coin.object_ref(), ref_gas_price)
         .call_staking(stake_coin.object_ref(), validator_address)

@@ -158,7 +158,7 @@ pub async fn copy_recursively<S: ObjectStoreGetExt + ObjectStoreListExt, D: Obje
 ) -> Result<Vec<()>> {
     let mut input_paths = vec![];
     let mut output_paths = vec![];
-    let mut paths = src_store.list_objects(Some(dir)).await?;
+    let mut paths = src_store.list_objects(Some(dir)).await;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             input_paths.push(object_metadata.location.clone());
@@ -205,7 +205,7 @@ pub async fn delete_recursively<S: ObjectStoreDeleteExt + ObjectStoreListExt>(
     concurrency: NonZeroUsize,
 ) -> Result<Vec<()>> {
     let mut paths_to_delete = vec![];
-    let mut paths = store.list_objects(Some(path)).await?;
+    let mut paths = store.list_objects(Some(path)).await;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             paths_to_delete.push(object_metadata.location);
@@ -242,7 +242,7 @@ pub async fn find_all_dirs_with_epoch_prefix(
     let entries = store.list_with_delimiter(prefix).await?;
     for entry in entries.common_prefixes {
         if let Some(filename) = entry.filename() {
-            if !filename.starts_with("epoch_") {
+            if !filename.starts_with("epoch_") || filename.ends_with(".tmp") {
                 continue;
             }
             let epoch = filename
@@ -377,7 +377,7 @@ pub fn get_path(prefix: &str) -> Path {
 }
 
 // Snapshot MANIFEST file is very simple. Just a newline delimited list of all
-// paths in the snapshot directory this simplicity enables easy parsing for
+// paths in the snapshot directory this simplicty enables easy parsing for
 // scripts to download snapshots
 pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
     dir: &Path,
@@ -385,7 +385,7 @@ pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
     epoch_prefix: String,
 ) -> Result<()> {
     let mut file_names = vec![];
-    let mut paths = store.list_objects(Some(dir)).await?;
+    let mut paths = store.list_objects(Some(dir)).await;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             // trim the "epoch_XX/" dir prefix here

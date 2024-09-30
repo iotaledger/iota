@@ -14,7 +14,7 @@ const developer = [
         },
         items: [
             'developer/getting-started/iota-environment',
-            'developer/getting-started/iota-install',
+            'developer/getting-started/install-iota',
             'developer/getting-started/connect',
             'developer/getting-started/local-network',
             'developer/getting-started/get-address',

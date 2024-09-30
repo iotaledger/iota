@@ -15,13 +15,12 @@ use iota_types::{
     error::{IotaError, IotaResult},
 };
 use parking_lot::RwLock;
-use rocksdb::Options;
 use typed_store::{
     rocks::{default_db_options, DBMap, DBOptions, MetricConf},
+    rocksdb::Options,
     traits::{TableSummary, TypedStoreDebug},
-    Map,
+    DBMapUtils, Map,
 };
-use typed_store_derive::DBMapUtils;
 
 pub struct CommitteeStore {
     tables: CommitteeStoreTables,

@@ -7,6 +7,7 @@
 //! managing governance-related data, and more.
 
 use anyhow::anyhow;
+pub use bridge::{BridgeReadApiClient, BridgeReadApiOpenRpc, BridgeReadApiServer};
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
 pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
@@ -30,6 +31,7 @@ pub use transaction_builder::{
 };
 pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
+mod bridge;
 mod coin;
 mod extended;
 mod governance;
@@ -302,7 +304,7 @@ pub const TRANSACTION_EXECUTION_CLIENT_ERROR_CODE: i32 = -32002;
 /// Convert a jsonrpsee client error into a generic error object.
 pub fn error_object_from_rpc(rpc_err: ClientError) -> ErrorObjectOwned {
     match rpc_err {
-        ClientError::Call(e) => ErrorObjectOwned::owned(e.code(), e.message().to_owned(), e.data()),
+        ClientError::Call(e) => e,
         _ => ErrorObjectOwned::owned::<()>(UNKNOWN_ERROR_CODE, rpc_err.to_string(), None),
     }
 }

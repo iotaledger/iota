@@ -6,7 +6,6 @@
 /// actions are allowed as long as the user is not on the denylist.
 module examples::simple_token {
     use iota::coin::{Self, TreasuryCap};
-    use iota::tx_context::sender;
 
     use iota::token::{Self, TokenPolicy, TokenPolicyCap};
 
@@ -25,8 +24,8 @@ module examples::simple_token {
 
         set_rules(&mut policy, &cap, ctx);
 
-        transfer::public_transfer(treasury_cap, sender(ctx));
-        transfer::public_transfer(cap, sender(ctx));
+        transfer::public_transfer(treasury_cap, ctx.sender());
+        transfer::public_transfer(cap, ctx.sender());
         token::share_policy(policy);
     }
 
@@ -63,7 +62,6 @@ module examples::simple_token {
         transfer::public_freeze_object(metadata);
         treasury_cap
     }
-
 }
 
 #[test_only]

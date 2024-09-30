@@ -21,11 +21,7 @@ mod checked {
         },
         coin::Coin,
         error::{command_argument_error, ExecutionError, ExecutionErrorKind},
-        execution::{
-            CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
-        },
         execution_config_utils::to_binary_config,
-        execution_mode::ExecutionMode,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::{RESOLVED_IOTA_ID, UID},
         metrics::LimitsMetrics,
@@ -39,15 +35,14 @@ mod checked {
         IOTA_FRAMEWORK_ADDRESS,
     };
     use iota_verifier::{
-        default_verifier_config,
         private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
         INIT_FN_NAME,
     };
     use move_binary_format::{
-        access::ModuleAccess,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
         file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
+        file_format_common::VERSION_6,
         normalized, CompiledModule,
     };
     use move_core_types::{
@@ -60,12 +55,17 @@ mod checked {
         move_vm::MoveVM,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
-    use move_vm_types::loaded_data::runtime_types::{StructType, Type};
+    use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
     use serde::{de::DeserializeSeed, Deserialize};
     use tracing::instrument;
 
     use crate::{
-        adapter::substitute_package_id, gas_charger::GasCharger,
+        adapter::substitute_package_id,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
+        },
+        gas_charger::GasCharger,
         programmable_transactions::context::*,
     };
 
@@ -688,12 +688,14 @@ mod checked {
             UpgradePolicy::DepOnly => InclusionCheck::Equal.check(cur_module, new_module),
             UpgradePolicy::Compatible => {
                 let compatibility = Compatibility {
-                    check_struct_and_pub_function_linking: true,
-                    check_struct_layout: true,
+                    check_datatype_and_pub_function_linking: true,
+                    check_datatype_layout: true,
                     check_friend_linking: false,
                     check_private_entry_linking: false,
                     disallowed_new_abilities: AbilitySet::ALL,
-                    disallow_change_struct_type_params: true,
+                    disallow_change_datatype_type_params: true,
+                    // We disallow adding new variants to enums for now
+                    disallow_new_variants: true,
                 };
 
                 compatibility.check(cur_module, new_module)
@@ -754,10 +756,10 @@ mod checked {
         }
     }
 
-    /// ************************************************************************
-    /// **** ********************* Move execution
-    /// ************************************************************************
-    /// **** *******************
+    /// ****************************************************************************
+    /// ********************* Move execution
+    /// ****************************************************************************
+    /// *******************
 
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -833,11 +835,17 @@ mod checked {
         modules: &[CompiledModule],
     ) -> Result<(), ExecutionError> {
         // TODO(https://github.com/iotaledger/iota/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
+        let binary_version = context.protocol_config.move_binary_format_version();
         let new_module_bytes: Vec<_> = modules
             .iter()
             .map(|m| {
                 let mut bytes = Vec::new();
-                m.serialize(&mut bytes).unwrap();
+                let version = if binary_version > VERSION_6 {
+                    m.version
+                } else {
+                    VERSION_6
+                };
+                m.serialize_with_version(version, &mut bytes).unwrap();
                 bytes
             })
             .collect();
@@ -852,7 +860,9 @@ mod checked {
             iota_verifier::verifier::iota_verify_module_unmetered(
                 module,
                 &BTreeMap::new(),
-                &default_verifier_config(context.protocol_config, false),
+                &context
+                    .protocol_config
+                    .verifier_config(/* for_signing */ false),
             )?;
         }
 
@@ -896,10 +906,10 @@ mod checked {
         Ok(())
     }
 
-    /// ************************************************************************
-    /// **** ********************* Move signatures
-    /// ************************************************************************
-    /// **** *******************
+    /// ****************************************************************************
+    /// ********************* Move signatures
+    /// ****************************************************************************
+    /// *******************
 
     /// Helper marking what function we are invoking
     #[derive(PartialEq, Eq, Clone, Copy)]
@@ -1101,7 +1111,7 @@ mod checked {
                     Type::TyParam(_) => {
                         invariant_violation!("TyParam should have been substituted")
                     }
-                    Type::Struct(_) | Type::StructInstantiation(_) if abilities.has_key() => {
+                    Type::Datatype(_) | Type::DatatypeInstantiation(_) if abilities.has_key() => {
                         let type_tag = context
                             .vm
                             .get_runtime()
@@ -1115,8 +1125,8 @@ mod checked {
                             has_public_transfer: abilities.has_store(),
                         }
                     }
-                    Type::Struct(_)
-                    | Type::StructInstantiation(_)
+                    Type::Datatype(_)
+                    | Type::DatatypeInstantiation(_)
                     | Type::Bool
                     | Type::U8
                     | Type::U64
@@ -1352,17 +1362,17 @@ mod checked {
 
                 // Now make sure the param type is a struct instantiation of the receiving
                 // struct
-                let Type::StructInstantiation(struct_inst) = param_ty else {
+                let Type::DatatypeInstantiation(inst) = param_ty else {
                     return Err(command_argument_error(
                         CommandArgumentError::TypeMismatch,
                         idx,
                     ));
                 };
-                let (sidx, targs) = &**struct_inst;
-                let Some(s) = context.vm.get_runtime().get_struct_type(*sidx) else {
+                let (sidx, targs) = &**inst;
+                let Some(s) = context.vm.get_runtime().get_type(*sidx) else {
                     invariant_violation!("iota::transfer::Receiving struct not found in session")
                 };
-                let resolved_struct = get_struct_ident(&s);
+                let resolved_struct = get_datatype_ident(&s);
 
                 if resolved_struct != RESOLVED_RECEIVING_STRUCT || targs.len() != 1 {
                     return Err(command_argument_error(
@@ -1375,7 +1385,7 @@ mod checked {
         Ok(())
     }
 
-    fn get_struct_ident(s: &StructType) -> (&AccountAddress, &IdentStr, &IdentStr) {
+    fn get_datatype_ident(s: &CachedDatatype) -> (&AccountAddress, &IdentStr, &IdentStr) {
         let module_id = &s.defining_id;
         let struct_name = &s.name;
         (
@@ -1397,13 +1407,13 @@ mod checked {
             Type::Reference(inner) => (false, inner),
             _ => return Ok(TxContextKind::None),
         };
-        let Type::Struct(idx) = &**inner else {
+        let Type::Datatype(idx) = &**inner else {
             return Ok(TxContextKind::None);
         };
-        let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
+        let Some(s) = context.vm.get_runtime().get_type(*idx) else {
             invariant_violation!("Loaded struct not found")
         };
-        let (module_addr, module_name, struct_name) = get_struct_ident(&s);
+        let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
         let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
             && module_name == TX_CONTEXT_MODULE_NAME
             && struct_name == TX_CONTEXT_STRUCT_NAME;
@@ -1442,12 +1452,12 @@ mod checked {
                 let info_opt = primitive_serialization_layout(context, inner)?;
                 info_opt.map(|layout| PrimitiveArgumentLayout::Vector(Box::new(layout)))
             }
-            Type::StructInstantiation(struct_inst) => {
-                let (idx, targs) = &**struct_inst;
-                let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
+            Type::DatatypeInstantiation(inst) => {
+                let (idx, targs) = &**inst;
+                let Some(s) = context.vm.get_runtime().get_type(*idx) else {
                     invariant_violation!("Loaded struct not found")
                 };
-                let resolved_struct = get_struct_ident(&s);
+                let resolved_struct = get_datatype_ident(&s);
                 // is option of a string
                 if resolved_struct == RESOLVED_STD_OPTION && targs.len() == 1 {
                     let info_opt = primitive_serialization_layout(context, &targs[0])?;
@@ -1456,11 +1466,11 @@ mod checked {
                     None
                 }
             }
-            Type::Struct(idx) => {
-                let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
+            Type::Datatype(idx) => {
+                let Some(s) = context.vm.get_runtime().get_type(*idx) else {
                     invariant_violation!("Loaded struct not found")
                 };
-                let resolved_struct = get_struct_ident(&s);
+                let resolved_struct = get_datatype_ident(&s);
                 if resolved_struct == RESOLVED_IOTA_ID {
                     Some(PrimitiveArgumentLayout::Address)
                 } else if resolved_struct == RESOLVED_ASCII_STR {
@@ -1474,10 +1484,10 @@ mod checked {
         })
     }
 
-    /// ************************************************************************
-    /// **** ********************* Special serialization formats
-    /// ************************************************************************
-    /// **** *******************
+    /// ****************************************************************************
+    /// ********************* Special serialization formats
+    /// ****************************************************************************
+    /// *******************
 
     /// Special enum for values that need additional validation, in other words
     /// There is validation to do on top of the BCS layout. Currently only

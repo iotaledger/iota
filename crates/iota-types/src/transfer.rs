@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{binary_views::BinaryIndexedView, file_format::SignatureToken};
+use move_binary_format::{file_format::SignatureToken, CompiledModule};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress,
@@ -61,12 +61,12 @@ impl Receiving {
         TypeTag::Struct(Box::new(Self::struct_tag()))
     }
 
-    pub fn is_receiving(view: &BinaryIndexedView<'_>, s: &SignatureToken) -> bool {
+    pub fn is_receiving(view: &CompiledModule, s: &SignatureToken) -> bool {
         use SignatureToken as S;
         match s {
             S::MutableReference(inner) | S::Reference(inner) => Self::is_receiving(view, inner),
-            S::StructInstantiation(s) => {
-                let (idx, type_args) = &**s;
+            S::DatatypeInstantiation(inst) => {
+                let (idx, type_args) = &**inst;
                 let struct_tag = resolve_struct(view, *idx);
                 struct_tag == RESOLVED_RECEIVING_STRUCT && type_args.len() == 1
             }

@@ -36,8 +36,8 @@ pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 pub(crate) const EPOCH_CHANGE_STRUCT_TAG: &str =
     "0x3::iota_system_state_inner::SystemEpochInfoEvent";
 
-pub(crate) const ONE_DAY_MS: u64 = 24 * 60 * 60 * 1000;
-
+// TODO: A lot of the information in OnChainTransactionInfo is redundant from
+// what's already in SenderSignedData. We should consider removing them.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
@@ -52,6 +52,16 @@ pub struct OnChainTransactionInfo {
     pub gas_price: u64,
     pub executed_epoch: u64,
     pub dependencies: Vec<TransactionDigest>,
+    #[serde(skip)]
+    pub receiving_objs: Vec<(ObjectID, SequenceNumber)>,
+    #[serde(skip)]
+    pub config_objects: Vec<(ObjectID, SequenceNumber)>,
+    // TODO: There are two problems with this being a json-rpc type:
+    // 1. The json-rpc type is not a perfect mirror with TransactionEffects since v2. We lost the
+    // ability to replay effects v2 specific forks. We need to fix this asap. Unfortunately at the
+    // moment it is really difficult to get the raw effects given a transaction digest.
+    // 2. This data structure is not bcs/bincode friendly. It makes it much more expensive to
+    // store the sandbox state for batch replay.
     pub effects: IotaTransactionBlockEffects,
     pub protocol_version: ProtocolVersion,
     pub epoch_start_timestamp: u64,
@@ -63,11 +73,6 @@ pub struct OnChainTransactionInfo {
 fn unspecified_chain() -> Chain {
     warn!("Unable to determine chain id. Defaulting to unknown");
     Chain::Unknown
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct DiagInfo {
-    pub loaded_child_objects: Vec<(ObjectID, VersionNumber)>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -136,8 +141,15 @@ pub enum ReplayEngineError {
         local: Box<IotaTransactionBlockEffects>,
     },
 
-    #[error("Genesis replay not supported digest {:#?}", digest)]
-    GenesisReplayNotSupported { digest: TransactionDigest },
+    #[error(
+        "Transaction {:#?} not supported by replay. Reason: {:?}",
+        digest,
+        reason
+    )]
+    TransactionNotSupported {
+        digest: TransactionDigest,
+        reason: String,
+    },
 
     #[error(
         "Fatal! No framework versions for protocol version {protocol_version}. Make sure version tables are populated"
@@ -165,7 +177,8 @@ pub enum ReplayEngineError {
     #[error("Unable to query system events; {}", rpc_err)]
     UnableToQuerySystemEvents { rpc_err: String },
 
-    #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {:#?}", q)).unwrap_or_default() )]
+    #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {:#?}", q)).unwrap_or_default()
+    )]
     InternalCacheInvariantViolation {
         id: ObjectID,
         version: Option<SequenceNumber>,
@@ -173,9 +186,6 @@ pub enum ReplayEngineError {
 
     #[error("Error getting dynamic fields loaded objects: {}", rpc_err)]
     UnableToGetDynamicFieldLoadedObjects { rpc_err: String },
-
-    #[error("Unsupported epoch in replay engine: {epoch}")]
-    EpochNotSupported { epoch: u64 },
 
     #[error("Unable to open yaml cfg file at {}: {}", path, err)]
     UnableToOpenYamlFile { path: String, err: String },

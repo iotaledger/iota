@@ -23,4 +23,6 @@ move-vm-profiler.workspace = true
 [features]
 default = []
 fuzzing = ["proptest", "move-binary-format/fuzzing"]
-gas-profiler = ["move-vm-profiler/gas-profiler"]
+gas-profiler = [
+  "move-vm-profiler/gas-profiler",
+]

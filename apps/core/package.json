@@ -30,7 +30,7 @@
         "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@sentry/react": "^7.59.2",
-        "@tanstack/react-query": "^5.0.0",
+        "@tanstack/react-query": "^5.50.1",
         "bignumber.js": "^9.1.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",

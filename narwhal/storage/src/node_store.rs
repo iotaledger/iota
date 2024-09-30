@@ -6,7 +6,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use config::{AuthorityIdentifier, WorkerId};
 use fastcrypto::groups;
-use fastcrypto_tbls::{dkg, nodes::PartyId};
+use fastcrypto_tbls::{dkg, dkg_v0, nodes::PartyId};
 use store::{
     metrics::SamplingInterval,
     reopen,
@@ -69,7 +69,7 @@ impl NodeStorage {
     /// Open or reopen all the storage of the node.
     pub fn reopen<Path: AsRef<std::path::Path> + Send>(
         store_path: Path,
-        certificate_store_cache_metrics: Option<CertificateStoreCacheMetrics>,
+        certificate_store_cache_metrics: Option<Arc<CertificateStoreCacheMetrics>>,
     ) -> Self {
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
         let mut metrics_conf = MetricConf::new("consensus");
@@ -143,8 +143,8 @@ impl NodeStorage {
             Self::LAST_COMMITTED_CF;<AuthorityIdentifier, Round>,
             Self::SUB_DAG_INDEX_CF;<SequenceNumber, CommittedSubDagShell>,
             Self::COMMITTED_SUB_DAG_INDEX_CF;<SequenceNumber, ConsensusCommit>,
-            Self::PROCESSED_MESSAGES_CF;<PartyId, dkg::ProcessedMessage<PkG, EncG>>,
-            Self::USED_MESSAGES_CF;<u32, dkg::UsedProcessedMessages<PkG, EncG>>,
+            Self::PROCESSED_MESSAGES_CF;<PartyId, dkg_v0::ProcessedMessage<PkG, EncG>>,
+            Self::USED_MESSAGES_CF;<u32, dkg_v0::UsedProcessedMessages<PkG, EncG>>,
             Self::CONFIRMATIONS_CF;<PartyId, dkg::Confirmation<EncG>>,
             Self::DKG_OUTPUT_CF;<u32, dkg::Output<PkG, EncG>>,
             Self::RANDOMNESS_ROUND_CF;<u32, RandomnessRound>
