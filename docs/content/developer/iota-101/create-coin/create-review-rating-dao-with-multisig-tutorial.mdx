@@ -302,6 +302,57 @@ fun prune_top_reviews(
 }
 ```
 
+#### Code Explanation
+
+`upvote` Function:
+- **Purpose**: This function upvotes a review and reorders the top reviews list.
+- **Parameters**:
+    - **`service: &mut Service`**: A mutable reference to the `Service` that contains the reviews.
+    - **`review_id: ID`**: The unique identifier of the review being upvoted.
+- **Process**:
+    - Retrieves the review from `service.reviews` using the `review_id`.
+    - Calls the `upvote()` method on the review to increment its upvote count.
+    - Calls `service.reorder(review_id, review.get_total_score())` to reorder the list of top reviews based on the updated total score of the review.
+
+`reorder` Function:
+- **Purpose**: This function reorders the `top_reviews` list after a review is updated.
+- **Parameters**:
+    - **`service: &mut Service`**: A mutable reference to the `Service` whose `top_reviews` list is being reordered.
+    - **`review_id: ID`**: The unique identifier of the review being reordered.
+    - **`total_score: u64`**: The updated total score of the review.
+- **Process**:
+    - Checks if the `review_id` is already in the `top_reviews` list by calling `service.top_reviews.index_of(&review_id)`, which returns whether the review is present (`contains`) and its index (`idx`).
+    - If the review is not in `top_reviews`, it calls `service.update_top_reviews(review_id, total_score)` to add the review if it qualifies.
+    - If the review is already in `top_reviews`, it removes the review from its current position, finds the new correct position using `service.find_idx(total_score)`, and reinserts it at the correct position.
+
+`update_top_reviews` Function:
+- **Purpose**: This function updates the `top_reviews` list by inserting a review if it qualifies for the top 10.
+- **Parameters**:
+    - **`service: &mut Service`**: A mutable reference to the `Service`.
+    - **`review_id: ID`**: The unique identifier of the review to be added.
+    - **`total_score: u64`**: The total score of the review.
+- **Process**:
+    - Checks if the review should be added to `top_reviews` by calling `service.should_update_top_reviews(total_score)`.
+    - If it qualifies, the appropriate insertion index is found by calling `service.find_idx(total_score)`.
+    - The review is inserted at the calculated index, and `service.prune_top_reviews()` is called to ensure the list doesn’t exceed the maximum allowed number of top reviews.
+
+`find_idx` Function:
+- **Purpose**: This function finds the correct index to insert a review into the `top_reviews` list based on its total score.
+- **Parameters**:
+    - **`service: &Service`**: A reference to the `Service` that contains the `top_reviews`.
+    - **`total_score: u64`**: The total score of the review.
+- **Process**:
+    - Loops through the `top_reviews` list in reverse order (from highest score to lowest) and compares the `total_score` of the current review with those already in the list.
+    - The loop stops when it finds a review in the list with a higher score than the new review. The appropriate index (`i`) for insertion is then returned.
+
+`prune_top_reviews` Function:
+- **Purpose**: This function ensures that the `top_reviews` list does not exceed the allowed number of reviews to reward.
+- **Parameters**:
+    - **`service: &mut Service`**: A mutable reference to the `Service`.
+- **Process**:
+    - Checks if the length of `top_reviews` exceeds `MAX_REVIEWERS_TO_REWARD`.
+    - If the list is too long, the review with the lowest score (the last entry) is removed by calling `service.top_reviews.pop_back()`.
+
 Whenever someone casts a vote on a review, the `total_score` of the review is updated and the `update_top_reviews` function updates the `top_reviews` field, as needed.
 Casting a vote also triggers a reordering of the `top_reviews` field to ensure that the top rated reviews are always at the top.
 
