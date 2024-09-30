@@ -3,10 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::u256::U256;
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-
 use crate::{
     debug_display, diag,
     editions::FeatureGate,
@@ -20,6 +16,9 @@ use crate::{
         core::{self, Context},
     },
 };
+use move_core_types::u256::U256;
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 
 //**************************************************************************************************
 // Functions

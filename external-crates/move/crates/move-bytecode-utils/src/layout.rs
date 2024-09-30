@@ -3,8 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{borrow::Borrow, collections::BTreeMap, fmt::Write};
-
+use crate::module_cache::GetModule;
 use anyhow::{bail, Result};
 use move_binary_format::{
     file_format::{
@@ -21,8 +20,7 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use serde_reflection::{ContainerFormat, Format, Named, Registry, VariantFormat};
-
-use crate::module_cache::GetModule;
+use std::{borrow::Borrow, collections::BTreeMap, fmt::Write};
 
 /// Name of the Move `address` type in the serde registry
 const ADDRESS: &str = "AccountAddress";
@@ -58,10 +56,9 @@ impl Container {
     }
 }
 
-/// Type for building a registry of serde-reflection friendly struct layouts for
-/// Move types. The layouts created by this type are intended to be passed to
-/// the serde-generate tool to create struct bindings for Move types in source
-/// languages that use Move-based services.
+/// Type for building a registry of serde-reflection friendly struct layouts for Move types.
+/// The layouts created by this type are intended to be passed to the serde-generate tool to create
+/// struct bindings for Move types in source languages that use Move-based services.
 pub struct SerdeLayoutBuilder<'a, T> {
     registry: Registry,
     module_resolver: &'a T,
@@ -70,36 +67,29 @@ pub struct SerdeLayoutBuilder<'a, T> {
 
 #[derive(Default)]
 pub struct SerdeLayoutConfig {
-    /// If separator is Some, replace all Move source syntax separators ("::"
-    /// for address/struct/module name separation, "<", ">", and "," for
-    /// generics separation) with this string. If separator is None, use the
-    /// same syntax as Move source
+    /// If separator is Some, replace all Move source syntax separators ("::" for address/struct/module name
+    /// separation, "<", ">", and "," for generics separation) with this string.
+    /// If separator is None, use the same syntax as Move source
     pub separator: Option<String>,
     /// If true, do not include addresses in fully qualified type names.
     /// If there is a name conflict (e.g., the registry we're building has both
-    /// 0x1::M::T and 0x2::M::T), layout generation will fail when this option
-    /// is true.
+    /// 0x1::M::T and 0x2::M::T), layout generation will fail when this option is true.
     pub omit_addresses: bool,
-    /// If true, do not include phantom types in fully qualified type names,
-    /// since they do not contribute to the layout E.g., if we have `struct
-    /// S<phantom T> { u: 64 }` and try to generate bindings for this struct
-    /// with `T = u8`, the name for `S` in the registry will be `S<u64>`
-    /// when this option is false, and `S` when this option is true
+    /// If true, do not include phantom types in fully qualified type names, since they do not contribute to the layout
+    /// E.g., if we have `struct S<phantom T> { u: 64 }` and try to generate bindings for this struct with `T = u8`,
+    /// the name for `S` in the registry will be `S<u64>` when this option is false, and `S` when this option is true
     pub ignore_phantom_types: bool,
     /// The LayoutBuilder can operate in two modes: "deep" and "shallow".
-    /// In shallow mode, generate a single layout for the struct or type passed
-    /// in by the user (under the assumption that layouts for dependencies
-    /// have been generated previously). In deep mode, it generate layouts
-    /// for all of the (transitive) dependencies of the type passed
-    /// in, as well as layouts for the Move ground types like `address` and
-    /// `signer`. The result is a self-contained registry with no unbound
-    /// typenames
+    /// In shallow mode, generate a single layout for the struct or type passed in by the user
+    /// (under the assumption that layouts for dependencies have been generated previously).
+    /// In deep mode, it generate layouts for all of the (transitive) dependencies of the type passed
+    /// in, as well as layouts for the Move ground types like `address` and `signer`. The result is a
+    /// self-contained registry with no unbound typenames
     pub shallow: bool,
 }
 
 impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
-    /// Create a `LayoutBuilder` with an empty registry and deep layout
-    /// resolution
+    /// Create a `LayoutBuilder` with an empty registry and deep layout resolution
     pub fn new(module_resolver: &'a T) -> Self {
         Self {
             registry: Self::default_registry(),
@@ -108,8 +98,7 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
         }
     }
 
-    /// Create a `LayoutBuilder` with an empty registry and shallow layout
-    /// resolution
+    /// Create a `LayoutBuilder` with an empty registry and shallow layout resolution
     pub fn new_with_config(module_resolver: &'a T, config: SerdeLayoutConfig) -> Self {
         Self {
             registry: Self::default_registry(),
@@ -118,8 +107,7 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
         }
     }
 
-    /// Return a registry containing layouts for all the Move ground types
-    /// (e.g., address)
+    /// Return a registry containing layouts for all the Move ground types (e.g., address)
     pub fn default_registry() -> Registry {
         let mut registry = BTreeMap::new();
         // add Move ground types to registry (address, signer)
@@ -221,9 +209,8 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
     ) -> Result<Format> {
         check_depth!(depth);
 
-        // build a human-readable name for the struct type. this should do the same
-        // thing as StructTag::display(), but it's not easy to use that code
-        // here
+        // build a human-readable name for the struct type. this should do the same thing as
+        // StructTag::display(), but it's not easy to use that code here
 
         let declaring_module = self
             .module_resolver
@@ -257,8 +244,7 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
             .iter()
             .zip(def.type_parameters().iter())
             .filter(|(_, type_param)| {
-                // do not include phantom type arguments in the struct key, since they do not
-                // affect the struct layout
+                // do not include phantom type arguments in the struct key, since they do not affect the struct layout
                 !(self.config.ignore_phantom_types && type_param.is_phantom)
             })
             .map(|(type_arg, _)| print_format_type(type_arg, depth))
@@ -297,8 +283,8 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
 
         if let Some(old_datatype) = self.registry.get(&type_key) {
             if self.config.omit_addresses || self.config.separator.is_some() {
-                // check for conflicts (e.g., 0x1::M::T and 0x2::M::T that both get stripped to
-                // M::T because omit_addresses is on)
+                // check for conflicts (e.g., 0x1::M::T and 0x2::M::T that both get stripped to M::T because
+                // omit_addresses is on)
                 if old_datatype.clone()
                     != self.generate_serde_container(def, type_arguments, depth)?
                 {
@@ -419,8 +405,8 @@ pub enum DatatypeLayoutBuilder {}
 
 impl TypeLayoutBuilder {
     /// Construct a WithTypes `TypeLayout` with fields from `t`.
-    /// Panics if `resolver` cannot resolve a module whose types are referenced
-    /// directly or transitively by `t`
+    /// Panics if `resolver` cannot resolve a module whose types are referenced directly or
+    /// transitively by `t`
     pub fn build_with_types(t: &TypeTag, resolver: &impl GetModule) -> Result<A::MoveTypeLayout> {
         Self::build(t, resolver, 0)
     }
@@ -500,8 +486,8 @@ impl TypeLayoutBuilder {
 
 impl DatatypeLayoutBuilder {
     /// Construct an expanded `TypeLayout` from `s`.
-    /// Panics if `resolver` cannot resolved a module whose types are referenced
-    /// directly or transitively by `s`.
+    /// Panics if `resolver` cannot resolved a module whose types are referenced directly or
+    /// transitively by `s`.
     fn build(
         s: &StructTag,
         resolver: &impl GetModule,

@@ -211,8 +211,7 @@ impl Interpreter {
                         // Note: the caller will find the callee's return values at the top of the
                         // shared operand stack
                         current_frame = frame;
-                        current_frame.pc += 1; // advance past the Call
-                                               // instruction in the caller
+                        current_frame.pc += 1; // advance past the Call instruction in the caller
                     } else {
                         // end of execution. `self` should no longer be used afterward
                         return Ok(self.operand_stack.value);
@@ -254,8 +253,7 @@ impl Interpreter {
                         let err = set_err_info!(frame, err);
                         self.maybe_core_dump(err, &frame)
                     })?;
-                    // Note: the caller will find the callee's return values at the top of the
-                    // shared operand stack
+                    // Note: the caller will find the callee's return values at the top of the shared operand stack
                     current_frame = frame;
                 }
                 ExitCode::CallGeneric(idx) => {
@@ -1376,11 +1374,7 @@ impl Frame {
             for instruction in &code[self.pc as usize..] {
                 trace!(
                     &self.function,
-                    &self.locals,
-                    self.pc,
-                    instruction,
-                    resolver,
-                    interpreter
+                    &self.locals, self.pc, instruction, resolver, interpreter
                 );
 
                 fail_point!("move_vm::interpreter_loop", |_| {
@@ -1495,16 +1489,19 @@ impl Frame {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Struct Definition not resolved".to_string())
                 })?;
-                check_depth!(struct_type
-                    .depth
-                    .as_ref()
-                    .ok_or_else(|| { PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED) })?
-                    .solve(&[])?)
+                check_depth!(
+                    struct_type
+                        .depth
+                        .as_ref()
+                        .ok_or_else(|| {
+                            PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED)
+                        })?
+                        .solve(&[])?
+                )
             }
             Type::DatatypeInstantiation(inst) => {
                 let (si, ty_args) = &**inst;
-                // Calculate depth of all type arguments, and make sure they themselves are not
-                // too deep.
+                // Calculate depth of all type arguments, and make sure they themselves are not too deep.
                 let ty_arg_depths = ty_args
                     .iter()
                     .map(|ty| {
@@ -1516,11 +1513,15 @@ impl Frame {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Struct Definition not resolved".to_string())
                 })?;
-                check_depth!(struct_type
-                    .depth
-                    .as_ref()
-                    .ok_or_else(|| { PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED) })?
-                    .solve(&ty_arg_depths)?)
+                check_depth!(
+                    struct_type
+                        .depth
+                        .as_ref()
+                        .ok_or_else(|| {
+                            PartialVMError::new(StatusCode::VM_MAX_VALUE_DEPTH_REACHED)
+                        })?
+                        .solve(&ty_arg_depths)?
+                )
             }
             // NB: substitution must be performed before calling this function
             Type::TyParam(_) => {

@@ -626,10 +626,11 @@ impl<'a> TransferFunctions for BorrowAnalysis<'a> {
                     }
                     AssignKind::Store => {
                         if self.func_target.get_local_type(*src).is_mutable_reference() {
-                            assert!(self
-                                .func_target
-                                .get_local_type(*dest)
-                                .is_mutable_reference());
+                            assert!(
+                                self.func_target
+                                    .get_local_type(*dest)
+                                    .is_mutable_reference()
+                            );
                             state.add_edge(src_node, dest_node, BorrowEdge::Direct);
                         }
                     }

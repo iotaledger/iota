@@ -16,10 +16,10 @@ use move_core_types::{
 /// provides an in memory cache for a given transaction and the atomic
 /// transactional changes proper of a script execution (transaction).
 pub trait DataStore {
-    /// The link context identifies the mapping from runtime `ModuleId`s to the
-    /// `ModuleId`s in storage that they are loaded from as returned by
-    /// `relocate`.  Implementors of `DataStore` are required to keep the
-    /// link context stable for the duration of `Interpreter::execute_main`.
+    /// The link context identifies the mapping from runtime `ModuleId`s to the `ModuleId`s in
+    /// storage that they are loaded from as returned by `relocate`.  Implementors of `DataStore`
+    /// are required to keep the link context stable for the duration of
+    /// `Interpreter::execute_main`.
     fn link_context(&self) -> AccountAddress;
 
     /// Translate the runtime `module_id` to the on-chain `ModuleId` that it

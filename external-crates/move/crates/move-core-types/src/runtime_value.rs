@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{self, Debug};
-
+use crate::{
+    account_address::AccountAddress, annotated_value as A, fmt_list, u256, VARIANT_COUNT_MAX,
+};
 use anyhow::{anyhow, Result as AResult};
 use move_proc_macros::test_variant_order;
 use serde::{
@@ -12,10 +13,7 @@ use serde::{
     ser::{SerializeSeq, SerializeTuple},
     Deserialize, Serialize,
 };
-
-use crate::{
-    account_address::AccountAddress, annotated_value as A, fmt_list, u256, VARIANT_COUNT_MAX,
-};
+use std::fmt::{self, Debug};
 
 /// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
 /// struct with this name

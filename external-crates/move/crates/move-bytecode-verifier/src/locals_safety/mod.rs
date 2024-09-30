@@ -9,6 +9,7 @@
 
 mod abstract_state;
 
+use crate::ability_cache::AbilityCache;
 use abstract_state::{AbstractState, LocalState, RET_COST, STEP_BASE_COST};
 use move_abstract_interpreter::absint::{AbstractInterpreter, FunctionContext, TransferFunctions};
 use move_binary_format::{
@@ -18,8 +19,6 @@ use move_binary_format::{
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
-
-use crate::ability_cache::AbilityCache;
 
 pub(crate) fn verify<'a>(
     module: &CompiledModule,

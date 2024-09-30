@@ -13,8 +13,10 @@
 //!   (through poor choice of loop heads and back edges).
 //!
 //! For bytecode versions 5 and below, delegates to `control_flow_v5`.
-use std::collections::BTreeSet;
-
+use crate::{
+    control_flow_v5,
+    loop_summary::{LoopPartition, LoopSummary},
+};
 use move_abstract_interpreter::absint::FunctionContext;
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
@@ -24,11 +26,7 @@ use move_binary_format::{
 use move_bytecode_verifier_meter::Meter;
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
-
-use crate::{
-    control_flow_v5,
-    loop_summary::{LoopPartition, LoopSummary},
-};
+use std::collections::BTreeSet;
 
 /// Perform control flow verification on the compiled function, returning its
 /// `FunctionContext` if verification was successful.

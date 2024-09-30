@@ -30,12 +30,13 @@ fn test_that_second_build_artifacts_removed() {
         .join("MoveStdlib");
     assert!(expected_stdlib_path.is_dir());
 
-    assert!(dir
-        .join(CompiledPackageLayout::Root.path())
-        .join("test")
-        .join(CompiledPackageLayout::CompiledModules.path())
-        .join("MTest.mv")
-        .exists());
+    assert!(
+        dir.join(CompiledPackageLayout::Root.path())
+            .join("test")
+            .join(CompiledPackageLayout::CompiledModules.path())
+            .join("MTest.mv")
+            .exists()
+    );
 
     // Now make sure the MoveStdlib still exists, but that the test-only code is
     // removed
@@ -50,12 +51,13 @@ fn test_that_second_build_artifacts_removed() {
 
     // The MoveStdlib dep should still exist, but the MTest module should go away
     assert!(expected_stdlib_path.is_dir());
-    assert!(!dir
-        .join(CompiledPackageLayout::Root.path())
-        .join("test")
-        .join(CompiledPackageLayout::CompiledModules.path())
-        .join("MTest.mv")
-        .exists());
+    assert!(
+        !dir.join(CompiledPackageLayout::Root.path())
+            .join("test")
+            .join(CompiledPackageLayout::CompiledModules.path())
+            .join("MTest.mv")
+            .exists()
+    );
 
     BuildConfig {
         dev_mode: false,
@@ -69,10 +71,11 @@ fn test_that_second_build_artifacts_removed() {
     // The MoveStdlib dep should no longer exist, and the MTest module shouldn't
     // exist either
     assert!(!expected_stdlib_path.is_dir());
-    assert!(!dir
-        .join(CompiledPackageLayout::Root.path())
-        .join("test")
-        .join(CompiledPackageLayout::CompiledModules.path())
-        .join("MTest.mv")
-        .exists());
+    assert!(
+        !dir.join(CompiledPackageLayout::Root.path())
+            .join("test")
+            .join(CompiledPackageLayout::CompiledModules.path())
+            .join("MTest.mv")
+            .exists()
+    );
 }

@@ -64,8 +64,7 @@ pub enum Flavor {
     Iota,
 }
 
-pub const UPGRADE_NOTE: &str =
-    "You can update the edition in the 'Move.toml', or via command line flag if invoking the \
+pub const UPGRADE_NOTE: &str = "You can update the edition in the 'Move.toml', or via command line flag if invoking the \
     compiler directly.";
 
 //**************************************************************************************************

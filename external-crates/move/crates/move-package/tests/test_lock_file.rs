@@ -2,24 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use expect_test::expect;
 use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::PathBuf,
 };
-
-use expect_test::expect;
-use move_compiler::editions::{Edition, Flavor};
-use move_package::{
-    lock_file::{
-        schema::{update_managed_address, ManagedAddressUpdate, ManagedPackage, ToolchainVersion},
-        LockFile,
-    },
-    resolution::dependency_graph::DependencyGraph,
-    BuildConfig,
-};
-use move_symbol_pool::Symbol;
 use tempfile::TempDir;
+
+use move_compiler::editions::{Edition, Flavor};
+use move_package::lock_file::schema::{
+    update_managed_address, ManagedAddressUpdate, ManagedPackage, ToolchainVersion,
+};
+use move_package::lock_file::LockFile;
+use move_package::resolution::dependency_graph::DependencyGraph;
+use move_package::BuildConfig;
+use move_symbol_pool::Symbol;
 
 #[test]
 fn commit() {

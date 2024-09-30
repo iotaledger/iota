@@ -3,12 +3,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module provides a checker for verifying that data definitions in a
-//! module are not recursive. Since the module dependency graph is acylic by
-//! construction, applying this checker to each module in isolation guarantees
-//! that there is no structural recursion globally.
-use std::collections::{BTreeMap, BTreeSet};
-
+//! This module provides a checker for verifying that data definitions in a module are not
+//! recursive. Since the module dependency graph is acylic by construction, applying this checker to
+//! each module in isolation guarantees that there is no structural recursion globally.
 use move_binary_format::{
     errors::{verification_error, Location, PartialVMError, PartialVMResult, VMResult},
     file_format::{
@@ -20,6 +17,7 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 use petgraph::{algo::toposort, graphmap::DiGraphMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub struct RecursiveDataDefChecker<'a> {
     module: &'a CompiledModule,
@@ -34,9 +32,8 @@ impl<'a> RecursiveDataDefChecker<'a> {
         let checker = Self { module };
         let graph = DataDefGraphBuilder::new(checker.module)?.build()?;
 
-        // toposort is iterative while petgraph::algo::is_cyclic_directed is recursive.
-        // Prefer the iterative solution here as this code may be dealing with
-        // untrusted data.
+        // toposort is iterative while petgraph::algo::is_cyclic_directed is recursive. Prefer
+        // the iterative solution here as this code may be dealing with untrusted data.
         match toposort(&graph, None) {
             Ok(_) => Ok(()),
             Err(cycle) => match cycle.node_id() {
@@ -61,20 +58,19 @@ enum DataIndex {
     Enum(TableIndex),
 }
 
-/// Given a module, build a graph of data definitions. This is useful when
-/// figuring out whether the data definitions in the module form a cycle.
+/// Given a module, build a graph of data definitions. This is useful when figuring out whether
+/// the data definitions in the module form a cycle.
 struct DataDefGraphBuilder<'a> {
     module: &'a CompiledModule,
-    /// Used to follow field definitions' signatures' data handles to their data
-    /// definitions.
+    /// Used to follow field definitions' signatures' data handles to their data definitions.
     handle_to_def: BTreeMap<DatatypeHandleIndex, DataIndex>,
 }
 
 impl<'a> DataDefGraphBuilder<'a> {
     fn new(module: &'a CompiledModule) -> PartialVMResult<Self> {
         let mut handle_to_def = BTreeMap::new();
-        // the mapping from data definitions to data handles is already checked to be
-        // 1-1 by DuplicationChecker
+        // the mapping from data definitions to data handles is already checked to be 1-1 by
+        // DuplicationChecker
         for (idx, struct_def) in module.struct_defs().iter().enumerate() {
             let sh_idx = struct_def.struct_handle;
             if let Some(other) = handle_to_def.insert(sh_idx, DataIndex::Struct(idx as TableIndex))
@@ -132,8 +128,8 @@ impl<'a> DataDefGraphBuilder<'a> {
         idx: StructDefinitionIndex,
     ) -> PartialVMResult<()> {
         let struct_def = self.module.struct_def_at(idx);
-        // The fields iterator is an option in the case of native structs. Flatten makes
-        // an empty iterator for that case
+        // The fields iterator is an option in the case of native structs. Flatten makes an empty
+        // iterator for that case
         for field in struct_def.fields().into_iter().flatten() {
             self.add_signature_token(
                 neighbors,

@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::file_format::{empty_module, Constant, SignatureToken};
+use move_binary_format::file_format::{Constant, SignatureToken, empty_module};
 use move_bytecode_verifier::constants;
 use move_core_types::vm_status::StatusCode;
 
@@ -211,14 +211,11 @@ fn invalid_vectors() {
     malformed(tvec(SignatureToken::U16), vec![1, 0]);
     malformed(tvec(SignatureToken::U32), vec![1, 0]);
     malformed(tvec(SignatureToken::U64), vec![1, 0]);
-    malformed(
-        tvec(SignatureToken::Address),
-        vec![
-            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0,
-        ],
-    );
+    malformed(tvec(SignatureToken::Address), vec![
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+    ]);
     // wrong lens
     malformed(tvec(SignatureToken::U8), vec![0, 0]);
     malformed(tvec(SignatureToken::U8), vec![0, 1]);

@@ -3,8 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::btree_map::BTreeMap;
-
 use move_binary_format::errors::*;
 use move_core_types::{
     account_address::AccountAddress,
@@ -15,6 +13,7 @@ use move_core_types::{
     vm_status::StatusCode,
 };
 use move_vm_types::data_store::DataStore;
+use std::collections::btree_map::BTreeMap;
 
 pub struct AccountDataCache {
     module_map: BTreeMap<Identifier, Vec<u8>>,
@@ -31,17 +30,17 @@ impl AccountDataCache {
 /// Transaction data cache. Keep updates within a transaction so they can all be
 /// published at once when the transaction succeeds.
 ///
-/// The Move VM takes a `DataStore` in input and this is the default and correct
-/// implementation for a data store related to a transaction. Clients should
-/// create an instance of this type and pass it to the Move VM.
+/// The Move VM takes a `DataStore` in input and this is the default and correct implementation
+/// for a data store related to a transaction. Clients should create an instance of this type
+/// and pass it to the Move VM.
 pub(crate) struct TransactionDataCache<S> {
     remote: S,
     module_map: BTreeMap<AccountAddress, AccountDataCache>,
 }
 
 impl<S: MoveResolver> TransactionDataCache<S> {
-    /// Create a `TransactionDataCache` with a `RemoteCache` that provides
-    /// access to data not updated in the transaction.
+    /// Create a `TransactionDataCache` with a `RemoteCache` that provides access to data
+    /// not updated in the transaction.
     pub(crate) fn new(remote: S) -> Self {
         TransactionDataCache {
             remote,

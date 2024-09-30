@@ -278,12 +278,12 @@ pub enum TaskCommand<
 }
 
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > FromArgMatches
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> FromArgMatches
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
     fn from_arg_matches(matches: &ArgMatches) -> Result<Self, Error> {
@@ -314,12 +314,12 @@ impl<
 }
 
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > CommandFactory
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> CommandFactory
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
     fn command() -> Command {
@@ -344,12 +344,12 @@ impl<
 // had it worked. (`cargo expand` is useful in printing out the derived code.)
 //
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > Parser
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> Parser
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
 }

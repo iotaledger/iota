@@ -1033,11 +1033,7 @@ fn error_format_impl_(b_: &Type_, subst: &Subst, nested: bool) -> String {
             error_format_nested(ty, subst)
         ),
     };
-    if nested {
-        res
-    } else {
-        format!("'{}'", res)
-    }
+    if nested { res } else { format!("'{}'", res) }
 }
 
 //**************************************************************************************************

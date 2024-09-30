@@ -1072,7 +1072,7 @@ impl GlobalEnv {
                 .make(module.identifier_at(variant.variant_name).as_str());
             let loc = match enum_smap {
                 None => Loc::default(),
-                Some(smap) => self.to_loc(&smap.variants[tag].0 .1),
+                Some(smap) => self.to_loc(&smap.variants[tag].0.1),
             };
             variant_data.insert(
                 VariantId(variant_name),
@@ -2548,7 +2548,7 @@ impl<'env> VariantEnv<'env> {
         else {
             return "";
         };
-        let variant_loc = emap.variants[self.data.tag].0 .1;
+        let variant_loc = emap.variants[self.data.tag].0.1;
         let loc = self.enum_env.module_env.env.to_loc(&variant_loc);
         self.enum_env.module_env.env.get_doc(&loc)
     }

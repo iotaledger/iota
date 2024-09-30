@@ -3,11 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
-use anyhow::{bail, Result};
 use move_binary_format::file_format::CompiledModule;
 use petgraph::graphmap::DiGraphMap;
+
+use anyhow::{bail, Result};
+use std::collections::BTreeMap;
 
 /// Directed graph capturing dependencies between modules
 pub struct DependencyGraph<'a> {

@@ -354,9 +354,9 @@ pub enum ManagedAddressUpdate {
     },
 }
 
-/// Sets the `original-published-id` to a given `id` in the lock file. This is a
-/// raw utility for preparing package publishing and package upgrades.
-/// Invariant: callers maintain a valid hex `id`.
+/// Sets the `original-published-id` to a given `id` in the lock file. This is a raw utility
+/// for preparing package publishing and package upgrades. Invariant: callers maintain a valid
+/// hex `id`.
 pub fn set_original_id(file: &mut LockFile, environment: &str, id: &str) -> Result<()> {
     use toml_edit::{value, Document};
     let mut toml_string = String::new();

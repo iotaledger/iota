@@ -275,8 +275,7 @@ impl SimpleVMTestAdapter {
                 STD_ADDR,
                 // TODO: come up with a suitable gas schedule
                 move_stdlib_natives::GasParameters::zeros(),
-                // silent
-                false,
+                /* silent */ false,
             ),
             vm_config,
         )

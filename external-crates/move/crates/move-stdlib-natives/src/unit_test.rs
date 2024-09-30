@@ -3,8 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, sync::Arc};
-
+use crate::helpers::make_module_natives;
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
     account_address::AccountAddress,
@@ -18,8 +17,7 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-
-use crate::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
 
 /// ****************************************************************************
 /// ********************* native fun create_signers_for_testing

@@ -160,11 +160,10 @@ proptest! {
     }
 }
 
-/// Ensure that valid modules that don't have any members (e.g. function args,
-/// struct fields) pass bounds checks.
+/// Ensure that valid modules that don't have any members (e.g. function args, struct fields) pass
+/// bounds checks.
 ///
-/// There are some potentially tricky edge cases around ranges that are captured
-/// here.
+/// There are some potentially tricky edge cases around ranges that are captured here.
 #[test]
 fn valid_bounds_no_members() {
     let mut gen = CompiledModuleStrategyGen::new(20);

@@ -3,14 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{hash_map::Entry, HashMap};
-
-use move_binary_format::file_format::{
-    Ability, AbilitySet, FieldHandleIndex, FieldInstantiationIndex, FunctionHandleIndex,
-    FunctionInstantiationIndex, Signature, SignatureIndex, SignatureToken,
-    StructDefInstantiationIndex, StructDefinitionIndex, StructFieldInformation, TableIndex,
-};
-
 use crate::{
     abilities,
     abstract_state::{AbstractState, AbstractValue, BorrowState, Mutability},
@@ -18,6 +10,15 @@ use crate::{
     error::VMError,
     get_struct_handle_from_reference, get_type_actuals_from_reference, substitute,
 };
+use move_binary_format::file_format::{
+    Ability, AbilitySet, FieldHandleIndex, FieldInstantiationIndex, FunctionHandleIndex,
+    FunctionInstantiationIndex, Signature, SignatureIndex, SignatureToken,
+    StructDefInstantiationIndex, StructDefinitionIndex, StructFieldInformation,
+};
+
+use move_binary_format::file_format::TableIndex;
+use std::collections::{hash_map::Entry, HashMap};
+
 
 //---------------------------------------------------------------------------
 // Type Instantiations from Unification with the Abstract Stack

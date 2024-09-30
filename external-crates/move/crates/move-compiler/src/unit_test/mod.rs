@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fmt};
-
+use crate::{
+    compiled_unit::NamedCompiledModule, shared::files::MappedFiles, shared::NumericalAddress,
+};
 use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
@@ -12,11 +13,7 @@ use move_core_types::{
     runtime_value::MoveValue,
     vm_status::StatusCode,
 };
-
-use crate::{
-    compiled_unit::NamedCompiledModule,
-    shared::{files::MappedFiles, NumericalAddress},
-};
+use std::{collections::BTreeMap, fmt};
 
 pub mod filter_test_members;
 pub mod plan_builder;

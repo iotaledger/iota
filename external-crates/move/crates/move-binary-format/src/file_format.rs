@@ -32,8 +32,12 @@
 //! binary of the form described. Vectors in those structs translate to tables
 //! and table specifications.
 
-use std::ops::BitOr;
-
+use crate::{
+    errors::{PartialVMError, PartialVMResult},
+    file_format_common,
+    internals::ModuleIndex,
+    IndexKind, SignatureTokenKind,
+};
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
@@ -45,14 +49,8 @@ use move_core_types::{
 use proptest::{collection::vec, prelude::*, strategy::BoxedStrategy};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
+use std::ops::BitOr;
 use variant_count::VariantCount;
-
-use crate::{
-    errors::{PartialVMError, PartialVMResult},
-    file_format_common,
-    internals::ModuleIndex,
-    IndexKind, SignatureTokenKind,
-};
 
 /// Generic index into one of the tables in the binary format.
 pub type TableIndex = u16;

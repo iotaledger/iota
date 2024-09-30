@@ -3,13 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap},
-    fmt::Debug,
-    hash::Hash,
-    sync::Arc,
+use crate::{
+    logging::expect_no_verification_errors,
+    native_functions::{NativeFunction, NativeFunctions, UnboxedNativeFunction},
+    session::LoadedFunctionInstantiation,
 };
-
 use move_binary_format::{
     errors::{verification_error, Location, PartialVMError, PartialVMResult, VMResult},
     file_format::{
@@ -42,13 +40,13 @@ use move_vm_types::{
     },
 };
 use parking_lot::RwLock;
-use tracing::error;
-
-use crate::{
-    logging::expect_no_verification_errors,
-    native_functions::{NativeFunction, NativeFunctions, UnboxedNativeFunction},
-    session::LoadedFunctionInstantiation,
+use std::{
+    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap},
+    fmt::Debug,
+    hash::Hash,
+    sync::Arc,
 };
+use tracing::error;
 
 // A simple cache that offers both a HashMap and a Vector lookup.
 // Values are forced into a `Arc` so they can be used from multiple thread.
@@ -102,11 +100,10 @@ where
     }
 }
 
-/// The ModuleCache holds all verified modules as well as loaded modules,
-/// datatypes, and functions. Structs and functions are pushed into a global
-/// structure, handles in compiled modules are replaced with indices into these
-/// global structures in loaded modules.  All access to the ModuleCache via the
-/// Loader is under an RWLock.
+/// The ModuleCache holds all verified modules as well as loaded modules, datatypes, and functions.
+/// Structs and functions are pushed into a global structure, handles in compiled modules are
+/// replaced with indices into these global structures in loaded modules.  All access to the
+/// ModuleCache via the Loader is under an RWLock.
 pub struct ModuleCache {
     /// Compiled modules go in this cache once they have been individually
     /// verified.
@@ -114,9 +111,8 @@ pub struct ModuleCache {
     /// Modules whose dependencies have been verified already (during publishing
     /// or loading).
     verified_dependencies: BTreeSet<(AccountAddress, ModuleId)>,
-    /// Loaded modules go in this cache once their compiled modules have been
-    /// link-checked, and datatypes and functions have populated `datatypes`
-    /// and `functions` below.
+    /// Loaded modules go in this cache once their compiled modules have been link-checked, and
+    /// datatypes and functions have populated `datatypes` and `functions` below.
     ///
     /// The `AccountAddress` in the key is the "link context", and the
     /// `ModuleId` is the ID of the module whose load was requested. A
@@ -130,8 +126,8 @@ pub struct ModuleCache {
     functions: Vec<Arc<Function>>,
 }
 
-/// Tracks the current end point of the `ModuleCache`'s `types`s and
-/// `function`s, so that we can roll-back to that point in case of error.
+/// Tracks the current end point of the `ModuleCache`'s `types`s and `function`s, so that we can
+/// roll-back to that point in case of error.
 struct CacheCursor {
     last_datatype: usize,
     last_function: usize,
@@ -319,8 +315,8 @@ impl ModuleCache {
             )?;
         }
 
-        // Convert field signatures into types after adding all structs because field
-        // types might refer to other datatypes in the same module.
+        // Convert field signatures into types after adding all structs because field types might
+        // refer to other datatypes in the same module.
         let mut field_types = vec![];
         for signature in field_signatures {
             let tys: Vec<_> = signature
@@ -353,9 +349,8 @@ impl ModuleCache {
 
         let field_types_len = field_types.len();
 
-        // Add the field types to the newly added structs and enums, processing them in
-        // reverse, to line them up with the structs and enums we added at the
-        // end of the global cache.
+        // Add the field types to the newly added structs and enums, processing them in reverse, to line them
+        // up with the structs and enums we added at the end of the global cache.
         for (field_info, cached_type) in field_types
             .into_iter()
             .rev()
@@ -483,8 +478,7 @@ impl ModuleCache {
             .resolve_type_by_name(&datatype.name, &datatype.runtime_id)?
             .0;
 
-        // If we've already computed this datatypes depth, no more work remains to be
-        // done.
+        // If we've already computed this datatypes depth, no more work remains to be done.
         if let Some(form) = &datatype.depth {
             return Ok(form.clone());
         }
@@ -566,8 +560,8 @@ impl ModuleCache {
         })
     }
 
-    // Given a ModuleId::datatype_name, retrieve the `CachedDatatype` and the index
-    // associated. Return and error if the type has not been loaded
+    // Given a ModuleId::datatype_name, retrieve the `CachedDatatype` and the index associated.
+    // Return and error if the type has not been loaded
     fn resolve_type_by_name(
         &self,
         datatype_name: &IdentStr,
@@ -609,8 +603,7 @@ impl ModuleCache {
         }
     }
 
-    /// Return the current high watermark of datatypes and functions in the
-    /// cache.
+    /// Return the current high watermark of datatypes and functions in the cache.
     fn cursor(&self) -> CacheCursor {
         CacheCursor {
             last_datatype: self.datatypes.len(),
@@ -618,8 +611,8 @@ impl ModuleCache {
         }
     }
 
-    /// Rollback the cache's datatypes and functions to the point at which the
-    /// cache cursor was created.
+    /// Rollback the cache's datatypes and functions to the point at which the cache cursor was
+    /// created.
     fn reset(
         &mut self,
         CacheCursor {
@@ -627,8 +620,7 @@ impl ModuleCache {
             last_function,
         }: CacheCursor,
     ) {
-        // Remove entries from `types.id_map` corresponding to the newly added
-        // datatypes.
+        // Remove entries from `types.id_map` corresponding to the newly added datatypes.
         for (idx, datatype) in self.datatypes.binaries.iter().enumerate().rev() {
             if idx < last_datatype {
                 break;
@@ -660,11 +652,11 @@ impl ModuleCache {
 
 // Helpers to load/verify modules without recursion
 
-// In order to traverse the transitive dependencies of a module (when verifying
-// the module), we create a stack and iterate over the dependencies to avoid
-// recursion. An entry on the stack is conceptually a pair (module,
-// dependencies) where dependencies is used to visit them and to track when a
-// module is ready for linkage checks Example:
+// In order to traverse the transitive dependencies of a module (when verifying the module),
+// we create a stack and iterate over the dependencies to avoid recursion.
+// An entry on the stack is conceptually a pair (module, dependencies) where dependencies
+// is used to visit them and to track when a module is ready for linkage checks
+// Example:
 // A -> B, C
 // B -> F
 // C -> D, E
@@ -1179,8 +1171,8 @@ impl Loader {
             }
         };
 
-        // for bytes obtained from the data store, they should always deserialize and
-        // verify. It is an invariant violation if they don't.
+        // for bytes obtained from the data store, they should always deserialize and verify.
+        // It is an invariant violation if they don't.
         let module = CompiledModule::deserialize_with_config(&bytes, &self.vm_config.binary_config)
             .map_err(|err| {
                 let msg = format!("Deserialization error: {:?}", err);
@@ -1257,8 +1249,7 @@ impl Loader {
     ) -> VMResult<(ModuleId, Arc<CompiledModule>)> {
         // make a stack for dependencies traversal (DAG traversal)
         let mut module_loader = ModuleLoader::new(visiting);
-        // load and verify the module, and push it on the stack for dependencies
-        // traversal
+        // load and verify the module, and push it on the stack for dependencies traversal
         let (storage_id, module) = module_loader.verify_and_push(
             runtime_id.clone(),
             self,
@@ -1293,7 +1284,7 @@ impl Loader {
                 if !entry.deps.is_empty() {
                     let dep_id = entry.deps.pop().unwrap();
                     module_loader.verify_and_push(
-                        dep_id, self, data_store, false, // allow_loading_failure
+                        dep_id, self, data_store, false, /* allow_loading_failure */
                     )?;
                     // loop with dep at the top of the stack
                     continue;
@@ -1370,11 +1361,10 @@ impl Loader {
     // Stopgap to avoid a recursion that is either taking too long or using too
     // much memory
     fn subst(&self, ty: &Type, ty_args: &[Type]) -> PartialVMResult<Type> {
-        // Before instantiating the type, count the # of nodes of all type arguments
-        // plus existing type instantiation.
-        // If that number is larger than MAX_TYPE_INSTANTIATION_NODES, refuse to
-        // construct this type. This prevents constructing larger and larger
-        // types via datatype instantiation.
+        // Before instantiating the type, count the # of nodes of all type arguments plus
+        // existing type instantiation.
+        // If that number is larger than MAX_TYPE_INSTANTIATION_NODES, refuse to construct this type.
+        // This prevents constructing larger and larger types via datatype instantiation.
         if let Type::DatatypeInstantiation(inst) = ty {
             let (_, datatype_inst) = &**inst;
             let mut sum_nodes = 1u64;
@@ -1607,11 +1597,10 @@ impl<'a> Resolver<'a> {
         type_params: &[Type],
         ty_args: &[Type],
     ) -> PartialVMResult<Type> {
-        // Before instantiating the type, count the # of nodes of all type arguments
-        // plus existing type instantiation.
-        // If that number is larger than MAX_TYPE_INSTANTIATION_NODES, refuse to
-        // construct this type. This prevents constructing larger and larger
-        // types via datatype instantiation.
+        // Before instantiating the type, count the # of nodes of all type arguments plus
+        // existing type instantiation.
+        // If that number is larger than MAX_TYPE_INSTANTIATION_NODES, refuse to construct this type.
+        // This prevents constructing larger and larger types via datatype instantiation.
         let mut sum_nodes = 1u64;
         for ty in ty_args.iter().chain(type_params.iter()) {
             sum_nodes = sum_nodes.saturating_add(self.loader.count_type_nodes(ty));
@@ -1712,6 +1701,7 @@ pub(crate) struct LoadedModule {
     id: ModuleId,
 
     // types as indexes into the Loader type list
+    //
     #[allow(dead_code)]
     type_refs: Vec<CachedTypeIndex>,
 
@@ -2379,14 +2369,14 @@ impl TypeCache {
 /// Maximal depth of a value in terms of type depth.
 pub const VALUE_DEPTH_MAX: u64 = 128;
 
-/// Maximal nodes which are allowed when converting to layout. This includes the
-/// types of fields for struct types.
-/// Maximal nodes which are allowed when converting to layout. This includes the
-/// types of fields for datatypes.
+/// Maximal nodes which are allowed when converting to layout. This includes the types of
+/// fields for struct types.
+/// Maximal nodes which are allowed when converting to layout. This includes the types of
+/// fields for datatypes.
 const MAX_TYPE_TO_LAYOUT_NODES: u64 = 256;
 
-/// Maximal nodes which are all allowed when instantiating a generic type. This
-/// does not include field types of datatypes.
+/// Maximal nodes which are all allowed when instantiating a generic type. This does not include
+/// field types of datatypes.
 const MAX_TYPE_INSTANTIATION_NODES: u64 = 128;
 
 impl Loader {

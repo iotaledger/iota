@@ -55,8 +55,7 @@ const MOVE_VM_TRACING_ENV_VAR_NAME: &str = "MOVE_VM_TRACE";
 /// be produced.
 const DEFAULT_TRACE_FILE: &str = "trace";
 
-/// The prefix for the stack trace that we want to remove from the stderr output
-/// if present.
+/// The prefix for the stack trace that we want to remove from the stderr output if present.
 const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 
 fn collect_coverage(

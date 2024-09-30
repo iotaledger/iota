@@ -2,18 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 
-use super::{
-    AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_NAME, BRIDGE_CREATE,
-    BRIDGE_MODULE_NAME, CLOCK_MODULE_NAME, DENY_LIST_CREATE, DENY_LIST_MODULE_NAME, ID_LEAK_DIAG,
-    IOTA_ADDR_NAME, IOTA_CLOCK_CREATE, IOTA_SYSTEM_ADDR_NAME, IOTA_SYSTEM_CREATE,
-    IOTA_SYSTEM_MODULE_NAME, OBJECT_MODULE_NAME, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME,
-    RANDOMNESS_STATE_CREATE, UID_TYPE_NAME,
-};
 use crate::{
     cfgir::{
         absint::JoinResult,
@@ -27,9 +18,18 @@ use crate::{
     editions::Flavor,
     expansion::ast::{ModuleIdent, TargetKind},
     hlir::ast::{Exp, Label, ModuleCall, SingleType, Type, Type_, Var},
-    iota_mode::{OBJECT_NEW, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT},
     parser::ast::Ability_,
     shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    iota_mode::{OBJECT_NEW, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT},
+};
+use std::collections::BTreeMap;
+
+use super::{
+    AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_NAME, BRIDGE_CREATE,
+    BRIDGE_MODULE_NAME, CLOCK_MODULE_NAME, DENY_LIST_CREATE, DENY_LIST_MODULE_NAME, ID_LEAK_DIAG,
+    OBJECT_MODULE_NAME, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE,
+    IOTA_ADDR_NAME, IOTA_CLOCK_CREATE, IOTA_SYSTEM_ADDR_NAME, IOTA_SYSTEM_CREATE,
+    IOTA_SYSTEM_MODULE_NAME, UID_TYPE_NAME,
 };
 
 pub const FRESH_ID_FUNCTIONS: &[(Symbol, Symbol, Symbol)] = &[

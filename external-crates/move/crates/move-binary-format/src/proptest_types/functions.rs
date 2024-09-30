@@ -610,8 +610,7 @@ impl CodeUnitGen {
             }
         }
 
-        // If the code is empty then we can't jump to anything so remove any jump
-        // tables.
+        // If the code is empty then we can't jump to anything so remove any jump tables.
         if code.is_empty() {
             jump_tables = vec![];
         }

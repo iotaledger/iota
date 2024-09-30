@@ -3,12 +3,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements the checker for verifying correctness of function
-//! bodies. The overall verification is split between stack_usage_verifier.rs
-//! and abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into
-//! these two files.
-use std::collections::HashMap;
-
+//! This module implements the checker for verifying correctness of function bodies.
+//! The overall verification is split between stack_usage_verifier.rs and
+//! abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into these two files.
+use crate::{
+    ability_cache::AbilityCache, acquires_list_verifier::AcquiresVerifier, control_flow,
+    locals_safety, reference_safety, stack_usage_verifier::StackUsageVerifier, type_safety,
+};
 use move_abstract_interpreter::{absint::FunctionContext, control_flow_graph::ControlFlowGraph};
 use move_binary_format::{
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
@@ -20,11 +21,7 @@ use move_binary_format::{
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
-
-use crate::{
-    ability_cache::AbilityCache, acquires_list_verifier::AcquiresVerifier, control_flow,
-    locals_safety, reference_safety, stack_usage_verifier::StackUsageVerifier, type_safety,
-};
+use std::collections::HashMap;
 
 pub struct CodeUnitVerifier<'env, 'a> {
     module: &'env CompiledModule,

@@ -918,11 +918,7 @@ fn tail(
                     block: loop_body,
                 },
             ));
-            if has_break {
-                Some(result)
-            } else {
-                None
-            }
+            if has_break { Some(result) } else { None }
         }
         e_ @ E::Loop { .. } => {
             // A loop wthout a break has no concrete type for its binders, but since we'll

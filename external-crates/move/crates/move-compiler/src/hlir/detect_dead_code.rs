@@ -162,8 +162,7 @@ const NOT_EXECUTED_MSG: &str =
     "Unreachable code. This statement (and any following statements) will not be executed.";
 
 const SEMI_MSG: &str = "Invalid trailing ';'";
-const INFO_MSG: &str =
-    "A trailing ';' in an expression block implicitly adds a '()' value after the semicolon. \
+const INFO_MSG: &str = "A trailing ';' in an expression block implicitly adds a '()' value after the semicolon. \
      That '()' value will not be reachable";
 
 fn exits_named_block(name: BlockLabel, cf: Option<ControlFlow>) -> bool {
@@ -644,8 +643,8 @@ fn statement(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
                 }
                 already_reported(*eloc)
             } else {
-                // if the test was okay but all arms both diverged, we need to report that for
-                // the purpose of trailing semicolons.
+                // if the test was okay but all arms both diverged, we need to report that for the
+                // purpose of trailing semicolons.
                 let arm_somes = arms
                     .value
                     .iter()

@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This linter rule checks for structs with an `id` field of type `UID` without
-//! the `key` ability.
+//! This linter rule checks for structs with an `id` field of type `UID` without the `key` ability.
 
 use super::{LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX};
+use crate::expansion::ast::ModuleIdent;
+use crate::parser::ast::DatatypeName;
 use crate::{
     diag,
     diagnostics::{
         codes::{custom, DiagnosticInfo, Severity},
         WarningFilters,
     },
-    expansion::ast::ModuleIdent,
     naming::ast::{StructDefinition, StructFields},
-    parser::ast::{Ability_, DatatypeName},
+    parser::ast::Ability_,
     shared::CompilationEnv,
     typing::{
         ast as T,

@@ -12,18 +12,16 @@ pub(crate) mod syntax;
 mod token_set;
 pub(crate) mod verification_attribute_filter;
 
-use std::{collections::BTreeSet, sync::Arc};
-
-use anyhow::anyhow;
-use comments::*;
-use move_command_line_common::files::FileHash;
-use move_symbol_pool::Symbol;
-use vfs::VfsPath;
-
 use crate::{
     parser::{self, ast::PackageDefinition, syntax::parse_file_string},
     shared::{files::MappedFiles, CompilationEnv, IndexedVfsPackagePath, NamedAddressMaps},
 };
+use anyhow::anyhow;
+use comments::*;
+use move_command_line_common::files::FileHash;
+use move_symbol_pool::Symbol;
+use std::{collections::BTreeSet, sync::Arc};
+use vfs::VfsPath;
 
 /// Parses program's targets and dependencies, both of which are read from
 /// different virtual file systems (vfs and deps_out_vfs, respectively).

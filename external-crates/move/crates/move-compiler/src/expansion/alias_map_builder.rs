@@ -245,8 +245,8 @@ impl AliasMapBuilder {
         result
     }
 
-    // TODO: the functions below should take a flag indicating if they are from a
-    // `use` or local definition for better error reporting.
+    // TODO: the functions below should take a flag indicating if they are from a `use` or local
+    // definition for better error reporting.
 
     /// Adds a module alias to the map.
     /// Errors if one already bound for that alias

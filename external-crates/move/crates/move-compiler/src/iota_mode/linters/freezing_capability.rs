@@ -2,14 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implements lint to warn against freezing capability-like types in Iota,
-//! identifying function calls that may incorrectly freeze such types.
-//! The lint checks for specific freezing functions defined in constants and
-//! inspects their type arguments for capability-like type names.
-
-use move_ir_types::location::*;
-use once_cell::sync::Lazy;
-use regex::Regex;
+//! Implements lint to warn against freezing capability-like types in Iota, identifying function calls that may incorrectly freeze such types.
+//! The lint checks for specific freezing functions defined in constants and inspects their type arguments for capability-like type names.
 
 use super::{LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX};
 use crate::{
@@ -18,14 +12,17 @@ use crate::{
         codes::{custom, DiagnosticInfo, Severity},
         WarningFilters,
     },
-    iota_mode::linters::{FREEZE_FUN, IOTA_PKG_NAME, PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME},
     naming::ast::TypeName_,
     shared::{CompilationEnv, Identifier},
+    iota_mode::linters::{FREEZE_FUN, PUBLIC_FREEZE_FUN, IOTA_PKG_NAME, TRANSFER_MOD_NAME},
     typing::{
         ast as T, core,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
+use move_ir_types::location::*;
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 const FREEZE_CAPABILITY_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,

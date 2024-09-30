@@ -2,21 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-
 use crate::{
     expansion::ast::{Fields, ModuleIdent, Mutability, Value},
     hlir::translate::NEW_NAME_DELIM,
-    ice,
     naming::ast::{self as N, Type, Var},
     parser::ast::{BinOp_, ConstantName, Field, VariantName},
     shared::{program_info::ProgramInfo, unique_map::UniqueMap, CompilationEnv},
-    typing::ast::{self as T, MatchArm_, MatchPattern, UnannotatedPat_ as TP},
+    {
+        ice,
+        typing::ast::{self as T, MatchArm_, MatchPattern, UnannotatedPat_ as TP},
+    },
 };
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 //**************************************************************************************************
 // Pattern Matrix Definitions for Matching
@@ -65,8 +65,8 @@ pub struct ArmResult {
 // Match Context
 //**************************************************************************************************
 
-/// A shared match context trait for use with counterexample generation in
-/// Typing and match compilation in HLIR lowering.
+/// A shared match context trait for use with counterexample generation in Typing and match
+/// compilation in HLIR lowering.
 pub trait MatchContext<const AFTER_TYPING: bool> {
     fn env(&mut self) -> &mut CompilationEnv;
     fn env_ref(&self) -> &CompilationEnv;
@@ -440,19 +440,17 @@ impl PatternArm {
 }
 
 impl PatternMatrix {
-    /// Converts a subject and match arms into a Pattern Matrix and the RHS arms
-    /// (indexed by position in the vector). This process works as follows:
+    /// Converts a subject and match arms into a Pattern Matrix and the RHS arms (indexed by
+    /// position in the vector). This process works as follows:
     /// - For each arm (pattern, guard, rhs):
     ///   - Add the RHS to the vector
-    ///   - Split any OR patterns into their own pattern matrix entry, realizing
-    ///     each independently. For each of these:
-    ///     - Convert any CONSTANT patterns into a binding with a guard check
-    ///       for equality
-    ///     - Store the original pattern on the entry, along with its RHS
-    ///       binders and arm index.
+    ///   - Split any OR patterns into their own pattern matrix entry, realizing each
+    ///     independently. For each of these:
+    ///     - Convert any CONSTANT patterns into a binding with a guard check for equality
+    ///     - Store the original pattern on the entry, along with its RHS binders and arm index.
     ///     - Rewrite the pattern with the guard binders.
-    ///     - Insert these resultant pattern into the pattern matrix, using the
-    ///       RHS index as the index for all of them.
+    ///     - Insert these resultant pattern into the pattern matrix, using the RHS index as the
+    ///       index for all of them.
     pub fn from<const AFTER_TYPING: bool, MC: MatchContext<AFTER_TYPING>>(
         context: &mut MC,
         loc: Loc,
@@ -514,8 +512,7 @@ impl PatternMatrix {
         })
     }
 
-    /// Returns true if there is an arm made up entirely of wildcards / binders
-    /// with no guard.
+    /// Returns true if there is an arm made up entirely of wildcards / binders with no guard.
     pub fn has_default_arm(&self) -> bool {
         self.patterns
             .iter()
@@ -523,8 +520,8 @@ impl PatternMatrix {
     }
 
     pub fn wild_arm_opt(&mut self, fringe: &VecDeque<FringeEntry>) -> Option<Vec<ArmResult>> {
-        // NB: If the first row is all wild, we need to collect _all_ wild rows that
-        // have guards until we find one that does not.
+        // NB: If the first row is all wild, we need to collect _all_ wild rows that have guards
+        // until we find one that does not.
         if let Some(arm) = self.patterns[0].all_wild_arm(fringe) {
             if arm.guard.is_none() {
                 return Some(vec![arm]);
@@ -663,8 +660,8 @@ fn ty_to_wildcard_pattern(ty: Type, loc: Loc) -> T::MatchPattern {
     }
 }
 
-// NB: this converts any binders not in `env` to wildcards, and strips any `at`
-// pattern binders that is not in the `env`
+// NB: this converts any binders not in `env` to wildcards, and strips any `at` pattern binders
+// that is not in the `env`
 fn apply_pattern_subst(pat: MatchPattern, env: &UniqueMap<Var, Var>) -> MatchPattern {
     let MatchPattern {
         ty,
@@ -800,27 +797,22 @@ fn flatten_or(pat: MatchPattern) -> Vec<MatchPattern> {
 
 // A BRIEF OVERVIEW OF CONSTANT MATCH HANDLING
 //
-// To handle constants, we need to do two things: first, we need to replace all
-// of the constants in the patterns with _something_, and then we need to push
-// the constant checks into guards in the right-hand side. We take advantage of
-// existing assumptions for match compilation to accomplish this, allowing us to
-// reuse the existing match compilation machinery:
+// To handle constants, we need to do two things: first, we need to replace all of the constants in
+// the patterns with _something_, and then we need to push the constant checks into guards in the
+// right-hand side. We take advantage of existing assumptions for match compilation to accomplish
+// this, allowing us to reuse the existing match compilation machinery:
 //
-// 1. We traverse the pattern mutably, replacing all constants with new, fresh
-//    variables.
-// 2. We generate a new 'guard' variable that acts as the "guard variable map"
-//    entry for that binder, indicating that this guard variable should be bound
-//    during match decision tree compilation for guard checking. This guard
-//    variable, as all, is typed as an immutable reference of the value in
-//    question.
+// 1. We traverse the pattern mutably, replacing all constants with new, fresh variables.
+// 2. We generate a new 'guard' variable that acts as the "guard variable map" entry for that
+//    binder, indicating that this guard variable should be bound during match decision tree
+//    compilation for guard checking. This guard variable, as all, is typed as an immutable
+//    reference of the value in question.
 // 3. We generate a guard check `guard_var == &const`.
 //
 // Finally, we hand back:
 //
-// 1. a new guard expression made up of the new guards plus the old guard (if
-//    any), in that order;
-// 2. and a guard binder map that maps the new pattern variable to their new
-//    guard versions.
+// 1. a new guard expression made up of the new guards plus the old guard (if any), in that order;
+// 2. and a guard binder map that maps the new pattern variable to their new guard versions.
 //
 // As an example:
 //
@@ -833,14 +825,14 @@ fn flatten_or(pat: MatchPattern) -> Vec<MatchPattern> {
 // will be translated as:
 //
 //  match (Option::Some(5)) {
-//    Option::Some(y @ _match_var) if (_match_var#guard == &CONST && y#guard ==
-// 0) => rhs0,    Option::Some(x) if (x#guard == 1) => rhs1, _ => rhs2
+//    Option::Some(y @ _match_var) if (_match_var#guard == &CONST && y#guard == 0) => rhs0,
+//    Option::Some(x) if (x#guard == 1) => rhs1,
+//    _ => rhs2
 //  }
 //
 // At this point, match compilation can proceed normally.
 //
-// NB: Since `_match_var` is not in the `rhs_binders` list, it will be erased in
-// the final arm.
+// NB: Since `_match_var` is not in the `rhs_binders` list, it will be erased in the final arm.
 
 /// Assumes `flatten_or` has already been performed.
 fn const_pats_to_guards<const AFTER_TYPING: bool, MC: MatchContext<AFTER_TYPING>>(
@@ -920,8 +912,8 @@ fn combine_pattern_fields(
             }
             output
         } else {
-            // Base case: a single match of no fields. We must have at least one, or else we
-            // would not have called `combine_match_patterns`.
+            // Base case: a single match of no fields. We must have at least one, or else we would
+            // not have called `combine_match_patterns`.
             vec![vec![]]
         }
     }
@@ -934,8 +926,7 @@ fn combine_pattern_fields(
         .collect::<Vec<_>>()
 }
 
-/// Helper function for creating an ordered list of fields Field information and
-/// Fields.
+/// Helper function for creating an ordered list of fields Field information and Fields.
 pub fn order_fields_by_decl<T: std::fmt::Debug>(
     decl_fields: UniqueMap<Field, usize>,
     fields: Fields<T>,
@@ -951,8 +942,8 @@ pub fn order_fields_by_decl<T: std::fmt::Debug>(
 pub const MATCH_TEMP_PREFIX: &str = "__match_tmp%";
 
 // Expression Creation Helpers
-// NOTE: this _must_ be a string that a user cannot write, as otherwise we could
-// incorrectly shadow macro-expanded names.
+// NOTE: this _must_ be a string that a user cannot write, as otherwise we could incorrectly shadow
+// macro-expanded names.
 /// Create a new name for match variable usage.
 pub fn new_match_var_name(name: &str, id: usize) -> Symbol {
     format!("{MATCH_TEMP_PREFIX}{NEW_NAME_DELIM}{name}{NEW_NAME_DELIM}{id}").into()

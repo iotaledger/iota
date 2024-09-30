@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! `ConstantNamingVisitor` enforces a naming convention for constants in Move
-//! programs, requiring them to follow an ALL_CAPS_SNAKE_CASE or PascalCase
-//! format. This lint checks each constant's name within a module against this
-//! convention.
-use super::{LinterDiagnosticCategory, CONSTANT_NAMING_DIAG_CODE, LINT_WARNING_PREFIX};
+//! `ConstantNamingVisitor` enforces a naming convention for constants in Move programs,
+//! requiring them to follow an ALL_CAPS_SNAKE_CASE or PascalCase format. This lint checks each constant's name
+//! within a module against this convention.
 use crate::{
     diag,
     diagnostics::{
@@ -21,6 +19,8 @@ use crate::{
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
+
+use super::{LinterDiagnosticCategory, CONSTANT_NAMING_DIAG_CODE, LINT_WARNING_PREFIX};
 
 /// Diagnostic information for constant naming violations.
 const CONSTANT_NAMING_DIAG: DiagnosticInfo = custom(
@@ -69,12 +69,11 @@ impl TypingVisitorContext for Context<'_> {
     }
 }
 
-/// Returns `true` if the string is in all caps snake case, including numeric
-/// characters.
+/// Returns `true` if the string is in all caps snake case, including numeric characters.
 fn is_valid_name(name: &str) -> bool {
     let mut chars = name.chars();
     let Some(start) = chars.next() else {
-        return false; // ice?
+        return false; /* ice? */
     };
     if !start.is_uppercase() {
         return false;

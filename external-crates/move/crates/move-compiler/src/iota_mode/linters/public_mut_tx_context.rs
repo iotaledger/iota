@@ -2,14 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Enforces that public functions use `&mut TxContext` instead of `&TxContext`
-//! to ensure upgradability. Detects and reports instances where a non-mutable
-//! reference to `TxContext` is used in public function signatures.
-//! Promotes best practices for future-proofing smart contract code by allowing
-//! mutation of the transaction context.
-use move_ir_types::location::Loc;
-
+//! Enforces that public functions use `&mut TxContext` instead of `&TxContext` to ensure upgradability.
+//! Detects and reports instances where a non-mutable reference to `TxContext` is used in public function signatures.
+//! Promotes best practices for future-proofing smart contract code by allowing mutation of the transaction context.
 use super::{LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX};
+
 use crate::{
     diag,
     diagnostics::{
@@ -17,15 +14,16 @@ use crate::{
         WarningFilters,
     },
     expansion::ast::{ModuleIdent, Visibility},
-    iota_mode::{IOTA_ADDR_NAME, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME},
     naming::ast::Type_,
     parser::ast::FunctionName,
     shared::CompilationEnv,
+    iota_mode::{IOTA_ADDR_NAME, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME},
     typing::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
+use move_ir_types::location::Loc;
 
 const REQUIRE_MUTABLE_TX_CONTEXT_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,

@@ -4,17 +4,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the public APIs supported by the bytecode verifier.
-use std::time::Instant;
-
-use move_binary_format::{
-    check_bounds::BoundsChecker,
-    errors::{Location, VMResult},
-    file_format::CompiledModule,
-    file_format_common::VERSION_6,
-};
-use move_bytecode_verifier_meter::{dummy::DummyMeter, Meter};
-use move_vm_config::verifier::VerifierConfig;
-
 use crate::{
     ability_cache::AbilityCache,
     ability_field_requirements,
@@ -29,6 +18,15 @@ use crate::{
     script_signature::{self, no_additional_script_signature_checks},
     signature::SignatureChecker,
 };
+use move_binary_format::{
+    check_bounds::BoundsChecker,
+    errors::{Location, VMResult},
+    file_format::CompiledModule,
+    file_format_common::VERSION_6,
+};
+use move_bytecode_verifier_meter::{dummy::DummyMeter, Meter};
+use move_vm_config::verifier::VerifierConfig;
+use std::time::Instant;
 
 /// Helper for a "canonical" verification of a module.
 ///

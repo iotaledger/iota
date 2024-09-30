@@ -2,10 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-
-use move_ir_types::location::Loc;
-
 use crate::{
     diag,
     expansion::ast::{self as E, ModuleIdent},
@@ -16,6 +12,8 @@ use crate::{
         CompilationEnv, Name,
     },
 };
+use move_ir_types::location::Loc;
+use std::collections::HashMap;
 
 const NOTE_STR: &str = "note";
 
@@ -44,8 +42,8 @@ pub struct Deprecations {
 }
 
 impl Deprecations {
-    /// Index the modules and their members for deprecation attributes and
-    /// register each deprecation attribute for use later on.
+    /// Index the modules and their members for deprecation attributes and register each
+    /// deprecation attribute for use later on.
     pub fn new(env: &mut CompilationEnv, info: &NamingProgramInfo) -> Self {
         let mut deprecated_members = HashMap::new();
 
@@ -112,8 +110,8 @@ impl Deprecations {
         Self { deprecated_members }
     }
 
-    /// Return the deprecation for the specific module member if present,
-    /// otherwise return the deprecation for the module itself.
+    /// Return the deprecation for the specific module member if present, otherwise return the
+    /// deprecation for the module itself.
     pub fn get_deprecation(&self, mident: ModuleIdent, member_name: Name) -> Option<&Deprecation> {
         self.deprecated_members
             .get(&(mident, Some(member_name)))
@@ -166,10 +164,10 @@ impl Deprecation {
     }
 }
 
-// Process the deprecation attributes for a given member (module, constant,
-// function, etc.) and return `Optiong<Deprecation>` if there is a #[deprecated]
-// attribute. If there are invalid #[deprecated] attributes (malformed, or
-// multiple on the member), add an error diagnostic to `env` and return None.
+// Process the deprecation attributes for a given member (module, constant, function, etc.) and
+// return `Optiong<Deprecation>` if there is a #[deprecated] attribute. If there are invalid
+// #[deprecated] attributes (malformed, or multiple on the member), add an error diagnostic to
+// `env` and return None.
 fn deprecations(
     env: &mut CompilationEnv,
     attr_position: AttributePosition,

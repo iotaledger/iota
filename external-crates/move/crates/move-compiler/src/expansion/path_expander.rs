@@ -2,11 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_ir_types::location::{sp, Loc, Spanned};
-
-/// Name access chain (path) resolution. This is driven by the trait
-/// PathExpander, which works over a DefnContext and resolves according to the
-/// rules of the selected expander.
+/// Name access chain (path) resolution. This is driven by the trait PathExpander, which works over
+/// a DefnContext and resolves according to the rules of the selected expander.
 use crate::{
     diag,
     diagnostics::Diagnostic,
@@ -32,6 +29,8 @@ use crate::{
     },
 };
 
+use move_ir_types::location::{sp, Loc, Spanned};
+
 //**************************************************************************************************
 // Definitions
 //**************************************************************************************************
@@ -52,9 +51,8 @@ pub enum Access {
     Module, // Just used for errors
 }
 
-/// This trait describes the commands available to handle alias scopes and
-/// expanding name access chains. This is used to model both legacy and modern
-/// path expansion.
+/// This trait describes the commands available to handle alias scopes and expanding name access
+/// chains. This is used to model both legacy and modern path expansion.
 pub trait PathExpander {
     // Push a new innermost alias scope
     fn push_alias_scope(
@@ -63,9 +61,8 @@ pub trait PathExpander {
         new_scope: AliasMapBuilder,
     ) -> Result<Vec<UnnecessaryAlias>, Box<Diagnostic>>;
 
-    // Push a number of type parameters onto the alias information in the path
-    // expander. They are never resolved, but are tracked to apply appropriate
-    // shadowing.
+    // Push a number of type parameters onto the alias information in the path expander. They are
+    // never resolved, but are tracked to apply appropriate shadowing.
     fn push_type_parameters(&mut self, tparams: Vec<&Name>);
 
     // Pop the innermost alias scope
@@ -225,19 +222,17 @@ impl Move2024PathExpander {
         self.ide_autocomplete_suggestion(context, name.loc);
         match self.aliases.resolve(namespace, &name) {
             Some(AliasEntry::Member(_, mident, sp!(_, mem))) => {
-                // We are preserving the name's original location, rather than referring to
-                // where the alias was defined. The name represents JUST the
-                // member name, though, so we do not change location of the
-                // module as we don't have this information. TODO maybe we
-                // should also keep the alias reference (or its location)?
+                // We are preserving the name's original location, rather than referring to where
+                // the alias was defined. The name represents JUST the member name, though, so we do
+                // not change location of the module as we don't have this information.
+                // TODO maybe we should also keep the alias reference (or its location)?
                 NR::ModuleAccess(name.loc, mident, sp(name.loc, mem))
             }
             Some(AliasEntry::Module(_, mident)) => {
-                // We are preserving the name's original location, rather than referring to
-                // where the alias was defined. The name represents JUST the
-                // module name, though, so we do not change location of the
-                // address as we don't have this information. TODO maybe we
-                // should also keep the alias reference (or its location)?
+                // We are preserving the name's original location, rather than referring to where
+                // the alias was defined. The name represents JUST the module name, though, so we do
+                // not change location of the address as we don't have this information.
+                // TODO maybe we should also keep the alias reference (or its location)?
                 let sp!(
                     _,
                     ModuleIdent_ {
@@ -344,7 +339,8 @@ impl Move2024PathExpander {
 
         match chain.clone() {
             PN::Single(path_entry!(name, ptys_opt, is_macro)) => {
-                use crate::naming::ast::{BuiltinFunction_, BuiltinTypeName_};
+                use crate::naming::ast::BuiltinFunction_;
+                use crate::naming::ast::BuiltinTypeName_;
                 let namespace = match access {
                     Access::Type
                     | Access::ApplyNamed
@@ -968,8 +964,7 @@ impl PathExpander for LegacyPathExpander {
                         {
                             let addr = top_level_address(
                                 context,
-                                // suggest_declaration
-                                false,
+                                /* suggest_declaration */ false,
                                 sp(*aloc, LN::Name(*n1)),
                             );
                             let mident =
@@ -1064,8 +1059,7 @@ impl PathExpander for LegacyPathExpander {
                     }
                     (sp!(_aloc, LN::GlobalAddress(_)), [_]) => {
                         let mut diag: Diagnostic = create_feature_error(
-                            context.env.edition(None), /* We already know we are failing, so no
-                                                        * package. */
+                            context.env.edition(None), // We already know we are failing, so no package.
                             FeatureGate::Move2024Paths,
                             loc,
                         );
