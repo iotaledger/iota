@@ -144,13 +144,22 @@ describe('Publickey', () => {
 
     it('`toIotaAddress()` should correctly return iota address associated with Ed25519 publickey', async () => {
         const pk1IotaAddress = normalizeIotaAddress(
-            bytesToHex(blake2b(pk1.toIotaBytesForAddress(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
+            bytesToHex(blake2b(pk1.toIotaBytesForAddress(), { dkLen: 32 })).slice(
+                0,
+                IOTA_ADDRESS_LENGTH * 2,
+            ),
         );
         const pk2IotaAddress = normalizeIotaAddress(
-            bytesToHex(blake2b(pk2.toIotaBytesForAddress(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
+            bytesToHex(blake2b(pk2.toIotaBytesForAddress(), { dkLen: 32 })).slice(
+                0,
+                IOTA_ADDRESS_LENGTH * 2,
+            ),
         );
         const pk3IotaAddress = normalizeIotaAddress(
-            bytesToHex(blake2b(pk3.toIotaBytesForAddress(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
+            bytesToHex(blake2b(pk3.toIotaBytesForAddress(), { dkLen: 32 })).slice(
+                0,
+                IOTA_ADDRESS_LENGTH * 2,
+            ),
         );
         expect(k1.toIotaAddress()).toEqual(pk1IotaAddress);
         expect(k1.toIotaAddress()).toEqual(
