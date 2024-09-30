@@ -20,7 +20,7 @@ export const lightTheme: ThemeVars = {
         dropdownMenuSeparator: '#F3F6F8',
         walletItemSelected: 'white',
         walletItemHover: '#3C424226',
-        scrollThumb: '#cad4e2'
+        scrollThumb: '#cad4e2',
     },
     borderColors: {
         outlineButton: '#E4E4E7',
@@ -38,7 +38,7 @@ export const lightTheme: ThemeVars = {
         medium: '8px',
         large: '12px',
         xlarge: '16px',
-        full: '120px'
+        full: '120px',
     },
     fontWeights: {
         normal: '400',
