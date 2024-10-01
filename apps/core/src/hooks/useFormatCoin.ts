@@ -109,7 +109,7 @@ export function useFormatCoin(
     showSign = false,
 ): FormattedCoin {
     const fallbackSymbol = useMemo(
-        () => (coinType ? getCoinSymbol(coinType) ?? '' : ''),
+        () => (coinType ? (getCoinSymbol(coinType) ?? '') : ''),
         [coinType],
     );
 
