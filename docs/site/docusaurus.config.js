@@ -86,6 +86,19 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          async sidebarItemsGenerator({
+            isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
+            defaultSidebarItemsGenerator,
+            ...args
+          }) {
+            return defaultSidebarItemsGenerator({
+              ...args,
+              isCategoryIndex() {
+                // No doc will be automatically picked as category index
+                return false;
+              },
+            });
+          },
           // the double docs below is a fix for having the path set to ../content
           editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
           onInlineTags: "throw",

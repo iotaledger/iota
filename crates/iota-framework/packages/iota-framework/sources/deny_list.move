@@ -303,7 +303,7 @@ module iota::deny_list {
         denied_count: Table<address, u64>,
         /// Set of addresses that are banned for a given type.
         /// For example with `iota::coin::Coin`: If addresses A and B are banned from using
-        /// "0...0123::my_coin::MY_COIN", this will be "0...0123::my_coin::MY_COIN" -> {A, B}.
+        /// "0...0123::my_coin::MY_COIN", this will be "0...0123::my_coin::MY_COIN" -> \{A, B}.
         denied_addresses: Table<vector<u8>, VecSet<address>>,
     }
 
