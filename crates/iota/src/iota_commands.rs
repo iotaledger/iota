@@ -726,7 +726,7 @@ async fn start(
             .with_fullnode_rpc_addr(fullnode_url);
     }
 
-    let mut swarm = swarm_builder.build();
+    let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;
     swarm.launch().await?;
     // Let nodes connect to one another
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
