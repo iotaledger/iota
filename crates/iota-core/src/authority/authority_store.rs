@@ -280,13 +280,13 @@ impl AuthorityStore {
                 .perpetual_tables
                 .transactions
                 .insert(transaction.digest(), transaction.serializable_ref())
-                .unwrap();
+                .expect("Cannot insert genesis transaction");
 
             store
                 .perpetual_tables
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
-                .unwrap();
+                .expect("Cannot insert genesis effects");
 
             // We don't insert the effects to executed_effects yet because the genesis tx
             // hasn't but will be executed. This is important for fullnodes to
@@ -322,13 +322,13 @@ impl AuthorityStore {
                             .perpetual_tables
                             .transactions
                             .insert(transaction.digest(), transaction.serializable_ref())
-                            .unwrap();
+                            .expect("Cannot insert migration transaction");
 
                         store
                             .perpetual_tables
                             .effects
                             .insert(&tx_effects.digest(), &tx_effects)
-                            .unwrap();
+                            .expect("Cannot insert migration effects");
 
                         let events = events
                             .data

@@ -97,7 +97,6 @@ impl ValidatorConfigBuilder {
         let network_address = validator.network_address;
         let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
-        let migration_data_path = config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME);
         let internal_worker_address = validator.consensus_internal_worker_address;
         let localhost = local_ip_utils::localhost_for_testing();
         let consensus_config = ConsensusConfig {
@@ -158,7 +157,7 @@ impl ValidatorConfigBuilder {
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.worker_key_pair)),
-            migration_data_path: Some(migration_data_path),
+            migration_data_path: None,
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -209,8 +208,20 @@ impl ValidatorConfigBuilder {
         validator: ValidatorGenesisConfig,
         genesis: iota_config::genesis::Genesis,
     ) -> NodeConfig {
+        let config_directory = self.config_directory.clone();
         let mut config = self.build_without_genesis(validator);
-        config.genesis = iota_config::node::Genesis::new(genesis);
+        let genesis = iota_config::node::Genesis::new(genesis);
+        match genesis.genesis() {
+            Ok(genesis) if !genesis.is_vanilla() => {
+                config.migration_data_path = Some(
+                    config_directory
+                        .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path())
+                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
+                )
+            }
+            _ => config.migration_data_path = None,
+        };
+        config.genesis = genesis;
         config
     }
 
@@ -361,6 +372,12 @@ impl FullnodeConfigBuilder {
             .config_directory
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
 
+        let migration_data_path = match genesis.genesis() {
+            Ok(genesis) if !genesis.is_vanilla() => {
+                Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME))
+            }
+            _ => None,
+        };
         let p2p_config = {
             let seed_peers = validator_configs
                 .iter()
@@ -412,9 +429,7 @@ impl FullnodeConfigBuilder {
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
                 IotaKeyPair::Ed25519(validator_config.network_key_pair),
             )),
-            migration_data_path: Some(
-                config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
-            ),
+            migration_data_path,
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),
