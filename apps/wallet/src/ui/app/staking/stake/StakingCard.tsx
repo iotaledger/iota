@@ -20,7 +20,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG, formatAddress } from '@iota/iota-sdk/utils';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -37,8 +37,8 @@ import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
-import { Button, ButtonType, Card, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
-import { ImageIcon } from '../../shared/image-icon';
+import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
+import { ValidatorLogo } from '../validators/ValidatorLogo';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -69,15 +69,6 @@ function StakingCard() {
     const { data: system, isPending: validatorsisPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
-    const validatorMeta = useMemo(() => {
-        if (!system) return null;
-
-        return (
-            system.activeValidators.find(
-                (validator) => validator.iotaAddress === validatorAddress,
-            ) || null
-        );
-    }, [validatorAddress, system]);
 
     const totalTokenBalance = useMemo(() => {
         if (!allDelegation) return 0n;
@@ -134,7 +125,7 @@ function StakingCard() {
             // });
             try {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransactionBlock({
+                return await signer.signAndExecuteTransaction({
                     transactionBlock,
                     requestType: effectsOnlySharedTransactions
                         ? 'WaitForEffectsCert'
@@ -167,7 +158,7 @@ function StakingCard() {
             // 	name: 'stake',
             // });
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransactionBlock({
+            return await signer.signAndExecuteTransaction({
                 transactionBlock,
                 requestType: effectsOnlySharedTransactions
                     ? 'WaitForEffectsCert'
@@ -281,19 +272,10 @@ function StakingCard() {
                     {({ isSubmitting, isValid, submitForm }) => (
                         <>
                             <div className="flex h-full flex-col gap-md overflow-auto">
-                                <Card type={CardType.Filled}>
-                                    <CardImage>
-                                        <ImageIcon
-                                            src={null}
-                                            label={validatorMeta?.name || ''}
-                                            fallback={validatorMeta?.name || ''}
-                                        />
-                                    </CardImage>
-                                    <CardBody
-                                        title={validatorMeta?.name || ''}
-                                        subtitle={formatAddress(validatorAddress)}
-                                    />
-                                </Card>
+                                <ValidatorLogo
+                                    validatorAddress={validatorAddress}
+                                    type={CardType.Filled}
+                                />
                                 <ValidatorFormDetail
                                     validatorAddress={validatorAddress}
                                     unstake={unstake}

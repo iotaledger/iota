@@ -2,8 +2,9 @@
 description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
 tags: [how-to, cli, typescript, sdk, faucet]
 ---
-
 import AlphaNet from "../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/get-coins.json';
 
 # Get Test Tokens
 
@@ -61,3 +62,5 @@ await requestIOTAFromFaucetV0({
 	recipient: '<YOUR IOTA ADDRESS>',
 });
 ```
+
+<Quiz questions={questions} />

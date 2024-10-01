@@ -18,25 +18,15 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG, formatAddress } from '@iota/iota-sdk/utils';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import {
-    CardImage,
-    CardBody,
-    Card,
-    CardType,
-    Panel,
-    KeyValueInfo,
-    Divider,
-    Button,
-    ButtonType,
-} from '@iota/apps-ui-kit';
-import { ImageIcon } from '../../shared/image-icon';
+import { CardType, Panel, KeyValueInfo, Divider, Button, ButtonType } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
+import { ValidatorLogo } from '../validators/ValidatorLogo';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -156,41 +146,33 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }
 
     return (
-        <div className="flex h-full flex-col justify-between">
+        <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
-                <Card type={CardType.Filled}>
-                    <CardImage>
-                        <ImageIcon
-                            src={null}
-                            label={validatorData?.name || ''}
-                            fallback={validatorData?.name || ''}
-                        />
-                    </CardImage>
-                    <CardBody
-                        title={validatorData?.name || ''}
-                        subtitle={formatAddress(validatorAddress)}
-                    />
-                </Card>
+                <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
                 <Panel hasBorder>
                     <div className="flex flex-col gap-y-sm p-md">
                         <KeyValueInfo
                             keyText="Your Stake"
-                            valueText={totalStakeFormatted}
+                            value={totalStakeFormatted}
                             supportingLabel={totalStakeSymbol}
+                            fullwidth
                         />
                         <KeyValueInfo
                             keyText="Earned"
-                            valueText={iotaEarnedFormatted}
+                            value={iotaEarnedFormatted}
                             supportingLabel={iotaEarnedSymbol}
+                            fullwidth
                         />
                         <Divider />
                         <KeyValueInfo
                             keyText="APY"
-                            valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                            value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                            fullwidth
                         />
                         <KeyValueInfo
                             keyText="Commission"
-                            valueText={`${commission.toString()}%`}
+                            value={`${commission.toString()}%`}
+                            fullwidth
                         />
                     </div>
                 </Panel>

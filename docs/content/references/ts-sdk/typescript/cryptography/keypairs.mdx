@@ -26,7 +26,7 @@ example, to use the Ed25519 scheme, import the `Ed25519Keypair` class from
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 ```
 
-To create a random key pair (which identifies a Iota address), instantiate a new `Keypair` class. To
+To create a random key pair (which identifies a IOTA address), instantiate a new `Keypair` class. To
 reference a key pair from an existing secret key, pass the secret to the `fromSecretKey` function.
 
 ```typescript
@@ -51,18 +51,21 @@ const isValid = await publicKey.verifyPersonalMessage(message, signature);
 ## Public keys
 
 Each `Keypair` has an associated `PublicKey` class. You use the public key to verify signatures or
-to retrieve its associated Iota address. You can access a `Keypair` from its `PublicKey` or construct
+to retrieve its associated IOTA address. You can access a `Keypair` from its `PublicKey` or construct
 it from the bytes (as a `Uint8Array`) of the `PublicKey`, as in the following code:
 
 ```typescript
 import { Ed25519Keypair, Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 
 const keypair = new Ed25519Keypair();
-const bytes = keypair.getPublicKey().toBytes();
 
+// method 1
+const bytes = keypair.getPublicKey().toRawBytes();
 const publicKey = new Ed25519PublicKey(bytes);
-
 const address = publicKey.toIotaAddress();
+
+// method 2
+const address = keypair.getPublicKey().toIotaAddress();
 ```
 
 ## Verifying signatures without a key pair
@@ -76,52 +79,71 @@ if the address associated with the public key matches the address that the key p
 
 ```typescript
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { verifyPersonalMessage } from '@iota/iota-sdk/verify';
+import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
 
 const keypair = new Ed25519Keypair();
 const message = new TextEncoder().encode('hello world');
 const { signature } = await keypair.signPersonalMessage(message);
 
-const publicKey = await verifyPersonalMessage(message, signature);
+const publicKey = await verifyPersonalMessageSignature(message, signature);
 
 if (publicKey.toIotaAddress() !== keypair.getPublicKey().toIotaAddress()) {
     throw new Error('Signature was valid, but was signed by a different key pair');
 }
 ```
 
-## Verifying transaction blocks
+## Verifying transaction signatures
 
-Verifying transaction blocks is similar to signature verification, except you use
-`verifyTransactionBlock`:
+Verifying transaction signatures is similar to personal message signature verification, except you
+use `verifyTransactionSignature`:
 
 ```typescript
 // import IotaClient to create a network client and the getFullnodeUrl helper function
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { verifyTransactionBlock } from '@iota/iota-sdk/verify';
+import { verifyTransactionSignature } from '@iota/iota-sdk/verify';
 
 // see Network Interactions with IotaClient for more info on creating clients
 const client = new IotaClient({ url: getFullnodeUrl('testnet') });
-const txb = new TransactionBlock();
+const tx = new Transaction();
 // ... add some transactions...
-const bytes = await txb.build({ client });
+const bytes = await tx.build({ client });
 
 const keypair = new Ed25519Keypair();
-const { signature } = await keypair.signTransactionBlock(bytes);
+const { signature } = await keypair.signTransaction(bytes);
 
 // if you have a public key, you can verify it
-//   const isValid = await publicKey.verifyTransactionBlock(bytes, signature);
-// or get the public key from the transaction block
-const publicKey = await verifyTransactionBlock(bytes, signature);
+//   const isValid = await publicKey.verifyTransaction(bytes, signature);
+// or get the public key from the transaction
+const publicKey = await verifyTransactionSignature(bytes, signature);
 
 if (publicKey.toIotaAddress() !== keypair.getPublicKey().toIotaAddress()) {
     throw new Error('Signature was valid, but was signed by a different keyPair');
 }
 ```
 
+## Verifying zkLogin signatures
+
+ZkLogin signatures can't be verified purely on the client. When verifying a zkLogin signature, the
+SDK uses the GraphQL API to verify the signature. This will work for mainnet signatures without any
+additional configuration.
+
+For testnet signatures, you will need to provide a testnet GraphQL Client:
+
+```typescript
+import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
+import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
+
+const publicKey = await verifyPersonalMessageSignature(message, zkSignature, {
+    client: new IotaGraphQLClient({
+        url: 'https://iota-testnet.iota.org/graphql',
+    }),
+});
+```
+
 ## Deriving a key pair from a mnemonic
 
-The Iota TypeScript SDK supports deriving a key pair from a mnemonic phrase. This can be useful when
+The IOTA TypeScript SDK supports deriving a key pair from a mnemonic phrase. This can be useful when
 building wallets or other tools that allow a user to import their private keys.
 
 ```typescript
@@ -136,13 +158,13 @@ You can derive a `Keypair` by converting the 33-byte secret key encoded in Bech3
 `Uint8Array` and passing it to the `fromSecretKey` method of a `Keypair` class.
 
 ```typescript
-import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota-sdk/cryptography/keypair';
+import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota-sdk/cryptography';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 
 const encoded = encodeIotaPrivateKey(
     [
-        59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253,
-        102, 39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
+        59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253, 102,
+        39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
     ],
     'ED25519',
 );

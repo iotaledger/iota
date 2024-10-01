@@ -19,10 +19,10 @@ use iota_types::{
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use typed_store::{
+    DBMapUtils,
     rocks::{DBMap, MetricConf},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
-use typed_store_derive::DBMapUtils;
 
 pub type IsFirstRecord = bool;
 
@@ -65,10 +65,10 @@ impl WritePathPendingTransactionLog {
         {
             return Ok(false);
         }
-        transaction.insert_batch(
-            &self.pending_transactions.logs,
-            [(tx_digest, tx.serializable_ref())],
-        )?;
+        transaction.insert_batch(&self.pending_transactions.logs, [(
+            tx_digest,
+            tx.serializable_ref(),
+        )])?;
         let result = transaction.commit();
         Ok(result.is_ok())
     }

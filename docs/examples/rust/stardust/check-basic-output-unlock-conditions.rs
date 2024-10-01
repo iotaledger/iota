@@ -7,9 +7,9 @@
 
 use anyhow::anyhow;
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions},
     types::{base_types::ObjectID, stardust::output::BasicOutput},
-    IotaClientBuilder,
 };
 
 #[tokio::main]

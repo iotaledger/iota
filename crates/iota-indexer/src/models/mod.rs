@@ -6,10 +6,13 @@ pub mod address_metrics;
 pub mod checkpoints;
 pub mod display;
 pub mod epoch;
+pub mod event_indices;
 pub mod events;
+#[cfg(feature = "postgres-feature")]
 pub(crate) mod large_objects;
 pub mod move_call_metrics;
 pub mod network_metrics;
+pub mod obj_indices;
 pub mod objects;
 pub mod packages;
 pub mod transactions;

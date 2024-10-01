@@ -3,18 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    net::SocketAddr,
     ops::Deref,
     time::{Duration, SystemTime},
 };
 
 use futures::{future::join_all, join};
 use iota_config::node::AuthorityOverloadConfig;
-use iota_core::{authority::EffectsNotifyRead, consensus_adapter::position_submit_certificate};
+use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
-    publish_basics_package, publish_basics_package_and_make_counter, TestTransactionBuilder,
+    TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -42,7 +43,7 @@ async fn shared_object_transaction() {
                 .active_validators()
                 .next()
                 .unwrap()
-                .config
+                .config()
                 .iota_address(),
         )
         .build();
@@ -115,8 +116,9 @@ async fn shared_object_deletion_multiple_times() {
             .call_counter_delete(package_id, counter_id, counter_initial_shared_version)
             .build();
         let signed = test_cluster.sign_transaction(&transaction);
+        let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
         test_cluster
-            .create_certificate(signed.clone())
+            .create_certificate(signed.clone(), Some(client_ip))
             .await
             .unwrap();
         txs.push(signed);
@@ -138,8 +140,8 @@ async fn shared_object_deletion_multiple_times() {
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(digests)
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -178,8 +180,9 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
             .call_counter_delete(package_id, counter_id, counter_initial_shared_version)
             .build();
         let signed = test_cluster.sign_transaction(&transaction);
+        let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
         test_cluster
-            .create_certificate(signed.clone())
+            .create_certificate(signed.clone(), Some(client_ip))
             .await
             .unwrap();
         test_cluster
@@ -194,8 +197,8 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(digests)
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -267,17 +270,18 @@ async fn shared_object_deletion_multi_certs() {
         .build();
     let inc_tx_b = test_cluster.sign_transaction(&inc_tx_b);
     let inc_tx_b_digest = *inc_tx_b.digest();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let _ = test_cluster
-        .create_certificate(delete_tx.clone())
+        .create_certificate(delete_tx.clone(), Some(client_ip))
         .await
         .unwrap();
     let _ = test_cluster
-        .create_certificate(inc_tx_a.clone())
+        .create_certificate(inc_tx_a.clone(), Some(client_ip))
         .await
         .unwrap();
     let _ = test_cluster
-        .create_certificate(inc_tx_b.clone())
+        .create_certificate(inc_tx_b.clone(), Some(client_ip))
         .await
         .unwrap();
 
@@ -309,8 +313,8 @@ async fn shared_object_deletion_multi_certs() {
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![inc_tx_a_digest, inc_tx_b_digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
         .await
         .unwrap();
 }
@@ -347,15 +351,10 @@ async fn call_shared_object_contract() {
     for gas in objects {
         // Ensure the value of the counter is `0`.
         let transaction = TestTransactionBuilder::new(sender, gas, rgp)
-            .move_call(
-                package_id,
-                "counter",
-                "assert_value",
-                vec![
-                    CallArg::Object(counter_object_arg_imm),
-                    CallArg::Pure(0u64.to_le_bytes().to_vec()),
-                ],
-            )
+            .move_call(package_id, "counter", "assert_value", vec![
+                CallArg::Object(counter_object_arg_imm),
+                CallArg::Pure(0u64.to_le_bytes().to_vec()),
+            ])
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
@@ -411,19 +410,14 @@ async fn call_shared_object_contract() {
         let transaction = test_cluster
             .test_transaction_builder()
             .await
-            .move_call(
-                package_id,
-                "counter",
-                "assert_value",
-                vec![
-                    CallArg::Object(if imm {
-                        counter_object_arg_imm
-                    } else {
-                        counter_object_arg
-                    }),
-                    CallArg::Pure(1u64.to_le_bytes().to_vec()),
-                ],
-            )
+            .move_call(package_id, "counter", "assert_value", vec![
+                CallArg::Object(if imm {
+                    counter_object_arg_imm
+                } else {
+                    counter_object_arg
+                }),
+                CallArg::Pure(1u64.to_le_bytes().to_vec()),
+            ])
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
@@ -444,12 +438,9 @@ async fn call_shared_object_contract() {
     let transaction = test_cluster
         .test_transaction_builder()
         .await
-        .move_call(
-            package_id,
-            "counter",
-            "increment",
-            vec![CallArg::Object(counter_object_arg_imm)],
-        )
+        .move_call(package_id, "counter", "increment", vec![CallArg::Object(
+            counter_object_arg_imm,
+        )])
         .build();
     let effects = test_cluster
         .wallet

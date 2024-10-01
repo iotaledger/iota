@@ -66,7 +66,9 @@ export function useIotaClientQuery<
         ...options,
         queryKey: [iotaContext.network, method, params, ...queryKey],
         queryFn: async () => {
-            return await iotaContext.client[method](params as never);
+            return (await iotaContext.client[method](
+                params as never,
+            )) as IotaRpcMethods[T]['result'];
         },
     });
 }

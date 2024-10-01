@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
-import { ArrowUpRight16, Info16 } from '@iota/icons';
+import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
+import { CoinFormat, useFormatCoin } from '@iota/core';
+import { ArrowUpRight16 } from '@iota/icons';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
@@ -11,27 +12,14 @@ import {
     normalizeStructTag,
     parseStructTag,
 } from '@iota/iota-sdk/utils';
-import { Heading, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { type ReactNode, useEffect, useState } from 'react';
-
-import {
-    AddressLink,
-    Card,
-    Description,
-    Divider,
-    Link,
-    ObjectLink,
-    ObjectVideoImage,
-    Tooltip,
-    TransactionLink,
-} from '~/components/ui';
+import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
+import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
     genFileTypeMsg,
-    getDisplayUrl,
     parseImageURL,
     parseObjectType,
     trimStdLibPrefix,
@@ -68,55 +56,42 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): J
     );
 }
 
-interface ObjectLinkProps {
-    children?: ReactNode;
+interface NameCardProps {
+    name: string;
 }
 
-function ObjectViewCard({ children }: ObjectLinkProps): JSX.Element {
-    return (
-        <Card bg="white/80" spacing="lg" height="full">
-            <div className="flex flex-col gap-4">{children}</div>
-        </Card>
-    );
-}
-
-interface LinkWebsiteProps {
-    value: string;
-}
-
-function LinkWebsite({ value }: LinkWebsiteProps): JSX.Element | null {
-    const urlData = getDisplayUrl(value);
-
-    if (!urlData) {
-        return null;
-    }
-
-    if (typeof urlData === 'string') {
-        return <Text variant="pBodySmall/medium">{urlData}</Text>;
-    }
-
-    return (
-        <Link href={urlData.href} variant="textHeroDark">
-            {urlData.display}
-        </Link>
-    );
+function NameCard({ name }: NameCardProps): JSX.Element {
+    return <DisplayStats label="Name" value={name} />;
 }
 
 interface DescriptionCardProps {
-    name?: string | null;
     display?: {
         [key: string]: string;
-    } | null;
-    objectType: string;
+    };
+}
+
+function DescriptionCard({ display }: DescriptionCardProps): JSX.Element {
+    return <DisplayStats label="Description" value={display?.description ?? ''} />;
+}
+
+interface ObjectIdCardProps {
     objectId: string;
 }
 
-function DescriptionCard({
-    name,
-    display,
-    objectType,
-    objectId,
-}: DescriptionCardProps): JSX.Element {
+function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
+    return (
+        <DisplayStats
+            label="Object ID"
+            value={<ObjectLink objectId={objectId}>{formatAddress(objectId)}</ObjectLink>}
+        />
+    );
+}
+
+interface TypeCardCardProps {
+    objectType: string;
+}
+
+function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
     const { address, module, typeParams, ...rest } = parseStructTag(objectType);
 
     const formattedTypeParams = typeParams.map((typeParam) => {
@@ -138,140 +113,97 @@ function DescriptionCard({
     };
 
     const normalizedStructTag = normalizeStructTag(structTag);
-    const objectNameDisplay = name || display?.description;
-    const renderDescription = name && display?.description;
 
     return (
-        <ObjectViewCard>
-            {objectNameDisplay && (
-                <Heading variant="heading4/semibold" color="steel-darker">
-                    {objectNameDisplay}
-                </Heading>
-            )}
-            {renderDescription && (
-                <Text variant="pBody/normal" color="steel-darker">
-                    {display.description}
-                </Text>
-            )}
-
-            <Description title="Object ID">
-                <ObjectLink objectId={objectId} />
-            </Description>
-
-            <Description
-                title={
-                    <div className="flex items-center gap-1">
-                        <Text variant="pBodySmall/medium" color="steel-dark">
-                            Type
-                        </Text>
-
-                        <Tooltip tip={<div className="flex flex-wrap break-all">{objectType}</div>}>
-                            <Info16 />
-                        </Tooltip>
-                    </div>
-                }
-            >
-                <ObjectLink
-                    label={<div className="text-right">{normalizedStructTag}</div>}
-                    objectId={`${address}?module=${module}`}
-                />
-            </Description>
-        </ObjectViewCard>
+        <DisplayStats
+            label="Type"
+            value={
+                <ObjectLink objectId={`${address}?module=${module}`}>
+                    {normalizedStructTag}
+                </ObjectLink>
+            }
+            tooltipText={objectType}
+            tooltipPosition={TooltipPosition.Right}
+        />
     );
 }
 
 interface VersionCardProps {
     version?: string;
+}
+
+function VersionCard({ version }: VersionCardProps): JSX.Element {
+    return <DisplayStats label="Version" value={version ?? '--'} />;
+}
+
+interface LastTxBlockCardProps {
     digest: string;
 }
 
-function VersionCard({ version, digest }: VersionCardProps): JSX.Element {
+function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     return (
-        <ObjectViewCard>
-            <Description title="Version">
-                <Text variant="pBodySmall/medium" color="gray-90">
-                    {version}
-                </Text>
-            </Description>
-
-            <Description title="Last Transaction Block Digest">
-                <TransactionLink digest={digest} />
-            </Description>
-        </ObjectViewCard>
+        <DisplayStats
+            label="Last Transaction Block Digest"
+            value={<TransactionLink digest={digest}>{formatAddress(digest)}</TransactionLink>}
+        />
     );
 }
 
-interface AddressOwnerProps {
-    address: string;
-}
-
-function AddressOwner({ address }: AddressOwnerProps): JSX.Element {
-    const { data: iotansDomainName } = useResolveIotaNSName(address);
-
-    return <AddressLink address={address} label={iotansDomainName} />;
-}
-
 interface OwnerCardProps {
-    objOwner?: ObjectOwner | null;
-    display?: {
-        [key: string]: string;
-    } | null;
-    storageRebate?: string | null;
+    objOwner: ObjectOwner;
 }
 
-function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.Element | null {
-    const [storageRebateFormatted] = useFormatCoin(storageRebate, IOTA_TYPE_ARG, CoinFormat.FULL);
-
-    if (!objOwner && !display) {
-        return null;
+function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
+    function getOwner(objOwner: ObjectOwner): string {
+        if (objOwner === 'Immutable') {
+            return 'Immutable';
+        } else if ('Shared' in objOwner) {
+            return 'Shared';
+        }
+        return 'ObjectOwner' in objOwner
+            ? formatAddress(objOwner.ObjectOwner)
+            : formatAddress(objOwner.AddressOwner);
     }
 
     return (
-        <ObjectViewCard>
-            {objOwner && (
-                <Description title="Owner">
-                    {objOwner === 'Immutable' ? (
-                        <Text variant="pBodySmall/medium" color="gray-90">
-                            Immutable
-                        </Text>
-                    ) : 'Shared' in objOwner ? (
-                        <Text variant="pBodySmall/medium" color="gray-90">
-                            Shared
-                        </Text>
-                    ) : 'ObjectOwner' in objOwner ? (
-                        <ObjectLink objectId={objOwner.ObjectOwner} />
-                    ) : (
-                        <AddressOwner address={objOwner.AddressOwner} />
-                    )}
-                </Description>
-            )}
+        <DisplayStats
+            label="Owner"
+            value={<OwnerLink objOwner={objOwner}>{getOwner(objOwner)}</OwnerLink>}
+        />
+    );
+}
 
-            {display && (display.link || display.project_url) && (
-                <>
-                    <Divider />
+function OwnerLink({
+    children,
+    objOwner,
+}: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
+    if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
+        if ('ObjectOwner' in objOwner) {
+            return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
+        } else {
+            return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
+        }
+    }
+    return null;
+}
 
-                    {display.link && (
-                        <Description title="Link">
-                            <LinkWebsite value={display.link} />
-                        </Description>
-                    )}
+interface StorageRebateCardProps {
+    storageRebate: string;
+}
 
-                    {display.project_url && (
-                        <Description title="Website">
-                            <LinkWebsite value={display.project_url} />
-                        </Description>
-                    )}
-                </>
-            )}
+function StorageRebateCard({ storageRebate }: StorageRebateCardProps): JSX.Element | null {
+    const [storageRebateFormatted, symbol] = useFormatCoin(
+        storageRebate,
+        IOTA_TYPE_ARG,
+        CoinFormat.FULL,
+    );
 
-            <Divider />
-
-            <Description title="Storage Rebate">
-                <Text variant="pBodySmall/medium" color="steel-darker">
-                    -{storageRebateFormatted} IOTA
-                </Text>
-            </Description>
-        </ObjectViewCard>
+    return (
+        <DisplayStats
+            label="Storage Rebate"
+            value={`-${storageRebateFormatted}`}
+            supportingLabel={symbol}
+        />
     );
 }
 
@@ -312,32 +244,76 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     }, [imageData]);
 
     return (
-        <div className={clsx('address-grid-container-top', !imgUrl && 'no-image')}>
-            {imgUrl !== '' && (
-                <div style={{ gridArea: 'heroImage' }}>
-                    <HeroVideoImage {...heroImageProps} />
-                </div>
-            )}
+        <div className="flex flex-col gap-md">
+            <div
+                className={clsx(
+                    'address-grid-container-top',
+                    !imgUrl && 'no-image',
+                    (!name || !display) && 'no-description',
+                )}
+            >
+                {imgUrl !== '' && (
+                    <div style={{ gridArea: 'heroImage' }}>
+                        <HeroVideoImage {...heroImageProps} />
+                    </div>
+                )}
+                {name && (
+                    <div style={{ gridArea: 'name' }}>
+                        <NameCard name={name} />
+                    </div>
+                )}
+                {display?.description && (
+                    <div style={{ gridArea: 'description' }}>
+                        <DescriptionCard display={display} />
+                    </div>
+                )}
 
-            {objectId && (
-                <div style={{ gridArea: 'description' }}>
-                    <DescriptionCard
-                        name={name}
-                        objectType={objectType}
-                        objectId={objectId}
-                        display={display}
+                {objectId && (
+                    <div style={{ gridArea: 'objectId' }}>
+                        <ObjectIdCard objectId={objectId} />
+                    </div>
+                )}
+
+                {objectType && (
+                    <div style={{ gridArea: 'type' }}>
+                        <TypeCard objectType={objectType} />
+                    </div>
+                )}
+
+                {data.data?.version && (
+                    <div style={{ gridArea: 'version' }}>
+                        <VersionCard version={data.data?.version} />
+                    </div>
+                )}
+                {lastTransactionBlockDigest && (
+                    <div style={{ gridArea: 'lastTxBlock' }}>
+                        <LastTxBlockCard digest={lastTransactionBlockDigest} />
+                    </div>
+                )}
+                {objOwner && (
+                    <div style={{ gridArea: 'owner' }}>
+                        <OwnerCard objOwner={objOwner} />
+                    </div>
+                )}
+                {storageRebate && (
+                    <div style={{ gridArea: 'storageRebate' }}>
+                        <StorageRebateCard storageRebate={storageRebate} />
+                    </div>
+                )}
+            </div>
+            <div className="flex flex-row gap-md">
+                {display && display.link && (
+                    <DisplayStats
+                        label="Link"
+                        value={<Link to={display.link}>{display.link}</Link>}
                     />
-                </div>
-            )}
-
-            {lastTransactionBlockDigest && (
-                <div style={{ gridArea: 'version' }}>
-                    <VersionCard version={data.data?.version} digest={lastTransactionBlockDigest} />
-                </div>
-            )}
-
-            <div style={{ gridArea: 'owner' }}>
-                <OwnerCard objOwner={objOwner} display={display} storageRebate={storageRebate} />
+                )}
+                {display && display.project_url && (
+                    <DisplayStats
+                        label="Website"
+                        value={<Link to={display.project_url}>{display.project_url}</Link>}
+                    />
+                )}
             </div>
         </div>
     );

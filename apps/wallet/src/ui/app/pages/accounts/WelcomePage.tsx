@@ -29,7 +29,7 @@ export function WelcomePage() {
                         <span className="text-headline-sm text-neutral-40">Welcome to</span>
                         <h1 className="text-display-lg text-neutral-10">IOTA Wallet</h1>
                         <span className="text-title-lg text-neutral-40">
-                            Connecting you to the decentralized web and IOTA network
+                            Your Gateway to the IOTA Ecosystem
                         </span>
                     </div>
                     <Button

@@ -6,8 +6,8 @@ use std::str::FromStr;
 
 use async_graphql::*;
 use chrono::{
-    prelude::{DateTime as ChronoDateTime, TimeZone, Utc as ChronoUtc},
     ParseError as ChronoParseError,
+    prelude::{DateTime as ChronoDateTime, TimeZone, Utc as ChronoUtc},
 };
 
 use crate::error::Error;
