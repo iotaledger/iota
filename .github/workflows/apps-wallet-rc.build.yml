@@ -40,6 +40,9 @@ jobs:
         run: pnpm --filter=iota-wallet test-1
       - name: Test envs with cross-env
         run: pnpm --filter=iota-wallet test-2
+      - name: Check WALLET_RC_VERSION
+        run: |
+          echo "WALLET_RC_VERSION: $WALLET_RC_VERSION"
       - name: Create artifact name
         shell: bash
         run: |

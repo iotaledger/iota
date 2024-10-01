@@ -102,7 +102,6 @@ const commonConfig: () => Promise<Configuration> = async () => {
     const alias = await generateAliasFromTs();
     const walletVersionDetails = generateVersion(WALLET_RC_VERSION);
     console.log("walletVersionDetails", walletVersionDetails);
-    console.log("process.env", process.env);
     console.log("process.env.WALLET_RC_VERSION -------------------- ", process.env.WALLET_RC_VERSION);
     
     const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;

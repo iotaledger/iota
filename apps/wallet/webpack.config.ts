@@ -14,6 +14,9 @@ const configMap: Record<string, () => Promise<Configuration>> = {
 
 const nodeEnv: string = process.env.NODE_ENV || '';
 
+console.log('WALLET_RC_VERSION:', process.env.WALLET_RC_VERSION);
+console.log('configMap:', configMap);
+
 if (!configMap[nodeEnv]) {
     throw new Error(`Config not found for NODE_ENV='${nodeEnv}'`);
 }
