@@ -399,9 +399,9 @@ mod tests {
         traits::ToFromBytes,
     };
     use iota_types::{
+        TypeTag,
         base_types::{IotaAddress, TransactionDigest},
         bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDC},
-        TypeTag,
     };
     use prometheus::Registry;
 

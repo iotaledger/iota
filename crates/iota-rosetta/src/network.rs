@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{extract::State, Extension, Json};
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::encoding::Hex;
 use iota_types::base_types::ObjectID;
@@ -10,13 +10,13 @@ use serde_json::json;
 use strum::IntoEnumIterator;
 
 use crate::{
+    IotaEnv, OnlineServerContext,
     errors::{Error, ErrorType},
     types::{
         Allow, Case, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse,
         NetworkRequest, NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus,
         Version,
     },
-    IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html)

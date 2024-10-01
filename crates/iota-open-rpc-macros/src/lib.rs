@@ -6,15 +6,15 @@ use derive_syn_parse::Parse;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2, TokenTree};
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, quote};
 use syn::{
+    Attribute, GenericArgument, LitStr, PatType, Path, PathArguments, Token, TraitItem, Type,
     parse,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Comma, Paren},
-    Attribute, GenericArgument, LitStr, PatType, Path, PathArguments, Token, TraitItem, Type,
 };
 use unescape::unescape;
 

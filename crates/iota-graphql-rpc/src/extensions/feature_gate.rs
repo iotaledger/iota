@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use async_graphql::{
-    extensions::{Extension, ExtensionContext, ExtensionFactory, NextResolve, ResolveInfo},
     ServerError, ServerResult, Value,
+    extensions::{Extension, ExtensionContext, ExtensionFactory, NextResolve, ResolveInfo},
 };
 use async_trait::async_trait;
 

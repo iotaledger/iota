@@ -29,15 +29,16 @@ use iota_swarm_config::genesis_config::{
     AccountConfig, DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT,
 };
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Supply,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
-    coin::{TreasuryCap, COIN_MODULE_NAME},
+    coin::{COIN_MODULE_NAME, TreasuryCap},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::{ObjectDigest, TransactionDigest},
     gas_coin::GAS,
     id::UID,
-    object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
@@ -46,7 +47,6 @@ use iota_types::{
         timelock::TimeLock,
     },
     utils::to_sender_signed_transaction,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;

@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::{
     block::{BlockAPI, VerifiedBlock},
-    commit::{sort_sub_dag_blocks, Commit, CommittedSubDag, TrustedCommit},
+    commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
 };
@@ -174,12 +174,12 @@ impl Linearizer {
 mod tests {
     use super::*;
     use crate::{
+        CommitIndex,
         commit::{CommitAPI as _, CommitDigest, DEFAULT_WAVE_LENGTH},
         context::Context,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
-        CommitIndex,
     };
 
     #[tokio::test]

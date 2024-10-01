@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use async_graphql::{
+    Positioned, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextParseQuery},
     parser::types::{Directive, ExecutableDocument, Selection},
-    Positioned, ServerResult,
 };
 use async_graphql_value::Variables;
 use async_trait::async_trait;

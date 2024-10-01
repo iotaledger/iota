@@ -195,19 +195,19 @@ pub fn reset_database<T: R2D2Connection + Send + 'static>(
 #[cfg(feature = "postgres-feature")]
 pub mod setup_postgres {
     use anyhow::anyhow;
-    use diesel::{migration::MigrationSource, PgConnection, RunQueryDsl};
-    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+    use diesel::{PgConnection, RunQueryDsl, migration::MigrationSource};
+    use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
     use prometheus::Registry;
     use secrecy::ExposeSecret;
     use tracing::{error, info};
 
     use crate::{
-        db::{get_pool_connection, new_connection_pool, PoolConnection},
+        IndexerConfig,
+        db::{PoolConnection, get_pool_connection, new_connection_pool},
         errors::IndexerError,
         indexer::Indexer,
         metrics::IndexerMetrics,
         store::{PgIndexerAnalyticalStore, PgIndexerStore},
-        IndexerConfig,
     };
 
     const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/pg");
@@ -356,19 +356,19 @@ pub mod setup_postgres {
 #[cfg(not(feature = "postgres-feature"))]
 pub mod setup_mysql {
     use anyhow::anyhow;
-    use diesel::{migration::MigrationSource, MysqlConnection, RunQueryDsl};
-    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+    use diesel::{MysqlConnection, RunQueryDsl, migration::MigrationSource};
+    use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
     use prometheus::Registry;
     use secrecy::ExposeSecret;
     use tracing::{error, info};
 
     use crate::{
-        db::{get_pool_connection, new_connection_pool, PoolConnection},
+        IndexerConfig,
+        db::{PoolConnection, get_pool_connection, new_connection_pool},
         errors::IndexerError,
         indexer::Indexer,
         metrics::IndexerMetrics,
         store::PgIndexerStore,
-        IndexerConfig,
     };
 
     const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/mysql");

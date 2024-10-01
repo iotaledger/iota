@@ -20,11 +20,11 @@ use move_core_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_json::{Value, json};
+use serde_with::{DisplayFromStr, serde_as};
 use tabled::settings::Style as TableStyle;
 
-use crate::{type_and_fields_from_move_event_data, Page};
+use crate::{Page, type_and_fields_from_move_event_data};
 
 pub type EventPage = Page<IotaEvent, EventID>;
 

@@ -21,21 +21,25 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::TypeTag,
 };
-use nonempty::{nonempty, NonEmpty};
+use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
 use tap::Pipe;
 use tracing::trace;
 
-use super::{base_types::*, error::*, IOTA_BRIDGE_OBJECT_ID};
+use super::{IOTA_BRIDGE_OBJECT_ID, base_types::*, error::*};
 use crate::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
+    IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
-        default_hash, AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
+        AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes,
+        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
     digests::{
         CertificateDigest, ChainIdentifier, ConsensusCommitDigest, SenderSignedDataDigest,
@@ -52,11 +56,7 @@ use crate::{
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
-    signature_verification::{verify_sender_signed_data_message_signatures, VerifiedDigestCache},
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
-    IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
-    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
 };
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
@@ -2357,14 +2357,11 @@ impl SenderSignedData {
         // CRITICAL!!
         // Users cannot send system transactions.
         let tx_data = &self.transaction_data();
-        fp_ensure!(
-            !tx_data.is_system_tx(),
-            IotaError::UserInput {
-                error: UserInputError::Unsupported(
-                    "SenderSignedData must not contain system transaction".to_string()
-                )
-            }
-        );
+        fp_ensure!(!tx_data.is_system_tx(), IotaError::UserInput {
+            error: UserInputError::Unsupported(
+                "SenderSignedData must not contain system transaction".to_string()
+            )
+        });
 
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
@@ -2377,17 +2374,14 @@ impl SenderSignedData {
         // Enforce overall transaction size limit.
         let tx_size = self.serialized_size()?;
         let max_tx_size_bytes = config.max_tx_size_bytes();
-        fp_ensure!(
-            tx_size as u64 <= max_tx_size_bytes,
-            IotaError::UserInput {
-                error: UserInputError::SizeLimitExceeded {
-                    limit: format!(
-                        "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
-                    ),
-                    value: tx_size.to_string(),
-                }
+        fp_ensure!(tx_size as u64 <= max_tx_size_bytes, IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded {
+                limit: format!(
+                    "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
+                ),
+                value: tx_size.to_string(),
             }
-        );
+        });
 
         tx_data
             .validity_check(config)

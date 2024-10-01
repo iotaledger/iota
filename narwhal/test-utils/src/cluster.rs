@@ -16,11 +16,11 @@ use node::{
     execution_state::SimpleExecutionState, metrics::worker_metrics_registry,
     primary_node::PrimaryNode, worker_node::WorkerNode,
 };
-use prometheus::{proto::Metric, Registry};
+use prometheus::{Registry, proto::Metric};
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{
-    sync::{broadcast::Sender, mpsc::channel, RwLock, RwLockWriteGuard},
+    sync::{RwLock, RwLockWriteGuard, broadcast::Sender, mpsc::channel},
     task::JoinHandle,
 };
 use tonic::transport::Channel;
@@ -28,7 +28,7 @@ use tracing::info;
 use types::TransactionsClient;
 use worker::TrivialTransactionValidator;
 
-use crate::{latest_protocol_version, temp_dir, CommitteeFixture};
+use crate::{CommitteeFixture, latest_protocol_version, temp_dir};
 
 #[cfg(test)]
 #[path = "tests/cluster_tests.rs"]

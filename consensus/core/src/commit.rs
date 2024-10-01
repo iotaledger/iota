@@ -11,7 +11,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use consensus_config::{AuthorityIndex, DefaultHashFunction, DIGEST_LENGTH};
+use consensus_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
 use serde::{Deserialize, Serialize};
@@ -602,7 +602,7 @@ mod tests {
     use crate::{
         block::TestBlock,
         context::Context,
-        storage::{mem_store::MemStore, WriteBatch},
+        storage::{WriteBatch, mem_store::MemStore},
     };
 
     #[tokio::test]

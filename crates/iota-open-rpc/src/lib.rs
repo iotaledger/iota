@@ -4,12 +4,12 @@
 
 extern crate core;
 
-use std::collections::{btree_map::Entry::Occupied, BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, btree_map::Entry::Occupied};
 
 use schemars::{
+    JsonSchema,
     gen::{SchemaGenerator, SchemaSettings},
     schema::SchemaObject,
-    JsonSchema,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -390,18 +390,15 @@ impl RpcModuleDocBuilder {
             Some(doc.trim().to_string())
         };
         let name = format!("{}_{}", namespace, name);
-        self.methods.insert(
-            name.clone(),
-            Method {
-                name,
-                description,
-                params,
-                result,
-                tags,
-                examples: Vec::new(),
-                deprecated,
-            },
-        );
+        self.methods.insert(name.clone(), Method {
+            name,
+            description,
+            params,
+            result,
+            tags,
+            examples: Vec::new(),
+            deprecated,
+        });
     }
 
     pub fn create_content_descriptor<T: JsonSchema>(

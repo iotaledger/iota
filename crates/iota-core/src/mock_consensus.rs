@@ -15,7 +15,7 @@ use tracing::debug;
 
 use crate::{
     authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore, AuthorityMetrics, AuthorityState,
+        AuthorityMetrics, AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_adapter::SubmitToConsensus,

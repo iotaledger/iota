@@ -4,11 +4,11 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use iota_types::{event::EventID, Identifier};
+use iota_types::{Identifier, event::EventID};
 use typed_store::{
+    DBMapUtils, Map,
     rocks::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
-    DBMapUtils, Map,
 };
 
 use crate::{

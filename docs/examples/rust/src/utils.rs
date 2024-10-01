@@ -8,10 +8,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_move_build::BuildConfig;
 use iota_sdk::{
+    IotaClient,
     rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions},
     types::{
         base_types::{IotaAddress, ObjectID},
@@ -20,7 +21,6 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData},
     },
-    IotaClient,
 };
 use shared_crypto::intent::Intent;
 

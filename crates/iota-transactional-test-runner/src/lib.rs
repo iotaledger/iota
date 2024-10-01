@@ -13,7 +13,7 @@ pub mod test_adapter;
 use std::{path::Path, sync::Arc};
 
 use iota_core::authority::{
-    authority_test_utils::send_and_confirm_transaction_with_execution_error, AuthorityState,
+    AuthorityState, authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, EventFilter};
@@ -27,7 +27,7 @@ use iota_types::{
     event::Event,
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
+        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
