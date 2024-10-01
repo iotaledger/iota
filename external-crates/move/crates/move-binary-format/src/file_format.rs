@@ -32,12 +32,8 @@
 //! binary of the form described. Vectors in those structs translate to tables
 //! and table specifications.
 
-use crate::{
-    errors::{PartialVMError, PartialVMResult},
-    file_format_common,
-    internals::ModuleIndex,
-    IndexKind, SignatureTokenKind,
-};
+use std::ops::BitOr;
+
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
@@ -49,8 +45,14 @@ use move_core_types::{
 use proptest::{collection::vec, prelude::*, strategy::BoxedStrategy};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
-use std::ops::BitOr;
 use variant_count::VariantCount;
+
+use crate::{
+    IndexKind, SignatureTokenKind,
+    errors::{PartialVMError, PartialVMResult},
+    file_format_common,
+    internals::ModuleIndex,
+};
 
 /// Generic index into one of the tables in the binary format.
 pub type TableIndex = u16;
@@ -1323,7 +1325,7 @@ impl SignatureToken {
 }
 
 /// A `Constant` is a serialized value along with its type. That type will be
-/// deserialized by the loader/evauluator
+/// deserialized by the loader/evaluator
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "wasm", derive(Serialize, Deserialize))]
@@ -2776,11 +2778,9 @@ impl CompiledModule {
             Reference(_) | MutableReference(_) => Ok(AbilitySet::REFERENCES),
             Signer => Ok(AbilitySet::SIGNER),
             TypeParameter(idx) => Ok(constraints[*idx as usize]),
-            Vector(ty) => AbilitySet::polymorphic_abilities(
-                AbilitySet::VECTOR,
-                vec![false],
-                vec![self.abilities(ty, constraints)?],
-            ),
+            Vector(ty) => AbilitySet::polymorphic_abilities(AbilitySet::VECTOR, vec![false], vec![
+                self.abilities(ty, constraints)?,
+            ]),
             Datatype(idx) => {
                 let sh = self.datatype_handle_at(*idx);
                 Ok(sh.abilities)
