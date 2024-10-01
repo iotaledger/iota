@@ -73,7 +73,7 @@ static SET_EXTENSION_HOOK: Lazy<()> =
 
 /// This function returns a result of UnitTestResult. The outer result indicates
 /// whether it successfully started running the test, and the inner result
-/// indicatests whether all tests pass.
+/// indicates whether all tests pass.
 pub fn run_move_unit_tests(
     path: &Path,
     build_config: BuildConfig,
