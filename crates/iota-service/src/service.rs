@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use axum::{routing::get, Json, Router};
+use axum::{Json, Router, routing::get};
 use tracing::debug;
 
-use crate::{health::HealthResponse, DEFAULT_PORT};
+use crate::{DEFAULT_PORT, health::HealthResponse};
 
 pub fn get_iota_service<S>(app_name: &str, app_version: &str) -> Router<S>
 where

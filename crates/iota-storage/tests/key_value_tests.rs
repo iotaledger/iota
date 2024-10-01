@@ -10,9 +10,9 @@ use iota_protocol_config::ProtocolConfig;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber},
+    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair, KeypairTraits},
+    crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::{
         CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
     },

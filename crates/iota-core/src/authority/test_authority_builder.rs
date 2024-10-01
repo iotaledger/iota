@@ -7,6 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
+    ExecutionCacheConfig,
     certificate_deny_config::CertificateDenyConfig,
     genesis::Genesis,
     node::{
@@ -14,7 +15,6 @@ use iota_config::{
         ExpensiveSafetyCheckConfig,
     },
     transaction_deny_config::TransactionDenyConfig,
-    ExecutionCacheConfig,
 };
 use iota_macros::nondeterministic;
 use iota_network::randomness;
@@ -36,9 +36,9 @@ use prometheus::Registry;
 use super::epoch_start_configuration::EpochFlag;
 use crate::{
     authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store_tables::AuthorityPerpetualTables,
-        epoch_start_configuration::EpochStartConfiguration, AuthorityState, AuthorityStore,
+        epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
     epoch::{

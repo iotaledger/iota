@@ -6,6 +6,7 @@ use std::{
     collections::HashMap,
     fmt::{Debug, Display},
 };
+
 use aws_runtime::env_config::file::{EnvConfigFileKind, EnvConfigFiles};
 use aws_sdk_ec2::{
     config::Region,
@@ -15,8 +16,7 @@ use aws_sdk_ec2::{
         TagSpecification, VolumeType,
     },
 };
-use aws_smithy_runtime_api::client::behavior_version::BehaviorVersion;
-use aws_smithy_runtime_api::client::result::SdkError;
+use aws_smithy_runtime_api::client::{behavior_version::BehaviorVersion, result::SdkError};
 use serde::Serialize;
 
 use super::{Instance, ServerProviderClient};

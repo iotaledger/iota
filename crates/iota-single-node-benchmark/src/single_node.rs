@@ -9,14 +9,15 @@ use std::{
 
 use iota_core::{
     authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
-        test_authority_builder::TestAuthorityBuilder, AuthorityState,
+        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::LiveObject, test_authority_builder::TestAuthorityBuilder,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::checkpoint_executor::CheckpointExecutor,
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    mock_consensus::{ConsensusMode, MockConsensusClient},
     state_accumulator::StateAccumulator,
 };
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
@@ -31,16 +32,13 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, Transaction, TransactionDataAPI, VerifiedCertificate,
-        VerifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, Transaction, TransactionDataAPI,
+        VerifiedCertificate, VerifiedTransaction,
     },
 };
 use tokio::sync::broadcast;
-use iota_core::mock_consensus::{ConsensusMode, MockConsensusClient};
-use crate::{
-    command::Component,
-    mock_storage::InMemoryObjectStore,
-};
+
+use crate::{command::Component, mock_storage::InMemoryObjectStore};
 
 #[derive(Clone)]
 pub struct SingleValidator {

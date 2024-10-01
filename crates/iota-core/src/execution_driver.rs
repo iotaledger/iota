@@ -10,14 +10,14 @@ use std::{
 use iota_macros::fail_point_async;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use rand::{
-    rngs::{OsRng, StdRng},
     Rng, SeedableRng,
+    rngs::{OsRng, StdRng},
 };
 use tokio::{
-    sync::{mpsc::UnboundedReceiver, oneshot, Semaphore},
+    sync::{Semaphore, mpsc::UnboundedReceiver, oneshot},
     time::sleep,
 };
-use tracing::{error, error_span, info, trace, Instrument};
+use tracing::{Instrument, error, error_span, info, trace};
 
 use crate::{authority::AuthorityState, transaction_manager::PendingCertificate};
 

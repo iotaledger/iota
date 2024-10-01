@@ -6,16 +6,16 @@ use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use iota_package_resolver::{
-    error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
+    Package, PackageStore, PackageStoreWithLruCache, Result, error::Error as PackageResolverError,
 };
 use iota_rest_api::Client;
 use iota_types::{base_types::ObjectID, object::Object};
 use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 use typed_store::{
+    DBMapUtils, Map, TypedStoreError,
     rocks::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
-    DBMapUtils, Map, TypedStoreError,
 };
 
 const STORE: &str = "RocksDB";

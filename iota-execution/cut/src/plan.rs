@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use thiserror::Error;
 use toml::value::Value;
 use toml_edit::{self, DocumentMut, Item};
@@ -184,19 +184,16 @@ impl CutPlan {
                     bail!(Error::ExistingPackage(pkg_name, dst_path));
                 }
 
-                self.planned_packages.insert(
-                    pkg_name,
-                    CutPackage {
-                        dst_name,
-                        dst_path,
-                        src_path: src.to_path_buf(),
-                        ws_state: if let Some(ws) = &self.ws {
-                            ws.state(src)?
-                        } else {
-                            WorkspaceState::Unknown
-                        },
+                self.planned_packages.insert(pkg_name, CutPackage {
+                    dst_name,
+                    dst_path,
+                    src_path: src.to_path_buf(),
+                    ws_state: if let Some(ws) = &self.ws {
+                        ws.state(src)?
+                    } else {
+                        WorkspaceState::Unknown
                     },
-                );
+                });
 
                 Ok(())
             }

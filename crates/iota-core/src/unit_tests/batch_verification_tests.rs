@@ -10,14 +10,14 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
     gas::GasCostSummary,
     messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
     signature_verification::VerifiedDigestCache,
     transaction::CertifiedTransaction,
 };
 use prometheus::Registry;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 
 use crate::{
     signature_verifier::*,

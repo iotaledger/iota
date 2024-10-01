@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::{
-    task::{noop_waker, Context, Poll},
     FutureExt,
+    task::{Context, Poll, noop_waker},
 };
 use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::error::TrySendError;

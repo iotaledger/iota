@@ -39,10 +39,10 @@ use iota_types::{
     transaction::*,
 };
 use narwhal_worker::LazyNarwhalClient;
-use nonempty::{nonempty, NonEmpty};
+use nonempty::{NonEmpty, nonempty};
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,
-    IntCounterVec, Registry,
+    IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
@@ -50,15 +50,15 @@ use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{error, error_span, info, Instrument};
+use tracing::{Instrument, error, error_span, info};
 
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
     traffic_controller::{
-        metrics::TrafficControllerMetrics, policies::TrafficTally, TrafficController,
+        TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
     },
 };
 

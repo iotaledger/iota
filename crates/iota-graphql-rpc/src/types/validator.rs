@@ -9,19 +9,19 @@ use async_graphql::{
     dataloader::Loader,
     *,
 };
-use iota_indexer::apis::{governance_api::exchange_rates, GovernanceReadApi};
+use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
     iota_system_state::{
-        iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary,
         PoolTokenExchangeRate,
+        iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary,
     },
 };
 
 use crate::{
     consistency::ConsistentIndexCursor,
-    data::{apys::calculate_apy, DataLoader, Db},
+    data::{DataLoader, Db, apys::calculate_apy},
     error::Error,
     types::{
         address::Address,
@@ -358,13 +358,10 @@ impl Validator {
         connection.has_next_page = next;
 
         for c in cs {
-            connection.edges.push(Edge::new(
-                c.encode_cursor(),
-                Address {
-                    address: addresses[c.ix].address,
-                    checkpoint_viewed_at: c.c,
-                },
-            ));
+            connection.edges.push(Edge::new(c.encode_cursor(), Address {
+                address: addresses[c.ix].address,
+                checkpoint_viewed_at: c.c,
+            }));
         }
 
         Ok(connection)

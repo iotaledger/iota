@@ -8,11 +8,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use async_trait::async_trait;
 use iota_indexer_builder::{
-    indexer_builder::{DataMapper, DataSender, Datasource, IndexerProgressStore, Persistent},
     Task,
+    indexer_builder::{DataMapper, DataSender, Datasource, IndexerProgressStore, Persistent},
 };
 use iota_metrics::spawn_monitored_task;
 use tokio::{sync::Mutex, task::JoinHandle};
@@ -107,15 +107,16 @@ impl<T: Send + Sync> IndexerProgressStore for InMemoryPersistent<T> {
         checkpoint: u64,
         target_checkpoint: u64,
     ) -> Result<(), Error> {
-        let existing = self.progress_store.lock().await.insert(
-            task_name.clone(),
-            Task {
+        let existing = self
+            .progress_store
+            .lock()
+            .await
+            .insert(task_name.clone(), Task {
                 task_name: task_name.clone(),
                 checkpoint,
                 target_checkpoint,
                 timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as u64,
-            },
-        );
+            });
         if existing.is_some() {
             return Err(anyhow!("Task {task_name} already exists"));
         }

@@ -10,23 +10,23 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use typed_store::{
+    DBMapUtils,
     metrics::SamplingInterval,
     rocks::{
-        default_db_options, read_size_from_env,
+        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        read_size_from_env,
         util::{empty_compaction_filter, reference_count_merge_operator},
-        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions,
     },
     rocksdb::Options,
     traits::{Map, TableSummary, TypedStoreDebug},
-    DBMapUtils,
 };
 
 use super::*;
 use crate::authority::{
     authority_store::LockDetailsWrapperDeprecated,
     authority_store_types::{
-        get_store_object_pair, try_construct_object, ObjectContentDigest, StoreData,
-        StoreMoveObjectWrapper, StoreObject, StoreObjectPair, StoreObjectValue, StoreObjectWrapper,
+        ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
+        StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
 };

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_indexer_builder::{
-    indexer_builder::{BackfillStrategy, IndexerBuilder, IndexerProgressStore},
     Task,
+    indexer_builder::{BackfillStrategy, IndexerBuilder, IndexerProgressStore},
 };
 use prometheus::Registry;
 

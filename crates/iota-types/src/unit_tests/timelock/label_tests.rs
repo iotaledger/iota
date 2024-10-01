@@ -4,7 +4,7 @@
 
 use crate::timelock::{
     label::label_struct_tag_to_string,
-    stardust_upgrade_label::{stardust_upgrade_label_type, STARDUST_UPGRADE_LABEL_VALUE},
+    stardust_upgrade_label::{STARDUST_UPGRADE_LABEL_VALUE, stardust_upgrade_label_type},
 };
 
 #[test]

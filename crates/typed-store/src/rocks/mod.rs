@@ -27,19 +27,20 @@ use iota_macros::{fail_point, nondeterministic};
 use itertools::Itertools;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::{
-    checkpoint::Checkpoint, properties, AsColumnFamilyRef, BlockBasedOptions,
-    BottommostLevelCompaction, CStrLike, Cache, ColumnFamilyDescriptor, CompactOptions,
-    DBPinnableSlice, DBWithThreadMode, Error, ErrorKind, IteratorMode, LiveFile, MultiThreaded,
-    OptimisticTransactionDB, OptimisticTransactionOptions, ReadOptions, SnapshotWithThreadMode,
-    Transaction, WriteBatch, WriteBatchWithTransaction, WriteOptions,
+    AsColumnFamilyRef, BlockBasedOptions, BottommostLevelCompaction, CStrLike, Cache,
+    ColumnFamilyDescriptor, CompactOptions, DBPinnableSlice, DBWithThreadMode, Error, ErrorKind,
+    IteratorMode, LiveFile, MultiThreaded, OptimisticTransactionDB, OptimisticTransactionOptions,
+    ReadOptions, SnapshotWithThreadMode, Transaction, WriteBatch, WriteBatchWithTransaction,
+    WriteOptions, checkpoint::Checkpoint, properties,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use tap::TapFallible;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument, warn};
 
 use self::{iter::Iter, keys::Keys, values::Values};
 use crate::{
+    TypedStoreError,
     metrics::{DBMetrics, RocksDBPerfContext, SamplingInterval},
     rocks::{
         errors::{
@@ -49,7 +50,6 @@ use crate::{
         safe_iter::SafeIter,
     },
     traits::{Map, TableSummary},
-    TypedStoreError,
 };
 
 // Write buffer size per RocksDB instance can be set via the env var below.
@@ -153,7 +153,7 @@ macro_rules! retry_transaction {
             distributions::{Distribution, Uniform},
             rngs::ThreadRng,
         };
-        use tokio::time::{sleep, Duration};
+        use tokio::time::{Duration, sleep};
         use tracing::{error, info};
 
         let mut retries = 0;
@@ -812,12 +812,10 @@ impl<K, V> DBMap<K, V> {
     /// #[tokio::main]
     /// async fn main() -> Result<(), Error> {
     ///     /// Open the DB with all needed column families first.
-    ///     let rocks = open_cf(
-    ///         tempdir().unwrap(),
-    ///         None,
-    ///         MetricConf::default(),
-    ///         &["First_CF", "Second_CF"],
-    ///     )
+    ///     let rocks = open_cf(tempdir().unwrap(), None, MetricConf::default(), &[
+    ///         "First_CF",
+    ///         "Second_CF",
+    ///     ])
     ///     .unwrap();
     ///     /// Attach the column families to specific maps.
     ///     let db_cf_1 = DBMap::<u32, u32>::reopen(
@@ -1340,7 +1338,7 @@ impl<K, V> DBMap<K, V> {
 ///
 /// use prometheus::Registry;
 /// use tempfile::tempdir;
-/// use typed_store::{metrics::DBMetrics, rocks::*, Map};
+/// use typed_store::{Map, metrics::DBMetrics, rocks::*};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
