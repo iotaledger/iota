@@ -1067,7 +1067,7 @@ fn extract_migration_transactions_data(
 
         migration_txs_effects.push(migration_effects);
         txs_data.insert(
-            migration_transaction.key(),
+            *migration_transaction.digest(),
             (migration_transaction, migration_events, objects),
         );
         start_idx += chunk;

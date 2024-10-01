@@ -287,10 +287,10 @@ impl AuthorityStore {
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
                 .unwrap();
+
             // We don't insert the effects to executed_effects yet because the genesis tx
             // hasn't but will be executed. This is important for fullnodes to
             // be able to generate indexing data right now.
-
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
@@ -303,23 +303,19 @@ impl AuthorityStore {
             if let Some(migration_transactions) = migration_tx_data {
                 let mut txs_data = migration_transactions.extract_txs_data();
 
-                let genesis_migrated_transactions: HashMap<
-                    TransactionDigest,
-                    TransactionEffects,
-                > = genesis
-                    .migration_txs_effects()
-                    .iter()
-                    .map(|tx| (*tx.transaction_digest(), tx.clone()))
-                    .collect();
+                let genesis_migrated_transactions: HashMap<TransactionDigest, TransactionEffects> =
+                    genesis
+                        .migration_txs_effects()
+                        .iter()
+                        .map(|tx| (*tx.transaction_digest(), tx.clone()))
+                        .collect();
 
-                txs_data.retain(|tx_key, (tx, events, objects)| {
-                    if let Some(tx_effects) =
-                        genesis_migrated_transactions.get(tx_key.unwrap_digest())
-                    {
+                for (tx_digest, tx_effects) in genesis_migrated_transactions {
+                    if let Some((tx, events, objects)) = txs_data.remove(&tx_digest) {
                         let transaction = VerifiedTransaction::new_unchecked(tx.clone());
 
                         store
-                            .bulk_insert_genesis_objects(objects)
+                            .bulk_insert_genesis_objects(&objects)
                             .expect("Cannot bulk insert migrated objects");
 
                         store
@@ -340,12 +336,9 @@ impl AuthorityStore {
                             .enumerate()
                             .map(|(i, e)| ((events.digest(), i), e));
                         store.perpetual_tables.events.multi_insert(events).unwrap();
-
-                        false // Remove from txs_data as it's processed
-                    } else {
-                        true // This tx was has not been processed 
                     }
-                });
+                }
+
                 // Assert that all transactions have been successfully processed.
                 assert!(
                     txs_data.is_empty(),
