@@ -6,7 +6,7 @@ use iota_json_rpc_types::IotaCallArg;
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
 use move_core_types::annotated_value::MoveTypeLayout;
 

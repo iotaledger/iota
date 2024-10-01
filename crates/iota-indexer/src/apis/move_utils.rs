@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use async_trait::async_trait;
 use diesel::r2d2::R2D2Connection;
-use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::MoveUtilsServer;
 use iota_json_rpc_types::{
     IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_types::base_types::ObjectID;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use move_binary_format::normalized::Module as NormalizedModule;
 
 use crate::indexer_reader::IndexerReader;

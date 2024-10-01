@@ -13,19 +13,19 @@ use anyhow::bail;
 use async_trait::async_trait;
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash;
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use itertools::Itertools;
 use network::WorkerRpc;
 use prometheus::IntGauge;
 use rand::{rngs::ThreadRng, seq::SliceRandom};
-use store::{rocks::DBMap, Map};
+use store::{Map, rocks::DBMap};
 use tokio::{
     select,
-    time::{sleep, sleep_until, Instant},
+    time::{Instant, sleep, sleep_until},
 };
 use tracing::debug;
 use types::{
-    now, Batch, BatchAPI, BatchDigest, MetadataAPI, RequestBatchesRequest, RequestBatchesResponse,
+    Batch, BatchAPI, BatchDigest, MetadataAPI, RequestBatchesRequest, RequestBatchesResponse, now,
 };
 
 use crate::metrics::WorkerMetrics;

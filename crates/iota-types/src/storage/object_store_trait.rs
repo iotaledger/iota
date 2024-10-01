@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use super::{error::Result, ObjectKey};
+use super::{ObjectKey, error::Result};
 use crate::{
     base_types::{ObjectID, ObjectRef, VersionNumber},
     object::Object,

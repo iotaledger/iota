@@ -5,22 +5,22 @@
 
 use std::{collections::HashSet, time::Duration};
 
-use anemo::{types::response::StatusCode, Network};
+use anemo::{Network, types::response::StatusCode};
 use anyhow::Result;
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
 use itertools::Itertools;
-use network::{client::NetworkClient, WorkerToPrimaryClient};
-use store::{rocks::DBMap, Map};
+use network::{WorkerToPrimaryClient, client::NetworkClient};
+use store::{Map, rocks::DBMap};
 use tracing::{debug, trace};
 use types::{
-    now, Batch, BatchAPI, BatchDigest, FetchBatchesRequest, FetchBatchesResponse, MetadataAPI,
+    Batch, BatchAPI, BatchDigest, FetchBatchesRequest, FetchBatchesResponse, MetadataAPI,
     PrimaryToWorker, RequestBatchesRequest, RequestBatchesResponse, WorkerBatchMessage,
-    WorkerOthersBatchMessage, WorkerSynchronizeMessage, WorkerToWorker, WorkerToWorkerClient,
+    WorkerOthersBatchMessage, WorkerSynchronizeMessage, WorkerToWorker, WorkerToWorkerClient, now,
 };
 
-use crate::{batch_fetcher::BatchFetcher, TransactionValidator};
+use crate::{TransactionValidator, batch_fetcher::BatchFetcher};
 
 #[cfg(test)]
 #[path = "tests/handlers_tests.rs"]

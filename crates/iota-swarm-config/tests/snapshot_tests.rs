@@ -25,17 +25,17 @@ use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{validator_info::ValidatorInfo, Builder};
+use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        IotaKeyPair, NetworkKeyPair,
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+        generate_proof_of_possession, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 #[test]
 #[cfg_attr(msim, ignore)]

@@ -5,8 +5,8 @@
 use std::time::Duration;
 
 use tonic::{
-    codegen::http::{header::HeaderName, HeaderValue, Request, Response},
     Code, Status,
+    codegen::http::{HeaderValue, Request, Response, header::HeaderName},
 };
 use tower_http::{
     classify::GrpcFailureClass,

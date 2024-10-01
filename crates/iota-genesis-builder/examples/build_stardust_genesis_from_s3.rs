@@ -6,7 +6,7 @@
 use iota_genesis_builder::{Builder, SnapshotUrl};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 fn main() -> anyhow::Result<()> {

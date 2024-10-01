@@ -7,45 +7,45 @@ use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
 
-use anemo::{rpc::Status, Network, Request, Response};
+use anemo::{Network, Request, Response, rpc::Status};
 use config::{AuthorityIdentifier, Committee, WorkerCache};
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash as _;
-use futures::{stream::FuturesOrdered, StreamExt};
+use futures::{StreamExt, stream::FuturesOrdered};
 use iota_common::sync::notify_once::NotifyOnce;
 use iota_metrics::{
-    metered_channel::{channel_with_total, Sender},
+    metered_channel::{Sender, channel_with_total},
     monitored_scope, spawn_logged_monitored_task,
 };
 use iota_network_stack::anemo_ext::{NetworkExt, WaitingPeer};
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
-use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
+use network::{PrimaryToWorkerClient, RetryConfig, client::NetworkClient};
 use parking_lot::Mutex;
 use storage::{CertificateStore, PayloadStore};
 use tokio::{
-    sync::{broadcast, oneshot, watch, MutexGuard},
-    task::{spawn_blocking, JoinSet},
-    time::{sleep, timeout, Instant},
+    sync::{MutexGuard, broadcast, oneshot, watch},
+    task::{JoinSet, spawn_blocking},
+    time::{Instant, sleep, timeout},
 };
 use tracing::{debug, error, instrument, trace, warn};
 use types::{
-    ensure,
-    error::{AcceptNotification, DagError, DagResult},
     Certificate, CertificateAPI, CertificateDigest, Header, HeaderAPI, PrimaryToPrimaryClient,
     Round, SendCertificateRequest, SendCertificateResponse, SignatureVerificationState,
-    WorkerSynchronizeMessage,
+    WorkerSynchronizeMessage, ensure,
+    error::{AcceptNotification, DagError, DagResult},
 };
 
 use crate::{
-    aggregators::CertificatesAggregator, certificate_fetcher::CertificateFetcherCommand,
-    consensus::ConsensusRound, metrics::PrimaryMetrics, PrimaryChannelMetrics, CHANNEL_CAPACITY,
+    CHANNEL_CAPACITY, PrimaryChannelMetrics, aggregators::CertificatesAggregator,
+    certificate_fetcher::CertificateFetcherCommand, consensus::ConsensusRound,
+    metrics::PrimaryMetrics,
 };
 
 #[cfg(test)]
@@ -1500,14 +1500,11 @@ impl State {
         let notify = Arc::new(NotifyOnce::new());
         assert!(
             self.suspended
-                .insert(
-                    digest,
-                    SuspendedCertificate {
-                        certificate,
-                        missing_parents: missing_parents_map,
-                        notify: notify.clone(),
-                    }
-                )
+                .insert(digest, SuspendedCertificate {
+                    certificate,
+                    missing_parents: missing_parents_map,
+                    notify: notify.clone(),
+                })
                 .is_none()
         );
         for d in missing_parents {
@@ -1615,7 +1612,7 @@ mod tests {
     use config::Committee;
     use fastcrypto::{hash::Hash, traits::KeyPair};
     use itertools::Itertools;
-    use test_utils::{make_optimal_signed_certificates, CommitteeFixture};
+    use test_utils::{CommitteeFixture, make_optimal_signed_certificates};
     use types::{Certificate, Round};
 
     use crate::synchronizer::State;
@@ -1676,7 +1673,8 @@ mod tests {
         let ((round, certificate_digest), suspended_certificate) =
             state.run_gc_once(GC_ROUND).unwrap();
 
-        assert_eq!(certificate_digest, certificates[0].digest()); // Ensure that only the missing certificate digest of round 1 gets garbage collected.
+        assert_eq!(certificate_digest, certificates[0].digest()); // Ensure that only the missing certificate digest of round 1 gets garbage
+        // collected.
         assert_eq!(round, 1);
         assert!(suspended_certificate.is_none()); // We don't have its certificate
 

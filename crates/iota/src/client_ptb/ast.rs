@@ -5,8 +5,8 @@
 use std::fmt;
 
 use iota_types::{
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     Identifier, TypeTag,
+    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
 };
 use move_command_line_common::{
     address::{NumericalAddress, ParsedAddress},
@@ -395,14 +395,11 @@ impl fmt::Display for ParsedPTBCommand {
                 write!(f, "]")
             }
             ParsedPTBCommand::MoveCall(
-                sp!(
-                    _,
-                    ModuleAccess {
-                        address,
-                        module_name,
-                        function_name
-                    }
-                ),
+                sp!(_, ModuleAccess {
+                    address,
+                    module_name,
+                    function_name
+                }),
                 tys,
                 args,
             ) => {

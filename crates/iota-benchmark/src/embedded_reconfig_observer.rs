@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use iota_core::{
     authority_aggregator::AuthorityAggregator,
     authority_client::NetworkAuthorityClient,
-    quorum_driver::{reconfig_observer::ReconfigObserver, QuorumDriver},
+    quorum_driver::{QuorumDriver, reconfig_observer::ReconfigObserver},
 };
 use iota_network::default_iota_network_config;
 use iota_types::iota_system_state::IotaSystemStateTrait;

@@ -8,6 +8,7 @@
 //! cargo run --example sign_tx_guide
 
 mod utils;
+
 use anyhow::anyhow;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
@@ -18,19 +19,19 @@ use fastcrypto::{
     traits::{EncodeDecodeBase64, KeyPair},
 };
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::TransactionData,
     },
-    IotaClientBuilder,
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair_from_rng, IotaKeyPair, IotaSignature, Signer, ToFromBytes},
+    crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
     signature::GenericSignature,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentMessage};
 use utils::request_tokens_from_faucet;
 
@@ -156,10 +157,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            iota_types::transaction::Transaction::from_generic_sig_data(
-                intent_msg.value,
-                vec![GenericSignature::Signature(iota_sig)],
-            ),
+            iota_types::transaction::Transaction::from_generic_sig_data(intent_msg.value, vec![
+                GenericSignature::Signature(iota_sig),
+            ]),
             IotaTransactionBlockResponseOptions::default(),
             None,
         )

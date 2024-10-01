@@ -19,7 +19,7 @@ use iota_types::{
 };
 use tempfile::tempdir;
 
-use crate::{reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1, FileCompression};
+use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
 
 fn temp_dir() -> std::path::PathBuf {
     tempdir()

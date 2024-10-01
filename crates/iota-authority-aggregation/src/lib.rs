@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
+use futures::{Future, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use iota_metrics::monitored_future;
 use iota_types::{
     base_types::ConciseableName,

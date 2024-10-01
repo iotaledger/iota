@@ -5,23 +5,23 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_types::{
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{
-        transaction_non_shared_input_object_keys, transaction_receiving_object_keys, ObjectKey,
+        ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
     transaction::{SenderSignedData, SharedInputObject, TransactionDataAPI, TransactionKey},
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use tracing::{debug, trace};
 
 use crate::{
     authority::{
-        authority_per_epoch_store::CancelConsensusCertificateReason,
-        epoch_start_configuration::EpochStartConfigTrait, AuthorityPerEpochStore,
+        AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusCertificateReason,
+        epoch_start_configuration::EpochStartConfigTrait,
     },
     execution_cache::ObjectCacheRead,
 };
@@ -281,6 +281,7 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
+        IOTA_RANDOMNESS_STATE_OBJECT_ID,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
@@ -291,7 +292,6 @@ mod tests {
         object::{Object, Owner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{ObjectArg, SenderSignedData, TransactionKey},
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
     };
 
     use super::*;
@@ -352,15 +352,12 @@ mod tests {
         // update the version using lamport version, hence the next transaction
         // will use the same version number. In the following case, certs[2] has
         // the same assignment as certs[1] for this reason.
-        assert_eq!(
-            assigned_versions,
-            vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
-            ]
-        );
+        assert_eq!(assigned_versions, vec![
+            (certs[0].key(), vec![(id, init_shared_version),]),
+            (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+            (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+            (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+        ]);
     }
 
     #[tokio::test]
@@ -416,27 +413,24 @@ mod tests {
             // Randomness object's version is only incremented by 1 regardless of lamport version.
             HashMap::from([(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)])
         );
-        assert_eq!(
-            assigned_versions,
-            vec![
-                (
-                    TransactionKey::RandomnessRound(0, RandomnessRound::new(1)),
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, randomness_obj_version),]
-                ),
-                (
-                    certs[0].key(),
-                    // It is critical that the randomness object version is updated before the
-                    // assignment.
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
-                ),
-                (
-                    certs[1].key(),
-                    // It is critical that the randomness object version is updated before the
-                    // assignment.
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
-                ),
-            ]
-        );
+        assert_eq!(assigned_versions, vec![
+            (
+                TransactionKey::RandomnessRound(0, RandomnessRound::new(1)),
+                vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, randomness_obj_version),]
+            ),
+            (
+                certs[0].key(),
+                // It is critical that the randomness object version is updated before the
+                // assignment.
+                vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
+            ),
+            (
+                certs[1].key(),
+                // It is critical that the randomness object version is updated before the
+                // assignment.
+                vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
+            ),
+        ]);
     }
 
     // Tests shared object version assignment for cancelled transaction.
@@ -567,40 +561,28 @@ mod tests {
         );
 
         // Check that the version assignment for each transaction is correct.
-        assert_eq!(
-            assigned_versions,
-            vec![
+        assert_eq!(assigned_versions, vec![
+            (certs[0].key(), vec![
+                (id1, init_shared_version_1),
+                (id2, init_shared_version_2)
+            ]),
+            (certs[1].key(), vec![
+                (id1, SequenceNumber::CONGESTED),
+                (id2, SequenceNumber::CANCELLED_READ),
+            ]),
+            (certs[2].key(), vec![(id1, SequenceNumber::from_u64(4)),]),
+            (certs[3].key(), vec![
+                (id1, SequenceNumber::CANCELLED_READ),
+                (id2, SequenceNumber::CONGESTED)
+            ]),
+            (certs[4].key(), vec![
                 (
-                    certs[0].key(),
-                    vec![(id1, init_shared_version_1), (id2, init_shared_version_2)]
+                    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    SequenceNumber::RANDOMNESS_UNAVAILABLE
                 ),
-                (
-                    certs[1].key(),
-                    vec![
-                        (id1, SequenceNumber::CONGESTED),
-                        (id2, SequenceNumber::CANCELLED_READ),
-                    ]
-                ),
-                (certs[2].key(), vec![(id1, SequenceNumber::from_u64(4)),]),
-                (
-                    certs[3].key(),
-                    vec![
-                        (id1, SequenceNumber::CANCELLED_READ),
-                        (id2, SequenceNumber::CONGESTED)
-                    ]
-                ),
-                (
-                    certs[4].key(),
-                    vec![
-                        (
-                            IOTA_RANDOMNESS_STATE_OBJECT_ID,
-                            SequenceNumber::RANDOMNESS_UNAVAILABLE
-                        ),
-                        (id2, SequenceNumber::CANCELLED_READ)
-                    ]
-                ),
-            ]
-        );
+                (id2, SequenceNumber::CANCELLED_READ)
+            ]),
+        ]);
     }
 
     #[tokio::test]
@@ -654,15 +636,12 @@ mod tests {
             epoch_store.get_next_object_version(&id).unwrap(),
             init_shared_version
         );
-        assert_eq!(
-            assigned_versions,
-            vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
-            ]
-        );
+        assert_eq!(assigned_versions, vec![
+            (certs[0].key(), vec![(id, init_shared_version),]),
+            (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+            (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+            (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+        ]);
     }
 
     /// Generate a transaction that uses shared objects as specified in the

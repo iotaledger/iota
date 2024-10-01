@@ -66,30 +66,30 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_types::{
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
         base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
         iota_system_state::{
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2,
+            IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
-            IotaSystemState, IotaSystemStateTrait, IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2,
-            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2, IOTA_SYSTEM_STATE_SIM_TEST_V1,
         },
         object::{Object, Owner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-            TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
         },
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
-        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
-        IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
     };
-    use move_binary_format::{file_format_common::VERSION_MAX, CompiledModule};
+    use move_binary_format::{CompiledModule, file_format_common::VERSION_MAX};
     use move_core_types::ident_str;
     use test_cluster::TestCluster;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
     use tracing::info;
 
     use super::*;
@@ -450,16 +450,13 @@ mod sim_only_tests {
 
         // Call a function from the newly published system package
         assert_eq!(
-            dev_inspect_call(
-                &cluster,
-                ProgrammableMoveCall {
-                    package: iota_extra,
-                    module: ident_str!("msim_extra_1").to_owned(),
-                    function: ident_str!("canary").to_owned(),
-                    type_arguments: vec![],
-                    arguments: vec![],
-                }
-            )
+            dev_inspect_call(&cluster, ProgrammableMoveCall {
+                package: iota_extra,
+                module: ident_str!("msim_extra_1").to_owned(),
+                function: ident_str!("canary").to_owned(),
+                type_arguments: vec![],
+                arguments: vec![],
+            })
             .await,
             43,
         );
@@ -480,16 +477,13 @@ mod sim_only_tests {
     }
 
     async fn call_canary(cluster: &TestCluster) -> u64 {
-        dev_inspect_call(
-            cluster,
-            ProgrammableMoveCall {
-                package: IOTA_SYSTEM_PACKAGE_ID,
-                module: ident_str!("msim_extra_1").to_owned(),
-                function: ident_str!("canary").to_owned(),
-                type_arguments: vec![],
-                arguments: vec![],
-            },
-        )
+        dev_inspect_call(cluster, ProgrammableMoveCall {
+            package: IOTA_SYSTEM_PACKAGE_ID,
+            module: ident_str!("msim_extra_1").to_owned(),
+            function: ident_str!("canary").to_owned(),
+            type_arguments: vec![],
+            arguments: vec![],
+        })
         .await
     }
 

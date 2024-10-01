@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use dashmap::{mapref::entry::Entry as DashMapEntry, DashMap};
+use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
@@ -274,7 +274,7 @@ mod tests {
     use futures::FutureExt;
 
     use crate::execution_cache::{
-        writeback_cache::writeback_cache_tests::Scenario, ExecutionCacheWrite,
+        ExecutionCacheWrite, writeback_cache::writeback_cache_tests::Scenario,
     };
 
     #[tokio::test]

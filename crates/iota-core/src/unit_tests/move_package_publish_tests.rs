@@ -6,16 +6,16 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
-use iota_move_build::{check_unpublished_dependencies, gather_published_ids, BuildConfig};
+use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
 use iota_types::{
     base_types::ObjectID,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{Data, ObjectRead, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
     utils::to_sender_signed_transaction,
 };
 use move_binary_format::CompiledModule;
@@ -116,12 +116,9 @@ async fn test_publish_empty_package() {
     let err = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::EmptyCommandInput
-        }
-    );
+    assert_eq!(err, IotaError::UserInput {
+        error: UserInputError::EmptyCommandInput
+    });
 
     // empty module
     let data = TransactionData::new_module(
@@ -137,13 +134,10 @@ async fn test_publish_empty_package() {
         .await
         .unwrap()
         .1;
-    assert_eq!(
-        result.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    )
+    assert_eq!(result.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+        command: Some(0)
+    })
 }
 
 #[tokio::test]
@@ -173,13 +167,10 @@ async fn test_publish_duplicate_modules() {
         .await
         .unwrap()
         .1;
-    assert_eq!(
-        result.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    )
+    assert_eq!(result.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+        command: Some(0)
+    })
 }
 
 #[tokio::test]
@@ -359,13 +350,10 @@ async fn test_publish_extraneous_bytes_modules() {
         .await
         .unwrap()
         .1;
-    assert_eq!(
-        result.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    );
+    assert_eq!(result.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+        command: Some(0)
+    });
 
     // make the bytes invalid, in a different way
     let gas_object = authority.get_object(&gas).await.unwrap();
@@ -387,13 +375,10 @@ async fn test_publish_extraneous_bytes_modules() {
         .await
         .unwrap()
         .1;
-    assert_eq!(
-        result.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    );
+    assert_eq!(result.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+        command: Some(0)
+    });
 
     // make the bytes invalid by adding metadata
     let gas_object = authority.get_object(&gas).await.unwrap();
@@ -424,13 +409,10 @@ async fn test_publish_extraneous_bytes_modules() {
         .await
         .unwrap()
         .1;
-    assert_eq!(
-        result.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    )
+    assert_eq!(result.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+        command: Some(0)
+    })
 }
 
 #[tokio::test]
@@ -484,13 +466,10 @@ async fn test_publish_more_than_max_packages_error() {
     let err = run_multi_txns(&authority, sender, &sender_key, &gas_object_id, builder)
         .await
         .unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::MaxPublishCountExceeded {
-                max_publish_commands: max_pub_cmd,
-                publish_count: max_pub_cmd + 1,
-            }
+    assert_eq!(err, IotaError::UserInput {
+        error: UserInputError::MaxPublishCountExceeded {
+            max_publish_commands: max_pub_cmd,
+            publish_count: max_pub_cmd + 1,
         }
-    );
+    });
 }

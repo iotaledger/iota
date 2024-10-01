@@ -12,12 +12,12 @@ mod ingestion_tests {
         errors::{Context, IndexerError},
         models::{objects::StoredObject, transactions::StoredTransaction},
         schema::{objects, transactions},
-        store::{indexer_store::IndexerStore, PgIndexerStore},
-        test_utils::{start_test_indexer, ReaderWriterConfig},
+        store::{PgIndexerStore, indexer_store::IndexerStore},
+        test_utils::{ReaderWriterConfig, start_test_indexer},
     };
     use iota_types::{
-        base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
+        gas_coin::GasCoin,
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;

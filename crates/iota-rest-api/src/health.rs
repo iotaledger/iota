@@ -13,9 +13,9 @@ use iota_types::storage::ReadStore;
 use tap::Pipe;
 
 use crate::{
+    RestService, Result,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
-    RestService, Result,
 };
 
 pub struct HealthCheck;

@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     accumulator::Accumulator,
@@ -28,10 +28,10 @@ use super::{
 };
 use crate::{
     authority::{
+        AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
-        AuthorityStore,
     },
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
