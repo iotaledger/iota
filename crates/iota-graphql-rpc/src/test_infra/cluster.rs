@@ -69,6 +69,7 @@ pub async fn start_cluster(
         Some(db_url),
         val_fn.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
+        None,
         // reset_database
         true,
         Some(data_ingestion_path),

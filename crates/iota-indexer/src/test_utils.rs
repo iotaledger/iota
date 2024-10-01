@@ -45,11 +45,13 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
     rpc_url: String,
     reader_writer_config: ReaderWriterConfig,
     data_ingestion_path: PathBuf,
+    new_database: Option<String>,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
         db_url,
         rpc_url,
         reader_writer_config,
+        new_database,
         // reset_database
         false,
         Some(data_ingestion_path),

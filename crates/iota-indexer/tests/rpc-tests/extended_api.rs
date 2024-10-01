@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::OnceLock};
 
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
@@ -18,431 +18,404 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     storage::ReadStore,
 };
-use serial_test::serial;
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::TestCluster;
 
 use crate::common::{
-    indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_read_write_indexer,
-    start_test_cluster_with_read_write_indexer,
+    indexer_wait_for_checkpoint, ApiTestSetup, InitializedSimulacrumEnv,
+    SimulacrumApiTestEnvDefinition,
 };
 
-#[tokio::test]
-#[serial]
-async fn get_epochs() {
+static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<InitializedSimulacrumEnv> =
+    OnceLock::new();
+
+fn get_or_init_shared_extended_api_simulacrum_env() -> &'static InitializedSimulacrumEnv {
     let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
+    let extended_api_env = SimulacrumApiTestEnvDefinition {
+        unique_env_name: "extended_api".to_string(),
+        env_initializer: Box::new(|| {
+            let mut sim = Simulacrum::new();
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
+            execute_simulacrum_transactions(&mut sim, 15);
+            add_checkpoints(&mut sim, 300);
     sim.advance_epoch();
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
+            execute_simulacrum_transactions(&mut sim, 10);
+            add_checkpoints(&mut sim, 300);
     sim.advance_epoch();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+            execute_simulacrum_transactions(&mut sim, 5);
+            add_checkpoints(&mut sim, 300);
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
-
-    let epochs = indexer_client.get_epochs(None, None, None).await.unwrap();
-
-    assert_eq!(epochs.data.len(), 3);
-    assert!(!epochs.has_next_page);
-
-    let end_of_epoch_info = epochs.data[0].end_of_epoch_info.as_ref().unwrap();
-    assert_eq!(epochs.data[0].epoch, 0);
-    assert_eq!(epochs.data[0].first_checkpoint_id, 0);
-    assert_eq!(epochs.data[0].epoch_total_transactions, 17);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 301);
-
-    let end_of_epoch_info = epochs.data[1].end_of_epoch_info.as_ref().unwrap();
-    assert_eq!(epochs.data[1].epoch, 1);
-    assert_eq!(epochs.data[1].first_checkpoint_id, 302);
-    assert_eq!(epochs.data[1].epoch_total_transactions, 11);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 602);
-
-    assert_eq!(epochs.data[2].epoch, 2);
-    assert_eq!(epochs.data[2].first_checkpoint_id, 603);
-    assert_eq!(epochs.data[2].epoch_total_transactions, 0);
-    assert!(epochs.data[2].end_of_epoch_info.is_none());
+            sim
+        }),
+    };
+    extended_api_env.get_or_init_env(&EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV)
 }
 
-#[tokio::test]
-#[serial]
-async fn get_epochs_descending() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+#[test]
+fn get_epochs() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+        let epochs = client.get_epochs(None, None, None).await.unwrap();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+        assert_eq!(epochs.data.len(), 3);
+        assert!(!epochs.has_next_page);
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let end_of_epoch_info = epochs.data[0].end_of_epoch_info.as_ref().unwrap();
+        assert_eq!(epochs.data[0].epoch, 0);
+        assert_eq!(epochs.data[0].first_checkpoint_id, 0);
+        assert_eq!(epochs.data[0].epoch_total_transactions, 17);
+        assert_eq!(end_of_epoch_info.last_checkpoint_id, 301);
 
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
+        let end_of_epoch_info = epochs.data[1].end_of_epoch_info.as_ref().unwrap();
+        assert_eq!(epochs.data[1].epoch, 1);
+        assert_eq!(epochs.data[1].first_checkpoint_id, 302);
+        assert_eq!(epochs.data[1].epoch_total_transactions, 11);
+        assert_eq!(end_of_epoch_info.last_checkpoint_id, 602);
 
-    let epochs = indexer_client
-        .get_epochs(None, None, Some(true))
-        .await
-        .unwrap();
-
-    let actual_epochs_order = epochs
-        .data
-        .iter()
-        .map(|epoch| epoch.epoch)
-        .collect::<Vec<u64>>();
-
-    assert_eq!(epochs.data.len(), 3);
-    assert!(!epochs.has_next_page);
-    assert_eq!(actual_epochs_order, [2, 1, 0])
+        assert_eq!(epochs.data[2].epoch, 2);
+        assert_eq!(epochs.data[2].first_checkpoint_id, 603);
+        assert_eq!(epochs.data[2].epoch_total_transactions, 0);
+        assert!(epochs.data[2].end_of_epoch_info.is_none());
+    });
 }
 
-#[tokio::test]
-#[serial]
-async fn get_epochs_paging() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+#[test]
+fn get_epochs_descending() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+        let epochs = client.get_epochs(None, None, Some(true)).await.unwrap();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+        let actual_epochs_order = epochs
+            .data
+            .iter()
+            .map(|epoch| epoch.epoch)
+            .collect::<Vec<u64>>();
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
-
-    let epochs = indexer_client
-        .get_epochs(None, Some(2), None)
-        .await
-        .unwrap();
-    let actual_epochs_order = epochs
-        .data
-        .iter()
-        .map(|epoch| epoch.epoch)
-        .collect::<Vec<u64>>();
-
-    assert_eq!(epochs.data.len(), 2);
-    assert!(epochs.has_next_page);
-    assert_eq!(epochs.next_cursor, Some(1.into()));
-    assert_eq!(actual_epochs_order, [0, 1]);
-
-    let epochs = indexer_client
-        .get_epochs(Some(1.into()), Some(2), None)
-        .await
-        .unwrap();
-    let actual_epochs_order = epochs
-        .data
-        .iter()
-        .map(|epoch| epoch.epoch)
-        .collect::<Vec<u64>>();
-
-    assert_eq!(epochs.data.len(), 1);
-    assert!(!epochs.has_next_page);
-    assert_eq!(epochs.next_cursor, Some(2.into()));
-    assert_eq!(actual_epochs_order, [2]);
+        assert_eq!(epochs.data.len(), 3);
+        assert!(!epochs.has_next_page);
+        assert_eq!(actual_epochs_order, [2, 1, 0])
+    });
 }
 
-#[tokio::test]
-#[serial]
-async fn get_epoch_metrics() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+#[test]
+fn get_epochs_paging() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+        let epochs = client.get_epochs(None, Some(2), None).await.unwrap();
+        let actual_epochs_order = epochs
+            .data
+            .iter()
+            .map(|epoch| epoch.epoch)
+            .collect::<Vec<u64>>();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+        assert_eq!(epochs.data.len(), 2);
+        assert!(epochs.has_next_page);
+        assert_eq!(epochs.next_cursor, Some(1.into()));
+        assert_eq!(actual_epochs_order, [0, 1]);
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let epochs = client
+            .get_epochs(Some(1.into()), Some(2), None)
+            .await
+            .unwrap();
+        let actual_epochs_order = epochs
+            .data
+            .iter()
+            .map(|epoch| epoch.epoch)
+            .collect::<Vec<u64>>();
 
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
-
-    let epoch_metrics = indexer_client
-        .get_epoch_metrics(None, None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(epoch_metrics.data.len(), 3);
-    assert!(!epoch_metrics.has_next_page);
-
-    let end_of_epoch_info = epoch_metrics.data[0].end_of_epoch_info.as_ref().unwrap();
-    assert_eq!(epoch_metrics.data[0].epoch, 0);
-    assert_eq!(epoch_metrics.data[0].first_checkpoint_id, 0);
-    assert_eq!(epoch_metrics.data[0].epoch_total_transactions, 17);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 301);
-
-    let end_of_epoch_info = epoch_metrics.data[1].end_of_epoch_info.as_ref().unwrap();
-    assert_eq!(epoch_metrics.data[1].epoch, 1);
-    assert_eq!(epoch_metrics.data[1].first_checkpoint_id, 302);
-    assert_eq!(epoch_metrics.data[1].epoch_total_transactions, 11);
-    assert_eq!(end_of_epoch_info.last_checkpoint_id, 602);
-
-    assert_eq!(epoch_metrics.data[2].epoch, 2);
-    assert_eq!(epoch_metrics.data[2].first_checkpoint_id, 603);
-    assert_eq!(epoch_metrics.data[2].epoch_total_transactions, 0);
-    assert!(epoch_metrics.data[2].end_of_epoch_info.is_none());
+        assert_eq!(epochs.data.len(), 1);
+        assert!(!epochs.has_next_page);
+        assert_eq!(epochs.next_cursor, Some(2.into()));
+        assert_eq!(actual_epochs_order, [2]);
+    });
 }
 
-#[tokio::test]
-#[serial]
-async fn get_epoch_metrics_descending() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+#[test]
+fn get_epoch_metrics() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+        let epoch_metrics = client.get_epoch_metrics(None, None, None).await.unwrap();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+        assert_eq!(epoch_metrics.data.len(), 3);
+        assert!(!epoch_metrics.has_next_page);
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let end_of_epoch_info = epoch_metrics.data[0].end_of_epoch_info.as_ref().unwrap();
+        assert_eq!(epoch_metrics.data[0].epoch, 0);
+        assert_eq!(epoch_metrics.data[0].first_checkpoint_id, 0);
+        assert_eq!(epoch_metrics.data[0].epoch_total_transactions, 17);
+        assert_eq!(end_of_epoch_info.last_checkpoint_id, 301);
 
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
+        let end_of_epoch_info = epoch_metrics.data[1].end_of_epoch_info.as_ref().unwrap();
+        assert_eq!(epoch_metrics.data[1].epoch, 1);
+        assert_eq!(epoch_metrics.data[1].first_checkpoint_id, 302);
+        assert_eq!(epoch_metrics.data[1].epoch_total_transactions, 11);
+        assert_eq!(end_of_epoch_info.last_checkpoint_id, 602);
 
-    let epochs = indexer_client
-        .get_epoch_metrics(None, None, Some(true))
-        .await
-        .unwrap();
-
-    let actual_epochs_order = epochs
-        .data
-        .iter()
-        .map(|epoch| epoch.epoch)
-        .collect::<Vec<u64>>();
-
-    assert_eq!(epochs.data.len(), 3);
-    assert!(!epochs.has_next_page);
-    assert_eq!(actual_epochs_order, [2, 1, 0])
+        assert_eq!(epoch_metrics.data[2].epoch, 2);
+        assert_eq!(epoch_metrics.data[2].first_checkpoint_id, 603);
+        assert_eq!(epoch_metrics.data[2].epoch_total_transactions, 0);
+        assert!(epoch_metrics.data[2].end_of_epoch_info.is_none());
+    });
 }
 
-#[tokio::test]
-#[serial]
-async fn get_epoch_metrics_paging() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+#[test]
+fn get_epoch_metrics_descending() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+        let epochs = client
+            .get_epoch_metrics(None, None, Some(true))
+            .await
+            .unwrap();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+        let actual_epochs_order = epochs
+            .data
+            .iter()
+            .map(|epoch| epoch.epoch)
+            .collect::<Vec<u64>>();
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
-
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
-
-    let epochs = indexer_client
-        .get_epoch_metrics(None, Some(2), None)
-        .await
-        .unwrap();
-    let actual_epochs_order = epochs
-        .data
-        .iter()
-        .map(|epoch| epoch.epoch)
-        .collect::<Vec<u64>>();
-
-    assert_eq!(epochs.data.len(), 2);
-    assert!(epochs.has_next_page);
-    assert_eq!(epochs.next_cursor, Some(1.into()));
-    assert_eq!(actual_epochs_order, [0, 1]);
-
-    let epochs = indexer_client
-        .get_epoch_metrics(Some(1.into()), Some(2), None)
-        .await
-        .unwrap();
-    let actual_epochs_order = epochs
-        .data
-        .iter()
-        .map(|epoch| epoch.epoch)
-        .collect::<Vec<u64>>();
-
-    assert_eq!(epochs.data.len(), 1);
-    assert!(!epochs.has_next_page);
-    assert_eq!(epochs.next_cursor, Some(2.into()));
-    assert_eq!(actual_epochs_order, [2]);
+        assert_eq!(epochs.data.len(), 3);
+        assert!(!epochs.has_next_page);
+        assert_eq!(actual_epochs_order, [2, 1, 0]);
+    });
 }
 
-#[tokio::test]
-#[serial]
-async fn get_current_epoch() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
+#[test]
+fn get_epoch_metrics_paging() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    execute_simulacrum_transactions(&mut sim, 15);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
 
-    execute_simulacrum_transactions(&mut sim, 10);
-    add_checkpoints(&mut sim, 300);
-    sim.advance_epoch();
+        let epochs = client.get_epoch_metrics(None, Some(2), None).await.unwrap();
+        let actual_epochs_order = epochs
+            .data
+            .iter()
+            .map(|epoch| epoch.epoch)
+            .collect::<Vec<u64>>();
 
-    execute_simulacrum_transactions(&mut sim, 5);
-    add_checkpoints(&mut sim, 300);
+        assert_eq!(epochs.data.len(), 2);
+        assert!(epochs.has_next_page);
+        assert_eq!(epochs.next_cursor, Some(1.into()));
+        assert_eq!(actual_epochs_order, [0, 1]);
 
-    let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let epochs = client
+            .get_epoch_metrics(Some(1.into()), Some(2), None)
+            .await
+            .unwrap();
+        let actual_epochs_order = epochs
+            .data
+            .iter()
+            .map(|epoch| epoch.epoch)
+            .collect::<Vec<u64>>();
 
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, last_checkpoint.sequence_number).await;
+        assert_eq!(epochs.data.len(), 1);
+        assert!(!epochs.has_next_page);
+        assert_eq!(epochs.next_cursor, Some(2.into()));
+        assert_eq!(actual_epochs_order, [2]);
+    });
+}
 
-    let current_epoch = indexer_client.get_current_epoch().await.unwrap();
+#[test]
+fn get_current_epoch() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    assert_eq!(current_epoch.epoch, 2);
-    assert_eq!(current_epoch.first_checkpoint_id, 603);
-    assert_eq!(current_epoch.epoch_total_transactions, 0);
-    assert!(current_epoch.end_of_epoch_info.is_none());
+    runtime.block_on(async move {
+        let last_checkpoint = sim.get_latest_checkpoint().unwrap();
+        indexer_wait_for_checkpoint(&store, last_checkpoint.sequence_number).await;
+
+        let current_epoch = client.get_current_epoch().await.unwrap();
+
+        assert_eq!(current_epoch.epoch, 2);
+        assert_eq!(current_epoch.first_checkpoint_id, 603);
+        assert_eq!(current_epoch.epoch_total_transactions, 0);
+        assert!(current_epoch.end_of_epoch_info.is_none());
+    });
 }
 
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
-#[tokio::test]
-#[serial]
-async fn get_network_metrics() {
-    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 10).await;
+#[test]
+fn get_network_metrics() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
 
-    let network_metrics = indexer_client.get_network_metrics().await.unwrap();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&store, 10).await;
 
-    println!("{:#?}", network_metrics);
+        let network_metrics = client.get_network_metrics().await.unwrap();
+
+        println!("{:#?}", network_metrics);
+    });
 }
 
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
-#[tokio::test]
-#[serial]
-async fn get_move_call_metrics() {
-    let (cluster, pg_store, indexer_client) =
-        start_test_cluster_with_read_write_indexer(None).await;
+#[test]
+fn get_move_call_metrics() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
 
-    execute_move_fn(&cluster).await.unwrap();
+    runtime.block_on(async move {
+        execute_move_fn(&cluster).await.unwrap();
 
-    let latest_checkpoint_sn = cluster
-        .rpc_client()
-        .get_latest_checkpoint_sequence_number()
-        .await
-        .unwrap();
-    indexer_wait_for_checkpoint(&pg_store, latest_checkpoint_sn.into_inner()).await;
+        let latest_checkpoint_sn = cluster
+            .rpc_client()
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap();
+        indexer_wait_for_checkpoint(&store, latest_checkpoint_sn.into_inner()).await;
 
-    let move_call_metrics = indexer_client.get_move_call_metrics().await.unwrap();
+        let move_call_metrics = client.get_move_call_metrics().await.unwrap();
 
-    // TODO: Why is the move call not included in the stats?
-    assert_eq!(move_call_metrics.rank_3_days.len(), 0);
-    assert_eq!(move_call_metrics.rank_7_days.len(), 0);
-    assert_eq!(move_call_metrics.rank_30_days.len(), 0);
+        // TODO: Why is the move call not included in the stats?
+        assert_eq!(move_call_metrics.rank_3_days.len(), 0);
+        assert_eq!(move_call_metrics.rank_7_days.len(), 0);
+        assert_eq!(move_call_metrics.rank_30_days.len(), 0);
+    });
 }
 
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
-#[tokio::test]
-#[serial]
-async fn get_latest_address_metrics() {
-    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 10).await;
+#[test]
+fn get_latest_address_metrics() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
 
-    let address_metrics = indexer_client.get_latest_address_metrics().await.unwrap();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&store, 10).await;
 
-    println!("{:#?}", address_metrics);
+        let address_metrics = client.get_latest_address_metrics().await.unwrap();
+
+        println!("{:#?}", address_metrics);
+    });
 }
 
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
-#[tokio::test]
-#[serial]
-async fn get_checkpoint_address_metrics() {
-    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 10).await;
+#[test]
+fn get_checkpoint_address_metrics() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
 
-    let address_metrics = indexer_client
-        .get_checkpoint_address_metrics(0)
-        .await
-        .unwrap();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&store, 10).await;
 
-    println!("{:#?}", address_metrics);
+        let address_metrics = client.get_checkpoint_address_metrics(0).await.unwrap();
+
+        println!("{:#?}", address_metrics);
+    });
 }
 
 #[ignore = "https://github.com/iotaledger/iota/issues/2197#issuecomment-2371642744"]
-#[tokio::test]
-#[serial]
-async fn get_all_epoch_address_metrics() {
-    let (_, pg_store, indexer_client) = start_test_cluster_with_read_write_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 10).await;
+#[test]
+fn get_all_epoch_address_metrics() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
 
-    let address_metrics = indexer_client
-        .get_all_epoch_address_metrics(None)
-        .await
-        .unwrap();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(&store, 10).await;
 
-    println!("{:#?}", address_metrics);
+        let address_metrics = client.get_all_epoch_address_metrics(None).await.unwrap();
+
+        println!("{:#?}", address_metrics);
+    });
 }
 
-#[tokio::test]
-#[serial]
-async fn get_total_transactions() {
-    let data_ingestion_path = tempdir().unwrap().into_path();
-    let mut sim = Simulacrum::new();
-    sim.set_data_ingestion_path(data_ingestion_path.clone());
-    execute_simulacrum_transactions(&mut sim, 5);
+#[test]
+fn get_total_transactions() {
+    let InitializedSimulacrumEnv {
+        runtime,
+        sim,
+        store,
+        client,
+    } = get_or_init_shared_extended_api_simulacrum_env();
 
-    let latest_checkpoint = sim.create_checkpoint();
-    let total_transactions_count = latest_checkpoint.network_total_transactions;
+    runtime.block_on(async move {
+        let latest_checkpoint = sim.get_latest_checkpoint().unwrap();
+        let total_transactions_count = latest_checkpoint.network_total_transactions;
+        indexer_wait_for_checkpoint(&store, latest_checkpoint.sequence_number).await;
 
-    let (_, pg_store, _, indexer_client) =
-        start_simulacrum_rest_api_with_read_write_indexer(Arc::new(sim), data_ingestion_path).await;
-    indexer_wait_for_checkpoint(&pg_store, latest_checkpoint.sequence_number).await;
-
-    let transactions_cnt = indexer_client.get_total_transactions().await.unwrap();
-    assert_eq!(transactions_cnt.into_inner(), total_transactions_count);
-    assert_eq!(transactions_cnt.into_inner(), 6);
+        let transactions_cnt = client.get_total_transactions().await.unwrap();
+        assert_eq!(transactions_cnt.into_inner(), total_transactions_count);
+        assert_eq!(transactions_cnt.into_inner(), 33);
+    });
 }
 
 async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {

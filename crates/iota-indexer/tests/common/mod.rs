@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    net::SocketAddr,
+    net::{SocketAddr, TcpListener},
     path::PathBuf,
     sync::{Arc, OnceLock},
     time::Duration,
@@ -54,7 +54,10 @@ impl ApiTestSetup {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
             let (cluster, store, client) =
-                runtime.block_on(start_test_cluster_with_read_write_indexer(None));
+                runtime.block_on(start_test_cluster_with_read_write_indexer(
+                    None,
+                    Some("shared_test_indexer_db".to_string()),
+                ));
 
             Self {
                 runtime,
@@ -66,10 +69,47 @@ impl ApiTestSetup {
     }
 }
 
+pub struct SimulacrumApiTestEnvDefinition {
+    pub unique_env_name: String,
+    pub env_initializer: Box<dyn Fn() -> Simulacrum>,
+}
+
+pub struct InitializedSimulacrumEnv {
+    pub runtime: Runtime,
+    pub sim: Arc<Simulacrum>,
+    pub store: PgIndexerStore,
+    /// Indexer RPC Client
+    pub client: HttpClient,
+}
+
+impl SimulacrumApiTestEnvDefinition {
+    pub fn get_or_init_env<'a>(
+        &self,
+        initialized_env_container: &'a OnceLock<InitializedSimulacrumEnv>,
+    ) -> &'a InitializedSimulacrumEnv {
+        initialized_env_container.get_or_init(|| {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let sim = Arc::new((self.env_initializer)());
+            let db_name = format!("simulacrum_env_db_{}", self.unique_env_name);
+            let (_, store, _, client) = runtime.block_on(
+                start_simulacrum_rest_api_with_read_write_indexer(sim.clone(), Some(db_name)),
+            );
+
+            InitializedSimulacrumEnv {
+                runtime,
+                sim,
+                store,
+                client,
+            }
+        })
+    }
+}
+
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
 /// `Write` indexer
 pub async fn start_test_cluster_with_read_write_indexer(
     stop_cluster_after_checkpoint_seq: Option<u64>,
+    database_name: Option<String>,
 ) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
     let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new().with_data_ingestion_dir(temp.clone());
@@ -89,17 +129,16 @@ pub async fn start_test_cluster_with_read_write_indexer(
         cluster.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
         temp.clone(),
+        database_name.clone(),
     )
     .await;
 
     // start indexer in read mode
-    start_indexer_reader(cluster.rpc_url().to_owned(), temp);
+    let indexer_port = start_indexer_reader(cluster.rpc_url().to_owned(), temp, database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
-        .build(format!(
-            "http://{DEFAULT_INDEXER_IP}:{DEFAULT_INDEXER_PORT}"
-        ))
+        .build(format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}"))
         .unwrap();
 
     (cluster, pg_store, rpc_client)
@@ -191,15 +230,35 @@ pub async fn indexer_wait_for_transaction(
     .expect("Timeout waiting for indexer to catchup to given transaction");
 }
 
+fn get_available_port() -> u16 {
+    // Let the OS assign some available port, read it, and then make it available
+    // again.
+    // This results in a race condition, some other app can use this port in a short
+    // time window between this function call and a place where we use it
+    let tl = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    tl.local_addr().unwrap().port()
+}
+
+fn replace_db_name(db_url: &str, new_db_name: &str) -> String {
+    let pos = db_url.rfind('/').expect("Unable to find / in db_url");
+    format!("{}/{}", &db_url[..pos], new_db_name)
+}
+
 /// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf) {
+fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path: PathBuf, database_name: Option<String>) -> u16 {
+    let db_url = match database_name {
+        Some(database_name) => replace_db_name(DEFAULT_DB_URL, &database_name),
+        None => DEFAULT_DB_URL.to_owned(),
+    };
+
+    let port = get_available_port();
     let config = IndexerConfig {
-        db_url: Some(DEFAULT_DB_URL.to_owned().into()),
+        db_url: Some(db_url.clone()),
         rpc_client_url: fullnode_rpc_url.into(),
         reset_db: true,
         rpc_server_worker: true,
         rpc_server_url: DEFAULT_INDEXER_IP.to_owned(),
-        rpc_server_port: DEFAULT_INDEXER_PORT,
+        rpc_server_port: port,
         data_ingestion_path: Some(data_ingestion_path),
         ..Default::default()
     };
@@ -208,8 +267,9 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, data_ingestion_path
     init_metrics(&registry);
 
     tokio::spawn(async move {
-        Indexer::start_reader::<PgConnection>(&config, &registry, DEFAULT_DB_URL.to_owned()).await
+        Indexer::start_reader::<PgConnection>(&config, &registry, db_url).await
     });
+    port
 }
 
 /// Check if provided error message does match with
@@ -228,10 +288,9 @@ pub fn rpc_call_error_msg_matches<T>(
     })
 }
 
-pub fn get_default_fullnode_rpc_api_addr() -> SocketAddr {
-    format!("127.0.0.1:{}", DEFAULT_SERVER_PORT)
-        .parse()
-        .unwrap()
+pub fn get_available_fullnode_rpc_api_addr() -> SocketAddr {
+    let port = get_available_port();
+    format!("127.0.0.1:{}", port).parse().unwrap()
 }
 
 /// Set up a test indexer fetching from a REST endpoint served by the given
@@ -239,13 +298,14 @@ pub fn get_default_fullnode_rpc_api_addr() -> SocketAddr {
 pub async fn start_simulacrum_rest_api_with_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
+    server_url: Option<SocketAddr>,
+    database_name: Option<String>,
 ) -> (
     JoinHandle<()>,
     PgIndexerStore<PgConnection>,
     JoinHandle<Result<(), IndexerError>>,
 ) {
-    let server_url = get_default_fullnode_rpc_api_addr();
-
+    let server_url = server_url.unwrap_or_else(get_available_fullnode_rpc_api_addr);
     let server_handle = tokio::spawn(async move {
         iota_rest_api::RestService::new_without_version(sim)
             .start_service(server_url)
@@ -257,6 +317,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
         format!("http://{}", server_url),
         ReaderWriterConfig::writer_mode(None),
         data_ingestion_path,
+        database_name,
     )
     .await;
     (server_handle, pg_store, pg_handle)
@@ -265,24 +326,24 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
 pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
+    database_name: Option<String>,
 ) -> (
     JoinHandle<()>,
     PgIndexerStore<PgConnection>,
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {
-    let server_url = get_default_fullnode_rpc_api_addr();
+    let server_url = get_available_fullnode_rpc_api_addr();
     let (server_handle, pg_store, pg_handle) =
-        start_simulacrum_rest_api_with_write_indexer(sim, data_ingestion_path.clone()).await;
+        start_simulacrum_rest_api_with_write_indexer(sim, data_ingestion_path.clone(), Some(server_url), database_name.clone())
+            .await;
 
     // start indexer in read mode
-    start_indexer_reader(format!("http://{}", server_url), data_ingestion_path);
+    let indexer_port = start_indexer_reader(format!("http://{}", server_url), data_ingestion_path, database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
-        .build(format!(
-            "http://{DEFAULT_INDEXER_IP}:{DEFAULT_INDEXER_PORT}"
-        ))
+        .build(format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}"))
         .unwrap();
 
     (server_handle, pg_store, pg_handle, rpc_client)
