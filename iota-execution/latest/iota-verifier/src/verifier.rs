@@ -6,7 +6,7 @@
 
 use iota_types::{error::ExecutionError, move_package::FnInfoMap};
 use move_binary_format::file_format::CompiledModule;
-use move_bytecode_verifier::meter::{DummyMeter, Meter};
+use move_bytecode_verifier_meter::{Meter, dummy::DummyMeter};
 use move_vm_config::verifier::VerifierConfig;
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 pub fn iota_verify_module_metered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
-    meter: &mut impl Meter,
+    meter: &mut (impl Meter + ?Sized),
     verifier_config: &VerifierConfig,
 ) -> Result<(), ExecutionError> {
     struct_with_key_verifier::verify_module(module)?;
@@ -35,7 +35,7 @@ pub fn iota_verify_module_metered(
 pub fn iota_verify_module_metered_check_timeout_only(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
-    meter: &mut impl Meter,
+    meter: &mut (impl Meter + ?Sized),
     verifier_config: &VerifierConfig,
 ) -> Result<(), ExecutionError> {
     // Checks if the error counts as a Iota verifier timeout

@@ -7,7 +7,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useParams } from 'react-router-dom';
 
 import { PageLayout } from '~/components';
-import { Banner, PageHeader, StatusIcon } from '~/components/ui';
+import { Banner, PageHeader } from '~/components/ui';
 import { TransactionView } from './TransactionView';
 
 interface TransactionResultPageHeaderProps {
@@ -34,7 +34,7 @@ function TransactionResultPageHeader({
             title={txnDigest}
             subtitle={!isProgrammableTransaction ? txnKindName : undefined}
             error={error}
-            before={<StatusIcon success={txnStatus === 'success'} />}
+            status={txnStatus}
         />
     );
 }
@@ -55,7 +55,7 @@ export default function TransactionResult(): JSX.Element {
         <PageLayout
             loading={isPending}
             content={
-                <>
+                <div className="flex flex-col gap-2xl">
                     <TransactionResultPageHeader
                         transaction={data}
                         error={txnErrorText}
@@ -70,7 +70,7 @@ export default function TransactionResult(): JSX.Element {
                     ) : (
                         <TransactionView transaction={data} />
                     )}
-                </>
+                </div>
             }
         />
     );

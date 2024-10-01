@@ -4,10 +4,10 @@
 
 use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
-    default_registry, register_histogram_with_registry, register_int_counter_vec_with_registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry, default_registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry, Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec,
-    Registry,
+    register_int_gauge_with_registry,
 };
 
 const LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -39,8 +39,8 @@ pub struct ConsensusMetrics {
     /// expected to report the same results. For every leader of each round the
     /// output can be one of the following:
     /// * committed: the leader has been found and its subdag will get committed
-    ///   - no matter if the leader
-    /// is committed on its time or not (part of recursion)
+    ///   - no matter if the leader is committed on its time or not (part of
+    ///   recursion)
     /// * not_found: the leader has not been found on the commit path and
     ///   doesn't get committed
     /// * no_path: the leader exists but there is no path that leads to it
@@ -142,9 +142,9 @@ pub struct ChannelMetrics {
     /// occupancy of the channel from the `Consensus` to `SubscriberHandler`.
     /// See also:
     /// * tx_committed_certificates in primary, where the committed certificates
-    /// from `Consensus` are sent to `primary::StateHandler`
+    ///   from `Consensus` are sent to `primary::StateHandler`
     /// * tx_new_certificates where the newly accepted certificates are sent
-    /// from `primary::Synchronizer` to `Consensus`
+    ///   from `primary::Synchronizer` to `Consensus`
     pub tx_sequence: IntGauge,
 }
 

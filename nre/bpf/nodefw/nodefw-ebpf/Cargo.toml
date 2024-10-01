@@ -7,7 +7,7 @@ edition = "2021"
 aya-bpf = { git = "https://github.com/aya-rs/aya" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
 memoffset = "0.9"
-network-types = "0.0"
+network-types = "0.0.5"
 nodefw-common = { path = "../nodefw-common" }
 
 [[bin]]

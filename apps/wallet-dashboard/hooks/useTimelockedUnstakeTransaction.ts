@@ -24,7 +24,7 @@ export function useTimelockedUnstakeTransaction(
         select: (transaction) => {
             return {
                 transaction,
-                gasBudget: transaction.blockData.gasConfig.budget,
+                gasBudget: transaction.getData().gasData.budget,
             };
         },
     });

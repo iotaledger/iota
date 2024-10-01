@@ -11,12 +11,12 @@ use std::{
 
 use anemo::async_trait;
 use config::{
-    utils::get_available_port, Authority, AuthorityIdentifier, Committee, CommitteeBuilder, Epoch,
-    Stake, WorkerCache, WorkerId, WorkerIndex, WorkerInfo,
+    Authority, AuthorityIdentifier, Committee, CommitteeBuilder, Epoch, Stake, WorkerCache,
+    WorkerId, WorkerIndex, WorkerInfo, utils::get_available_port,
 };
 use crypto::{
-    to_intent_message, KeyPair, NarwhalAuthoritySignature, NetworkKeyPair, NetworkPublicKey,
-    PublicKey, Signature,
+    KeyPair, NarwhalAuthoritySignature, NetworkKeyPair, NetworkPublicKey, PublicKey, Signature,
+    to_intent_message,
 };
 use fastcrypto::{
     hash::Hash as _,
@@ -27,12 +27,13 @@ use iota_network_stack::Multiaddr;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use once_cell::sync::OnceCell;
 use rand::{
+    Rng, RngCore, SeedableRng,
     distributions::{Bernoulli, Distribution},
     rngs::{OsRng, StdRng},
-    thread_rng, Rng, RngCore, SeedableRng,
+    thread_rng,
 };
 use store::rocks::{DBMap, MetricConf, ReadWriteOptions};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tracing::info;
 use types::{
     Batch, BatchDigest, Certificate, CertificateAPI, CertificateDigest, FetchBatchesRequest,
@@ -95,7 +96,7 @@ macro_rules! test_channel {
 // situated in the channel you're passing as an argument to the primary
 // initialization is the replacement. If that gauge is a dummy gauge, such as
 // the one above, the initialization of the primary will panic (to protect the
-// production code against an erroneous microsake in editing this bootstrap
+// production code against an erroneous mistake in editing this bootstrap
 // logic).
 #[macro_export]
 macro_rules! test_committed_certificates_channel {
@@ -450,7 +451,7 @@ fn rounds_of_certificates(
             certificates.push_back(certificate);
             next_parents.insert(digest);
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }
@@ -513,7 +514,7 @@ pub fn make_certificates_with_slow_nodes(
             certificates.push_back(certificate.clone());
             next_parents.push(certificate);
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }
@@ -630,7 +631,7 @@ pub fn make_certificates_with_leader_configuration(
             certificates.push_back(certificate.clone());
             next_parents.insert(certificate.digest());
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }
@@ -719,7 +720,7 @@ pub fn make_certificates_with_epoch(
             certificates.push_back(certificate);
             next_parents.insert(digest);
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }

@@ -33,7 +33,7 @@ export function useNewStakeTransaction(
         select: (transaction) => {
             return {
                 transaction,
-                gasBudget: transaction.blockData.gasConfig.budget,
+                gasBudget: transaction.getData().gasData.budget,
             };
         },
     });

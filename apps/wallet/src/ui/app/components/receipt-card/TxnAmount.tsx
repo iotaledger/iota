@@ -30,7 +30,7 @@ export function TxnAmount({ amount, coinType, subtitle, approximation }: TxnAmou
     return Number(amount) !== 0 ? (
         <Card type={CardType.Filled}>
             <CardImage type={ImageType.BgSolid}>
-                <div className="h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
+                <div className="h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
                     <CoinIcon coinType={coinType} size={ImageIconSize.Full} rounded />
                 </div>
             </CardImage>

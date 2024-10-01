@@ -17,12 +17,9 @@
 		"@iota/core",
 		"@iota/ui",
 		"@iota/apps-ui-kit",
-		"@iota/create-dapp",
 		"sponsored-transactions",
 		"kiosk-demo",
-		"kiosk-cli",
-		"@iota/zklogin",
-		"@iota/iotans-toolkit"
+		"kiosk-cli"
 	],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true

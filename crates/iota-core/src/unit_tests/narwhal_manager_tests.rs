@@ -10,7 +10,7 @@ use iota_metrics::RegistryService;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
+        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
 };
@@ -23,12 +23,12 @@ use tokio::{
 };
 
 use crate::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     checkpoints::{CheckpointMetrics, CheckpointService, CheckpointServiceNoop},
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{
-        narwhal_manager::{NarwhalConfiguration, NarwhalManager},
         ConsensusManagerMetrics, ConsensusManagerTrait,
+        narwhal_manager::{NarwhalConfiguration, NarwhalManager},
     },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     state_accumulator::StateAccumulator,
@@ -49,7 +49,7 @@ async fn send_transactions(
     let mut client = TransactionsClient::new(channel);
     // Make a transaction to submit forever.
     let tx = TransactionProto {
-        transaction: Bytes::from(epoch.to_be_bytes().to_vec()),
+        transactions: vec![Bytes::from(epoch.to_be_bytes().to_vec())],
     };
     // Repeatedly send transactions.
     let interval = interval(Duration::from_millis(1));
@@ -76,17 +76,19 @@ async fn send_transactions(
 
 pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<CheckpointService> {
     let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
-    let accumulator = StateAccumulator::new(state.get_execution_cache());
-    let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
-
     let epoch_store = state.epoch_store_for_testing();
+    let accumulator = Arc::new(StateAccumulator::new_for_tests(
+        state.get_accumulator_store().clone(),
+        &epoch_store,
+    ));
+    let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
 
     let (checkpoint_service, _) = CheckpointService::spawn(
         state.clone(),
         state.get_checkpoint_store().clone(),
         epoch_store.clone(),
-        Arc::new(state.get_effects_notify_read().clone()),
-        Arc::new(accumulator),
+        state.get_transaction_cache_reader().clone(),
+        Arc::downgrade(&accumulator),
         Box::new(output),
         Box::new(certified_output),
         CheckpointMetrics::new_for_tests(),
@@ -133,7 +135,7 @@ async fn test_narwhal_manager() {
             registry_service,
         };
 
-        let metrics = ConsensusManagerMetrics::new(&Registry::new());
+        let metrics = Arc::new(ConsensusManagerMetrics::new(&Registry::new()));
         let epoch_store = state.epoch_store_for_testing();
 
         let narwhal_manager = NarwhalManager::new(narwhal_config, metrics);

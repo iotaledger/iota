@@ -17,7 +17,7 @@ module iota::test_random_tests {
             // The length should be the requested length
             let mut random1 = new(b"seed");
             let bytes = random1.next_bytes(length);
-            assert!(bytes.length() == length, 0);
+            assert!(bytes.length() == length);
 
             // Two generators with different seeds should give different outputs
             let mut random1 = new(b"seed 1");
@@ -39,28 +39,28 @@ module iota::test_random_tests {
     fun test_next_bool() {
         // Compare with test vector
         let mut random = new(b"seed");
-        assert!(random.next_bool() == false, 0);
-        assert!(random.next_bool() == false, 1);
-        assert!(random.next_bool() == true, 2);
-        assert!(random.next_bool() == false, 3);
-        assert!(random.next_bool() == false, 4);
-        assert!(random.next_bool() == true, 5);
-        assert!(random.next_bool() == true, 6);
-        assert!(random.next_bool() == true, 7);
+        assert!(random.next_bool() == false);
+        assert!(random.next_bool() == false);
+        assert!(random.next_bool() == true);
+        assert!(random.next_bool() == false);
+        assert!(random.next_bool() == false);
+        assert!(random.next_bool() == true);
+        assert!(random.next_bool() == true);
+        assert!(random.next_bool() == true);
     }
 
     #[test]
     fun test_next_u8() {
         // Compare with test vector
         let mut random = new(b"seed");
-        assert!(random.next_u8() == 228, 0);
-        assert!(random.next_u8() == 182, 1);
-        assert!(random.next_u8() == 229, 2);
-        assert!(random.next_u8() == 184, 3);
-        assert!(random.next_u8() == 40, 4);
-        assert!(random.next_u8() == 199, 5);
-        assert!(random.next_u8() == 63, 6);
-        assert!(random.next_u8() == 51, 7);
+        assert!(random.next_u8() == 228);
+        assert!(random.next_u8() == 182);
+        assert!(random.next_u8() == 229);
+        assert!(random.next_u8() == 184);
+        assert!(random.next_u8() == 40);
+        assert!(random.next_u8() == 199);
+        assert!(random.next_u8() == 63);
+        assert!(random.next_u8() == 51);
     }
 
     #[test]
@@ -74,7 +74,7 @@ module iota::test_random_tests {
             let upper_bound = bounds[i];
             let mut j = 0;
             while (j < tests) {
-                assert!(random.next_u8_in_range(upper_bound) < upper_bound, 0);
+                assert!(random.next_u8_in_range(upper_bound) < upper_bound);
                 j = j + 1;
             };
             i = i + 1;
@@ -85,14 +85,14 @@ module iota::test_random_tests {
     fun test_next_u16() {
         // Compare with test vector
         let mut random = new(b"seed");
-        assert!(random.next_u16() == 23524, 0);
-        assert!(random.next_u16() == 30390, 1);
-        assert!(random.next_u16() == 60645, 2);
-        assert!(random.next_u16() == 2488, 3);
-        assert!(random.next_u16() == 5672, 4);
-        assert!(random.next_u16() == 36807, 5);
-        assert!(random.next_u16() == 54591, 6);
-        assert!(random.next_u16() == 41523, 7);
+        assert!(random.next_u16() == 23524);
+        assert!(random.next_u16() == 30390);
+        assert!(random.next_u16() == 60645);
+        assert!(random.next_u16() == 2488);
+        assert!(random.next_u16() == 5672);
+        assert!(random.next_u16() == 36807);
+        assert!(random.next_u16() == 54591);
+        assert!(random.next_u16() == 41523);
     }
 
     #[test]
@@ -106,7 +106,7 @@ module iota::test_random_tests {
             let upper_bound = bounds[i];
             let mut j = 0;
             while (j < tests) {
-                assert!(random.next_u16_in_range(upper_bound) < upper_bound, 0);
+                assert!(random.next_u16_in_range(upper_bound) < upper_bound);
                 j = j + 1;
             };
             i = i + 1;
@@ -117,14 +117,14 @@ module iota::test_random_tests {
     fun test_next_u32() {
         // Compare with test vector
         let mut random = new(b"seed");
-        assert!(random.next_u32() == 2356042724, 0);
-        assert!(random.next_u32() == 2194372278, 1);
-        assert!(random.next_u32() == 1943727333, 2);
-        assert!(random.next_u32() == 3674540472, 3);
-        assert!(random.next_u32() == 560141864, 4);
-        assert!(random.next_u32() == 2309459911, 5);
-        assert!(random.next_u32() == 2130498879, 6);
-        assert!(random.next_u32() == 2063835699, 7);
+        assert!(random.next_u32() == 2356042724);
+        assert!(random.next_u32() == 2194372278);
+        assert!(random.next_u32() == 1943727333);
+        assert!(random.next_u32() == 3674540472);
+        assert!(random.next_u32() == 560141864);
+        assert!(random.next_u32() == 2309459911);
+        assert!(random.next_u32() == 2130498879);
+        assert!(random.next_u32() == 2063835699);
     }
 
     #[test]
@@ -138,7 +138,7 @@ module iota::test_random_tests {
             let upper_bound = bounds[i];
             let mut j = 0;
             while (j < tests) {
-                assert!(random.next_u32_in_range(upper_bound) < upper_bound, 0);
+                assert!(random.next_u32_in_range(upper_bound) < upper_bound);
                 j = j + 1;
             };
             i = i + 1;
@@ -149,14 +149,14 @@ module iota::test_random_tests {
     fun test_next_u64() {
         // Compare with test vector
         let mut random = new(b"seed");
-        assert!(random.next_u64() == 5845420307181886436, 0);
-        assert!(random.next_u64() == 7169586959492019894, 1);
-        assert!(random.next_u64() == 8821413273700855013, 2);
-        assert!(random.next_u64() == 17006289909767801272, 3);
-        assert!(random.next_u64() == 8349531451798263336, 4);
-        assert!(random.next_u64() == 1662646395949518791, 5);
-        assert!(random.next_u64() == 17661794895045383487, 6);
-        assert!(random.next_u64() == 12177043863244087859, 7);
+        assert!(random.next_u64() == 5845420307181886436);
+        assert!(random.next_u64() == 7169586959492019894);
+        assert!(random.next_u64() == 8821413273700855013);
+        assert!(random.next_u64() == 17006289909767801272);
+        assert!(random.next_u64() == 8349531451798263336);
+        assert!(random.next_u64() == 1662646395949518791);
+        assert!(random.next_u64() == 17661794895045383487);
+        assert!(random.next_u64() == 12177043863244087859);
     }
 
     #[test]
@@ -170,7 +170,7 @@ module iota::test_random_tests {
             let upper_bound = bounds[i];
             let mut j = 0;
             while (j < tests) {
-                assert!(random.next_u64_in_range(upper_bound) < upper_bound, 0);
+                assert!(random.next_u64_in_range(upper_bound) < upper_bound);
                 j = j + 1;
             };
             i = i + 1;
@@ -181,14 +181,14 @@ module iota::test_random_tests {
     fun test_next_u128() {
         // Compare with test vector
         let mut random = new(b"seed");
-        assert!(random.next_u128() == 69353424864165392191432166318042668004, 0);
-        assert!(random.next_u128() == 12194030816161474852776228502914168502, 1);
-        assert!(random.next_u128() == 206987904376642456854249538403010538725, 2);
-        assert!(random.next_u128() == 197466311403128565716545068165788666296, 3);
-        assert!(random.next_u128() == 15530841291297409371230861184202905128, 4);
-        assert!(random.next_u128() == 165552967413296855339223280683074424775, 5);
-        assert!(random.next_u128() == 8783412497932783467700075003507430719, 6);
-        assert!(random.next_u128() == 253037866491608363794848265776744604211, 7);
+        assert!(random.next_u128() == 69353424864165392191432166318042668004);
+        assert!(random.next_u128() == 12194030816161474852776228502914168502);
+        assert!(random.next_u128() == 206987904376642456854249538403010538725);
+        assert!(random.next_u128() == 197466311403128565716545068165788666296);
+        assert!(random.next_u128() == 15530841291297409371230861184202905128);
+        assert!(random.next_u128() == 165552967413296855339223280683074424775);
+        assert!(random.next_u128() == 8783412497932783467700075003507430719);
+        assert!(random.next_u128() == 253037866491608363794848265776744604211);
     }
 
     #[test]
@@ -202,7 +202,7 @@ module iota::test_random_tests {
             let upper_bound = bounds[i];
             let mut j = 0;
             while (j < tests) {
-                assert!(random.next_u128_in_range(upper_bound) < upper_bound, 0);
+                assert!(random.next_u128_in_range(upper_bound) < upper_bound);
                 j = j + 1;
             };
             i = i + 1;
@@ -258,7 +258,7 @@ module iota::test_random_tests {
             let upper_bound = bounds[i];
             let mut j = 0;
             while (j < tests) {
-                assert!(random.next_u256_in_range(upper_bound) < upper_bound, 0);
+                assert!(random.next_u256_in_range(upper_bound) < upper_bound);
                 j = j + 1;
             };
             i = i + 1;

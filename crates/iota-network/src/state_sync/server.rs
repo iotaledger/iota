@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use anemo::{rpc::Status, types::response::StatusCode, Request, Response, Result};
+use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
 use iota_types::{
@@ -19,7 +19,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 
 use super::{PeerHeights, StateSync, StateSyncMessage};
 
@@ -234,10 +234,12 @@ where
                 }
             })?;
 
-            struct SemaphoreExtension(#[allow(dead_code)] OwnedSemaphorePermit);
+            struct SemaphoreExtension(#[allow(unused)] OwnedSemaphorePermit);
             inner.call(req).await.map(move |mut response| {
                 // Insert permit as extension so it's not dropped until the response is sent.
-                response.extensions_mut().insert(SemaphoreExtension(permit));
+                response
+                    .extensions_mut()
+                    .insert(Arc::new(SemaphoreExtension(permit)));
                 response
             })
         };
