@@ -86,46 +86,46 @@ fn query_events_unsupported_events() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-    // Get the current time in milliseconds since the UNIX epoch
-    let now_millis = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
+        // Get the current time in milliseconds since the UNIX epoch
+        let now_millis = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
 
-    // Subtract 10 minutes from the current time
-    let ten_minutes_ago = now_millis - (10 * 60 * 1000); // 600 seconds = 10 minutes
+        // Subtract 10 minutes from the current time
+        let ten_minutes_ago = now_millis - (10 * 60 * 1000); // 600 seconds = 10 minutes
 
-    let unsupported_filters = vec![
-        EventFilter::All(vec![]),
-        EventFilter::Any(vec![]),
-        EventFilter::And(
-            Box::new(EventFilter::Any(vec![])),
-            Box::new(EventFilter::Any(vec![])),
-        ),
-        EventFilter::Or(
-            Box::new(EventFilter::Any(vec![])),
-            Box::new(EventFilter::Any(vec![])),
-        ),
-        EventFilter::TimeRange {
-            start_time: ten_minutes_ago as u64,
-            end_time: now_millis as u64,
-        },
-        EventFilter::MoveEventField {
-            path: String::default(),
-            value: serde_json::Value::Bool(true),
-        },
-    ];
+        let unsupported_filters = vec![
+            EventFilter::All(vec![]),
+            EventFilter::Any(vec![]),
+            EventFilter::And(
+                Box::new(EventFilter::Any(vec![])),
+                Box::new(EventFilter::Any(vec![])),
+            ),
+            EventFilter::Or(
+                Box::new(EventFilter::Any(vec![])),
+                Box::new(EventFilter::Any(vec![])),
+            ),
+            EventFilter::TimeRange {
+                start_time: ten_minutes_ago as u64,
+                end_time: now_millis as u64,
+            },
+            EventFilter::MoveEventField {
+                path: String::default(),
+                value: serde_json::Value::Bool(true),
+            },
+        ];
 
-    for event_filter in unsupported_filters {
-        let result = client
-            .query_events(event_filter, None, None, None)
-            .await;
+        for event_filter in unsupported_filters {
+            let result = client
+                .query_events(event_filter, None, None, None)
+                .await;
 
-        assert!(rpc_call_error_msg_matches(
-            result,
-            r#"{"code":-32603,"message": "Indexer does not support the feature with error: `This type of EventFilter is not supported.`"}"#,
-        ));
-    }
+            assert!(rpc_call_error_msg_matches(
+                result,
+                r#"{"code":-32603,"message": "Indexer does not support the feature with error: `This type of EventFilter is not supported.`"}"#,
+            ));
+        }
     });
 }
 
