@@ -15,14 +15,14 @@ use clap::*;
     version
 )]
 pub enum Command {
-    GenerateDocsExamples,
+    /// Output a TOML config (suitable for passing into the --config parameter
+    /// of the start-server command) with all values set to their defaults.
+    GenerateConfig {
+        /// Optional path to an output file. Prints to `stdout` if not provided.
+        output: Option<PathBuf>,
+    },
     GenerateSchema {
         /// Path to output GraphQL schema to, in SDL format.
-        #[clap(short, long)]
-        file: Option<PathBuf>,
-    },
-    GenerateExamples {
-        /// Path to output examples docs.
         #[clap(short, long)]
         file: Option<PathBuf>,
     },
@@ -33,6 +33,9 @@ pub enum Command {
         /// DB URL for data fetching
         #[clap(short, long)]
         db_url: Option<String>,
+        /// Pool size for DB connections
+        #[clap(long)]
+        db_pool_size: Option<u32>,
         /// Port to bind the server to
         #[clap(short, long)]
         port: Option<u16>,

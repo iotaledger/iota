@@ -59,7 +59,7 @@ trait StatePredicate {
         runner: &StressTestRunner,
         effects: &TransactionEffects,
     );
-    #[allow(dead_code)]
+    #[allow(unused)]
     async fn post_epoch_post_condition(
         &mut self,
         runner: &StressTestRunner,

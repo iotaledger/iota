@@ -9,9 +9,9 @@ import type { StateStorage } from 'zustand/middleware';
 
 import {
     DEFAULT_PREFERRED_WALLETS,
-    DEFAULT_REQUIRED_FEATURES,
     DEFAULT_STORAGE,
     DEFAULT_STORAGE_KEY,
+    DEFAULT_WALLET_FILTER,
 } from '../constants/walletDefaults.js';
 import { WalletContext } from '../contexts/walletContext.js';
 import { useAutoConnectWallet } from '../hooks/wallet/useAutoConnectWallet.js';
@@ -19,29 +19,18 @@ import { useUnsafeBurnerWallet } from '../hooks/wallet/useUnsafeBurnerWallet.js'
 import { useWalletPropertiesChanged } from '../hooks/wallet/useWalletPropertiesChanged.js';
 import { useWalletsChanged } from '../hooks/wallet/useWalletsChanged.js';
 import { lightTheme } from '../themes/lightTheme.js';
-import type { DynamicTheme, Theme } from '../themes/themeContract.js';
+import type { Theme } from '../themes/themeContract.js';
 import { createInMemoryStore } from '../utils/stateStorage.js';
 import { getRegisteredWallets } from '../utils/walletUtils.js';
 import { createWalletStore } from '../walletStore.js';
 import { InjectedThemeStyles } from './styling/InjectedThemeStyles.js';
-import { darkTheme } from '../themes/darkTheme.js';
-
-const themeWithSelectorAndMediaQuery: DynamicTheme[] = [
-    {
-        selector: '.dark',
-        variables: darkTheme,
-    },
-    {
-        variables: lightTheme,
-    },
-];
 
 export type WalletProviderProps = {
     /** A list of wallets that are sorted to the top of the wallet list, if they are available to connect to. By default, wallets are sorted by the order they are loaded in. */
     preferredWallets?: string[];
 
-    /** A list of features that are required for the dApp to function. This filters the list of wallets presented to users when selecting a wallet to connect from, ensuring that only wallets that meet the dApps requirements can connect. */
-    requiredFeatures?: (keyof WalletWithRequiredFeatures['features'])[];
+    /** A filter function to select wallets that support features required for the dApp to function. This filters the list of wallets presented to users when selecting a wallet to connect from, ensuring that only wallets that meet the dApps requirements can connect. */
+    walletFilter?: (wallet: WalletWithRequiredFeatures) => boolean;
 
     /** Enables the development-only unsafe burner wallet, which can be useful for testing. */
     enableUnsafeBurner?: boolean;
@@ -65,18 +54,18 @@ export type { WalletWithFeatures };
 
 export function WalletProvider({
     preferredWallets = DEFAULT_PREFERRED_WALLETS,
-    requiredFeatures = DEFAULT_REQUIRED_FEATURES,
+    walletFilter = DEFAULT_WALLET_FILTER,
     storage = DEFAULT_STORAGE,
     storageKey = DEFAULT_STORAGE_KEY,
     enableUnsafeBurner = false,
     autoConnect = false,
-    theme = themeWithSelectorAndMediaQuery,
+    theme = lightTheme,
     children,
 }: WalletProviderProps) {
     const storeRef = useRef(
         createWalletStore({
             autoConnectEnabled: autoConnect,
-            wallets: getRegisteredWallets(preferredWallets, requiredFeatures),
+            wallets: getRegisteredWallets(preferredWallets, walletFilter),
             storage: storage || createInMemoryStore(),
             storageKey,
         }),
@@ -86,7 +75,7 @@ export function WalletProvider({
         <WalletContext.Provider value={storeRef.current}>
             <WalletConnectionManager
                 preferredWallets={preferredWallets}
-                requiredFeatures={requiredFeatures}
+                walletFilter={walletFilter}
                 enableUnsafeBurner={enableUnsafeBurner}
             >
                 {/* TODO: We ideally don't want to inject styles if people aren't using the UI components */}
@@ -99,16 +88,16 @@ export function WalletProvider({
 
 type WalletConnectionManagerProps = Pick<
     WalletProviderProps,
-    'preferredWallets' | 'requiredFeatures' | 'enableUnsafeBurner' | 'children'
+    'preferredWallets' | 'walletFilter' | 'enableUnsafeBurner' | 'children'
 >;
 
 function WalletConnectionManager({
     preferredWallets = DEFAULT_PREFERRED_WALLETS,
-    requiredFeatures = DEFAULT_REQUIRED_FEATURES,
+    walletFilter = DEFAULT_WALLET_FILTER,
     enableUnsafeBurner = false,
     children,
 }: WalletConnectionManagerProps) {
-    useWalletsChanged(preferredWallets, requiredFeatures);
+    useWalletsChanged(preferredWallets, walletFilter);
     useWalletPropertiesChanged();
     useUnsafeBurnerWallet(enableUnsafeBurner);
     useAutoConnectWallet();

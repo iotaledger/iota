@@ -7,11 +7,13 @@ use std::sync::Arc;
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     committee::Committee,
     crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair},
     gas::GasCostSummary,
     messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
+    signature_verification::VerifiedDigestCache,
     transaction::CertifiedTransaction,
 };
 use prometheus::Registry;
@@ -56,6 +58,7 @@ fn gen_ckpts(
             SignedCheckpointSummary::new(
                 committee.epoch,
                 CheckpointSummary::new(
+                    &ProtocolConfig::get_for_max_version_UNSAFE(),
                     committee.epoch,
                     // insert different data for each checkpoint so that we can swap sigs later
                     // and get a failure. (otherwise every checkpoint is the same so the
@@ -67,6 +70,7 @@ fn gen_ckpts(
                     GasCostSummary::default(),
                     None,
                     0,
+                    Vec::new(),
                 ),
                 k,
                 name,
@@ -101,7 +105,11 @@ async fn test_batch_verify() {
         *certs[i].auth_sig_mut_for_testing() = other_cert.auth_sig().clone();
         batch_verify_all_certificates_and_checkpoints(&committee, &certs, &ckpts).unwrap_err();
 
-        let results = batch_verify_certificates(&committee, &certs);
+        let results = batch_verify_certificates(
+            &committee,
+            &certs,
+            Arc::new(VerifiedDigestCache::new_empty()),
+        );
         results[i].as_ref().unwrap_err();
         for (_, r) in results.iter().enumerate().filter(|(j, _)| *j != i) {
             r.as_ref().unwrap();
@@ -126,6 +134,7 @@ async fn test_async_verifier() {
         ZkLoginEnv::Test,
         true,
         true,
+        Some(30),
     ));
 
     let tasks: Vec<_> = (0..32)

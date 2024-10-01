@@ -14,7 +14,10 @@ type ConnectButtonProps = {
     connectText?: ReactNode;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
-export function ConnectButton({ connectText = 'Connect', ...buttonProps }: ConnectButtonProps) {
+export function ConnectButton({
+    connectText = 'Connect Wallet',
+    ...buttonProps
+}: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
     return currentAccount ? (
         <AccountDropdownMenu currentAccount={currentAccount} />

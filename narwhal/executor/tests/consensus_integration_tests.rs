@@ -174,7 +174,7 @@ async fn test_internal_consensus_output() {
         // serialise and send
         let tr = bcs::to_bytes(&tx).unwrap();
         let txn = TransactionProto {
-            transaction: Bytes::from(tr),
+            transactions: vec![Bytes::from(tr)],
         };
         client.submit_transaction(txn).await.unwrap();
 

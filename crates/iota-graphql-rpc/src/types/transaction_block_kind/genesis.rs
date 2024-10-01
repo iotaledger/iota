@@ -13,7 +13,7 @@ use iota_types::{
 };
 
 use crate::{
-    consistency::{CheckpointViewedAt, ConsistentIndexCursor},
+    consistency::ConsistentIndexCursor,
     types::{
         cursor::{JsonCursor, Page},
         event::Event,
@@ -63,7 +63,7 @@ impl GenesisTransaction {
                 NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
 
             let object =
-                Object::from_native(IotaAddress::from(native.id()), native, Some(cursor.c));
+                Object::from_native(IotaAddress::from(native.id()), native, cursor.c, None);
             connection
                 .edges
                 .push(Edge::new(cursor.encode_cursor(), object));
@@ -93,15 +93,13 @@ impl GenesisTransaction {
         connection.has_previous_page = prev;
         connection.has_next_page = next;
 
-        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
-
         for cursor in cursors {
             let native_event = self.native.events[cursor.ix].clone();
 
             let event = Event {
                 stored: None,
                 native: native_event,
-                checkpoint_viewed_at,
+                checkpoint_viewed_at: cursor.c,
             };
 
             connection

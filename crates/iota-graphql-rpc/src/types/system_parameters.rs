@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::big_int::BigInt;
+use crate::types::big_int::BigInt;
 
 /// Details of the system that are decided during genesis.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]

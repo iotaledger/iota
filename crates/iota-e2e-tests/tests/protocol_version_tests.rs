@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
@@ -64,7 +65,6 @@ mod sim_only_tests {
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_protocol_config::SupportedProtocolVersions;
     use iota_types::{
         base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
@@ -77,15 +77,16 @@ mod sim_only_tests {
         },
         object::{Object, Owner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
+        supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
             TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
         },
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
-        MOVE_STDLIB_PACKAGE_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
     };
-    use move_binary_format::CompiledModule;
+    use move_binary_format::{file_format_common::VERSION_MAX, CompiledModule};
     use move_core_types::ident_str;
     use test_cluster::TestCluster;
     use tokio::time::{sleep, Duration};
@@ -151,7 +152,7 @@ mod sim_only_tests {
             .with_async(|node| async {
                 // give time for restarted node to catch up, reconfig
                 // to new protocol, and reconfig again
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(15)).await;
 
                 let epoch_store = node.state().epoch_store_for_testing();
                 assert_eq!(epoch_store.epoch(), 2);
@@ -189,7 +190,7 @@ mod sim_only_tests {
         // verify that the node that didn't support the new version shut itself down.
         for v in test_cluster.swarm.validator_nodes() {
             if !v
-                .config
+                .config()
                 .supported_protocol_versions
                 .unwrap()
                 .is_version_supported(ProtocolVersion::new(FINISH))
@@ -432,6 +433,7 @@ mod sim_only_tests {
                         IOTA_CLOCK_OBJECT_ID,
                         IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                         IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        IOTA_BRIDGE_OBJECT_ID,
                     ]
                     .contains(&obj.0);
                     (!is_framework_obj).then_some(obj.0)
@@ -653,10 +655,11 @@ mod sim_only_tests {
 
         node_handle
             .with_async(|node| async {
-                let store = node.state().get_cache_reader().clone();
+                let store = node.state().get_object_cache_reader().clone();
                 let framework = store.get_object(package);
                 let digest = framework.unwrap().unwrap().previous_transaction;
-                let effects = store.get_executed_effects(&digest);
+                let tx_store = node.state().get_transaction_cache_reader().clone();
+                let effects = tx_store.get_executed_effects(&digest);
                 effects.unwrap().unwrap()
             })
             .await
@@ -668,7 +671,7 @@ mod sim_only_tests {
         node_handle
             .with_async(|node| async {
                 node.state()
-                    .get_cache_reader()
+                    .get_object_cache_reader()
                     .get_object(object_id)
                     .unwrap()
                     .unwrap()
@@ -793,6 +796,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn test_safe_mode_recovery() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         override_iota_system_modules("mock_iota_systems/base");
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
@@ -842,6 +850,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn iota_system_mock_smoke_test() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
@@ -856,6 +869,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn iota_system_state_shallow_upgrade_test() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         override_iota_system_modules("mock_iota_systems/shallow_upgrade");
 
         let test_cluster = TestClusterBuilder::new()
@@ -888,6 +906,11 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn iota_system_state_deep_upgrade_test() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_disable_bridge_for_testing();
+            config
+        });
+
         override_iota_system_modules("mock_iota_systems/deep_upgrade");
 
         let test_cluster = TestClusterBuilder::new()
@@ -1011,6 +1034,7 @@ mod sim_only_tests {
             &iota_system_modules(fixture),
             TransactionDigest::genesis_marker(),
             u64::MAX,
+            VERSION_MAX,
             &[
                 BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
                 BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)
@@ -1032,6 +1056,6 @@ mod sim_only_tests {
 
         let mut config = BuildConfig::new_for_testing();
         config.run_bytecode_verifier = true;
-        config.build(package).unwrap()
+        config.build(&package).unwrap()
     }
 }

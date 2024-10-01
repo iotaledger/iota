@@ -2,16 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
-use iota::client_commands::{IotaClientCommandResult, IotaClientCommands};
+use iota::client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas};
 use iota_config::node::RunWithRange;
-use iota_core::authority::EffectsNotifyRead;
 use iota_json_rpc_types::{
-    type_and_fields_from_move_struct, EventFilter, EventPage, IotaEvent, IotaExecutionStatus,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, TransactionFilter,
+    EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, TransactionFilter,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
@@ -21,7 +19,7 @@ use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_test_transaction_builder::{
-    batch_make_transfer_transactions, create_devnet_nft, delete_devnet_nft, increment_counter,
+    batch_make_transfer_transactions, create_nft, delete_nft, increment_counter,
     publish_basics_package, publish_basics_package_and_make_counter, publish_nfts_package,
     TestTransactionBuilder,
 };
@@ -30,14 +28,12 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{get_key_pair, IotaKeyPair},
     error::{IotaError, UserInputError},
-    event::{Event, EventID},
     message_envelope::Message,
     messages_grpc::TransactionInfoRequest,
-    object::{MoveObject, Object, ObjectRead, Owner, PastObjectRead},
+    object::{Object, ObjectRead, Owner, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{
-        ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
-        QuorumDriverResponse,
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, QuorumDriverResponse,
     },
     storage::ObjectStore,
     transaction::{
@@ -46,17 +42,13 @@ use iota_types::{
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
-use jsonrpsee::{
-    core::client::{ClientT, Subscription, SubscriptionClientT},
-    rpc_params,
-};
-use move_core_types::{annotated_value::MoveStructLayout, ident_str, parser::parse_struct_tag};
+use jsonrpsee::{core::client::ClientT, rpc_params};
+use move_core_types::{annotated_value::MoveStructLayout, ident_str};
 use rand::rngs::OsRng;
-use serde_json::json;
 use test_cluster::TestClusterBuilder;
 use tokio::{
     sync::Mutex,
-    time::{sleep, timeout, Duration},
+    time::{sleep, Duration},
 };
 use tracing::info;
 
@@ -75,8 +67,8 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
 
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -122,8 +114,8 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     handle
         .iota_node
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -516,8 +508,8 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
 
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -589,21 +581,23 @@ async fn do_test_full_node_sync_flood() {
                         amounts: Some(vec![1]),
                         count: None,
                         coin_id: object_to_split.0,
-                        gas: Some(gas_object_id),
-                        gas_budget: TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN
-                            * context.get_reference_gas_price().await.unwrap(),
-                        serialize_unsigned_transaction: false,
-                        serialize_signed_transaction: false,
+                        opts: OptsWithGas::for_testing(
+                            Some(gas_object_id),
+                            TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN
+                                * context.get_reference_gas_price().await.unwrap(),
+                        ),
                     }
                     .execute(context)
                     .await
                     .unwrap()
                 };
 
-                owned_tx_digest = if let IotaClientCommandResult::SplitCoin(resp) = res {
+                owned_tx_digest = if let IotaClientCommandResult::TransactionBlock(resp) = res {
                     Some(resp.digest)
                 } else {
-                    panic!("transfer command did not return WalletCommandResult::Transfer");
+                    panic!(
+                        "SplitCoin command did not return IotaClientCommandResult::TransactionBlock"
+                    );
                 };
 
                 let context = &context.lock().await;
@@ -627,7 +621,7 @@ async fn do_test_full_node_sync_flood() {
     }
 
     // make sure the node syncs up to the last digest sent by each task.
-    let digests = future::join_all(futures)
+    let digests: Vec<_> = future::join_all(futures)
         .await
         .iter()
         .map(|r| r.clone().unwrap())
@@ -635,111 +629,10 @@ async fn do_test_full_node_sync_flood() {
         .collect();
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(digests)
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&digests)
         .await
         .unwrap();
-}
-
-#[sim_test]
-async fn test_full_node_sub_and_query_move_event_ok() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .enable_fullnode_events()
-        .build()
-        .await;
-
-    // Start a new fullnode that is not on the write path
-    let fullnode = test_cluster.spawn_new_fullnode().await;
-
-    let ws_client = fullnode.ws_client().await;
-    let node = fullnode.iota_node;
-
-    let context = &mut test_cluster.wallet;
-    let package_id = publish_nfts_package(context).await.0;
-
-    let struct_tag_str = format!("{package_id}::devnet_nft::MintNFTEvent");
-    let struct_tag = parse_struct_tag(&struct_tag_str).unwrap();
-
-    let mut sub: Subscription<IotaEvent> = ws_client
-        .subscribe(
-            "iotax_subscribeEvent",
-            rpc_params![EventFilter::MoveEventType(struct_tag.clone())],
-            "iotax_unsubscribeEvent",
-        )
-        .await
-        .unwrap();
-
-    let (sender, object_id, digest) = create_devnet_nft(context, package_id).await;
-    node.state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
-        .await
-        .unwrap();
-
-    // Wait for streaming
-    let bcs = match timeout(Duration::from_secs(5), sub.next()).await {
-        Ok(Some(Ok(IotaEvent {
-            type_,
-            parsed_json,
-            bcs,
-            ..
-        }))) => {
-            assert_eq!(&type_, &struct_tag);
-            assert_eq!(
-                parsed_json,
-                json!({
-                    "creator" : sender,
-                    "name": "example_nft_name",
-                    "object_id" : object_id,
-                })
-            );
-            bcs
-        }
-        other => panic!("Failed to get IotaEvent, but {:?}", other),
-    };
-    let struct_tag = parse_struct_tag(&struct_tag_str).unwrap();
-    let layout = MoveObject::get_layout_from_struct_tag(
-        struct_tag.clone(),
-        &**node.state().epoch_store_for_testing().module_cache(),
-    )?;
-
-    let expected_parsed_event = Event::move_event_to_move_struct(&bcs, layout).unwrap();
-    let (_, expected_parsed_event) =
-        type_and_fields_from_move_struct(&struct_tag, expected_parsed_event);
-    let expected_event = IotaEvent {
-        id: EventID {
-            tx_digest: digest,
-            event_seq: 0,
-        },
-        package_id,
-        transaction_module: ident_str!("devnet_nft").into(),
-        sender,
-        type_: struct_tag,
-        parsed_json: expected_parsed_event.to_json_value(),
-        bcs,
-        timestamp_ms: None,
-    };
-
-    // get tx events
-    let events = test_cluster
-        .iota_client()
-        .event_api()
-        .get_events(digest)
-        .await?;
-    assert_eq!(events.len(), 1);
-    assert_eq!(events[0], expected_event);
-    assert_eq!(events[0].id.tx_digest, digest);
-
-    // No more
-    match timeout(Duration::from_secs(5), sub.next()).await {
-        Err(_) => (),
-        other => panic!(
-            "Expect to time out because no new events are coming in. Got {:?}",
-            other
-        ),
-    }
-
-    Ok(())
 }
 
 // Test fullnode has event read jsonrpc endpoints working
@@ -781,7 +674,7 @@ async fn test_full_node_event_read_api_ok() {
     // This is a poor substitute for the post processing taking some time
     sleep(Duration::from_millis(1000)).await;
 
-    let (_sender, _object_id, digest2) = create_devnet_nft(context, package_id).await;
+    let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
 
     // Add a delay to ensure event processing is done after transaction commits.
     sleep(Duration::from_secs(5)).await;
@@ -811,7 +704,7 @@ async fn test_full_node_event_query_by_module_ok() {
     // This is a poor substitute for the post processing taking some time
     sleep(Duration::from_millis(1000)).await;
 
-    let (_sender, _object_id, digest2) = create_devnet_nft(context, package_id).await;
+    let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
 
     // Add a delay to ensure event processing is done after transaction commits.
     sleep(Duration::from_secs(5)).await;
@@ -819,7 +712,7 @@ async fn test_full_node_event_query_by_module_ok() {
     // query by move event module
     let params = rpc_params![EventFilter::MoveEventModule {
         package: package_id,
-        module: ident_str!("devnet_nft").into()
+        module: ident_str!("testnet_nft").into()
     }];
     let page: EventPage = jsonrpc_client
         .request("iotax_queryEvents", params)
@@ -862,26 +755,33 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let txn = txns.swap_remove(0);
     let digest = *txn.digest();
     let res = transaction_orchestrator
-        .execute_transaction_block(ExecuteTransactionRequest {
-            transaction: txn,
-            request_type: ExecuteTransactionRequestType::WaitForLocalExecution,
-        })
+        .execute_transaction_block(
+            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            None,
+        )
         .await
         .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
 
-    let ExecuteTransactionResponse::EffectsCert(res) = res;
     let (
         tx,
         QuorumDriverResponse {
             effects_cert: certified_txn_effects,
             events: txn_events,
+            ..
         },
     ) = rx.recv().await.unwrap().unwrap();
-    let (cte, events, is_executed_locally) = *res;
+    let (response, is_executed_locally) = res;
     assert_eq!(*tx.digest(), digest);
-    assert_eq!(cte.effects.digest(), *certified_txn_effects.digest());
+    assert_eq!(
+        response.effects.effects.digest(),
+        *certified_txn_effects.digest()
+    );
     assert!(is_executed_locally);
-    assert_eq!(events.digest(), txn_events.digest());
+    assert_eq!(
+        response.events.unwrap_or_default().digest(),
+        txn_events.unwrap_or_default().digest()
+    );
     // verify that the node has sequenced and executed the txn
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store.clone()).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {:?} that was executed with WaitForLocalExecution: {:?}", digest, e));
@@ -890,30 +790,37 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     let txn = txns.swap_remove(0);
     let digest = *txn.digest();
     let res = transaction_orchestrator
-        .execute_transaction_block(ExecuteTransactionRequest {
-            transaction: txn,
-            request_type: ExecuteTransactionRequestType::WaitForEffectsCert,
-        })
+        .execute_transaction_block(
+            ExecuteTransactionRequestV3::new_v2(txn),
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            None,
+        )
         .await
         .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
 
-    let ExecuteTransactionResponse::EffectsCert(res) = res;
     let (
         tx,
         QuorumDriverResponse {
             effects_cert: certified_txn_effects,
             events: txn_events,
+            ..
         },
     ) = rx.recv().await.unwrap().unwrap();
-    let (cte, events, is_executed_locally) = *res;
+    let (response, is_executed_locally) = res;
     assert_eq!(*tx.digest(), digest);
-    assert_eq!(cte.effects.digest(), *certified_txn_effects.digest());
-    assert_eq!(txn_events.digest(), events.digest());
+    assert_eq!(
+        response.effects.effects.digest(),
+        *certified_txn_effects.digest()
+    );
+    assert_eq!(
+        txn_events.unwrap_or_default().digest(),
+        response.events.unwrap_or_default().digest()
+    );
     assert!(!is_executed_locally);
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
@@ -936,7 +843,6 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
             node.subscribe_to_transaction_orchestrator_effects()
                 .is_err()
         );
-        assert!(node.get_google_jwk_bytes().is_ok());
     });
 }
 
@@ -1083,7 +989,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     let package_id = publish_nfts_package(&test_cluster.wallet).await.0;
 
     // Create the object
-    let (sender, object_id, _) = create_devnet_nft(&test_cluster.wallet, package_id).await;
+    let (sender, object_id, _) = create_nft(&test_cluster.wallet, package_id).await;
 
     let recipient = test_cluster.get_address_1();
     assert_ne!(sender, recipient);
@@ -1114,8 +1020,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
         .expect("Failed to transfer coins to recipient");
 
     // Delete the object
-    let response =
-        delete_devnet_nft(&test_cluster.wallet, recipient, package_id, object_ref_v2).await;
+    let response = delete_nft(&test_cluster.wallet, recipient, package_id, object_ref_v2).await;
     assert_eq!(
         *response.effects.unwrap().status(),
         IotaExecutionStatus::Success
@@ -1214,8 +1119,8 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
         .iota_node;
 
     node.state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 
@@ -1234,8 +1139,8 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     let (_transferred_object, _, _, digest_after_restore, ..) =
         transfer_coin(&test_cluster.wallet).await?;
     node.state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest_after_restore])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest_after_restore])
         .await
         .unwrap();
     Ok(())
@@ -1295,10 +1200,11 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
 
     let digest = *tx.digest();
     let _res = transaction_orchestrator
-        .execute_transaction_block(ExecuteTransactionRequest {
-            transaction: tx,
-            request_type: ExecuteTransactionRequestType::WaitForLocalExecution,
-        })
+        .execute_transaction_block(
+            ExecuteTransactionRequestV3::new_v2(tx),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            None,
+        )
         .await
         .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
     println!("res: {:?}", _res);
@@ -1308,6 +1214,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         QuorumDriverResponse {
             effects_cert: _certified_txn_effects,
             events: _txn_events,
+            ..
         },
     ) = rx.recv().await.unwrap().unwrap();
     Ok(())
@@ -1341,32 +1248,44 @@ async fn test_access_old_object_pruned() {
             .build(),
     );
     for validator in test_cluster.swarm.active_validators() {
-        let state = validator.get_node_handle().unwrap().state();
-        state.prune_objects_and_compact_for_testing().await;
-        // Make sure the old version of the object is already pruned.
-        assert!(
-            state
-                .get_object_store()
-                .get_object_by_key(&gas_object.0, gas_object.1)
-                .unwrap()
-                .is_none()
-        );
-        let epoch_store = state.epoch_store_for_testing();
-        assert_eq!(
-            state
-                .handle_transaction(
-                    &epoch_store,
-                    epoch_store.verify_transaction(tx.clone()).unwrap()
-                )
-                .await
-                .unwrap_err(),
-            IotaError::UserInput {
-                error: UserInputError::ObjectVersionUnavailableForConsumption {
-                    provided_obj_ref: gas_object,
-                    current_version: new_gas_version,
-                }
-            }
-        );
+        validator
+            .get_node_handle()
+            .unwrap()
+            .with_async(|node| async {
+                let state = node.state();
+                state
+                    .database_for_testing()
+                    .prune_objects_and_compact_for_testing(
+                        state.get_checkpoint_store(),
+                        state.rest_index.as_deref(),
+                    )
+                    .await;
+                // Make sure the old version of the object is already pruned.
+                assert!(
+                    state
+                        .database_for_testing()
+                        .get_object_by_key(&gas_object.0, gas_object.1)
+                        .unwrap()
+                        .is_none()
+                );
+                let epoch_store = state.epoch_store_for_testing();
+                assert_eq!(
+                    state
+                        .handle_transaction(
+                            &epoch_store,
+                            epoch_store.verify_transaction(tx.clone()).unwrap()
+                        )
+                        .await
+                        .unwrap_err(),
+                    IotaError::UserInput {
+                        error: UserInputError::ObjectVersionUnavailableForConsumption {
+                            provided_obj_ref: gas_object,
+                            current_version: new_gas_version,
+                        }
+                    }
+                );
+            })
+            .await;
     }
 
     // Check that fullnode would return the same error.
@@ -1507,4 +1426,30 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     );
 
     Ok(())
+}
+
+// This test checks that the fullnode is able to resolve events emitted from a
+// transaction that references the structs defined in the package published by
+// the transaction itself, without local execution.
+#[sim_test]
+async fn publish_init_events_without_local_execution() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_test_code");
+    let tx_data = test_cluster
+        .test_transaction_builder()
+        .await
+        .publish(path)
+        .build();
+    let tx = test_cluster.sign_transaction(&tx_data);
+    let client = test_cluster.wallet.get_client().await.unwrap();
+    let response = client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            tx,
+            IotaTransactionBlockResponseOptions::new().with_events(),
+            Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.events.unwrap().data.len(), 1);
 }

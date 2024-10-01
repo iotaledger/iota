@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { ObjectOwner, IotaObjectChange } from '@iota/iota-sdk/src/client';
+import { ObjectOwner, IotaObjectChange } from '@iota/iota-sdk/client';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -71,7 +71,7 @@ export function ObjectLink({
     }
 
     const link = objectId
-        ? `https://iotaexplorer.com/${ownerDisplay ? 'address' : 'object'}/${objectId}?network=${
+        ? `https://explorer.iota.org/${ownerDisplay ? 'address' : 'object'}/${objectId}?network=${
               network.split(':')[1]
           }`
         : undefined;

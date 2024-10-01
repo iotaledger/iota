@@ -32,12 +32,12 @@ pub struct EpochMetrics {
     // An active validator reconfigures through the following steps:
     // 1. Halt validator (a.k.a. close epoch) and stop accepting user transaction certs.
     // 2. Finishes processing all pending certificates and then send EndOfPublish message.
-    // 3. Stop accepting messages from Narwhal after seeing 2f+1 EndOfPublish messages.
+    // 3. Stop accepting messages from consensus after seeing 2f+1 EndOfPublish messages.
     // 4. Creating the last checkpoint of the epoch by augmenting it with AdvanceEpoch transaction.
     // 5. CheckpointExecutor finishes executing the last checkpoint, and triggers reconfiguration.
-    // 6. During reconfiguration, we tear down Narwhal, reconfigure state (at which point we opens
-    //    up user certs), and start Narwhal again.
-    // 7. After reconfiguration, and eventually Narwhal starts successfully, at some point the
+    // 6. During reconfiguration, we tear down consensus, reconfigure state (at which point we
+    //    opens up user certs), and start consensus again.
+    // 7. After reconfiguration, and eventually consensus starts successfully, at some point the
     //    first checkpoint of the new epoch will be created.
     // We introduce various metrics to cover the latency of above steps.
     /// The duration from when the epoch is closed (i.e. validator halted) to
@@ -74,7 +74,7 @@ pub struct EpochMetrics {
     /// above, and is a good proxy to how long it takes for the validator to
     /// become useful in the network after reconfiguration.
     // TODO: This needs to be reported properly.
-    pub epoch_first_checkpoint_ready_time_since_epoch_begin_ms: IntGauge,
+    pub epoch_first_checkpoint_created_time_since_epoch_begin_ms: IntGauge,
 
     /// Whether we are running in safe mode where reward distribution and
     /// tokenomics are disabled.
@@ -177,7 +177,7 @@ impl EpochMetrics {
                 "Total time duration when the validator was halted (i.e. epoch closed)",
                 registry
             ).unwrap(),
-            epoch_first_checkpoint_ready_time_since_epoch_begin_ms: register_int_gauge_with_registry!(
+            epoch_first_checkpoint_created_time_since_epoch_begin_ms: register_int_gauge_with_registry!(
                 "epoch_first_checkpoint_created_time_since_epoch_begin_ms",
                 "Time interval from when the epoch opens at new epoch to the first checkpoint is created locally",
                 registry

@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example uses the coin read api to showcase the available
-//! functions to retrieve coin related information for a specific address.
-//! The example will use the active address in the wallet (if it exists or
-//! create one if it doesn't) check if it has coins and request coins from the
-//! faucet if there aren't any. If there is no wallet, it will create a wallet
-//! and two addresses, set one address as active, and add 1 IOTA to the active
-//! address. By default, the example will use the Iota testnet network
-//! (fullnode.testnet.iota.io:443).
+//! This example uses the coin read api to showcase the available functions to
+//! retrieve coin related information for a specific address. The example will
+//! use the active address in the wallet (if it exists or create one if it
+//! doesn't) check if it has coins and request coins from the faucet if there
+//! aren't any. If there is no wallet, it will create a wallet and two
+//! addresses, set one address as active, and add 1 IOTA to the active address.
+//! By default, the example will use the Iota testnet network (fullnode.testnet.
+//! iota.io:443).
 //!
 //! cargo run --example coin_read_api
 
@@ -25,10 +25,10 @@ async fn main() -> Result<(), anyhow::Error> {
     // (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) or
     // use `None` for the default `Coin<IOTA>` which is represented as
     // "0x2::iota::IOTA"
-    let coin_type = Some("0x2::iota::IOTA".to_string());
+    let coin_type = "0x2::iota::IOTA".to_string();
     let coins = client
         .coin_read_api()
-        .get_coins(active_address, coin_type.clone(), None, Some(5)) // get the first five coins
+        .get_coins(active_address, Some(coin_type.clone()), None, Some(5)) // get the first five coins
         .await?;
     println!(" *** Coins ***");
     println!("{:?}", coins);
@@ -65,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // `None` for the default Iota coin
     let select_coins = client
         .coin_read_api()
-        .select_coins(active_address, coin_type, 1, vec![])
+        .select_coins(active_address, Some(coin_type.clone()), 1, vec![])
         .await?;
 
     println!(" *** Select Coins ***");
@@ -94,7 +94,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Return the coin metadata for the Coin<IOTA>
     let coin_metadata = client
         .coin_read_api()
-        .get_coin_metadata("0x2::iota::IOTA")
+        .get_coin_metadata(coin_type.clone())
         .await?;
 
     println!(" *** Coin Metadata *** ");
@@ -102,10 +102,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Coin Metadata ***\n ");
 
     // Total Supply
-    let total_supply = client
-        .coin_read_api()
-        .get_total_supply("0x2::iota::IOTA")
-        .await?;
+    let total_supply = client.coin_read_api().get_total_supply(coin_type).await?;
     println!(" *** Total Supply *** ");
     println!("{:?}", total_supply);
     println!(" *** Total Supply ***\n ");

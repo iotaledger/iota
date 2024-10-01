@@ -120,7 +120,7 @@ async fn main() -> Result<(), anyhow::Error> {
             type_arguments,
             arguments,
         ) {
-            // If the nft output can be unlocked, the command will be succesful and will
+            // If the nft output can be unlocked, the command will be successful and will
             // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens and
             // related nft object.
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);

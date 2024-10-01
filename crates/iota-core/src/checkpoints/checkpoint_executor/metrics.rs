@@ -22,7 +22,6 @@ pub struct CheckpointExecutorMetrics {
     pub checkpoint_transaction_count: Histogram,
     pub checkpoint_contents_age_ms: Histogram,
     pub last_executed_checkpoint_age_ms: Histogram,
-    pub accumulator_inconsistent_state: IntGauge,
 }
 
 impl CheckpointExecutorMetrics {
@@ -87,14 +86,8 @@ impl CheckpointExecutorMetrics {
             last_executed_checkpoint_age_ms: Histogram::new_in_registry(
                 "last_executed_checkpoint_age_ms",
                 "Age of the last executed checkpoint",
-                registry
-            ),
-            accumulator_inconsistent_state: register_int_gauge_with_registry!(
-                "accumulator_inconsistent_state",
-                "1 if accumulated live object set differs from StateAccumulator root state hash for the previous epoch",
                 registry,
-            )
-            .unwrap(),
+            ),
         };
         Arc::new(this)
     }

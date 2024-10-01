@@ -125,7 +125,7 @@ function StakingCard() {
             // });
             try {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransactionBlock({
+                return await signer.signAndExecuteTransaction({
                     transactionBlock,
                     requestType: effectsOnlySharedTransactions
                         ? 'WaitForEffectsCert'
@@ -158,7 +158,7 @@ function StakingCard() {
             // 	name: 'stake',
             // });
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransactionBlock({
+            return await signer.signAndExecuteTransaction({
                 transactionBlock,
                 requestType: effectsOnlySharedTransactions
                     ? 'WaitForEffectsCert'

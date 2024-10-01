@@ -3,9 +3,12 @@ description: How to create a Move package in IOTA
 tags: [ move, getting-started ]
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/create-a-package.json';
+
 # Create a Move Package
 
-Once you have [installed IOTA](iota-install.mdx), you are ready to create your first IOTA
+Once you have [installed IOTA](install-iota.mdx), you are ready to create your first IOTA
 Move [package](../iota-101/move-overview/package-upgrades/introduction.mdx). In IOTA, packages are the way to organize
 the [modules](create-a-module.mdx) that make up your smart contract program. When you publish a package to any IOTA
 network, it will be assigned an address you can use to interact with the package by
@@ -117,3 +120,6 @@ local = "../my-package"
 ```
 </TabItem>
 </Tabs>
+
+
+<Quiz questions={questions} />

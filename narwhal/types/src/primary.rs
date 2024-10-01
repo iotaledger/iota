@@ -861,11 +861,10 @@ impl Certificate {
             Self::V2(certificate) => certificate.origin(),
         }
     }
-}
 
-impl Default for Certificate {
-    fn default() -> Self {
-        Self::V2(CertificateV2::default())
+    // Used for testing
+    pub fn default() -> Certificate {
+        Certificate::V2(CertificateV2::default())
     }
 }
 
@@ -1039,7 +1038,7 @@ impl CertificateV2 {
             })
             .map(|(index, _)| index as u32);
 
-        let signed_authorities= roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
+        let signed_authorities = roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
             .map_err(|_| DagError::InvalidBitmap("Failed to convert votes into a bitmap of authority keys. Something is likely very wrong...".to_string()))?;
 
         // Ensure that all authorities in the set of votes are known
@@ -1345,6 +1344,7 @@ pub struct FetchCertificatesRequest {
     /// between
     /// - rounds of certificates to be skipped from the response and
     /// - the GC round.
+    ///
     /// These rounds are skipped because the requestor already has them.
     pub skip_rounds: Vec<(AuthorityIdentifier, Vec<u8>)>,
     /// Maximum number of certificates that should be returned.

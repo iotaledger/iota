@@ -63,10 +63,10 @@ pub struct EcdsaR1EcrecoverCostParams {
 /// `keccak256` cost constants, otherwise we use the `sha256` cost constants.
 ///   gas cost: ecdsa_r1_ecrecover_cost_base                    | covers various
 /// fixed costs in the oper
-///              + ecdsa_r1_ecrecover_msg_cost_per_byte    * size_of(msg) |
-///                covers cost of operating on each byte of `msg`
-///              + ecdsa_r1_ecrecover_msg_cost_per_block   * num_blocks(msg) |
-///                covers cost of operating on each block in `msg`
+///              + ecdsa_r1_ecrecover_msg_cost_per_byte    * size_of(msg)
+///                | covers cost of operating on each byte of `msg`
+///              + ecdsa_r1_ecrecover_msg_cost_per_block   * num_blocks(msg)
+///                | covers cost of operating on each block in `msg`
 /// Note: each block is of size `KECCAK256_BLOCK_SIZE` bytes for `keccak256` and
 /// `SHA256_BLOCK_SIZE` for `sha256`, and we round up.       `signature` is
 /// fixed size, so the cost is included in the base cost. **********************

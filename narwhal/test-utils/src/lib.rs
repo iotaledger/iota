@@ -95,7 +95,7 @@ macro_rules! test_channel {
 // situated in the channel you're passing as an argument to the primary
 // initialization is the replacement. If that gauge is a dummy gauge, such as
 // the one above, the initialization of the primary will panic (to protect the
-// production code against an erroneous microsake in editing this bootstrap
+// production code against an erroneous mistake in editing this bootstrap
 // logic).
 #[macro_export]
 macro_rules! test_committed_certificates_channel {
@@ -450,7 +450,7 @@ fn rounds_of_certificates(
             certificates.push_back(certificate);
             next_parents.insert(digest);
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }
@@ -513,7 +513,7 @@ pub fn make_certificates_with_slow_nodes(
             certificates.push_back(certificate.clone());
             next_parents.push(certificate);
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }
@@ -630,7 +630,7 @@ pub fn make_certificates_with_leader_configuration(
             certificates.push_back(certificate.clone());
             next_parents.insert(certificate.digest());
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }
@@ -719,7 +719,7 @@ pub fn make_certificates_with_epoch(
             certificates.push_back(certificate);
             next_parents.insert(digest);
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
     }
     (certificates, next_parents)
 }

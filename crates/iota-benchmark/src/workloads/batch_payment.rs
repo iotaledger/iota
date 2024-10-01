@@ -28,9 +28,9 @@ use crate::{
     ExecutionEffects, ValidatorProxy,
 };
 
-/// Value of each address's "primary coin" in nanos. The first transaction
-/// gives each address a coin worth PRIMARY_COIN_VALUE, and all subsequent
-/// transfers send TRANSFER_AMOUNT coins each time
+/// Value of each address's "primary coin" in nanos. The first transaction gives
+/// each address a coin worth PRIMARY_COIN_VALUE, and all subsequent transfers
+/// send TRANSFER_AMOUNT coins each time
 const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 
 /// Number of nanos sent to each address on each batch transfer
@@ -59,7 +59,7 @@ impl Payload for BatchPaymentTestPayload {
     fn make_new_payload(&mut self, effects: &ExecutionEffects) {
         if !effects.is_ok() {
             effects.print_gas_summary();
-            error!("Batch payment failed...");
+            error!("Batch payment failed... Status: {:?}", effects.status());
         }
 
         self.state.update(effects);

@@ -22,9 +22,19 @@ interface HeaderProps {
      * On close click handler (optional). If provided, a close button will be displayed.
      */
     onClose?: (() => void) | ((e: React.MouseEvent<HTMLElement>) => void);
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
-export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): JSX.Element {
+export function Header({
+    title,
+    titleCentered,
+    onBack,
+    onClose,
+    testId,
+}: HeaderProps): JSX.Element {
     const titleCenteredClasses = titleCentered ? 'text-center' : onBack ? 'ml-1' : '';
     const keepSpaceForIcon = titleCentered && (!onBack || !onClose);
 
@@ -42,7 +52,9 @@ export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): 
             )}
 
             <div className={cx('flex-grow', titleCenteredClasses)}>
-                <span className="font-inter text-title-lg">{title}</span>
+                <span className="font-inter text-title-lg" data-testid={testId}>
+                    {title}
+                </span>
             </div>
 
             {onClose ? (
@@ -51,6 +63,7 @@ export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): 
                     type={ButtonType.Ghost}
                     onClick={onClose}
                     icon={<Close />}
+                    testId={`close-icon`}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />

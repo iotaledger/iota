@@ -259,7 +259,7 @@ impl CoinReadApiServer for CoinReadApi {
 }
 
 #[cached(
-    ty = "SizedCache<String, ObjectID>",
+    type = "SizedCache<String, ObjectID>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, object_struct_tag) }"#,
     result = true
@@ -579,7 +579,6 @@ mod tests {
     }
 
     mod get_coins_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -1097,7 +1096,6 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
