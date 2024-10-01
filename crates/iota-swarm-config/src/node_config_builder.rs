@@ -19,6 +19,7 @@ use iota_config::{
     },
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
     ConsensusConfig, NodeConfig, AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, FULL_NODE_DB_PATH,
+    IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
 };
 use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
@@ -96,6 +97,7 @@ impl ValidatorConfigBuilder {
         let network_address = validator.network_address;
         let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
+        let migration_data_path = config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME);
         let internal_worker_address = validator.consensus_internal_worker_address;
         let localhost = local_ip_utils::localhost_for_testing();
         let consensus_config = ConsensusConfig {
@@ -156,7 +158,7 @@ impl ValidatorConfigBuilder {
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.worker_key_pair)),
-            config_dir: config_directory,
+            migration_data_path: Some(migration_data_path),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -410,7 +412,9 @@ impl FullnodeConfigBuilder {
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
                 IotaKeyPair::Ed25519(validator_config.network_key_pair),
             )),
-            config_dir: config_directory.clone(),
+            migration_data_path: Some(
+                config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
+            ),
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),

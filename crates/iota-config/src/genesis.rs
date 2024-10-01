@@ -171,6 +171,10 @@ impl Genesis {
             .expect("Iota System State Wrapper object must always exist")
     }
 
+    pub fn is_vanilla(&self) -> bool {
+        self.migration_txs_effects.is_empty()
+    }
+
     pub fn iota_system_object(&self) -> IotaSystemState {
         get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
     }
