@@ -8,14 +8,11 @@ import { merge } from 'webpack-merge';
 
 import configCommon from './webpack.config.common';
 
-console.log("process.env.WALLET_RC_VERSION config dev", process.env.WALLET_RC_VERSION);
-
-
 const configDev: Configuration = {
     mode: 'development',
     devtool: 'cheap-source-map',
     plugins: [new ESLintPlugin({ extensions: ['ts', 'tsx', 'js', 'jsx'] }), new DefinePlugin({
-        'process.env.WALLET_RC_VERSION': JSON.stringify(process.env.WALLET_RC_VERSION)
+        'process.env.WALLET_RC_VERSION': JSON.stringify(process.env.WALLET_RC_VERSION || process.env.WALLET_RC_VERSION)
       })],
     watchOptions: {
         aggregateTimeout: 600,
@@ -25,7 +22,9 @@ const configDev: Configuration = {
     },
 };
 
-async function getConfig() {
+async function getConfig(env: any) {
+    console.log("env ---------------- ", env);
+    
     return merge(await configCommon(), configDev);
 }
 

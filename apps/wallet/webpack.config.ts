@@ -7,7 +7,7 @@ import type { Configuration } from 'webpack';
 import configDev from './configs/webpack/webpack.config.dev';
 import configProd from './configs/webpack/webpack.config.prod';
 
-const configMap: Record<string, () => Promise<Configuration>> = {
+const configMap: Record<string, (env: any) => Promise<Configuration>> = {
     development: configDev,
     production: configProd,
 };
