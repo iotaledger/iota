@@ -51,7 +51,7 @@ pub enum DagError {
     InvalidSignature,
 
     #[error("Storage failure: {0}")]
-    StoreError(#[from] StoreError),
+    Store(#[from] StoreError),
 
     #[error("Invalid header digest")]
     InvalidHeaderDigest,
@@ -138,7 +138,7 @@ pub enum DagError {
     TooManyFetchedCertificatesReturned(usize, usize),
 
     #[error("Network error: {0}")]
-    NetworkError(String),
+    Network(String),
 
     #[error("Processing was suspended to retrieve parent certificates")]
     Suspended(AcceptNotification),
