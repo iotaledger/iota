@@ -459,6 +459,9 @@ h4 {
     display: none;
   }
 }
+.footer {
+  background-color: black;
+}
 
 /** colors **/
 .text-white {
