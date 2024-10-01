@@ -13,7 +13,7 @@ use iota_core::{
 };
 use iota_types::{
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
     signature_verification::VerifiedDigestCache,
     transaction::CertifiedTransaction,
 };

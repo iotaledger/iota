@@ -2,6 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod bank;
+pub mod benchmark_setup;
+pub mod drivers;
+pub mod embedded_reconfig_observer;
+pub mod fullnode_reconfig_observer;
+pub mod in_memory_wallet;
+pub mod options;
+pub mod system_state_observer;
+pub mod util;
+pub mod workloads;
+
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -12,7 +23,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use embedded_reconfig_observer::EmbeddedReconfigObserver;
 use fullnode_reconfig_observer::FullNodeReconfigObserver;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use iota_config::genesis::Genesis;
 use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
@@ -41,10 +52,12 @@ use iota_types::{
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
+    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     message_envelope::Envelope,
+    messages_grpc::{HandleCertificateResponseV2, TransactionStatus},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
     transaction::{Argument, CallArg, CertifiedTransaction, ObjectArg, Transaction},
 };
 use prometheus::Registry;
@@ -55,22 +68,6 @@ use tokio::{
     time::{sleep, timeout},
 };
 use tracing::{error, info};
-
-pub mod bank;
-pub mod benchmark_setup;
-pub mod drivers;
-pub mod embedded_reconfig_observer;
-pub mod fullnode_reconfig_observer;
-pub mod in_memory_wallet;
-pub mod options;
-pub mod system_state_observer;
-pub mod util;
-pub mod workloads;
-use futures::FutureExt;
-use iota_types::{
-    messages_grpc::{HandleCertificateResponseV2, TransactionStatus},
-    quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
-};
 
 #[derive(Debug)]
 /// A wrapper on execution results to accommodate different types of

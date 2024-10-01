@@ -10,7 +10,7 @@ use iota_metrics::RegistryService;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
+        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
 };
@@ -23,12 +23,12 @@ use tokio::{
 };
 
 use crate::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     checkpoints::{CheckpointMetrics, CheckpointService, CheckpointServiceNoop},
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{
-        narwhal_manager::{NarwhalConfiguration, NarwhalManager},
         ConsensusManagerMetrics, ConsensusManagerTrait,
+        narwhal_manager::{NarwhalConfiguration, NarwhalManager},
     },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     state_accumulator::StateAccumulator,

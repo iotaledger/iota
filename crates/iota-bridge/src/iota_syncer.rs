@@ -9,7 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use iota_json_rpc_types::IotaEvent;
 use iota_metrics::spawn_logged_monitored_task;
-use iota_types::{event::EventID, Identifier, BRIDGE_PACKAGE_ID};
+use iota_types::{BRIDGE_PACKAGE_ID, Identifier, event::EventID};
 use tokio::{
     task::JoinHandle,
     time::{self, Duration},
@@ -119,7 +119,7 @@ where
 #[cfg(test)]
 mod tests {
     use iota_json_rpc_types::EventPage;
-    use iota_types::{digests::TransactionDigest, event::EventID, Identifier};
+    use iota_types::{Identifier, digests::TransactionDigest, event::EventID};
     use prometheus::Registry;
     use tokio::time::timeout;
 

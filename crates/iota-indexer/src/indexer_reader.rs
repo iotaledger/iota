@@ -7,13 +7,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods,
     dsl::sql,
     r2d2::{ConnectionManager, R2D2Connection},
     sql_types::Bool,
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods,
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
@@ -32,11 +32,11 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     effects::TransactionEvents,
     event::EventID,
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
+    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     is_system_package,
     object::{Object, ObjectRead},
 };
-use itertools::{any, Itertools};
+use itertools::{Itertools, any};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
 use tap::TapFallible;
 
@@ -53,8 +53,8 @@ use crate::{
         network_metrics::StoredNetworkMetrics,
         objects::{CoinBalance, ObjectRefColumn, StoredObject},
         transactions::{
-            stored_events_to_events, tx_events_to_iota_tx_events, StoredTransaction,
-            StoredTransactionEvents,
+            StoredTransaction, StoredTransactionEvents, stored_events_to_events,
+            tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
     },

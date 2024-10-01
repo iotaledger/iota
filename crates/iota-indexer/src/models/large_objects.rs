@@ -8,12 +8,11 @@
 //! See also <https://www.postgresql.org/docs/current/lo-funcs.html>
 
 use diesel::{
-    define_sql_function,
+    RunQueryDsl, define_sql_function,
     pg::sql_types::Oid,
     r2d2::R2D2Connection,
     select,
     sql_types::{BigInt, Binary, Integer, Nullable},
-    RunQueryDsl,
 };
 
 use crate::{

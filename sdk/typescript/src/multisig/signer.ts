@@ -16,7 +16,7 @@ export class MultiSigSigner extends Signer {
         this.#pubkey = pubkey;
         this.#signers = signers;
 
-        let uniqueKeys = new Set();
+        const uniqueKeys = new Set();
         let combinedWeight = 0;
 
         const weights = pubkey.getPublicKeys().map(({ weight, publicKey }) => ({
@@ -24,7 +24,7 @@ export class MultiSigSigner extends Signer {
             address: publicKey.toIotaAddress(),
         }));
 
-        for (let signer of signers) {
+        for (const signer of signers) {
             const address = signer.toIotaAddress();
             if (uniqueKeys.has(address)) {
                 throw new Error(`Can't create MultiSigSigner with duplicate signers`);

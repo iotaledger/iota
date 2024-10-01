@@ -11,8 +11,8 @@ use std::{fs::File, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::{
-    authority_client::{make_network_authority_clients_with_network_config, AuthorityAPI},
-    traffic_controller::{nodefw_test_server::NodeFwTestServer, TrafficController, TrafficSim},
+    authority_client::{AuthorityAPI, make_network_authority_clients_with_network_config},
+    traffic_controller::{TrafficController, TrafficSim, nodefw_test_server::NodeFwTestServer},
 };
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,

@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use tracing::trace;
 
 pub mod certificate_deny_config;

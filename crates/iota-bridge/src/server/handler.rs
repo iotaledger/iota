@@ -12,7 +12,7 @@ use ethers::{providers::JsonRpcClient, types::TxHash};
 use iota_types::digests::TransactionDigest;
 use lru::LruCache;
 use tap::TapFallible;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tracing::info;
 
 use super::governance_verifier::GovernanceVerifier;
@@ -362,7 +362,7 @@ mod tests {
     use super::*;
     use crate::{
         eth_mock_provider::EthMockProvider,
-        events::{init_all_struct_tags, IotaToEthTokenBridgeV1, MoveTokenDepositedEvent},
+        events::{IotaToEthTokenBridgeV1, MoveTokenDepositedEvent, init_all_struct_tags},
         iota_mock_client::IotaMockClient,
         test_utils::{
             get_test_iota_to_eth_bridge_action, get_test_log_and_action, mock_last_finalized_block,
@@ -476,10 +476,10 @@ mod tests {
         let iota_event_idx_2 = 1;
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![iota_event_2.clone()]);
 
-        iota_client_mock.add_events_by_tx_digest(
-            iota_tx_digest,
-            vec![iota_event_1.clone(), iota_event_2.clone()],
-        );
+        iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![
+            iota_event_1.clone(),
+            iota_event_2.clone(),
+        ]);
         let signed_1 = iota_signer_with_cache
             .sign((iota_tx_digest, iota_event_idx))
             .await

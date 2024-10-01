@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 use tonic::transport::Channel;
 
 use crate::{
+    Multiaddr,
     client::{connect_lazy_with_config, connect_with_config},
     metrics::{DefaultMetricsCallbackProvider, MetricsCallbackProvider},
     server::ServerBuilder,
-    Multiaddr,
 };
 
 #[derive(Debug, Default, Deserialize, Serialize)]

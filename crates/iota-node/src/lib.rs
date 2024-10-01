@@ -19,32 +19,32 @@ use anemo_tower::{
     callback::CallbackLayer,
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arc_swap::ArcSwap;
-use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider, JWK};
+use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId, OIDCProvider};
 use futures::TryFutureExt;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
+    ConsensusConfig, NodeConfig,
     node::{DBCheckpointConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-    ConsensusConfig, NodeConfig,
 };
 use iota_core::{
     authority::{
+        AuthorityState, AuthorityStore, CHAIN_IDENTIFIER, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store_tables::AuthorityPerpetualTables,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
-        AuthorityState, AuthorityStore, RandomnessRoundReceiver, CHAIN_IDENTIFIER,
     },
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
     authority_client::NetworkAuthorityClient,
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::{
-        checkpoint_executor::{metrics::CheckpointExecutorMetrics, CheckpointExecutor, StopReason},
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
         SubmitCheckpointToConsensus,
+        checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
     consensus_adapter::{
         CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
@@ -72,14 +72,14 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc::{
-    bridge_api::BridgeReadApi, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
-    indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
-    transaction_builder_api::TransactionBuilderApi,
-    transaction_execution_api::TransactionExecutionApi, JsonRpcServerBuilder,
+    JsonRpcServerBuilder, bridge_api::BridgeReadApi, coin_api::CoinReadApi,
+    governance_api::GovernanceReadApi, indexer_api::IndexerApi, move_utils::MoveUtils,
+    read_api::ReadApi, transaction_builder_api::TransactionBuilderApi,
+    transaction_execution_api::TransactionExecutionApi,
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
-use iota_metrics::{spawn_monitored_task, RegistryService};
+use iota_metrics::{RegistryService, spawn_monitored_task};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
@@ -89,10 +89,10 @@ use iota_rest_api::RestMetrics;
 use iota_service::server_timing::server_timing_middleware;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
+    FileCompression, IndexStore, StorageFormat,
     http_key_value_store::HttpKVStore,
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
-    FileCompression, IndexStore, StorageFormat,
 };
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
@@ -101,12 +101,12 @@ use iota_types::{
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     iota_system_state::{
-        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
         IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     messages_consensus::{
-        check_total_jwk_size, AuthorityCapabilitiesV1, AuthorityCapabilitiesV2,
-        ConsensusTransaction,
+        AuthorityCapabilitiesV1, AuthorityCapabilitiesV2, ConsensusTransaction,
+        check_total_jwk_size,
     },
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -118,12 +118,12 @@ use prometheus::Registry;
 use tap::tap::TapFallible;
 use tokio::{
     runtime::Handle,
-    sync::{broadcast, mpsc, watch, Mutex},
+    sync::{Mutex, broadcast, mpsc, watch},
     task::JoinHandle,
 };
 use tower::ServiceBuilder;
-use tracing::{debug, error, error_span, info, warn, Instrument};
-use typed_store::{rocks::default_db_options, DBMetrics};
+use tracing::{Instrument, debug, error, error_span, info, warn};
+use typed_store::{DBMetrics, rocks::default_db_options};
 
 use crate::metrics::{GrpcMetrics, IotaNodeMetrics};
 
@@ -728,15 +728,13 @@ impl IotaNode {
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
         let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
-            Some(Arc::new(
-                TransactionOrchestrator::new_with_auth_aggregator(
-                    auth_agg.load_full(),
-                    state.clone(),
-                    end_of_epoch_receiver,
-                    &config.db_path(),
-                    &prometheus_registry,
-                ),
-            ))
+            Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
+                auth_agg.load_full(),
+                state.clone(),
+                end_of_epoch_receiver,
+                &config.db_path(),
+                &prometheus_registry,
+            )))
         } else {
             None
         };

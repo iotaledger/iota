@@ -26,7 +26,7 @@ use iota_types::{
     transaction::*,
 };
 use prometheus::{
-    core::GenericCounter, register_int_counter_vec_with_registry, IntCounterVec, Registry,
+    IntCounterVec, Registry, core::GenericCounter, register_int_counter_vec_with_registry,
 };
 use tap::TapFallible;
 use tracing::{debug, error, instrument};

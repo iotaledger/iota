@@ -9,9 +9,9 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::DevInspectArgs;
 use iota_sdk::IotaClient;
 use iota_types::{
+    TypeTag,
     gas_coin::GAS,
     transaction::{TransactionData, TransactionDataAPI, TransactionKind},
-    TypeTag,
 };
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
@@ -46,7 +46,7 @@ use crate::{
         type_filter::ExactTypeFilter,
         uint53::UInt53,
         zklogin_verify_signature::{
-            verify_zklogin_signature, ZkLoginIntentScope, ZkLoginVerifyResult,
+            ZkLoginIntentScope, ZkLoginVerifyResult, verify_zklogin_signature,
         },
     },
 };

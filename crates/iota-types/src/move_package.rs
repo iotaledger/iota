@@ -22,16 +22,16 @@ use move_ir_types::location::Spanned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
     crypto::DefaultHash,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
     object::OBJECT_START_VERSION,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 // TODO: robust MovePackage tests
@@ -678,13 +678,10 @@ fn build_linkage_table<'p>(
             dep_linkage_tables.push(&transitive_dep.linkage_table);
         }
 
-        linkage_table.insert(
-            original_id,
-            UpgradeInfo {
-                upgraded_id: transitive_dep.id,
-                upgraded_version: transitive_dep.version,
-            },
-        );
+        linkage_table.insert(original_id, UpgradeInfo {
+            upgraded_id: transitive_dep.id,
+            upgraded_version: transitive_dep.version,
+        });
     }
     // (1) Every dependency is represented in the transitive dependencies
     if !immediate_dependencies.is_empty() {

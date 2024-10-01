@@ -7,7 +7,7 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
-use futures::{ready, stream, task, Stream, StreamExt};
+use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use tokio::{sync::broadcast, time::sleep};
@@ -15,7 +15,8 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, trace, warn};
 
 use crate::{
-    block::{BlockAPI as _, BlockRef, SignedBlock, VerifiedBlock, GENESIS_ROUND},
+    CommitIndex, Round,
+    block::{BlockAPI as _, BlockRef, GENESIS_ROUND, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
@@ -27,7 +28,6 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
-    CommitIndex, Round,
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -578,6 +578,7 @@ mod tests {
     use tokio::{sync::broadcast, time::sleep};
 
     use crate::{
+        Round,
         authority_service::AuthorityService,
         block::{BlockAPI, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
         commit::CommitRange,
@@ -590,7 +591,6 @@ mod tests {
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
-        Round,
     };
 
     struct FakeCoreThreadDispatcher {

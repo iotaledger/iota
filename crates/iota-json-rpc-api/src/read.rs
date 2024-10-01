@@ -4,9 +4,8 @@
 
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaObjectDataOptions, IotaObjectResponse,
-    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ProtocolConfigResponse,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
