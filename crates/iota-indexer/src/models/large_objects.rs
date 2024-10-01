@@ -83,7 +83,7 @@ pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
         // additionally we could apply a backoff retry strategy
         transactional_blocking_with_retry!(
             pool,
-            |conn| select(lo_put(oid, offset, chunk),).execute(conn),
+            |conn| select(lo_put(oid, offset, chunk)).execute(conn),
             DB_COMMIT_SLEEP_DURATION
         )
         .map_err(IndexerError::from)
