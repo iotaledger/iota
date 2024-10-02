@@ -25,9 +25,9 @@
 /crates/iota-network/ @iotaledger/core-node
 /crates/iota-network-stack/ @iotaledger/core-node
 /crates/iota-node/ @iotaledger/core-node
-/crates/iota-types/ @iotaledger/core-node
-/crates/iota-protocol-config/ @iotaledger/core-node
-/crates/iota-protocol-config-macros/ @iotaledger/core-node
+/crates/iota-types/ @iotaledger/core-node @iotaledger/l1-core
+/crates/iota-protocol-config/ @iotaledger/core-node @iotaledger/l1-core
+/crates/iota-protocol-config-macros/ @iotaledger/core-node @iotaledger/l1-core
 /crates/iota-rest-api/ @iotaledger/core-node @iotaledger/l1-core-infra
 /crates/iota-snapshot/ @iotaledger/core-node
 /crates/iota-storage/ @iotaledger/core-node
