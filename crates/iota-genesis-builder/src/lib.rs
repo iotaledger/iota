@@ -785,11 +785,11 @@ impl Builder {
 
         // Load migration txs data
         let migration_tx_data_file = path.join(GENESIS_BUILDER_MIGRATION_TX_DATA_FILE);
-        let migration_tx_data =
-            serde_json::from_slice(&fs::read(&migration_tx_data_file).context(format!(
-                "unable to read genesis migration transaction data file {migration_tx_data_file}"
-            ))?)
-            .context("unable to deserialize genesis migration transaction data")?;
+        let migration_tx_data: Option<MigrationTxData> = if !migration_sources.is_empty() {
+            Some(MigrationTxData::load(migration_tx_data_file)?)
+        } else {
+            None
+        };
 
         let mut builder = Self {
             parameters,
@@ -881,11 +881,13 @@ impl Builder {
         if !self.migration_sources.is_empty() {
             let file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
             fs::write(file, serde_json::to_string(&self.migration_sources)?)?;
-        }
 
-        // Write migration transations data
-        let file = path.join(GENESIS_BUILDER_MIGRATION_TX_DATA_FILE);
-        fs::write(file, serde_json::to_string(&self.migration_tx_data)?)?;
+            // Write migration transations data
+            let file = path.join(GENESIS_BUILDER_MIGRATION_TX_DATA_FILE);
+            self.migration_tx_data
+                .expect("migration data should exist")
+                .save(file)?;
+        }
 
         Ok(())
     }
