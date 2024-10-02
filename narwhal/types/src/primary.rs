@@ -792,13 +792,6 @@ pub enum Certificate {
     V2(CertificateV2),
 }
 
-// Used for testing
-impl Default for Certificate {
-    fn default() -> Certificate {
-        Certificate::V2(CertificateV2::default())
-    }
-}
-
 impl Certificate {
     pub fn genesis(committee: &Committee) -> Vec<Self> {
         CertificateV2::genesis(committee)
@@ -863,6 +856,10 @@ impl Certificate {
         match self {
             Self::V2(certificate) => certificate.origin(),
         }
+    }
+
+    pub fn default_for_testing() -> Certificate {
+        Certificate::V2(CertificateV2::default())
     }
 }
 
