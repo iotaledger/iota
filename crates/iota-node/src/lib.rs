@@ -26,7 +26,6 @@ use futures::TryFutureExt;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
-    migration_tx_data,
     node::{ConsensusProtocol, DBCheckpointConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},

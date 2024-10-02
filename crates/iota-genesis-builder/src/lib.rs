@@ -1483,13 +1483,13 @@ pub fn generate_genesis_system_object(
 fn create_migration_objects(
     genesis_ctx: &mut TxContext,
     input_objects: Vec<Object>,
-    genesis_objects: &Vec<Object>,
+    genesis_objects: &[Object],
     parameters: &GenesisChainParameters,
     genesis_stake: &mut GenesisStake,
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
     // create the temporary store and the executor
-    let mut store = InMemoryStorage::new(genesis_objects.clone());
+    let mut store = InMemoryStorage::new(genesis_objects.to_owned());
     let protocol_config = ProtocolConfig::get_for_version(
         ProtocolVersion::new(parameters.protocol_version),
         Chain::Unknown,
@@ -1530,7 +1530,7 @@ fn create_migration_objects(
     }
 
     // Clean the intermediate store from objects already present in genesis_objects
-    for genesis_object in genesis_objects.into_iter() {
+    for genesis_object in genesis_objects.iter() {
         intermediate_store.remove(&genesis_object.id());
     }
 

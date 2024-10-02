@@ -208,20 +208,19 @@ impl ValidatorConfigBuilder {
         validator: ValidatorGenesisConfig,
         genesis: iota_config::genesis::Genesis,
     ) -> NodeConfig {
-        let config_directory = self.config_directory.clone();
-        let mut config = self.build_without_genesis(validator);
-        let genesis = iota_config::node::Genesis::new(genesis);
-        match genesis.genesis() {
-            Ok(genesis) if !genesis.is_vanilla() => {
-                config.migration_data_path = Some(
-                    config_directory
-                        .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path())
-                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
-                )
-            }
-            _ => config.migration_data_path = None,
+        let migration_data_path = if !genesis.is_vanilla() {
+            Some(
+                self.config_directory
+                    .clone()
+                    .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path())
+                    .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
+            )
+        } else {
+            None
         };
-        config.genesis = genesis;
+        let mut config = self.build_without_genesis(validator);
+        config.genesis = iota_config::node::Genesis::new(genesis);
+        config.migration_data_path = migration_data_path;
         config
     }
 
