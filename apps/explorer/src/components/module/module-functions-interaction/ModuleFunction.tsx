@@ -3,8 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useZodForm } from '@iota/core';
-import { ConnectModal, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { Transaction, getPureSerializationType } from '@iota/iota-sdk/transactions';
+import {
+    ConnectModal,
+    useCurrentAccount,
+    useIotaClient,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
+import {
+    getPureBcsSchema,
+    normalizedTypeToMoveTypeSignature,
+    Transaction,
+} from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useWatch } from 'react-hook-form';
@@ -49,7 +58,21 @@ export function ModuleFunction({
     functionDetails,
 }: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
-    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransaction();
+    const iotaClient = useIotaClient();
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction({
+        execute: async ({ bytes, signature }) =>
+            await iotaClient.executeTransactionBlock({
+                transactionBlock: bytes,
+                signature,
+                options: {
+                    showRawEffects: true,
+                    showEffects: true,
+                    showEvents: true,
+                    showInput: true,
+                },
+            }),
+    });
+
     const { handleSubmit, formState, register, control } = useZodForm({
         schema: argsSchema,
     });
@@ -73,23 +96,23 @@ export function ModuleFunction({
                 target: `${packageId}::${moduleName}::${functionName}`,
                 typeArguments: types ?? [],
                 arguments:
-                    params?.map((param, i) =>
-                        getPureSerializationType(functionDetails.parameters[i], param)
-                            ? tx.pure(param)
-                            : tx.object(param),
-                    ) ?? [],
+                    params?.map((param, i) => {
+                        const moveTypeSignature = normalizedTypeToMoveTypeSignature(
+                            functionDetails.parameters[i],
+                        );
+
+                        const pureBcsSchema = getPureBcsSchema(moveTypeSignature.body);
+
+                        return pureBcsSchema ? pureBcsSchema.serialize(param) : tx.object(param);
+                    }) ?? [],
             });
-            const result = await signAndExecuteTransactionBlock({
-                transaction: tx,
-                options: {
-                    showEffects: true,
-                    showEvents: true,
-                    showInput: true,
-                },
-            });
+
+            const result = await signAndExecuteTransaction({ transaction: tx });
+
             if (result.effects?.status.status === 'failure') {
                 throw new Error(result.effects.status.error || 'Transaction failed');
             }
+
             return result;
         },
     });

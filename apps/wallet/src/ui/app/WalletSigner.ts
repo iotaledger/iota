@@ -10,7 +10,7 @@ import {
     type IotaTransactionBlockResponse,
     type IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
-import { IntentScope, messageWithIntent } from '@iota/iota-sdk/cryptography';
+import { messageWithIntent } from '@iota/iota-sdk/cryptography';
 import { isTransaction, type Transaction } from '@iota/iota-sdk/transactions';
 import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 
@@ -52,9 +52,7 @@ export abstract class WalletSigner {
         };
     }
 
-    protected async prepareTransactionBlock(
-        transactionBlock: Uint8Array | Transaction | string,
-    ) {
+    protected async prepareTransactionBlock(transactionBlock: Uint8Array | Transaction | string) {
         if (isTransaction(transactionBlock)) {
             // If the sender has not yet been set on the transaction, then set it.
             // NOTE: This allows for signing transactions with mismatched senders, which is important for sponsored transactions.
@@ -81,9 +79,7 @@ export abstract class WalletSigner {
         clientIdentifier?: string,
     ): Promise<SignedTransaction> {
         const bytes = await this.prepareTransactionBlock(input.transactionBlock);
-        const signature = await this.signData(
-            messageWithIntent('TransactionData', bytes),
-        );
+        const signature = await this.signData(messageWithIntent('TransactionData', bytes));
 
         return {
             transactionBlockBytes: toB64(bytes),
