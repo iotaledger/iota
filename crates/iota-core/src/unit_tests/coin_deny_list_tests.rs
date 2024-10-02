@@ -6,17 +6,17 @@ use std::sync::Arc;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{dbg_addr, IotaAddress, ObjectID, ObjectRef},
-    crypto::{get_account_key_pair, AccountKeyPair},
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
+    crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{CoinDenyCap, RegulatedCoinMetadata},
     deny_list_v2::{
-        check_address_denied_by_config, check_global_pause, get_per_type_coin_deny_list_v2,
-        DenyCapV2,
+        DenyCapV2, check_address_denied_by_config, check_global_pause,
+        get_per_type_coin_deny_list_v2,
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{
     ident_str,
@@ -24,9 +24,9 @@ use move_core_types::{
 };
 
 use crate::authority::{
-    authority_tests::send_and_confirm_transaction_,
+    AuthorityState, authority_tests::send_and_confirm_transaction_,
     move_integration_tests::build_and_try_publish_test_package,
-    test_authority_builder::TestAuthorityBuilder, AuthorityState,
+    test_authority_builder::TestAuthorityBuilder,
 };
 
 // Test that a regulated coin can be created and all the necessary objects are
@@ -150,22 +150,17 @@ async fn test_regulated_coin_v2_types() {
         env.get_latest_object_ref(&env.gas_object_id).await,
         env.authority.reference_gas_price_for_testing().unwrap(),
     )
-    .move_call(
-        IOTA_FRAMEWORK_PACKAGE_ID,
-        "coin",
-        "deny_list_v2_add",
-        vec![
-            CallArg::Object(ObjectArg::SharedObject {
-                id: IOTA_DENY_LIST_OBJECT_ID,
-                initial_shared_version: deny_list_object_init_version,
-                mutable: true,
-            }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                deny_cap_object.compute_object_reference(),
-            )),
-            CallArg::Pure(bcs::to_bytes(&deny_address).unwrap()),
-        ],
-    )
+    .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "coin", "deny_list_v2_add", vec![
+        CallArg::Object(ObjectArg::SharedObject {
+            id: IOTA_DENY_LIST_OBJECT_ID,
+            initial_shared_version: deny_list_object_init_version,
+            mutable: true,
+        }),
+        CallArg::Object(ObjectArg::ImmOrOwnedObject(
+            deny_cap_object.compute_object_reference(),
+        )),
+        CallArg::Pure(bcs::to_bytes(&deny_address).unwrap()),
+    ])
     .with_type_args(vec![regulated_coin_type.clone()])
     .build_and_sign(&env.keypair);
     let (_, effects) = send_and_confirm_transaction_(&env.authority, None, tx, true)

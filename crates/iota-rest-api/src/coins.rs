@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use iota_sdk2::types::{ObjectId, StructTag};
 use iota_types::iota_sdk2_conversions::struct_tag_sdk_to_core;
@@ -12,9 +12,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    RestError, RestService, Result,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
-    RestError, RestService, Result,
 };
 
 pub struct GetCoinInfo;

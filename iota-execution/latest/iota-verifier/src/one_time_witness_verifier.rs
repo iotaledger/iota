@@ -21,11 +21,11 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
     base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
     bridge::BRIDGE_SUPPORTED_ASSET,
     error::ExecutionError,
-    move_package::{is_test_fun, FnInfoMap},
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
+    move_package::{FnInfoMap, is_test_fun},
 };
 use move_binary_format::file_format::{
     Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle, FunctionDefinition,
@@ -33,7 +33,7 @@ use move_binary_format::file_format::{
 };
 use move_core_types::{ident_str, language_storage::ModuleId};
 
-use crate::{verification_failure, INIT_FN_NAME};
+use crate::{INIT_FN_NAME, verification_failure};
 
 pub fn verify_module(
     module: &CompiledModule,

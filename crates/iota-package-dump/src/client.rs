@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context, Result};
-use cynic::{http::ReqwestExt, Operation, QueryBuilder};
+use anyhow::{Context, Result, anyhow};
+use cynic::{Operation, QueryBuilder, http::ReqwestExt};
 use reqwest::IntoUrl;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub(crate) struct Client {
     inner: reqwest::Client,

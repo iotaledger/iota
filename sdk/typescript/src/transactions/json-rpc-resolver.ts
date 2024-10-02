@@ -225,15 +225,16 @@ async function resolveObjectReferences(
             updated = Inputs.SharedObjectRef({
                 objectId: id,
                 initialSharedVersion:
-                    input.UnresolvedObject.initialSharedVersion || object?.initialSharedVersion!,
+                    input.UnresolvedObject.initialSharedVersion ||
+                    (object?.initialSharedVersion as string),
                 mutable: isUsedAsMutable(transactionData, index),
             });
         } else if (isUsedAsReceiving(transactionData, index)) {
             updated = Inputs.ReceivingRef(
                 {
                     objectId: id,
-                    digest: input.UnresolvedObject.digest ?? object?.digest!,
-                    version: input.UnresolvedObject.version ?? object?.version!,
+                    digest: input.UnresolvedObject.digest ?? (object?.digest as string),
+                    version: input.UnresolvedObject.version ?? (object?.version as string),
                 }!,
             );
         }
@@ -242,8 +243,8 @@ async function resolveObjectReferences(
             updated ??
             Inputs.ObjectRef({
                 objectId: id,
-                digest: input.UnresolvedObject.digest ?? object?.digest!,
-                version: input.UnresolvedObject.version ?? object?.version!,
+                digest: input.UnresolvedObject.digest ?? (object?.digest as string),
+                version: input.UnresolvedObject.version ?? (object?.version as string),
             });
     }
 }
@@ -370,7 +371,8 @@ async function normalizeInputs(
                 return;
             }
 
-            const inputValue = input.UnresolvedPure?.value ?? input.UnresolvedObject?.objectId!;
+            const inputValue =
+                input.UnresolvedPure?.value ?? (input.UnresolvedObject?.objectId as string);
 
             const schema = getPureBcsSchema(param.body);
             if (schema) {

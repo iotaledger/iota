@@ -8,14 +8,15 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
 use iota_types::{
+    MOVE_STDLIB_ADDRESS,
     base_types::{
-        IotaAddress, ObjectID, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+        IotaAddress, ObjectID, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, TransactionDigest,
     },
     dynamic_field::derive_dynamic_field_id,
     gas_coin::GasCoin,
     object::Object,
-    parse_iota_type_tag, MOVE_STDLIB_ADDRESS,
+    parse_iota_type_tag,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -26,10 +27,10 @@ use move_core_types::{
     u256::U256,
 };
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use test_fuzz::runtime::num_traits::ToPrimitive;
 
-use super::{check_valid_homogeneous, resolve_move_function_args, IotaJsonValue, HEX_PREFIX};
+use super::{HEX_PREFIX, IotaJsonValue, check_valid_homogeneous, resolve_move_function_args};
 use crate::ResolvedCallArg;
 
 // Negative test cases
@@ -379,11 +380,9 @@ fn test_basic_args_linter_pure_args_good() {
             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
                 MoveTypeLayout::U8,
             )))),
-            bcs::to_bytes(&vec![
-                vec![1u8, 2u8, 3u8],
-                vec![],
-                vec![3u8, 4u8, 5u8, 6u8, 7u8],
-            ])
+            bcs::to_bytes(&vec![vec![1u8, 2u8, 3u8], vec![], vec![
+                3u8, 4u8, 5u8, 6u8, 7u8,
+            ]])
             .unwrap(),
         ),
         // U64 nest
@@ -392,11 +391,9 @@ fn test_basic_args_linter_pure_args_good() {
             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
                 MoveTypeLayout::U64,
             )))),
-            bcs::to_bytes(&vec![
-                vec![1111u64, 2u64, 3u64],
-                vec![],
-                vec![300u64, 4u64, 5u64, 6u64, 7u64],
-            ])
+            bcs::to_bytes(&vec![vec![1111u64, 2u64, 3u64], vec![], vec![
+                300u64, 4u64, 5u64, 6u64, 7u64,
+            ]])
             .unwrap(),
         ),
         // U32 deep nest, good
@@ -495,17 +492,14 @@ fn test_basic_args_linter_top_level() {
         RCA::Pure(bcs::to_bytes(t).unwrap())
     }
 
-    assert_eq!(
-        json_args,
-        vec![
-            RCA::Object(foo_id),
-            RCA::ObjVec(vec![bar_id, baz_id]),
-            pure(&"Name"),
-            pure(&12345678u64),
-            pure(&89u8),
-            pure(&recipient_addr),
-        ],
-    );
+    assert_eq!(json_args, vec![
+        RCA::Object(foo_id),
+        RCA::ObjVec(vec![bar_id, baz_id]),
+        pure(&"Name"),
+        pure(&12345678u64),
+        pure(&89u8),
+        pure(&recipient_addr),
+    ],);
 
     // Flag is u8 so too large
     let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]

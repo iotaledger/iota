@@ -6,36 +6,36 @@ use std::str::FromStr;
 use iota_sdk::types::block::{
     address::{Address, AliasAddress, Ed25519Address},
     output::{
+        AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, FoundryOutputBuilder,
+        NativeToken, NftId, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
         feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
         unlock_condition::{
             AddressUnlockCondition, GovernorAddressUnlockCondition,
             ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
         },
-        AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, FoundryOutputBuilder,
-        NativeToken, NftId, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
     },
 };
 use iota_types::{
+    TypeTag,
     base_types::ObjectID,
-    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
+    dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
     object::{Object, Owner},
     stardust::{
         coin_type::CoinType,
         output::{
-            Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
-            ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, ALIAS_OUTPUT_MODULE_NAME, NFT_OUTPUT_MODULE_NAME,
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+            ALIAS_OUTPUT_MODULE_NAME, Alias, AliasOutput, NFT_OUTPUT_MODULE_NAME,
         },
         stardust_to_iota_address,
     },
-    TypeTag,
 };
 use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
-        extract_native_tokens_from_bag, object_migration_with_object_owner, random_output_header,
-        run_migration, ExpectedAssets,
+        ExpectedAssets, extract_native_tokens_from_bag, object_migration_with_object_owner,
+        random_output_header, run_migration,
     },
     types::output_header::OutputHeader,
 };

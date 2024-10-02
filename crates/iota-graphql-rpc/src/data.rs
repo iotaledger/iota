@@ -11,9 +11,9 @@ use std::sync::Arc;
 use async_graphql::dataloader::DataLoader as AGDataLoader;
 use async_trait::async_trait;
 use diesel::{
-    query_builder::{BoxedSelectStatement, FromClause, QueryFragment, QueryId},
-    query_dsl::{methods::LimitDsl, LoadQuery},
     QueryResult,
+    query_builder::{BoxedSelectStatement, FromClause, QueryFragment, QueryId},
+    query_dsl::{LoadQuery, methods::LimitDsl},
 };
 
 use crate::error::Error;

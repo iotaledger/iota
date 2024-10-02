@@ -4,7 +4,7 @@
 
 use std::{
     cell::RefCell,
-    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, hash_map::Entry},
     str::FromStr,
 };
 
@@ -12,7 +12,7 @@ use iota_types::{
     base_types::ObjectID,
     error::{ExecutionError, IotaError, IotaResult},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    storage::{get_module, BackingPackageStore, PackageObject},
+    storage::{BackingPackageStore, PackageObject, get_module},
 };
 use move_core_types::{
     account_address::AccountAddress,

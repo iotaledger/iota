@@ -7,8 +7,8 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaObjectResponse;
 use iota_macros::sim_test;
 use iota_types::{
-    base_types::ObjectID, digests::TransactionDigest, object::Object, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
+    base_types::ObjectID, digests::TransactionDigest, object::Object,
 };
 use test_cluster::TestClusterBuilder;
 

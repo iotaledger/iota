@@ -27,7 +27,7 @@
         "autoprefixer": "^10.4.19",
         "dotenv": "^16.4.5",
         "esbuild": "^0.23.0",
-        "postcss": "^8.4.39",
+        "postcss": "^8.4.31",
         "postcss-prefix-selector": "^1.16.1",
         "typescript": "^5.5.3"
     },

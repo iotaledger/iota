@@ -14,13 +14,13 @@ use itertools::Itertools;
 use tracing::info;
 
 use crate::{
+    ValidatorProxy,
     util::UpdatedAndNewlyMintedGasCoins,
     workloads::{
-        payload::Payload,
-        workload::{Workload, WorkloadBuilder, MAX_BUDGET},
         Gas, GasCoinConfig,
+        payload::Payload,
+        workload::{MAX_BUDGET, Workload, WorkloadBuilder},
     },
-    ValidatorProxy,
 };
 
 /// Bank is used for generating gas for running the benchmark.

@@ -9,10 +9,10 @@ use std::{
 };
 
 use axum::{
+    Router,
     extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
-    Router,
 };
 use base64::Engine;
 use humantime::parse_duration;

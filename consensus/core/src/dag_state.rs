@@ -16,12 +16,12 @@ use tracing::{debug, error};
 
 use crate::{
     block::{
-        genesis_blocks, BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        VerifiedBlock, GENESIS_ROUND,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
+        VerifiedBlock, genesis_blocks,
     },
     commit::{
-        load_committed_subdag_from_store, CommitAPI as _, CommitDigest, CommitIndex, CommitInfo,
-        CommitRef, CommitVote, CommittedSubDag, TrustedCommit, GENESIS_COMMIT_INDEX,
+        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
+        CommittedSubDag, GENESIS_COMMIT_INDEX, TrustedCommit, load_committed_subdag_from_store,
     },
     context::Context,
     leader_scoring::ReputationScores,
@@ -897,7 +897,7 @@ mod test {
     use super::*;
     use crate::{
         block::{BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
-        storage::{mem_store::MemStore, WriteBatch},
+        storage::{WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
 
@@ -1160,7 +1160,8 @@ mod test {
             round_11[2].reference(),
             round_11[5].reference(),
         ];
-        expected_refs.sort(); // we need to sort as blocks with same author and round of round 11 (position 1 & 2) might not be in right lexicographical order.
+        expected_refs.sort(); // we need to sort as blocks with same author and round of round 11 (position 1
+        // & 2) might not be in right lexicographical order.
         assert_eq!(
             ancestors_refs, expected_refs,
             "Expected round 11 ancestors: {:?}. Got: {:?}",

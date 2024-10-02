@@ -9,8 +9,8 @@ use iota_sdk2::types::{
     Version,
 };
 use iota_types::storage::{
-    error::{Error as StorageError, Result},
     ObjectStore, RestStateReader,
+    error::{Error as StorageError, Result},
 };
 use tap::Pipe;
 

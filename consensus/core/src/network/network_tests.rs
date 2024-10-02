@@ -12,13 +12,13 @@ use rstest::rstest;
 use tokio::time::sleep;
 
 use super::{
-    anemo_network::AnemoManager, test_network::TestService, tonic_network::TonicManager,
-    NetworkClient, NetworkManager,
+    NetworkClient, NetworkManager, anemo_network::AnemoManager, test_network::TestService,
+    tonic_network::TonicManager,
 };
 use crate::{
+    Round,
     block::{TestBlock, VerifiedBlock},
     context::Context,
-    Round,
 };
 
 trait ManagerBuilder {

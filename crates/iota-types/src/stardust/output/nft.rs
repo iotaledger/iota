@@ -4,7 +4,7 @@
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_sdk::types::block::output::{
-    feature::Irc27Metadata as StardustIrc27, NftOutput as StardustNft,
+    NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
@@ -15,13 +15,13 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
+    STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
-    TypeTag, STARDUST_PACKAGE_ID,
 };
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
