@@ -424,15 +424,13 @@ impl IotaNode {
         DBMetrics::init(&prometheus_registry);
         iota_metrics::init_metrics(&prometheus_registry);
 
-        let mut migration_tx_data = None;
         let genesis = config.genesis()?;
-        if !genesis.is_vanilla() {
-            if let Some(migration_path) = config.migration_data_path() {
-                migration_tx_data = Some(iota_config::migration_tx_data::MigrationTxData::load(
-                    migration_path,
-                )?);
-            }
-        }
+        let migration_tx_data = if !genesis.is_vanilla() {
+            Some(config.migration_tx_data()?)
+        } else {
+            None
+        };
+
         let secret = Arc::pin(config.protocol_key_pair().copy());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
