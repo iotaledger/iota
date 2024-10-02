@@ -75,7 +75,7 @@ For local dev, it might be useful to spin up an indexer as well. You can run it 
 
 ## Compatibility with json-rpc
 
-`cargo run --features indexer --bin iota -- start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:9125`
+`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:9125`
 
 `pnpm --filter @iota/graphql-transport test:e2e`
 
