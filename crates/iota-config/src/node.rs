@@ -316,8 +316,8 @@ impl NodeConfig {
         self.genesis.genesis()
     }
 
-    pub fn migration_tx_data(&self) -> Result<&migration_tx_data::MigrationTxData> {
-        self.migration_tx_data.migration_tx_data()
+    pub fn load_migration_tx_data(&self) -> Result<migration_tx_data::MigrationTxData> {
+        self.migration_tx_data.load()
     }
 
     pub fn iota_address(&self) -> IotaAddress {
@@ -796,59 +796,26 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 pub struct MigrationTxData {
     #[serde(flatten)]
-    location: Option<MigrationTxDataLocation>,
-
-    #[serde(skip)]
-    migration_tx_data: once_cell::sync::OnceCell<migration_tx_data::MigrationTxData>,
+    location: Option<PathBuf>,
 }
 
 impl MigrationTxData {
-    pub fn new(migration_tx_data: migration_tx_data::MigrationTxData) -> Self {
-        Self {
-            location: Some(MigrationTxDataLocation::InPlace { migration_tx_data }),
-            migration_tx_data: Default::default(),
-        }
-    }
-
     pub fn new_from_file<P: Into<PathBuf>>(path: P) -> Self {
         Self {
-            location: Some(MigrationTxDataLocation::File {
-                migration_tx_data_file_location: path.into(),
-            }),
-            migration_tx_data: Default::default(),
+            location: Some(path.into()),
         }
     }
 
     pub fn new_empty() -> Self {
-        Self {
-            location: None,
-            migration_tx_data: Default::default(),
-        }
+        Self { location: None }
     }
 
-    pub fn migration_tx_data(&self) -> Result<&migration_tx_data::MigrationTxData> {
+    pub fn load(&self) -> Result<migration_tx_data::MigrationTxData> {
         match &self.location {
-            Some(MigrationTxDataLocation::InPlace { migration_tx_data }) => Ok(migration_tx_data),
-            Some(MigrationTxDataLocation::File {
-                migration_tx_data_file_location,
-            }) => self.migration_tx_data.get_or_try_init(|| {
-                migration_tx_data::MigrationTxData::load(migration_tx_data_file_location)
-            }),
-            None => anyhow::bail!("no migration_tx_data location set"),
+            Some(location) => Ok(migration_tx_data::MigrationTxData::load(location)?),
+            _ => anyhow::bail!("no file location set"),
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
-#[serde(untagged)]
-enum MigrationTxDataLocation {
-    InPlace {
-        migration_tx_data: migration_tx_data::MigrationTxData,
-    },
-    File {
-        #[serde(rename = "migration-tx-data-file-location")]
-        migration_tx_data_file_location: PathBuf,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]

@@ -426,7 +426,7 @@ impl IotaNode {
 
         let genesis = config.genesis()?;
         let migration_tx_data = if !genesis.is_vanilla() {
-            Some(config.migration_tx_data()?)
+            Some(config.load_migration_tx_data()?)
         } else {
             None
         };
