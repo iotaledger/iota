@@ -5,18 +5,17 @@
 use std::env;
 
 use async_trait::async_trait;
-use hyper::{HeaderMap, header::HeaderValue};
+use hyper::{header::HeaderValue, HeaderMap};
 use iota_config::local_ip_utils;
 use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder, ServerType};
 use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 use iota_open_rpc::Module;
 use iota_open_rpc_macros::open_rpc;
 use jsonrpsee::{
-    RpcModule,
-    core::{RpcResult, client::ClientT},
+    core::{client::ClientT, RpcResult},
     http_client::HttpClientBuilder,
     proc_macros::rpc,
-    rpc_params,
+    rpc_params, RpcModule,
 };
 use prometheus::Registry;
 

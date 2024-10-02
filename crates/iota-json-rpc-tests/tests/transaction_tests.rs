@@ -14,12 +14,12 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::ObjectID,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Command, SenderSignedData, TransactionData},
+    IOTA_FRAMEWORK_ADDRESS,
 };
 use move_core_types::identifier::Identifier;
 use test_cluster::TestClusterBuilder;
