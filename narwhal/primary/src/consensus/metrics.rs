@@ -39,7 +39,7 @@ pub struct ConsensusMetrics {
     /// expected to report the same results. For every leader of each round the
     /// output can be one of the following:
     /// * committed: the leader has been found and its subdag will get committed
-    ///   - no matter if the leader is committed on its time or not (part of
+    ///   no matter if the leader is committed on its time or not (part of
     ///   recursion)
     /// * not_found: the leader has not been found on the commit path and
     ///   doesn't get committed
