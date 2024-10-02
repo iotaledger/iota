@@ -18,5 +18,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!("{object_ref:?}");
 
+    let object_refs = client
+        .transaction_builder()
+        .input_refs(&vec!["0x5".parse()?, "0x8".parse()?])
+        .await?;
+    println!("{object_refs:?}");
+
     Ok(())
 }
