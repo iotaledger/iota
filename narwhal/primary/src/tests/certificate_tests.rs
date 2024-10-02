@@ -10,8 +10,8 @@ use config::AuthorityIdentifier;
 use crypto::KeyPair;
 use fastcrypto::traits::KeyPair as _;
 use rand::{
-    rngs::{OsRng, StdRng},
     SeedableRng,
+    rngs::{OsRng, StdRng},
 };
 use test_utils::CommitteeFixture;
 use types::{Certificate, CertificateAPI, SignatureVerificationState, Vote, VoteAPI};

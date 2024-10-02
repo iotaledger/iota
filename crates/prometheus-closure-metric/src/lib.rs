@@ -11,7 +11,7 @@
 // TODO: add example usage once constructor macros are implemented.
 // (For now, look at tests for an example.)
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use prometheus::{core, proto};
 
 /// A Prometheus metric whose value is computed at collection time by the

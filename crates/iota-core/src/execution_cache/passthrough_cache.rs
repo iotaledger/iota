@@ -4,18 +4,18 @@
 
 use std::sync::Arc;
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::{get_bridge, Bridge},
+    bridge::{Bridge, get_bridge},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
-    iota_system_state::{get_iota_system_state, IotaSystemState},
+    iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -28,16 +28,16 @@ use tracing::instrument;
 use typed_store::Map;
 
 use super::{
-    implement_passthrough_traits, CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics,
-    ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
-    TransactionCacheRead,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
+    ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
+    implement_passthrough_traits,
 };
 use crate::{
     authority::{
+        AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        AuthorityStore,
     },
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,

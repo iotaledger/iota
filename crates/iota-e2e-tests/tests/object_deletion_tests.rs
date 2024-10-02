@@ -196,12 +196,11 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(
-                        package_id,
-                        "objects",
-                        "wrap_child",
-                        vec![object.into(), child.into(), true.into()],
-                    )
+                    .move_call(package_id, "objects", "wrap_child", vec![
+                        object.into(),
+                        child.into(),
+                        true.into(),
+                    ])
                     .build(),
             )
             .await
@@ -229,12 +228,9 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(
-                        package_id,
-                        "objects",
-                        "unwrap_and_delete_child",
-                        vec![object.into()],
-                    )
+                    .move_call(package_id, "objects", "unwrap_and_delete_child", vec![
+                        object.into(),
+                    ])
                     .build(),
             )
             .await

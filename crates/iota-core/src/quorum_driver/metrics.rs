@@ -5,9 +5,9 @@
 
 use iota_metrics::histogram::Histogram;
 use prometheus::{
+    HistogramVec, IntCounter, IntCounterVec, IntGauge, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry, HistogramVec, IntCounter,
-    IntCounterVec, IntGauge, Registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 
 const FINALITY_LATENCY_SEC_BUCKETS: &[f64] = &[

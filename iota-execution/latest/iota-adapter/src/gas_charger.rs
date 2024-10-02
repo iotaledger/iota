@@ -14,7 +14,7 @@ pub mod checked {
         deny_list_v2::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
-        gas::{deduct_gas, GasCostSummary, IotaGasStatus},
+        gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::{
             gas_predicates::{charge_upgrades, dont_charge_budget_on_storage_oog},
             tables::GasStatus,

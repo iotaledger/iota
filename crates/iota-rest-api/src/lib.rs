@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use axum::{response::Redirect, routing::get, Router};
+use axum::{Router, response::Redirect, routing::get};
 use iota_network_stack::callback::CallbackLayer;
 use iota_types::{storage::RestStateReader, transaction_executor::TransactionExecutor};
 use openapi::ApiEndpoint;
@@ -204,8 +204,8 @@ async fn redirect(axum::extract::Path(path): axum::extract::Path<String>) -> Red
 
 mod _schemars {
     use schemars::{
-        schema::{InstanceType, Metadata, SchemaObject},
         JsonSchema,
+        schema::{InstanceType, Metadata, SchemaObject},
     };
 
     pub(crate) struct U64;

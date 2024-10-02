@@ -50,7 +50,7 @@ mod tx_lookups;
 
 pub(crate) use cursor::Cursor;
 pub(crate) use filter::TransactionBlockFilter;
-pub(crate) use tx_lookups::{subqueries, TxBounds};
+pub(crate) use tx_lookups::{TxBounds, subqueries};
 
 /// Wraps the actual transaction block data with the checkpoint sequence number
 /// at which the data was viewed, for consistent results on paginating through
@@ -487,13 +487,10 @@ impl Loader<DigestKey> for Db {
             }
 
             let inner = TransactionBlockInner::try_from(stored)?;
-            results.insert(
-                *key,
-                TransactionBlock {
-                    inner,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
-                },
-            );
+            results.insert(*key, TransactionBlock {
+                inner,
+                checkpoint_viewed_at: key.checkpoint_viewed_at,
+            });
         }
 
         Ok(results)

@@ -11,7 +11,7 @@ use std::{
 use config::AuthorityIdentifier;
 use iota_protocol_config::ProtocolConfig;
 use storage::ConsensusStore;
-use test_utils::{latest_protocol_version, mock_certificate, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, mock_certificate};
 use types::{Certificate, CommittedSubDag, ReputationScores, Round};
 
 use crate::consensus::{Dag, LeaderSchedule, LeaderSwapTable};
@@ -192,7 +192,7 @@ async fn test_leader_schedule_from_store() {
         scores.add_score(id, score as u64);
     }
 
-    let sub_dag = CommittedSubDag::new(vec![], Certificate::default(), 0, scores, None);
+    let sub_dag = CommittedSubDag::new(vec![], Certificate::default_for_testing(), 0, scores, None);
 
     store
         .write_consensus_state(&HashMap::new(), &sub_dag)

@@ -10,6 +10,7 @@
     rust_2021_compatibility
 )]
 mod benchmark_client;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -17,7 +18,7 @@ use std::{
     sync::Arc,
 };
 
-use benchmark_client::{parse_url, url_to_multiaddr, Client, OperatingMode};
+use benchmark_client::{Client, OperatingMode, parse_url, url_to_multiaddr};
 use clap::{Parser, Subcommand};
 use config::{
     Committee, CommitteeBuilder, Epoch, Export, Import, Parameters, PrometheusMetricsParameters,
@@ -35,7 +36,7 @@ use iota_metrics::start_prometheus_server;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey,
+        AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
@@ -49,7 +50,7 @@ use node::{
     metrics::{primary_metrics_registry, worker_metrics_registry},
 };
 use prometheus::Registry;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{sync::mpsc::channel, time::Duration};
@@ -509,8 +510,10 @@ fn setup_telemetry(
 //     let filter = EnvFilter::builder()
 //         .with_default_directive(LevelFilter::INFO.into())
 //         .parse(format!(
-//             "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},{custom_directive}"
-//         ))?;
+//
+// "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},
+// hyper={network_tracing_level},tonic::transport={network_tracing_level},
+// {custom_directive}"         ))?;
 
 //     let env_filter = EnvFilter::try_from_default_env().unwrap_or(filter);
 

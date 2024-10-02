@@ -15,17 +15,18 @@ use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use super::*;
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     crypto::{
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        IotaSignature, Signature,
         bcs_signable_test::{Bar, Foo},
-        get_key_pair, get_key_pair_from_bytes, AccountKeyPair, AuthorityKeyPair,
-        AuthoritySignature, IotaAuthoritySignature, IotaSignature, Signature,
+        get_key_pair, get_key_pair_from_bytes,
     },
     digests::Digest,
     gas_coin::GasCoin,
     id::{ID, UID},
     object::Object,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 #[test]

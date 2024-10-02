@@ -12,8 +12,8 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        get_key_pair, CompressedSignature, IotaKeyPair, PublicKey, Signature,
-        ZkLoginAuthenticatorAsBytes, ZkLoginPublicIdentifier,
+        CompressedSignature, IotaKeyPair, PublicKey, Signature, ZkLoginAuthenticatorAsBytes,
+        ZkLoginPublicIdentifier, get_key_pair,
     },
     error::{IotaError, IotaResult, UserInputError},
     multisig::{MultiSig, MultiSigPublicKey},
@@ -51,12 +51,9 @@ async fn test_upgraded_multisig_feature_deny() {
 
     let err = do_upgraded_multisig_test().await.unwrap_err();
 
-    assert!(matches!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInput {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]

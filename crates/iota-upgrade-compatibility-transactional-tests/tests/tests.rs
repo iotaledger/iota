@@ -6,9 +6,10 @@ use std::path::{Path, PathBuf};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::{
+    CompiledModule,
     compatibility::{Compatibility, InclusionCheck},
     file_format::AbilitySet,
-    normalized, CompiledModule,
+    normalized,
 };
 
 pub const TEST_DIR: &str = "tests";
