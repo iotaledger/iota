@@ -14,8 +14,8 @@ use iota_types::{
 use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::{
-    convert_move_call_args, workloads::Gas, BenchMoveCallArg, ExecutionEffects,
-    ProgrammableTransactionBuilder,
+    BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, convert_move_call_args,
+    workloads::Gas,
 };
 
 /// A Iota account and all of the objects it owns
@@ -92,7 +92,8 @@ impl InMemoryWallet {
             if let Owner::AddressOwner(a) = owner {
                 if let Some(account) = self.accounts.get_mut(&a) {
                     account.add_or_update(obj);
-                } // else, doesn't belong to an account we can spend from, we don't care
+                } // else, doesn't belong to an account we can spend from, we
+                // don't care
             } // TODO: support owned, shared objects
         }
         if let Some(sender_account) = self.accounts.get_mut(&effects.sender()) {

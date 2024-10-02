@@ -22,7 +22,7 @@ use shared_crypto::intent::Intent;
 use tokio::sync::RwLock;
 use tracing::warn;
 
-use crate::{iota_client_config::IotaClientConfig, IotaClient};
+use crate::{IotaClient, iota_client_config::IotaClientConfig};
 
 pub struct WalletContext {
     pub config: PersistedConfig<IotaClientConfig>,

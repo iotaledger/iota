@@ -18,7 +18,7 @@ pub use iota_metrics::start_prometheus_server;
 /// own application metrics via
 ///
 /// ```
-/// use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+/// use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 ///
 /// pub struct MyMetrics {
 ///     pub requests: IntCounter,

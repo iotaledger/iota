@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { PublicKey } from '@iota/iota-sdk/cryptography';
 import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
 import { publicKeyFromIotaBytes } from '@iota/iota-sdk/verify';
@@ -33,7 +35,7 @@ export default function MultiSigCombineSignatureGenerator() {
         if (pks) {
             const pubKeys = JSON.parse(pks);
             replacePubKeysArray(
-                pubKeys.map((key: any, index: number) => ({
+                pubKeys.map((key: string, index: number) => ({
                     pubKey: key,
                     weight: weights[index] || 1,
                     signature: '',
@@ -79,8 +81,8 @@ export default function MultiSigCombineSignatureGenerator() {
         try {
             setGeneratedUrl(''); // clear for better visibility.
             // handle MultiSig Pubkeys, Weights, and Threshold
-            let pks: { publicKey: PublicKey; weight: number }[] = [];
-            let sigs: string[] = [];
+            const pks: { publicKey: PublicKey; weight: number }[] = [];
+            const sigs: string[] = [];
             data.pubKeys.forEach((item: any) => {
                 const pk = publicKeyFromIotaBytes(item.pubKey);
                 pks.push({ publicKey: pk, weight: Number(item.weight) });

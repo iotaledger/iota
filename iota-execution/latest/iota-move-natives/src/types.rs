@@ -56,8 +56,8 @@ pub struct TypesIsOneTimeWitnessCostParams {
 ///              + types_is_one_time_witness_type_tag_cost_per_byte *
 ///                type_tag.size()        | cost per byte of converting type to
 ///                type tag
-///              + types_is_one_time_witness_type_cost_per_byte * ty.size()
-///                | cost per byte of converting type to type layout
+///              + types_is_one_time_witness_type_cost_per_byte * ty.size() |
+///                cost per byte of converting type to type layout
 /// ****************************************************************************
 /// *******************
 pub fn is_one_time_witness(

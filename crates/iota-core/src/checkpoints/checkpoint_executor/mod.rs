@@ -57,12 +57,12 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use self::metrics::CheckpointExecutorMetrics;
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     checkpoints::{
+        CheckpointStore,
         checkpoint_executor::data_ingestion_handler::{
             load_checkpoint_data, store_checkpoint_locally,
         },
-        CheckpointStore,
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     state_accumulator::StateAccumulator,

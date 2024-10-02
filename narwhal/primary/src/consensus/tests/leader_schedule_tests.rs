@@ -11,7 +11,7 @@ use std::{
 use config::AuthorityIdentifier;
 use iota_protocol_config::ProtocolConfig;
 use storage::ConsensusStore;
-use test_utils::{latest_protocol_version, mock_certificate, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, mock_certificate};
 use types::{Certificate, CommittedSubDag, ReputationScores, Round};
 
 use crate::consensus::{Dag, LeaderSchedule, LeaderSwapTable};

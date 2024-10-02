@@ -7,8 +7,8 @@ use std::collections::VecDeque;
 use fastcrypto::{
     error::{FastCryptoError, FastCryptoResult},
     groups::{
-        bls12381 as bls, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
-        Pairing,
+        FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+        bls12381 as bls,
     },
     serde_helpers::ToFromByteArray,
 };
@@ -23,7 +23,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const NOT_SUPPORTED_ERROR: u64 = 0;
 pub const INVALID_INPUT_ERROR: u64 = 1;
@@ -641,10 +641,9 @@ where
 
         let r = G::multi_scalar_mul(&scalars, &points)
             .expect("Already checked the lengths of the vectors");
-        Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::vector_u8(r.to_byte_array().to_vec())],
-        ))
+        Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::vector_u8(r.to_byte_array().to_vec())
+        ]))
     } else {
         Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR))
     }

@@ -1323,7 +1323,7 @@ impl SignatureToken {
 }
 
 /// A `Constant` is a serialized value along with its type. That type will be
-/// deserialized by the loader/evauluator
+/// deserialized by the loader/evaluator
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "wasm", derive(Serialize, Deserialize))]

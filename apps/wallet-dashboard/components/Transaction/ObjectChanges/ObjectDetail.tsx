@@ -81,6 +81,7 @@ export default function ObjectDetail({ change, owner, ownerType, displayData }: 
                 </div>
 
                 {displayData && displayData.data && (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={displayData.data.image_url}
                         alt={displayData.data.name}

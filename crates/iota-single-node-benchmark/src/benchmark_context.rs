@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
@@ -22,7 +22,7 @@ use tracing::info;
 
 use crate::{
     command::Component,
-    mock_account::{batch_create_account_and_gas, Account},
+    mock_account::{Account, batch_create_account_and_gas},
     mock_storage::InMemoryObjectStore,
     single_node::SingleValidator,
     tx_generator::{RootObjectCreateTxGenerator, SharedObjectCreateTxGenerator, TxGenerator},
@@ -120,10 +120,9 @@ impl BenchmarkContext {
             self.validator()
                 .get_validator()
                 .get_cache_commit()
-                .commit_transaction_outputs(
-                    effects.executed_epoch(),
-                    &[*effects.transaction_digest()],
-                )
+                .commit_transaction_outputs(effects.executed_epoch(), &[
+                    *effects.transaction_digest()
+                ])
                 .await
                 .unwrap();
             let (owner, root_object) = effects

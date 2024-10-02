@@ -14,8 +14,8 @@ use std::{
 use anyhow::Result;
 use futures::future::try_join_all;
 use iota_config::{
+    IOTA_GENESIS_FILENAME, NodeConfig,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
-    NodeConfig, IOTA_GENESIS_FILENAME,
 };
 use iota_macros::nondeterministic;
 use iota_node::IotaNodeHandle;

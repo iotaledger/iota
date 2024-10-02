@@ -7,12 +7,12 @@ use std::{fs, path::PathBuf, time::Duration};
 use consensus_config::Epoch;
 use iota_metrics::spawn_logged_monitored_task;
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
+    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use tokio::{
     sync::mpsc,
-    time::{sleep, Instant},
+    time::{Instant, sleep},
 };
 use tracing::{error, info};
 use typed_store::rocks::safe_drop_db;

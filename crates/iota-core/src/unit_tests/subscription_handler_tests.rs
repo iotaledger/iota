@@ -4,8 +4,8 @@
 
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_types::{
-    base_types::ObjectID, gas_coin::GasCoin, object::bounded_visitor::BoundedVisitor,
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, base_types::ObjectID, gas_coin::GasCoin,
+    object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
     account_address::AccountAddress,

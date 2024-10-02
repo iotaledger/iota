@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { PublicKey } from '@iota/iota-sdk/cryptography';
 import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
 import { publicKeyFromIotaBytes } from '@iota/iota-sdk/verify';

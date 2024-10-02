@@ -23,8 +23,8 @@ function useObjectFieldsCard(id: string) {
     const { data: iotaObjectResponseData, isPending, isError } = useGetObject(id);
 
     const objectType =
-        iotaObjectResponseData?.data?.type ??
-        iotaObjectResponseData?.data?.content?.dataType === 'package'
+        (iotaObjectResponseData?.data?.type ??
+        iotaObjectResponseData?.data?.content?.dataType === 'package')
             ? iotaObjectResponseData.data.type
             : iotaObjectResponseData?.data?.content?.type;
 

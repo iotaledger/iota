@@ -9,25 +9,25 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 pub use ethers::types::H256 as EthTransactionHash;
-use ethers::types::{Address as EthAddress, Log, H256};
+use ethers::types::{Address as EthAddress, H256, Log};
 use fastcrypto::hash::{HashFunction, Keccak256};
 use iota_types::{
+    TypeTag,
     bridge::{
-        BridgeChainId, MoveTypeParsedTokenTransferMessage, MoveTypeTokenTransferPayload,
         APPROVAL_THRESHOLD_ADD_TOKENS_ON_EVM, APPROVAL_THRESHOLD_ADD_TOKENS_ON_IOTA,
         APPROVAL_THRESHOLD_ASSET_PRICE_UPDATE, APPROVAL_THRESHOLD_COMMITTEE_BLOCKLIST,
         APPROVAL_THRESHOLD_EMERGENCY_PAUSE, APPROVAL_THRESHOLD_EMERGENCY_UNPAUSE,
         APPROVAL_THRESHOLD_EVM_CONTRACT_UPGRADE, APPROVAL_THRESHOLD_LIMIT_UPDATE,
         APPROVAL_THRESHOLD_TOKEN_TRANSFER, BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
-        BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER,
+        BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER, BridgeChainId, MoveTypeParsedTokenTransferMessage,
+        MoveTypeTokenTransferPayload,
     },
     committee::{CommitteeTrait, StakeUnit},
     digests::{Digest, TransactionDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
-    TypeTag,
 };
 use num_enum::TryFromPrimitive;
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
 

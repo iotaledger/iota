@@ -17,15 +17,15 @@ use iota_types::{
 use tracing::{debug, error};
 
 use crate::{
+    ExecutionEffects, ValidatorProxy,
     drivers::Interval,
     in_memory_wallet::InMemoryWallet,
     system_state_observer::SystemStateObserver,
     workloads::{
-        payload::Payload,
-        workload::{Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, STORAGE_COST_PER_COIN},
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{ESTIMATED_COMPUTATION_COST, STORAGE_COST_PER_COIN, Workload, WorkloadBuilder},
     },
-    ExecutionEffects, ValidatorProxy,
 };
 
 /// Value of each address's "primary coin" in nanos. The first transaction gives

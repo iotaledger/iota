@@ -6,9 +6,8 @@ use std::collections::HashMap;
 
 use config::AuthorityIdentifier;
 use store::{
-    reopen,
-    rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
-    Map, TypedStoreError,
+    Map, TypedStoreError, reopen,
+    rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
 };
 use tracing::debug;
 use types::{CommittedSubDag, ConsensusCommit, ConsensusCommitV2, Round, SequenceNumber};

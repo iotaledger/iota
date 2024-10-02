@@ -8,9 +8,9 @@ use std::{
 };
 
 use diesel::{
+    QueryableByName, RunQueryDsl,
     r2d2::R2D2Connection,
     sql_types::{BigInt, VarChar},
-    QueryableByName, RunQueryDsl,
 };
 use downcast::Any;
 use tracing::{error, info};

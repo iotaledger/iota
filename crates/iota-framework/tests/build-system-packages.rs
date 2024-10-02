@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::Result;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use move_binary_format::{file_format::Visibility, CompiledModule};
+use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 

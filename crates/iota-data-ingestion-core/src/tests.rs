@@ -19,13 +19,13 @@ use iota_types::{
     utils::make_committee_key,
 };
 use prometheus::Registry;
-use rand::{prelude::StdRng, SeedableRng};
+use rand::{SeedableRng, prelude::StdRng};
 use tempfile::NamedTempFile;
 use tokio::sync::oneshot;
 
 use crate::{
-    progress_store::ExecutorProgress, DataIngestionMetrics, FileProgressStore, IndexerExecutor,
-    ReaderOptions, Worker, WorkerPool,
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
+    progress_store::ExecutorProgress,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(

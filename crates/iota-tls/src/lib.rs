@@ -12,8 +12,8 @@ pub use acceptor::{TlsAcceptor, TlsConnectionInfo};
 pub use certgen::SelfSignedCertificate;
 pub use rustls;
 pub use verifier::{
-    public_key_from_certificate, AllowAll, Allower, ClientCertVerifier, HashSetAllow,
-    ServerCertVerifier, ValidatorAllowlist,
+    AllowAll, Allower, ClientCertVerifier, HashSetAllow, ServerCertVerifier, ValidatorAllowlist,
+    public_key_from_certificate,
 };
 
 #[cfg(test)]

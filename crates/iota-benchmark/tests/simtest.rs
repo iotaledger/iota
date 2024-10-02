@@ -9,26 +9,26 @@ mod test {
         path::PathBuf,
         str::FromStr,
         sync::{
-            atomic::{AtomicBool, Ordering},
             Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
         },
         time::{Duration, Instant},
     };
 
     use iota_benchmark::{
+        LocalValidatorAggregatorProxy, ValidatorProxy,
         bank::BenchmarkBank,
-        drivers::{bench_driver::BenchDriver, driver::Driver, Interval},
+        drivers::{Interval, bench_driver::BenchDriver, driver::Driver},
         system_state_observer::SystemStateObserver,
         util::get_ed25519_keypair_from_keystore,
         workloads::{
             adversarial::AdversarialPayloadCfg, workload_configuration::WorkloadConfiguration,
         },
-        LocalValidatorAggregatorProxy, ValidatorProxy,
     };
-    use iota_config::{node::AuthorityOverloadConfig, AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME};
+    use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME, node::AuthorityOverloadConfig};
     use iota_core::{
         authority::{
-            authority_store_tables::AuthorityPerpetualTables, framework_injection, AuthorityState,
+            AuthorityState, authority_store_tables::AuthorityPerpetualTables, framework_injection,
         },
         checkpoints::{CheckpointStore, CheckpointWatermark},
     };
@@ -38,7 +38,7 @@ mod test {
         register_fail_point_if, register_fail_points, sim_test,
     };
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
-    use iota_simulator::{configs::*, tempfile::TempDir, SimConfig};
+    use iota_simulator::{SimConfig, configs::*, tempfile::TempDir};
     use iota_storage::blob::Blob;
     use iota_surfer::surf_strategy::SurfStrategy;
     use iota_types::{
@@ -51,7 +51,7 @@ mod test {
             DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         },
     };
-    use rand::{distributions::uniform::SampleRange, thread_rng, Rng};
+    use rand::{Rng, distributions::uniform::SampleRange, thread_rng};
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tracing::{error, info, trace};
     use typed_store::traits::Map;
@@ -62,19 +62,16 @@ mod test {
     }
 
     fn test_config() -> SimConfig {
-        env_config(
-            uniform_latency_ms(10..20),
-            [
-                (
-                    "regional_high_variance",
-                    bimodal_latency_ms(30..40, 300..800, 0.005),
-                ),
-                (
-                    "global_high_variance",
-                    bimodal_latency_ms(60..80, 500..1500, 0.01),
-                ),
-            ],
-        )
+        env_config(uniform_latency_ms(10..20), [
+            (
+                "regional_high_variance",
+                bimodal_latency_ms(30..40, 300..800, 0.005),
+            ),
+            (
+                "global_high_variance",
+                bimodal_latency_ms(60..80, 500..1500, 0.01),
+            ),
+        ])
     }
 
     fn test_config_low_latency() -> SimConfig {
@@ -471,7 +468,8 @@ mod test {
     async fn test_simulated_load_shared_object_congestion_control() {
         let mode;
         let checkpoint_budget_factor; // The checkpoint congestion control budget in respect to transaction budget.
-        let txn_count_limit; // When using transaction count as congestion control mode, the limit of transactions per object per commit.
+        let txn_count_limit; // When using transaction count as congestion control mode, the limit of
+        // transactions per object per commit.
         let max_deferral_rounds;
         {
             let mut rng = thread_rng();
@@ -483,9 +481,11 @@ mod test {
             checkpoint_budget_factor = rng.gen_range(1..20);
             txn_count_limit = rng.gen_range(1..=10);
             max_deferral_rounds = if rng.gen_bool(0.5) {
-                rng.gen_range(0..20) // Short deferral round (testing cancellation)
+                rng.gen_range(0..20) // Short deferral round (testing
+            // cancellation)
             } else {
-                rng.gen_range(1000..10000) // Large deferral round (testing liveness)
+                rng.gen_range(1000..10000) // Large deferral round (testing
+                // liveness)
             }
         }
 

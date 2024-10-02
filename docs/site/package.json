@@ -36,13 +36,13 @@
     "@mdx-js/react": "^3.0.1",
     "@mui/material": "^5.15.19",
     "@tanstack/react-query": "^5.50.1",
-    "autoprefixer": "^10.4.14",
+    "autoprefixer": "^10.4.19",
     "axios": "^1.7.4",
-    "clsx": "^2.0.0",
+    "clsx": "^2.1.1",
     "copy-text-to-clipboard": "^3.2.0",
     "docusaurus-theme-search-typesense": "0.20.0-0",
     "dotenv": "^16.4.5",
-    "graphql": "^16.8.1",
+    "graphql": "^16.9.0",
     "graphql-config": "^5.0.3",
     "gray-matter": "^4.0.3",
     "hast-util-is-element": "^1.1.0",
@@ -69,7 +69,7 @@
     "@metamask/providers": "^10.2.1",
     "@types/react": "^18.3.3",
     "remark-code-import": "^1.2.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.5.3"
   },
   "resolutions": {
     "graphql": "^16.8.1"

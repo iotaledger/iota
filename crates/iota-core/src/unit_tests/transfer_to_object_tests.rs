@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -14,14 +14,15 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ObjectArg, ProgrammableTransaction, VerifiedCertificate,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        CallArg, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        VerifiedCertificate,
     },
 };
 use move_core_types::ident_str;
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_test_utils::{certify_transaction, send_consensus},
         authority_tests::{
             build_programmable_transaction, execute_programmable_transaction,
@@ -29,7 +30,6 @@ use crate::{
         },
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     move_call,
 };
