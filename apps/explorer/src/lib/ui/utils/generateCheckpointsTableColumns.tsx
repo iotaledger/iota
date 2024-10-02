@@ -6,6 +6,7 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { Checkpoint } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
 import { CheckpointSequenceLink, CheckpointLink } from '~/components';
+import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
  * Generate table columns renderers for the checkpoints data.
@@ -62,7 +63,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
                 const timestampMs = getValue<Checkpoint['timestampMs']>();
                 return (
                     <TableCellBase>
-                        <TableCellText>{timestampMs}</TableCellText>
+                        <TableCellText>{timestampMs ? getElapsedTime(Number(timestampMs), Date.now()) : '--'}</TableCellText>
                     </TableCellBase>
                 );
             },
