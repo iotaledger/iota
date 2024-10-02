@@ -56,7 +56,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       {
         schema:
-          "../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql",
+          "../../crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
         baseURL: "references/iota-api/iota-graphql/reference",
         loaders: {
