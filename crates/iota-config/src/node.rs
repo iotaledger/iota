@@ -795,7 +795,6 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 pub struct MigrationTxData {
-    #[serde(flatten)]
     location: Option<PathBuf>,
 }
 
