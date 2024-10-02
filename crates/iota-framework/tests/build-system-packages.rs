@@ -371,7 +371,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
                     // We also have to add a slug. Why? Let me tell you how stupid this is:
                     // When we have a folder which contains an markdown file with the same name (/framework/bridge/bridge.md)
                     // The url of that file will be /framework/bridge. Which will break anchors that are for example in that mentioned file
-                    // and look like this: bridge#anchor for example. So we enfored docusaurus to keep the duplicate in the url by using a custom slug.
+                    // and look like this: bridge#anchor for example. So we enforced docusaurus to keep the duplicate in the url by using a custom slug.
                     // Another alternative for later could be to fix this weird anchors in the first place by using relative paths.
                     format!("---\ntitle: {}{}\nsidebar_label: {}\nslug: {}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, package, name, name, anchor)
             }).to_string()
