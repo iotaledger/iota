@@ -1,5 +1,5 @@
-# Default fallback, if no other path below this matches someone from the `move` team has to review
-* @iotaledger/l1-core
+# Default fallback, if no other path below this matches
+* @iotaledger/l1-core @iotaledger/core-node @iotaledger/core-consensus
 
 # Everything within the SDK folder
 /sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
@@ -12,10 +12,29 @@
 /external-crates/ @miker83z @valeriyr
 
 # l1-core-infra team
+/docker/ @iotaledger/l1-core-infra @iotaledger/core-node
 /crates/iota-json-rpc*/ @iotaledger/l1-core-infra
 /crates/iota-graphql*/ @iotaledger/l1-core-infra
 /crates/iota-indexer/ @iotaledger/l1-core-infra
-/crates/iota-rest-api/ @iotaledger/l1-core-infra
+
+# core-node team
+/crates/iota-archival/ @iotaledger/core-node
+/crates/iota-authority-aggregation/ @iotaledger/core-node @iotaledger/core-consensus
+/crates/iota-config/ @iotaledger/core-node
+/crates/iota-core/ @iotaledger/core-node @iotaledger/core-consensus
+/crates/iota-network/ @iotaledger/core-node
+/crates/iota-network-stack/ @iotaledger/core-node
+/crates/iota-node/ @iotaledger/core-node
+/crates/iota-types/ @iotaledger/core-node
+/crates/iota-protocol-config/ @iotaledger/core-node
+/crates/iota-protocol-config-macros/ @iotaledger/core-node
+/crates/iota-rest-api/ @iotaledger/core-node @iotaledger/l1-core-infra
+/crates/iota-snapshot/ @iotaledger/core-node
+/crates/iota-storage/ @iotaledger/core-node
+
+# core-consensus team
+/consensus/ @iotaledger/core-consensus
+/narwhal/ @iotaledger/core-consensus
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
@@ -55,6 +74,7 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
 
 # Scripts
+/scripts/dependency_graphs/ @muXxer
 /scripts/slipstream/ @muXxer
 
 # Disable code ownership for these auto-generated files
