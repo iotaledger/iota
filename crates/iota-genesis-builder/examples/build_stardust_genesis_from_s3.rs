@@ -3,24 +3,45 @@
 
 //! Creating a genesis blob out of a remote stardust objects snapshots.
 
-use iota_genesis_builder::{Builder, SnapshotUrl};
+use clap::Parser;
+use iota_genesis_builder::{Builder, SnapshotSource, SnapshotUrl};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-fn main() -> anyhow::Result<()> {
+#[derive(Parser, Debug)]
+#[clap(about = "Example that builds genesis with migration snapshots")]
+struct Args {
+    /// Remotely stored migration snapshots.
+    #[clap(
+        long,
+        name = "iota|smr|<full-url>",
+        help = "Remote migration snapshots.",
+        default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+    )]
+    #[arg(num_args(0..))]
+    migration_snapshots: Vec<SnapshotUrl>,
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
+    let args = Args::parse();
+    let migration_sources = args.migration_snapshots.into_iter().map(SnapshotSource::S3);
+
     // Start building
     info!("Building the genesis..");
-    let mut builder = Builder::new()
-        .add_migration_source(SnapshotUrl::Iota.into())
-        .add_migration_source(SnapshotUrl::Shimmer.into());
+    let mut builder = Builder::new();
+
+    for migration_source in migration_sources {
+        builder = builder.add_migration_source(migration_source);
+    }
 
     let mut key_pairs = Vec::new();
     let mut rng = OsRng;
@@ -31,13 +52,20 @@ fn main() -> anyhow::Result<()> {
         key_pairs.push(validator_config.key_pair);
     }
 
-    for key in &key_pairs {
-        builder = builder.add_validator_signature(key);
-    }
+    builder = tokio::task::spawn_blocking(move || {
+        for key in &key_pairs {
+            builder = builder.add_validator_signature(key);
+        }
 
-    let (_genesis, _) = builder.build();
-
+        builder
+    })
+    .await?;
     info!("Genesis built successfully");
+
+    let dir = tempfile::TempDir::new()?;
+    builder.save(dir.path())?;
+    Builder::load(dir.path()).await?;
+    info!("Builder saved and re-loaded successfully");
 
     Ok(())
 }
