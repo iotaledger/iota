@@ -303,15 +303,8 @@ impl AuthorityStore {
             if let Some(migration_transactions) = migration_tx_data {
                 let mut txs_data = migration_transactions.extract_txs_data();
 
-                let genesis_migrated_transactions: HashMap<TransactionDigest, TransactionEffects> =
-                    genesis
-                        .migration_txs_effects()
-                        .iter()
-                        .map(|tx| (*tx.transaction_digest(), tx.clone()))
-                        .collect();
-
-                for (tx_digest, tx_effects) in genesis_migrated_transactions {
-                    if let Some((tx, events, objects)) = txs_data.remove(&tx_digest) {
+                for tx_digest in genesis.migration_txs_digests() {
+                    if let Some((tx, effects, events, objects)) = txs_data.remove(&tx_digest) {
                         let transaction = VerifiedTransaction::new_unchecked(tx.clone());
 
                         store
@@ -327,7 +320,7 @@ impl AuthorityStore {
                         store
                             .perpetual_tables
                             .effects
-                            .insert(&tx_effects.digest(), &tx_effects)
+                            .insert(&effects.digest(), &effects)
                             .expect("Cannot insert migration effects");
 
                         let events = events

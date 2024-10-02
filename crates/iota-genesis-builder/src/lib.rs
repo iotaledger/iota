@@ -324,7 +324,7 @@ impl Builder {
             &mut self.genesis_stake,
             &mut self.migration_objects,
         );
-        self.migration_tx_data = if !unsigned_genesis.migration_txs_effects.is_empty() {
+        self.migration_tx_data = if !unsigned_genesis.migration_txs_digests.is_empty() {
             Some(migration_tx_data)
         } else {
             None
@@ -367,7 +367,7 @@ impl Builder {
             effects,
             events,
             objects,
-            migration_txs_effects,
+            migration_txs_digests,
         } = self
             .built_genesis
             .take()
@@ -389,7 +389,7 @@ impl Builder {
                 effects,
                 events,
                 objects,
-                migration_txs_effects,
+                migration_txs_digests,
             ),
             self.migration_tx_data,
         )
@@ -970,7 +970,7 @@ fn build_unsigned_genesis_data<'info>(
     // Use a throwaway metrics registry for genesis transaction execution.
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
-    let mut migration_txs_effects = vec![];
+    let mut migration_txs_digests = vec![];
     let mut txs_data: TransactionsData = BTreeMap::new();
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
@@ -994,7 +994,7 @@ fn build_unsigned_genesis_data<'info>(
             metrics.clone(),
         );
         extract_migration_transactions_data(
-            &mut migration_txs_effects,
+            &mut migration_txs_digests,
             &mut txs_data,
             migration_objects,
             &protocol_config,
@@ -1016,7 +1016,8 @@ fn build_unsigned_genesis_data<'info>(
         parameters,
         &genesis_transaction,
         &genesis_effects,
-        &migration_txs_effects,
+        &migration_txs_digests,
+        &txs_data,
     );
 
     (
@@ -1027,14 +1028,14 @@ fn build_unsigned_genesis_data<'info>(
             effects: genesis_effects,
             events: genesis_events,
             objects: genesis_objects,
-            migration_txs_effects,
+            migration_txs_digests,
         },
         MigrationTxData::new(txs_data),
     )
 }
 
 fn extract_migration_transactions_data(
-    migration_txs_effects: &mut Vec<TransactionEffects>,
+    migration_txs_digests: &mut Vec<TransactionDigest>,
     txs_data: &mut TransactionsData,
     migration_objects: Vec<Object>,
     protocol_config: &ProtocolConfig,
@@ -1065,10 +1066,15 @@ fn extract_migration_transactions_data(
                 epoch_data,
             );
 
-        migration_txs_effects.push(migration_effects);
+        migration_txs_digests.push(*migration_transaction.digest());
         txs_data.insert(
             *migration_transaction.digest(),
-            (migration_transaction, migration_events, objects),
+            (
+                migration_transaction,
+                migration_effects,
+                migration_events,
+                objects,
+            ),
         );
         start_idx += chunk;
     }
@@ -1078,7 +1084,8 @@ fn create_genesis_checkpoint(
     parameters: &GenesisCeremonyParameters,
     transaction: &Transaction,
     effects: &TransactionEffects,
-    migration_txs_effects: &[TransactionEffects],
+    migration_txs_digests: &[TransactionDigest],
+    txs_data: &TransactionsData,
 ) -> (CheckpointSummary, CheckpointContents) {
     let execution_digests = ExecutionDigests {
         transaction: *transaction.digest(),
@@ -1087,12 +1094,12 @@ fn create_genesis_checkpoint(
 
     let mut effects_digests = vec![execution_digests];
 
-    let migration_effects_exec_digests: Vec<ExecutionDigests> = migration_txs_effects
-        .iter()
-        .map(|effect| effect.execution_digests())
-        .collect();
+    for digest in migration_txs_digests {
+        if let Some((_, effects, _, _)) = txs_data.get(digest) {
+            effects_digests.push(effects.execution_digests());
+        }
+    }
 
-    effects_digests.extend(migration_effects_exec_digests);
     let effects_digests_len = effects_digests.len();
 
     let contents = CheckpointContents::new_with_digests_and_signatures(

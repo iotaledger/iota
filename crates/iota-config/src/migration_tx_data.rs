@@ -10,14 +10,23 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_types::{
-    digests::TransactionDigest, effects::TransactionEvents, object::Object,
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    object::Object,
     transaction::Transaction,
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
-pub type TransactionsData =
-    BTreeMap<TransactionDigest, (Transaction, TransactionEvents, Vec<Object>)>;
+pub type TransactionsData = BTreeMap<
+    TransactionDigest,
+    (
+        Transaction,
+        TransactionEffects,
+        TransactionEvents,
+        Vec<Object>,
+    ),
+>;
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MigrationTxData {
     inner: TransactionsData,
