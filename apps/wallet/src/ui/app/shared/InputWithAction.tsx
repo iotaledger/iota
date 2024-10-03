@@ -114,7 +114,7 @@ export function InputWithAction({
 
             {(meta?.touched && meta?.error) || (meta.value !== '' && meta.error) ? (
                 <div className="mt-3">
-                    <Alert>{meta?.error}</Alert>
+                    <Alert title={meta?.error} />
                 </div>
             ) : null}
         </>
@@ -266,7 +266,7 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
 
                 {errorString ? (
                     <div className="mt-3">
-                        <Alert>{errorString}</Alert>
+                        <Alert title={errorString} />
                     </div>
                 ) : null}
             </>

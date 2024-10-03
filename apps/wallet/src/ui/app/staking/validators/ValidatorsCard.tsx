@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Alert, LoadingIndicator } from '_components';
+import { Alert, AlertStyle, AlertType, LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     formatDelegatedStake,
@@ -85,9 +85,12 @@ export function ValidatorsCard() {
     if (isError) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <Alert>
-                    <strong>{error?.message}</strong>
-                </Alert>
+                <Alert
+                    title="Something went worng"
+                    supportingText={error?.message ?? 'An error occurred'}
+                    style={AlertStyle.Default}
+                    type={AlertType.Warning}
+                />
             </div>
         );
     }
@@ -104,10 +107,11 @@ export function ValidatorsCard() {
                     <div>
                         {hasInactiveValidatorDelegation ? (
                             <div className="mb-3">
-                                <Alert>
-                                    Unstake IOTA from the inactive validators and stake on an active
-                                    validator to start earning rewards again.
-                                </Alert>
+                                <Alert
+                                    title="Earn with active validators"
+                                    supportingText="Unstake IOTA from the inactive validators and stake on an active
+                                    validator to start earning rewards again."
+                                />
                             </div>
                         ) : null}
                         <div className="gap-2">

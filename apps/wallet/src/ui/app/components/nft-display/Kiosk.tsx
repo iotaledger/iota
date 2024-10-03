@@ -52,7 +52,7 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
     return (
         <div className="group relative h-36 w-36 transform-gpu overflow-visible rounded-xl hover:bg-transparent">
             <div className="absolute z-0">
-                {itemsWithDisplay.length === 0 ? (
+                {itemsWithDisplay.length !== 0 ? (
                     <NftImage isHoverable src={null} title="Kiosk" {...nftImageProps} />
                 ) : (
                     items.map((item, idx) => {

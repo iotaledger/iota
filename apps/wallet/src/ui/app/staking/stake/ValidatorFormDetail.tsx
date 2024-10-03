@@ -99,15 +99,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     }
 
     if (isError || errorValidators) {
-        return (
-            <div className="p-2">
-                <Alert>
-                    <div className="mb-1 font-semibold">
-                        {error?.message ?? 'Error loading validator data'}
-                    </div>
-                </Alert>
-            </div>
-        );
+        return <Alert title={error?.message ?? 'Error loading validator data'} />;
     }
 
     return (

@@ -90,13 +90,7 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                         ))}
                     </SegmentedButton>
                     <Loading loading={isPending}>
-                        {isError ? (
-                            <Alert>
-                                <div>
-                                    <strong>Couldn't gather data</strong>
-                                </div>
-                            </Alert>
-                        ) : null}
+                        {isError ? <Alert title="Couldn't gather data" /> : null}
                         <div className="flex flex-col p-md">
                             {selectedDetailsCategory === DetailsCategory.Transactions &&
                                 !!transactionData?.transactions.length && (

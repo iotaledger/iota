@@ -79,7 +79,7 @@ export function PasswordInputDialog({
                         <FieldLabel txt="Enter Wallet Password to Continue">
                             <PasswordInputField name="password" />
                             <ErrorMessage
-                                render={(error) => <Alert>{error}</Alert>}
+                                render={(error) => <Alert title={error} />}
                                 name="password"
                             />
                         </FieldLabel>
