@@ -67,10 +67,14 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             accessorKey: 'effects',
             cell: ({ getValue }) => {
                 const effects = getValue<IotaTransactionBlockResponse['effects']>();
+                const totalGasUsed = effects ? getTotalGasUsed(effects)?.toString() : undefined;
+                const totalGasUsedFormatted = totalGasUsed
+                    ? totalGasUsed
+                    : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText>
-                            {effects ? getTotalGasUsed(effects)?.toString() : '0'}
+                        <TableCellText supportingLabel={totalGasUsed ? 'nano' : undefined}>
+                            {totalGasUsedFormatted}
                         </TableCellText>
                     </TableCellBase>
                 );
