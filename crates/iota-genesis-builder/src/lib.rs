@@ -324,7 +324,7 @@ impl Builder {
             &mut self.genesis_stake,
             &mut self.migration_objects,
         );
-        self.migration_tx_data = if !unsigned_genesis.migration_txs_digests.is_empty() {
+        self.migration_tx_data = if !migration_tx_data.is_empty() {
             Some(migration_tx_data)
         } else {
             None
@@ -367,7 +367,6 @@ impl Builder {
             effects,
             events,
             objects,
-            migration_txs_digests,
         } = self
             .built_genesis
             .take()
@@ -389,7 +388,6 @@ impl Builder {
                 effects,
                 events,
                 objects,
-                migration_txs_digests,
             ),
             self.migration_tx_data,
         )
@@ -1028,7 +1026,6 @@ fn build_unsigned_genesis_data<'info>(
             effects: genesis_effects,
             events: genesis_events,
             objects: genesis_objects,
-            migration_txs_digests,
         },
         MigrationTxData::new(txs_data),
     )
