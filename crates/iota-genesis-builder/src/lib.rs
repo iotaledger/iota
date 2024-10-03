@@ -968,7 +968,6 @@ fn build_unsigned_genesis_data<'info>(
     // Use a throwaway metrics registry for genesis transaction execution.
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
-    let mut migration_txs_digests = vec![];
     let mut txs_data: TransactionsData = BTreeMap::new();
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
@@ -992,7 +991,6 @@ fn build_unsigned_genesis_data<'info>(
             metrics.clone(),
         );
         extract_migration_transactions_data(
-            &mut migration_txs_digests,
             &mut txs_data,
             migration_objects,
             &protocol_config,
@@ -1014,7 +1012,6 @@ fn build_unsigned_genesis_data<'info>(
         parameters,
         &genesis_transaction,
         &genesis_effects,
-        &migration_txs_digests,
         &txs_data,
     );
 
@@ -1032,7 +1029,6 @@ fn build_unsigned_genesis_data<'info>(
 }
 
 fn extract_migration_transactions_data(
-    migration_txs_digests: &mut Vec<TransactionDigest>,
     txs_data: &mut TransactionsData,
     migration_objects: Vec<Object>,
     protocol_config: &ProtocolConfig,
@@ -1063,7 +1059,6 @@ fn extract_migration_transactions_data(
                 epoch_data,
             );
 
-        migration_txs_digests.push(*migration_transaction.digest());
         txs_data.insert(
             *migration_transaction.digest(),
             (
@@ -1081,7 +1076,6 @@ fn create_genesis_checkpoint(
     parameters: &GenesisCeremonyParameters,
     transaction: &Transaction,
     effects: &TransactionEffects,
-    migration_txs_digests: &[TransactionDigest],
     txs_data: &TransactionsData,
 ) -> (CheckpointSummary, CheckpointContents) {
     let execution_digests = ExecutionDigests {
@@ -1091,7 +1085,7 @@ fn create_genesis_checkpoint(
 
     let mut effects_digests = vec![execution_digests];
 
-    for digest in migration_txs_digests {
+    for digest in txs_data.keys() {
         if let Some((_, effects, _, _)) = txs_data.get(digest) {
             effects_digests.push(effects.execution_digests());
         }
