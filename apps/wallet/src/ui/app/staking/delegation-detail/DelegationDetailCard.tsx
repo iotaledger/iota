@@ -114,7 +114,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
                 <Alert
-                    title="Something went worng"
+                    title="Something went wrong"
                     supportingText={error?.message ?? 'An error occurred'}
                     style={AlertStyle.Default}
                     type={AlertType.Warning}
