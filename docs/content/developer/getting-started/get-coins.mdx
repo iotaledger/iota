@@ -2,8 +2,9 @@
 description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
 tags: [how-to, cli, typescript, sdk, faucet]
 ---
-
 import AlphaNet from "../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/get-coins.json';
 
 # Get Test Tokens
 
@@ -41,7 +42,7 @@ curl --location --request POST 'https://faucet.iota-rebased-alphanet.iota.cafe/g
 If you're working with a local network, replace `'https://faucet.iota-rebased-alphanet.iota.cafe/gas'` with the appropriate value based on which package runs your network:
 
 - `iota-faucet`: `http://127.0.0.1:5003/gas`
-- `iota-test-validator`: `http://127.0.0.1:9123/gas`
+- `iota start`: `http://127.0.0.1:9123/gas`
 
 You can also get tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
 
@@ -61,3 +62,5 @@ await requestIOTAFromFaucetV0({
 	recipient: '<YOUR IOTA ADDRESS>',
 });
 ```
+
+<Quiz questions={questions} />

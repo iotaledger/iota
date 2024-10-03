@@ -5,9 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
+use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
-use iota_json_rpc_api::{cap_page_limit, CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics};
+use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -22,7 +22,7 @@ use iota_types::{
     object::Object,
     parse_iota_struct_tag,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
@@ -30,10 +30,10 @@ use tap::TapFallible;
 use tracing::{debug, instrument};
 
 use crate::{
+    IotaRpcModule,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
     logger::FutureWithTracing as _,
-    IotaRpcModule,
 };
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
@@ -259,7 +259,7 @@ impl CoinReadApiServer for CoinReadApi {
 }
 
 #[cached(
-    ty = "SizedCache<String, ObjectID>",
+    type = "SizedCache<String, ObjectID>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, object_struct_tag) }"#,
     result = true
@@ -425,6 +425,7 @@ mod tests {
         key_value_store_metrics::KeyValueStoreMetrics,
     };
     use iota_types::{
+        TypeTag,
         balance::Supply,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
@@ -439,7 +440,6 @@ mod tests {
         object::Object,
         parse_iota_struct_tag,
         utils::create_fake_transaction,
-        TypeTag,
     };
     use mockall::{mock, predicate};
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
@@ -579,7 +579,6 @@ mod tests {
     }
 
     mod get_coins_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -603,14 +602,11 @@ mod tests {
             let response = coin_read_api.get_coins(owner, None, None, None).await;
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(
-                result,
-                CoinPage {
-                    data: vec![gas_coin.clone()],
-                    next_cursor: Some(gas_coin.coin_object_id),
-                    has_next_page: false,
-                }
-            );
+            assert_eq!(result, CoinPage {
+                data: vec![gas_coin.clone()],
+                next_cursor: Some(gas_coin.coin_object_id),
+                has_next_page: false,
+            });
         }
 
         #[tokio::test]
@@ -640,14 +636,11 @@ mod tests {
                 .await;
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(
-                result,
-                CoinPage {
-                    data: coins[..limit].to_vec(),
-                    next_cursor: Some(coins[limit - 1].coin_object_id),
-                    has_next_page: true,
-                }
-            );
+            assert_eq!(result, CoinPage {
+                data: coins[..limit].to_vec(),
+                next_cursor: Some(coins[limit - 1].coin_object_id),
+                has_next_page: true,
+            });
         }
 
         #[tokio::test]
@@ -678,14 +671,11 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(
-                result,
-                CoinPage {
-                    data: vec![coin.clone()],
-                    next_cursor: Some(coin.coin_object_id),
-                    has_next_page: false,
-                }
-            );
+            assert_eq!(result, CoinPage {
+                data: vec![coin.clone()],
+                next_cursor: Some(coin.coin_object_id),
+                has_next_page: false,
+            });
         }
 
         #[tokio::test]
@@ -723,14 +713,11 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(
-                result,
-                CoinPage {
-                    data: coins[..limit].to_vec(),
-                    next_cursor: Some(coins[limit - 1].coin_object_id),
-                    has_next_page: true,
-                }
-            );
+            assert_eq!(result, CoinPage {
+                data: coins[..limit].to_vec(),
+                next_cursor: Some(coins[limit - 1].coin_object_id),
+                has_next_page: true,
+            });
         }
 
         // Expected error scenarios
@@ -975,15 +962,12 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(
-                result,
-                Balance {
-                    coin_type: gas_coin.coin_type,
-                    coin_object_count: 9,
-                    total_balance: 7,
-                    locked_balance: Default::default()
-                }
-            );
+            assert_eq!(result, Balance {
+                coin_type: gas_coin.coin_type,
+                coin_object_count: 9,
+                total_balance: 7,
+                locked_balance: Default::default()
+            });
         }
 
         #[tokio::test]
@@ -1011,15 +995,12 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(
-                result,
-                Balance {
-                    coin_type: coin.coin_type,
-                    coin_object_count: 11,
-                    total_balance: 10,
-                    locked_balance: Default::default()
-                }
-            );
+            assert_eq!(result, Balance {
+                coin_type: coin.coin_type,
+                coin_object_count: 11,
+                total_balance: 10,
+                locked_balance: Default::default()
+            });
         }
 
         // Expected error scenarios
@@ -1097,7 +1078,6 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -1114,20 +1094,14 @@ mod tests {
                 .with(predicate::eq(owner))
                 .return_once(move |_| {
                     let mut hash_map = HashMap::new();
-                    hash_map.insert(
-                        gas_coin_type_tag,
-                        TotalBalance {
-                            balance: 7,
-                            num_coins: 9,
-                        },
-                    );
-                    hash_map.insert(
-                        usdc_coin_type_tag,
-                        TotalBalance {
-                            balance: 10,
-                            num_coins: 11,
-                        },
-                    );
+                    hash_map.insert(gas_coin_type_tag, TotalBalance {
+                        balance: 7,
+                        num_coins: 9,
+                    });
+                    hash_map.insert(usdc_coin_type_tag, TotalBalance {
+                        balance: 10,
+                        num_coins: 11,
+                    });
                     Ok(Arc::new(hash_map))
                 });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1297,10 +1271,10 @@ mod tests {
             gas_coin::IotaTreasuryCap,
             id::UID,
             iota_system_state::{
+                IotaSystemState,
                 iota_system_state_inner_v1::{
                     IotaSystemStateInnerV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
                 },
-                IotaSystemState,
             },
         };
         use mockall::predicate;

@@ -23,7 +23,7 @@ This table shows the restrictions placed on JSON types to make them IOTAJSON com
 | Null    | Not allowed                                  | N/A                                                                                      |
 | Object  | Not allowed                                  | N/A                                                                                      |
 
-## Type coercion reasoning {#type-coercion-reasoning}
+## Type coercion reasoning
 
 Due to the loosely typed nature of JSON/IOTAJSON and the strongly typed nature of Move types, you sometimes need to overload IOTAJSON types to represent multiple Move types.
 
@@ -33,7 +33,7 @@ Which type you coerce depends on the expected Move type. For example, if the Mov
 
 Additionally, Move supports u128 and u256 but JSON doesn't. As a result IOTA allows encoding numbers as strings.
 
-## Type coercion rules {#type-coercion-rules}
+## Type coercion rules
 
 |      Move Type      |                                                                                                                                         IOTAJSON Representations                                                                                                                                          |                                                                          Valid Examples                                                                           |                                                                                                             Invalid Examples                                                                                                              |
 | :-----------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |

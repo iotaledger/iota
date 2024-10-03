@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
@@ -13,17 +16,19 @@ use fastcrypto::{
 use once_cell::sync::OnceCell;
 use roaring::RoaringBitmap;
 use schemars::JsonSchema;
-use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq};
 use serde_with::serde_as;
 use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{EpochId, IotaAddress},
     crypto::{CompressedSignature, PublicKey, SignatureScheme},
+    digests::ZKLoginInputsDigest,
     error::IotaError,
     iota_serde::IotaBitmap,
     multisig::{MultiSig, MultiSigPublicKey},
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    signature_verification::VerifiedDigestCache,
 };
 
 pub type WeightUnit = u8;
@@ -89,20 +94,18 @@ impl Hash for MultiSigLegacy {
 }
 
 impl AuthenticatorTrait for MultiSigLegacy {
-    fn verify_user_authenticator_epoch(&self, _: EpochId) -> Result<(), IotaError> {
-        Ok(())
-    }
-
-    fn verify_uncached_checks<T>(
+    fn verify_user_authenticator_epoch(
         &self,
-        _value: &IntentMessage<T>,
-        _author: IotaAddress,
-        _aux_verify_data: &VerifyParams,
-    ) -> Result<(), IotaError>
-    where
-        T: Serialize,
-    {
-        Ok(())
+        epoch_id: EpochId,
+        max_epoch_upper_bound_delta: Option<u64>,
+    ) -> Result<(), IotaError> {
+        let multisig: MultiSig =
+            self.clone()
+                .try_into()
+                .map_err(|_| IotaError::InvalidSignature {
+                    error: "Invalid legacy multisig".to_string(),
+                })?;
+        multisig.verify_user_authenticator_epoch(epoch_id, max_epoch_upper_bound_delta)
     }
 
     fn verify_claims<T>(
@@ -110,6 +113,7 @@ impl AuthenticatorTrait for MultiSigLegacy {
         value: &IntentMessage<T>,
         author: IotaAddress,
         aux_verify_data: &VerifyParams,
+        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> Result<(), IotaError>
     where
         T: Serialize,
@@ -120,26 +124,7 @@ impl AuthenticatorTrait for MultiSigLegacy {
                 .map_err(|_| IotaError::InvalidSignature {
                     error: "Invalid legacy multisig".to_string(),
                 })?;
-        multisig.verify_claims(value, author, aux_verify_data)
-    }
-
-    fn verify_authenticator<T>(
-        &self,
-        value: &IntentMessage<T>,
-        author: IotaAddress,
-        epoch: Option<EpochId>,
-        aux_verify_data: &VerifyParams,
-    ) -> Result<(), IotaError>
-    where
-        T: Serialize,
-    {
-        let multisig: MultiSig =
-            self.clone()
-                .try_into()
-                .map_err(|_| IotaError::InvalidSignature {
-                    error: "Invalid legacy multisig".to_string(),
-                })?;
-        multisig.verify_authenticator(value, author, epoch, aux_verify_data)
+        multisig.verify_claims(value, author, aux_verify_data, zklogin_inputs_cache)
     }
 }
 

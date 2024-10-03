@@ -172,7 +172,7 @@ fragment ModuleFriends on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 1,0 --sender A
+//# upgrade --package P0 --upgrade-capability 1,1 --sender A
 
 module P0::m0 { public fun f(): u64 { P0::n::f() } }
 module P0::m1 { public fun f(): u64 { P0::n::f() } }

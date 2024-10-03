@@ -5,6 +5,8 @@ tags: [ explanation, mainnet, testnet, devnet, cli, setup, install, getting-star
 
 import DataWipe from "../../_snippets/data-wipe.mdx";
 import AlphaNet from "../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/connect.json';
 
 # Connect to an IOTA Network
 
@@ -26,7 +28,7 @@ endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443`.
 
 ## Environment Set Up
 
-First, [Install IOTA](iota-install.mdx). After you install IOTA, [request IOTA test tokens](get-coins.mdx) for the
+First, [Install IOTA](install-iota.mdx). After you install IOTA, [request IOTA test tokens](get-coins.mdx) for the
 network you are using. If connected to Localnet, use cURL to request tokens from
 your [local faucet](local-network.mdx#use-the-local-faucet).
 
@@ -179,3 +181,5 @@ The fully operational production network, with data persistence and where tokens
 You can also spin up a [local IOTA network](local-network.mdx) for local development.
 
 :::
+
+<Quiz questions={questions} />

@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Duration};
 use config::{AuthorityIdentifier, Committee};
 use crypto::{NetworkPublicKey, Signature};
 use fastcrypto::signature_service::SignatureService;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_macros::fail_point_async;
 use iota_metrics::{metered_channel::Receiver, monitored_future, spawn_logged_monitored_task};
 use iota_network_stack::anemo_ext::NetworkExt;
@@ -20,10 +20,9 @@ use tokio::{
 };
 use tracing::{debug, enabled, error, info, instrument, warn};
 use types::{
-    ensure,
-    error::{DagError, DagResult},
     Certificate, CertificateDigest, ConditionalBroadcastReceiver, Header, HeaderAPI,
-    PrimaryToPrimaryClient, RequestVoteRequest, Vote, VoteAPI,
+    PrimaryToPrimaryClient, RequestVoteRequest, Vote, VoteAPI, ensure,
+    error::{DagError, DagResult},
 };
 
 use crate::{aggregators::VotesAggregator, metrics::PrimaryMetrics, synchronizer::Synchronizer};
@@ -167,7 +166,7 @@ impl Certifier {
                 header: header.clone(),
                 parents,
             })
-            .with_timeout(Duration::from_secs(30));
+            .with_timeout(Duration::from_secs(5));
             match client.request_vote(request).await {
                 Ok(response) => {
                     let response = response.into_body();
@@ -210,29 +209,20 @@ impl Certifier {
             DagError::UnexpectedVote(vote.header_digest())
         );
         // Possible equivocations.
-        ensure!(
-            header.epoch() == vote.epoch(),
-            DagError::InvalidEpoch {
-                expected: header.epoch(),
-                received: vote.epoch()
-            }
-        );
-        ensure!(
-            header.round() == vote.round(),
-            DagError::InvalidRound {
-                expected: header.round(),
-                received: vote.round()
-            }
-        );
+        ensure!(header.epoch() == vote.epoch(), DagError::InvalidEpoch {
+            expected: header.epoch(),
+            received: vote.epoch()
+        });
+        ensure!(header.round() == vote.round(), DagError::InvalidRound {
+            expected: header.round(),
+            received: vote.round()
+        });
 
         // Ensure the header is from the correct epoch.
-        ensure!(
-            vote.epoch() == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: vote.epoch()
-            }
-        );
+        ensure!(vote.epoch() == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: vote.epoch()
+        });
 
         // Ensure the authority has voting rights.
         ensure!(

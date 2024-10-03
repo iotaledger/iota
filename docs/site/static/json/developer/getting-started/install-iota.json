@@ -1,0 +1,11 @@
+[
+  {
+    "questionText": "What is the simplest way to get up and running with IOTA?",
+    "answerOptions": [
+      { "answerText": "Install the binary from the latest release in the IOTA Rebased GitHub Repository", "isCorrect": true },
+      { "answerText": "Build the binaries from source", "isCorrect": false },
+      { "answerText": "Use package managers like Homebrew or Chocolatey", "isCorrect": false },
+      { "answerText": "Use Docker images to run a local network", "isCorrect": false }
+    ]
+  }
+]

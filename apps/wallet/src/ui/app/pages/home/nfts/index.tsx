@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ButtonSegment, SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import {
     Alert,
@@ -13,13 +14,10 @@ import {
     PageTemplate,
 } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
-import { useMultiGetObjects } from '@iota/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
+import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
-import { ButtonSegment, SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
-import HiddenAssets from './HiddenAssets';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -44,11 +42,9 @@ const ASSET_CATEGORIES = [
 
 function NftsPage() {
     const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
-    const [isAssetsLoaded, setIsAssetsLoaded] = useState(false);
     const observerElem = useRef<HTMLDivElement | null>(null);
 
     const accountAddress = useActiveAddress();
-    const { hiddenAssetIds } = useHiddenAssets();
     const {
         data: ownedAssets,
         hasNextPage,
@@ -59,16 +55,12 @@ function NftsPage() {
         isError,
     } = useGetNFTs(accountAddress);
 
-    const { data } = useMultiGetObjects(hiddenAssetIds, {
-        showDisplay: true,
-        showType: true,
-    });
+    const isAssetsLoaded = !!ownedAssets;
 
     const isSpinnerVisible = isFetchingNextPage && hasNextPage;
 
-    const filteredAssets = useMemo(() => {
+    const filteredAssets = (() => {
         if (!ownedAssets) return [];
-
         switch (selectedAssetCategory) {
             case AssetCategory.Visual:
                 return ownedAssets.visual;
@@ -77,58 +69,53 @@ function NftsPage() {
             default:
                 return [];
         }
-    }, [selectedAssetCategory, ownedAssets, hiddenAssetIds]);
+    })();
 
     const filteredHiddenAssets = useMemo(() => {
-        const hiddenNfts =
-            data?.flatMap((data) => {
-                return {
-                    data: data.data,
-                    display: data.data?.display?.data,
-                };
-            }) || [];
+        return (
+            ownedAssets?.hidden
+                .flatMap((data) => {
+                    return {
+                        data: data,
+                        display: data?.display?.data,
+                    };
+                })
+                .sort((nftA, nftB) => {
+                    const nameA = nftA.display?.name || '';
+                    const nameB = nftB.display?.name || '';
 
-        return hiddenNfts
-            ?.filter((nft) => nft.data && hiddenAssetIds.includes(nft?.data?.objectId))
-            .sort((nftA, nftB) => {
-                const nameA = nftA.display?.name || '';
-                const nameB = nftB.display?.name || '';
-
-                if (nameA < nameB) {
-                    return -1;
-                } else if (nameA > nameB) {
-                    return 1;
-                }
-                return 0;
-            });
-    }, [hiddenAssetIds, data]);
+                    if (nameA < nameB) {
+                        return -1;
+                    } else if (nameA > nameB) {
+                        return 1;
+                    }
+                    return 0;
+                }) ?? []
+        );
+    }, [ownedAssets]);
 
     useEffect(() => {
+        let computeSelectedCategory = false;
         if (
-            ownedAssets &&
-            (selectedAssetCategory === null || // hasn't loaded a category
-                (selectedAssetCategory === AssetCategory.Hidden &&
-                    filteredHiddenAssets.length === 0) || // In the HiddenAssets page and no more items there
-                (filteredAssets.length === 0 && selectedAssetCategory !== AssetCategory.Hidden)) // Other page and no items left
+            (selectedAssetCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
+            (selectedAssetCategory === AssetCategory.Other && ownedAssets?.other.length === 0) ||
+            (selectedAssetCategory === AssetCategory.Hidden && ownedAssets?.hidden.length === 0) ||
+            !selectedAssetCategory
         ) {
-            setIsAssetsLoaded(true);
-            // Determine the default category based on available assets
+            computeSelectedCategory = true;
+        }
+        if (computeSelectedCategory && ownedAssets) {
             const defaultCategory =
                 ownedAssets.visual.length > 0
                     ? AssetCategory.Visual
                     : ownedAssets.other.length > 0
                       ? AssetCategory.Other
-                      : hiddenAssetIds.length > 0
+                      : ownedAssets.hidden.length > 0
                         ? AssetCategory.Hidden
                         : null;
-
-            if (defaultCategory) {
-                setSelectedAssetCategory(defaultCategory);
-            } else {
-                setSelectedAssetCategory(null);
-            }
+            setSelectedAssetCategory(defaultCategory);
         }
-    }, [ownedAssets, hiddenAssetIds, filteredHiddenAssets]);
+    }, [ownedAssets]);
 
     if (isLoading) {
         return (
@@ -163,7 +150,7 @@ function NftsPage() {
                                             selected={selectedAssetCategory === value}
                                             disabled={
                                                 AssetCategory.Hidden === value
-                                                    ? !hiddenAssetIds.length
+                                                    ? !filteredHiddenAssets.length
                                                     : AssetCategory.Visual === value
                                                       ? !ownedAssets?.visual.length
                                                       : !ownedAssets?.other.length

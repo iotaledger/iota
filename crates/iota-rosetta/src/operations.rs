@@ -14,14 +14,14 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
+    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    gas_coin::{GasCoin, GAS},
+    gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     object::Owner,
     transaction::TransactionData,
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_core_types::{
     ident_str,
@@ -31,11 +31,11 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Error,
     types::{
         AccountIdentifier, Amount, CoinAction, CoinChange, CoinID, CoinIdentifier,
         InternalOperation, OperationIdentifier, OperationStatus, OperationType,
     },
-    Error,
 };
 
 #[cfg(test)]
@@ -311,9 +311,7 @@ impl Operations {
                 IotaArgument::Input(i) => inputs[i as usize].pure()?.to_iota_address().ok()?,
                 IotaArgument::GasCoin
                 | IotaArgument::Result(_)
-                | IotaArgument::NestedResult(_, _) => {
-                    return None;
-                }
+                | IotaArgument::NestedResult(_, _) => return None,
             };
             for obj in objs {
                 let value = match *obj {

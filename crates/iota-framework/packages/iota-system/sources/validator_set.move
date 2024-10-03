@@ -21,15 +21,6 @@ module iota_system::validator_set {
     use iota::bag::Bag;
     use iota::bag;
 
-    /* friend iota_system::genesis; */
-    /* friend iota_system::iota_system_state_inner; */
-
-    /* #[test_only] */
-    /* friend iota_system::validator_set_tests; */
-
-    /* #[test_only] */
-    /* friend iota_system::stake_tests; */
-
     public struct ValidatorSet has store {
         /// Total amount of stake from all active validators at the beginning of the epoch.
         total_stake: u64,
@@ -529,6 +520,11 @@ module iota_system::validator_set {
     public fun validator_stake_amount(self: &ValidatorSet, validator_address: address): u64 {
         let validator = get_validator_ref(&self.active_validators, validator_address);
         validator.stake_amount()
+    }
+
+    public fun validator_voting_power(self: &ValidatorSet, validator_address: address): u64 {
+        let validator = get_validator_ref(&self.active_validators, validator_address);
+        validator.voting_power()
     }
 
     public fun validator_staking_pool_id(self: &ValidatorSet, validator_address: address): ID {
@@ -1070,7 +1066,7 @@ module iota_system::validator_set {
                     // Otherwise the slashed rewards should be distributed among the unslashed
                     // validators so add the corresponding adjustment.
                     let adjustment = total_staking_reward_adjustment as u128 * voting_power
-                                   / (total_unslashed_validator_voting_power as u128);
+                                    / (total_unslashed_validator_voting_power as u128);
                     unadjusted_staking_reward_amount + (adjustment as u64)
                 };
             adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount);

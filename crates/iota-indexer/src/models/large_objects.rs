@@ -7,18 +7,24 @@
 //!
 //! See also <https://www.postgresql.org/docs/current/lo-funcs.html>
 
+use std::time::Duration;
+
 use diesel::{
-    define_sql_function,
+    RunQueryDsl, define_sql_function,
     pg::sql_types::Oid,
+    r2d2::R2D2Connection,
     select,
     sql_types::{BigInt, Binary, Integer, Nullable},
-    PgConnection, RunQueryDsl,
 };
+use downcast::Any;
 
 use crate::{
-    db::PgConnectionPool,
+    db::ConnectionPool,
     errors::{Context, IndexerError},
+    transactional_blocking_with_retry,
 };
+
+const DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
 
 define_sql_function! {
     /// Returns an `Oid` of an empty new large object.
@@ -42,23 +48,27 @@ define_sql_function! {
 /// Create an empty large object
 ///
 /// Returns the object identifier (`oid`) represented as `u32`.
-pub fn create_large_object(conn: &mut PgConnection) -> Result<u32, IndexerError> {
-    select(lo_create(0))
-        .get_result(conn)
-        .map_err(IndexerError::from)
-        .context("failed to store large object")
+pub fn create_large_object<T: R2D2Connection + Send + 'static>(
+    pool: &ConnectionPool<T>,
+) -> Result<u32, IndexerError> {
+    transactional_blocking_with_retry!(
+        pool,
+        |conn| select(lo_create(0)).get_result(conn),
+        DB_COMMIT_SLEEP_DURATION
+    )
+    .map_err(IndexerError::from)
+    .context("failed to store large object")
 }
 
 /// Store raw data as a large object in chunks.
 ///
 /// Returns the object identifier (`oid`) represented as `u32`.
-pub fn put_large_object_in_chunks(
+pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
     data: Vec<u8>,
     chunk_size: usize,
-    pool: &PgConnectionPool,
+    pool: &ConnectionPool<T>,
 ) -> Result<u32, IndexerError> {
-    let mut conn = crate::db::get_pg_pool_connection(pool)?;
-    let oid = create_large_object(&mut conn)?;
+    let oid = create_large_object(pool)?;
 
     if let Err(err) = i64::try_from(data.len()) {
         return Err(IndexerError::GenericError(err.to_string()));
@@ -71,23 +81,25 @@ pub fn put_large_object_in_chunks(
         // remove dangling chunks (either by using a transaction or by handlng manually)
         //
         // additionally we could apply a backoff retry strategy
-        select(lo_put(oid, offset, chunk))
-            .execute(&mut conn)
-            .map_err(IndexerError::from)
-            .context("failed to insert large object chunk")?;
+        transactional_blocking_with_retry!(
+            pool,
+            |conn| select(lo_put(oid, offset, chunk)).execute(conn),
+            DB_COMMIT_SLEEP_DURATION
+        )
+        .map_err(IndexerError::from)
+        .context("failed to insert large object chunk")?;
     }
     Ok(oid)
 }
 
 /// Get a large object from the database in chunks.
-pub fn get_large_object_in_chunks(
+pub fn get_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
     oid: u32,
     chunk_size: usize,
-    pool: &PgConnectionPool,
+    pool: &ConnectionPool<T>,
 ) -> Result<Vec<u8>, IndexerError> {
-    let mut conn = crate::db::get_pg_pool_connection(pool)?;
-    let mut chunk_num = 0;
     let mut data: Vec<u8> = vec![];
+    let mut chunk_num = 0;
     loop {
         let length =
             i32::try_from(chunk_size).map_err(|e| IndexerError::GenericError(e.to_string()))?;
@@ -95,10 +107,13 @@ pub fn get_large_object_in_chunks(
 
         tracing::trace!("Fetching large-object chunk at offset {}", offset);
 
-        let chunk = select(lo_get(oid, Some(offset), Some(length)))
-            .get_result::<Vec<u8>>(&mut conn)
-            .map_err(IndexerError::from)
-            .context("failed to query large object chunk")?;
+        let chunk = transactional_blocking_with_retry!(
+            pool,
+            |conn| { select(lo_get(oid, Some(offset), Some(length))).get_result::<Vec<u8>>(conn) },
+            DB_COMMIT_SLEEP_DURATION
+        )
+        .map_err(IndexerError::from)
+        .context("failed to query large object chunk")?;
 
         let chunk_len = chunk.len();
         data.extend(chunk);

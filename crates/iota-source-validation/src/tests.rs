@@ -17,15 +17,15 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
+    IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-    IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
-use crate::{BytecodeSourceVerifier, SourceMode, CURRENT_COMPILER_VERSION};
+use crate::{BytecodeSourceVerifier, ValidationMode, toolchain::CURRENT_COMPILER_VERSION};
 
 #[tokio::test]
 async fn successful_verification() -> anyhow::Result<()> {
@@ -57,30 +57,27 @@ async fn successful_verification() -> anyhow::Result<()> {
     let client = context.get_client().await?;
     let verifier = BytecodeSourceVerifier::new(client.read_api());
 
-    // Skip deps and root
-    verifier
-        .verify_package(&a_pkg, /* verify_deps */ false, SourceMode::Skip)
-        .await
-        .unwrap();
-
     // Verify root without updating the address
     verifier
-        .verify_package(&b_pkg, /* verify_deps */ false, SourceMode::Verify)
+        .verify(&b_pkg, ValidationMode::root())
         .await
         .unwrap();
 
     // Verify deps but skip root
-    verifier.verify_package_deps(&a_pkg).await.unwrap();
+    verifier
+        .verify(&a_pkg, ValidationMode::deps())
+        .await
+        .unwrap();
 
     // Skip deps but verify root
     verifier
-        .verify_package_root(&a_pkg, a_ref.0.into())
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
         .await
         .unwrap();
 
     // Verify both deps and root
     verifier
-        .verify_package_root_and_deps(&a_pkg, a_ref.0.into())
+        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
         .await
         .unwrap();
 
@@ -106,7 +103,7 @@ async fn successful_verification_unpublished_deps() -> anyhow::Result<()> {
 
     // Verify the root package which now includes dependency modules
     verifier
-        .verify_package_root(&a_pkg, a_ref.0.into())
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
         .await
         .unwrap();
 
@@ -141,11 +138,8 @@ async fn successful_verification_module_ordering() -> anyhow::Result<()> {
     };
 
     let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
-
-    let verify_deps = false;
-    verifier
-        .verify_package(&z_pkg, verify_deps, SourceMode::Verify)
+    BytecodeSourceVerifier::new(client.read_api())
+        .verify(&z_pkg, ValidationMode::root())
         .await
         .unwrap();
 
@@ -181,14 +175,16 @@ async fn successful_verification_upgrades() -> anyhow::Result<()> {
     let verifier = BytecodeSourceVerifier::new(client.read_api());
 
     // Verify the upgraded package b-v2 as the root.
-    let verify_deps = false;
     verifier
-        .verify_package(&b_pkg, verify_deps, SourceMode::Verify)
+        .verify(&b_pkg, ValidationMode::root())
         .await
         .unwrap();
 
     // Verify the upgraded package b-v2 as a dep of e.
-    verifier.verify_package_deps(&e_pkg).await.unwrap();
+    verifier
+        .verify(&e_pkg, ValidationMode::deps())
+        .await
+        .unwrap();
 
     Ok(())
 }
@@ -213,12 +209,13 @@ async fn fail_verification_bad_address() -> anyhow::Result<()> {
     };
 
     let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
-
     let expected = expect!["On-chain address cannot be zero"];
     expected.assert_eq(
-        &verifier
-            .verify_package_root_and_deps(&a_pkg, AccountAddress::ZERO)
+        &BytecodeSourceVerifier::new(client.read_api())
+            .verify(
+                &a_pkg,
+                ValidationMode::root_and_deps_at(AccountAddress::ZERO),
+            )
             .await
             .unwrap_err()
             .to_string(),
@@ -239,14 +236,13 @@ async fn fail_to_verify_unpublished_root() -> anyhow::Result<()> {
     };
 
     let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
 
     // Trying to verify the root package, which hasn't been published -- this is
     // going to fail because there is no on-chain package to verify against.
     let expected = expect!["Invalid module b with error: Can't verify unpublished source"];
     expected.assert_eq(
-        &verifier
-            .verify_package(&b_pkg, /* verify_deps */ false, SourceMode::Verify)
+        &BytecodeSourceVerifier::new(client.read_api())
+            .verify(&b_pkg, ValidationMode::root())
             .await
             .unwrap_err()
             .to_string(),
@@ -323,7 +319,7 @@ async fn package_not_found() -> anyhow::Result<()> {
     let client = context.get_client().await?;
     let verifier = BytecodeSourceVerifier::new(client.read_api());
 
-    let Err(err) = verifier.verify_package_deps(&a_pkg).await else {
+    let Err(err) = verifier.verify(&a_pkg, ValidationMode::deps()).await else {
         panic!("Expected verification to fail");
     };
 
@@ -334,7 +330,7 @@ async fn package_not_found() -> anyhow::Result<()> {
     let package_root = AccountAddress::random();
     stable_addrs.insert(IotaAddress::from(package_root), "<id>");
     let Err(err) = verifier
-        .verify_package_root_and_deps(&a_pkg, package_root)
+        .verify(&a_pkg, ValidationMode::root_and_deps_at(package_root))
         .await
     else {
         panic!("Expected verification to fail");
@@ -348,7 +344,10 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     let package_root = AccountAddress::random();
     stable_addrs.insert(IotaAddress::from(package_root), "<id>");
-    let Err(err) = verifier.verify_package_root(&a_pkg, package_root).await else {
+    let Err(err) = verifier
+        .verify(&a_pkg, ValidationMode::root_at(package_root))
+        .await
+    else {
         panic!("Expected verification to fail");
     };
 
@@ -371,15 +370,14 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)
     };
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
 
+    let client = context.get_client().await?;
     let expected = expect![
         "Dependency ID contains a Iota object, not a Move package: 0x0000000000000000000000000000000000000000000000000000000000000005"
     ];
     expected.assert_eq(
-        &verifier
-            .verify_package_deps(&a_pkg)
+        &BytecodeSourceVerifier::new(client.read_api())
+            .verify(&a_pkg, ValidationMode::deps())
             .await
             .unwrap_err()
             .to_string(),
@@ -406,10 +404,12 @@ async fn module_not_found_on_chain() -> anyhow::Result<()> {
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)
     };
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
 
-    let Err(err) = verifier.verify_package_deps(&a_pkg).await else {
+    let client = context.get_client().await?;
+    let Err(err) = BytecodeSourceVerifier::new(client.read_api())
+        .verify(&a_pkg, ValidationMode::deps())
+        .await
+    else {
         panic!("Expected verification to fail");
     };
 
@@ -442,9 +442,10 @@ async fn module_not_found_locally() -> anyhow::Result<()> {
     };
 
     let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
-
-    let Err(err) = verifier.verify_package_deps(&a_pkg).await else {
+    let Err(err) = BytecodeSourceVerifier::new(client.read_api())
+        .verify(&a_pkg, ValidationMode::deps())
+        .await
+    else {
         panic!("Expected verification to fail");
     };
 
@@ -497,19 +498,89 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
     let client = context.get_client().await?;
     let verifier = BytecodeSourceVerifier::new(client.read_api());
 
-    let Err(err) = verifier.verify_package_deps(&a_pkg).await else {
+    let Err(err) = verifier.verify(&a_pkg, ValidationMode::deps()).await else {
         panic!("Expected verification to fail");
     };
 
     let expected = expect!["Local dependency did not match its on-chain version at <b_id>::b::c"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
-    let Err(err) = verifier.verify_package_root(&a_pkg, a_addr.into()).await else {
+    let Err(err) = verifier
+        .verify(&a_pkg, ValidationMode::root_at(a_addr.into()))
+        .await
+    else {
         panic!("Expected verification to fail");
     };
 
     let expected = expect!["Local dependency did not match its on-chain version at <a_addr>::a::a"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn linkage_differs() -> anyhow::Result<()> {
+    let mut cluster = TestClusterBuilder::new().build().await;
+    let context = &mut cluster.wallet;
+
+    let b_v1_fixtures = tempfile::tempdir()?;
+    let (b_v1, b_cap) = {
+        let b_src = copy_published_package(&b_v1_fixtures, "b", IotaAddress::ZERO).await?;
+        publish_package(context, b_src).await
+    };
+
+    let b_v2_fixtures = tempfile::tempdir()?;
+    let b_v2 = {
+        let b_src =
+            copy_upgraded_package(&b_v2_fixtures, "b-v2", b_v1.0.into(), IotaAddress::ZERO).await?;
+        upgrade_package(context, b_v1.0, b_cap.0, b_src).await
+    };
+
+    // Publish b-v2 a second time, to create a third version of the package that is
+    // otherwise byte-for-byte identical with the second version;
+    let b_v3_fixtures = tempfile::tempdir()?;
+    let b_v3 = {
+        let b_src =
+            copy_upgraded_package(&b_v3_fixtures, "b-v2", b_v2.0.into(), IotaAddress::ZERO).await?;
+        upgrade_package(context, b_v2.0, b_cap.0, b_src).await
+    };
+
+    // Publish E pointing at v2 of B.
+    let e_v1_fixtures = tempfile::tempdir()?;
+    let (e_v1, _) = {
+        copy_upgraded_package(&e_v1_fixtures, "b-v2", b_v2.0.into(), b_v1.0.into()).await?;
+        let e_src = copy_published_package(&e_v1_fixtures, "e", IotaAddress::ZERO).await?;
+        publish_package(context, e_src).await
+    };
+
+    // Compile E pointing at v3 of B, which is byte-for-byte identical with v2, but
+    // nevertheless has a different address.
+    let e_v2_fixtures = tempfile::tempdir()?;
+    let e_pkg = {
+        copy_upgraded_package(&e_v2_fixtures, "b-v2", b_v3.0.into(), b_v1.0.into()).await?;
+        let e_src = copy_published_package(&e_v2_fixtures, "e", e_v1.0.into()).await?;
+        compile_package(e_src)
+    };
+
+    let client = context.get_client().await?;
+    let stable_ids = HashMap::from_iter([
+        (b_v1.0.into(), "<b1>"),
+        (b_v2.0.into(), "<b2>"),
+        (b_v3.0.into(), "<b3>"),
+    ]);
+
+    let error = BytecodeSourceVerifier::new(client.read_api())
+        .verify(&e_pkg, ValidationMode::root())
+        .await
+        .unwrap_err()
+        .to_string();
+
+    let expected = expect![[r#"
+        Multiple source verification errors found:
+
+        - Source package depends on <b3> which is not in the linkage table.
+        - On-chain package depends on <b2> which is not a source dependency."#]];
+    expected.assert_eq(&sanitize_id(error, &stable_ids));
 
     Ok(())
 }
@@ -553,9 +624,10 @@ async fn multiple_failures() -> anyhow::Result<()> {
     };
 
     let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
-
-    let Err(err) = verifier.verify_package_deps(&d_pkg).await else {
+    let Err(err) = BytecodeSourceVerifier::new(client.read_api())
+        .verify(&d_pkg, ValidationMode::deps())
+        .await
+    else {
         panic!("Expected verification to fail");
     };
 
@@ -591,10 +663,12 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
     };
 
     let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
 
     // Verify versioned dependency
-    verifier.verify_package_deps(&a_pkg).await.unwrap();
+    BytecodeSourceVerifier::new(client.read_api())
+        .verify(&a_pkg, ValidationMode::deps())
+        .await
+        .unwrap();
 
     Ok(())
 }
@@ -603,7 +677,7 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
 fn compile_package(package: impl AsRef<Path>) -> CompiledPackage {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     BuildConfig::new_for_testing()
-        .build(package.as_ref().to_path_buf())
+        .build(package.as_ref())
         .unwrap()
 }
 

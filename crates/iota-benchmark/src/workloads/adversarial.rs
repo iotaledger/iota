@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{random_object_ref, IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,
@@ -19,24 +19,25 @@ use iota_types::{
 use itertools::Itertools;
 use move_core_types::identifier::Identifier;
 use rand::{
-    distributions::{Distribution, Standard},
     Rng,
+    distributions::{Distribution, Standard},
 };
 use regex::Regex;
-use strum::{EnumCount, EnumIter, IntoEnumIterator};
+use strum::{EnumCount, IntoEnumIterator};
+use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use tracing::debug;
 
 use super::{
-    workload::{Workload, WorkloadBuilder, MAX_GAS_FOR_TESTING},
     WorkloadBuilderInfo, WorkloadParams,
+    workload::{MAX_GAS_FOR_TESTING, Workload, WorkloadBuilder},
 };
 use crate::{
+    BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, ValidatorProxy,
     convert_move_call_args,
     drivers::Interval,
-    in_memory_wallet::{move_call_pt_impl, InMemoryWallet},
+    in_memory_wallet::{InMemoryWallet, move_call_pt_impl},
     system_state_observer::{SystemState, SystemStateObserver},
-    workloads::{payload::Payload, Gas, GasCoinConfig},
-    BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, ValidatorProxy,
+    workloads::{Gas, GasCoinConfig, payload::Payload},
 };
 
 /// Number of vectors to create in LargeTransientRuntimeVectors workload
@@ -44,7 +45,7 @@ const NUM_VECTORS: u64 = 1_000;
 
 // TODO: Need to fix Large* workloads, which are currently failing due to
 // InsufficientGas
-#[derive(Debug, EnumCount, EnumIter, Clone)]
+#[derive(Debug, EnumCountMacro, EnumIter, Clone)]
 pub enum AdversarialPayloadType {
     Random = 0,
     LargeObjects,

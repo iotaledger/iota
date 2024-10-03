@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
@@ -10,8 +10,8 @@ use futures::{Stream, StreamExt};
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
-    cap_page_limit, validate_limit, IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics,
-    ReadApiServer, QUERY_MAX_RESULT_LIMIT,
+    IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT, ReadApiServer,
+    cap_page_limit, validate_limit,
 };
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaObjectDataOptions, IotaObjectResponse,
@@ -29,7 +29,8 @@ use iota_types::{
     event::EventID,
 };
 use jsonrpsee::{
-    core::RpcResult, PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
+    PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
+    core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
 use move_core_types::language_storage::TypeTag;
@@ -38,10 +39,10 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};
 
 use crate::{
+    IotaRpcModule,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
-    IotaRpcModule,
 };
 
 async fn pipe_from_stream<T: Serialize>(
@@ -232,6 +233,10 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 )
                 .await
                 .map_err(Error::from)?;
+            // De-dup digests, duplicate digests are possible, for example,
+            // when get_transactions_by_move_function with module or function being None.
+            let mut seen = HashSet::new();
+            digests.retain(|digest| seen.insert(*digest));
 
             // extract next cursor
             let has_next_page = digests.len() > limit;
@@ -310,30 +315,36 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     }
 
     #[instrument(skip(self))]
-    async fn subscribe_event(&self, sink: PendingSubscriptionSink, filter: EventFilter) {
-        let permit = self.acquire_subscribe_permit().ok();
+    fn subscribe_event(
+        &self,
+        sink: PendingSubscriptionSink,
+        filter: EventFilter,
+    ) -> SubscriptionResult {
+        let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
             self.state
                 .get_subscription_handler()
                 .subscribe_events(filter),
-            permit,
+            Some(permit),
         );
+        Ok(())
     }
 
-    async fn subscribe_transaction(
+    fn subscribe_transaction(
         &self,
         sink: PendingSubscriptionSink,
         filter: TransactionFilter,
-    ) {
-        let permit = self.acquire_subscribe_permit().ok();
+    ) -> SubscriptionResult {
+        let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
             self.state
                 .get_subscription_handler()
                 .subscribe_transactions(filter),
-            permit,
+            Some(permit),
         );
+        Ok(())
     }
 
     #[instrument(skip(self))]

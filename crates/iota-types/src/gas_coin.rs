@@ -16,13 +16,13 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     id::UID,
     object::{Data, MoveObject, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 /// The number of Nanos per Iota token
@@ -187,6 +187,11 @@ mod checked {
                 name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),
             }
+        }
+
+        /// Returns the `TreasuryCap<IOTA>` object ID.
+        pub fn id(&self) -> &ObjectID {
+            self.inner.id.object_id()
         }
 
         /// Returns the total `Supply` of `Coin<IOTA>`.

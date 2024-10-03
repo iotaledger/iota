@@ -58,12 +58,15 @@ to add an `ADMIN_SECRET_KEY` and a `TEST_USER_SECRET` to the `.env`.
 The Testnet network is typically used for testing. Switch to Testnet with:
 `iota client switch --env testnet`
 
+At the end of the setup, your `.env` should look like the template
+[`.test.env.example.`](https://github.com/iotaledger/coin_management_system/blob/main/test/.env.example):
+
 ```ts
 # The Admin should also be the publisher of the nft_app smart contract
 ADMIN_ADDRESS= ...
 ADMIN_SECRET_KEY= ...
 
-# A user address that is used as a receiver of txbs. Used for testing.
+# A user address that is used as a receiver of txs. Used for testing.
 TEST_USER_ADDRESS= ...
 TEST_USER_SECRET= ...
 

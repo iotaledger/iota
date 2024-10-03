@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{extract::State, Extension, Json};
+use std::sync::Arc;
+
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -19,11 +21,13 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
+    IotaEnv, OnlineServerContext,
     errors::Error,
     operations::Operations,
     types::{
@@ -35,7 +39,6 @@ use crate::{
         InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
         TransactionIdentifierResponse,
     },
-    IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
@@ -76,7 +79,7 @@ pub async fn payloads(
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
-    hasher.update(&bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
+    hasher.update(bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
     let digest = hasher.finalize().digest;
 
     Ok(ConstructionPayloadsResponse {
@@ -114,13 +117,20 @@ pub async fn combine(
         .flag(),
     ];
 
-    let signed_tx = Transaction::from_generic_sig_data(
-        intent_msg.value,
-        vec![GenericSignature::from_bytes(
+    let signed_tx =
+        Transaction::from_generic_sig_data(intent_msg.value, vec![GenericSignature::from_bytes(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
-        )?],
-    );
-    signed_tx.verify_signature(&VerifyParams::default())?;
+        )?]);
+    // TODO: this will likely fail with zklogin authenticator, since we do not know
+    // the current epoch. As long as coinbase doesn't need to use zklogin for
+    // custodial wallets this is okay.
+    let place_holder_epoch = 0;
+    verify_sender_signed_data_message_signatures(
+        &signed_tx,
+        place_holder_epoch,
+        &VerifyParams::default(),
+        Arc::new(VerifiedDigestCache::new_empty()), // no need to use cache in rosetta
+    )?;
     let signed_tx_bytes = bcs::to_bytes(&signed_tx)?;
 
     Ok(ConstructionCombineResponse {

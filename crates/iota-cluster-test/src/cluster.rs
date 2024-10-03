@@ -6,14 +6,14 @@ use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
 use iota_config::{
-    genesis::Genesis, Config, PersistedConfig, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG,
+    Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
+    genesis::Genesis,
 };
 use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
-use iota_indexer::test_utils::{start_test_indexer, ReaderWriterConfig};
+use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
@@ -26,8 +26,9 @@ use iota_swarm_config::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair, AccountKeyPair, IotaKeyPair, KeypairTraits},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
 };
+use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
@@ -175,6 +176,8 @@ impl LocalNewCluster {
 #[async_trait]
 impl Cluster for LocalNewCluster {
     async fn start(options: &ClusterTestOpt) -> Result<Self, anyhow::Error> {
+        let data_ingestion_path = tempdir()?.into_path();
+        // TODO: options should contain port instead of address
         let fullnode_rpc_addr = options.fullnode_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()
                 .expect("Unable to parse fullnode address")
@@ -185,7 +188,9 @@ impl Cluster for LocalNewCluster {
                 .expect("Unable to parse indexer address")
         });
 
-        let mut cluster_builder = TestClusterBuilder::new().enable_fullnode_events();
+        let mut cluster_builder = TestClusterBuilder::new()
+            .enable_fullnode_events()
+            .with_data_ingestion_dir(data_ingestion_path.clone());
 
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
@@ -255,18 +260,20 @@ impl Cluster for LocalNewCluster {
             (options.pg_address.clone(), indexer_address)
         {
             // Start in writer mode
-            start_test_indexer(
+            start_test_indexer::<diesel::PgConnection>(
                 Some(pg_address.clone()),
                 fullnode_url.clone(),
                 ReaderWriterConfig::writer_mode(None),
+                data_ingestion_path.clone(),
             )
             .await;
 
             // Start in reader mode
-            start_test_indexer(
+            start_test_indexer::<diesel::PgConnection>(
                 Some(pg_address),
                 fullnode_url.clone(),
                 ReaderWriterConfig::reader_mode(indexer_address.to_string()),
+                data_ingestion_path,
             )
             .await;
         }
@@ -381,6 +388,7 @@ pub fn new_wallet_context_from_cluster(
             alias: "localnet".to_string(),
             rpc: fullnode_url.into(),
             ws: None,
+            basic_auth: None,
         }],
         active_address: Some(address),
         active_env: Some("localnet".to_string()),

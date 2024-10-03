@@ -105,6 +105,7 @@ function LeftContent({
         <Link
             to="/accounts/manage"
             className="flex flex-row items-center gap-sm p-xs text-pink-200 no-underline"
+            data-testid="accounts-manage"
         >
             <div
                 className={cn(

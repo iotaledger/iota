@@ -19,13 +19,14 @@ use storage::ProposerStore;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
-    time::{sleep, sleep_until, Duration, Instant},
+    time::{Duration, Instant, sleep, sleep_until},
 };
 use tracing::{debug, enabled, error, info, trace};
 use types::{
-    error::{DagError, DagResult},
-    now, BatchDigest, Certificate, CertificateAPI, ConditionalBroadcastReceiver, Header, HeaderAPI,
+    BatchDigest, Certificate, CertificateAPI, ConditionalBroadcastReceiver, Header, HeaderAPI,
     HeaderV1, Round, TimestampMs,
+    error::{DagError, DagResult},
+    now,
 };
 
 use crate::{consensus::LeaderSchedule, metrics::PrimaryMetrics};

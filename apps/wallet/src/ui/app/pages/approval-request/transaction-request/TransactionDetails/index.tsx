@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useTransactionData } from '_src/ui/app/hooks';
-import { type TransactionBlock } from '@iota/iota-sdk/transactions';
+import { type Transaction } from '@iota/iota-sdk/transactions';
 
 import { Command } from './Command';
 import { Input } from './Input';
@@ -22,17 +22,17 @@ import { Alert, Loading } from '_src/ui/app/components';
 
 interface TransactionDetailsProps {
     sender?: string;
-    transaction: TransactionBlock;
+    transaction: Transaction;
 }
 
 enum DetailsCategory {
-    Transactions = 'Transactions',
+    Commands = 'Commands',
     Inputs = 'Inputs',
 }
 const DETAILS_CATEGORIES = [
     {
-        label: 'Transactions',
-        value: DetailsCategory.Transactions,
+        label: 'Commands',
+        value: DetailsCategory.Commands,
     },
     {
         label: 'Inputs',
@@ -48,8 +48,8 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
     useEffect(() => {
         if (transactionData) {
             const defaultCategory =
-                transactionData.transactions.length > 0
-                    ? DetailsCategory.Transactions
+                transactionData.commands.length > 0
+                    ? DetailsCategory.Commands
                     : transactionData.inputs.length > 0
                       ? DetailsCategory.Inputs
                       : null;
@@ -60,7 +60,7 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
         }
     }, [transactionData]);
 
-    if (transactionData?.transactions.length === 0 && transactionData.inputs.length === 0) {
+    if (transactionData?.commands.length === 0 && transactionData.inputs.length === 0) {
         return null;
     }
     return (
@@ -80,8 +80,8 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                                 label={label}
                                 selected={selectedDetailsCategory === value}
                                 disabled={
-                                    DetailsCategory.Transactions === value
-                                        ? transactionData?.transactions.length === 0
+                                    DetailsCategory.Commands === value
+                                        ? transactionData?.commands.length === 0
                                         : DetailsCategory.Inputs === value
                                           ? transactionData?.inputs.length === 0
                                           : false
@@ -92,10 +92,10 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                     <Loading loading={isPending}>
                         {isError ? <Alert title="Couldn't gather data" /> : null}
                         <div className="flex flex-col p-md">
-                            {selectedDetailsCategory === DetailsCategory.Transactions &&
-                                !!transactionData?.transactions.length && (
+                            {selectedDetailsCategory === DetailsCategory.Commands &&
+                                !!transactionData?.commands.length && (
                                     <div className="flex flex-col gap-md">
-                                        {transactionData?.transactions.map((command, index) => (
+                                        {transactionData?.commands.map((command, index) => (
                                             <Command key={index} command={command} />
                                         ))}
                                     </div>
