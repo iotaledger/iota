@@ -68,9 +68,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             cell: ({ getValue }) => {
                 const effects = getValue<IotaTransactionBlockResponse['effects']>();
                 const totalGasUsed = effects ? getTotalGasUsed(effects)?.toString() : undefined;
-                const totalGasUsedFormatted = totalGasUsed
-                    ? totalGasUsed
-                    : '--';
+                const totalGasUsedFormatted = totalGasUsed ? totalGasUsed : '--';
                 return (
                     <TableCellBase>
                         <TableCellText supportingLabel={totalGasUsed ? 'nano' : undefined}>

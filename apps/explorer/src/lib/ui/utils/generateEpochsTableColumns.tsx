@@ -50,11 +50,17 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                 const totalStakeRewardsDistributed =
                     epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
                 const totalStakeRewardsDistributedFormatted = totalStakeRewardsDistributed
-                    ? formatBalance(Number(totalStakeRewardsDistributed) / Number(NANOS_PER_IOTA), 0, CoinFormat.ROUNDED)
+                    ? formatBalance(
+                          Number(totalStakeRewardsDistributed) / Number(NANOS_PER_IOTA),
+                          0,
+                          CoinFormat.ROUNDED,
+                      )
                     : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText supportingLabel={totalStakeRewardsDistributed ? 'IOTA' : undefined}>
+                        <TableCellText
+                            supportingLabel={totalStakeRewardsDistributed ? 'IOTA' : undefined}
+                        >
                             {totalStakeRewardsDistributedFormatted ?? '0'}
                         </TableCellText>
                     </TableCellBase>
@@ -82,14 +88,15 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             accessorKey: 'endOfEpochInfo',
             cell: ({ getValue }) => {
                 const endOfEpochInfo = getValue<EpochMetrics['endOfEpochInfo']>();
-                const storageNetInflow =
-                    getEpochStorageFundFlow(endOfEpochInfo).netInflow;
+                const storageNetInflow = getEpochStorageFundFlow(endOfEpochInfo).netInflow;
                 const storageNetInflowFormatted = storageNetInflow
                     ? formatBalance(storageNetInflow / NANOS_PER_IOTA, 0, CoinFormat.ROUNDED)
                     : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText supportingLabel={storageNetInflow ? 'IOTA' : undefined}>{storageNetInflowFormatted}</TableCellText>
+                        <TableCellText supportingLabel={storageNetInflow ? 'IOTA' : undefined}>
+                            {storageNetInflowFormatted}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
