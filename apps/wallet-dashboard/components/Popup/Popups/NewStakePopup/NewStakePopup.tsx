@@ -16,7 +16,7 @@ import {
     useGetAllOwnedObjects,
     useGetValidatorsApy,
 } from '@iota/core';
-import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
@@ -68,7 +68,7 @@ function NewStakePopup({
         groupedTimelockObjects,
     );
 
-    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { addNotification } = useNotifications();
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
@@ -96,9 +96,9 @@ function NewStakePopup({
             addNotification('Stake transaction was not created', NotificationType.Error);
             return;
         }
-        signAndExecuteTransactionBlock(
+        signAndExecuteTransaction(
             {
-                transactionBlock: newStakeData?.transaction,
+                transaction: newStakeData?.transaction,
             },
             {
                 onSuccess: (tx) => {
