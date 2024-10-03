@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::panic;
 use std::{cmp::Ordering, iter, mem, ops::Not, sync::Arc, thread};
 
 use either::Either;
@@ -151,7 +152,7 @@ impl AuthorityStore {
         indirect_objects_threshold: usize,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
-        migration_tx_data: Option<MigrationTxData>,
+        migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
         let epoch_start_configuration = if perpetual_tables.database_is_empty()? {
             info!("Creating new epoch start config from genesis");
@@ -252,7 +253,7 @@ impl AuthorityStore {
         indirect_objects_threshold: usize,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
-        migration_tx_data: Option<MigrationTxData>,
+        migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
@@ -301,14 +302,14 @@ impl AuthorityStore {
             store.perpetual_tables.events.multi_insert(events).unwrap();
 
             if let Some(migration_transactions) = migration_tx_data {
-                let mut txs_data = migration_transactions.extract_txs_data();
+                let txs_data = migration_transactions.txs_data();
 
                 for tx_digest in genesis.migration_txs_digests() {
-                    if let Some((tx, effects, events, objects)) = txs_data.remove(&tx_digest) {
+                    if let Some((tx, effects, events, objects)) = txs_data.get(tx_digest) {
                         let transaction = VerifiedTransaction::new_unchecked(tx.clone());
 
                         store
-                            .bulk_insert_genesis_objects(&objects)
+                            .bulk_insert_genesis_objects(objects)
                             .expect("Cannot bulk insert migrated objects");
 
                         store
@@ -320,7 +321,7 @@ impl AuthorityStore {
                         store
                             .perpetual_tables
                             .effects
-                            .insert(&effects.digest(), &effects)
+                            .insert(&effects.digest(), effects)
                             .expect("Cannot insert migration effects");
 
                         let events = events
@@ -329,14 +330,10 @@ impl AuthorityStore {
                             .enumerate()
                             .map(|(i, e)| ((events.digest(), i), e));
                         store.perpetual_tables.events.multi_insert(events).unwrap();
+                    } else {
+                        panic!("tx digest not found in migrated objects blob");
                     }
                 }
-
-                // Assert that all transactions have been successfully processed.
-                assert!(
-                    txs_data.is_empty(),
-                    "Migration data hasn't been processed correctly"
-                );
             }
         }
 

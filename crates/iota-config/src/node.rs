@@ -32,7 +32,7 @@ use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
-    certificate_deny_config::CertificateDenyConfig, genesis,
+    certificate_deny_config::CertificateDenyConfig, genesis, migration_tx_data,
     object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
     transaction_deny_config::TransactionDenyConfig, Config,
 };
@@ -60,7 +60,6 @@ pub struct NodeConfig {
     pub network_key_pair: KeyPairWithPath,
 
     #[serde(default)]
-    pub migration_data_path: Option<PathBuf>,
     pub db_path: PathBuf,
     #[serde(default = "default_grpc_address")]
     pub network_address: Multiaddr,
@@ -99,6 +98,8 @@ pub struct NodeConfig {
     pub p2p_config: P2pConfig,
 
     pub genesis: Genesis,
+
+    pub migration_tx_data: MigrationTxData,
 
     #[serde(default = "default_authority_store_pruning_config")]
     pub authority_store_pruning_config: AuthorityStorePruningConfig,
@@ -291,10 +292,6 @@ impl NodeConfig {
         self.db_path.join("live")
     }
 
-    pub fn migration_data_path(&self) -> &Option<PathBuf> {
-        &self.migration_data_path
-    }
-
     pub fn db_checkpoint_path(&self) -> PathBuf {
         self.db_path.join("db_checkpoints")
     }
@@ -317,6 +314,10 @@ impl NodeConfig {
 
     pub fn genesis(&self) -> Result<&genesis::Genesis> {
         self.genesis.genesis()
+    }
+
+    pub fn load_migration_tx_data(&self) -> Result<migration_tx_data::MigrationTxData> {
+        self.migration_tx_data.load()
     }
 
     pub fn iota_address(&self) -> IotaAddress {
@@ -790,6 +791,30 @@ impl Default for AuthorityOverloadConfig {
 
 fn default_authority_overload_config() -> AuthorityOverloadConfig {
     AuthorityOverloadConfig::default()
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
+pub struct MigrationTxData {
+    location: Option<PathBuf>,
+}
+
+impl MigrationTxData {
+    pub fn new_from_file<P: Into<PathBuf>>(path: P) -> Self {
+        Self {
+            location: Some(path.into()),
+        }
+    }
+
+    pub fn new_empty() -> Self {
+        Self { location: None }
+    }
+
+    pub fn load(&self) -> Result<migration_tx_data::MigrationTxData> {
+        match &self.location {
+            Some(location) => Ok(migration_tx_data::MigrationTxData::load(location)?),
+            _ => anyhow::bail!("no file location set"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
