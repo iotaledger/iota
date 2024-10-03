@@ -101,7 +101,11 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                 const epochEndTimestamp = epochMetrics.endOfEpochInfo?.epochEndTimestamp;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochEndTimestamp ? getElapsedTime(Number(epochEndTimestamp), Date.now()) : '--'}</TableCellText>
+                        <TableCellText>
+                            {epochEndTimestamp
+                                ? getElapsedTime(Number(epochEndTimestamp), Date.now())
+                                : '--'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

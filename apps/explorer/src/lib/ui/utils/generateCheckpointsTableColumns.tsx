@@ -63,7 +63,9 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
                 const timestampMs = getValue<Checkpoint['timestampMs']>();
                 return (
                     <TableCellBase>
-                        <TableCellText>{timestampMs ? getElapsedTime(Number(timestampMs), Date.now()) : '--'}</TableCellText>
+                        <TableCellText>
+                            {timestampMs ? getElapsedTime(Number(timestampMs), Date.now()) : '--'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
