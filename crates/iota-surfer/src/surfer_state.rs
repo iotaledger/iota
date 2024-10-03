@@ -14,12 +14,12 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, Identifier,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
     storage::WriteKind,
-    transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    Identifier, IOTA_FRAMEWORK_ADDRESS,
+    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
 };
 use move_binary_format::{file_format::Visibility, normalized::Type};
 use move_core_types::language_storage::StructTag;

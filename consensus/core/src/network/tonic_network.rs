@@ -14,40 +14,41 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cfg_if::cfg_if;
 use consensus_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
-use futures::{stream, Stream, StreamExt as _};
+use futures::{Stream, StreamExt as _, stream};
 use hyper_util::{rt::tokio::TokioIo, service::TowerToHyperService};
 use iota_common::sync::notify_once::NotifyOnce;
 use iota_metrics::monitored_future;
 use iota_network_stack::{
+    Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
-    Multiaddr,
 };
 use parking_lot::RwLock;
 use tokio::{
     pin,
     task::JoinSet,
-    time::{timeout, Instant},
+    time::{Instant, timeout},
 };
 use tokio_rustls::TlsAcceptor;
-use tokio_stream::{iter, Iter};
-use tonic::{transport::Server, Request, Response, Streaming};
+use tokio_stream::{Iter, iter};
+use tonic::{Request, Response, Streaming, transport::Server};
 use tower_http::{
-    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
     ServiceBuilderExt,
+    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
 };
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
+    BlockStream, NetworkClient, NetworkManager, NetworkService,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
     },
     tonic_tls::create_rustls_client_config,
-    BlockStream, NetworkClient, NetworkManager, NetworkService,
 };
 use crate::{
+    CommitIndex, Round,
     block::{BlockRef, VerifiedBlock},
     commit::CommitRange,
     context::Context,
@@ -56,7 +57,6 @@ use crate::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::create_rustls_server_config,
     },
-    CommitIndex, Round,
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
@@ -681,6 +681,7 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         let service = TonicServiceProxy::new(self.context.clone(), service);
         let config = &self.context.parameters.tonic;
 
+        #[allow(deprecated)]
         let consensus_service = Server::builder()
             .layer(
                 TraceLayer::new_for_grpc()

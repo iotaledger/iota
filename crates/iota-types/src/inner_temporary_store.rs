@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
+use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 

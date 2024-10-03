@@ -10,8 +10,8 @@ use axum::{
 };
 pub use balance_changes::*;
 use hyper::{
-    header::{HeaderName, HeaderValue},
     Method, Request,
+    header::{HeaderName, HeaderValue},
 };
 pub use iota_config::node::ServerType;
 use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
@@ -20,7 +20,7 @@ use iota_json_rpc_api::{
 };
 use iota_open_rpc::{Module, Project};
 use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
-use jsonrpsee::{types::ErrorObjectOwned, Extensions, RpcModule};
+use jsonrpsee::{Extensions, RpcModule, types::ErrorObjectOwned};
 pub use object_changes::*;
 use prometheus::Registry;
 use tokio::runtime::Handle;

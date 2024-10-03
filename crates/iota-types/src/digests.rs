@@ -9,7 +9,7 @@ use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 use tracing::info;
 
 use crate::{error::IotaError, iota_serde::Readable};

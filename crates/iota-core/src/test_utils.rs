@@ -14,14 +14,14 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
-        random_object_ref, AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef,
-        TransactionDigest,
+        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
+        random_object_ref,
     },
     committee::Committee,
     crypto::{
-        generate_proof_of_possession, get_key_pair, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignature, IotaKeyPair,
-        NetworkKeyPair, Signer,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
+        AuthoritySignature, IotaKeyPair, NetworkKeyPair, Signer, generate_proof_of_possession,
+        get_key_pair,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
@@ -29,8 +29,8 @@ use iota_types::{
     object::Object,
     signature_verification::VerifiedDigestCache,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction, Transaction, TransactionData,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -40,7 +40,7 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 
 use crate::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder, TimeoutConfig},
     state_accumulator::StateAccumulator,
     test_authority_clients::LocalAuthorityClient,

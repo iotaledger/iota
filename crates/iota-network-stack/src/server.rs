@@ -8,25 +8,25 @@ use std::{
     task::{Context, Poll},
 };
 
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use futures::FutureExt;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{
     body::BoxBody,
     codegen::{
-        http::{HeaderValue, Request, Response},
         BoxFuture,
+        http::{HeaderValue, Request, Response},
     },
     server::NamedService,
     transport::server::Router,
 };
 use tower::{
+    Layer, Service, ServiceBuilder,
     layer::util::{Identity, Stack},
     limit::GlobalConcurrencyLimitLayer,
     load_shed::LoadShedLayer,
     util::Either,
-    Layer, Service, ServiceBuilder,
 };
 use tower_http::{
     classify::{GrpcErrorsAsFailures, SharedClassifier},
@@ -38,10 +38,10 @@ use tower_http::{
 use crate::{
     config::Config,
     metrics::{
-        DefaultMetricsCallbackProvider, MetricsCallbackProvider, MetricsHandler,
-        GRPC_ENDPOINT_PATH_HEADER,
+        DefaultMetricsCallbackProvider, GRPC_ENDPOINT_PATH_HEADER, MetricsCallbackProvider,
+        MetricsHandler,
     },
-    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
+    multiaddr::{Multiaddr, Protocol, parse_dns, parse_ip4, parse_ip6},
 };
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
@@ -274,9 +274,9 @@ mod test {
     };
 
     use tonic::Code;
-    use tonic_health::pb::{health_client::HealthClient, HealthCheckRequest};
+    use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
-    use crate::{config::Config, metrics::MetricsCallbackProvider, Multiaddr};
+    use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
 
     #[test]
     fn document_multiaddr_limitation_for_unix_protocol() {

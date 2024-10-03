@@ -512,9 +512,6 @@ importers:
       vite:
         specifier: ^5.3.3
         version: 5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0)
-      vite-plugin-rewrite-all:
-        specifier: ^1.0.1
-        version: 1.0.2(vite@5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0))
       vite-plugin-svgr:
         specifier: ^3.2.0
         version: 3.3.0(rollup@4.22.4)(typescript@5.6.2)(vite@5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0))
@@ -8950,10 +8947,6 @@ packages:
     resolution: {integrity: sha512-cD31W1v3GqUlQvbBCGcXmd2Nj9SvLDOP1oQ0YFuLETufzSPaKp11rYBsSOm7rCsW3OnIRAFM3OxRhceaXNYHkA==}
     engines: {node: '>=12'}
 
-  connect-history-api-fallback@1.6.0:
-    resolution: {integrity: sha512-e54B99q/OUoH64zYYRf3HBP5z24G38h5D3qXu23JGRoigpX5Ss4r9ZnDk3g0Z8uQC2x2lPaJ+UlWBc1ZWBWdLg==}
-    engines: {node: '>=0.8'}
-
   connect-history-api-fallback@2.0.0:
     resolution: {integrity: sha512-U73+6lQFmfiNPrYbXqr6kZ1i1wiRqXnp2nhMsINseWXO8lDau0LGEffJ8kQi4EjLZympVgRdvqjAgiZ1tgzDDA==}
     engines: {node: '>=0.8'}
@@ -16209,13 +16202,6 @@ packages:
     peerDependenciesMeta:
       vite:
         optional: true
-
-  vite-plugin-rewrite-all@1.0.2:
-    resolution: {integrity: sha512-NpiFyHi9w8iHm3kZ28ma/IU16LFCkNJNqTvGy6cjoit2EMBi7dgFWFZFYcwZjUrc+pOMup//rsQTRVILvF2efQ==}
-    engines: {node: '>=12.0.0'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      vite: ^2.0.0 || ^3.0.0 || ^4.0.0
 
   vite-plugin-svgr@3.3.0:
     resolution: {integrity: sha512-vWZMCcGNdPqgziYFKQ3Y95XP0d0YGp28+MM3Dp9cTa/px5CKcHHrIoPl2Jw81rgVm6/ZUNONzjXbZQZ7Kw66og==}
@@ -26584,8 +26570,6 @@ snapshots:
       write-file-atomic: 3.0.3
       xdg-basedir: 5.1.0
 
-  connect-history-api-fallback@1.6.0: {}
-
   connect-history-api-fallback@2.0.0: {}
 
   consola@2.15.3: {}
@@ -35657,11 +35641,6 @@ snapshots:
       - '@types/node'
       - rollup
       - supports-color
-
-  vite-plugin-rewrite-all@1.0.2(vite@5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0)):
-    dependencies:
-      connect-history-api-fallback: 1.6.0
-      vite: 5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0)
 
   vite-plugin-svgr@3.3.0(rollup@4.22.4)(typescript@5.6.2)(vite@5.4.8(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0)):
     dependencies:

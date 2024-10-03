@@ -96,7 +96,6 @@
         "tsconfig-paths": "^4.2.0",
         "typescript": "^5.5.3",
         "vite": "^5.3.3",
-        "vite-plugin-rewrite-all": "^1.0.1",
         "vite-plugin-svgr": "^3.2.0",
         "vitest": "^2.0.1"
     },

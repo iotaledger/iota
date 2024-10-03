@@ -9,16 +9,16 @@ use fastcrypto::{
     traits::KeyPair,
 };
 use iota_config::{
+    AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, ConsensusConfig, FULL_NODE_DB_PATH, NodeConfig,
     local_ip_utils,
     node::{
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
-        default_zklogin_oauth_providers, AuthorityKeyPairWithPath, AuthorityOverloadConfig,
-        AuthorityStorePruningConfig, CheckpointExecutorConfig, DBCheckpointConfig,
+        AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
+        CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, KeyPairWithPath, RunWithRange,
-        StateArchiveConfig, StateSnapshotConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
+        StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
+        default_end_of_epoch_broadcast_channel_capacity, default_zklogin_oauth_providers,
     },
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
-    ConsensusConfig, NodeConfig, AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, FULL_NODE_DB_PATH,
 };
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},

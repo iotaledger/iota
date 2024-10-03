@@ -126,7 +126,6 @@ members = [
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
-  "crates/iota-service",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
@@ -541,7 +540,6 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-service = { path = "crates/iota-service" }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

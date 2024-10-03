@@ -8,16 +8,17 @@ use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
     iota_system_state_inner_v1::{IotaSystemStateInnerV1, ValidatorV1},
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
+    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait,
     base_types::ObjectID,
     committee::CommitteeWithNetworkMetadata,
-    dynamic_field::{get_dynamic_field_from_store, get_dynamic_field_object_from_store, Field},
+    dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
     id::UID,
     iota_system_state::{
@@ -27,7 +28,6 @@ use crate::{
     object::{MoveObject, Object},
     storage::ObjectStore,
     versioned::Versioned,
-    MoveTypeTagTrait, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 
 pub mod epoch_start_iota_system_state;

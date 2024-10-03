@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::{
+    QueryDsl, QueryResult, RunQueryDsl,
     query_builder::{AstPass, Query, QueryFragment, QueryId},
     sql_types::Bool,
-    QueryDsl, QueryResult, RunQueryDsl,
 };
 
 use crate::{

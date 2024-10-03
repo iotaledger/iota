@@ -7220,7 +7220,6 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-service",
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -7586,23 +7585,6 @@ dependencies = [
  "tokio",
  "url",
  "zeroize",
-]
-
-[[package]]
-name = "iota-service"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "axum",
- "iota-metrics",
- "prometheus",
- "serde",
- "serde_json",
- "simple-server-timing-header",
- "telemetry-subscribers",
- "tokio",
- "tower 0.4.13",
- "tracing",
 ]
 
 [[package]]

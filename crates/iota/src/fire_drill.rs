@@ -23,20 +23,19 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use iota_config::{
-    local_ip_utils,
+    Config, NodeConfig, PersistedConfig, local_ip_utils,
     node::{AuthorityKeyPairWithPath, KeyPairWithPath},
-    Config, NodeConfig, PersistedConfig,
 };
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
-use iota_sdk::{rpc_types::IotaTransactionBlockEffectsAPI, IotaClient, IotaClientBuilder};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
-    crypto::{generate_proof_of_possession, get_authority_key_pair, get_key_pair, IotaKeyPair},
+    crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
-    transaction::{CallArg, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC},
-    IOTA_SYSTEM_PACKAGE_ID,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
 };
 use move_core_types::ident_str;
 use tracing::info;

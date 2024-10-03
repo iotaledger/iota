@@ -11,7 +11,7 @@ use tracing::debug;
 
 use crate::{
     authority::AuthorityMetrics,
-    consensus_types::{committee_api::CommitteeAPI, AuthorityIndex},
+    consensus_types::{AuthorityIndex, committee_api::CommitteeAPI},
 };
 
 /// Updates list of authorities that are deemed to have low reputation scores by
@@ -101,8 +101,8 @@ mod tests {
     use narwhal_types::ReputationScores;
     use prometheus::Registry;
     use rand::{
-        rngs::{OsRng, StdRng},
         SeedableRng,
+        rngs::{OsRng, StdRng},
     };
 
     use crate::{

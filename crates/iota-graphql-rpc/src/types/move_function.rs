@@ -10,7 +10,7 @@ use crate::{
     types::{
         iota_address::IotaAddress,
         move_module::MoveModule,
-        open_move_type::{abilities, MoveAbility, MoveVisibility, OpenMoveType},
+        open_move_type::{MoveAbility, MoveVisibility, OpenMoveType, abilities},
     },
 };
 

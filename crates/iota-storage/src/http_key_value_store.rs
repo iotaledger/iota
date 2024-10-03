@@ -22,8 +22,8 @@ use iota_types::{
     transaction::Transaction,
 };
 use reqwest::{
-    header::{HeaderValue, CONTENT_LENGTH},
     Client, Url,
+    header::{CONTENT_LENGTH, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;

@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use iota_metrics::histogram::Histogram;
 use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 pub struct CheckpointExecutorMetrics {

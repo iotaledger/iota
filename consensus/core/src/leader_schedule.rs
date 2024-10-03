@@ -10,9 +10,10 @@ use std::{
 
 use consensus_config::{AuthorityIndex, Stake};
 use parking_lot::RwLock;
-use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 
 use crate::{
+    CommitIndex, Round,
     commit::CommitRange,
     context::Context,
     dag_state::DagState,
@@ -21,7 +22,6 @@ use crate::{
         CertificateScoringStrategy, CertifiedVoteScoringStrategyV1, CertifiedVoteScoringStrategyV2,
         ScoringStrategy, VoteScoringStrategy,
     },
-    CommitIndex, Round,
 };
 
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
@@ -119,8 +119,8 @@ impl LeaderSchedule {
 
     /// Checks whether the dag state unscored sub dags list is empty. If yes
     /// then that means that either (1) the system has just started and
-    /// there is no unscored sub dag available (2) the schedule has updated
-    /// - new scores have been calculated. Both cases we consider as valid cases
+    /// there is no unscored sub dag available (2) the schedule has updated,
+    /// new scores have been calculated. Both cases we consider as valid cases
     /// where the schedule has been updated.
     pub(crate) fn leader_schedule_updated(&self, dag_state: &RwLock<DagState>) -> bool {
         dag_state.read().unscored_committed_subdags_count() == 0
@@ -481,7 +481,7 @@ mod tests {
     use crate::{
         block::{BlockAPI as _, BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
         commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
-        storage::{mem_store::MemStore, Store, WriteBatch},
+        storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
 
