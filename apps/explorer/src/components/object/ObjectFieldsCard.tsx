@@ -158,6 +158,7 @@ export function ObjectFieldsCard({
                                             keyText={name}
                                             value={getFieldTypeValue(type, objectType).displayName}
                                             isTruncated
+                                            fullwidth
                                         />
                                     </ButtonUnstyled>
                                 ))}
