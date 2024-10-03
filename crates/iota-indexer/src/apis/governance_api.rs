@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
+use cached::{SizedCache, proc_macro::cached};
 use diesel::r2d2::R2D2Connection;
-use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
+use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter,
@@ -19,10 +19,10 @@ use iota_types::{
     committee::EpochId,
     governance::StakedIota,
     iota_serde::BigInt,
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, PoolTokenExchangeRate},
+    iota_system_state::{PoolTokenExchangeRate, iota_system_state_summary::IotaSystemStateSummary},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 

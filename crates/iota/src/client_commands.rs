@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, ensure, Context};
+use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use clap::*;
 use colored::Colorize;
@@ -30,18 +30,18 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    build_from_resolution_graph, check_invalid_dependencies, check_unpublished_dependencies,
-    gather_published_ids, BuildConfig, CompiledPackage, PackageDependencies,
+    BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
+    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
 };
 use iota_package_management::{LockCommand, PublishedAtError};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_replay::ReplayToolCommand;
 use iota_sdk::{
+    IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
+    IOTA_TESTNET_URL, IotaClient,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
-    IotaClient, IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
-    IOTA_TESTNET_URL,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
@@ -70,16 +70,16 @@ use move_package::BuildConfig as MoveBuildConfig;
 use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use shared_crypto::intent::Intent;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
+        Alignment as TableAlignment, Border as TableBorder, Modify as TableModify,
+        Panel as TablePanel, Style as TableStyle,
         object::{Cell as TableCell, Columns as TableCols, Rows as TableRows},
         span::Span as TableSpan,
         style::HorizontalLine,
-        Alignment as TableAlignment, Border as TableBorder, Modify as TableModify,
-        Panel as TablePanel, Style as TableStyle,
     },
 };
 use tracing::info;
@@ -88,7 +88,7 @@ use crate::{
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::PTB,
     displays::Pretty,
-    key_identity::{get_identity_address, KeyIdentity},
+    key_identity::{KeyIdentity, get_identity_address},
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
 
@@ -1198,18 +1198,15 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let tx_read = client
                     .read_api()
-                    .get_transaction_with_options(
-                        digest,
-                        IotaTransactionBlockResponseOptions {
-                            show_input: true,
-                            show_raw_input: false,
-                            show_effects: true,
-                            show_events: true,
-                            show_object_changes: true,
-                            show_balance_changes: false,
-                            show_raw_effects: false,
-                        },
-                    )
+                    .get_transaction_with_options(digest, IotaTransactionBlockResponseOptions {
+                        show_input: true,
+                        show_raw_input: false,
+                        show_effects: true,
+                        show_events: true,
+                        show_object_changes: true,
+                        show_balance_changes: false,
+                        show_raw_effects: false,
+                    })
                     .await?;
                 IotaClientCommandResult::TransactionBlock(tx_read)
             }

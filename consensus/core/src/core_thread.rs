@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use iota_metrics::{
-    monitored_mpsc::{channel, Receiver, Sender, WeakSender},
+    monitored_mpsc::{Receiver, Sender, WeakSender, channel},
     monitored_scope, spawn_logged_monitored_task,
 };
 use parking_lot::Mutex;
@@ -307,6 +307,7 @@ mod test {
 
     use super::*;
     use crate::{
+        CommitConsumer,
         block_manager::BlockManager,
         block_verifier::NoopBlockVerifier,
         commit_observer::CommitObserver,
@@ -316,7 +317,6 @@ mod test {
         leader_schedule::LeaderSchedule,
         storage::mem_store::MemStore,
         transaction::{TransactionClient, TransactionConsumer},
-        CommitConsumer,
     };
 
     #[tokio::test]

@@ -15,7 +15,7 @@ use iota_types::{
 use tokio::sync::Mutex;
 use tracing::error;
 
-use crate::{handlers::AnalyticsHandler, tables::TransactionEntry, FileType};
+use crate::{FileType, handlers::AnalyticsHandler, tables::TransactionEntry};
 
 pub struct TransactionHandler {
     pub(crate) state: Mutex<State>,

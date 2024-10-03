@@ -14,8 +14,8 @@ use iota_types::{base_types::AuthorityName, committee::EpochId, crypto::Randomne
 use tokio::sync::mpsc;
 
 use super::{
-    auth::AllowedPeersUpdatable, metrics::Metrics, server::Server, Handle, RandomnessEventLoop,
-    RandomnessMessage, RandomnessServer,
+    Handle, RandomnessEventLoop, RandomnessMessage, RandomnessServer, auth::AllowedPeersUpdatable,
+    metrics::Metrics, server::Server,
 };
 
 /// Randomness Service Builder.

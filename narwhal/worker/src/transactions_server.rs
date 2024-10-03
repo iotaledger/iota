@@ -5,9 +5,9 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_metrics::{metered_channel::Sender, monitored_scope, spawn_logged_monitored_task};
-use iota_network_stack::{server::Server, Multiaddr};
+use iota_network_stack::{Multiaddr, server::Server};
 use tokio::{
     task::JoinHandle,
     time::{sleep, timeout},
@@ -19,7 +19,7 @@ use types::{
     TransactionsServer, TxResponse,
 };
 
-use crate::{client::LocalNarwhalClient, metrics::WorkerEndpointMetrics, TransactionValidator};
+use crate::{TransactionValidator, client::LocalNarwhalClient, metrics::WorkerEndpointMetrics};
 
 pub struct TxServer<V: TransactionValidator> {
     address: Multiaddr,

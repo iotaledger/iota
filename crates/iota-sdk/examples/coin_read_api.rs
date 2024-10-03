@@ -14,6 +14,7 @@
 //! cargo run --example coin_read_api
 
 mod utils;
+
 use futures::{future, stream::StreamExt};
 use utils::setup_for_read;
 

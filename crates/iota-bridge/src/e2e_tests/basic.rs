@@ -14,23 +14,23 @@ use ethers::{prelude::*, types::Address as EthAddress};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
 };
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
+    BRIDGE_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectRef},
-    bridge::{BridgeChainId, BridgeTokenMetadata, BRIDGE_MODULE_NAME, TOKEN_ID_ETH},
+    bridge::{BRIDGE_MODULE_NAME, BridgeChainId, BridgeTokenMetadata, TOKEN_ID_ETH},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, TransactionData},
-    TypeTag, BRIDGE_PACKAGE_ID,
 };
 use move_core_types::ident_str;
 use tap::TapFallible;
 use tracing::info;
 
 use crate::{
-    abi::{eth_iota_bridge, EthBridgeEvent, EthERC20, EthIotaBridge},
+    abi::{EthBridgeEvent, EthERC20, EthIotaBridge, eth_iota_bridge},
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     e2e_tests::test_utils::{
-        get_signatures, send_eth_tx_and_get_tx_receipt, BridgeTestCluster, BridgeTestClusterBuilder,
+        BridgeTestCluster, BridgeTestClusterBuilder, get_signatures, send_eth_tx_and_get_tx_receipt,
     },
     eth_transaction_builder::build_eth_transaction,
     events::{
@@ -39,7 +39,7 @@ use crate::{
     iota_client::IotaBridgeClient,
     iota_transaction_builder::build_add_tokens_on_iota_transaction,
     types::{AddTokensOnEvmAction, BridgeAction, BridgeActionStatus, IotaToEthBridgeAction},
-    utils::{publish_and_register_coins_return_add_coins_on_iota_action, EthSigner},
+    utils::{EthSigner, publish_and_register_coins_return_add_coins_on_iota_action},
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
@@ -275,15 +275,12 @@ async fn test_add_new_coins_on_iota_and_eth() {
         .iter()
         .find(|(_type_, _)| _type == _type_)
         .unwrap();
-    assert_eq!(
-        metadata,
-        &BridgeTokenMetadata {
-            id: *id,
-            decimal_multiplier: 1_000_000_000,
-            notional_value: token_price,
-            native_token: false,
-        }
-    );
+    assert_eq!(metadata, &BridgeTokenMetadata {
+        id: *id,
+        decimal_multiplier: 1_000_000_000,
+        notional_value: token_price,
+        native_token: false,
+    });
 
     // Add new token on EVM
     let config_address = bridge_test_cluster.contracts().bridge_config;

@@ -6,14 +6,14 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anemo::{Network, PeerId, Request};
 use async_trait::async_trait;
-use crypto::{traits::KeyPair, NetworkKeyPair, NetworkPublicKey};
+use crypto::{NetworkKeyPair, NetworkPublicKey, traits::KeyPair};
 use iota_common::sync::notify_once::NotifyOnce;
 use parking_lot::RwLock;
 use tokio::{select, time::sleep};
 use tracing::error;
 use types::{
-    error::LocalClientError, FetchBatchesRequest, FetchBatchesResponse, PrimaryToWorker,
-    WorkerOthersBatchMessage, WorkerOwnBatchMessage, WorkerSynchronizeMessage, WorkerToPrimary,
+    FetchBatchesRequest, FetchBatchesResponse, PrimaryToWorker, WorkerOthersBatchMessage,
+    WorkerOwnBatchMessage, WorkerSynchronizeMessage, WorkerToPrimary, error::LocalClientError,
 };
 
 use crate::traits::{PrimaryToWorkerClient, WorkerToPrimaryClient};

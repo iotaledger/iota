@@ -23,10 +23,11 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_source_validation_service::{
-    host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
-    AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
-    NetworkLookup, Package, PackageSource, RepositorySource, SourceInfo, SourceLookup,
-    SourceResponse, SourceServiceMetrics, IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT,
+    AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse,
+    IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT, Network, NetworkLookup, Package,
+    PackageSource, RepositorySource, SourceInfo, SourceLookup, SourceResponse,
+    SourceServiceMetrics, host_port, initialize, serve, start_prometheus_server, verify_packages,
+    watch_for_upgrades,
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
@@ -290,13 +291,10 @@ async fn test_api_route() -> anyhow::Result<()> {
         .join("iota/move-stdlib/sources/address.move");
 
     let mut source_lookup = SourceLookup::new();
-    source_lookup.insert(
-        Symbol::from(module),
-        SourceInfo {
-            path: source_path,
-            source: Some("module address {...}".to_owned()),
-        },
-    );
+    source_lookup.insert(Symbol::from(module), SourceInfo {
+        path: source_path,
+        source: Some("module address {...}".to_owned()),
+    });
     let mut address_lookup = AddressLookup::new();
     let account_address = AccountAddress::from_hex_literal(address).unwrap();
     address_lookup.insert(account_address, source_lookup);

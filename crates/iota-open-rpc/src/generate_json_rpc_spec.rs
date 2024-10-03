@@ -9,9 +9,9 @@ use clap::{Parser, ValueEnum};
 // use iota_json_rpc::api::ExtendedApiOpenRpc;
 use iota_json_rpc::coin_api::CoinReadApi;
 use iota_json_rpc::{
-    governance_api::GovernanceReadApi, iota_rpc_doc, read_api::ReadApi,
+    IotaRpcModule, governance_api::GovernanceReadApi, iota_rpc_doc, read_api::ReadApi,
     transaction_builder_api::TransactionBuilderApi,
-    transaction_execution_api::TransactionExecutionApi, IotaRpcModule,
+    transaction_execution_api::TransactionExecutionApi,
 };
 use iota_json_rpc_api::{ExtendedApiOpenRpc, IndexerApiOpenRpc, MoveUtilsOpenRpc};
 use pretty_assertions::assert_str_eq;

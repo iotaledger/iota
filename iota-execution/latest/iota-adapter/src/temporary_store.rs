@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
     },
@@ -22,7 +23,7 @@ use iota_types::{
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
-    iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams},
+    iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     is_system_package,
     layout_resolver::LayoutResolver,
     object::{Data, Object, Owner},
@@ -31,7 +32,6 @@ use iota_types::{
         ParentSync, Storage,
     },
     transaction::InputObjects,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 use move_core_types::{
     account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
@@ -335,16 +335,14 @@ impl<'backing> TemporaryStore<'backing> {
         let id = new_object.id();
         let old_ref = old_object.compute_object_reference();
         debug_assert_eq!(old_ref.0, id);
-        self.loaded_runtime_objects.insert(
-            id,
-            DynamicallyLoadedObjectMetadata {
+        self.loaded_runtime_objects
+            .insert(id, DynamicallyLoadedObjectMetadata {
                 version: old_ref.1,
                 digest: old_ref.2,
                 owner: old_object.owner,
                 storage_rebate: old_object.storage_rebate,
                 previous_transaction: old_object.previous_transaction,
-            },
-        );
+            });
         self.execution_results.modified_objects.insert(id);
         self.execution_results
             .written_objects

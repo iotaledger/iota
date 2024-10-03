@@ -11,16 +11,16 @@ use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
 use iota_rest_api::CheckpointData;
 use iota_types::{
-    digests::TransactionDigest, effects::TransactionEvents, event::Event, SYSTEM_PACKAGE_ADDRESSES,
+    SYSTEM_PACKAGE_ADDRESSES, digests::TransactionDigest, effects::TransactionEvents, event::Event,
 };
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;
 
 use crate::{
+    FileType,
     handlers::AnalyticsHandler,
     package_store::{LocalDBPackageStore, PackageCache},
     tables::EventEntry,
-    FileType,
 };
 
 pub struct EventHandler {

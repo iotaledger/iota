@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use axum::{extract::Extension, http::StatusCode, routing::get, Json, Router};
+use axum::{Json, Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::spawn_logged_monitored_task;
 use tokio::{net::TcpListener, task::JoinHandle, time::sleep};
 use tracing::{error, info};
