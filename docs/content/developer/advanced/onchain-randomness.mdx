@@ -26,7 +26,7 @@ Having access to random numbers is only one part of designing secure application
 - Prefer generating randomness using function-local `RandomGenerator`.
 - Make sure that the "unhappy path" of your function does not charge more gas than the "happy path".
 
-## Use (non-public) `entry` functions
+## Use (non-public) `entry` Functions
 
 While composition is very powerful for smart contracts, it opens the door to attacks on functions that use randomness. Consider for example the next module:
 
@@ -77,7 +77,7 @@ The Move compiler enforces this behavior by rejecting `public` functions with `R
 
 :::
 
-## Programmable transaction block (PTB) restrictions
+## Programmable Transaction Block (Ptb) Restrictions
 
 A similar attack to the one previously described involves PTBs _even_ when `play_dice` is defined as a private `entry` function. For example, consider the `entry play_dice(guess: u8, fee: Coin<IOTA>, r: &Random, ctx: &mut TxContext): Option<GuessedCorrectly> { … }` function defined earlier, the attacker can publish the function
 
@@ -105,7 +105,7 @@ The Move compiler enforces this behavior by rejecting `public` functions with `R
 
 :::
 
-## Limited resources and `Random` dependent flows
+## Limited Resources and `Random` Dependent Flows
 
 Developers should be aware that some resources that are available to transactions are limited. If a function that reads `Random` consumes more resources in the unhappy path flow than in the happy path flow, an attacker can use that difference to revert the transaction in the unhappy flow as previously demonstrated. Concretely, gas is such a resource. Consider the following code:
 

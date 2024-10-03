@@ -17,7 +17,7 @@ See the [Kiosk SDK documentation](../../references/ts-sdk/kiosk/index.mdx) for e
 
 :::
 
-## IOTA Kiosk owners
+## IOTA Kiosk Owners
 
 Anyone can create an IOTA Kiosk. Ownership of a kiosk is determined by the owner of the `KioskOwnerCap`, a special object that grants full access to a single kiosk. As the owner, you can sell any asset with a type (T) that has a shared `TransferPolicy` available, or you can use a kiosk to store assets even without a shared policy. You can’t sell or transfer any assets from your kiosk that do not have an associated transfer policy available.
 
@@ -31,7 +31,7 @@ A Kiosk owner can:
 * Borrow and mutate owned assets
 * Access the full set of trading tools, such as auctions, lotteries, and collection bidding
 
-## IOTA Kiosk for buyers
+## IOTA Kiosk for Buyers
 
 A buyer is a party that purchases (or - more generally - receives) items from Kiosks, anyone on the network can be a Buyer (and, for example, a Kiosk Owner at the same time).
 
@@ -47,11 +47,11 @@ A buyer is a party that purchases (or - more generally - receives) items from Ki
 **Guarantees:**
 * When using a custom trading logic such as an Auction, the items are guaranteed to be unchanged until the trade is complete
 
-## IOTA Kiosk for marketplaces
+## IOTA Kiosk for Marketplaces
 
 As a marketplace operator, you can implement IOTA Kiosk to watch for offers made in a collection of kiosks and display them on a marketplace site. You can also implement a custom system using Kiosk extensions (created by the community or third-parties). For example, marketplaces can use a `TransferPolicyCap` to implement application-specific transfer rules.
 
-## IOTA Kiosk for creators
+## IOTA Kiosk for Creators
 
 As a creator, IOTA Kiosk supports strong enforcement for transfer policies and associated rules to protect assets and enforce asset ownership. IOTA Kiosk gives creators more control over their creations, and puts creators and owners in control of how their works can be used.
 
@@ -70,7 +70,7 @@ All of the above is effective immediately and globally.
 * Take or modify items stored in someone else's Kiosk
 * Restrict taking items from Kiosks if the "locking" rule was not set in the policy
 
-## IOTA Kiosk guarantees
+## IOTA Kiosk Guarantees
 
 IOTA Kiosk provides a set of guarantees that IOTA enforces through smart contracts.
 These guarantees include:
@@ -86,7 +86,7 @@ In practice, these guarantees mean that:
 * You can disable any extension at any time (as the owner).
 * The state of an extension state is always accessible to the extension.
 
-### Asset states in IOTA Kiosk
+### Asset States in IOTA Kiosk
 
 IOTA Kiosk is a shared object that can store heterogeneous values, such as different sets of asset collectibles. When you add an asset to your kiosk, it has one of the following states:
 * PLACED - an item placed in the kiosk using the `kiosk::place` function. The Kiosk Owner can withdraw it and use it directly, borrow it (mutably or immutably), or list an item for sale.
@@ -100,7 +100,7 @@ When someone purchases an asset from a kiosk, the asset leaves the kiosk and own
 
 To use an IOTA Kiosk, you must create one and have the `KioskOwnerCap` that matches the `Kiosk` object. You can create a new kiosk using a single transaction by calling the `kiosk::default` function. The function creates and shares a `Kiosk`, and transfers the `KioskOwnerCap` to your address.
 
-### Create an IOTA Kiosk using programmable transaction blocks
+### Create an IOTA Kiosk Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -109,7 +109,7 @@ tx.moveCall({
 });
 ```
 
-### Create an IOTA Kiosk using the IOTA CLI
+### Create an IOTA Kiosk Using the IOTA CLI
 
 ```shell
 iota client call \
@@ -118,12 +118,12 @@ iota client call \
     --function default 
 ```
 
-### Create an IOTA Kiosk with advanced options
+### Create an IOTA Kiosk With Advanced Options
 
 For more advanced use cases, when you want to choose the storage model or perform an action right away, you can use the  programmable transaction block (PTB) friendly function kiosk::new.
 Kiosk is designed to be shared. If you choose a different storage model, such as owned, your kiosk might not function as intended or not be accessible to other users. You can make sure your Kiosk works by testing it on IOTA Testnet.
 
-### Create an IOTA Kiosk with advanced options using programmable transaction blocks
+### Create an Iota Kiosk With Advanced Options Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -141,7 +141,7 @@ tx.moveCall({
 })
 ```
 
-### Create an IOTA Kiosk with advanced options using a PTB in the IOTA CLI
+### Create an IOTA Kiosk With Advanced Options Using a PTB in the IOTA CLI
 
 ```shell
 iota client ptb \
@@ -153,19 +153,19 @@ iota client ptb \
 
 Since `0x2::kiosk::new` returns a tuple, `kiosk.0` refers to the `Kiosk` itself and `kiosk.1` to the `KioskOwnerCap`.
 
-## Place items in and take items from your kiosk
+## Place Items in and Take Items From Your Kiosk
 
 As a kiosk owner, you can place any assets into your IOTA Kiosk. You can take any item from your kiosk that is not currently listed for sale.
 
 There's no limitations on which assets you can place in your kiosk. However, you can’t necessarily list and trade all of the items you place in your kiosk. The `TransferPolicy` associated with the type for the item determines whether you can trade it. To learn more, see the [Purchase items from a Kiosk](#purchase-an-item-from-a-kiosk) section.
 
-### Place an item in your kiosk
+### Place an Item in Your Kiosk
 
 To place an item to the Kiosk, the owner needs to call the `iota::kiosk::place` function on the `Kiosk` object and pass the `KioskOwnerCap` and the `Item` as arguments.
 
 `ITEM_TYPE` in the following examples represents the full type of the item.
 
-### Place an item using programmable transaction blocks
+### Place an Item Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -181,7 +181,7 @@ tx.moveCall({
 })
 ```
 
-### Place an item using the IOTA CLI
+### Place an Item Using the IOTA CLI
 
 ```shell
 iota client call \
@@ -192,13 +192,13 @@ iota client call \
     --type-args "<ITEM_TYPE>" 
 ```
 
-## Take items from a kiosk
+## Take Items from a Kiosk
 
 To take an item from a kiosk you must be the kiosk owner. As the owner, call the `iota::kiosk::take` function on the `Kiosk` object, and pass the `KioskOwnerCap` and `ID` of the item as arguments.
 
 `ITEM_TYPE` in the following examples represents the full type of the item.
 
-### Take an item from a kiosk using programmable transaction blocks
+### Take an Item From a Kiosk Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -214,7 +214,7 @@ let item = tx.moveCall({
 });
 ```
 
-### Take an item from a kiosk using the IOTA CLI
+### Take an Item from a Kiosk Using the IOTA CLI
 
 The `kiosk::take` function is built to be PTB friendly and returns the asset. In this IOTA CLI PTB example we transfer the taken item to the given address.
 
@@ -228,7 +228,7 @@ iota client ptb  \
     --transfer-objects [taken_item] <YOUR_ADDRESS>
 ```
 
-## Lock items in a kiosk
+## Lock Items in a Kiosk
 
 Some policies require that assets never get removed from a kiosk, such as for strong royalty enforcement. To support this, IOTA Kiosk provides a locking mechanism. Locking is similar to placing except that you can't take a locked asset out of the kiosk.
 
@@ -240,13 +240,13 @@ After you lock an asset, you must use `list` or `list_with_purchase_cap` functio
 
 :::
 
-### Lock an item in a kiosk
+### Lock an Item in a Kiosk
 
 When you use the `lock` function, similar to using the `place` function, you specify the `KioskOwnerCap` and the `Item` as arguments. But to lock the item, you must also show the `TransferPolicy`.
 
 `<ITEM_TYPE>` in the following examples represents the full type of the asset.
 
-### Lock an item using programmable transaction blocks
+### Lock an Item Using Programmable Transaction Blocks
 
 ```javascript
 const tx = new Transaction();
@@ -263,7 +263,7 @@ tx.moveCall({
 });
 ```
 
-### Lock an item using the IOTA CLI
+### Lock an Item Using the IOTA CLI
 
 ```shell
 iota client call \
@@ -274,7 +274,7 @@ iota client call \
     --type-args "<ITEM_TYPE>" 
 ```
 
-## List and delist items from a kiosk
+## List and Delist Items From a Kiosk
 
 IOTA Kiosk provides basic trading functionality. As a kiosk owner, you can list assets for sale, and buyers can discover and purchase them. IOTA Kiosk supports listing items by default with three primary functions:
 * `kiosk::list` - list an asset for sale for a fixed price
@@ -283,12 +283,12 @@ IOTA Kiosk provides basic trading functionality. As a kiosk owner, you can list 
 
 Anyone on the network can purchase an item listed from an IOTA Kiosk. To learn more about the purchase flow, see the [Purchase section](#purchase-an-item-from-a-kiosk). To learn more about asset states and what can be done with a listed item, see the [Asset States](#asset-states-in-iota-kiosk) section.
 
-### List an item from a kiosk
+### List an Item From a Kiosk
 
 As a kiosk owner, you can use the `kiosk::list` function to list any asset you added to your kiosk by including the item to sell and the list price as arguments. All listings on IOTA are in IOTA coins.
 When you list an item, IOTA emits a `kiosk::ItemListed` event that  contains the Kiosk ID, Item ID, the type of the Item, and the list price.
 
-### List an item using programmable transaction blocks
+### List an Item Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -306,7 +306,7 @@ tx.moveCall({
 });
 ```
 
-### List an item using the IOTA CLI
+### List an Item Using the IOTA CLI
 
 ```shell
 iota client call \
@@ -317,7 +317,7 @@ iota client call \
     --type-args "ITEM_TYPE" 
 ```
 
-### Delist an item
+### Delist an Item
 
 As a kiosk owner you can use the `kiosk::delist` to delist any currently listed asset. Specify the item to delist as an argument.
 
@@ -325,7 +325,7 @@ When you delist an item, IOTA returns to the kiosk owner the gas fees charged to
 
 When you delist an item, IOTA emits a `kiosk::ItemDelisted` event that contains the Kiosk ID, Item ID, and the type of the item.
 
-### Delist an item using programmable transaction blocks
+### Delist an Item Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -341,7 +341,7 @@ tx.moveCall({
 });
 ```
 
-### Delist an item using the IOTA CLI
+### Delist an Item Using the IOTA CLI
 
 ```shell
 iota client call \
@@ -352,7 +352,7 @@ iota client call \
     --type-args "ITEM_TYPE" 
 ```
 
-## Purchase an item from a kiosk
+## Purchase an Item from a Kiosk
 
 Anyone that has an address on the IOTA network can purchase an item listed from an IOTA Kiosk. To purchase an item, you can use the `kiosk::purchase` function. Specify the item to purchase and pay the list price set by the Kiosk Owner.
 
@@ -360,7 +360,7 @@ You can discover the items listed on the network with the `kiosk::ItemListed` ev
 
 When you use the `kiosk::purchase` function, it returns the purchased asset and the `TransferRequest` for the type associated with the asset. To complete the purchase, you must meet the terms defined in the `TransferPolicy` applied to the asset.
 
-### Purchase an item using the IOTA CLI
+### Purchase an Item Using the IOTA CLI
 
 ```shell
 iota client ptb \
@@ -382,18 +382,18 @@ iota client ptb \
   --transfer-objects [purchase_result.0] <YOUR_ADDRESS>
 ```
 
-## Borrow an item from a kiosk
+## Borrow an Item from a Kiosk
 
 As a kiosk owner, you can access an asset placed or locked in a kiosk without taking the asset from the kiosk. You can always borrow the asset immutably. Whether you can mutably borrow an asset depends on the state of the asset. For example, you can’t borrow a listed asset because you can’t modify it while listed. The functions available include:
 * `kiosk::borrow` - returns an immutable reference to the asset
 * `kiosk::borrow_mut` - returns a mutable reference to the asset
 * `kiosk::borrow_val` - a PTB-friendly version of `borrow_mut`, which allows you to take an asset and place it back in the same transaction.
 
-### Immutable borrow
+### Immutable Borrow
 
 You can always borrow an asset from a kiosk immutably. You can use the  `kiosk::borrow` function to borrow an asset, however, it is not possible to use references within a programmable transaction block. To access the asset you must use a published module (function).
 
-### Immutably borrow an asset using IOTA Move
+### Immutably Borrow an Asset Using IOTA Move
 
 ```move
 module examples::immutable_borrow {
@@ -406,11 +406,11 @@ module examples::immutable_borrow {
 }
 ```
 
-### Mutable borrow with borrow_mut
+### Mutable Borrow with `borrow_mut`
 
 You can mutably borrow an asset from a kiosk if it is not listed. You can use the `kiosk::borrow_mut` function to mutably borrow an asset. However, it is not possible to use references within a PTB, so to access the mutably borrowed asset you must use a published module (function).
 
-### Mutably borrow an asset using IOTA Move
+### Mutably Borrow an Asset Using IOTA Move
 
 ```move
 module examples::mutable_borrow {
@@ -425,11 +425,11 @@ module examples::mutable_borrow {
 }
 ```
 
-### Mutable borrow with `borrow_val`
+### Mutable Borrow with `borrow_val`
 
 You can use the PTB-friendly `kiosk::borrow_val` function. It allows you to take an asset and place it back in the same transaction. To make sure the asset is placed back into the kiosk, the function "obliges" the caller with a “Hot Potato”.
 
-### Mutable borrow with `borrow_val` using programmable transaction blocks
+### Mutable Borrow with `borrow_val` Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -456,11 +456,11 @@ tx.moveCall({
 });
 ```
 
-## Withdraw proceeds from a completed sale
+## Withdraw Proceeds from a Completed Sale
 
 When someone purchases an item, IOTA stores the proceeds from the sale in the Kiosk. As the kiosk owner, you can withdraw the proceeds at any time by calling the `kiosk::withdraw` function.
 
-### Withdraw proceeds using programmable transaction blocks
+### Withdraw Proceeds Using Programmable Transaction Blocks
 
 ```javascript
 let tx = new Transaction();
@@ -488,7 +488,7 @@ let coin = tx.moveCall({
 });
 ```
 
-### Withdraw proceeds using the IOTA CLI
+### Withdraw Proceeds Using the IOTA CLI
 
 ```shell
 iota client ptb \

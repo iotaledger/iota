@@ -8,7 +8,7 @@ When you publish or upgrade your package on multiple chains (Mainnet, Testnet, D
 
 Note that automated address management works for one package published to one or more chains. When you publish or upgrade, address management uses the contents of the package's working directory. If a package is republished to a chain, addresses tracked for the previously published package are overwritten for that chain.
 
-## Adopting automated address management for published packages
+## Adopting Automated Address Management for Published Packages
 
 Previously a `published-at` entry was **mandatory** in the `Move.toml` file, which sets the address of the latest published package. It is no longer required if this data is tracked in the `Move.lock` file. For an existing package, add the necessary data to the `Move.lock` file so that it can be automatically tracked:
 
@@ -43,7 +43,7 @@ kiosk = "0x0"
 
 Your package is now tracked. You can repeat the above steps to track addresses for additional environments.
 
-## Package upgrade guidance
+## Package Upgrade Guidance
 
 - When [upgrading](./upgrade#upgrade-requirements), you need to retrieve the `UpgradeCap` ID of your published package. Automated address management does not track your `UpgradeCap`.
 
@@ -63,7 +63,7 @@ Here are steps to remediate conflicting addresses:
 
 - If the conflict is in a package that you do not maintain (such as a dependency), consider fixing the issue locally with the steps above, or contacting the maintainer to upstream changes.
 
-## Internal reference
+## Internal Reference
 
 This section is an overview of the schema and internal operation of tracked address in the `Move.lock` file. Most developers do not need to understand these internals. It is a reference for those who want a complete interface or control to internal state tracking.
 

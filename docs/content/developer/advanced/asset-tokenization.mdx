@@ -6,7 +6,7 @@ import InitClient from '../../_snippets/initialize-iota-client-cli.mdx';
 
 Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network. This involves converting the ownership or rights of an asset into digital tokens, which are then recorded and managed on the blockchain.
 
-## High-level overview
+## High-level Overview
 
 The concept is to divide high-value assets into smaller, more affordable units, representing ownership or a fraction of the asset.
 
@@ -36,11 +36,11 @@ This pattern is similar to the [ERC1155](https://eips.ethereum.org/EIPS/eip-1155
 
   If a tokenized asset is burnable, then burning a fraction causes the circulating supply to decrease by the balance of the burnt item. The total supply, however, remains constant, allowing you to mint the burned fractions again if needed, thus maintaining the predetermined total supply of the asset.
 
-## Move packages
+## Move Packages
 
 As with all smart contracts on IOTA, Move provides the logic that powers asset tokenization.
 
-### asset_tokenization package
+### `asset_tokenization` Package
 
 :::info
 
@@ -434,7 +434,7 @@ It allows tokenized asset type creators to enable these operations for kiosk ass
 
 </Tabs>
 
-### template package
+### `template` Package
 
 An example use case package that enables utilization of Rust WASM functionality to support seamless asset creation on the browser.
 
@@ -466,7 +466,7 @@ More details regarding how Rust WASM was implemented can be found in the [Web As
 
     A genesis type of module that includes a OTW so that the sender can claim the publisher.
 
-## Publish and mint tokenized sequence diagram
+## Publish and Mint Tokenized Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -502,7 +502,7 @@ sequenceDiagram
     Asset Creator->>Kiosk: Place Tokenized Asset
 ```
 
-### Join sequence diagram
+### Join Sequence Diagram
 
 The following sequence diagram presenting how the join flow would take place. The following flow assumes that:
 
@@ -534,7 +534,7 @@ unlock module-->>User: Return Tokenized Asset X
 User->>User's Kiosk: Resolve Promise by returning Tokenized Asset X in user's Kiosk
 ```
 
-### Burn sequence diagram
+### Burn Sequence Diagram
 
 The following sequence diagram shows the burn flow and assumes that:
 
@@ -567,7 +567,7 @@ unlock module-->>User: Returns Asset Cap
 
 The packages and modules provided demonstrate how you could implement asset tokenization for your project. Your particular use case probably necessitates altering the contract for convenience or to introduce new features.
 
-### Example convenience alteration
+### Example Convenience Alteration
 
 Instead of implementing the unlock functionality in multiple steps inside of a PTB, it would also be possible to create a method that performs the purchase, borrowing, unlocking and joining of an asset all on one function. This is how that would look like for the joining operation:
 
@@ -598,7 +598,7 @@ public fun kiosk_join<T>(
 }
 ```
 
-### Example alteration for use case
+### Example Alteration For Use Case
 
 :::caution
 
@@ -696,7 +696,7 @@ FT2 = tokenized asset id (to be joined)
 
 For more details on publishing, please check the setup folder's [README](https://github.com/iotaledger/asset-tokenization/tree/main/setup).
 
-#### Publishing packages
+#### Publishing Packages
 
 Select a package for specific instructions.
 
@@ -704,7 +704,7 @@ Select a package for specific instructions.
 
 <TabItem label="asset_tokenization" value="asset_tokenization">
 
-#### Manually
+##### Manually
 
 In a terminal or console at the `move/asset_tokenization` directory of the project enter:
 
@@ -730,7 +730,7 @@ You should choose and store the `package ID` and the `registry ID` from the crea
 
 Afterward, it's necessary to modify the `Move.toml` file. Under the `[addresses]` section, replace `0x0` with the same `package ID`.
 
-#### Automatically
+##### Automatically
 
 The fields that are automatically filled are: `SUI_NETWORK`, `ASSET_TOKENIZATION_PACKAGE_ID` and `REGISTRY`.
 
@@ -748,7 +748,7 @@ For more details regarding this process, please consult the setup folder's [READ
 
 <TabItem label="template" value="template">
 
-#### Manually
+##### Manually
 
 In a terminal or console at the `move/template` directory of the project enter:
 
@@ -773,7 +773,7 @@ You can also view a multitude of information and transactional effects.
 
 You should choose and store the `package ID`, asset `metadata ID`, `asset cap ID` and the `Publisher ID` from the created objects in the respective fields within your .env file.
 
-#### Automatically
+##### Automatically
 
 The process of automatic deployment for the template package refers to publishing a new asset via the WASM library. Quick start steps:
 
@@ -789,7 +789,7 @@ For more details regarding this process, please consult the setup folder's [READ
 
 </Tabs>
 
-### WebAssembly (WASM) and template package
+### WebAssembly (WASM) and Template Package
 
 :::tip
 
@@ -860,7 +860,7 @@ The output format is similar to the template module but smaller in length. Simil
 
 With the above setup, the library can now manipulate the bytecode by deserializing it, editing it, and serializing it again so that you can publish it.
 
-### Closer view of the template module
+### Closer View of the Template Module
 
 Taking a look at the template module, you should see that a few constants have been defined:
 

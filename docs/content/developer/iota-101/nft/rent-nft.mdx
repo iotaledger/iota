@@ -17,7 +17,7 @@ The NFT Rental example satisfies the following project requirements:
 - After the renting period has finished, the item can be sold normally.
 - Creator-defined royalties are respected by encompassing [transfer policy rules](../objects/transfers/custom-rules.mdx).
 
-## Use cases
+## Use Cases
 
 Some use cases for real-world NFT rental example include:
 
@@ -39,15 +39,15 @@ There are multiple cases in gaming where renting NFTs can be beneficial to user 
 
 In the realm of ticketing, NFTs play a pivotal role in enhancing transferability. These digital assets facilitate a secure and traceable transfer, resale, or rental of tickets, mitigating the risk of counterfeit tickets within the secondary market. The blockchain-based nature of NFTs ensures transparency and authenticity in each transaction, providing users with a reliable and fraud-resistant means to engage in ticket-related activities. This innovation not only simplifies the process for ticket holders but also contributes to a more trustworthy and efficient secondary ticket market.
 
-### Virtual land
+### Virtual Land
 
 Renting virtual lands and offices in the metaverse provides businesses with flexible solutions, enabling event companies to host gatherings without the commitment of permanent acquisitions and facilitating remote work through virtual offices. This approach not only offers cost-effective alternatives but also aligns with the evolving dynamics of digital business operations.
 
-### Temporary assets and subscriptions
+### Temporary Assets and Subscriptions
 
 Temporary assets and subscriptions are notable applications of rental NFTs, offering accessibility to virtual experiences like high-end virtual casinos or curated digital fashion. These NFTs cater to diverse budgets, broadening audience reach. Subscription rentals extend to pools of digital assets, allowing users to pay monthly for a set number of items, fostering accessibility, user retention, and acquisition. Holders can rent out unused subscriptions, ensuring no loss for them, potential customer gains for the protocol, and a commitment-free trial for temporary holders. This showcases the adaptability and user-centric appeal of rental NFTs in diverse scenarios.
 
-## Smart contract design
+## Smart Contract Design
 
 :::warning
 
@@ -63,11 +63,11 @@ This implementation is charging a rental fee based on days. You can re-purpose a
 
 :::
 
-## Move modules
+## Move Modules
 
 The NFT Rental example uses a single module, `nft_rental.move`. You can find the source for this file hosted in the [IOTA repository](https://github.com/iotaledger/iota/tree/main/examples/move/nft-rental/sources/nft_rental.move) in the `examples` directory. The source code includes extensive comments to help you follow the example's logic and structure.
 
-### nft_rental
+### `nft_rental`
 
 The `nft_rental` module provides an API that facilitates lending or borrowing through the following operations:
 
@@ -161,7 +161,7 @@ public struct ProtectedTP<phantom T> has key, store {
 }
 ```
 
-### Function signatures
+### Function Signatures
 
 The NFT Rental example includes the following functions that define the project's logic.
 
@@ -490,7 +490,7 @@ public fun reclaim<T: key + store>(
 }
 ```
 
-## Sequence diagrams
+## Sequence Diagrams
 
 :::note
 

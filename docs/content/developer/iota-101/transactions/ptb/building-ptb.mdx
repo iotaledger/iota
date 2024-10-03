@@ -54,7 +54,7 @@ After you have the PTB defined, you can directly execute it with a `signer` usin
 signer.signAndExecuteTransaction({ Transaction: txb });
 ```
 
-## Constructing inputs
+## Constructing Inputs
 
 Inputs are how you provide external values to PTBs. For example, defining an amount of IOTA to transfer, or which object to pass into a Move call, or a shared object.
 
@@ -65,7 +65,7 @@ There are currently two ways to define inputs:
     - If value is a `Uint8Array`, then the value is assumed to be raw bytes and is used directly.
     - If type is provided, it's used to generate the BCS serialization layout for the value. If not provided, the type is automatically determined based on the value.
 
-## Available transactions
+## Available Transactions
 
 IOTA supports following transaction commands:
 
@@ -81,7 +81,7 @@ IOTA supports following transaction commands:
     - Example: `txb.makeMoveVec({ elements: [txb.object(id1), txb.object(id2)] })`
 - `txb.publish(modules, dependencies)`: Publishes a Move package. Returns the upgrade capability object.
 
-## Passing transaction results as arguments
+## Passing Transaction Results As Arguments
 
 You can use the result of a transaction command as an argument in subsequent transaction commands. Each transaction command method on the transaction builder returns a reference to the transaction result.
 
@@ -104,13 +104,13 @@ const mintMany = txb.moveCall({ target: "0x2::nft::mint_many" });
 txb.transferObjects([mintMany[0], mintMany[1]], txb.pure(address));
 ```
 
-## Use the gas coin
+## Use the Gas Coin
 
 With PTBs, you can use the gas payment coin to construct coins with a set balance using `splitCoin`. This is useful for IOTA payments, and avoids the need for up-front coin selection. You can use `txb.gas` to access the gas coin in a PTB, and it is valid as input for any arguments; with the exception of `transferObjects`, `txb.gas` must be used by-reference. Practically speaking, this means you can also add to the gas coin with `mergeCoins` or borrow it for Move functions with `moveCall`.
 
 You can also transfer the gas coin using `transferObjects`, in the event that you want to transfer all of your coin balance to another address.
 
-## Get PTB bytes
+## Get PTB Bytes
 
 If you need the PTB bytes, instead of signing or executing the PTB, you can use the `build` method on the transaction builder itself.
 
@@ -137,7 +137,7 @@ const bytes = getTransactionBytesFromSomewhere();
 const txb = Transaction.from(bytes);
 ```
 
-## Building offline
+## Building Offline
 
 In the event that you want to build a PTB offline (as in with no `provider` required), you need to fully define all of your input values, and gas configuration (see the following example). For pure values, you can provide a `Uint8Array` which is used directly in the transaction. For objects, you can use the `Inputs` helper to construct an object reference.
 
@@ -156,11 +156,11 @@ txb.object(Inputs.SharedObjectRef({ objectId, initialSharedVersion, mutable }));
 
 You can then omit the `provider` object when calling `build` on the transaction. If there is any required data that is missing, this will throw an error.
 
-## Gas configuration
+## Gas Configuration
 
 The new transaction builder comes with default behavior for all gas logic, including automatically setting the gas price, budget, and selecting coins to be used as gas. This behavior can be customized.
 
-### Gas price
+### Gas Price
 
 By default, the gas price is set to the reference gas price of the network. You can also explicitly set the gas price of the PTB by calling `setGasPrice` on the transaction builder.
 
@@ -182,7 +182,7 @@ The gas budget is represented in IOTA, and should take the gas price of the PTB 
 txb.setGasBudget(gasBudgetAmount);
 ```
 
-### Gas payment
+### Gas Payment
 
 By default, the gas payment is automatically determined by the SDK. The SDK selects all coins at the provided address that are not used as inputs in the PTB.
 
@@ -194,7 +194,7 @@ The list of coins used as gas payment will be merged down into a single gas coin
 txb.setGasPayment([coin1, coin2]);
 ```
 
-### dApp / Wallet integration
+### dApp / Wallet Integration
 
 The Wallet Standard interface has been updated to support the `Transaction` kind directly. All `signTransaction` and `signAndExecuteTransaction` calls from dApps into wallets is expected to provide a `Transaction` class. This PTB class can then be serialized and sent to your wallet for execution.
 

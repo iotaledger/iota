@@ -4,7 +4,7 @@ title: Closed-Loop Token
 
 Using the Closed-Loop Token standard, you can limit the applications that can use the token and set up custom policies for transfers, spends, and conversions. The [`iota::token` module](../../references/framework/iota-framework/token) in the IOTA framework defines the standard.
 
-## Background and use cases
+## Background and Use Cases
 
 The [Coin standard](coin.mdx) on IOTA is an example of an open-loop system - coins are free-flowing, [wrappable](../iota-101/objects/object-ownership/wrapped.mdx), [freely transferable](../iota-101/objects/transfers/custom-rules.mdx#the-store-ability-and-transfer-rules) and you can store them in any application. The best real world analogy would be cash - hardly regulated and can be freely used and passed.
 
@@ -58,7 +58,7 @@ struct Coin<phantom T> has key, store { id: UID, balance: Balance<T> }
 struct Token<phantom T> has key { id: UID, balance: Balance<T> }
 ```
 
-## Compliance and rules
+## Compliance and Rules
 
 You can set up any rules for transfers, spends, and conversions for the tokens you create. You specify these rules per action in the [TokenPolicy](closed-loop-token/token-policy.mdx). [Rules](closed-loop-token/rules.mdx) are custom programmable restrictions that you can use to implement any request authorization or validation logic.
 
@@ -66,7 +66,7 @@ For example, a policy can set a limit on a transfer - `X` tokens per operation; 
 
 You can reuse rules across different policies and applications; and you can freely combine rules to create complex policies.
 
-## Public actions
+## Public Actions
 
 Tokens have a set of public and protected actions that you can use to manage the token. Public actions are available to everyone and don't require any authorization. They have similar APIs to coins, but operate on the `Token` type:
 
@@ -78,7 +78,7 @@ Tokens have a set of public and protected actions that you can use to manage the
 
 See [Coin Token Comparison](closed-loop-token/coin-token-comparison.mdx) for coin and token methods comparison.
 
-## Protected actions
+## Protected Actions
 
 Protected actions are ones that issue an [`ActionRequest`](closed-loop-token/action-request.mdx) - a hot-potato struct that must be resolved for the transaction to succeed. There are three main ways to resolve an `ActionRequest`, most common of which is via the [`TokenPolicy`](closed-loop-token/token-policy.mdx).
 
@@ -89,6 +89,6 @@ Protected actions are ones that issue an [`ActionRequest`](closed-loop-token/act
 
 The previous methods are included in the base implementation, however it is possible to create `ActionRequest`s for custom actions.
 
-## Token policy and rules
+## Token Policy and Rules
 
 Protected actions are disabled by default but you can enable them in a [`TokenPolicy`](closed-loop-token/token-policy.mdx). Additionally, you can set custom restrictions called [rules](closed-loop-token/rules.mdx) that a specific action must satisfy for it to succeed.

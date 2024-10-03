@@ -5,19 +5,19 @@ description: The Wallet standard defines how wallets can automatically be discov
 
 Browser extension wallets built for IOTA use the [Wallet standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how dApps can automatically discover and interact with wallets.
 
-If you are building a wallet, the helper library `@mysten/wallet-standard` provides types and utilities to help get started.
+If you are building a wallet, the helper library `@iota/wallet-standard` provides types and utilities to help get started.
 
-## Working with wallets
+## Working With Wallets
 
 The Wallet standard includes features to help build wallets.
 
-### Creating a wallet interface
+### Creating a Wallet Interface
 
 Create a class that represents your wallet. Use the `Wallet` interface from
-`@mysten/wallet-standard` to help ensure your class adheres to the standard.
+`@iota/wallet-standard` to help ensure your class adheres to the standard.
 
 ```tsx
-import { IOTA_DEVNET_CHAIN, Wallet } from '@mysten/wallet-standard';
+import { IOTA_DEVNET_CHAIN, Wallet } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
 	get version() {
@@ -37,7 +37,7 @@ class YourWallet implements Wallet {
 }
 ```
 
-### Implementing features
+### Implementing Features
 
 Features are standard methods consumers can use to interact with a wallet. To be listed in the IOTA
 wallet adapter, you must implement the following features in your wallet:
@@ -71,7 +71,7 @@ import {
   IOTASignTransactionMethod,
   IOTASignAndExecuteTransactionMethod,
   IOTAReportTransactionEffectsMethod
-} from "@mysten/wallet-standard";
+} from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
 	/* ... existing code from above ... */
@@ -130,7 +130,7 @@ class YourWallet implements Wallet {
 }
 ```
 
-### Exposing accounts
+### Exposing Accounts
 
 The last requirement of the wallet interface is to expose an `accounts` interface. This should
 expose all of the accounts that a connected dApp has access to. It can be empty prior to initiating
@@ -140,7 +140,7 @@ The accounts use the `ReadonlyWalletAccount` class to construct an account match
 required interface.
 
 ```tsx
-import { ReadonlyWalletAccount } from '@mysten/wallet-standard';
+import { ReadonlyWalletAccount } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
 	get accounts() {
@@ -166,18 +166,18 @@ class YourWallet implements Wallet {
 }
 ```
 
-### Registering in the window
+### Registering in the Window
 
 After you have a compatible interface for your wallet, use the `registerWallet`
 function to register it.
 
 ```tsx
-import { registerWallet } from '@mysten/wallet-standard';
+import { registerWallet } from '@iota/wallet-standard';
 
 registerWallet(new YourWallet());
 ```
 
-### Best practices for efficient transaction execution
+### Best Practices for Efficient Transaction Execution
 
 The Wallet standard has been updated from its original design to better support changes in the IOTA ecosystem. For example, the GraphQL service was introduced after Mainnet launched. The `iota:signAndExecuteTransactionBlock` feature is closely tied to the JSON RPC options and data structures, so its continued maintenance becomes increasingly difficult as the GraphQL service becomes more ubiquitous.
 
@@ -186,7 +186,7 @@ of flexibility in what `iota:signAndExecuteTransaction` returns.
 
 To solve this problem, use the `iota:signTransaction` feature to sign transactions, and
 leave transaction execution to the dApp. The dApp can query for additional data during
-execution using whichever API it chooses. This is consistent with the default `@mysten/dapp-kit` uses for the `useSignAndExecuteTransaction` hook, and enables dApps to take
+execution using whichever API it chooses. This is consistent with the default `@iota/dapp-kit` uses for the `useSignAndExecuteTransaction` hook, and enables dApps to take
 advantage of read-after-write consistency when interacting with the Full-node based JSON RPC.
 
 The downside of this strategy is that wallets often use different RPC nodes than the dApp,
@@ -198,23 +198,23 @@ the effects of transactions to the wallet. Transaction effects contain the updat
 digests of any objects that a transaction uses or creates. By caching these values, wallets can build
 transactions without needing to resolve the most recent versions through an API call.
 
-The `@mysten/iota/transaction` SDK exports the `SerialTransactionExecutor` class, which you can use
+The `@iota/iota/transaction` SDK exports the `SerialTransactionExecutor` class, which you can use
 to build transactions using an object cache. The class has a method to update its internal cache using the
 effects of a transaction.
 
 Using the combination of `iota:signTransaction` and `iota:reportTransactionEffects`, dApps can use
 either API to execute transactions and query for any data the API exposes. The dApp can then report the effects of the transaction to the wallet, and the wallet can then execute transactions without running into issues caused by a lagging indexer.
 
-## Managing wallets
+## Managing Wallets
 
 The Wallet standard includes features to help your apps interact with wallets.
 
-### Wallet data
+### Wallet Data
 
 To query the installed wallets in a user's browser, use the `get` function of `getWallets`.
 
 ```tsx
-import { getWallets } from "@mysten/wallet-standard"; 
+import { getWallets } from "@iota/wallet-standard"; 
 
 const availableWallets = getWallets().get();
 ```
@@ -231,7 +231,7 @@ Both the `Wallet` type and the `WalletAccount` type have a property called `feat
 
 Many wallets choose to omit some non-mandatory features or add some custom features, so be sure to check the relevant wallet documentation if you intend to integrate a specific wallet.
 
-### Connecting a wallet
+### Connecting a Wallet
 
 Connecting in the context of a wallet refers to a user that joins the web site for the first time and has to choose the wallet and addresses to use.
 
@@ -243,7 +243,7 @@ wallet.features['standard:connect'].connect() // connect call
 
 This call results in the wallet opening a pop-up dialog for the user to continue the connection process.
 
-### Disconnecting a wallet
+### Disconnecting a Wallet
 
 Similar to the connecting feature, the Wallet standard also includes `standard:disconnect`. The following example calls this feature:
 
@@ -251,11 +251,11 @@ Similar to the connecting feature, the Wallet standard also includes `standard:d
 wallet.features['standard:disconnect'].disconnect();
 ```
 
-### Transactions - suggested approach
+### Transactions - Suggested Approach
 
 Upon wallet connection, your app has the necessary information to execute transactions, such as address and method.
 
-Construct the transaction separately with the `@mysten/iota` library and then sign it with the private key of the user. Use the `iota:signTransaction` feature to achieve this:
+Construct the transaction separately with the `@iota/iota` library and then sign it with the private key of the user. Use the `iota:signTransaction` feature to achieve this:
 
 ```tsx
 wallet.features[iota:signTransaction].singTransaction(<Transaction>, <WalletAccount>);
@@ -263,7 +263,7 @@ wallet.features[iota:signTransaction].singTransaction(<Transaction>, <WalletAcco
 
 Similar to connections, this process opens a pop-up dialog for the user to either accept or decline the transaction. Upon accepting, the function returns an object in the form `{bytes: String, signature: Uint8Array}`. The `bytes` value is the `b64` encoding of the transaction and the `signature` value is the transaction signature.
 
-To execute the transaction, use `IOTAClient` from `@mysten/iota`:
+To execute the transaction, use `IOTAClient` from `@iota/iota`:
 
 ```tsx
 const client: IOTAClient
@@ -285,7 +285,7 @@ wallet.features['iota:reportTransactionEffects'].reportTransactionEffects(
     )
 ```
 
-### Transactions - abbreviated approach
+### Transactions - Abbreviated Approach
 
 Many wallets abstract the above flow into one feature: `iota:signAndExecuteTransaction`. The required arguments for this feature are the raw transaction and the options with the desired information to be included in the response:
 
@@ -296,7 +296,7 @@ Many wallets abstract the above flow into one feature: `iota:signAndExecuteTrans
 - `showInput`: Include the transaction's input.
 - `showRawInput`: Same as `showInput` but the format is raw.
 
-### Events wallets emit
+### Events Wallets Emit
 
 The wallet emits events on certain user actions that apps can listen to. These events allow your app to be responsive to user actions on their wallets.
 
@@ -326,6 +326,6 @@ The callback is the handler that contains the logic to perform when the event fi
 
 These values are all arrays containing the new or changed items. Consequently, every event populates only one array in most cases, the rest are empty.
 
-### Implementation example
+### Implementation Example
 
-Mysten Labs offers a bare bones scaffold for React-based applications called `@mysten/dapp-kit`. See the [dApp Kit documentation](https://sdk.mystenlabs.com/dapp-kit) for more informqtion.
+IOTA offers a bare bones scaffold for React-based applications called `@iota/dapp-kit`. See the [dApp Kit documentation](../../references/ts-sdk/dapp-kit/index.mdx) for more information.

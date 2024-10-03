@@ -8,7 +8,7 @@ The IOTA network stores countless objects on chain where Move code can perform a
 
 To support activity monitoring, Move provides a structure to emit events on the IOTA network. When you establish a connection with the IOTA network, you create a two-way interactive communication session between your client and a IOTA network node. With an open session, you can subscribe to specific events that the IOTA network adds to the stream to create real-time monitoring of events.
 
-## Move event structure
+## Move Event Structure
 
 An event object in IOTA consists of the following attributes:
 
@@ -21,15 +21,15 @@ An event object in IOTA consists of the following attributes:
 - `bcs`: Binary canonical serialization value.
 - `timestampMs`: Unix epoch timestamp in milliseconds.
 
-## Discovering events
+## Discovering Events
 
 If you want to subscribe to events on chain, you first need to know what events are available. You typically know or can discover the events your own code emits, but it's not as straightforward when you need to subscribe to on-chain events from packages you don't own. The IOTA RPC provides a [queryEvents](/iota-api-ref#iotax_queryevents) method to query on-chain packages and return available events that you can subscribe to.
 
-## Filter events
+## Filter Events
 
 You can filter the events your code targets for either querying or subscribing. Both filter options are similar but have some differences.
 
-## Emit events in Move
+## Emit Events in Move
 
 To create an event in your Move modules, add the `iota::event` dependency.
 
@@ -51,7 +51,7 @@ public fun collect_profits( _: &ShopOwnerCap, shop: &mut DonutShop, ctx: &mut Tx
 }
 ```
 
-## Subscribe to events in Move
+## Subscribe to Events in Move
 
 Firing events is not very useful in a vacuum. You also need the ability to listen for those events so that you can act on them. In IOTA, you subscribe to those events and provide logic that triggers when the event fires.
 
@@ -120,7 +120,7 @@ Move smart contracts can call other smart contracts that emit events. For exampl
 
 ## Examples
 
-## Subscribe to event
+## Subscribe to Event
 
 This example leverages the IOTA TypeScript SDK to subscribe to events the package with ID `<PACKAGE_ID>` emits. Each time the event fires, the code displays the response to the console.
 
@@ -222,7 +222,7 @@ subscribeEvent {
 </TabItem>
 </Tabs>
 
-## Filtering event queries
+## Filtering Event Queries
 
 To filter the events returned from your queries, use the following data structures.
 
@@ -246,7 +246,7 @@ This set of filters applies only to event querying APIs. It differs from the fil
 | `Object`      | Return events associated with the given object           | `{"Object":"0x727b37454ab13d5c1dbb22e8741bff72b145d1e660f71b275c01f24e7860e5e5"}`                     |
 | `TimeRange`   | Return events emitted in [start_time, end_time] interval | `{"TimeRange":{"startTime":1669039504014, "endTime":1669039604014}}`                                  |
 
-## Filtering events for subscription
+## Filtering Events for Subscription
 
 To create a subscription, you can set a filter to return only the set of events you're interested in listening for. Unlike filtering event queries, you are able to combine subscription filters.
 
