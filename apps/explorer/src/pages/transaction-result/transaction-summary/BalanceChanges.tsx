@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Accordion,
+    AccordionContent,
     Card,
     CardAction,
     CardActionType,
@@ -23,7 +25,7 @@ import { RecognizedBadge } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 import { CoinIcon } from '~/components';
-import { AddressLink, CollapsibleCard, CollapsibleSection } from '~/components/ui';
+import { AddressLink, CollapsibleCard } from '~/components/ui';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -92,9 +94,13 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
         >
             <div className="flex flex-col gap-2">
                 {recognizedTokenChanges.map((change, index) => (
-                    <CollapsibleSection key={index + change.coinType}>
-                        <BalanceChangeEntry change={change} />
-                    </CollapsibleSection>
+                    <div key={index + change.coinType} className="px-md--rs pb-lg pt-xs">
+                        <Accordion>
+                            <AccordionContent isExpanded>
+                                <BalanceChangeEntry change={change} />
+                            </AccordionContent>
+                        </Accordion>
+                    </div>
                 ))}
                 {unRecognizedTokenChanges.length > 0 && (
                     <div
@@ -104,9 +110,13 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                         )}
                     >
                         {unRecognizedTokenChanges.map((change, index) => (
-                            <CollapsibleSection key={index + change.coinType} hideBorder>
-                                <BalanceChangeEntry change={change} />
-                            </CollapsibleSection>
+                            <div key={index + change.coinType} className="px-md--rs pb-lg pt-xs">
+                                <Accordion hideBorder>
+                                    <AccordionContent isExpanded>
+                                        <BalanceChangeEntry change={change} />
+                                    </AccordionContent>
+                                </Accordion>
+                            </div>
                         ))}
                     </div>
                 )}

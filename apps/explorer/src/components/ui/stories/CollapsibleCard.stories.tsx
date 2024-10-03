@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Meta, type StoryObj } from '@storybook/react';
+import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
 
-import { CollapsibleCard, CollapsibleSection, type CollapsibleCardProps } from '~/components/ui';
+import { CollapsibleCard, type CollapsibleCardProps } from '~/components/ui';
 
 export default {
     component: CollapsibleCard,
@@ -20,9 +21,17 @@ export const Default: StoryObj<CollapsibleCardProps> = {
             <div className="h-[1000px]">
                 <CollapsibleCard collapsible title="Card Title" {...props}>
                     {sections.map((section, index) => (
-                        <CollapsibleSection key={index} title={`Section Title ${index}`}>
-                            {section}
-                        </CollapsibleSection>
+                        <div key={index} className="px-md--rs pb-lg pt-xs">
+                            <Accordion>
+                                <AccordionHeader isExpanded onToggle={() => {}}>
+                                    <Title
+                                        size={TitleSize.Small}
+                                        title={`Section Title ${index}`}
+                                    />
+                                </AccordionHeader>
+                                <AccordionContent isExpanded>{section}</AccordionContent>
+                            </Accordion>
+                        </div>
                     ))}
                 </CollapsibleCard>
             </div>
