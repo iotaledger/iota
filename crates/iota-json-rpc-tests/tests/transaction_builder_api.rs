@@ -6,7 +6,9 @@ use std::str::FromStr;
 use std::{collections::BTreeMap, path::Path};
 
 use iota_json::{call_args, type_args};
-use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json_rpc_api::{
+    CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
+};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
@@ -18,6 +20,7 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
     gas_coin::GAS,
+    object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
     IOTA_FRAMEWORK_ADDRESS,
 };
@@ -102,6 +105,260 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
         dryrun_response.object_changes,
         tx_response.object_changes.unwrap(),
     );
+    Ok(())
+}
+
+#[sim_test]
+async fn test_transfer_iota() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let (gas, _, _) = cluster
+        .wallet
+        .get_one_gas_object_owned_by_address(address)
+        .await?
+        .unwrap();
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .transfer_iota(
+            address,
+            gas,
+            10_000_000.into(),
+            other_address,
+            Some(1234.into()),
+        )
+        .await?;
+
+    let tx = cluster
+        .wallet
+        .sign_transaction(&transaction_bytes.to_data()?);
+    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_balance_changes(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+    assert_eq!(tx_response.status_ok(), Some(true));
+
+    let gas_usage: i128 = tx_response
+        .effects
+        .unwrap()
+        .gas_cost_summary()
+        .net_gas_usage()
+        .into();
+
+    let balance_changes = tx_response.balance_changes.unwrap();
+    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].amount, -1234 - gas_usage);
+    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
+    assert_eq!(balance_changes[1].amount, 1234);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_pay() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let gas_objs = cluster
+        .wallet
+        .get_gas_objects_owned_by_address(address, Some(2))
+        .await?;
+    let (gas_to_send, _, _) = gas_objs[0];
+    let (gas_to_pay_for_tx, _, _) = gas_objs[1];
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .pay(
+            address,
+            vec![gas_to_send],
+            vec![other_address],
+            vec![123.into()],
+            Some(gas_to_pay_for_tx),
+            10_000_000.into(),
+        )
+        .await?;
+
+    let tx = cluster
+        .wallet
+        .sign_transaction(&transaction_bytes.to_data()?);
+    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_balance_changes(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+    assert_eq!(tx_response.status_ok(), Some(true));
+
+    let gas_usage: i128 = tx_response
+        .effects
+        .unwrap()
+        .gas_cost_summary()
+        .net_gas_usage()
+        .into();
+
+    let balance_changes = tx_response.balance_changes.unwrap();
+    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].amount, -123 - gas_usage);
+    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
+    assert_eq!(balance_changes[1].amount, 123);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_pay_iota() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let recipient_1 = cluster.get_address_1();
+    let recipient_2 = cluster.get_address_2();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(3))
+        .await
+        .unwrap()
+        .data;
+
+    let total_balance = coins.iter().map(|coin| coin.balance).sum::<u64>();
+    let budget = 10_000_000;
+    let amount_to_keep = 1000;
+    let recipient_1_amount = 100_000_000;
+    let recipient_2_amount = total_balance - budget - recipient_1_amount - amount_to_keep;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .pay_iota(
+            address,
+            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            vec![recipient_1, recipient_2],
+            vec![recipient_1_amount.into(), recipient_2_amount.into()],
+            budget.into(),
+        )
+        .await?;
+
+    let tx = cluster
+        .wallet
+        .sign_transaction(&transaction_bytes.to_data()?);
+    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_balance_changes(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+    assert_eq!(tx_response.status_ok(), Some(true));
+
+    let gas_usage: i128 = tx_response
+        .effects
+        .unwrap()
+        .gas_cost_summary()
+        .net_gas_usage()
+        .into();
+
+    let recipient_1_amount = i128::from(recipient_1_amount);
+    let recipient_2_amount = i128::from(recipient_2_amount);
+
+    let balance_changes = tx_response.balance_changes.unwrap();
+    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(
+        balance_changes[0].amount,
+        -recipient_1_amount - recipient_2_amount - gas_usage
+    );
+    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient_1));
+    assert_eq!(balance_changes[1].amount, recipient_1_amount);
+    assert_eq!(balance_changes[2].owner, Owner::AddressOwner(recipient_2));
+    assert_eq!(balance_changes[2].amount, recipient_2_amount);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let recipient = cluster.get_address_1();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(3))
+        .await
+        .unwrap()
+        .data;
+
+    let total_balance = coins
+        .iter()
+        .map(|coin| i128::from(coin.balance))
+        .sum::<i128>();
+    let budget = 10_000_000;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .pay_all_iota(
+            address,
+            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            recipient,
+            budget.into(),
+        )
+        .await?;
+
+    let tx = cluster
+        .wallet
+        .sign_transaction(&transaction_bytes.to_data()?);
+    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_balance_changes(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+    assert_eq!(tx_response.status_ok(), Some(true));
+
+    let gas_usage: i128 = tx_response
+        .effects
+        .unwrap()
+        .gas_cost_summary()
+        .net_gas_usage()
+        .into();
+
+    let balance_changes = tx_response.balance_changes.unwrap();
+    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].amount, -total_balance);
+    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient));
+    assert_eq!(balance_changes[1].amount, total_balance - gas_usage);
+
     Ok(())
 }
 
