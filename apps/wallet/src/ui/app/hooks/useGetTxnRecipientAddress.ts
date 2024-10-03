@@ -34,7 +34,7 @@ export function useGetTxnRecipientAddress({ txn, address }: Props) {
         //         ({ receiverAddress }) => receiverAddress !== address
         //     )?.receiverAddress;
 
-        return null ?? transferObjectRecipientAddress ?? txn.transaction?.data.sender;
+        return transferObjectRecipientAddress ?? txn.transaction?.data.sender ?? null;
     }, [address, amountByRecipient, txn]);
     // }, [address, amountByRecipient, eventsSummary, txn]);
 

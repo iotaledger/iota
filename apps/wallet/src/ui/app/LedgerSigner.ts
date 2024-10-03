@@ -6,7 +6,6 @@ import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import { type IotaClient } from '@iota/iota-sdk/client';
 import {
     toSerializedSignature,
-    type SerializedSignature,
     type SignatureScheme,
 } from '@iota/iota-sdk/cryptography';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
@@ -52,7 +51,7 @@ export class LedgerSigner extends WalletSigner {
         return new Ed25519PublicKey(publicKey);
     }
 
-    async signData(data: Uint8Array): Promise<SerializedSignature> {
+    async signData(data: Uint8Array): Promise<string> {
         const ledgerClient = await this.#initializeIotaLedgerClient();
         const { signature } = await ledgerClient.signTransaction(this.#derivationPath, data);
         const publicKey = await this.getPublicKey();
