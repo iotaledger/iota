@@ -4,13 +4,13 @@
 
 use std::borrow::Cow;
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use iota_sdk2::types::CheckpointDigest;
 use tap::Pipe;
 
 use crate::{
-    openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     RestService, Result,
+    openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
 };
 
 pub struct GetNodeInfo;

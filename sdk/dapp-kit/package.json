@@ -83,7 +83,7 @@
         "@vanilla-extract/dynamic": "^2.1.1",
         "@vanilla-extract/recipes": "^0.5.3",
         "clsx": "^2.1.1",
-        "zustand": "^4.5.4"
+        "zustand": "^4.4.1"
     },
     "peerDependencies": {
         "@tanstack/react-query": "^5.50.1",

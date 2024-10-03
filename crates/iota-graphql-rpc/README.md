@@ -71,11 +71,11 @@ cargo run --bin iota-graphql-rpc start-server [--rpc-url] [--db-url] [--port] [-
 
 ### Launching the server w/ indexer
 
-For local dev, it might be useful to spin up an indexer as well. You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), part of [iota-test-validator](../../crates/iota-test-validator/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
+For local dev, it might be useful to spin up an indexer as well. You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), through the `iota start` subcommand or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
 
 ## Compatibility with json-rpc
 
-`cargo run --bin iota-test-validator -- --with-indexer --pg-port 5432 --pg-db-name iota_indexer --graphql-host 127.0.0.1 --graphql-port 9125`
+`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:9125`
 
 `pnpm --filter @iota/graphql-transport test:e2e`
 

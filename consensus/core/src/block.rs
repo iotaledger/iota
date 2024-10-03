@@ -11,8 +11,8 @@ use std::{
 
 use bytes::Bytes;
 use consensus_config::{
-    AuthorityIndex, DefaultHashFunction, Epoch, ProtocolKeyPair, ProtocolKeySignature,
-    ProtocolPublicKey, DIGEST_LENGTH,
+    AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, Epoch, ProtocolKeyPair,
+    ProtocolKeySignature, ProtocolPublicKey,
 };
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};

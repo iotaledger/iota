@@ -126,7 +126,6 @@ members = [
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
-  "crates/iota-service",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
@@ -406,7 +405,9 @@ tar = "0.4.40"
 tempfile = "3.3.0"
 test-fuzz = "3.0.4"
 thiserror = "1.0.40"
-tokio = "1.36.0"
+# tokio is defined at a specific version to support patching with iota-sim
+# Do not upgrade without updating https://github.com/iotaledger/iota-sim first
+tokio = "=1.39.2"
 tokio-retry = "0.3"
 tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"] }
 tokio-stream = { version = "0.1.14", features = ["sync", "net"] }
@@ -539,7 +540,6 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-service = { path = "crates/iota-service" }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

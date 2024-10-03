@@ -15,14 +15,14 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
+    FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
     compress,
     object_store::util::{copy_file, path_to_filesystem},
-    FileCompression, StorageFormat,
 };
 use iota_types::{
     messages_checkpoint::{
@@ -32,7 +32,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use object_store::DynObjectStore;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{
         mpsc,
@@ -43,9 +43,9 @@ use tokio::{
 use tracing::{debug, info};
 
 use crate::{
-    create_file_metadata, read_manifest, write_manifest, CheckpointUpdates, FileMetadata, FileType,
-    Manifest, CHECKPOINT_FILE_MAGIC, CHECKPOINT_FILE_SUFFIX, EPOCH_DIR_PREFIX, MAGIC_BYTES,
-    SUMMARY_FILE_MAGIC, SUMMARY_FILE_SUFFIX,
+    CHECKPOINT_FILE_MAGIC, CHECKPOINT_FILE_SUFFIX, CheckpointUpdates, EPOCH_DIR_PREFIX,
+    FileMetadata, FileType, MAGIC_BYTES, Manifest, SUMMARY_FILE_MAGIC, SUMMARY_FILE_SUFFIX,
+    create_file_metadata, read_manifest, write_manifest,
 };
 
 pub struct ArchiveMetrics {

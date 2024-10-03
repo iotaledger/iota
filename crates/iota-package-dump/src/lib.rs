@@ -8,11 +8,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use client::Client;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::object::Object;
-use query::{limits, packages, IotaAddress, UInt53};
+use query::{IotaAddress, UInt53, limits, packages};
 use tracing::info;
 
 mod client;

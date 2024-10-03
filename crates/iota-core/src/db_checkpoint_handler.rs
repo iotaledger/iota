@@ -18,8 +18,8 @@ use iota_storage::{
         path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
     },
 };
-use object_store::{path::Path, DynObjectStore};
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
+use object_store::{DynObjectStore, path::Path};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
 use typed_store::rocks::MetricConf;
 

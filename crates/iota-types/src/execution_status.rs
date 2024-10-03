@@ -10,7 +10,7 @@ use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{base_types::IotaAddress, ObjectID};
+use crate::{ObjectID, base_types::IotaAddress};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_status_tests.rs"]

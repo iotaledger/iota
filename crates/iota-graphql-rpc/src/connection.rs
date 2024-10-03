@@ -5,11 +5,11 @@
 use std::{borrow::Cow, marker::PhantomData};
 
 use async_graphql::{
+    Object, ObjectType, OutputType, TypeName,
     connection::{
         ConnectionNameType, CursorType, DefaultConnectionName, DefaultEdgeName, Edge, EdgeNameType,
         EmptyFields, EnableNodesField, NodesFieldSwitcherSealed, PageInfo,
     },
-    Object, ObjectType, OutputType, TypeName,
 };
 
 /// Mirrors the `Connection` type from async-graphql, with the exception that if

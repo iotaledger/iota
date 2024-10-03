@@ -4,7 +4,7 @@
 
 use std::{io, sync::Arc};
 
-use axum::{middleware::AddExtension, Extension};
+use axum::{Extension, middleware::AddExtension};
 use axum_server::{
     accept::Accept,
     tls_rustls::{RustlsAcceptor, RustlsConfig},

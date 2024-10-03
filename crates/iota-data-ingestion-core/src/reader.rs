@@ -14,7 +14,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
 use notify::{RecursiveMode, Watcher};
-use object_store::{path::Path, ObjectStore};
+use object_store::{ObjectStore, path::Path};
 use tap::pipe::Pipe;
 use tokio::{
     sync::{mpsc, mpsc::error::TryRecvError, oneshot},

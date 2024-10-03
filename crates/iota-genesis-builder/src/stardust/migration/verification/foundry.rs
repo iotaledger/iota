@@ -3,11 +3,11 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
-    object::Owner, Identifier,
+    Identifier, base_types::IotaAddress, coin_manager::CoinManager,
+    in_memory_storage::InMemoryStorage, object::Owner,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -15,11 +15,11 @@ use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
         verification::{
+            CreatedObjects,
             util::{
                 truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
                 verify_parent, verify_shared_object,
             },
-            CreatedObjects,
         },
     },
     native_token::package_data::NativeTokenPackageData,

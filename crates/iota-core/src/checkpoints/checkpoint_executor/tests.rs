@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use broadcast::{Receiver, Sender};
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
+use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
     gas::GasCostSummary,
@@ -21,9 +21,9 @@ use typed_store::Map;
 use super::*;
 use crate::{
     authority::{
+        AuthorityState,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     checkpoints::CheckpointStore,
     state_accumulator::StateAccumulator,

@@ -7,24 +7,24 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber},
     crypto::get_key_pair,
     object::Owner,
     transaction::Transaction,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use tracing::{error, info};
 
 use crate::{
+    ExecutionEffects, ValidatorProxy,
     drivers::Interval,
     system_state_observer::SystemStateObserver,
     util::publish_basics_package,
     workloads::{
-        payload::Payload,
-        workload::{Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING},
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, Workload, WorkloadBuilder},
     },
-    ExecutionEffects, ValidatorProxy,
 };
 
 /// The max amount of gas units needed for a payload.

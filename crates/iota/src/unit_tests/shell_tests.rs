@@ -5,11 +5,11 @@
 use std::{collections::BTreeMap, env, sync::Arc};
 
 use iota_types::base_types::ObjectID;
-use rustyline::{completion::Completer, history::MemHistory, Context};
+use rustyline::{Context, completion::Completer, history::MemHistory};
 
 use crate::shell::{
-    split_and_unescape, substitute_env_variables, CacheKey, CommandStructure, CompletionCache,
-    ShellHelper,
+    CacheKey, CommandStructure, CompletionCache, ShellHelper, split_and_unescape,
+    substitute_env_variables,
 };
 
 #[test]
@@ -161,10 +161,14 @@ fn test_completer_with_cache() {
     };
 
     // CacheKey::flag applies to all flags regardless of the command name
-    completion_cache.write().unwrap().insert(
-        CacheKey::flag("--gas"),
-        vec!["Gas1".to_string(), "Gas2".to_string(), "Gas3".to_string()],
-    );
+    completion_cache
+        .write()
+        .unwrap()
+        .insert(CacheKey::flag("--gas"), vec![
+            "Gas1".to_string(),
+            "Gas2".to_string(),
+            "Gas3".to_string(),
+        ]);
 
     let (_, candidates) = helper
         .complete("command1 --gas ", 1, &Context::new(&MemHistory::new()))
@@ -191,10 +195,13 @@ fn test_completer_with_cache() {
 
     // CacheKey::new only apply the completion values to the flag with matching
     // command name
-    completion_cache.write().unwrap().insert(
-        CacheKey::new("command1", "--address"),
-        vec!["Address1".to_string(), "Address2".to_string()],
-    );
+    completion_cache
+        .write()
+        .unwrap()
+        .insert(CacheKey::new("command1", "--address"), vec![
+            "Address1".to_string(),
+            "Address2".to_string(),
+        ]);
     let (_, candidates) = helper
         .complete("command1 --address ", 1, &Context::new(&MemHistory::new()))
         .unwrap();

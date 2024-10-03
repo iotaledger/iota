@@ -9,20 +9,21 @@ use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
 use iota_archival::{
-    create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes, FileType,
-    Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
+    CHECKPOINT_FILE_MAGIC, FileType, Manifest, SUMMARY_FILE_MAGIC, create_file_metadata_from_bytes,
+    finalize_manifest, read_manifest_from_bytes,
 };
-use iota_data_ingestion_core::{create_remote_store_client, Worker};
+use iota_data_ingestion_core::{Worker, create_remote_store_client};
 use iota_storage::{
+    FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
-    compress, FileCompression, StorageFormat,
+    compress,
 };
 use iota_types::{
     base_types::{EpochId, ExecutionData},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents},
 };
-use object_store::{path::Path, ObjectStore};
+use object_store::{ObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 

@@ -5,7 +5,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use diesel::prelude::*;
-use iota_json_rpc_types::{type_and_fields_from_move_event_data, IotaEvent};
+use iota_json_rpc_types::{IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},

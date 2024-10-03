@@ -19,7 +19,7 @@ use move_core_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
@@ -33,11 +33,11 @@ use crate::{
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
-    gas_coin::{GasCoin, GAS},
+    gas_coin::{GAS, GasCoin},
     is_system_package,
-    timelock::timelock::TimeLock,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
+    timelock::timelock::TimeLock,
 };
 
 mod balance_traversal;
@@ -905,12 +905,9 @@ impl ObjectInner {
         let move_struct = self.data.struct_tag().ok_or_else(|| IotaError::Type {
             error: "Object must be a Move object".to_owned(),
         })?;
-        fp_ensure!(
-            move_struct.type_params.len() == 1,
-            IotaError::Type {
-                error: "Move object struct must have one type parameter".to_owned()
-            }
-        );
+        fp_ensure!(move_struct.type_params.len() == 1, IotaError::Type {
+            error: "Move object struct must have one type parameter".to_owned()
+        });
         // Index access safe due to checks above.
         let type_tag = move_struct.type_params[0].clone();
         Ok(type_tag)
@@ -1249,16 +1246,13 @@ fn test_object_digest_and_serialized_format() {
     );
     let bytes = bcs::to_bytes(&o).unwrap();
 
-    assert_eq!(
-        bytes,
-        [
-            0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ]
-    );
+    assert_eq!(bytes, [
+        0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0
+    ]);
 
     let objref = format!("{:?}", o.compute_object_reference());
     assert_eq!(

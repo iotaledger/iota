@@ -7,8 +7,8 @@ use std::{
     future::Future,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -17,19 +17,19 @@ use iota_framework::BuiltInFramework;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{random_object_ref, IotaAddress},
-    crypto::{deterministic_random_account_key, get_key_pair_from_rng, AccountKeyPair},
+    base_types::{IotaAddress, random_object_ref},
+    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
-    object::{MoveObject, Owner, OBJECT_START_VERSION},
+    object::{MoveObject, OBJECT_START_VERSION, Owner},
     storage::ChildObjectResolver,
 };
 use prometheus::default_registry;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use super::*;
 use crate::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState, AuthorityStore},
+    authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
     execution_cache::ExecutionCacheAPI,
 };
 

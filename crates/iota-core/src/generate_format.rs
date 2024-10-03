@@ -13,9 +13,9 @@ use iota_types::{
         TransactionEffectsDigest,
     },
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, AuthoritySignature, IotaKeyPair, KeypairTraits, PublicKey,
-        Signature, Signer, ZkLoginPublicIdentifier,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignature, IotaKeyPair,
+        KeypairTraits, PublicKey, Signature, Signer, ZkLoginPublicIdentifier, get_key_pair,
+        get_key_pair_from_rng,
     },
     effects::{IDOperation, ObjectIn, ObjectOut, TransactionEffects, UnchangedSharedKind},
     execution_status::{
@@ -40,7 +40,7 @@ use iota_types::{
 };
 use move_core_types::language_storage::{StructTag, TypeTag};
 use pretty_assertions::assert_str_eq;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use typed_store::TypedStoreError;
@@ -96,12 +96,9 @@ fn get_registry() -> Result<Registry> {
     )
     .unwrap();
 
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Message".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Message".as_bytes().to_vec(),
+    });
 
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &kp2).into();
@@ -188,7 +185,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<CheckpointContents>(&samples)?;
     tracer.trace_type::<CheckpointSummary>(&samples)?;
 
-    Ok(tracer.registry()?)
+    tracer.registry()
 }
 
 #[derive(Debug, Parser, Clone, Copy, ValueEnum)]

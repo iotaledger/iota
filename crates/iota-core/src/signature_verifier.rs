@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use either::Either;
 use fastcrypto_zkp::bn254::{
-    zk_login::{JwkId, OIDCProvider, JWK},
+    zk_login::{JWK, JwkId, OIDCProvider},
     zk_login_api::ZkLoginEnv,
 };
 use futures::pin_mut;
@@ -20,18 +20,18 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::SignedCheckpointSummary,
     signature::VerifyParams,
-    signature_verification::{verify_sender_signed_data_message_signatures, VerifiedDigestCache},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
 use itertools::izip;
 use parking_lot::{Mutex, MutexGuard, RwLock};
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use shared_crypto::intent::Intent;
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,
     sync::oneshot,
-    time::{timeout, Duration},
+    time::{Duration, timeout},
 };
 use tracing::debug;
 // Maximum amount of time we wait for a batch to fill up before verifying a

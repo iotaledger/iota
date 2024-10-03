@@ -5,8 +5,8 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use diesel::{r2d2::R2D2Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use iota_package_resolver::{error::Error as PackageResolverError, Package, PackageStore};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, r2d2::R2D2Connection};
+use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_types::{base_types::ObjectID, object::Object};
 use move_core_types::account_address::AccountAddress;
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
     sync::Arc,
     time::Duration,
@@ -12,8 +12,8 @@ use std::{
 use futures::FutureExt;
 use parking_lot::Mutex;
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
-    IntGaugeVec, Registry,
+    IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry,
 };
 use tokio::{
     runtime::Handle,
@@ -123,13 +123,9 @@ struct HistogramLabelsInner {
 ///   is emitted
 impl HistogramVec {
     pub fn new_in_registry(name: &str, desc: &str, labels: &[&str], registry: &Registry) -> Self {
-        Self::new_in_registry_with_percentiles(
-            name,
-            desc,
-            labels,
-            registry,
-            vec![500usize, 950, 990],
-        )
+        Self::new_in_registry_with_percentiles(name, desc, labels, registry, vec![
+            500usize, 950, 990,
+        ])
     }
 
     /// Allows to specify percentiles in 1/1000th, e.g. 90pct is specified as

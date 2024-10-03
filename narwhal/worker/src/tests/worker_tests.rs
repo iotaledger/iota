@@ -11,10 +11,10 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     hash::Hash,
 };
-use futures::{stream::FuturesOrdered, StreamExt};
+use futures::{StreamExt, stream::FuturesOrdered};
 use primary::{
+    CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS, Primary,
     consensus::{ConsensusRound, LeaderSchedule, LeaderSwapTable},
-    Primary, CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS,
 };
 use prometheus::Registry;
 use storage::NodeStorage;
@@ -23,7 +23,7 @@ use store::{
     rocks::{MetricConf, ReadWriteOptions},
 };
 use test_utils::{
-    batch, latest_protocol_version, temp_dir, test_network, transaction, CommitteeFixture,
+    CommitteeFixture, batch, latest_protocol_version, temp_dir, test_network, transaction,
 };
 use tokio::sync::watch;
 use types::{
@@ -32,7 +32,7 @@ use types::{
 };
 
 use super::*;
-use crate::{metrics::initialise_metrics, LocalNarwhalClient, TrivialTransactionValidator};
+use crate::{LocalNarwhalClient, TrivialTransactionValidator, metrics::initialise_metrics};
 
 // A test validator that rejects every transaction / batch
 #[derive(Clone)]

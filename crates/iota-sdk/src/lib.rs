@@ -100,7 +100,7 @@ use jsonrpsee::{
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::language_storage::StructTag;
-use rustls::crypto::{ring, CryptoProvider};
+use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
 
 use crate::{
@@ -411,7 +411,7 @@ impl IotaClientBuilder {
 /// ```rust,no_run
 /// use std::str::FromStr;
 ///
-/// use iota_sdk::{types::base_types::IotaAddress, IotaClientBuilder};
+/// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {

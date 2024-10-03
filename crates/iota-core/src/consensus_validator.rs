@@ -15,7 +15,7 @@ use iota_types::{
 };
 use narwhal_types::BatchAPI;
 use narwhal_worker::TransactionValidator;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use tap::TapFallible;
 use tracing::{info, warn};
 

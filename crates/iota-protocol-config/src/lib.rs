@@ -1981,7 +1981,6 @@ impl ProtocolConfig {
             bridge_should_try_to_finalize_committee: None,
 
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
-
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2079,7 +2078,8 @@ impl ProtocolConfig {
         // Enable soft bundle.
         cfg.feature_flags.soft_bundle = true;
 
-        cfg.feature_flags.per_object_congestion_control_mode = PerObjectCongestionControlMode::TotalTxCount;
+        cfg.feature_flags.per_object_congestion_control_mode =
+            PerObjectCongestionControlMode::TotalTxCount;
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
@@ -2467,17 +2467,11 @@ mod test {
 
         assert!(
             prot.lookup_attr("poseidon_bn254_cost_base".to_string())
-                == Some(ProtocolConfigValue::u64(
-                    prot.poseidon_bn254_cost_base()
-                ))
+                == Some(ProtocolConfigValue::u64(prot.poseidon_bn254_cost_base()))
         );
         assert!(
-            prot.attr_map()
-                .get("poseidon_bn254_cost_base")
-                .unwrap()
-                == &Some(ProtocolConfigValue::u64(
-                    prot.poseidon_bn254_cost_base()
-                ))
+            prot.attr_map().get("poseidon_bn254_cost_base").unwrap()
+                == &Some(ProtocolConfigValue::u64(prot.poseidon_bn254_cost_base()))
         );
 
         // Check feature flags
@@ -2498,12 +2492,24 @@ mod test {
 
         // Was false in v1 on Mainnet
         assert!(prot.feature_flags.lookup_attr("enable_poseidon".to_owned()) == Some(false));
-        assert!(prot.feature_flags.attr_map().get("enable_poseidon").unwrap() == &false);
+        assert!(
+            prot.feature_flags
+                .attr_map()
+                .get("enable_poseidon")
+                .unwrap()
+                == &false
+        );
         let prot: ProtocolConfig =
             ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
         // Was true from v1 and up on Devnet
         assert!(prot.feature_flags.lookup_attr("enable_poseidon".to_owned()) == Some(true));
-        assert!(prot.feature_flags.attr_map().get("enable_poseidon").unwrap() == &true);
+        assert!(
+            prot.feature_flags
+                .attr_map()
+                .get("enable_poseidon")
+                .unwrap()
+                == &true
+        );
     }
 
     #[test]
