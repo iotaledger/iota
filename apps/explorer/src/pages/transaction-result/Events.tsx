@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KeyValueInfo } from '@iota/apps-ui-kit';
+import { Accordion, AccordionHeader, AccordionContent, KeyValueInfo } from '@iota/apps-ui-kit';
 import { type IotaEvent } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
 import { TriangleDown } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 
-import { FieldCollapsible, SyntaxHighlighter } from '~/components';
+import { SyntaxHighlighter } from '~/components';
 import { Divider, ObjectLink } from '~/components/ui';
 
 function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
@@ -41,12 +41,13 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                     fullwidth
                     isTruncated
                 />
-
-                <FieldCollapsible
-                    hideBorder
-                    onOpenChange={(isOpen) => setOpen(isOpen)}
-                    hideArrow
-                    render={() => (
+                <Accordion hideBorder>
+                    <AccordionHeader
+                        hideBorder
+                        hideArrow
+                        isExpanded={open}
+                        onToggle={() => setOpen(!open)}
+                    >
                         <div className="flex w-full flex-row justify-between gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
                             <span className="text-body-md">
                                 {open ? 'Hide' : 'View'} Event Data
@@ -61,13 +62,16 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                                 )}
                             />
                         </div>
-                    )}
-                    open={open}
-                >
-                    <div className="mt-md">
-                        <SyntaxHighlighter code={JSON.stringify(event, null, 2)} language="json" />
-                    </div>
-                </FieldCollapsible>
+                    </AccordionHeader>
+                    <AccordionContent isExpanded={open}>
+                        <div className="mt-md">
+                            <SyntaxHighlighter
+                                code={JSON.stringify(event, null, 2)}
+                                language="json"
+                            />
+                        </div>
+                    </AccordionContent>
+                </Accordion>
             </div>
 
             {divider && (

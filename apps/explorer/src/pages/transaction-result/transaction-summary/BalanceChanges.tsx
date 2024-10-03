@@ -92,7 +92,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
         >
             <div className="flex flex-col gap-2">
                 {recognizedTokenChanges.map((change, index) => (
-                    <CollapsibleSection key={index + change.coinType} hideBorder>
+                    <CollapsibleSection key={index + change.coinType}>
                         <BalanceChangeEntry change={change} />
                     </CollapsibleSection>
                 ))}

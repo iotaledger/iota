@@ -26,8 +26,15 @@ import {
     ObjectLink,
 } from '~/components/ui';
 import { ObjectDisplay } from './ObjectDisplay';
-import { Badge, BadgeType, KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
-import { FieldCollapsible } from '~/components';
+import {
+    Accordion,
+    AccordionHeader,
+    AccordionContent,
+    Badge,
+    BadgeType,
+    KeyValueInfo,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/ui-icons';
 
 interface ItemProps {
@@ -89,11 +96,8 @@ interface ObjectDetailPanelProps {
 function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelProps): JSX.Element {
     const [open, setOpen] = useState(false);
     return (
-        <FieldCollapsible
-            hideBorder
-            onOpenChange={(isOpen) => setOpen(isOpen)}
-            hideArrow
-            render={() => (
+        <Accordion hideBorder>
+            <AccordionHeader hideBorder hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
                 <div className="flex w-full flex-row items-center justify-between px-md--rs">
                     <div className="flex flex-row gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
                         <span className="text-body-md">Object</span>
@@ -109,11 +113,9 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                     </div>
                     <div className="flex flex-row items-center gap-xxs pr-xxs">{headerContent}</div>
                 </div>
-            )}
-            open={open}
-        >
-            {panelContent}
-        </FieldCollapsible>
+            </AccordionHeader>
+            <AccordionContent isExpanded={open}>{panelContent}</AccordionContent>
+        </Accordion>
     );
 }
 

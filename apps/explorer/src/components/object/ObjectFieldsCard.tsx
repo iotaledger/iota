@@ -7,12 +7,20 @@ import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/io
 import { Combobox, ComboboxInput, ComboboxList, LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
-import { FieldCollapsible } from '~/components';
 import { Banner } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
-import { ButtonUnstyled, KeyValueInfo, Panel, TitleSize } from '@iota/apps-ui-kit';
+import {
+    Accordion,
+    AccordionHeader,
+    Title,
+    AccordionContent,
+    ButtonUnstyled,
+    KeyValueInfo,
+    Panel,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
@@ -171,20 +179,25 @@ export function ObjectFieldsCard({
                     <div className="flex flex-col gap-md p-md--rs">
                         {normalizedStructData?.fields.map(({ name, type }, index) => (
                             <ScrollToViewCard key={name} inView={name === activeFieldName}>
-                                <FieldCollapsible
-                                    open={openFieldsName[name]}
-                                    onOpenChange={onSetOpenFieldsName(name)}
-                                    name={name}
-                                    titleSize={TitleSize.Small}
-                                >
-                                    <div className="p-md--rs">
-                                        <FieldItem
-                                            value={fieldsData[name]}
-                                            objectType={objectType}
-                                            type={type}
-                                        />
-                                    </div>
-                                </FieldCollapsible>
+                                <Accordion>
+                                    <AccordionHeader
+                                        isExpanded={openFieldsName[name]}
+                                        onToggle={() =>
+                                            onSetOpenFieldsName(name)(!openFieldsName[name])
+                                        }
+                                    >
+                                        <Title size={TitleSize.Small} title={name ?? ''} />
+                                    </AccordionHeader>
+                                    <AccordionContent isExpanded={openFieldsName[name]}>
+                                        <div className="p-md--rs">
+                                            <FieldItem
+                                                value={fieldsData[name]}
+                                                objectType={objectType}
+                                                type={type}
+                                            />
+                                        </div>
+                                    </AccordionContent>
+                                </Accordion>
                             </ScrollToViewCard>
                         ))}
                     </div>
