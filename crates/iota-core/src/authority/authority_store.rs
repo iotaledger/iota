@@ -304,36 +304,42 @@ impl AuthorityStore {
             if let Some(migration_transactions) = migration_tx_data {
                 let txs_data = migration_transactions.txs_data();
 
-                for tx_digest in genesis.migration_txs_digests() {
-                    if let Some((tx, effects, events, objects)) = txs_data.get(tx_digest) {
-                        let transaction = VerifiedTransaction::new_unchecked(tx.clone());
+                genesis
+                    .checkpoint_contents()
+                    .enumerate_transactions(&genesis.checkpoint())
+                    .for_each(|(_, execution_digest)| {
+                        let tx_digest = &execution_digest.transaction;
+                        if tx_digest != genesis.transaction().digest() {
+                            if let Some((tx, effects, events, objects)) = txs_data.get(tx_digest) {
+                                let transaction = VerifiedTransaction::new_unchecked(tx.clone());
 
-                        store
-                            .bulk_insert_genesis_objects(objects)
-                            .expect("Cannot bulk insert migrated objects");
+                                store
+                                    .bulk_insert_genesis_objects(objects)
+                                    .expect("Cannot bulk insert migrated objects");
 
-                        store
-                            .perpetual_tables
-                            .transactions
-                            .insert(transaction.digest(), transaction.serializable_ref())
-                            .expect("Cannot insert migration transaction");
+                                store
+                                    .perpetual_tables
+                                    .transactions
+                                    .insert(transaction.digest(), transaction.serializable_ref())
+                                    .expect("Cannot insert migration transaction");
 
-                        store
-                            .perpetual_tables
-                            .effects
-                            .insert(&effects.digest(), effects)
-                            .expect("Cannot insert migration effects");
+                                store
+                                    .perpetual_tables
+                                    .effects
+                                    .insert(&effects.digest(), effects)
+                                    .expect("Cannot insert migration effects");
 
-                        let events = events
-                            .data
-                            .iter()
-                            .enumerate()
-                            .map(|(i, e)| ((events.digest(), i), e));
-                        store.perpetual_tables.events.multi_insert(events).unwrap();
-                    } else {
-                        panic!("tx digest not found in migrated objects blob");
-                    }
-                }
+                                let events = events
+                                    .data
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, e)| ((events.digest(), i), e));
+                                store.perpetual_tables.events.multi_insert(events).unwrap();
+                            } else {
+                                panic!("tx digest not found in migrated objects blob");
+                            }
+                        }
+                    })
             }
         }
 
