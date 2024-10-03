@@ -41,9 +41,7 @@ export function PageMainLayout({
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
     const isHomePage = window.location.hash === '#/tokens';
-function isMounted() {
-    throw new Error('prueba')
-}
+
     return (
         <div
             className={cn(
