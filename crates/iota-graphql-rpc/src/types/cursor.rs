@@ -9,11 +9,11 @@ use async_graphql::{
     *,
 };
 use diesel::{
-    deserialize::FromSqlRow, query_builder::QueryFragment, query_dsl::LoadQuery,
-    sql_types::Untyped, QueryDsl, QueryResult, QuerySource,
+    QueryDsl, QueryResult, QuerySource, deserialize::FromSqlRow, query_builder::QueryFragment,
+    query_dsl::LoadQuery, sql_types::Untyped,
 };
 use fastcrypto::encoding::{Base64, Encoding};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     config::ServiceConfig,

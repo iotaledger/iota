@@ -12,12 +12,12 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use iota_config::{node::ConsensusProtocol, ConsensusConfig, NodeConfig};
+use iota_config::{ConsensusConfig, NodeConfig, node::ConsensusProtocol};
 use iota_metrics::RegistryService;
 use iota_protocol_config::{ConsensusChoice, ProtocolVersion};
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
 use narwhal_worker::LazyNarwhalClient;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{Mutex, MutexGuard},
     time::{sleep, timeout},

@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use iota_types::{base_types::MoveObjectType, TypeTag};
+use iota_types::{TypeTag, base_types::MoveObjectType};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, language_storage::StructTag,
@@ -20,7 +20,7 @@ use move_vm_types::{
 use smallvec::smallvec;
 use tracing::{error, instrument};
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 const E_BCS_SERIALIZATION_FAILURE: u64 = 2;
 
@@ -105,10 +105,9 @@ pub fn read_setting_impl(
         config_read_setting_impl_cost_per_byte * u64::from(read_value_opt.legacy_size()).into()
     );
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![read_value_opt],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        read_value_opt
+    ]))
 }
 
 fn consistent_value_before_current_epoch(

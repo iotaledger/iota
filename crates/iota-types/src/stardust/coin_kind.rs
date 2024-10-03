@@ -19,7 +19,7 @@ use std::mem::size_of;
 use crate::{
     balance::Balance,
     gas_coin::GAS,
-    object::{Object, ID_END_INDEX},
+    object::{ID_END_INDEX, Object},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::TimeLock,
 };
@@ -63,7 +63,7 @@ mod tests {
             coin_type::CoinType,
             output::{AliasOutput, BasicOutput, NftOutput},
         },
-        timelock::timelock::{to_genesis_object, TimeLock},
+        timelock::timelock::{TimeLock, to_genesis_object},
     };
 
     fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {

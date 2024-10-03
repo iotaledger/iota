@@ -5,10 +5,10 @@
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
+use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    error_object_from_rpc, GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics,
+    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
 };
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
@@ -25,21 +25,21 @@ use iota_types::{
     id::ID,
     iota_serde::BigInt,
     iota_system_state::{
-        get_validator_from_table, iota_system_state_summary::IotaSystemStateSummary,
-        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
+        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use itertools::Itertools;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{info, instrument};
 
 use crate::{
+    IotaRpcModule, ObjectProvider,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
     logger::FutureWithTracing as _,
-    IotaRpcModule, ObjectProvider,
 };
 
 #[derive(Clone)]

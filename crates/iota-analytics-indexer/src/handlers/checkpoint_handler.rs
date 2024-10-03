@@ -13,7 +13,7 @@ use iota_types::{
 };
 use tokio::sync::Mutex;
 
-use crate::{handlers::AnalyticsHandler, tables::CheckpointEntry, FileType};
+use crate::{FileType, handlers::AnalyticsHandler, tables::CheckpointEntry};
 
 pub struct CheckpointHandler {
     state: Mutex<State>,

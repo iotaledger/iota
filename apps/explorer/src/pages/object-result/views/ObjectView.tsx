@@ -224,7 +224,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = video ? 'Video' : fileType ?? '';
+    const heroImageSubtitle = video ? 'Video' : (fileType ?? '');
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,

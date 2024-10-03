@@ -41,8 +41,8 @@ import {
     type IotaSignPersonalMessageMethod,
     type IotaSignTransactionBlockMethod,
     type Wallet,
-    IotaSignTransactionMethod,
-    IotaSignAndExecuteTransactionMethod,
+    type IotaSignTransactionMethod,
+    type IotaSignAndExecuteTransactionMethod,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -228,11 +228,7 @@ export class IotaWallet implements Wallet {
         );
     };
 
-    #signTransaction: IotaSignTransactionMethod = async ({
-        transaction,
-        account,
-        ...input
-    }) => {
+    #signTransaction: IotaSignTransactionMethod = async ({ transaction, account, ...input }) => {
         if (!isTransaction(transaction)) {
             throw new Error(
                 'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
@@ -250,8 +246,9 @@ export class IotaWallet implements Wallet {
                     transaction: await transaction.toJSON(),
                 },
             }),
-            ({ result: { signature, transactionBlockBytes: bytes}}) => ({
-                signature, bytes
+            ({ result: { signature, transactionBlockBytes: bytes } }) => ({
+                signature,
+                bytes,
             }),
         );
     };
@@ -281,39 +278,39 @@ export class IotaWallet implements Wallet {
 
     #signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = async (input) => {
         return mapToPromise(
-          this.#send<ExecuteTransactionRequest, ExecuteTransactionResponse>({
-            type: 'execute-transaction-request',
-            transaction: {
-              type: 'transaction',
-              data: await input.transaction.toJSON(),
-              options: {
-                showRawEffects: true,
-                showRawInput: true,
-              },
-              // account might be undefined if previous version of adapters is used
-              // in that case use the first account address
-              account: input.account?.address || this.#accounts[0]?.address || '',
+            this.#send<ExecuteTransactionRequest, ExecuteTransactionResponse>({
+                type: 'execute-transaction-request',
+                transaction: {
+                    type: 'transaction',
+                    data: await input.transaction.toJSON(),
+                    options: {
+                        showRawEffects: true,
+                        showRawInput: true,
+                    },
+                    // account might be undefined if previous version of adapters is used
+                    // in that case use the first account address
+                    account: input.account?.address || this.#accounts[0]?.address || '',
+                },
+            }),
+            ({ result: { rawEffects, rawTransaction, digest } }) => {
+                const [
+                    {
+                        txSignatures: [signature],
+                        intentMessage: { value: bcsTransaction },
+                    },
+                ] = bcs.SenderSignedData.parse(fromB64(rawTransaction!));
+
+                const bytes = bcs.TransactionData.serialize(bcsTransaction).toBase64();
+
+                return {
+                    digest,
+                    signature,
+                    bytes,
+                    effects: toB64(new Uint8Array(rawEffects!)),
+                };
             },
-          }),
-          ({ result: { rawEffects, rawTransaction, digest } }) => {
-            const [
-              {
-                txSignatures: [signature],
-                intentMessage: { value: bcsTransaction },
-              },
-            ] = bcs.SenderSignedData.parse(fromB64(rawTransaction!));
-    
-            const bytes = bcs.TransactionData.serialize(bcsTransaction).toBase64();
-    
-            return {
-              digest,
-              signature,
-              bytes,
-              effects: toB64(new Uint8Array(rawEffects!)),
-            };
-          },
         );
-      };
+    };
 
     #signMessage: IotaSignMessageMethod = async ({ message, account }) => {
         return mapToPromise(

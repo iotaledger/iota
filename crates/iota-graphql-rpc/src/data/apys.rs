@@ -68,15 +68,12 @@ mod tests {
             let address = IotaAddress::random_for_testing_only();
             validator_exchange_rates.insert(
                 address,
-                (
-                    validator,
-                    ValidatorExchangeRates {
-                        address,
-                        pool_id: ObjectID::random(),
-                        active: true,
-                        rates,
-                    },
-                ),
+                (validator, ValidatorExchangeRates {
+                    address,
+                    pool_id: ObjectID::random(),
+                    active: true,
+                    rates,
+                }),
             );
         });
 

@@ -7,20 +7,24 @@
 //!
 //! See also <https://www.postgresql.org/docs/current/lo-funcs.html>
 
+use std::time::Duration;
+
 use diesel::{
-    define_sql_function,
+    RunQueryDsl, define_sql_function,
     pg::sql_types::Oid,
     r2d2::R2D2Connection,
     select,
     sql_types::{BigInt, Binary, Integer, Nullable},
-    RunQueryDsl,
 };
+use downcast::Any;
 
 use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError},
-    read_only_blocking,
+    transactional_blocking_with_retry,
 };
+
+const DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
 
 define_sql_function! {
     /// Returns an `Oid` of an empty new large object.
@@ -47,9 +51,13 @@ define_sql_function! {
 pub fn create_large_object<T: R2D2Connection + Send + 'static>(
     pool: &ConnectionPool<T>,
 ) -> Result<u32, IndexerError> {
-    read_only_blocking!(pool, |conn| select(lo_create(0)).get_result(conn))
-        .map_err(IndexerError::from)
-        .context("failed to store large object")
+    transactional_blocking_with_retry!(
+        pool,
+        |conn| select(lo_create(0)).get_result(conn),
+        DB_COMMIT_SLEEP_DURATION
+    )
+    .map_err(IndexerError::from)
+    .context("failed to store large object")
 }
 
 /// Store raw data as a large object in chunks.
@@ -73,8 +81,11 @@ pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
         // remove dangling chunks (either by using a transaction or by handlng manually)
         //
         // additionally we could apply a backoff retry strategy
-        read_only_blocking!(pool, |conn| select(lo_put(oid, offset, chunk))
-            .execute(conn))
+        transactional_blocking_with_retry!(
+            pool,
+            |conn| select(lo_put(oid, offset, chunk)).execute(conn),
+            DB_COMMIT_SLEEP_DURATION
+        )
         .map_err(IndexerError::from)
         .context("failed to insert large object chunk")?;
     }
@@ -96,9 +107,11 @@ pub fn get_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
 
         tracing::trace!("Fetching large-object chunk at offset {}", offset);
 
-        let chunk = read_only_blocking!(pool, |conn| {
-            select(lo_get(oid, Some(offset), Some(length))).get_result::<Vec<u8>>(conn)
-        })
+        let chunk = transactional_blocking_with_retry!(
+            pool,
+            |conn| { select(lo_get(oid, Some(offset), Some(length))).get_result::<Vec<u8>>(conn) },
+            DB_COMMIT_SLEEP_DURATION
+        )
         .map_err(IndexerError::from)
         .context("failed to query large object chunk")?;
 

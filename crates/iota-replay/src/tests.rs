@@ -9,9 +9,9 @@ use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
 
 use crate::{
-    config::ReplayableNetworkConfigSet,
-    types::{ReplayEngineError, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD},
     LocalExec,
+    config::ReplayableNetworkConfigSet,
+    types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
 };
 
 /// Keep searching for non-system TXs in the checkppints for this long

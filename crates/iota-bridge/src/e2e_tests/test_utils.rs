@@ -18,20 +18,20 @@ use iota_json_rpc_types::{
     IotaEvent, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, TransactionFilter,
 };
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_BRIDGE_OBJECT_ID,
     base_types::IotaAddress,
     bridge::BridgeChainId,
     committee::TOTAL_VOTING_POWER,
-    crypto::{get_key_pair, EncodeDecodeBase64, KeypairTraits},
+    crypto::{EncodeDecodeBase64, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
     transaction::{ObjectArg, TransactionData},
-    IOTA_BRIDGE_OBJECT_ID,
 };
 use move_core_types::language_storage::StructTag;
 use prometheus::Registry;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 use serde::{Deserialize, Serialize};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -39,6 +39,7 @@ use tokio::{join, task::JoinHandle};
 use tracing::{error, info};
 
 use crate::{
+    BRIDGE_ENABLE_PROTOCOL_VERSION,
     abi::{EthBridgeCommittee, EthBridgeConfig},
     config::{BridgeNodeConfig, EthConfig, IotaConfig},
     crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes},
@@ -47,8 +48,7 @@ use crate::{
     node::run_bridge_node,
     server::BridgeNodePublicMetadata,
     types::BridgeAction,
-    utils::{get_eth_signer_client, EthSigner},
-    BRIDGE_ENABLE_PROTOCOL_VERSION,
+    utils::{EthSigner, get_eth_signer_client},
 };
 
 const BRIDGE_COMMITTEE_NAME: &str = "BridgeCommittee";

@@ -21,8 +21,8 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_grpc::HandleTransactionResponse,
     transaction::{
-        CallArg, CertifiedTransaction, Transaction, TransactionData, VerifiedCertificate,
-        VerifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
         get_zklogin_user_address, make_zklogin_tx, to_sender_signed_transaction,
@@ -33,11 +33,11 @@ use move_core_types::ident_str;
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_test_utils::{
             publish_package_on_single_authority, upgrade_package_on_single_authority,
         },
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     test_utils::make_transfer_iota_transaction,
 };
@@ -131,10 +131,10 @@ async fn transfer_with_account(
     let tx = if sender_account.0 == sponsor_account.0 {
         to_sender_signed_transaction(data, &sender_account.1)
     } else {
-        to_sender_signed_transaction_with_multi_signers(
-            data,
-            vec![&sender_account.1, &sponsor_account.1],
-        )
+        to_sender_signed_transaction_with_multi_signers(data, vec![
+            &sender_account.1,
+            &sponsor_account.1,
+        ])
     };
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
@@ -483,11 +483,8 @@ async fn test_certificate_deny() {
             .unwrap(),
     );
     let (effects, _) = state.try_execute_for_test(&cert).await.unwrap();
-    assert!(matches!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CertificateDenied,
-            ..
-        }
-    ));
+    assert!(matches!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::CertificateDenied,
+        ..
+    }));
 }

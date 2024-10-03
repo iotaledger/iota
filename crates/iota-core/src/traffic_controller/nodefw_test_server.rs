@@ -10,11 +10,11 @@ use std::{
 };
 
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use tokio::{
     sync::{Mutex, Notify},

@@ -37,7 +37,7 @@ use std::{
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
-use futures::{stream::FuturesOrdered, StreamExt as _};
+use futures::{StreamExt as _, stream::FuturesOrdered};
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
@@ -45,11 +45,12 @@ use rand::prelude::SliceRandom as _;
 use tokio::{
     sync::oneshot,
     task::{JoinHandle, JoinSet},
-    time::{sleep, Instant, MissedTickBehavior},
+    time::{Instant, MissedTickBehavior, sleep},
 };
 use tracing::{debug, info, warn};
 
 use crate::{
+    CommitConsumerMonitor, CommitIndex,
     block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
@@ -60,7 +61,6 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    CommitConsumerMonitor, CommitIndex,
 };
 
 // Handle to stop the CommitSyncer loop.
@@ -764,6 +764,7 @@ mod tests {
     use parking_lot::RwLock;
 
     use crate::{
+        CommitConsumerMonitor, CommitDigest, CommitRef, Round,
         block::{BlockRef, TestBlock, VerifiedBlock},
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
@@ -775,7 +776,6 @@ mod tests {
         error::ConsensusResult,
         network::{BlockStream, NetworkClient},
         storage::mem_store::MemStore,
-        CommitConsumerMonitor, CommitDigest, CommitRef, Round,
     };
 
     #[derive(Default)]

@@ -11,18 +11,18 @@ use std::{
 };
 
 use async_graphql::{
-    extensions::{ApolloTracing, ExtensionFactory, Tracing},
     EmptySubscription, Schema, SchemaBuilder,
+    extensions::{ApolloTracing, ExtensionFactory, Tracing},
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
+    Extension, Router,
     body::Body,
     extract::{ConnectInfo, FromRef, Query as AxumQuery, State},
     http::{HeaderMap, StatusCode},
     middleware::{self},
     response::IntoResponse,
-    routing::{get, post, MethodRouter, Route},
-    Extension, Router,
+    routing::{MethodRouter, Route, get, post},
 };
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
@@ -40,13 +40,13 @@ use uuid::Uuid;
 
 use crate::{
     config::{
-        ConnectionConfig, ServerConfig, ServiceConfig, Version, MAX_CONCURRENT_REQUESTS,
-        RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
+        ConnectionConfig, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
+        ServerConfig, ServiceConfig, Version,
     },
     context_data::db_data_provider::PgManager,
     data::{
-        package_resolver::{DbPackageStore, PackageResolver},
         DataLoader, Db,
+        package_resolver::{DbPackageStore, PackageResolver},
     },
     error::Error,
     extensions::{
@@ -688,10 +688,10 @@ pub mod tests {
     use std::{sync::Arc, time::Duration};
 
     use async_graphql::{
-        extensions::{Extension, ExtensionContext, NextExecute},
         Response,
+        extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_sdk::{wallet_context::WalletContext, IotaClient};
+    use iota_sdk::{IotaClient, wallet_context::WalletContext};
     use iota_types::transaction::TransactionData;
     use uuid::Uuid;
 
@@ -1047,10 +1047,9 @@ pub mod tests {
             .into_iter()
             .map(|e| e.message)
             .collect();
-        assert_eq!(
-            err,
-            vec!["Connection's page size of 51 exceeds max of 50".to_string()]
-        );
+        assert_eq!(err, vec![
+            "Connection's page size of 51 exceeds max of 50".to_string()
+        ]);
     }
 
     pub async fn test_query_complexity_metrics_impl() {

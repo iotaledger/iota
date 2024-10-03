@@ -9,13 +9,13 @@ use axum::{
 };
 
 use crate::{
+    APPLICATION_BCS, RestService, TEXT_PLAIN_UTF_8,
     content_type::ContentType,
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_EPOCH,
         X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
         X_IOTA_TIMESTAMP_MS,
     },
-    RestService, APPLICATION_BCS, TEXT_PLAIN_UTF_8,
 };
 
 pub struct Bcs<T>(pub T);

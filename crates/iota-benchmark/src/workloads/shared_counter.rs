@@ -12,22 +12,22 @@ use iota_types::{
     crypto::get_key_pair,
     transaction::Transaction,
 };
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng, seq::SliceRandom};
 use tracing::{debug, error, info};
 
 use crate::{
+    ExecutionEffects, ValidatorProxy,
     drivers::Interval,
     system_state_observer::SystemStateObserver,
     util::publish_basics_package,
     workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
         workload::{
-            Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING,
-            STORAGE_COST_PER_COUNTER,
+            ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COUNTER, Workload,
+            WorkloadBuilder,
         },
-        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
     },
-    ExecutionEffects, ValidatorProxy,
 };
 
 /// The max amount of gas units needed for a payload.

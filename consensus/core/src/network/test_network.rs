@@ -9,11 +9,11 @@ use futures::stream;
 use parking_lot::Mutex;
 
 use crate::{
+    Round,
     block::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::ConsensusResult,
     network::{BlockStream, NetworkService},
-    Round,
 };
 
 pub(crate) struct TestService {

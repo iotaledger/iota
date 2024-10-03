@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
+    Page, RestError, RestService, Result,
     accept::AcceptFormat,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
     response::ResponseContent,
-    Page, RestError, RestService, Result,
 };
 
 pub struct GetObject;

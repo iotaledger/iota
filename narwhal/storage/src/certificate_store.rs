@@ -17,8 +17,8 @@ use iota_macros::fail_point;
 use iota_metrics::{RegistryID, RegistryService};
 use lru::LruCache;
 use parking_lot::Mutex;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use store::{rocks::DBMap, Map, TypedStoreError::RocksDBError};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use store::{Map, TypedStoreError::RocksDBError, rocks::DBMap};
 use tap::Tap;
 use types::{Certificate, CertificateDigest, Round};
 
@@ -710,12 +710,12 @@ mod test {
     use futures::future::join_all;
     use store::{
         reopen,
-        rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
+        rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
     };
-    use test_utils::{temp_dir, CommitteeFixture};
+    use test_utils::{CommitteeFixture, temp_dir};
     use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
 
-    use crate::{certificate_store::CertificateStore, Cache, CertificateStoreCache};
+    use crate::{Cache, CertificateStoreCache, certificate_store::CertificateStore};
 
     /// An implementation that basically disables the caching functionality when
     /// used for CertificateStore.
@@ -799,16 +799,11 @@ mod test {
         const CERTIFICATE_ID_BY_ROUND_CF: &str = "certificate_id_by_round";
         const CERTIFICATE_ID_BY_ORIGIN_CF: &str = "certificate_id_by_origin";
 
-        let rocksdb = open_cf(
-            path,
-            None,
-            MetricConf::default(),
-            &[
-                CERTIFICATES_CF,
-                CERTIFICATE_ID_BY_ROUND_CF,
-                CERTIFICATE_ID_BY_ORIGIN_CF,
-            ],
-        )
+        let rocksdb = open_cf(path, None, MetricConf::default(), &[
+            CERTIFICATES_CF,
+            CERTIFICATE_ID_BY_ROUND_CF,
+            CERTIFICATE_ID_BY_ORIGIN_CF,
+        ])
         .expect("Cannot open database");
 
         reopen!(&rocksdb,
