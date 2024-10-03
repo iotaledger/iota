@@ -540,7 +540,7 @@ pub fn unbounded_channel<T>(name: &str) -> (UnboundedSender<T>, UnboundedReceive
 mod test {
     use std::task::{Context, Poll};
 
-    use futures::{task::noop_waker, FutureExt as _};
+    use futures::{FutureExt as _, task::noop_waker};
     use prometheus::Registry;
     use tokio::sync::mpsc::error::TrySendError;
 

@@ -6,7 +6,7 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::Result;
 use object_store::{
-    aws::AmazonS3ConfigKey, gcp::GoogleConfigKey, ClientOptions, ObjectStore, RetryConfig,
+    ClientOptions, ObjectStore, RetryConfig, aws::AmazonS3ConfigKey, gcp::GoogleConfigKey,
 };
 use url::Url;
 

@@ -13,17 +13,17 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_logged_monitored_task;
 use iota_types::{
+    TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     gas_coin::GasCoin,
     object::Owner,
     transaction::{ObjectArg, Transaction},
-    TypeTag,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 use tokio::{sync::Semaphore, time::Duration};
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{Instrument, error, info, instrument, warn};
 
 use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
@@ -668,8 +668,8 @@ mod tests {
         IotaTransactionBlockResponse,
     };
     use iota_types::{
-        base_types::random_object_ref, crypto::get_key_pair, gas_coin::GasCoin,
-        transaction::TransactionData, TypeTag,
+        TypeTag, base_types::random_object_ref, crypto::get_key_pair, gas_coin::GasCoin,
+        transaction::TransactionData,
     };
     use prometheus::Registry;
 
@@ -683,12 +683,12 @@ mod tests {
         iota_mock_client::IotaMockClient,
         server::mock_handler::BridgeRequestMockHandler,
         test_utils::{
-            get_test_authorities_and_run_mock_bridge_server, get_test_eth_to_iota_bridge_action,
-            get_test_iota_to_eth_bridge_action, sign_action_with_key,
-            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG,
+            DUMMY_MUTABLE_BRIDGE_OBJECT_ARG, get_test_authorities_and_run_mock_bridge_server,
+            get_test_eth_to_iota_bridge_action, get_test_iota_to_eth_bridge_action,
+            sign_action_with_key,
         },
         types::{
-            BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction, BRIDGE_PAUSED,
+            BRIDGE_PAUSED, BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction,
         },
     };
 
@@ -1439,10 +1439,10 @@ mod tests {
             iota_tx_digest,
             iota_tx_event_index,
         );
-        let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
-            action,
-            BridgeCommitteeValiditySignInfo { signatures: sigs },
-        );
+        let certified_action =
+            CertifiedBridgeAction::new_from_data_and_sig(action, BridgeCommitteeValiditySignInfo {
+                signatures: sigs,
+            });
         (
             VerifiedCertifiedBridgeAction::new_from_verified(certified_action),
             iota_tx_digest,
@@ -1539,10 +1539,13 @@ mod tests {
         let mock2 = BridgeRequestMockHandler::new();
         let mock3 = BridgeRequestMockHandler::new();
 
-        let (mut handles, authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
-            vec![2500, 2500, 2500, 2500],
-            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
-        );
+        let (mut handles, authorities, secrets) =
+            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
+                mock0.clone(),
+                mock1.clone(),
+                mock2.clone(),
+                mock3.clone(),
+            ]);
 
         let committee = BridgeCommittee::new(authorities).unwrap();
 

@@ -4,13 +4,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
     base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
-    object::{bounded_visitor::BoundedVisitor, Object, Owner},
+    object::{Object, Owner, bounded_visitor::BoundedVisitor},
     transaction::{TransactionData, TransactionDataAPI},
 };
 use move_core_types::{
@@ -19,8 +19,8 @@ use move_core_types::{
 };
 
 use crate::{
-    tables::{InputObjectKind, ObjectStatus, OwnerType},
     FileType,
+    tables::{InputObjectKind, ObjectStatus, OwnerType},
 };
 
 pub mod checkpoint_handler;

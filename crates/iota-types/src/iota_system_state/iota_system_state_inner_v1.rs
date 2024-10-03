@@ -8,17 +8,17 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    AdvanceEpochParams, IotaSystemStateTrait,
 };
 use crate::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
+    crypto::{AuthorityPublicKeyBytes, verify_proof_of_possession},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
@@ -535,13 +535,10 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                    }),
                 )
             })
             .collect();

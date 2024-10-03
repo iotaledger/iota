@@ -9,7 +9,7 @@ use iota_core::{
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
     authority_client::NetworkAuthorityClient,
     epoch::committee_store::CommitteeStore,
-    quorum_driver::{reconfig_observer::ReconfigObserver, QuorumDriver},
+    quorum_driver::{QuorumDriver, reconfig_observer::ReconfigObserver},
     safe_client::SafeClientMetricsBase,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};

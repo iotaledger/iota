@@ -7,8 +7,8 @@ use std::collections::BTreeSet;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Meta,
-    NestedMeta,
+    Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Meta, NestedMeta,
+    parse_macro_input,
 };
 
 /// Attribute macro to be applied to config-based structs. It ensures that the

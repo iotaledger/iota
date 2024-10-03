@@ -19,14 +19,14 @@ use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_test_transaction_builder::{
-    batch_make_transfer_transactions, create_nft, delete_nft, increment_counter,
-    publish_basics_package, publish_basics_package_and_make_counter, publish_nfts_package,
-    TestTransactionBuilder,
+    TestTransactionBuilder, batch_make_transfer_transactions, create_nft, delete_nft,
+    increment_counter, publish_basics_package, publish_basics_package_and_make_counter,
+    publish_nfts_package,
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
-    crypto::{get_key_pair, IotaKeyPair},
+    crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     message_envelope::Message,
     messages_grpc::TransactionInfoRequest,
@@ -37,8 +37,8 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionKind,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -48,7 +48,7 @@ use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
 use tokio::{
     sync::Mutex,
-    time::{sleep, Duration},
+    time::{Duration, sleep},
 };
 use tracing::info;
 
@@ -149,34 +149,27 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
-    let tx_data = TransactionData::new_with_gas_data(
-        kind,
-        sender,
-        GasData {
-            payment: vec![gas_obj],
-            owner: sponsor,
-            price: rgp,
-            budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        },
-    );
+    let tx_data = TransactionData::new_with_gas_data(kind, sender, GasData {
+        payment: vec![gas_obj],
+        owner: sponsor,
+        price: rgp,
+        budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    });
 
-    let tx = to_sender_signed_transaction_with_multi_signers(
-        tx_data,
-        vec![
-            test_cluster
-                .wallet
-                .config
-                .keystore
-                .get_key(&sender)
-                .unwrap(),
-            test_cluster
-                .wallet
-                .config
-                .keystore
-                .get_key(&sponsor)
-                .unwrap(),
-        ],
-    );
+    let tx = to_sender_signed_transaction_with_multi_signers(tx_data, vec![
+        test_cluster
+            .wallet
+            .config
+            .keystore
+            .get_key(&sender)
+            .unwrap(),
+        test_cluster
+            .wallet
+            .config
+            .keystore
+            .get_key(&sponsor)
+            .unwrap(),
+    ]);
 
     test_cluster.execute_transaction(tx).await;
 

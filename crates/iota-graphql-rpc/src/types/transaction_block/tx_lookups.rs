@@ -8,7 +8,7 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::schema::checkpoints;
 
 use crate::{
-    data::{pg::bytea_literal, Conn, DbConnection},
+    data::{Conn, DbConnection, pg::bytea_literal},
     filter, inner_join, query,
     raw_query::RawQuery,
     types::{

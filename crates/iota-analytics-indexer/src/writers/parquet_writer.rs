@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fs::{create_dir_all, remove_file, File},
+    fs::{File, create_dir_all, remove_file},
     ops::Range,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arrow_array::{ArrayRef, BooleanArray, Int64Array, RecordBatch, StringArray, UInt64Array};
 use iota_storage::object_store::util::path_to_filesystem;
 use iota_types::base_types::EpochId;

@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk::{wallet_context::WalletContext, IotaClient, IotaClientBuilder};
+use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{KeypairTraits, Signature},
     transaction::TransactionData,
 };
 use shared_crypto::intent::Intent;
-use tracing::{info, info_span, Instrument};
+use tracing::{Instrument, info, info_span};
 
 use super::Cluster;
 use crate::cluster::new_wallet_context_from_cluster;

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod execution;
+
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -18,11 +19,11 @@ use iota_sdk2::types::{
 use tap::Pipe;
 
 use crate::{
+    Direction, Page, RestError, RestService, Result,
     accept::AcceptFormat,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
     response::ResponseContent,
-    Direction, Page, RestError, RestService, Result,
 };
 
 pub struct GetTransaction;

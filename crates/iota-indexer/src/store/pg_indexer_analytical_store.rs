@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use diesel::{
-    dsl::count, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, dsl::count,
 };
 use downcast::Any;
 use iota_types::base_types::ObjectID;
@@ -22,8 +22,8 @@ use crate::{
         address_metrics::StoredAddressMetrics,
         checkpoints::StoredCheckpoint,
         move_call_metrics::{
-            build_move_call_metric_query, QueriedMoveCallMetrics, QueriedMoveMetrics,
-            StoredMoveCallMetrics,
+            QueriedMoveCallMetrics, QueriedMoveMetrics, StoredMoveCallMetrics,
+            build_move_call_metric_query,
         },
         network_metrics::{StoredEpochPeakTps, Tps},
         transactions::{

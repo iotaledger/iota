@@ -4,7 +4,7 @@
 
 use std::{
     fs, io,
-    io::{stderr, stdout, Write},
+    io::{Write, stderr, stdout},
     net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -19,18 +19,18 @@ use iota_bridge::{
     iota_transaction_builder::build_committee_register_transaction,
 };
 use iota_config::{
-    genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer, Config, PersistedConfig,
-    FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
+    Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
 };
-use iota_faucet::{create_wallet_context, start_faucet, AppState, FaucetConfig, SimpleFaucet};
+use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
 #[cfg(feature = "indexer")]
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{start_test_indexer, ReaderWriterConfig};
+use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
 use iota_keys::{
     keypair_file::read_key,
     keystore::{AccountKeystore, FileBasedKeystore, Keystore},
@@ -43,7 +43,7 @@ use iota_sdk::{
 };
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
-    genesis_config::{GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES},
+    genesis_config::{DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
@@ -61,15 +61,15 @@ use tracing::{self, info};
 use crate::{
     client_commands::IotaClientCommands,
     console::start_console,
-    fire_drill::{run_fire_drill, FireDrill},
-    genesis_ceremony::{run, Ceremony},
+    fire_drill::{FireDrill, run_fire_drill},
+    genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
     validator_commands::IotaValidatorCommand,
 };
 
 const CONCURRENCY_LIMIT: usize = 30;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
-const DEFAULT_FAUCET_NUM_COINS: usize = 5; // 5 coins per request was the default in iota-test-validator
+const DEFAULT_FAUCET_NUM_COINS: usize = 5;
 const DEFAULT_FAUCET_NANOS_AMOUNT: u64 = 200_000_000_000; // 200 IOTA
 const DEFAULT_FAUCET_PORT: u16 = 9123;
 #[cfg(feature = "indexer")]

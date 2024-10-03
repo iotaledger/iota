@@ -9,7 +9,7 @@ use iota_core::test_utils::make_transfer_iota_transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     transaction::Transaction,
 };
@@ -17,17 +17,17 @@ use rand::seq::IteratorRandom;
 use tracing::error;
 
 use crate::{
+    ExecutionEffects, ValidatorProxy,
     drivers::Interval,
     system_state_observer::SystemStateObserver,
     workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
         workload::{
-            Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING,
-            STORAGE_COST_PER_COIN,
+            ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COIN, Workload,
+            WorkloadBuilder,
         },
-        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
     },
-    ExecutionEffects, ValidatorProxy,
 };
 
 #[derive(Debug)]

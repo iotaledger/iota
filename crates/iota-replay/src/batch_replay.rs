@@ -5,10 +5,10 @@
 use std::{
     collections::VecDeque,
     path::PathBuf,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::{Arc, atomic::AtomicUsize},
 };
 
-use futures::{future::join_all, FutureExt};
+use futures::{FutureExt, future::join_all};
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_types::base_types::TransactionDigest;
 use parking_lot::Mutex;

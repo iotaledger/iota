@@ -6,10 +6,10 @@ use std::str::FromStr;
 use iota_stardust_sdk::types::block::{
     address::Ed25519Address,
     output::{
+        BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,
         unlock_condition::{
             AddressUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
         },
-        BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,
     },
 };
 
@@ -19,8 +19,8 @@ use crate::{
     id::UID,
     timelock::{
         label::label_struct_tag_to_string,
-        stardust_upgrade_label::{stardust_upgrade_label_type, STARDUST_UPGRADE_LABEL_VALUE},
-        timelock::{is_timelocked_vested_reward, try_from_stardust, TimeLock, VestedRewardError},
+        stardust_upgrade_label::{STARDUST_UPGRADE_LABEL_VALUE, stardust_upgrade_label_type},
+        timelock::{TimeLock, VestedRewardError, is_timelocked_vested_reward, try_from_stardust},
     },
 };
 

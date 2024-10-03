@@ -6,7 +6,7 @@ use std::{env, sync::Arc};
 
 use consensus_config::AuthorityIndex;
 use parking_lot::RwLock;
-use rand::{prelude::SliceRandom, rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 
 use crate::{
     block::{BlockAPI, Slot},
@@ -19,7 +19,7 @@ use crate::{
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
     universal_committer::{
-        universal_committer_builder::UniversalCommitterBuilder, UniversalCommitter,
+        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
 

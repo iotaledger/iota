@@ -15,17 +15,18 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_types::{
-    authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
+    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list_v1::{get_coin_deny_list, PerTypeDenyList},
+    deny_list_v1::{PerTypeDenyList, get_coin_deny_list},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
-        get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
-        IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+        IotaSystemState, IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+        get_iota_system_state, get_iota_system_state_wrapper,
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
@@ -33,7 +34,6 @@ use iota_types::{
     object::Object,
     storage::ObjectStore,
     transaction::Transaction,
-    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;

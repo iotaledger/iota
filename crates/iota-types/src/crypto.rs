@@ -9,7 +9,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use derive_more::{AsMut, AsRef, From};
 pub use enum_dispatch::enum_dispatch;
 use eyre::eyre;
@@ -40,13 +40,13 @@ use fastcrypto::{
 };
 use fastcrypto_zkp::{bn254::zk_login::ZkLoginInputs, zk_login_utils::Bn254FrElement};
 use rand::{
-    rngs::{OsRng, StdRng},
     SeedableRng,
+    rngs::{OsRng, StdRng},
 };
 use roaring::RoaringBitmap;
 use schemars::JsonSchema;
-use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
-use serde_with::{serde_as, Bytes};
+use serde::{Deserialize, Deserializer, Serialize, ser::Serializer};
+use serde_with::{Bytes, serde_as};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::EnumString;
 use tracing::{instrument, warn};
@@ -1008,8 +1008,8 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
 
         let (sig, pk) = &self.get_verification_inputs()?;
         match scheme {
-            SignatureScheme::ZkLoginAuthenticator => {} /* Pass this check because zk login does
-                                                          * not derive address from pubkey. */
+            SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does
+            // not derive address from pubkey.
             _ => {
                 let address = IotaAddress::from(pk);
                 if author != address {
@@ -1101,22 +1101,16 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
         obligation: &mut VerificationObligation<'a>,
         message_index: usize,
     ) -> IotaResult<()> {
-        fp_ensure!(
-            self.epoch == committee.epoch(),
-            IotaError::WrongEpoch {
-                expected_epoch: committee.epoch(),
-                actual_epoch: self.epoch,
-            }
-        );
+        fp_ensure!(self.epoch == committee.epoch(), IotaError::WrongEpoch {
+            expected_epoch: committee.epoch(),
+            actual_epoch: self.epoch,
+        });
         let weight = committee.weight(&self.authority);
-        fp_ensure!(
-            weight > 0,
-            IotaError::UnknownSigner {
-                signer: Some(self.authority.concise().to_string()),
-                index: None,
-                committee: Box::new(committee.clone())
-            }
-        );
+        fp_ensure!(weight > 0, IotaError::UnknownSigner {
+            signer: Some(self.authority.concise().to_string()),
+            index: None,
+            committee: Box::new(committee.clone())
+        });
 
         obligation
             .public_keys
@@ -1275,13 +1269,10 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
         message_index: usize,
     ) -> IotaResult<()> {
         // Check epoch
-        fp_ensure!(
-            self.epoch == committee.epoch(),
-            IotaError::WrongEpoch {
-                expected_epoch: committee.epoch(),
-                actual_epoch: self.epoch,
-            }
-        );
+        fp_ensure!(self.epoch == committee.epoch(), IotaError::WrongEpoch {
+            expected_epoch: committee.epoch(),
+            actual_epoch: self.epoch,
+        });
 
         let mut weight = 0;
 
@@ -1311,14 +1302,11 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
 
             // Update weight.
             let voting_rights = committee.weight(authority);
-            fp_ensure!(
-                voting_rights > 0,
-                IotaError::UnknownSigner {
-                    signer: Some(authority.concise().to_string()),
-                    index: Some(authority_index),
-                    committee: Box::new(committee.clone()),
-                }
-            );
+            fp_ensure!(voting_rights > 0, IotaError::UnknownSigner {
+                signer: Some(authority.concise().to_string()),
+                index: Some(authority_index),
+                committee: Box::new(committee.clone()),
+            });
             weight += voting_rights;
 
             selected_public_keys.push(committee.public_key(authority)?);
@@ -1686,8 +1674,8 @@ impl SignatureScheme {
             SignatureScheme::Secp256k1 => 0x01,
             SignatureScheme::Secp256r1 => 0x02,
             SignatureScheme::MultiSig => 0x03,
-            SignatureScheme::BLS12381 => 0x04, /* This is currently not supported for user Iota
-                                                 * Address. */
+            SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Iota
+            // Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
         }

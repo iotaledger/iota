@@ -6,7 +6,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use futures::future::join_all;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use surf_strategy::SurfStrategy;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::sync::watch;

@@ -20,8 +20,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        load_package_object_from_object_store, BackingPackageStore, ChildObjectResolver,
-        ObjectStore, PackageObject, ParentSync, ReadStore, RestStateReader,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        ReadStore, RestStateReader, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -34,10 +34,10 @@ use move_core_types::{
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use typed_store::{
+    DBMapUtils, Map,
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
-    DBMapUtils, Map,
 };
 
 use super::SimulatorStore;
@@ -782,7 +782,7 @@ impl Clone for PersistedStoreInnerReadOnlyWrapper {
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::*;
 
