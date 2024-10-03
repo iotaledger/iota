@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
 import { getRefGasPrice } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading, Text } from '@iota/ui';
 import { useMemo } from 'react';
 
-import { Card, RingChart, RingChartLegend } from '~/components/ui';
+import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
@@ -21,6 +21,9 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const nextEpoch = Number(data.epoch || 0) + 1;
 
+    const getHexColorWithOpacity = (color: string, opacity: number) =>
+        `${color}${Math.round(opacity * 255).toString(16)}`;
+
     const chartData = [
         {
             value: data.activeValidators.length,
@@ -28,53 +31,47 @@ export function ValidatorStatus(): JSX.Element | null {
             gradient: {
                 deg: 315,
                 values: [
-                    { percent: 0, color: '#4C75A6' },
-                    { percent: 100, color: '#589AEA' },
+                    { percent: 0, color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30] },
+                    { percent: 100, color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30] },
                 ],
             },
         },
         {
             value: Number(data.pendingActiveValidatorsSize ?? 0),
             label: 'New',
-            color: '#F2BD24',
+            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
         },
         {
             value: data.atRiskValidators.length,
             label: 'At Risk',
-            color: '#FF794B',
+            color: IOTA_PRIMITIVES_COLOR_PALETTE.neutral[90],
         },
     ];
 
     return (
-        <Card spacing="lg" bg="white" border="steel" rounded="2xl">
-            <div className="flex items-center gap-5">
-                <div className="min-h-[96px] min-w-[96px]">
-                    <RingChart data={chartData} />
-                </div>
+        <Panel>
+            <div className="flex flex-col">
+                <Title title={`Validators in Epoch ${nextEpoch}`} />
+                <div className="flex flex-col items-start justify-center gap-x-xl gap-y-sm p-md--rs md:flex-row md:items-center md:justify-between md:gap-sm--rs">
+                    <div className="flex w-auto flex-row gap-x-md p-md md:max-w-[50%]">
+                        <div className="h-[92px] w-[92px]">
+                            <RingChart data={chartData} width={4} />
+                        </div>
+                        <div className="flex flex-col items-center justify-center gap-xs lg:items-start">
+                            <RingChartLegend data={chartData} />
+                        </div>
+                    </div>
 
-                <div className="self-start">
-                    <RingChartLegend data={chartData} title={`Validators in Epoch ${nextEpoch}`} />
+                    <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
+                        <DisplayStats
+                            label="Estimated Next Epoch
+                            Reference Gas Price"
+                            value={nextRefGasPrice.toString()}
+                            supportingLabel="nano"
+                        />
+                    </div>
                 </div>
             </div>
-
-            <div className="mt-8 flex items-center justify-between rounded-lg border border-solid border-steel px-3 py-2">
-                <div>
-                    <Text variant="pSubtitle/semibold" color="steel-darker">
-                        Estimated Next Epoch
-                    </Text>
-                    <Text variant="pSubtitle/semibold" color="steel-darker">
-                        Reference Gas Price
-                    </Text>
-                </div>
-                <div className="text-right">
-                    <Heading variant="heading4/semibold" color="steel-darker">
-                        {nextRefGasPrice.toString()}
-                    </Heading>
-                    <Text variant="pBody/medium" color="steel-darker">
-                        nano
-                    </Text>
-                </div>
-            </div>
-        </Card>
+        </Panel>
     );
 }

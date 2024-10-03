@@ -17,7 +17,7 @@ Run the following command to see available commands:
 cargo run --bin iota-rpc-loadgen -- -h
 ```
 
-To try this locally, refer to [sef](../iota-test-validator/README.md). Recommend setting `database-url` to an env variable. Note: run `RUST_LOG="consensus=off" cargo run iota-test-validator -- --with-indexer` to rebuild.
+To try this locally, refer to the [docs](https://wiki.iota.org/guides/developer/getting-started/local-network). Note: run `RUST_LOG="consensus=off" cargo run iota --features indexer start --with-faucet --force-regenesis --with-indexer` to rebuild.
 
 ### Example 1: Get All Checkpoints
 

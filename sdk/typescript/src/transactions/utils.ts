@@ -2,14 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Struct } from 'superstruct';
-import { create as superstructCreate } from 'superstruct';
-
 import type { IotaMoveNormalizedType } from '../client/index.js';
-
-export function create<T, S>(value: T, struct: Struct<T, S>): T {
-    return superstructCreate(value, struct);
-}
+import { normalizeIotaAddress } from '../utils/iota-types.js';
+import type { CallArg } from './data/internal.js';
 
 export function extractMutableReference(
     normalizedType: IotaMoveNormalizedType,
@@ -44,5 +39,29 @@ export function extractStructTag(
     if (typeof mutRef === 'object' && 'Struct' in mutRef) {
         return mutRef;
     }
+    return undefined;
+}
+
+export function getIdFromCallArg(arg: string | CallArg) {
+    if (typeof arg === 'string') {
+        return normalizeIotaAddress(arg);
+    }
+
+    if (arg.Object) {
+        if (arg.Object.ImmOrOwnedObject) {
+            return normalizeIotaAddress(arg.Object.ImmOrOwnedObject.objectId);
+        }
+
+        if (arg.Object.Receiving) {
+            return normalizeIotaAddress(arg.Object.Receiving.objectId);
+        }
+
+        return normalizeIotaAddress(arg.Object.SharedObject.objectId);
+    }
+
+    if (arg.UnresolvedObject) {
+        return normalizeIotaAddress(arg.UnresolvedObject.objectId);
+    }
+
     return undefined;
 }

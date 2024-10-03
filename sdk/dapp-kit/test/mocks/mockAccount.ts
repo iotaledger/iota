@@ -12,7 +12,12 @@ export function createMockAccount(accountOverrides: Partial<WalletAccount> = {})
         address: keypair.getPublicKey().toIotaAddress(),
         publicKey: keypair.getPublicKey().toIotaBytes(),
         chains: ['iota:unknown'],
-        features: ['iota:signAndExecuteTransactionBlock', 'iota:signTransactionBlock'],
+        features: [
+            'iota:signAndExecuteTransactionBlock',
+            'iota:signTransactionBlock',
+            'iota:signAndExecuteTransaction',
+            'iota:signTransaction',
+        ],
         ...accountOverrides,
     });
 }

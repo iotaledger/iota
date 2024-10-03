@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "In IOTA, what uniquely identifies a user?",
+        "answerOptions": [
+            { "answerText": "Email address", "isCorrect": false },
+            { "answerText": "Account and its associated address", "isCorrect": true },
+            { "answerText": "Personal information", "isCorrect": false },
+            { "answerText": "IP address", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How many bytes long is an IOTA address?",
+        "answerOptions": [
+            { "answerText": "16 bytes", "isCorrect": false },
+            { "answerText": "32 bytes", "isCorrect": true },
+            { "answerText": "64 bytes", "isCorrect": false },
+            { "answerText": "128 bytes", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which cryptographic algorithms are supported by IOTA for account generation?",
+        "answerOptions": [
+            { "answerText": "ed25519, secp256k1, and secp256r1", "isCorrect": true },
+            { "answerText": "RSA and DSA", "isCorrect": false },
+            { "answerText": "SHA256 and MD5", "isCorrect": false },
+            { "answerText": "ECDSA and Diffie-Hellman", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the simplest way to generate an IOTA address?",
+        "answerOptions": [
+            { "answerText": "Using the IOTA Wallet Chrome browser extension", "isCorrect": true },
+            { "answerText": "Writing code in Move language", "isCorrect": false },
+            { "answerText": "Using the IOTA Explorer", "isCorrect": false },
+            { "answerText": "Using the command line interface only", "isCorrect": false }
+        ]
+    }
+]

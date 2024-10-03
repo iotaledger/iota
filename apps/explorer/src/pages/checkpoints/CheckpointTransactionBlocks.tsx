@@ -4,12 +4,12 @@
 
 import { useState } from 'react';
 
-import { genTableDataFromTxData } from '~/components';
 import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
@@ -22,20 +22,19 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
 
     const { data, isFetching, pagination, isPending } = useCursorPagination(transactions);
 
-    const cardData = data ? genTableDataFromTxData(data.data) : undefined;
+    const tableColumns = generateTransactionsTableColumns();
 
     return (
         <div className="flex flex-col space-y-5 text-left xl:pr-10">
-            {isPending || isFetching || !cardData ? (
+            {isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={20}
                     rowHeight="16px"
                     colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                    colWidths={['30%', '30%', '10%', '20%', '10%']}
                 />
             ) : (
                 <div>
-                    <TableCard data={cardData.data} columns={cardData.columns} />
+                    <TableCard data={data.data} columns={tableColumns} />
                 </div>
             )}
             <div className="flex justify-between">

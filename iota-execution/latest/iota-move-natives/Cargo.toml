@@ -11,15 +11,17 @@ description = "Move framework for iota platform"
 bcs.workspace = true
 better_any.workspace = true
 indexmap.workspace = true
+rand = { workspace = true, features = ["small_rng"] }
 smallvec.workspace = true
 
 fastcrypto.workspace = true
+fastcrypto-vdf.workspace = true
 fastcrypto-zkp.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-vm-types.workspace = true
 
-move-stdlib = { path = "../../../external-crates/move/crates/move-stdlib" }
+move-stdlib-natives = { path = "../../../external-crates/move/crates/move-stdlib-natives" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
 
 iota-protocol-config.workspace = true

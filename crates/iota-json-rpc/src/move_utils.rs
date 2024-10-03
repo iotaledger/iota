@@ -17,7 +17,7 @@ use iota_types::{
     move_package::normalize_modules,
     object::{Data, ObjectRead},
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
 use move_binary_format::{
@@ -29,10 +29,10 @@ use tap::TapFallible;
 use tracing::{error, instrument, warn};
 
 use crate::{
+    IotaRpcModule,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
-    IotaRpcModule,
 };
 
 #[cfg_attr(test, automock)]

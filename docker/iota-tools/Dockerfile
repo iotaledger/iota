@@ -7,7 +7,24 @@ ARG PROFILE=release
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "$WORKDIR/iota"
+
 RUN apt-get update && apt-get install -y cmake clang libpq5 libpq-dev
+
+# TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh <<EOT
+  set -e
+  echo "Setting Git SSH protocol"
+  (
+    set +e
+    ssh -T git@github.com
+    if [ ! "$?" = "1" ]; then
+      echo "No GitHub SSH key loaded, exiting..."
+      exit 1
+    fi
+  )
+EOT
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 COPY Cargo.toml Cargo.lock ./
 COPY consensus consensus
@@ -17,11 +34,16 @@ COPY narwhal narwhal
 COPY external-crates external-crates
 COPY docs docs
 
-RUN cargo build --profile ${PROFILE} \
+# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+RUN --mount=type=ssh cargo build --profile ${PROFILE} \
     --bin iota-node \
+    --bin stress \
+    --bin iota-bridge \
+    --bin bridge-indexer \
+    --bin iota-bridge-cli \
+    --bin iota-analytics-indexer \
     --bin iota \
     --bin iota-faucet \
-    --bin stress \
     --bin iota-cluster-test \
     --bin iota-tool
 
@@ -30,12 +52,16 @@ FROM debian:bullseye-slim AS runtime
 WORKDIR "$WORKDIR/iota"
 
 # iota-tool needs libpq at runtime
-RUN apt-get update && apt-get install -y libpq5 libpq-dev
+RUN apt-get update && apt-get install -y libpq5 libpq-dev ca-certificates
 
 COPY --from=builder /iota/target/release/iota-node /usr/local/bin
+COPY --from=builder /iota/target/release/stress /usr/local/bin
+COPY --from=builder /iota/target/release/iota-bridge /usr/local/bin
+COPY --from=builder /iota/target/release/bridge-indexer /usr/local/bin
+COPY --from=builder /iota/target/release/iota-bridge-cli /usr/local/bin
+COPY --from=builder /iota/target/release/iota-analytics-indexer /usr/local/bin
 COPY --from=builder /iota/target/release/iota /usr/local/bin
 COPY --from=builder /iota/target/release/iota-faucet /usr/local/bin
-COPY --from=builder /iota/target/release/stress /usr/local/bin
 COPY --from=builder /iota/target/release/iota-cluster-test /usr/local/bin
 COPY --from=builder /iota/target/release/iota-tool /usr/local/bin
 

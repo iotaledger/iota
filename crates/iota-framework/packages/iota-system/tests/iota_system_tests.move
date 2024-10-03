@@ -10,7 +10,7 @@
 module iota_system::iota_system_tests {
     use iota::test_scenario::{Self, Scenario};
     use iota::iota::IOTA;
-    use iota_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_iota_system_state, create_iota_system_state_for_testing};
+    use iota_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_iota_system_state, create_iota_system_state_for_testing, stake_with, unstake};
     use iota_system::iota_system::IotaSystemState;
     use iota_system::iota_system_state_inner;
     use iota_system::validator::{Self, Validator};
@@ -28,40 +28,40 @@ module iota_system::iota_system_tests {
         set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
 
         report_helper(@0x1, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
         report_helper(@0x3, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3]);
 
         // Report again and result should stay the same.
         report_helper(@0x1, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3]);
 
         // Undo the report.
         report_helper(@0x3, @0x2, true, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         advance_epoch(scenario);
 
         // After an epoch ends, report records are still present.
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         report_helper(@0x2, @0x1, false, scenario);
-        assert!(get_reporters_of(@0x1, scenario) == vector[@0x2], 0);
+        assert!(get_reporters_of(@0x1, scenario) == vector[@0x2]);
 
 
         report_helper(@0x3, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1, @0x3]);
 
         // After 0x3 leaves, its reports are gone
         remove_validator(@0x3, scenario);
         advance_epoch(scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // After 0x1 leaves, both its reports and the reports on its name are gone
         remove_validator(@0x1, scenario);
         advance_epoch(scenario);
-        assert!(get_reporters_of(@0x1, scenario).is_empty(), 0);
-        assert!(get_reporters_of(@0x2, scenario).is_empty(), 0);
+        assert!(get_reporters_of(@0x1, scenario).is_empty());
+        assert!(get_reporters_of(@0x2, scenario).is_empty());
         scenario_val.end();
     }
 
@@ -79,11 +79,11 @@ module iota_system::iota_system_tests {
 
         // With the cap object in hand, stakee could report validators on behalf of @0x1.
         report_helper(stakee_address, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // stakee could also undo report.
         report_helper(stakee_address, @0x2, true, scenario);
-        assert!(get_reporters_of(@0x2, scenario).is_empty(), 0);
+        assert!(get_reporters_of(@0x2, scenario).is_empty());
 
         scenario.next_tx(stakee_address);
         let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
@@ -92,7 +92,7 @@ module iota_system::iota_system_tests {
 
         // New stakee could report validators on behalf of @0x1.
         report_helper(new_stakee_address, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // New stakee could also set reference gas price on behalf of @0x1.
         set_gas_price_helper(new_stakee_address, 666, scenario);
@@ -111,9 +111,9 @@ module iota_system::iota_system_tests {
         scenario.next_tx(new_stakee_address);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(@0x1);
-        assert!(validator.next_epoch_gas_price() == 666, 0);
+        assert!(validator.next_epoch_gas_price() == 666);
         let pending_validator = system_state.pending_validator_by_address(new_validator_addr);
-        assert!(pending_validator.next_epoch_gas_price() == 777, 0);
+        assert!(pending_validator.next_epoch_gas_price() == 777);
         test_scenario::return_shared(system_state);
 
         scenario_val.end();
@@ -133,7 +133,7 @@ module iota_system::iota_system_tests {
         transfer::public_transfer(cap, stakee_address);
 
         report_helper(stakee_address, @0x2, false, scenario);
-        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1], 0);
+        assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
         // @0x1 revokes stakee's permission by creating a new
         // operation cap object.
@@ -164,7 +164,7 @@ module iota_system::iota_system_tests {
         scenario.next_tx(stakee_address);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(@0x1);
-        assert!(validator.next_epoch_gas_price() == 888, 0);
+        assert!(validator.next_epoch_gas_price() == 888);
         test_scenario::return_shared(system_state);
 
         // @0x1 revokes stakee's permssion by creating a new
@@ -405,8 +405,8 @@ module iota_system::iota_system_tests {
             vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62],
             vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25],
         );
-        assert!(validator.commission_rate() == commission_rate, 0);
-        assert!(validator.gas_price() == gas_price, 0);
+        assert!(validator.commission_rate() == commission_rate);
+        assert!(validator.gas_price() == gas_price);
 
     }
 
@@ -472,10 +472,10 @@ module iota_system::iota_system_tests {
         );
 
         // Next epoch
-        assert!(validator.next_epoch_network_address() == &option::some(new_network_address.to_string()), 0);
-        assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()), 0);
-        assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()), 0);
-        assert!(validator.next_epoch_worker_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()), 0);
+        assert!(validator.next_epoch_network_address() == &option::some(new_network_address.to_string()));
+        assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()));
+        assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
+        assert!(validator.next_epoch_worker_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
         assert!(
             validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
             0
@@ -507,18 +507,18 @@ module iota_system::iota_system_tests {
         worker_pubkey_bytes: vector<u8>,
     ) {
         // Current epoch
-        assert!(validator.name() == &name.to_string(), 0);
-        assert!(validator.description() == &b"new_desc".to_string(), 0);
-        assert!(validator.image_url() == &url::new_unsafe_from_bytes(b"new_image_url"), 0);
-        assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_project_url"), 0);
-        assert!(validator.network_address() == &network_address.to_string(), 0);
-        assert!(validator.p2p_address() == &p2p_address.to_string(), 0);
-        assert!(validator.primary_address() == &primary_address.to_string(), 0);
-        assert!(validator.worker_address() == &worker_address.to_string(), 0);
-        assert!(validator.protocol_pubkey_bytes() == &protocol_pub_key, 0);
-        assert!(validator.proof_of_possession() == &pop, 0);
-        assert!(validator.worker_pubkey_bytes() == &worker_pubkey_bytes, 0);
-        assert!(validator.network_pubkey_bytes() == &network_pubkey_bytes, 0);
+        assert!(validator.name() == &name.to_string());
+        assert!(validator.description() == &b"new_desc".to_string());
+        assert!(validator.image_url() == &url::new_unsafe_from_bytes(b"new_image_url"));
+        assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_project_url"));
+        assert!(validator.network_address() == &network_address.to_string());
+        assert!(validator.p2p_address() == &p2p_address.to_string());
+        assert!(validator.primary_address() == &primary_address.to_string());
+        assert!(validator.worker_address() == &worker_address.to_string());
+        assert!(validator.protocol_pubkey_bytes() == &protocol_pub_key);
+        assert!(validator.proof_of_possession() == &pop);
+        assert!(validator.worker_pubkey_bytes() == &worker_pubkey_bytes);
+        assert!(validator.network_pubkey_bytes() == &network_pubkey_bytes);
     }
 
 
@@ -547,14 +547,14 @@ module iota_system::iota_system_tests {
         );
 
         // Next epoch
-        assert!(validator.next_epoch_network_address().is_none(), 0);
-        assert!(validator.next_epoch_p2p_address().is_none(), 0);
-        assert!(validator.next_epoch_primary_address().is_none(), 0);
-        assert!(validator.next_epoch_worker_address().is_none(), 0);
-        assert!(validator.next_epoch_protocol_pubkey_bytes().is_none(), 0);
-        assert!(validator.next_epoch_proof_of_possession().is_none(), 0);
-        assert!(validator.next_epoch_worker_pubkey_bytes().is_none(), 0);
-        assert!(validator.next_epoch_network_pubkey_bytes().is_none(), 0);
+        assert!(validator.next_epoch_network_address().is_none());
+        assert!(validator.next_epoch_p2p_address().is_none());
+        assert!(validator.next_epoch_primary_address().is_none());
+        assert!(validator.next_epoch_worker_address().is_none());
+        assert!(validator.next_epoch_protocol_pubkey_bytes().is_none());
+        assert!(validator.next_epoch_proof_of_possession().is_none());
+        assert!(validator.next_epoch_worker_pubkey_bytes().is_none());
+        assert!(validator.next_epoch_network_pubkey_bytes().is_none());
     }
 
     #[test]
@@ -971,6 +971,56 @@ module iota_system::iota_system_tests {
             scenario.ctx(),
         );
         test_scenario::return_shared(system_state);
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_withdraw_inactive_stake() {
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        // Epoch duration is set to be 42 here.
+        set_up_iota_system_state(vector[@0x1, @0x2]);
+
+        {
+            scenario.next_tx(@0x0);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
+
+            assert!(staking_pool.pending_stake_amount() == 0, 0);
+            assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
+
+            test_scenario::return_shared(system_state);
+        };
+
+        stake_with(@0x0, @0x1, 1, scenario);
+
+        {
+            scenario.next_tx(@0x0);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
+
+            assert!(staking_pool.pending_stake_amount() == 1_000_000_000, 0);
+            assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
+
+            test_scenario::return_shared(system_state);
+        };
+
+        unstake(@0x0, 0, scenario);
+
+        {
+            scenario.next_tx(@0x0);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
+
+            assert!(staking_pool.pending_stake_amount() == 0, 0);
+            assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
+
+            test_scenario::return_shared(system_state);
+        };
+
         scenario_val.end();
     }
 }

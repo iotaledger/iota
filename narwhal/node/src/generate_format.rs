@@ -12,9 +12,8 @@ use fastcrypto::{
     traits::{KeyPair as _, Signer},
 };
 use iota_network_stack::Multiaddr;
-use move_bytecode_utils::layout::YamlRegistry;
-use rand::{prelude::StdRng, SeedableRng};
-use serde_reflection::{Result, Samples, Tracer, TracerConfig};
+use rand::{SeedableRng, prelude::StdRng};
+use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, Header, HeaderDigest, HeaderV1Builder,
     MetadataV1, VersionedMetadata, WorkerOthersBatchMessage, WorkerOwnBatchMessage,
@@ -22,7 +21,7 @@ use types::{
 };
 
 #[allow(clippy::mutable_key_type)]
-fn get_registry() -> Result<YamlRegistry> {
+fn get_registry() -> Result<Registry> {
     let mut tracer = Tracer::new(TracerConfig::default());
     let mut samples = Samples::new();
     // 1. Record samples for types with custom deserializers.
@@ -91,25 +90,21 @@ fn get_registry() -> Result<YamlRegistry> {
 
     let worker_pk = network_keys[0].public().clone();
     let signature = keys[0].sign(header.digest().as_ref());
-    let certificate = Certificate::new_unsigned(
-        &committee,
-        Header::V1(header.clone()),
-        vec![(authority.id(), signature)],
-    )
+    let certificate = Certificate::new_unsigned(&committee, Header::V1(header.clone()), vec![(
+        authority.id(),
+        signature,
+    )])
     .unwrap();
     tracer.trace_value(&mut samples, &certificate)?;
 
     // WorkerIndex & WorkerInfo will be present in a protocol message once dynamic
     // worker integration is complete.
     let worker_index = WorkerIndex(
-        vec![(
-            0,
-            WorkerInfo {
-                name: worker_pk,
-                worker_address: "/ip4/127.0.0.1/udp/500".to_string().parse().unwrap(),
-                transactions: "/ip4/127.0.0.1/tcp/400/http".to_string().parse().unwrap(),
-            },
-        )]
+        vec![(0, WorkerInfo {
+            name: worker_pk,
+            worker_address: "/ip4/127.0.0.1/udp/500".to_string().parse().unwrap(),
+            transactions: "/ip4/127.0.0.1/tcp/400/http".to_string().parse().unwrap(),
+        })]
         .into_iter()
         .collect(),
     );
@@ -143,7 +138,7 @@ fn get_registry() -> Result<YamlRegistry> {
     tracer.trace_type::<HeaderDigest>(&samples)?;
     tracer.trace_type::<CertificateDigest>(&samples)?;
 
-    Ok(YamlRegistry(tracer.registry()?))
+    tracer.registry()
 }
 
 #[derive(Debug, clap::ValueEnum, Clone, Copy)]
@@ -183,7 +178,7 @@ fn main() {
             // cargo -q run --example narwhal-generate-format -- print >
             // tests/staged/narwhal.yaml
             let reference = std::fs::read_to_string(FILE_PATH).unwrap();
-            let reference: YamlRegistry = serde_yaml::from_str(&reference).unwrap();
+            let reference: Registry = serde_yaml::from_str(&reference).unwrap();
             pretty_assertions::assert_eq!(reference, registry);
         }
     }

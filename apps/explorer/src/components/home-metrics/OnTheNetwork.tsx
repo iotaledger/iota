@@ -4,10 +4,12 @@
 
 import { CoinFormat, formatBalance } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Panel, Divider, LabelText, LabelTextSize, Title, TitleSize } from '@iota/apps-ui-kit';
+import { Divider, LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+
+const FALLBACK = '--';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();
@@ -22,6 +24,23 @@ export function OnTheNetwork(): JSX.Element {
     const totalSupplyFormatted = totalSupply?.value
         ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
         : null;
+
+    const currentTpsFormatted = networkMetrics?.currentTps
+        ? formatBalance(Math.floor(networkMetrics.currentTps), 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const tps30DaysFormatted = networkMetrics?.tps30Days
+        ? formatBalance(Math.floor(networkMetrics.tps30Days), 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const totalPackagesFormatted = networkMetrics?.totalPackages
+        ? formatBalance(networkMetrics.totalPackages, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const totalObjectsFormatted = networkMetrics?.totalObjects
+        ? formatBalance(networkMetrics.totalObjects, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
     return (
         <Panel>
             <Title title="Network Activity" size={TitleSize.Medium} />
@@ -31,12 +50,7 @@ export function OnTheNetwork(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="TPS Now"
-                            text={
-                                networkMetrics?.currentTps
-                                    ? Math.floor(networkMetrics.currentTps).toString()
-                                    : '-'
-                            }
-                            showSupportingLabel={false}
+                            text={currentTpsFormatted}
                         />
                     </div>
 
@@ -44,12 +58,7 @@ export function OnTheNetwork(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Peak 30d TPS"
-                            text={
-                                networkMetrics?.tps30Days
-                                    ? Math.floor(networkMetrics?.tps30Days).toString()
-                                    : '-'
-                            }
-                            showSupportingLabel={false}
+                            text={tps30DaysFormatted}
                         />
                     </div>
                 </div>
@@ -61,16 +70,14 @@ export function OnTheNetwork(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total Packages"
-                            text={networkMetrics?.totalPackages ?? '-'}
-                            showSupportingLabel={false}
+                            text={totalPackagesFormatted}
                         />
                     </div>
                     <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Objects"
-                            text={networkMetrics?.totalObjects ?? '-'}
-                            showSupportingLabel={false}
+                            text={totalObjectsFormatted}
                         />
                     </div>
                 </div>
@@ -81,8 +88,7 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Reference Gas Price"
                             text={gasPriceFormatted ?? '-'}
-                            showSupportingLabel={gasPriceFormatted !== null}
-                            supportingLabel="IOTA"
+                            supportingLabel={gasPriceFormatted !== null ? 'IOTA' : undefined}
                         />
                     </div>
                     <div className="flex-1">
@@ -90,8 +96,7 @@ export function OnTheNetwork(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Total Supply"
                             text={totalSupplyFormatted ?? '-'}
-                            showSupportingLabel={totalSupplyFormatted !== null}
-                            supportingLabel="IOTA"
+                            supportingLabel={totalSupplyFormatted !== null ? 'IOTA' : undefined}
                         />
                     </div>
                 </div>

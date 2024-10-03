@@ -1,9 +1,9 @@
 services:
   local-network:
-    image: iota-test-validator
+    image: iota
     build:
       context: ../../
-      dockerfile: docker/iota-test-validator/Dockerfile
+      dockerfile: docker/iota/Dockerfile
       args:
         - GIT_REVISION
         - BUILD_DATE
@@ -16,12 +16,13 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
-      - /usr/local/bin/iota-test-validator
-      - --fullnode-rpc-host=0.0.0.0
+      - /usr/local/bin/iota
+      - start
+      - --with-faucet=0.0.0.0:9123
       - --fullnode-rpc-port=9000
-      - --faucet-port=9123
       - --epoch-duration-ms=120000
       - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
+      - --force-regenesis
     expose:
       - 9000
     ports:
@@ -79,6 +80,30 @@ services:
     ports:
       - "127.0.0.1:9005:9000/tcp"
       - "127.0.0.1:9182:9181/tcp"
+    depends_on:
+      - local-network
+      - postgres
+      - indexer-sync
+
+  indexer-analytics:
+    image: iota-indexer
+    container_name: indexer-analytics
+    hostname: indexer-analytics
+    restart: on-failure
+    networks:
+      iota-network:
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+      - RPC_WORKER_THREAD=12
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --rpc-client-url=http://local-network:9000
+      - --client-metric-port=9181
+      - --analytical-worker
+    ports:
+      - "127.0.0.1:9184:9181/tcp"
     depends_on:
       - local-network
       - postgres

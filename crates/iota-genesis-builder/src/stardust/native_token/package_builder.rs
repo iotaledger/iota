@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::Result;
-use fs_extra::dir::{copy, CopyOptions};
+use fs_extra::dir::{CopyOptions, copy};
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_types::stardust::error::StardustError;
 use tempfile::tempdir;
@@ -43,7 +43,7 @@ pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPack
 
     // Step 4: Compile the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let compiled_package = BuildConfig::default().build(package_path)?;
+    let compiled_package = BuildConfig::default().build(&package_path)?;
 
     // Clean up the temporary directory
     tmp_dir.close()?;

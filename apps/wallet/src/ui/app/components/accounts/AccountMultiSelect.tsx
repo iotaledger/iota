@@ -29,7 +29,6 @@ export function AccountMultiSelect({
                 <ToggleGroup.Item key={account.id} asChild value={account.id}>
                     <div>
                         <AccountItemApproveConnection
-                            disabled={account.isLocked}
                             account={account}
                             selected={selectedAccountIDs.includes(account.id)}
                         />

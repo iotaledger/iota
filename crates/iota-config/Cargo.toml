@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
@@ -19,11 +22,12 @@ once_cell.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive", "rc"] }
 serde_with.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
 
+consensus-config.workspace = true
 iota-keys.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true

@@ -4,11 +4,9 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{routing::post, Extension, Router};
-use iota_metrics::spawn_monitored_task;
+use axum::{Extension, Router, routing::post};
 use iota_sdk::IotaClient;
 use once_cell::sync::Lazy;
-use tokio::task::JoinHandle;
 use tracing::info;
 
 use crate::{
@@ -46,7 +44,7 @@ impl RosettaOnlineServer {
         }
     }
 
-    pub async fn serve(self, addr: SocketAddr) -> anyhow::Result<JoinHandle<std::io::Result<()>>> {
+    pub async fn serve(self, addr: SocketAddr) {
         // Online endpoints
         let app = Router::new()
             .route("/account/balance", post(account::balance))
@@ -60,14 +58,14 @@ impl RosettaOnlineServer {
             .route("/network/options", post(network::options))
             .layer(Extension(self.env))
             .with_state(self.context);
-        let listener = tokio::net::TcpListener::bind(addr).await?;
+
+        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
         info!(
             "Iota Rosetta online server listening on {}",
-            listener.local_addr()?
+            listener.local_addr().unwrap()
         );
-        Ok(spawn_monitored_task!(async {
-            axum::serve(listener, app.into_make_service()).await
-        }))
+        axum::serve(listener, app).await.unwrap();
     }
 }
 
@@ -80,7 +78,7 @@ impl RosettaOfflineServer {
         Self { env }
     }
 
-    pub async fn serve(self, addr: SocketAddr) -> anyhow::Result<JoinHandle<std::io::Result<()>>> {
+    pub async fn serve(self, addr: SocketAddr) {
         // Online endpoints
         let app = Router::new()
             .route("/construction/derive", post(construction::derive))
@@ -92,13 +90,12 @@ impl RosettaOfflineServer {
             .route("/network/list", post(network::list))
             .route("/network/options", post(network::options))
             .layer(Extension(self.env));
-        let listener = tokio::net::TcpListener::bind(addr).await?;
+        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
         info!(
             "Iota Rosetta offline server listening on {}",
-            listener.local_addr()?
+            listener.local_addr().unwrap()
         );
-        Ok(spawn_monitored_task!(async {
-            axum::serve(listener, app.into_make_service()).await
-        }))
+        axum::serve(listener, app).await.unwrap();
     }
 }
