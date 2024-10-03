@@ -455,7 +455,7 @@ impl IotaNode {
                 .expensive_safety_check_config
                 .enable_epoch_iota_conservation_check(),
             &prometheus_registry,
-            migration_tx_data,
+            migration_tx_data.as_ref(),
         )
         .await?;
         let execution_cache_metrics = Arc::new(ExecutionCacheMetrics::new(&prometheus_registry));
@@ -603,6 +603,23 @@ impl IotaNode {
             pruning_config.set_killswitch_tombstone_pruning(true);
         }
 
+        let genesis_objects = migration_tx_data.as_ref().map_or_else(
+            || genesis.objects().to_vec(),
+            |migration_tx_data| {
+                genesis
+                    .objects()
+                    .iter()
+                    .cloned()
+                    .chain(
+                        migration_tx_data
+                            .txs_data()
+                            .values()
+                            .flat_map(|(_, _, _, migration_objects)| migration_objects.clone()),
+                    )
+                    .collect::<Vec<_>>()
+            },
+        );
+
         let state = AuthorityState::new(
             config.protocol_public_key(),
             secret,
@@ -615,7 +632,7 @@ impl IotaNode {
             checkpoint_store.clone(),
             &prometheus_registry,
             pruning_config,
-            genesis.objects(),
+            &genesis_objects,
             &db_checkpoint_config,
             config.expensive_safety_check_config.clone(),
             config.transaction_deny_config.clone(),
