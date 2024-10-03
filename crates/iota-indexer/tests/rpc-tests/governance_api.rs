@@ -13,7 +13,7 @@ fn get_stakes_by_id() {
         runtime,
         store,
         client,
-        cluster
+        cluster,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -28,7 +28,13 @@ fn get_stakes_by_id() {
             .iota_address();
 
         let response: Vec<DelegatedStake> = client.get_stakes(validator_address).await.unwrap();
-        let stake_id = response.first().unwrap().stakes.first().unwrap().staked_iota_id;
+        let stake_id = response
+            .first()
+            .unwrap()
+            .stakes
+            .first()
+            .unwrap()
+            .staked_iota_id;
 
         let response = client.get_stakes_by_ids(vec![stake_id]).await.unwrap();
 
