@@ -103,7 +103,7 @@ use iota_types::{
     },
     message_envelope::get_google_jwk_bytes,
     messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
-    quorum_driver_types::QuorumDriverEffectsQueueResult,
+    quorum_driver_types::QuorumDriverEffectsQueueResult, transaction::Transaction,
 };
 use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
@@ -643,22 +643,22 @@ impl IotaNode {
             archive_readers,
         )
         .await;
-        // ensure genesis txn was executed
-        if epoch_store.epoch() == 0 {
-            let txn = &genesis.transaction();
-            let span = error_span!("genesis_txn", tx_digest = ?txn.digest());
-            let transaction =
-                iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
-                    iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
-                        genesis.transaction().data().clone(),
-                        iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
-                    ),
-                );
-            state
-                .try_execute_immediately(&transaction, None, &epoch_store)
-                .instrument(span)
-                .await
-                .unwrap();
+
+        // ensure genesis and migration txs were executed
+        if epoch_store.epoch() == 0 {       
+            let genesis_tx = &genesis.transaction();
+            let span = error_span!("genesis_txn", tx_digest = ?genesis_tx.digest());
+            // Execute genesis transaction 
+            Self::execute_transaction_immediately(&state, &epoch_store, genesis_tx, span).await;
+ 
+            if let Some(migration_tx_data) = migration_tx_data {
+                for (tx_digest, (tx, _, _, _)) in migration_tx_data.txs_data() {
+                    let span = error_span!("migration_txn", tx_digest = ?tx_digest);
+
+                    // Execute migration transaction
+                    Self::execute_transaction_immediately(&state, &epoch_store, tx, span).await;
+                }
+            }
         }
 
         // Start the loop that receives new randomness and generates transactions for
@@ -797,7 +797,7 @@ impl IotaNode {
 
         Ok(node)
     }
-
+    
     pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {
         self.end_of_epoch_channel.subscribe()
     }
@@ -1801,6 +1801,21 @@ impl IotaNode {
 
     pub fn get_config(&self) -> &NodeConfig {
         &self.config
+    }
+
+    async fn execute_transaction_immediately(state: &Arc<AuthorityState>, epoch_store: &Arc<AuthorityPerEpochStore>, tx: &Transaction, span: tracing::Span) {
+        let transaction =
+            iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
+                iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
+                    tx.data().clone(),
+                    iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
+                ),
+            );
+        state
+            .try_execute_immediately(&transaction, None, &epoch_store)
+            .instrument(span)
+            .await
+            .unwrap();
     }
 }
 
