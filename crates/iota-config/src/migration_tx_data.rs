@@ -41,6 +41,10 @@ impl MigrationTxData {
         &self.inner
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
         trace!("Reading Migration transaction data from {}", path.display());
