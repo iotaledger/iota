@@ -12,7 +12,7 @@
 /external-crates/ @miker83z @valeriyr
 
 # l1-core-infra team
-/docker/ @iotaledger/l1-core-infra @iotaledger/core-node
+/docker/ @iotaledger/l1-core-infra @iotaledger/core-node @iotaledger/devops-admin
 /crates/iota-json-rpc*/ @iotaledger/l1-core-infra
 /crates/iota-graphql*/ @iotaledger/l1-core-infra
 /crates/iota-indexer/ @iotaledger/l1-core-infra
