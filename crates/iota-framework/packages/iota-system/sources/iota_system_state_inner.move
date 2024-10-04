@@ -8,7 +8,7 @@ module iota_system::iota_system_state_inner {
     use iota_system::staking_pool::StakedIota;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota_system::validator::{Self, Validator};
-    use iota_system::validator_set::{Self, ValidatorSet};
+    use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFund};
     use iota_system::staking_pool::PoolTokenExchangeRate;
@@ -71,7 +71,7 @@ module iota_system::iota_system_state_inner {
         /// The IOTA's TreasuryCap.
         iota_treasury_cap: IotaTreasuryCap,
         /// Contains all information about the validators.
-        validators: ValidatorSet,
+        validators: ValidatorSetV1,
         /// The storage fund.
         storage_fund: StorageFund,
         /// A list of system config parameters.
@@ -908,7 +908,7 @@ module iota_system::iota_system_state_inner {
 
     #[test_only]
     /// Return the current validator set
-    public(package) fun validators(self: &IotaSystemStateInnerV1): &ValidatorSet {
+    public(package) fun validators(self: &IotaSystemStateInnerV1): &ValidatorSetV1 {
         &self.validators
     }
 

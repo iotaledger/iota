@@ -55,7 +55,7 @@ module iota_system::iota_system {
     use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
-    #[test_only] use iota_system::validator_set::ValidatorSet;
+    #[test_only] use iota_system::validator_set::ValidatorSetV1;
     #[test_only] use iota::vec_set::VecSet;
 
     public struct IotaSystemState has key {
@@ -651,7 +651,7 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the current validator set
-    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSet {
+    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV1 {
         let self = load_system_state(wrapper);
         self.validators()
     }

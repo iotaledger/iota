@@ -8,7 +8,7 @@ module iota_system::validator_set_tests {
     use iota::coin;
     use iota_system::staking_pool::StakedIota;
     use iota_system::validator::{Self, Validator, staking_pool_id};
-    use iota_system::validator_set::{Self, ValidatorSet, active_validator_addresses};
+    use iota_system::validator_set::{Self, ValidatorSetV1, active_validator_addresses};
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils::{Self, assert_eq};
     use iota::vec_map;
@@ -430,7 +430,7 @@ module iota_system::validator_set_tests {
         ascii_bytes.to_ascii_string().into_bytes()
     }
 
-    fun advance_epoch_with_dummy_rewards(validator_set: &mut ValidatorSet, scenario: &mut Scenario) {
+    fun advance_epoch_with_dummy_rewards(validator_set: &mut ValidatorSetV1, scenario: &mut Scenario) {
         scenario.next_epoch(@0x0);
         let mut dummy_computation_reward = balance::zero();
 
@@ -448,7 +448,7 @@ module iota_system::validator_set_tests {
     }
 
     fun advance_epoch_with_low_stake_params(
-        validator_set: &mut ValidatorSet,
+        validator_set: &mut ValidatorSetV1,
         low_stake_threshold: u64,
         very_low_stake_threshold: u64,
         low_stake_grace_period: u64,
@@ -469,7 +469,7 @@ module iota_system::validator_set_tests {
         dummy_computation_reward.destroy_zero();
     }
 
-    fun add_and_activate_validator(validator_set: &mut ValidatorSet, validator: Validator, scenario: &mut Scenario) {
+    fun add_and_activate_validator(validator_set: &mut ValidatorSetV1, validator: Validator, scenario: &mut Scenario) {
         scenario.next_tx(validator.iota_address());
         let ctx = scenario.ctx();
         validator_set.request_add_validator_candidate(validator, ctx);
