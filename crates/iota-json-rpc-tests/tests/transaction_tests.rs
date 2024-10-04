@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(msim))]
+use std::str::FromStr;
+
+use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponse,
@@ -10,8 +14,14 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType, transaction::SenderSignedData,
+    base_types::ObjectID,
+    gas_coin::GAS,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Command, SenderSignedData, TransactionData},
+    IOTA_FRAMEWORK_ADDRESS,
 };
+use move_core_types::identifier::Identifier;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -86,7 +96,6 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
     //     let response: IotaTransactionBlockResponse = http_client
     //         .get_transaction_block(
     //             tx_digest,
-    //
     // Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
     //         )
     //         .await?;
@@ -247,26 +256,24 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
     assert!(second_page.data.len() > 5);
-    assert!(!second_page.has_next_page);
 
-    let mut all_txs_rev = first_page.data.clone();
-    all_txs_rev.extend(second_page.data);
-    all_txs_rev.reverse();
+    let mut all_txs = first_page.data.clone();
+    all_txs.extend(second_page.data);
 
-    // test get 10 latest transactions paged
+    // test get 10 transactions paged
     let latest = client
         .read_api()
         .query_transaction_blocks(
             IotaTransactionBlockResponseQuery::default(),
             None,
             Some(10),
-            true,
+            false,
         )
         .await
         .unwrap();
     assert_eq!(10, latest.data.len());
-    assert_eq!(Some(all_txs_rev[9].digest), latest.next_cursor);
-    assert_eq!(all_txs_rev[0..10], latest.data);
+    assert_eq!(Some(all_txs[9].digest), latest.next_cursor);
+    assert_eq!(all_txs[0..10], latest.data);
     assert!(latest.has_next_page);
 
     // test get from address txs in ascending order
@@ -330,5 +337,113 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
         assert_eq!(tx_resp.digest, response.digest);
     }
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
+    let mut cluster = TestClusterBuilder::new().build().await;
+    let context = &cluster.wallet;
+    let client = context.get_client().await.unwrap();
+
+    let address = cluster.get_address_0();
+    let objects = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // make 2 move calls of same package & module, but different functions
+    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let coin = objects.first().unwrap();
+    let coin_2 = &objects[1];
+    let signer = cluster.wallet.active_address().unwrap();
+
+    let tx_builder = client.transaction_builder().clone();
+    let mut pt_builder = ProgrammableTransactionBuilder::new();
+    let gas = objects.last().unwrap().object().unwrap().object_ref();
+
+    let module = Identifier::from_str("pay")?;
+    let function_1 = Identifier::from_str("split")?;
+    let function_2 = Identifier::from_str("divide_and_keep")?;
+
+    let iota_type_args = type_args![GAS::type_tag()]?;
+    let type_args = iota_type_args
+        .into_iter()
+        .map(|ty| ty.try_into())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let iota_call_args_1 = call_args!(coin.data.clone().unwrap().object_id, 10)?;
+    let call_args_1 = tx_builder
+        .resolve_and_checks_json_args(
+            &mut pt_builder,
+            package_id,
+            &module,
+            &function_1,
+            &type_args,
+            iota_call_args_1,
+        )
+        .await?;
+    let cmd_1 = Command::move_call(
+        package_id,
+        module.clone(),
+        function_1,
+        type_args.clone(),
+        call_args_1.clone(),
+    );
+
+    let iota_call_args_2 = call_args!(coin_2.data.clone().unwrap().object_id, 10)?;
+    let call_args_2 = tx_builder
+        .resolve_and_checks_json_args(
+            &mut pt_builder,
+            package_id,
+            &module,
+            &function_2,
+            &type_args,
+            iota_call_args_2,
+        )
+        .await?;
+    let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
+    pt_builder.command(cmd_1);
+    pt_builder.command(cmd_2);
+    let pt = pt_builder.finish();
+
+    let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+    let signed_data = cluster.wallet.sign_transaction(&tx_data);
+    let _response = client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            signed_data,
+            IotaTransactionBlockResponseOptions::new(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    // match with None function, the DB should have 2 records, but both points to
+    // the same tx
+    let filter = TransactionFilter::MoveFunction {
+        package: package_id,
+        module: Some("pay".to_string()),
+        function: None,
+    };
+    let move_call_query = IotaTransactionBlockResponseQuery::new_with_filter(filter);
+    let tx = client
+        .read_api()
+        .query_transaction_blocks(move_call_query, None, Some(20), true)
+        .await
+        .unwrap();
+    // verify that only 1 tx is returned and no
+    // IotaRpcInputError::ContainsDuplicates error
+    assert_eq!(1, tx.data.len());
     Ok(())
 }

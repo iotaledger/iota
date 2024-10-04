@@ -26,7 +26,7 @@ prost.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tonic.workspace = true
 tracing.workspace = true
-tracing-appender = "0.2"
+tracing-appender.workspace = true
 tracing-opentelemetry = "0.25"
 tracing-subscriber.workspace = true
 

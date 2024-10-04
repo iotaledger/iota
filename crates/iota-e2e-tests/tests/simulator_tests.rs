@@ -5,20 +5,19 @@
 use std::collections::{HashMap, HashSet};
 
 use futures::{
-    stream::{FuturesOrdered, FuturesUnordered},
     StreamExt,
+    stream::{FuturesOrdered, FuturesUnordered},
 };
-use iota_core::authority::EffectsNotifyRead;
 use iota_macros::*;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use rand::{
+    Rng,
     distributions::{Distribution, Uniform},
     rngs::OsRng,
-    Rng,
 };
 use test_cluster::TestClusterBuilder;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{Duration, Instant, sleep};
 use tracing::{debug, trace};
 
 async fn make_fut(i: usize) -> usize {
@@ -150,8 +149,8 @@ async fn test_net_determinism() {
     handle
         .iota_node
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
         .await
         .unwrap();
 }

@@ -6,7 +6,7 @@
 #![allow(clippy::mutable_key_type)]
 
 use std::{
-    cmp::{max, Ordering},
+    cmp::{Ordering, max},
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
     sync::Arc,
@@ -24,7 +24,7 @@ use types::{
 };
 
 use crate::consensus::{
-    bullshark::Bullshark, metrics::ConsensusMetrics, utils::gc_round, ConsensusError,
+    ConsensusError, bullshark::Bullshark, metrics::ConsensusMetrics, utils::gc_round,
 };
 
 #[cfg(test)]

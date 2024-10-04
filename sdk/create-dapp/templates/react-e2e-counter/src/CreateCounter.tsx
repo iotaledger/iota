@@ -1,12 +1,6 @@
-// Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-import { TransactionBlock } from "@iota/iota-sdk/transactions";
+import { Transaction } from "@iota/iota-sdk/transactions";
 import { Button, Container } from "@radix-ui/themes";
-import {
-  useSignAndExecuteTransactionBlock,
-  useIotaClient,
-} from "@iota/dapp-kit";
+import { useSignAndExecuteTransaction, useIotaClient } from "@iota/dapp-kit";
 import { useNetworkVariable } from "./networkConfig";
 
 export function CreateCounter({
@@ -14,9 +8,20 @@ export function CreateCounter({
 }: {
   onCreated: (id: string) => void;
 }) {
-  const client = useIotaClient();
   const counterPackageId = useNetworkVariable("counterPackageId");
-  const { mutate: signAndExecute } = useSignAndExecuteTransactionBlock();
+  const iotaClient = useIotaClient();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction({
+    execute: async ({ bytes, signature }) =>
+      await iotaClient.executeTransactionBlock({
+        transactionBlock: bytes,
+        signature,
+        options: {
+          // Raw effects are required so the effects can be reported back to the wallet
+          showRawEffects: true,
+          showEffects: true,
+        },
+      }),
+  });
 
   return (
     <Container>
@@ -32,34 +37,23 @@ export function CreateCounter({
   );
 
   function create() {
-    const txb = new TransactionBlock();
+    const tx = new Transaction();
 
-    txb.moveCall({
+    tx.moveCall({
       arguments: [],
       target: `${counterPackageId}::counter::create`,
     });
 
     signAndExecute(
       {
-        transactionBlock: txb,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
-        },
+        transaction: tx,
       },
       {
-        onSuccess: (tx) => {
-          client
-            .waitForTransactionBlock({
-              digest: tx.digest,
-            })
-            .then(() => {
-              const objectId = tx.effects?.created?.[0]?.reference?.objectId;
-
-              if (objectId) {
-                onCreated(objectId);
-              }
-            });
+        onSuccess: (result) => {
+          const objectId = result.effects?.created?.[0]?.reference?.objectId;
+          if (objectId) {
+            onCreated(objectId);
+          }
         },
       },
     );

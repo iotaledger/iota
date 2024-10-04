@@ -8,12 +8,12 @@ use anyhow::anyhow;
 use futures::Future;
 use iota_json_rpc_api::error_object_from_rpc;
 use jsonrpsee::{
+    MethodKind,
     core::{ClientError as RpcError, RpcResult},
     server::HttpRequest,
     types::Params,
-    MethodKind,
 };
-use tracing::{error, info, Instrument, Span};
+use tracing::{Instrument, Span, error, info};
 
 use crate::error::RpcInterimResult;
 

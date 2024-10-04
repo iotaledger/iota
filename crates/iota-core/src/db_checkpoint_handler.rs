@@ -18,8 +18,8 @@ use iota_storage::{
         path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
     },
 };
-use object_store::{path::Path, DynObjectStore};
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
+use object_store::{DynObjectStore, path::Path};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
 use typed_store::rocks::MetricConf;
 
@@ -31,6 +31,7 @@ use crate::{
         authority_store_tables::AuthorityPerpetualTables,
     },
     checkpoints::CheckpointStore,
+    rest_index::RestIndexStore,
 };
 
 pub const SUCCESS_MARKER: &str = "_SUCCESS";
@@ -40,6 +41,7 @@ pub const STATE_SNAPSHOT_COMPLETED_MARKER: &str = "_STATE_SNAPSHOT_COMPLETED";
 
 pub struct DBCheckpointMetrics {
     pub first_missing_db_checkpoint_epoch: IntGauge,
+    pub num_local_db_checkpoints: IntGauge,
 }
 
 impl DBCheckpointMetrics {
@@ -48,6 +50,12 @@ impl DBCheckpointMetrics {
             first_missing_db_checkpoint_epoch: register_int_gauge_with_registry!(
                 "first_missing_db_checkpoint_epoch",
                 "First epoch for which we have no db checkpoint in remote store",
+                registry
+            )
+            .unwrap(),
+            num_local_db_checkpoints: register_int_gauge_with_registry!(
+                "num_local_db_checkpoints",
+                "Number of RocksDB checkpoints currently residing on local disk (i.e. not yet garbage collected)",
                 registry
             )
             .unwrap(),
@@ -174,6 +182,9 @@ impl DBCheckpointHandler {
         loop {
             tokio::select! {
                 _now = interval.tick() => {
+                    let local_checkpoints_by_epoch =
+                        find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
+                    self.metrics.num_local_db_checkpoints.set(local_checkpoints_by_epoch.len() as i64);
                     match find_missing_epochs_dirs(self.output_object_store.as_ref().unwrap(), SUCCESS_MARKER).await {
                         Ok(epochs) => {
                             self.metrics.first_missing_db_checkpoint_epoch.set(epochs.first().cloned().unwrap_or(0) as i64);
@@ -199,27 +210,28 @@ impl DBCheckpointHandler {
         info!("DB checkpoint upload disabled. DB checkpoint cleanup loop started");
         loop {
             tokio::select! {
-            _now = interval.tick() => {
-                let local_checkpoints_by_epoch =
-                    find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
-                let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
-                dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
-                for (_, db_path) in dirs {
-                    // If db checkpoint marked as completed, skip
-                    let local_db_path = path_to_filesystem(self.input_root_path.clone(), db_path)?;
-                    let upload_completed_path = local_db_path.join(UPLOAD_COMPLETED_MARKER);
-                    if upload_completed_path.exists() {
-                        continue;
+                _now = interval.tick() => {
+                    let local_checkpoints_by_epoch =
+                        find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
+                    self.metrics.num_local_db_checkpoints.set(local_checkpoints_by_epoch.len() as i64);
+                    let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
+                    dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
+                    for (_, db_path) in dirs {
+                        // If db checkpoint marked as completed, skip
+                        let local_db_path = path_to_filesystem(self.input_root_path.clone(), db_path)?;
+                        let upload_completed_path = local_db_path.join(UPLOAD_COMPLETED_MARKER);
+                        if upload_completed_path.exists() {
+                            continue;
+                        }
+                        let bytes = Bytes::from_static(b"success");
+                        let upload_completed_marker = db_path.child(UPLOAD_COMPLETED_MARKER);
+                        put(&self.input_object_store,
+                            &upload_completed_marker,
+                            bytes.clone(),
+                        )
+                        .await?;
                     }
-                    let bytes = Bytes::from_static(b"success");
-                    let upload_completed_marker = db_path.child(UPLOAD_COMPLETED_MARKER);
-                    put(&self.input_object_store,
-                        &upload_completed_marker,
-                        bytes.clone(),
-                    )
-                    .await?;
-                }
-            },
+                },
                  _ = recv.recv() => break,
             }
         }
@@ -259,6 +271,7 @@ impl DBCheckpointHandler {
             None,
             None,
         ));
+        let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
         let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
         let lock_table = Arc::new(RwLockTable::new(1));
         info!(
@@ -268,8 +281,9 @@ impl DBCheckpointHandler {
         AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
+            Some(&rest_index),
             &lock_table,
-            self.pruning_config,
+            self.pruning_config.clone(),
             metrics,
             self.indirect_objects_threshold,
             epoch_duration_ms,

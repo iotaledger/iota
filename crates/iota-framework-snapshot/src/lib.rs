@@ -6,8 +6,8 @@ use std::{collections::BTreeMap, fs, io::Read, path::PathBuf};
 
 use iota_framework::SystemPackage;
 use iota_types::{
-    base_types::ObjectID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
+    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, base_types::ObjectID,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +36,7 @@ const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
     DEEPBOOK_PACKAGE_ID,
+    BRIDGE_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
 ];
 
@@ -50,13 +51,10 @@ pub fn load_bytecode_snapshot_manifest() -> SnapshotManifest {
 pub fn update_bytecode_snapshot_manifest(git_revision: &str, version: u64, files: Vec<ObjectID>) {
     let mut snapshot = load_bytecode_snapshot_manifest();
 
-    snapshot.insert(
-        version,
-        SingleSnapshot {
-            git_revision: git_revision.to_string(),
-            package_ids: files,
-        },
-    );
+    snapshot.insert(version, SingleSnapshot {
+        git_revision: git_revision.to_string(),
+        package_ids: files,
+    });
 
     let json =
         serde_json::to_string_pretty(&snapshot).expect("Could not serialize SnapshotManifest");

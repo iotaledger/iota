@@ -1,6 +1,6 @@
 [package]
 name = "iota-data-ingestion"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -9,9 +9,9 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-aws-config.workspace = true
-aws-sdk-dynamodb = "1.39"
-aws-sdk-s3 = "1.42"
+aws-config = "1.5.6"
+aws-sdk-dynamodb = "1.42"
+aws-sdk-s3 = "1.50"
 backoff.workspace = true
 base64-url.workspace = true
 bcs.workspace = true

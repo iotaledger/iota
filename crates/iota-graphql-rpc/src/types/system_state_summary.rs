@@ -5,9 +5,9 @@
 use async_graphql::*;
 use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeSystemStateSummary;
 
-use super::{
+use crate::types::{
     big_int::BigInt, gas::GasCostSummary, safe_mode::SafeMode, storage_fund::StorageFund,
-    system_parameters::SystemParameters,
+    system_parameters::SystemParameters, uint53::UInt53,
 };
 
 #[derive(Clone, Debug)]
@@ -50,8 +50,8 @@ impl SystemStateSummary {
     /// `0x3::iota::IotaSystemState` object.  This version changes whenever
     /// the fields contained in the system state object (held in a dynamic
     /// field attached to `0x5`) change.
-    async fn system_state_version(&self) -> Option<u64> {
-        Some(self.native.system_state_version)
+    async fn system_state_version(&self) -> Option<UInt53> {
+        Some(self.native.system_state_version.into())
     }
 
     /// The total IOTA supply.

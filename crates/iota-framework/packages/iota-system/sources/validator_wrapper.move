@@ -7,8 +7,6 @@ module iota_system::validator_wrapper {
     use iota_system::validator::Validator;
     use iota::versioned;
 
-    /* friend iota_system::validator_set; */
-
     const EInvalidVersion: u64 = 0;
 
     public struct ValidatorWrapper has store {

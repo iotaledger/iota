@@ -10,7 +10,7 @@ use iota_keys::{
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore},
 };
 use iota_types::{
-    base_types::{IotaAddress, IOTA_ADDRESS_LENGTH},
+    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
     crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
 };
 use tempfile::TempDir;

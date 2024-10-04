@@ -4,8 +4,8 @@
 import { fromB58, toB64, toHEX } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
-import type { TransactionBlock } from '../transactions/index.js';
-import { isTransactionBlock } from '../transactions/index.js';
+import type { Transaction } from '../transactions/index.js';
+import { isTransaction } from '../transactions/index.js';
 import {
     isValidIotaAddress,
     isValidIotaObjectId,
@@ -69,7 +69,6 @@ import type {
     ProtocolConfig,
     QueryEventsParams,
     QueryTransactionBlocksParams,
-    ResolvedNameServiceNames,
     SubscribeEventParams,
     SubscribeTransactionParams,
     IotaEvent,
@@ -109,7 +108,7 @@ export interface OrderArguments {
  */
 export type IotaClientOptions = NetworkOrTransport;
 
-export type NetworkOrTransport =
+type NetworkOrTransport =
     | {
           url: string;
           transport?: never;
@@ -119,13 +118,11 @@ export type NetworkOrTransport =
           url?: never;
       };
 
-export const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient');
+const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient') as never;
 
 export function isIotaClient(client: unknown): client is IotaClient {
     return (
-        typeof client === 'object' &&
-        client !== null &&
-        (client as { [IOTA_CLIENT_BRAND]: unknown })[IOTA_CLIENT_BRAND] === true
+        typeof client === 'object' && client !== null && (client as any)[IOTA_CLIENT_BRAND] === true
     );
 }
 
@@ -412,28 +409,40 @@ export class IotaClient {
         });
     }
 
-    async executeTransactionBlock(
-        input: ExecuteTransactionBlockParams,
-    ): Promise<IotaTransactionBlockResponse> {
-        return await this.transport.request({
+    async executeTransactionBlock({
+        transactionBlock,
+        signature,
+        options,
+        requestType,
+    }: ExecuteTransactionBlockParams): Promise<IotaTransactionBlockResponse> {
+        const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',
             params: [
-                typeof input.transactionBlock === 'string'
-                    ? input.transactionBlock
-                    : toB64(input.transactionBlock),
-                Array.isArray(input.signature) ? input.signature : [input.signature],
-                input.options,
-                input.requestType,
+                typeof transactionBlock === 'string' ? transactionBlock : toB64(transactionBlock),
+                Array.isArray(signature) ? signature : [signature],
+                options,
             ],
         });
+
+        if (requestType === 'WaitForLocalExecution') {
+            try {
+                await this.waitForTransaction({
+                    digest: result.digest,
+                });
+            } catch (_) {
+                // Ignore error while waiting for transaction
+            }
+        }
+
+        return result;
     }
 
-    async signAndExecuteTransactionBlock({
-        transactionBlock,
+    async signAndExecuteTransaction({
+        transaction,
         signer,
         ...input
     }: {
-        transactionBlock: Uint8Array | TransactionBlock;
+        transaction: Uint8Array | Transaction;
         signer: Signer;
     } & Omit<
         ExecuteTransactionBlockParams,
@@ -441,14 +450,14 @@ export class IotaClient {
     >): Promise<IotaTransactionBlockResponse> {
         let transactionBytes;
 
-        if (transactionBlock instanceof Uint8Array) {
-            transactionBytes = transactionBlock;
+        if (transaction instanceof Uint8Array) {
+            transactionBytes = transaction;
         } else {
-            transactionBlock.setSenderIfNotSet(signer.toIotaAddress());
-            transactionBytes = await transactionBlock.build({ client: this });
+            transaction.setSenderIfNotSet(signer.toIotaAddress());
+            transactionBytes = await transaction.build({ client: this });
         }
 
-        const { signature, bytes } = await signer.signTransactionBlock(transactionBytes);
+        const { signature, bytes } = await signer.signTransaction(transactionBytes);
 
         return this.executeTransactionBlock({
             transactionBlock: bytes,
@@ -564,6 +573,8 @@ export class IotaClient {
 
     /**
      * Subscribe to get notifications whenever an event matching the filter occurs
+     *
+     * @deprecated
      */
     async subscribeEvent(
         input: SubscribeEventParams & {
@@ -579,6 +590,9 @@ export class IotaClient {
         });
     }
 
+    /**
+     * @deprecated
+     */
     async subscribeTransaction(
         input: SubscribeTransactionParams & {
             /** function to run when we receive a notification of a new event matching the filter */
@@ -602,7 +616,7 @@ export class IotaClient {
         input: DevInspectTransactionBlockParams,
     ): Promise<DevInspectResults> {
         let devInspectTxBytes;
-        if (isTransactionBlock(input.transactionBlock)) {
+        if (isTransaction(input.transactionBlock)) {
             input.transactionBlock.setSenderIfNotSet(input.sender);
             devInspectTxBytes = toB64(
                 await input.transactionBlock.build({
@@ -789,18 +803,6 @@ export class IotaClient {
         return toHEX(bytes.slice(0, 4));
     }
 
-    async resolveNameServiceAddress(_input: any): Promise<string | null> {
-        return 'remove_me';
-    }
-
-    async resolveNameServiceNames(_input: any): Promise<ResolvedNameServiceNames> {
-        return {
-            data: [],
-            hasNextPage: false,
-            nextCursor: null,
-        };
-    }
-
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
@@ -814,7 +816,7 @@ export class IotaClient {
      * be available via the API.
      * This currently polls the `getTransactionBlock` API to check for the transaction.
      */
-    async waitForTransactionBlock({
+    async waitForTransaction({
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,

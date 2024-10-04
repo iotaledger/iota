@@ -106,7 +106,7 @@ function StakingCard() {
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
 
-    const stakeToken = useMutation({
+    const { mutateAsync: stakeTokenMutateAsync } = useMutation({
         mutationFn: async ({
             tokenTypeArg,
             amount,
@@ -125,7 +125,7 @@ function StakingCard() {
             // });
             try {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransactionBlock({
+                return await signer.signAndExecuteTransaction({
                     transactionBlock,
                     requestType: effectsOnlySharedTransactions
                         ? 'WaitForEffectsCert'
@@ -148,7 +148,7 @@ function StakingCard() {
         },
     });
 
-    const unStakeToken = useMutation({
+    const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
         mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
             if (!stakedIotaId || !signer) {
                 throw new Error('Failed, missing required field.');
@@ -158,7 +158,7 @@ function StakingCard() {
             // 	name: 'stake',
             // });
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransactionBlock({
+            return await signer.signAndExecuteTransaction({
                 transactionBlock,
                 requestType: effectsOnlySharedTransactions
                     ? 'WaitForEffectsCert'
@@ -194,13 +194,13 @@ function StakingCard() {
                     if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
                         return;
                     }
-                    response = await unStakeToken.mutateAsync({
+                    response = await unStakeTokenMutateAsync({
                         stakedIotaId: stakeIotaIdParams,
                     });
 
                     txDigest = response.digest;
                 } else {
-                    response = await stakeToken.mutateAsync({
+                    response = await stakeTokenMutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
                         validatorAddress: validatorAddress,
@@ -252,8 +252,8 @@ function StakingCard() {
             navigate,
             stakeData,
             stakeIotaIdParams,
-            unStakeToken,
-            stakeToken,
+            unStakeTokenMutateAsync,
+            stakeTokenMutateAsync,
         ],
     );
 

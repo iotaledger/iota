@@ -12,7 +12,7 @@ use iota_types::{
     transaction::{Argument, CallArg, ObjectArg},
 };
 use move_command_line_common::{
-    parser::{parse_u256, parse_u64, Parser as MoveCLParser},
+    parser::{Parser as MoveCLParser, parse_u64, parse_u256},
     values::{ParsableValue, ParsedValue, ValueToken},
 };
 use move_compiler::editions::Flavor;
@@ -59,6 +59,12 @@ pub struct IotaInitArgs {
     pub max_gas: Option<u64>,
     #[clap(long = "shared-object-deletion")]
     pub shared_object_deletion: Option<bool>,
+    #[clap(long = "resolve-abort-locations-to-package-id")]
+    pub resolve_abort_locations_to_package_id: Option<bool>,
+    #[clap(long = "reshare-at-same-initial-version")]
+    pub reshare_at_same_initial_version: Option<bool>,
+    #[clap(long = "move-binary-format-version")]
+    pub move_binary_format_version: Option<u32>,
     #[clap(long = "simulator")]
     pub simulator: bool,
     #[clap(long = "custom-validator-account")]

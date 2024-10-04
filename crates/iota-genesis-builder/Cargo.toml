@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
@@ -37,20 +40,23 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = "0.3"
 
-iota-adapter-v0 = { path = "../../iota-execution/v0/iota-adapter/" }
+# TODO: change to the v0 cut version when it is created
+iota-adapter-v0 = { path = "../../iota-execution/latest/iota-adapter/", package = "iota-adapter-latest" }
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
 iota-move-build.workspace = true
-iota-move-natives-v0 = { path = "../../iota-execution/v0/iota-move-natives" }
+# TODO: change to the v0 cut version when it is created
+iota-move-natives-v0 = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
-move-vm-runtime-v0 = { path = "../../external-crates/move/move-execution/v0/crates/move-vm-runtime" }
+# TODO: change to the v0 cut version when it is created
+move-vm-runtime-v0 = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

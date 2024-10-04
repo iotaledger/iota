@@ -1,0 +1,20 @@
+[package]
+name = "iota-indexer-builder"
+version = "0.1.0"
+authors = ["IOTA Foundation <contact@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-metrics.workspace = true
+iota-types.workspace = true
+prometheus.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+
+[dev-dependencies]
+telemetry-subscribers.workspace = true

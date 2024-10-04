@@ -5,28 +5,31 @@
 import {
     Table,
     TableBody,
-    TableBodyRow,
-    TableCell,
-    TableCellType,
+    TableCellBase,
+    TableCellText,
     TableHeader,
     TableHeaderCell,
-    TableHeaderRow,
+    TableHeaderCheckbox,
+    TableRow,
+    TableRowCheckbox,
 } from '@iota/apps-ui-kit';
 import { type DerivedLedgerAccount } from './useDeriveLedgerAccounts';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useResolveIotaNSName } from '@iota/core';
-
-export type SelectableLedgerAccount = DerivedLedgerAccount & {
-    isSelected: boolean;
-};
+import { useBalance, useFormatCoin } from '@iota/core';
 
 interface LedgerAccountListProps {
-    accounts: SelectableLedgerAccount[];
-    onAccountClick: (account: SelectableLedgerAccount) => void;
+    accounts: DerivedLedgerAccount[];
+    selectedAccounts: Set<string>;
+    onAccountClick: (account: DerivedLedgerAccount, checked: boolean) => void;
     selectAll: () => void;
 }
 
-export function LedgerAccountList({ accounts, onAccountClick, selectAll }: LedgerAccountListProps) {
+export function LedgerAccountList({
+    accounts,
+    selectedAccounts,
+    onAccountClick,
+    selectAll,
+}: LedgerAccountListProps) {
     const headersData = [
         { label: 'Address', columnKey: 1 },
         { label: '', columnKey: 2 },
@@ -34,45 +37,49 @@ export function LedgerAccountList({ accounts, onAccountClick, selectAll }: Ledge
 
     const rowsData = accounts.map((account) => {
         const { data: coinBalance } = useBalance(account.address);
-        const { data: domainName } = useResolveIotaNSName(account.address);
         const [totalAmount, totalAmountSymbol] = useFormatCoin(
             coinBalance?.totalBalance ?? 0,
             IOTA_TYPE_ARG,
         );
 
-        return [
-            {
-                label: domainName ?? formatAddress(account.address),
-            },
-            {
-                label: `${totalAmount} ${totalAmountSymbol}`,
-            },
-        ];
+        return [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
     });
 
+    const selectedRowIndexes = accounts.reduce((set, acc, i) => {
+        if (selectedAccounts.has(acc.address)) {
+            set.add(i);
+        }
+        return set;
+    }, new Set<number>());
+
     return (
-        <Table
-            hasCheckboxColumn={true}
-            onRowCheckboxChange={(_, index) => {
-                onAccountClick(accounts[index]);
-            }}
-            onHeaderCheckboxChange={() => selectAll()}
-            rowIndexes={rowsData.map((_, i) => i)}
-        >
+        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={rowsData.map((_, i) => i)}>
             <TableHeader>
-                <TableHeaderRow>
+                <TableRow leading={<TableHeaderCheckbox onCheckboxChange={() => selectAll()} />}>
                     {headersData.map((header, index) => (
                         <TableHeaderCell key={index} {...header} />
                     ))}
-                </TableHeaderRow>
+                </TableRow>
             </TableHeader>
             <TableBody>
                 {rowsData.map((row, rowIndex) => (
-                    <TableBodyRow key={rowIndex} rowIndex={rowIndex}>
+                    <TableRow
+                        key={rowIndex}
+                        leading={
+                            <TableRowCheckbox
+                                rowIndex={rowIndex}
+                                onCheckboxChange={(checked) =>
+                                    onAccountClick(accounts[rowIndex], checked)
+                                }
+                            />
+                        }
+                    >
                         {row.map((cell, cellIndex) => (
-                            <TableCell key={cellIndex} type={TableCellType.Text} {...cell} />
+                            <TableCellBase key={cellIndex}>
+                                <TableCellText>{cell}</TableCellText>
+                            </TableCellBase>
                         ))}
-                    </TableBodyRow>
+                    </TableRow>
                 ))}
             </TableBody>
         </Table>

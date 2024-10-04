@@ -31,17 +31,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut ptb = ProgrammableTransactionBuilder::new();
     client
         .transaction_builder()
-        .single_move_call(
-            &mut ptb,
-            "0x2".parse()?,
-            "iota",
-            "transfer",
-            vec![],
-            vec![
-                IotaJsonValue::new(json!(coin.coin_object_id))?,
-                IotaJsonValue::new(json!(recipient))?,
-            ],
-        )
+        .single_move_call(&mut ptb, "0x2".parse()?, "iota", "transfer", vec![], vec![
+            IotaJsonValue::new(json!(coin.coin_object_id))?,
+            IotaJsonValue::new(json!(recipient))?,
+        ])
         .await?;
     let pt = ptb.finish();
 

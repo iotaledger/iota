@@ -31,8 +31,8 @@ export function CoinItem({ coinType, balance, usd, clickableAction, icon }: Coin
     return (
         <Card type={CardType.Default}>
             <CardImage type={ImageType.BgTransparent}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
-                    <CoinIcon coinType={coinType} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                    <CoinIcon coinType={coinType} rounded />
                 </div>
             </CardImage>
             <CardBody

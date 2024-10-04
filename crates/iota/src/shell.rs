@@ -17,12 +17,12 @@ use async_trait::async_trait;
 use clap::*;
 use colored::Colorize;
 use rustyline::{
+    Config, Context, Editor,
     completion::{Completer, Pair},
     error::ReadlineError,
     highlight::Highlighter,
     hint::Hinter,
     validate::Validator,
-    Config, Context, Editor,
 };
 use rustyline_derive::Helper;
 use unescape::unescape;

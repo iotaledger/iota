@@ -9,17 +9,17 @@ use iota_protocol_config::ProtocolConfig;
 use prometheus::Registry;
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
-use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, temp_dir};
 use tokio::sync::watch;
 use types::{
     Certificate, CertificateAPI, HeaderAPI, PreSubscribedBroadcastSender, ReputationScores,
 };
 
 use crate::{
+    NUM_SHUTDOWN_RECEIVERS,
     consensus::{
         Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
     },
-    NUM_SHUTDOWN_RECEIVERS,
 };
 
 /// This test is trying to compare the output of the Consensus algorithm when:
@@ -49,7 +49,7 @@ async fn test_consensus_recovery_with_bullshark() {
     let committee = fixture.committee();
 
     let mut config: ProtocolConfig = latest_protocol_version();
-    config.set_consensus_bad_nodes_stake_threshold(33);
+    config.set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
     // AND make certificates for rounds 1 to 7 (inclusive)
     let ids: Vec<_> = fixture.authorities().map(|a| a.id()).collect();

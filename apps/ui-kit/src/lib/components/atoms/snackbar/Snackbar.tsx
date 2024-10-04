@@ -57,7 +57,7 @@ export function Snackbar({
                 BACKGROUND_COLOR[type],
             )}
         >
-            <div className={cx('text-left text-body-md', TEXT_COLOR[type])}>{text}</div>
+            <div className={cx('w-full text-left text-body-md', TEXT_COLOR[type])}>{text}</div>
             {showClose && (
                 <Close
                     className={cx('h-5 w-5 cursor-pointer', TEXT_COLOR[type])}
