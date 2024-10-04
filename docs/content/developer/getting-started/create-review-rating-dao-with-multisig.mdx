@@ -42,8 +42,7 @@ Review readers access reviews to make informed decisions on selecting services. 
 
 :::info
 
-See how to create a [Multisig](../../cryptography/transaction-auth/multisig.mdx) transactions.
-
+See how to create a [Multisig](../cryptography/transaction-auth/multisig.mdx) transactions.
 :::
 
 ### Moderators
@@ -100,9 +99,9 @@ public fun register_service(db: &mut Dashboard, service_id: ID) {
     df::add(&mut db.id, service_id, service_id);
 }
 ```
-A `Dashboard` is a [shared object](../objects/object-ownership/shared.mdx), so any service owner can register their service to a dashboard.
+A `Dashboard` is a [shared object](../iota-101/objects/object-ownership/shared.mdx), so any service owner can register their service to a dashboard.
 A service owner should look for dashboards that best match their service attribute and register.
-A [dynamic field](../objects/dynamic-fields/dynamic-fields.mdx) stores the list of services that are registered to a dashboard.
+A [dynamic field](../iota-101/objects/dynamic-fields/dynamic-fields.mdx) stores the list of services that are registered to a dashboard.
 A service may be registered to multiple dashboards at the same time. For example, a Chinese-Italian fusion restaurant may be registered to both the Chinese and Italian dashboards.
 
 #### Code Explanation
@@ -128,7 +127,7 @@ A service may be registered to multiple dashboards at the same time. For example
 
 :::info
 
-See [Shared versus Owned Objects](../objects/object-ownership/shared.mdx) for more information on the differences between object types.
+See [Shared versus Owned Objects](../iota-101/objects/object-ownership/shared.mdx) for more information on the differences between object types.
 
 :::
 
@@ -172,7 +171,7 @@ fun calculate_total_score(rev: &Review): u64 {
 
 In addition to the content of a review, all the elements that are required to compute total score are stored in a `Review` object.
 
-A `Review` is a [shared object](../objects/object-ownership/shared.mdx), so anyone can cast a vote on a review and update its `total_score` field.
+A `Review` is a [shared object](../iota-101/objects/object-ownership/shared.mdx), so anyone can cast a vote on a review and update its `total_score` field.
 After `total_score` is updated, the [`update_top_reviews`](#casting-votes) function can be called to update the `top_reviews` field of the `Service` object.
 
 #### Code Explanation
@@ -228,7 +227,7 @@ The pool of `SUI` tokens to be distributed to reviewers is stored in the `reward
 
 ### Storage for Reviews
 
-Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../move-overview/collections.mdx)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
+Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../iota-101/move-overview/collections.mdx)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
 In other words, anyone can go to a transaction explorer and find a review object by its object ID, but they won't be able to use a review as an input to a transaction by its object ID.
 
 
