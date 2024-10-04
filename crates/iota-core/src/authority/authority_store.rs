@@ -310,11 +310,13 @@ impl AuthorityStore {
                     .for_each(|(_, execution_digest)| {
                         let tx_digest = &execution_digest.transaction;
                         if tx_digest != genesis.transaction().digest() {
-                            if let Some((tx, effects, events, objects)) = txs_data.get(tx_digest) {
+                            if let Some((tx, effects, events)) = txs_data.get(tx_digest) {
                                 let transaction = VerifiedTransaction::new_unchecked(tx.clone());
-
+                                let objects = migration_transactions
+                                    .objects_by_tx_digest(*tx_digest)
+                                    .expect("The migration data is corrupted");
                                 store
-                                    .bulk_insert_genesis_objects(objects)
+                                    .bulk_insert_genesis_objects(&objects)
                                     .expect("Cannot bulk insert migrated objects");
 
                                 store

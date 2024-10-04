@@ -615,7 +615,11 @@ impl IotaNode {
                         migration_tx_data
                             .txs_data()
                             .values()
-                            .flat_map(|(_, _, _, migration_objects)| migration_objects.clone()),
+                            .flat_map(|(tx, _, _)| {
+                                migration_tx_data
+                                    .objects_by_tx_digest(*tx.digest())
+                                    .expect("The migration data is corrupted")
+                            }),
                     )
                     .collect::<Vec<_>>()
             },
@@ -659,7 +663,7 @@ impl IotaNode {
             .await;
 
             if let Some(migration_tx_data) = migration_tx_data {
-                for (tx_digest, (tx, _, _, _)) in migration_tx_data.txs_data() {
+                for (tx_digest, (tx, _, _)) in migration_tx_data.txs_data() {
                     let span = error_span!("migration_txn", tx_digest = ?tx_digest);
 
                     // Execute migration transaction
