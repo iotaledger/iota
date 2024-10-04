@@ -85,8 +85,5 @@
 	"dependencies": {
 		"copy-text-to-clipboard": "^3.2.0"
 	},
-    "resolutions": {
-        "eslint": "8.57.1"
-    },
 	"packageManager": "pnpm@9.6.0"
 }
