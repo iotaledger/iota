@@ -103,7 +103,7 @@ export function TableCard<DataType extends object>({
                     {table.getRowModel().rows.map((row) => (
                         <TableRow key={row.id}>
                             {row.getVisibleCells().map((cell) => (
-                                <Fragment key={cell.id}>
+                                <Fragment key={`${row.id}${cell.id}`}>
                                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                 </Fragment>
                             ))}
