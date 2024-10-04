@@ -42,8 +42,8 @@ struct FaucetResponse {
 
 pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.io"; // testnet faucet
 
-// if you use the iota-test-validator and use the local network; if it does not
-// work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
+// if you use the `iota start` subcommand and use the local network; if it does
+// not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
 
 /// Return a iota client to interact with the APIs,
 /// the active address of the local wallet, and another address that can be used

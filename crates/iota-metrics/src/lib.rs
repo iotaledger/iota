@@ -11,7 +11,14 @@ use std::{
     time::Instant,
 };
 
-use axum::{Router, extract::Extension, http::StatusCode, routing::get};
+use axum::{
+    Router,
+    extract::{Extension, Request},
+    http::StatusCode,
+    middleware::Next,
+    response::Response,
+    routing::get,
+};
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
@@ -155,6 +162,26 @@ pub async fn with_new_server_timing<T>(fut: impl Future<Output = T> + Send + 'st
         .await;
 
     ret.unwrap()
+}
+
+pub async fn server_timing_middleware(request: Request, next: Next) -> Response {
+    with_new_server_timing(async move {
+        let mut response = next.run(request).await;
+        add_server_timing("finish_request");
+
+        if let Ok(header_value) = get_server_timing()
+            .expect("server timing not set")
+            .lock()
+            .header_value()
+            .try_into()
+        {
+            response
+                .headers_mut()
+                .insert(Timer::header_key(), header_value);
+        }
+        response
+    })
+    .await
 }
 
 /// Create a new task-local ServerTiming context and run the provided future
