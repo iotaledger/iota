@@ -9,7 +9,7 @@ use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 use tracing::info;
 
 use crate::{error::IotaError, iota_serde::Readable};
@@ -162,8 +162,8 @@ pub struct ChainIdentifier(CheckpointDigest);
 pub static MAINNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 pub static TESTNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 
-/// For testing purposes or bootstrapping regenesis chain configuration, you
-/// can set this environment variable to force protocol config to use a specific
+/// For testing purposes or bootstrapping regenesis chain configuration, you can
+/// set this environment variable to force protocol config to use a specific
 /// Chain.
 const IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME: &str =
     "IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE";
@@ -346,7 +346,11 @@ impl std::str::FromStr for CheckpointDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        result.copy_from_slice(&Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?);
+        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        if buffer.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+        }
+        result.copy_from_slice(&buffer);
         Ok(CheckpointDigest::new(result))
     }
 }
@@ -427,7 +431,11 @@ impl std::str::FromStr for CheckpointContentsDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        result.copy_from_slice(&Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?);
+        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        if buffer.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+        }
+        result.copy_from_slice(&buffer);
         Ok(CheckpointContentsDigest::new(result))
     }
 }
@@ -599,7 +607,11 @@ impl std::str::FromStr for TransactionDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        result.copy_from_slice(&Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?);
+        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        if buffer.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+        }
+        result.copy_from_slice(&buffer);
         Ok(TransactionDigest::new(result))
     }
 }
@@ -738,7 +750,11 @@ impl std::str::FromStr for TransactionEventsDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        result.copy_from_slice(&Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?);
+        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        if buffer.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+        }
+        result.copy_from_slice(&buffer);
         Ok(Self::new(result))
     }
 }
@@ -792,7 +808,11 @@ impl std::str::FromStr for EffectsAuxDataDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        result.copy_from_slice(&Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?);
+        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        if buffer.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+        }
+        result.copy_from_slice(&buffer);
         Ok(Self::new(result))
     }
 }
@@ -806,6 +826,7 @@ impl ObjectDigest {
     pub const MAX: ObjectDigest = Self::new([u8::MAX; 32]);
     pub const OBJECT_DIGEST_DELETED_BYTE_VAL: u8 = 99;
     pub const OBJECT_DIGEST_WRAPPED_BYTE_VAL: u8 = 88;
+    pub const OBJECT_DIGEST_CANCELLED_BYTE_VAL: u8 = 77;
 
     /// A marker that signifies the object is deleted.
     pub const OBJECT_DIGEST_DELETED: ObjectDigest =
@@ -814,6 +835,9 @@ impl ObjectDigest {
     /// A marker that signifies the object is wrapped into another object.
     pub const OBJECT_DIGEST_WRAPPED: ObjectDigest =
         Self::new([Self::OBJECT_DIGEST_WRAPPED_BYTE_VAL; 32]);
+
+    pub const OBJECT_DIGEST_CANCELLED: ObjectDigest =
+        Self::new([Self::OBJECT_DIGEST_CANCELLED_BYTE_VAL; 32]);
 
     pub const fn new(digest: [u8; 32]) -> Self {
         Self(Digest::new(digest))
@@ -916,7 +940,11 @@ impl std::str::FromStr for ObjectDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        result.copy_from_slice(&Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?);
+        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        if buffer.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+        }
+        result.copy_from_slice(&buffer);
         Ok(ObjectDigest::new(result))
     }
 }

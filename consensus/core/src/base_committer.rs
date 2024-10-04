@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::{
     block::{BlockAPI, BlockRef, Round, Slot, VerifiedBlock},
-    commit::{LeaderStatus, WaveNumber, DEFAULT_WAVE_LENGTH, MINIMUM_WAVE_LENGTH},
+    commit::{DEFAULT_WAVE_LENGTH, LeaderStatus, MINIMUM_WAVE_LENGTH, WaveNumber},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
@@ -53,7 +53,7 @@ pub(crate) struct BaseCommitter {
     context: Arc<Context>,
     /// The consensus leader schedule to be used to resolve the leader for a
     /// given round.
-    leader_schedule: LeaderSchedule,
+    leader_schedule: Arc<LeaderSchedule>,
     /// In memory block store representing the dag state
     dag_state: Arc<RwLock<DagState>>,
     /// The options used by this committer
@@ -63,7 +63,7 @@ pub(crate) struct BaseCommitter {
 impl BaseCommitter {
     pub fn new(
         context: Arc<Context>,
-        leader_schedule: LeaderSchedule,
+        leader_schedule: Arc<LeaderSchedule>,
         dag_state: Arc<RwLock<DagState>>,
         options: BaseCommitterOptions,
     ) -> Self {
@@ -142,7 +142,7 @@ impl BaseCommitter {
 
     pub fn elect_leader(&self, round: Round) -> Option<Slot> {
         let wave = self.wave_number(round);
-        tracing::debug!(
+        tracing::trace!(
             "elect_leader: round={}, wave={}, leader_round={}, leader_offset={}",
             round,
             wave,
@@ -406,6 +406,7 @@ impl Display for BaseCommitter {
 #[cfg(test)]
 mod base_committer_builder {
     use super::*;
+    use crate::leader_schedule::LeaderSwapTable;
 
     pub(crate) struct BaseCommitterBuilder {
         context: Arc<Context>,
@@ -452,7 +453,10 @@ mod base_committer_builder {
             };
             BaseCommitter::new(
                 self.context.clone(),
-                LeaderSchedule::new(self.context),
+                Arc::new(LeaderSchedule::new(
+                    self.context,
+                    LeaderSwapTable::default(),
+                )),
                 self.dag_state,
                 options,
             )

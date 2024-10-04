@@ -12,14 +12,8 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
     if (!data?.length) return null;
 
     return (
-        <CollapsibleCard title="Changes" size="sm" shadow>
-            <CollapsibleSection
-                title={
-                    <Text variant="body/semibold" color="success-dark">
-                        Updated
-                    </Text>
-                }
-            >
+        <CollapsibleCard title="Changes">
+            <CollapsibleSection title="Updated">
                 <div className="flex flex-col gap-2">
                     {data.map((object) => {
                         const { objectId } = object.reference;

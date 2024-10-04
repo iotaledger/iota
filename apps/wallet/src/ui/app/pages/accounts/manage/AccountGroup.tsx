@@ -15,6 +15,9 @@ import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { Collapsible } from '_app/shared/collapse';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '_shared/experimentation/features';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -36,13 +39,18 @@ export function AccountGroup({
     accounts,
     type,
     accountSourceID,
+    isLast,
+    outerRef,
 }: {
     accounts: SerializedUIAccount[];
     type: AccountType;
     accountSourceID?: string;
+    isLast: boolean;
+    outerRef?: React.RefObject<HTMLDivElement>;
 }) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const navigate = useNavigate();
+    const activeAccount = useActiveAccount();
     const createAccountMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
@@ -84,8 +92,11 @@ export function AccountGroup({
         navigate(`../export/seed/${accountSource!.id}`);
     }
 
+    const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
+
     const dropdownVisibility = {
-        showBalanceFinder: ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type),
+        showBalanceFinder:
+            ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && featureAccountFinderEnabled,
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
     };
@@ -138,14 +149,19 @@ export function AccountGroup({
             >
                 {accounts.map((account, index) => (
                     <AccountGroupItem
+                        outerRef={outerRef}
+                        isActive={activeAccount?.address === account.address}
                         key={account.id}
                         account={account}
-                        isLast={index === accounts.length - 1}
+                        showDropdownOptionsBottom={
+                            isLast &&
+                            (index === accounts.length - 1 || index === accounts.length - 2)
+                        }
                     />
                 ))}
             </Collapsible>
             <div
-                className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-3 top-3 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>

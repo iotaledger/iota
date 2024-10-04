@@ -12,7 +12,7 @@
  */
 
 import type * as RpcTypes from './generated.js';
-import type { TransactionBlock } from '../../transactions/index.js';
+import type { Transaction } from '../../transactions/index.js';
 /**
  * Runs the transaction in dev-inspect mode. Which allows for nearly any transaction (or Move call)
  * with any arguments. Detailed results are provided, including both the transaction effects and any
@@ -21,7 +21,7 @@ import type { TransactionBlock } from '../../transactions/index.js';
 export interface DevInspectTransactionBlockParams {
     sender: string;
     /** BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice) */
-    transactionBlock: TransactionBlock | Uint8Array | string;
+    transactionBlock: Transaction | Uint8Array | string;
     /** Gas is not charged, but gas usage is still calculated. Default to use reference gas price */
     gasPrice?: bigint | number | null | undefined;
     /** The epoch to perform the call. Will be set from the system state object if not provided */
@@ -56,7 +56,7 @@ export interface ExecuteTransactionBlockParams {
     signature: string | string[];
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
-    /** The request type, derived from `IotaTransactionBlockResponseOptions` if None */
+    /** @deprecated requestType will be ignored by JSON RPC in the future */
     requestType?: RpcTypes.ExecuteTransactionRequestType | null | undefined;
 }
 /** Return the first four bytes of the chain's genesis checkpoint digest. */
@@ -85,9 +85,6 @@ export interface GetEventsParams {
 }
 /** Return the sequence number of the latest checkpoint that has been executed */
 export interface GetLatestCheckpointSequenceNumberParams {}
-export interface GetLoadedChildObjectsParams {
-    digest: string;
-}
 /** Return the argument types of a Move function, based on normalized Type. */
 export interface GetMoveFunctionArgTypesParams {
     package: string;

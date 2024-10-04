@@ -6,13 +6,16 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 comfy-table.workspace = true
-duration-str = "0.11"
+duration-str.workspace = true
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 hdrhistogram.workspace = true
@@ -36,6 +39,7 @@ roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
+strum_macros.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true

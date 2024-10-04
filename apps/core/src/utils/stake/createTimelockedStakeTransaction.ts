@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { IOTA_SYSTEM_STATE_OBJECT_ID, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 /**
@@ -39,7 +39,7 @@ export function createTimelockedStakeTransaction(
     timelockedObjects: GroupedTimelockObject[],
     validatorAddress: string,
 ) {
-    const tx = new TransactionBlock();
+    const tx = new Transaction();
 
     // Create the transactions to merge the timelocked objects that need merging
     const timelockedObjectsForMerge = timelockedObjects.filter(
@@ -54,7 +54,7 @@ export function createTimelockedStakeTransaction(
             typeArguments: [`${IOTA_TYPE_ARG}`],
             arguments: [
                 tx.object(mergeObject.objectId),
-                tx.makeMoveVec({ objects: mergeObjectIds }),
+                tx.makeMoveVec({ elements: mergeObjectIds }),
             ],
         });
     }
@@ -85,7 +85,7 @@ export function createTimelockedStakeTransaction(
                 mutable: true,
             }),
             tx.makeMoveVec({
-                objects: [...splitTimelockedObjectTransactions, ...stakingReadyObjects],
+                elements: [...splitTimelockedObjectTransactions, ...stakingReadyObjects],
             }),
             tx.pure.address(validatorAddress),
         ],

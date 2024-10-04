@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::base64::Base64;
+use crate::types::base64::Base64;
 
 /// The credentials related fields associated with a validator.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]

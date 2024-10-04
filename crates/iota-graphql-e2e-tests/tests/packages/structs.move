@@ -102,7 +102,7 @@ fragment Structs on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 2,0 --sender A
+//# upgrade --package P0 --upgrade-capability 2,1 --sender A
 
 module P1::m {
     public struct S has copy, drop { x: u64 }

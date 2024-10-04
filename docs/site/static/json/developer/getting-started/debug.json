@@ -1,0 +1,29 @@
+[
+  {
+    "questionText": "How do you import the debug module in your Move source file?",
+    "answerOptions": [
+      { "answerText": "import std::debug;", "isCorrect": false },
+      { "answerText": "use std::debug;", "isCorrect": true },
+      { "answerText": "include std::debug;", "isCorrect": false },
+      { "answerText": "require std::debug;", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How do you print a variable `v` using the debug module when `v` is not a reference?",
+    "answerOptions": [
+      { "answerText": "debug::print(v);", "isCorrect": false },
+      { "answerText": "debug::print(&v);", "isCorrect": true },
+      { "answerText": "debug::println(v);", "isCorrect": false },
+      { "answerText": "print(v);", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which function from the debug module displays the current stack trace?",
+    "answerOptions": [
+      { "answerText": "debug::stack_trace();", "isCorrect": false },
+      { "answerText": "debug::print_trace();", "isCorrect": false },
+      { "answerText": "debug::show_stack();", "isCorrect": false },
+      { "answerText": "debug::print_stack_trace();", "isCorrect": true }
+    ]
+  }
+]

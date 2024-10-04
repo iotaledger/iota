@@ -7,7 +7,7 @@
 
 mod utils;
 
-use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
+use iota_config::{IOTA_KEYSTORE_FILENAME, iota_config_dir};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,

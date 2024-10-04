@@ -1,9 +1,9 @@
 services:
   local-network:
-    image: iota-test-validator
+    image: iota
     build:
       context: ../../
-      dockerfile: docker/iota-test-validator/Dockerfile
+      dockerfile: docker/iota/Dockerfile
       args:
         - GIT_REVISION
         - BUILD_DATE
@@ -16,12 +16,13 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
-      - /usr/local/bin/iota-test-validator
-      - --fullnode-rpc-host=0.0.0.0
+      - /usr/local/bin/iota
+      - start
+      - --with-faucet=0.0.0.0:9123
       - --fullnode-rpc-port=9000
-      - --faucet-port=9123
       - --epoch-duration-ms=120000
       - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
+      - --force-regenesis
     expose:
       - 9000
     ports:

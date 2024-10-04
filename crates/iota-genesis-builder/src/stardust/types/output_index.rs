@@ -5,7 +5,7 @@
 //! [0..128)
 
 use iota_sdk::types::block::output::OUTPUT_INDEX_RANGE;
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct OutputIndex(u16);

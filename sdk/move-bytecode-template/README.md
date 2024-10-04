@@ -1,7 +1,7 @@
 # Move Bytecode Template
 
 Move Bytecode Template allows updating a pre-compiled bytecode, so that a standard template could be
-customized and used to publish new modules on Iota directly in the browser. Hence, removing the need
+customized and used to publish new modules on IOTA directly in the browser. Hence, removing the need
 for a backend to compile new modules.
 
 This crate builds a WASM binary for the `move-language/move-binary-format` allowing bytecode
@@ -31,7 +31,7 @@ module 0x0::template {
     /// The OTW for the Coin
     struct TEMPLATE has drop {}
 
-    const DECIMALS: u8 = 0;
+    const DECIMALS: u8 = 6;
     const SYMBOL: vector<u8> = b"TMPL";
     const NAME: vector<u8> = b"Template Coin";
     const DESCRIPTION: vector<u8> = b"Template Coin Description";
@@ -67,8 +67,8 @@ you need to supply new value as BCS bytes, existing value as BCS, and the type o
 string: `U8`, `U16` ... `U256`, `Address`, `Vector(U8)` and so on).
 
 ```ts
-import * as template from '@iota/move-bytecode-template';
 import { bcs } from '@iota/bcs';
+import * as template from '@iota/move-bytecode-template';
 
 // please, manually scan the existing values, this operation is very sensitive
 console.log(template.get_constants(bytecode));

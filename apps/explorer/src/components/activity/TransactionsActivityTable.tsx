@@ -12,8 +12,8 @@ import {
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { numberSuffix } from '~/lib/utils';
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
 import { Select } from '@iota/apps-ui-kit';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -45,7 +45,7 @@ export function TransactionsActivityTable({
     const { data, isFetching, pagination, isPending, isError } = useCursorPagination(transactions);
     const goToFirstPageRef = useRef(pagination.onFirst);
     goToFirstPageRef.current = pagination.onFirst;
-    const cardData = data ? genTableDataFromTxData(data.data) : undefined;
+    const tableColumns = generateTransactionsTableColumns();
 
     useEffect(() => {
         goToFirstPageRef.current();
@@ -58,7 +58,7 @@ export function TransactionsActivityTable({
                 </div>
             )}
             <div className="flex flex-col space-y-3 text-left">
-                {isPending || isFetching || !cardData ? (
+                {isPending || isFetching || !data?.data ? (
                     <PlaceholderTable
                         rowCount={limit}
                         rowHeight="16px"
@@ -66,8 +66,8 @@ export function TransactionsActivityTable({
                     />
                 ) : (
                     <TableCard
-                        data={cardData.data}
-                        columns={cardData.columns}
+                        data={data.data}
+                        columns={tableColumns}
                         totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
                         viewAll="/recent"
                         paginationOptions={!disablePagination ? pagination : undefined}

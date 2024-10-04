@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DryRunTransactionBlockResponse } from '@iota/iota-sdk/src/client';
+import { DryRunTransactionBlockResponse } from '@iota/iota-sdk/client';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useState } from 'react';
 

@@ -86,7 +86,7 @@ In practice, these guarantees mean that:
 * You can disable any extension at any time (as the owner).
 * The state of an extension state is always accessible to the extension.
 
-### Asset states in IOTA Kiosk {#asset-states}
+### Asset states in IOTA Kiosk
 
 IOTA Kiosk is a shared object that can store heterogeneous values, such as different sets of asset collectibles. When you add an asset to your kiosk, it has one of the following states:
 * PLACED - an item placed in the kiosk using the `kiosk::place` function. The Kiosk Owner can withdraw it and use it directly, borrow it (mutably or immutably), or list an item for sale.
@@ -159,7 +159,7 @@ Since `0x2::kiosk::new` returns a tuple, `kiosk.0` refers to the `Kiosk` itself 
 
 As a kiosk owner, you can place any assets into your IOTA Kiosk. You can take any item from your kiosk that is not currently listed for sale.
 
-There's no limitations on which assets you can place in your kiosk. However, you can’t necessarily list and trade all of the items you place in your kiosk. The `TransferPolicy` associated with the type for the item determines whether you can trade it. To learn more, see the [Purchase items from a Kiosk](#purchase) section.
+There's no limitations on which assets you can place in your kiosk. However, you can’t necessarily list and trade all of the items you place in your kiosk. The `TransferPolicy` associated with the type for the item determines whether you can trade it. To learn more, see the [Purchase items from a Kiosk](#purchase-an-item-from-a-kiosk) section.
 
 ### Place an item in your kiosk
 
@@ -286,7 +286,7 @@ IOTA Kiosk provides basic trading functionality. As a kiosk owner, you can list 
 * `kiosk::delist` - remove an existing listing
 * `kiosk::purchase` - purchase an asset listed for sale
 
-Anyone on the network can purchase an item listed from an IOTA Kiosk. To learn more about the purchase flow, see the [Purchase section](#purchase). To learn more about asset states and what can be done with a listed item, see the [Asset States](#asset-states) section.
+Anyone on the network can purchase an item listed from an IOTA Kiosk. To learn more about the purchase flow, see the [Purchase section](#purchase-an-item-from-a-kiosk). To learn more about asset states and what can be done with a listed item, see the [Asset States](#asset-states-in-iota-kiosk) section.
 
 ### List an item from a kiosk
 
@@ -359,7 +359,7 @@ iota client call \
     --gas-budget 1000000000
 ```
 
-## Purchase an item from a kiosk {#purchase}
+## Purchase an item from a kiosk
 
 Anyone that has an address on the IOTA network can purchase an item listed from an IOTA Kiosk. To purchase an item, you can use the `kiosk::purchase` function. Specify the item to purchase and pay the list price set by the Kiosk Owner.
 

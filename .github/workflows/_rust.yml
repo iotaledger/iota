@@ -35,9 +35,6 @@ jobs:
   rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
 
-  external-lints:
-    uses: ./.github/workflows/_external_rust_lints.yml
-
   deny:
     uses: ./.github/workflows/_cargo_deny.yml
     secrets: inherit

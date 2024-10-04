@@ -7,12 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-anemo.workspace = true
-anemo-tower.workspace = true
-anyhow.workspace = true
 async-trait.workspace = true
-axum.workspace = true
-axum-server = { version = "0.6", default-features = false }
 backoff.workspace = true
 bytes.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
@@ -26,9 +21,14 @@ prometheus.workspace = true
 quinn-proto.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
 tokio = { workspace = true, features = ["rt", "net", "sync", "macros", "time"] }
-tower.workspace = true
 tracing.workspace = true
 types = { path = "../types", package = "narwhal-types" }
+
+anemo.workspace = true
+anemo-tower.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+tower.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true

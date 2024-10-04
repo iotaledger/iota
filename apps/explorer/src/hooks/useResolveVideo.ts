@@ -9,7 +9,7 @@ import { useRecognizedPackages } from './useRecognizedPackages';
 export function useResolveVideo(object: IotaObjectResponse): string | undefined | null {
     const recognizedPackages = useRecognizedPackages();
     const objectType =
-        object.data?.type ?? object?.data?.content?.dataType === 'package'
+        (object.data?.type ?? object?.data?.content?.dataType === 'package')
             ? 'package'
             : object?.data?.content?.type;
     const isRecognized = objectType && recognizedPackages.includes(objectType.split('::')[0]);

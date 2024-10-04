@@ -10,8 +10,8 @@ import {
 import { useMemo } from 'react';
 
 import { Badge, BadgeType, Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
-import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
-import { CoinItem } from '_src/ui/app/components';
+import { CoinItem, ExplorerLink, ExplorerLinkType } from '_src/ui/app/components';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface BalanceChangesProps {
     changes?: BalanceChangeSummary;
@@ -60,8 +60,6 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
     return (
         <>
             {Object.entries(changes).map(([owner, changes]) => {
-                const ownerAddress = useAddressLink(owner);
-
                 return (
                     <Panel key={owner} hasBorder>
                         <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
@@ -71,8 +69,14 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
                                 <Divider />
                                 <KeyValueInfo
                                     keyText="Owner"
-                                    valueText={ownerAddress.address}
-                                    valueLink={ownerAddress.explorerHref}
+                                    value={
+                                        <ExplorerLink
+                                            type={ExplorerLinkType.Address}
+                                            address={owner}
+                                        >
+                                            {formatAddress(owner)}
+                                        </ExplorerLink>
+                                    }
                                     fullwidth
                                 />
                             </div>

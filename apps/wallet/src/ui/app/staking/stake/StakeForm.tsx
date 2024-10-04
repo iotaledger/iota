@@ -15,7 +15,7 @@ import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -41,7 +41,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     const activeAddress = useActiveAddress();
     const { data: txDryRunResponse } = useTransactionDryRun(
         activeAddress ?? undefined,
-        transaction ?? new TransactionBlock(),
+        transaction ?? new Transaction(),
     );
 
     const gasSummary = useMemo(() => {

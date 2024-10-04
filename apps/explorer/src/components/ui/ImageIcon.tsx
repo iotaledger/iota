@@ -9,8 +9,8 @@ const imageStyle = cva(['text-white capitalize overflow-hidden bg-gray-40'], {
     variants: {
         size: {
             sm: 'w-6 h-6 font-medium text-subtitleSmallExtra',
-            md: 'w-7.5 h-7.5 font-medium text-body',
-            lg: 'md:w-10 md:h-10 w-8 h-8 font-medium text-heading4 md:text-iconTextLarge',
+            md: 'w-8 h-8 text-label-lg',
+            lg: 'md:w-10 md:h-10 w-8 h-8',
             xl: 'md:w-31.5 md:h-31.5 w-16 h-16 font-medium text-heading4 md:text-iconTextLarge',
         },
         circle: {
@@ -38,7 +38,7 @@ interface FallBackAvatarProps {
 
 function FallBackAvatar({ fallback }: FallBackAvatarProps): JSX.Element {
     return (
-        <div className="flex h-full w-full items-center justify-center bg-neutral-80">
+        <div className="flex h-full w-full items-center justify-center bg-neutral-90 text-neutral-10">
             {fallback?.slice(0, 2)}
         </div>
     );

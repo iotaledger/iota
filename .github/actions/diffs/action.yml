@@ -36,7 +36,6 @@ runs:
             - ".github/workflows/_rust_tests.yml"
             - ".github/workflows/_rust_lints.yml"
             - ".github/workflows/_external_rust_tests.yml"
-            - ".github/workflows/_external_rust_lints.yml"
             - ".github/workflows/_mysticeti_tests.yml"
             - ".github/workflows/_cargo_deny.yml"
             - "Cargo.toml"

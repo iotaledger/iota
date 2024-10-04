@@ -18,7 +18,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
@@ -140,7 +140,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
         ampli.clickedUnstakeIota({
-            stakedAmount: Number(totalStake / NANO_PER_IOTA),
+            stakedAmount: Number(totalStake / NANOS_PER_IOTA),
             validatorAddress,
         });
     }
@@ -153,25 +153,25 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                     <div className="flex flex-col gap-y-sm p-md">
                         <KeyValueInfo
                             keyText="Your Stake"
-                            valueText={totalStakeFormatted}
+                            value={totalStakeFormatted}
                             supportingLabel={totalStakeSymbol}
                             fullwidth
                         />
                         <KeyValueInfo
                             keyText="Earned"
-                            valueText={iotaEarnedFormatted}
+                            value={iotaEarnedFormatted}
                             supportingLabel={iotaEarnedSymbol}
                             fullwidth
                         />
                         <Divider />
                         <KeyValueInfo
                             keyText="APY"
-                            valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                            value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                             fullwidth
                         />
                         <KeyValueInfo
                             keyText="Commission"
-                            valueText={`${commission.toString()}%`}
+                            value={`${commission.toString()}%`}
                             fullwidth
                         />
                     </div>

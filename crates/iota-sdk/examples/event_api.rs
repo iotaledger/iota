@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This example showcases how to use the Event API.
-//! At the end of the program it subscribes to the events
-//! on the Iota testnet and prints every incoming event to
-//! the console. The program will loop until it is force
-//! stopped.
+//! At the end of the program it subscribes to the events on the Iota testnet
+//! and prints every incoming event to the console. The program will loop until
+//! it is force stopped.
 //!
 //! cargo run --example event_api
 
 mod utils;
+
 use futures::stream::StreamExt;
-use iota_sdk::{rpc_types::EventFilter, IotaClientBuilder};
+use iota_sdk::{IotaClientBuilder, rpc_types::EventFilter};
 use utils::{setup_for_write, split_coin_digest};
 
 #[tokio::main]

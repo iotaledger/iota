@@ -4,15 +4,22 @@
 
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
 
+use fastcrypto::hash::MultisetHash;
 use futures::future::AbortHandle;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::{
+    authority::authority_store_tables::AuthorityPerpetualTables,
+    state_accumulator::StateAccumulator,
+};
 use iota_protocol_config::ProtocolConfig;
-use iota_types::{base_types::ObjectID, object::Object};
+use iota_types::{
+    accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
+    object::Object,
+};
 use tempfile::tempdir;
 
-use crate::{reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1, FileCompression};
+use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
 
 fn temp_dir() -> std::path::PathBuf {
     tempdir()
@@ -49,6 +56,19 @@ fn compare_live_objects(
     Ok(())
 }
 
+fn accumulate_live_object_set(
+    perpetual_db: &AuthorityPerpetualTables,
+    include_wrapped_tombstone: bool,
+) -> Accumulator {
+    let mut acc = Accumulator::default();
+    perpetual_db
+        .iter_live_object_set(include_wrapped_tombstone)
+        .for_each(|live_object| {
+            StateAccumulator::accumulate_live_object(&mut acc, &live_object);
+        });
+    acc
+}
+
 #[tokio::test]
 async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
     let db_path = temp_dir();
@@ -76,8 +96,10 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
     .await?;
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
     insert_keys(&perpetual_db, 1000)?;
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db, true).digest());
     snapshot_writer
-        .write_internal(0, true, perpetual_db.clone())
+        .write_internal(0, true, perpetual_db.clone(), root_accumulator)
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
@@ -129,8 +151,10 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
     )
     .await?;
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db, true).digest());
     snapshot_writer
-        .write_internal(0, true, perpetual_db.clone())
+        .write_internal(0, true, perpetual_db.clone(), root_accumulator)
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
