@@ -1,9 +1,23 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_json::{call_args, type_args};
 use iota_json_rpc_api::GovernanceReadApiClient;
 use iota_json_rpc_types::DelegatedStake;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_protocol_config::ProtocolConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::{IotaAddress, MoveObjectType, ObjectID, TransactionDigest},
+    gas_coin::GAS,
+    id::UID,
+    object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    timelock::{
+        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
+        timelock::TimeLock,
+    },
+    transaction::{CallArg, ObjectArg},
+    IOTA_FRAMEWORK_ADDRESS,
+};
 
 use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup};
 
@@ -37,8 +51,10 @@ fn get_stakes_by_id() {
             .staked_iota_id;
 
         let response = client.get_stakes_by_ids(vec![stake_id]).await.unwrap();
-
         assert_eq!(response.len(), 1);
+
+        let response = client.get_stakes_by_ids(vec![]).await.unwrap();
+        assert_eq!(response.len(), 0);
     });
 }
 
@@ -63,8 +79,13 @@ fn get_stakes() {
             .iota_address();
 
         let response = client.get_stakes(validator_address).await.unwrap();
-
         assert_eq!(response.len(), 1);
+
+        let response = client
+            .get_stakes(IotaAddress::random_for_testing_only())
+            .await
+            .unwrap();
+        assert_eq!(response.len(), 0);
     });
 }
 
@@ -80,9 +101,13 @@ fn get_timelocked_stakes_by_id() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let response = client.get_timelocked_stakes_by_ids(vec![]).await.unwrap();
-
+        let response = client
+            .get_timelocked_stakes_by_ids(vec![ObjectID::random()])
+            .await
+            .unwrap();
         assert_eq!(response.len(), 0);
+
+        // TODO: Test with actual timelocked stakes
     });
 }
 
@@ -166,7 +191,7 @@ fn get_reference_gas_price() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let response = client.get_reference_gas_price().await.unwrap();
-        println!("{:?}", response)
+        assert_eq!(response, 1000.into());
     });
 }
 
@@ -182,8 +207,10 @@ fn get_latest_iota_system_state() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let response: IotaSystemStateSummary = client.get_latest_iota_system_state().await.unwrap();
-        println!("{:?}", response)
+        let response = client.get_latest_iota_system_state().await.unwrap();
+        assert_eq!(response.epoch, 0);
+        assert_eq!(response.protocol_version, 1);
+        assert_eq!(response.system_state_version, 1);
     });
 }
 
