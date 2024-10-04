@@ -86,17 +86,17 @@ To run a validator successfully it is critical that ports 8080-8084 are open as 
 
 ## Network Buffer
 
-From load testing Sui validator networks, it has been determined that the default Linux network buffer sizes are too small.
+From load testing IOTA validator networks, it has been determined that the default Linux network buffer sizes are too small.
 We recommend increasing them using one of the following two methods:
 
 ### Option 1: With /etc/sysctl.d/
 
-These settings can be added to a new sysctl file specifically for the sui-node, or appended to an existing file.
+These settings can be added to a new sysctl file specifically for the iota-node, or appended to an existing file.
 Modifications made in this way will persist across system restarts.
 
 ```shell
-# Create a new sysctl file for the sui-node
-sudo nano /etc/sysctl.d/100-sui-node.conf
+# Create a new sysctl file for the iota-node
+sudo nano /etc/sysctl.d/100-iota-node.conf
 
 # Add these lines to the file, overwriting existing settings if necessary.
 net.core.rmem_max = 104857600

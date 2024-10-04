@@ -583,7 +583,7 @@ public fun kiosk_join<T>(
 
 	kiosk::list<TokenizedAsset<T>>(kiosk, kiosk_cap, ta2_id, 0);
 	let (ta1, promise_ta1) = kiosk::borrow_val(kiosk, kiosk_cap, ta1_id);
-	let coin = coin::zero<SUI>(ctx);
+	let coin = coin::zero<IOTA>(ctx);
 	let (ta2, request) = kiosk::purchase(kiosk, ta2_id, coin);
 
 	let tp_ref = proxy::transfer_policy(protected_tp);
@@ -671,7 +671,7 @@ The `.env.template` file denotes variables that the script automatically fills i
 You can see a reference here:
 
 ```
-SUI_NETWORK = rpc endpoint of the network of your choice | auto filled by publish script
+IOTA_NETWORK = rpc endpoint of the network of your choice | auto filled by publish script
 ASSET_TOKENIZATION_PACKAGE_ID = Created by publishing `asset_tokenization` package | auto filled by publish script
 REGISTRY = Created by publishing `asset_tokenization` package | auto filled by publish script
 

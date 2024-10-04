@@ -45,12 +45,12 @@ The following represents the template the `init` function defines:
 /// to use it to get the `Display<Hero>` object - a way to describe a
 /// type for the ecosystem.
 module examples::my_hero {
-    use sui::tx_context::{sender};
+    use iota::tx_context::{sender};
     use std::string::{utf8, String};
 
     // The creator bundle: these two packages often go together.
-    use sui::package;
-    use sui::display;
+    use iota::package;
+    use iota::display;
 
     /// The Hero - an outstanding collection of digital art.
     public struct Hero has key, store {
@@ -83,13 +83,13 @@ module examples::my_hero {
             // For `name` one can use the `Hero.name` property
             utf8(b"{name}"),
             // For `link` one can build a URL using an `id` property
-            utf8(b"https://sui-heroes.io/hero/{id}"),
+            utf8(b"https://iota-heroes.io/hero/{id}"),
             // For `image_url` use an IPFS template + `image_url` property.
             utf8(b"ipfs://{image_url}"),
             // Description is static for all `Hero` objects.
             utf8(b"A true Hero of the IOTA ecosystem!"),
             // Project URL is usually static
-            utf8(b"https://sui-heroes.io"),
+            utf8(b"https://iota-heroes.io"),
             // Creator field can be any
             utf8(b"Unknown IOTA Fan")
         ];

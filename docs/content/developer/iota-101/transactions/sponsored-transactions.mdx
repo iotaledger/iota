@@ -125,7 +125,7 @@ The following code block describes the `TransactionData` structure for sponsored
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TransactionDataV1 {
 pub kind: TransactionKind,
-pub sender: SuiAddress,
+pub sender: IotaAddress,
 pub gas_data: GasData,
 pub expiration: TransactionExpiration,
 }
