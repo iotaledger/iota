@@ -79,6 +79,57 @@ module reviews_rating::service {
         service_id
     }
 
+    /// Upvotes a review
+    public fun upvote(
+        service: &mut Service,
+        review_id: ID,
+        upvoter: address,
+        ctx: &mut TxContext
+    ) {
+        let mut review = service.reviews.borrow_mut(review_id);
+        let total_score = review.upvote(upvoter, ctx);
+        service.reorder(review_id, total_score);
+    }
+
+    /// Reorder top_reviews after a review is updated
+    fun reorder(
+        service: &mut Service,
+        review_id: ID,
+        total_score: u64
+    ) {
+        let (contains, idx) = service.top_reviews.index_of(&review_id);
+        if (!contains) {
+            service.update_top_reviews(review_id, total_score);
+        } else {
+            // remove existing review from vector and insert back
+            service.top_reviews.remove(idx);
+            let idx = service.find_idx(total_score);
+            service.top_reviews.insert(review_id, idx);
+        }
+    }
+
+    /// Updates top_reviews if necessary
+    fun update_top_reviews(
+        service: &mut Service,
+        review_id: ID,
+        total_score: u64
+    ) {
+        if (service.should_update_top_reviews(total_score)) {
+            let idx = service.find_idx(total_score);
+            service.top_reviews.insert(review_id, idx);
+            service.prune_top_reviews();
+        };
+    }
+
+    /// Prunes top_reviews if it exceeds MAX_REVIEWERS_TO_REWARD
+    fun prune_top_reviews(
+        service: &mut Service
+    ) {
+        while (service.top_reviews.length() > MAX_REVIEWERS_TO_REWARD) {
+            service.top_reviews.pop_back();
+        };
+    }
+
     /// Writes a new review
     public fun write_new_review(
         service: &mut Service,
@@ -150,28 +201,6 @@ module reviews_rating::service {
         let len = service.top_reviews.length();
         len < MAX_REVIEWERS_TO_REWARD
             || total_score > service.get_total_score(service.top_reviews[len - 1])
-    }
-
-    /// Prunes top_reviews if it exceeds MAX_REVIEWERS_TO_REWARD
-    fun prune_top_reviews(
-        service: &mut Service
-    ) {
-        while (service.top_reviews.length() > MAX_REVIEWERS_TO_REWARD) {
-            service.top_reviews.pop_back();
-        };
-    }
-
-    /// Updates top_reviews if necessary
-    fun update_top_reviews(
-        service: &mut Service,
-        review_id: ID,
-        total_score: u64
-    ) {
-        if (service.should_update_top_reviews(total_score)) {
-            let idx = service.find_idx(total_score);
-            service.top_reviews.insert(review_id, idx);
-            service.prune_top_reviews();
-        };
     }
 
     /// Finds the index of a review in top_reviews
@@ -255,35 +284,6 @@ module reviews_rating::service {
             service.top_reviews.remove(i);
         };
         service.reviews.remove(review_id).delete_review();
-    }
-
-    /// Reorder top_reviews after a review is updated
-    fun reorder(
-        service: &mut Service,
-        review_id: ID,
-        total_score: u64
-    ) {
-        let (contains, idx) = service.top_reviews.index_of(&review_id);
-        if (!contains) {
-            service.update_top_reviews(review_id, total_score);
-        } else {
-            // remove existing review from vector and insert back
-            service.top_reviews.remove(idx);
-            let idx = service.find_idx(total_score);
-            service.top_reviews.insert(review_id, idx);
-        }
-    }
-
-    /// Upvotes a review
-    public fun upvote(
-        service: &mut Service,
-        review_id: ID,
-        upvoter: address,
-        ctx: &mut TxContext
-    ) {
-        let mut review = service.reviews.borrow_mut(review_id);
-        let total_score = review.upvote(upvoter, ctx);
-        service.reorder(review_id, total_score);
     }
 
     /// Downvotes a review
