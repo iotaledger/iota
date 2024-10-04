@@ -20,11 +20,11 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Supply,
-    coin::{TreasuryCap, COIN_MODULE_NAME},
+    coin::{COIN_MODULE_NAME, TreasuryCap},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use test_cluster::TestClusterBuilder;
 
