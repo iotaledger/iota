@@ -40,7 +40,7 @@ The following represents the template the `init` function defines:
 ```
 
 ```move
-/// Example of an unlimited "Sui Hero" collection - anyone can
+/// Example of an unlimited "IOTA Hero" collection - anyone can
 /// mint their Hero. Shows how to initialize the `Publisher` and how
 /// to use it to get the `Display<Hero>` object - a way to describe a
 /// type for the ecosystem.
@@ -87,11 +87,11 @@ module examples::my_hero {
             // For `image_url` use an IPFS template + `image_url` property.
             utf8(b"ipfs://{image_url}"),
             // Description is static for all `Hero` objects.
-            utf8(b"A true Hero of the Sui ecosystem!"),
+            utf8(b"A true Hero of the IOTA ecosystem!"),
             // Project URL is usually static
             utf8(b"https://sui-heroes.io"),
             // Creator field can be any
-            utf8(b"Unknown Sui Fan")
+            utf8(b"Unknown IOTA Fan")
         ];
 
         // Claim the `Publisher` for the package!
