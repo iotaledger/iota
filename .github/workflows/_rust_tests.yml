@@ -28,7 +28,7 @@ jobs:
   test:
     name: Test rust crates
     needs: changes
-    if: !cancelled()
+    if: (!cancelled())
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -62,7 +62,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    if: !cancelled()
+    if: (!cancelled())
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
