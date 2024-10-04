@@ -71,34 +71,16 @@ There are several modules that create the backend logic for the example.
 
 The `dashboard.move` module defines the `Dashboard` struct that groups services.
 
-```move
-/// Dashboard is a collection of services
-public struct Dashboard has key, store {
-    id: UID,
-    service_type: String
-}
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/dashboard.move#L11-L15
 ```
+
 
 The services are grouped by attributes, which can be cuisine type, geographical location, operating hours, Google Maps ID, and so on. To keep it basic, the example stores only `service_type` (for example, fast food, Chinese, Italian).
 
-```move
-/// Creates a new dashboard
-public fun create_dashboard(
-    service_type: String,
-    ctx: &mut TxContext,
-) {
-    let db = Dashboard {
-        id: object::new(ctx),
-        service_type
-    };
-    transfer::share_object(db);
-}
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/dashboard.move#L17-L27
 
-/// Registers a service to a dashboard
-public fun register_service(db: &mut Dashboard, service_id: ID) {
-    df::add(&mut db.id, service_id, service_id);
-}
 ```
+
 A `Dashboard` is a [shared object](../iota-101/objects/object-ownership/shared.mdx), so any service owner can register their service to a dashboard.
 A service owner should look for dashboards that best match their service attribute and register.
 A [dynamic field](../iota-101/objects/dynamic-fields/dynamic-fields.mdx) stores the list of services that are registered to a dashboard.
@@ -135,38 +117,11 @@ See [Shared versus Owned Objects](../iota-101/objects/object-ownership/shared.md
 
 This module defines the `Review` struct.
 
-```move
-/// Represents a review of a service
-public struct Review has key, store {
-    id: UID,
-    owner: address,
-    service_id: ID,
-    content: String,
-    // intrinsic score
-    len: u64,
-    // extrinsic score
-    votes: u64,
-    time_issued: u64,
-    // proof of experience
-    has_poe: bool,
-    total_score: u64,
-    overall_rate: u8,
-}
-
-/// Updates the total score of a review
-fun update_total_score(rev: &mut Review) {
-    rev.total_score = rev.calculate_total_score();
-}
-
-/// Calculates the total score of a review
-fun calculate_total_score(rev: &Review): u64 {
-    let mut intrinsic_score: u64 = rev.len;
-    intrinsic_score = math::min(intrinsic_score, 150);
-    let extrinsic_score: u64 = 10 * rev.votes;
-    // VM = either 1.0 or 2.0 (if user has proof of experience)
-    let vm: u64 = if (rev.has_poe) { 2 } else { 1 };
-    (intrinsic_score + extrinsic_score) * vm
-}
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/review.move#L16-L33
+```
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/review.move#L81-L84
+```
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/review.move#L72-L79
 ```
 
 In addition to the content of a review, all the elements that are required to compute total score are stored in a `Review` object.
@@ -205,19 +160,7 @@ After `total_score` is updated, the [`update_top_reviews`](#casting-votes) funct
 
 This module defines the `Service` struct that service owners manage.
 
-```move
-const MAX_REVIEWERS_TO_REWARD: u64 = 10;
-
-/// Represents a service
-public struct Service has key, store {
-    id: UID,
-    reward_pool: Balance<SUI>,
-    reward: u64,
-    top_reviews: vector<ID>,
-    reviews: ObjectTable<ID, Review>,
-    overall_rate: u64,
-    name: String
-}
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/service.move#L31-L39
 ```
 
 ### Reward Distribution
@@ -238,67 +181,7 @@ The elements of `top_reviews` are sorted by the `total_score` of the reviews, wi
 
 A reader can cast a vote on a review to rate it as follows:
 
-```move
-/// Upvotes a review and reorders top_reviews
-public fun upvote(service: &mut Service, review_id: ID) {
-    let review = &mut service.reviews[review_id];
-    review.upvote();
-    service.reorder(review_id, review.get_total_score());
-}
-
-/// Reorders top_reviews after a review is updated
-/// If the review is not in top_reviews, it will be added if it is in the top 10
-/// Otherwise, it will be reordered
-fun reorder(
-    service: &mut Service,
-    review_id: ID,
-    total_score: u64
-) {
-    let (contains, idx) = service.top_reviews.index_of(&review_id);
-    if (!contains) {
-        service.update_top_reviews(review_id, total_score);
-    } else {
-        service.top_reviews.remove(idx);
-        let idx = service.find_idx(total_score);
-        service.top_reviews.insert(review_id, idx);
-    }
-}
-
-/// Updates top_reviews if necessary
-fun update_top_reviews(
-    service: &mut Service,
-    review_id: ID,
-    total_score: u64
-) {
-    if (service.should_update_top_reviews(total_score)) {
-        let idx = service.find_idx(total_score);
-        service.top_reviews.insert(review_id, idx);
-        service.prune_top_reviews();
-    };
-}
-
-/// Finds the index of a review in top_reviews
-fun find_idx(service: &Service, total_score: u64): u64 {
-    let mut i = service.top_reviews.length();
-    while (0 < i) {
-        let review_id = service.top_reviews[i - 1];
-        if (service.get_total_score(review_id) > total_score) {
-            break
-        };
-        i = i - 1;
-    };
-    i
-}
-
-/// Prunes top_reviews if it exceeds MAX_REVIEWERS_TO_REWARD
-fun prune_top_reviews(
-    service: &mut Service
-) {
-    let len = service.top_reviews.length();
-    if (len > MAX_REVIEWERS_TO_REWARD) {
-        service.top_reviews.pop_back();
-    };
-}
+```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/service.move#L82-L132
 ```
 
 #### Code Explanation
@@ -358,16 +241,16 @@ Casting a vote also triggers a reordering of the `top_reviews` field to ensure t
 ### Authorization
 
 ```move
-/// A capability that can be used to perform admin operations on a service
-struct AdminCap has key, store {
-    id: UID,
-    service_id: ID
-}
+    /// A capability that can be used to perform admin operations on a service
+    struct AdminCap has key, store {
+        id: UID,
+        service_id: ID
+    }
 
-/// Represents a moderator that can be used to delete reviews
-struct Moderator has key {
-    id: UID,
-}
+    /// Represents a moderator that can be used to delete reviews
+    struct Moderator has key {
+        id: UID,
+    }
 ```
 
 This example follows a capabilities pattern to manage authorizations.
