@@ -9,15 +9,16 @@
 //! 2) splits the coin into one coin of 1000 NANOS and the rest,
 //! 3) transfers the split coin to second Iota address,
 //! 4) signs and executes the transaction.
+//!
 //! For some of these actions it prints some output.
 //! Finally, at the end of the program it prints the number of coins for the
-//! Iota address that received the coin.
-//! If you run this program several times, you should see the number of coins
-//! for the recipient address increases.
+//! Iota address that received the coin. If you run this program several times,
+//! you should see the number of coins for the recipient address increases.
 //!
 //! cargo run --example programmable_transactions_api
 
 mod utils;
+
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, Command, TransactionData},
@@ -44,10 +45,9 @@ async fn main() -> Result<(), anyhow::Error> {
     // 2) Split coin
     // The amount we want in the new coin, 1000 NANOS
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
-    ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
-        vec![split_coin_amount],
-    ));
+    ptb.command(Command::SplitCoins(Argument::GasCoin, vec![
+        split_coin_amount,
+    ]));
 
     // 3) Transfer the new coin to a different address
     let argument_address = ptb.pure(recipient)?;

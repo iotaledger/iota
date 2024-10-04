@@ -33,7 +33,7 @@ function FallBackAvatar({
     return (
         <div
             className={cn(
-                'flex items-center justify-center bg-primary-40 bg-gradient-to-r text-label-md text-primary-100',
+                'flex items-center justify-center bg-neutral-96 bg-gradient-to-r text-label-md text-neutral-10 dark:bg-neutral-92 dark:text-primary-100',
                 { 'rounded-full': rounded },
                 size,
             )}

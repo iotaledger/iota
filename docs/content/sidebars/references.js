@@ -35,6 +35,7 @@ const references = [
                 type: 'link',
                 label: 'JSON-RPC',
                 href: '/iota-api-ref',
+                description: 'IOTA JSON-RPC API Reference',
             },
             'references/iota-api/rpc-best-practices',
         ],
@@ -213,6 +214,7 @@ const references = [
                 type: 'link',
                 label: 'Move Language (GitHub)',
                 href: 'https://github.com/move-language/move/blob/main/language/documentation/book/src/introduction.md',
+                description: 'Move Language Documentation (GitHub Repository)',
             },
         ],
     },
@@ -320,6 +322,26 @@ const references = [
                 type: 'link',
                 label: 'Rust',
                 href: 'https://docs.rs/identity_iota/latest/identity_iota/index.html',
+                description: 'IOTA Identity Rust Documentation',
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Expert topics',
+        items: [
+            {
+                type: 'category',
+                label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'references/execution-architecture/execution-layer',
+                },
+                items: [
+                    'references/execution-architecture/iota-execution',
+                    'references/execution-architecture/adapter',
+                    'references/execution-architecture/natives',
+                ],
             },
         ],
     },
@@ -334,15 +356,10 @@ const references = [
         },
         items: [
             'references/contribute/contribution-process',
-            'references/contribute/contribute-to-iota-repos',
-            {
-                type: 'link',
-                label: 'Submit a SIP',
-                href: 'https://sips.iota.io',
-            },
-            'references/contribute/localize-iota-docs',
             'references/contribute/code-of-conduct',
             'references/contribute/style-guide',
+            'references/contribute/add-a-quiz',
+            'references/contribute/import-code-docs'
         ],
     },
 ];

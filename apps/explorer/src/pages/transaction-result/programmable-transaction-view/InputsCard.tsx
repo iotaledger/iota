@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
-
-import { ProgrammableTxnBlockCard } from '~/components';
-import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
+import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
+import { useBreakpoint } from '~/hooks';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -15,13 +14,22 @@ interface InputsCardProps {
 }
 
 export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
+    const isMediumOrAbove = useBreakpoint('md');
     if (!inputs?.length) {
         return null;
     }
 
     const expandableItems = inputs.map((input, index) => (
-        <CollapsibleSection key={index} title={`Input ${index}`} defaultOpen>
-            <div data-testid="inputs-card-content" className="flex flex-col gap-2">
+        <CollapsibleCard
+            key={index}
+            title={`Input ${index}`}
+            collapsible
+            titleSize={TitleSize.Small}
+        >
+            <div
+                data-testid="inputs-card-content"
+                className="flex flex-col gap-2 px-md pb-lg pt-xs"
+            >
                 {Object.entries(input).map(([key, value]) => {
                     let renderValue;
                     const stringValue = String(value);
@@ -45,21 +53,16 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     }
 
                     return (
-                        <div key={key} className="flex items-start justify-between">
-                            <Text variant="pBody/medium" color="steel-dark">
-                                {key}
-                            </Text>
-
-                            <div className="max-w-[66%] break-all text-right">
-                                <Text variant="pBody/medium" color="steel-darker">
-                                    {renderValue}
-                                </Text>
-                            </div>
-                        </div>
+                        <KeyValueInfo
+                            key={key}
+                            keyText={key}
+                            value={renderValue}
+                            fullwidth={!isMediumOrAbove}
+                        />
                     );
                 })}
             </div>
-        </CollapsibleSection>
+        </CollapsibleCard>
     ));
 
     return (

@@ -208,6 +208,7 @@ impl<'a> ImmForwardCFG<'a> {
     /// Returns
     /// - A CFG
     /// - A set of infinite loop heads
+    ///
     /// This _must_ be called after `BlockMutCFG::new`, as the mutable version
     /// optimizes the code This will be done for external usage,
     /// since the Mut CFG is used during the building of the cfgir::ast::Program
@@ -355,12 +356,18 @@ fn maybe_unmark_infinite_loop_starts(
         } if cur_loop_end.equals(*if_true) || cur_loop_end.equals(*if_false) => {
             infinite_loop_starts.remove(&cur_loop_start);
         }
+        C::VariantSwitch { arms, .. }
+            if arms.iter().any(|(_, target)| cur_loop_end.equals(*target)) =>
+        {
+            infinite_loop_starts.remove(&cur_loop_start);
+        }
         C::Return { .. } | C::Abort(_) => {
             infinite_loop_starts.remove(&cur_loop_start);
         }
 
         C::Jump { .. }
         | C::JumpIf { .. }
+        | C::VariantSwitch { .. }
         | C::Assign(_, _, _)
         | C::Mutate(_, _)
         | C::IgnoreAndPop { .. } => (),

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
 import { DisplayStatsType, DisplayStatsSize } from './display-stats.enums';
@@ -19,7 +19,7 @@ interface DisplayStatsProps {
     /**
      * The label of the stats.
      */
-    label: string;
+    label: ReactNode;
     /**
      * The tooltip position.
      */
@@ -31,7 +31,7 @@ interface DisplayStatsProps {
     /**
      * The value of the stats.
      */
-    value: string;
+    value: ReactNode;
     /**
      * The supporting label of the stats (optional).
      */
@@ -63,13 +63,14 @@ export function DisplayStats({
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
     const textClass = TEXT_CLASSES[type];
-    const valueTextClass = VALUE_TEXT_CLASSES[size];
-    const labelTextClass = LABEL_TEXT_CLASSES[size];
+    const valueClass = VALUE_TEXT_CLASSES[size];
+    const labelClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
+
     return (
         <div
             className={cx(
-                'flex w-full flex-col justify-between rounded-2xl p-md--rs',
+                'flex h-full w-full flex-col justify-between rounded-2xl p-md--rs',
                 backgroundClass,
                 sizeClass,
                 textClass,
@@ -81,7 +82,7 @@ export function DisplayStats({
                 })}
             >
                 <div className="flex flex-row items-center gap-xxs">
-                    <span className={cx(labelTextClass)}>{label}</span>
+                    <span className={cx(labelClass, 'whitespace-pre-line')}>{label}</span>
                     {tooltipText && (
                         <Tooltip text={tooltipText} position={tooltipPosition}>
                             <Info className="opacity-40" />
@@ -90,8 +91,8 @@ export function DisplayStats({
                 </div>
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
-            <div className="flex flex-row items-baseline gap-xxs">
-                <span className={cx(valueTextClass)}>{value}</span>
+            <div className="flex w-full flex-row items-baseline gap-xxs">
+                <span className={cx(valueClass)}>{value}</span>
                 {supportingLabel && (
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
                         {supportingLabel}

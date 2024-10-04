@@ -17,11 +17,11 @@ use tokio::{sync::RwLock, task::JoinHandle};
 use tracing::{info, instrument};
 use types::PreSubscribedBroadcastSender;
 use worker::{
-    metrics::{initialise_metrics, Metrics},
-    TransactionValidator, Worker, NUM_SHUTDOWN_RECEIVERS,
+    NUM_SHUTDOWN_RECEIVERS, TransactionValidator, Worker,
+    metrics::{Metrics, initialise_metrics},
 };
 
-use crate::{metrics::new_registry, try_join_all, FuturesUnordered, NodeError};
+use crate::{FuturesUnordered, NodeError, metrics::new_registry, try_join_all};
 
 pub struct WorkerNodeInner {
     // The worker's id

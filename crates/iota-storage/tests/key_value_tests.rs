@@ -6,12 +6,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use futures::FutureExt;
+use iota_protocol_config::ProtocolConfig;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber},
+    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair, KeypairTraits},
+    crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::{
         CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
     },
@@ -104,6 +105,7 @@ impl MockTxStore {
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
         let summary = CheckpointSummary::new(
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,
             1,
@@ -112,6 +114,7 @@ impl MockTxStore {
             Default::default(),
             None,
             0,
+            Vec::new(),
         );
 
         let signed = SignedCheckpointSummary::new(
@@ -424,22 +427,40 @@ async fn test_get_tx_from_fallback() {
 #[cfg(msim)]
 mod simtests {
     use std::{
+        net::SocketAddr,
         sync::Mutex,
         time::{Duration, Instant},
     };
 
     use axum::{
+        body::Body,
         extract::{Request, State},
+        response::Response,
         routing::get,
     };
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
-    use rustls::crypto::{ring, CryptoProvider};
-    use tokio::net::TcpListener;
     use tracing::info;
 
     use super::*;
+
+    async fn svc(
+        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
+        request: Request<Body>,
+    ) -> Response {
+        let path = request.uri().path().to_string();
+        let key = path.trim_start_matches('/');
+        let value = state.lock().unwrap().get(key).cloned();
+        info!("Got request for key: {:?}, value: {:?}", key, value);
+        match value {
+            Some(v) => Response::new(Body::from(v)),
+            None => Response::builder()
+                .status(hyper::StatusCode::NOT_FOUND)
+                .body(Body::empty())
+                .unwrap(),
+        }
+    }
 
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
         let handle = iota_simulator::runtime::Handle::current();

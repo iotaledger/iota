@@ -12,12 +12,3 @@ Hyperlinks are added in the SVG files to easily navigate through the dependencie
 ```bash
 sudo apt install graphviz   # on debian/ubuntu
 ```
-
-## Step to run the script
-
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python create_graphs.py
-```

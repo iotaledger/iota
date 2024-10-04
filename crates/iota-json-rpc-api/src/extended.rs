@@ -54,8 +54,10 @@ pub trait ExtendedApi {
     /// Address related metrics
     #[method(name = "getLatestAddressMetrics")]
     async fn get_latest_address_metrics(&self) -> RpcResult<AddressMetrics>;
+
     #[method(name = "getCheckpointAddressMetrics")]
     async fn get_checkpoint_address_metrics(&self, checkpoint: u64) -> RpcResult<AddressMetrics>;
+
     #[method(name = "getAllEpochAddressMetrics")]
     async fn get_all_epoch_address_metrics(
         &self,

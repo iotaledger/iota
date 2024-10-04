@@ -14,12 +14,6 @@ import type {
     IotaTransaction,
 } from './generated.js';
 
-export type ResolvedNameServiceNames = {
-    data: string[];
-    hasNextPage: boolean;
-    nextCursor: string | null;
-};
-
 export type EpochPage = {
     data: EpochInfo[];
     nextCursor: string | null;

@@ -4,16 +4,15 @@
 
 use std::{
     cell::RefCell,
-    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, hash_map::Entry},
     str::FromStr,
 };
 
 use iota_types::{
     base_types::ObjectID,
     error::{ExecutionError, IotaError, IotaResult},
-    execution::IotaResolver,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    storage::{get_module, BackingPackageStore, PackageObject},
+    storage::{BackingPackageStore, PackageObject, get_module},
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -21,6 +20,8 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag},
     resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
 };
+
+use crate::execution_value::IotaResolver;
 
 /// Exposes module and linkage resolution to the Move runtime.  The first by
 /// delegating to `resolver` and the second via linkage information that is
@@ -136,7 +137,7 @@ impl<'state> LinkageView<'state> {
         // packages, but will also speed up other requests.
         for TypeOrigin {
             module_name,
-            struct_name,
+            datatype_name: struct_name,
             package: defining_id,
         } in context.type_origin_table()
         {
@@ -275,7 +276,7 @@ impl<'state> LinkageView<'state> {
 
         for TypeOrigin {
             module_name,
-            struct_name,
+            datatype_name: struct_name,
             package,
         } in package.move_package().type_origin_table()
         {

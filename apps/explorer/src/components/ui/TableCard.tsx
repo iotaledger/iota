@@ -5,31 +5,32 @@
 import {
     Table,
     TableBody,
-    TableBodyRow,
-    TableCell,
-    type TableCellProps,
     TableHeader,
     TableHeaderCell,
-    TableHeaderRow,
+    TableRow,
+    TableActionButton,
     type TablePaginationOptions,
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
+    flexRender,
     getCoreRowModel,
     getSortedRowModel,
+    type RowData,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { useMemo, useState } from 'react';
-import { useNavigateWithQuery } from './LinkWithQuery';
+import { Fragment, useState } from 'react';
+import { Link } from './Link';
 
-export interface TableCardProps<DataType extends object> {
+export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
     data: DataType[];
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
+    areHeadersCentered?: boolean;
     paginationOptions?: TablePaginationOptions;
     totalLabel?: string;
     viewAll?: string;
@@ -41,29 +42,16 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    areHeadersCentered,
     paginationOptions,
     totalLabel,
     viewAll,
 }: TableCardProps<DataType>): JSX.Element {
-    const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
-
-    // Use Columns to create a table
-    const processedcol = useMemo<ColumnDef<DataType>[]>(
-        () =>
-            columns.map((column) => ({
-                ...column,
-                // cell renderer for each column from react-table
-                // cell should be in the column definition
-                //TODO: move cell to column definition
-                ...(!sortTable && { cell: ({ getValue }) => getValue() }),
-            })),
-        [columns, sortTable],
-    );
 
     const table = useReactTable({
         data,
-        columns: processedcol,
+        columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
@@ -78,28 +66,22 @@ export function TableCard<DataType extends object>({
     });
 
     return (
-        <div
-            className={clsx(
-                'w-full overflow-x-auto border-b border-gray-45 pb-4',
-                refetching && 'opacity-50',
-            )}
-        >
+        <div className={clsx('w-full overflow-x-auto', refetching && 'opacity-50')}>
             <Table
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
-                actionLabel={viewAll ? 'View All' : undefined}
                 supportingLabel={totalLabel}
-                onActionClick={
-                    viewAll
-                        ? () => {
-                              navigate(viewAll, {});
-                          }
-                        : undefined
+                action={
+                    viewAll ? (
+                        <Link to={viewAll}>
+                            <TableActionButton text="View All" />
+                        </Link>
+                    ) : undefined
                 }
             >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
-                        <TableHeaderRow key={headerGroup.id}>
+                        <TableRow key={headerGroup.id}>
                             {headerGroup.headers.map(({ id, column }) => (
                                 <TableHeaderCell
                                     key={id}
@@ -111,18 +93,21 @@ export function TableCard<DataType extends object>({
                                             ? column.getToggleSortingHandler()
                                             : undefined
                                     }
+                                    isContentCentered={areHeadersCentered}
                                 />
                             ))}
-                        </TableHeaderRow>
+                        </TableRow>
                     ))}
                 </TableHeader>
                 <TableBody>
                     {table.getRowModel().rows.map((row) => (
-                        <TableBodyRow key={row.id} rowIndex={row.index}>
+                        <TableRow key={row.id}>
                             {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
+                                <Fragment key={cell.id}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </Fragment>
                             ))}
-                        </TableBodyRow>
+                        </TableRow>
                     ))}
                 </TableBody>
             </Table>

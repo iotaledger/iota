@@ -2,23 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { BadgeType, TableCell, TableCellType } from '@/components';
+import { TableCellBase, TableCellText } from '@/components';
 
 const meta = {
-    component: TableCell,
+    component: TableCellText,
     tags: ['autodocs'],
     render: (props) => {
         return (
             <table>
                 <thead>
                     <tr>
-                        <TableCell {...props} />
+                        <TableCellBase>
+                            <Avatar />
+                        </TableCellBase>
+                        <TableCellBase>
+                            <TableCellText>Mr. Crab</TableCellText>
+                        </TableCellBase>
                     </tr>
                 </thead>
             </table>
         );
     },
-} satisfies Meta<typeof TableCell>;
+} satisfies Meta<typeof TableCellText>;
 
 export default meta;
 
@@ -38,29 +43,4 @@ const Avatar = () => {
     );
 };
 
-export const Default: Story = {
-    args: {
-        type: TableCellType.AvatarText,
-        label: 'Label',
-        leadingElement: <Avatar />,
-    },
-    argTypes: {
-        badgeType: {
-            control: 'select',
-            options: Object.values(BadgeType),
-        },
-        type: {
-            control: 'select',
-            options: Object.values(TableCellType),
-        },
-        leadingElement: {
-            control: 'none',
-        },
-        label: {
-            control: 'text',
-        },
-        supportingLabel: {
-            control: 'text',
-        },
-    },
-};
+export const Default: Story = {};

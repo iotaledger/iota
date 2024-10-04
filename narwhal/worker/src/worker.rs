@@ -6,9 +6,9 @@
 use std::{collections::HashMap, net::Ipv4Addr, sync::Arc, thread::sleep, time::Duration};
 
 use anemo::{
+    Network, PeerId,
     codegen::InboundRequestLayer,
     types::{Address, PeerInfo},
-    Network, PeerId,
 };
 use anemo_tower::{
     auth::{AllowedPeers, RequireAuthorizationLayer},
@@ -18,9 +18,9 @@ use anemo_tower::{
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
 };
 use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
-use crypto::{traits::KeyPair as _, NetworkKeyPair, NetworkPublicKey};
+use crypto::{NetworkKeyPair, NetworkPublicKey, traits::KeyPair as _};
 use iota_metrics::{metered_channel::channel_with_total, spawn_logged_monitored_task};
-use iota_network_stack::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{Multiaddr, multiaddr::Protocol};
 use network::{
     client::NetworkClient,
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
@@ -38,12 +38,12 @@ use types::{
 };
 
 use crate::{
+    NUM_SHUTDOWN_RECEIVERS, TransactionValidator,
     batch_fetcher::BatchFetcher,
     batch_maker::BatchMaker,
     handlers::{PrimaryReceiverHandler, WorkerReceiverHandler},
     metrics::WorkerChannelMetrics,
     quorum_waiter::QuorumWaiter,
-    TransactionValidator, NUM_SHUTDOWN_RECEIVERS,
 };
 
 #[cfg(test)]
@@ -478,8 +478,11 @@ impl Worker {
             .expect("Our public key or worker id is not in the worker cache")
             .transactions;
         let address = address
-            .replace(0, |_protocol| Some(Protocol::Ip4(Ipv4Addr::UNSPECIFIED)))
-            .unwrap();
+            .replace(0, |protocol| match protocol {
+                Protocol::Ip4(ip) if ip.is_loopback() => None,
+                _ => Some(Protocol::Ip4(Ipv4Addr::UNSPECIFIED)),
+            })
+            .unwrap_or(address);
 
         let tx_server_handle = TxServer::spawn(
             address.clone(),
