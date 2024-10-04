@@ -5,14 +5,7 @@
 module iota_system::voting_power {
     use iota_system::validator::Validator;
 
-    #[allow(unused_field)]
-    /// Deprecated. Use VotingPowerInfoV2 instead.
-    public struct VotingPowerInfo has drop {
-        validator_index: u64,
-        voting_power: u64,
-    }
-
-    public struct VotingPowerInfoV2 has drop {
+    public struct VotingPowerInfoV1 has drop {
         validator_index: u64,
         voting_power: u64,
         stake: u64,
@@ -60,7 +53,7 @@ module iota_system::voting_power {
     fun init_voting_power_info(
         validators: &vector<Validator>,
         threshold: u64,
-    ): (vector<VotingPowerInfoV2>, u64) {
+    ): (vector<VotingPowerInfoV1>, u64) {
         let total_stake = total_stake(validators);
         let mut i = 0;
         let len = validators.length();
@@ -71,7 +64,7 @@ module iota_system::voting_power {
             let stake = validator.total_stake();
             let adjusted_stake = stake as u128 * (TOTAL_VOTING_POWER as u128) / (total_stake as u128);
             let voting_power = (adjusted_stake as u64).min(threshold);
-            let info = VotingPowerInfoV2 {
+            let info = VotingPowerInfoV1 {
                 validator_index: i,
                 voting_power,
                 stake,
@@ -97,7 +90,7 @@ module iota_system::voting_power {
 
     /// Insert `new_info` to `info_list` as part of insertion sort, such that `info_list` is always sorted
     /// using stake, in descending order.
-    fun insert(info_list: &mut vector<VotingPowerInfoV2>, new_info: VotingPowerInfoV2) {
+    fun insert(info_list: &mut vector<VotingPowerInfoV1>, new_info: VotingPowerInfoV1) {
         let mut i = 0;
         let len = info_list.length();
         while (i < len && info_list[i].stake > new_info.stake) {
@@ -107,7 +100,7 @@ module iota_system::voting_power {
     }
 
     /// Distribute remaining_power to validators that are not capped at threshold.
-    fun adjust_voting_power(info_list: &mut vector<VotingPowerInfoV2>, threshold: u64, mut remaining_power: u64) {
+    fun adjust_voting_power(info_list: &mut vector<VotingPowerInfoV1>, threshold: u64, mut remaining_power: u64) {
         let mut i = 0;
         let len = info_list.length();
         while (i < len && remaining_power > 0) {
@@ -127,9 +120,9 @@ module iota_system::voting_power {
     }
 
     /// Update validators with the decided voting power.
-    fun update_voting_power(validators: &mut vector<Validator>, mut info_list: vector<VotingPowerInfoV2>) {
+    fun update_voting_power(validators: &mut vector<Validator>, mut info_list: vector<VotingPowerInfoV1>) {
         while (!info_list.is_empty()) {
-            let VotingPowerInfoV2 {
+            let VotingPowerInfoV1 {
                 validator_index,
                 voting_power,
                 stake: _,

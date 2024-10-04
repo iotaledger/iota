@@ -61,20 +61,7 @@ module iota_system::validator_set {
     #[allow(unused_field)]
     /// Event containing staking and rewards related information of
     /// each validator, emitted during epoch advancement.
-    public struct ValidatorEpochInfoEvent has copy, drop {
-        epoch: u64,
-        validator_address: address,
-        reference_gas_survey_quote: u64,
-        stake: u64,
-        commission_rate: u64,
-        pool_staking_reward: u64,
-        pool_token_exchange_rate: PoolTokenExchangeRate,
-        tallying_rule_reporters: vector<address>,
-        tallying_rule_global_score: u64,
-    }
-
-    /// V2 of ValidatorEpochInfoEvent containing more information about the validator.
-    public struct ValidatorEpochInfoEventV2 has copy, drop {
+    public struct ValidatorEpochInfoEventV1 has copy, drop {
         epoch: u64,
         validator_address: address,
         reference_gas_survey_quote: u64,
@@ -1136,7 +1123,7 @@ module iota_system::validator_set {
                 if (slashed_validators.contains(&validator_address)) 0
                 else 1;
             event::emit(
-                ValidatorEpochInfoEventV2 {
+                ValidatorEpochInfoEventV1 {
                     epoch: new_epoch,
                     validator_address,
                     reference_gas_survey_quote: v.gas_price(),
