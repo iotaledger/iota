@@ -10,7 +10,7 @@ module iota_system::governance_test_utils {
     use iota::coin::{Self, Coin};
     use iota_system::staking_pool::{StakedIota, StakingPool};
     use iota::test_utils::assert_eq;
-    use iota_system::validator::{Self, Validator};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
     use iota::test_scenario::{Self, Scenario};
@@ -22,7 +22,7 @@ module iota_system::governance_test_utils {
 
     public fun create_validator_for_testing(
         addr: address, init_stake_amount_in_iota: u64, ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         let validator = validator::new_for_testing(
             addr,
             x"AA",
@@ -47,7 +47,7 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<Validator> {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<ValidatorV1> {
         let mut i = 0;
         let mut validators = vector[];
         while (i < stakes.length()) {
@@ -59,7 +59,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun create_iota_system_state_for_testing(
-        validators: vector<Validator>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
+        validators: vector<ValidatorV1>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
     ) {
         let system_parameters = iota_system_state_inner::create_system_parameters(
             42,  // epoch_duration_ms, doesn't matter what number we put here

@@ -7,7 +7,7 @@ module iota_system::iota_system_state_inner {
     use iota::coin::Coin;
     use iota_system::staking_pool::StakedIota;
     use iota::iota::{IOTA, IotaTreasuryCap};
-    use iota_system::validator::{Self, Validator};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFund};
@@ -141,7 +141,7 @@ module iota_system::iota_system_state_inner {
     /// This function will be called only once in genesis.
     public(package) fun create(
         iota_treasury_cap: IotaTreasuryCap,
-        validators: vector<Validator>,
+        validators: vector<ValidatorV1>,
         initial_storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
@@ -175,7 +175,7 @@ module iota_system::iota_system_state_inner {
     public(package) fun create_system_parameters(
         epoch_duration_ms: u64,
 
-        // Validator committee parameters
+        // ValidatorV1 committee parameters
         max_validator_count: u64,
         min_validator_joining_stake: u64,
         validator_low_stake_threshold: u64,
@@ -502,7 +502,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_network_address(network_address);
-        let validator :&Validator = validator; // Force immutability for the following call
+        let validator :&ValidatorV1 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -525,7 +525,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_p2p_address(p2p_address);
-        let validator :&Validator = validator; // Force immutability for the following call
+        let validator :&ValidatorV1 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -591,7 +591,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_protocol_pubkey(protocol_pubkey, proof_of_possession);
-        let validator :&Validator = validator; // Force immutability for the following call
+        let validator :&ValidatorV1 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -615,7 +615,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_worker_pubkey(worker_pubkey);
-        let validator :&Validator = validator; // Force immutability for the following call
+        let validator :&ValidatorV1 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -638,7 +638,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_network_pubkey(network_pubkey);
-        let validator :&Validator = validator; // Force immutability for the following call
+        let validator :&ValidatorV1 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -914,19 +914,19 @@ module iota_system::iota_system_state_inner {
 
     #[test_only]
     /// Return the currently active validator by address
-    public(package) fun active_validator_by_address(self: &IotaSystemStateInnerV1, validator_address: address): &Validator {
+    public(package) fun active_validator_by_address(self: &IotaSystemStateInnerV1, validator_address: address): &ValidatorV1 {
         self.validators().get_active_validator_ref(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
-    public(package) fun pending_validator_by_address(self: &IotaSystemStateInnerV1, validator_address: address): &Validator {
+    public(package) fun pending_validator_by_address(self: &IotaSystemStateInnerV1, validator_address: address): &ValidatorV1 {
         self.validators().get_pending_validator_ref(validator_address)
     }
 
     #[test_only]
     /// Return the currently candidate validator by address
-    public(package) fun candidate_validator_by_address(self: &IotaSystemStateInnerV1, validator_address: address): &Validator {
+    public(package) fun candidate_validator_by_address(self: &IotaSystemStateInnerV1, validator_address: address): &ValidatorV1 {
         validators(self).get_candidate_validator_ref(validator_address)
     }
 

@@ -29,14 +29,14 @@
 ///
 /// To upgrade Validator type, besides everything above, we also need to:
 /// 1. Define a new Validator type (e.g. ValidatorV2).
-/// 2. Define a data migration function that migrates the old Validator to the new one (i.e. ValidatorV2).
-/// 3. Replace all uses of Validator with ValidatorV2 except the genesis creation function.
+/// 2. Define a data migration function that migrates the old ValidatorV1 to the new one (i.e. ValidatorV2).
+/// 3. Replace all uses of ValidatorV1 with ValidatorV2 except the genesis creation function.
 /// 4. In validator_wrapper::upgrade_to_latest, check the current version in the wrapper, and if it's not the latest version,
 ///  call the data migration function to upgrade it.
 /// In Rust, we also need to add a new case in `get_validator_from_table`.
-/// Note that it is possible to upgrade IotaSystemStateInnerV1 without upgrading Validator, but not the other way around.
-/// And when we only upgrade IotaSystemStateInnerV1, the version of Validator in the wrapper will not be updated, and hence may become
-/// inconsistent with the version of IotaSystemStateInnerV1. This is fine as long as we don't use the Validator version to determine
+/// Note that it is possible to upgrade IotaSystemStateInnerV1 without upgrading ValidatorV1, but not the other way around.
+/// And when we only upgrade IotaSystemStateInnerV1, the version of ValidatorV1 in the wrapper will not be updated, and hence may become
+/// inconsistent with the version of IotaSystemStateInnerV1. This is fine as long as we don't use the ValidatorV1 version to determine
 /// the IotaSystemStateInnerV1 version, or vice versa.
 
 module iota_system::iota_system {
@@ -47,7 +47,7 @@ module iota_system::iota_system {
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
     use iota::timelock::SystemTimelockCap;
-    use iota_system::validator::Validator;
+    use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateInnerV1};
     use iota_system::staking_pool::PoolTokenExchangeRate;
@@ -75,7 +75,7 @@ module iota_system::iota_system {
     public(package) fun create(
         id: UID,
         iota_treasury_cap: IotaTreasuryCap,
-        validators: vector<Validator>,
+        validators: vector<ValidatorV1>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
@@ -550,7 +550,7 @@ module iota_system::iota_system {
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
-        // Validator will make a special system call with sender set as 0x0.
+        // ValidatorV1 will make a special system call with sender set as 0x0.
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
         let storage_rebate = self.advance_epoch(
             new_epoch,
@@ -658,19 +658,19 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the currently active validator by address
-    public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &Validator {
+    public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
         validators(self).get_active_validator_ref(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
-    public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &Validator {
+    public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
         validators(self).get_pending_validator_ref(validator_address)
     }
 
     #[test_only]
     /// Return the currently candidate validator by address
-    public fun candidate_validator_by_address(self: &mut IotaSystemState, validator_address: address): &Validator {
+    public fun candidate_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
         validators(self).get_candidate_validator_ref(validator_address)
     }
 
