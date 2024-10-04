@@ -70,16 +70,15 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = RadixDialog.Title.displayName;
 
-const DialogBody = React.forwardRef<
-    React.ElementRef<typeof RadixDialog.Description>,
-    React.ComponentPropsWithoutRef<typeof RadixDialog.Description>
->((props, ref) => (
-    <RadixDialog.Description
-        ref={ref}
-        className="p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
-        {...props}
-    />
-));
-DialogBody.displayName = RadixDialog.Description.displayName;
+const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.ComponentPropsWithoutRef<'div'>>(
+    (props, ref) => (
+        <div
+            ref={ref}
+            className="p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
+            {...props}
+        />
+    ),
+);
+DialogBody.displayName = 'DialogBody';
 
 export { Dialog, DialogClose, DialogTrigger, DialogContent, DialogTitle, DialogBody };

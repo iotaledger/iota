@@ -5,7 +5,15 @@
 import { ampli } from '_src/shared/analytics/ampli';
 import { useIotaLedgerClient } from '_components';
 import { useState } from 'react';
-import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    Dialog,
+    DialogBody,
+    DialogTitle,
+    DialogContent,
+    Header,
+} from '@iota/apps-ui-kit';
 import { Link } from 'react-router-dom';
 
 interface ConnectLedgerModalProps {
@@ -39,8 +47,10 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                 }
             }}
         >
-            <DialogContent containerId="overlay-portal-container">
-                <Header title="Connect Ledger Wallet" onClose={onClose} titleCentered />
+            <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
+                <DialogTitle>
+                    <Header title="Connect Ledger Wallet" onClose={onClose} titleCentered />
+                </DialogTitle>
                 <DialogBody>
                     <div className="flex flex-col items-center gap-y-lg">
                         <div className="p-md">
