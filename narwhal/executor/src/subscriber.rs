@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -11,19 +12,19 @@ use std::{
 use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash;
-use futures::{stream::FuturesOrdered, StreamExt};
+use futures::{StreamExt, stream::FuturesOrdered};
+use iota_metrics::{metered_channel, spawn_logged_monitored_task};
 use iota_protocol_config::ProtocolConfig;
-use mysten_metrics::{metered_channel, spawn_logged_monitored_task};
-use network::{client::NetworkClient, PrimaryToWorkerClient};
+use network::{PrimaryToWorkerClient, client::NetworkClient};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use types::{
     Batch, BatchAPI, BatchDigest, Certificate, CertificateAPI, CommittedSubDag,
     ConditionalBroadcastReceiver, ConsensusOutput, FetchBatchesRequest, HeaderAPI, MetadataAPI,
-    Timestamp,
+    Timestamp, error::LocalClientError,
 };
 
-use crate::{errors::SubscriberResult, metrics::ExecutorMetrics, ExecutionState};
+use crate::{ExecutionState, errors::SubscriberResult, metrics::ExecutorMetrics};
 
 /// The `Subscriber` receives certificates sequenced by the consensus and waits
 /// until the downloaded all the transactions references by the certificates; it
@@ -110,7 +111,6 @@ async fn run_notify<State: ExecutionState + Send + Sync + 'static>(
             _ = rx_shutdown.receiver.recv() => {
                 return
             }
-
         }
     }
 }
@@ -366,7 +366,9 @@ impl Subscriber {
                 {
                     Ok(resp) => break resp.batches,
                     Err(e) => {
-                        error!("Failed to fetch batches from worker {worker_name}: {e:?}");
+                        if !matches!(e, LocalClientError::ShuttingDown) {
+                            warn!("Failed to fetch batches from worker {worker_name}: {e:?}");
+                        }
                         // Loop forever on failure. During shutdown, this should get cancelled.
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         continue;

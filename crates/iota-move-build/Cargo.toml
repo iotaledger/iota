@@ -1,7 +1,7 @@
 [package]
 name = "iota-move-build"
 version.workspace = true
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,14 +10,15 @@ description = "Logic for building Iota Move Packages"
 [dependencies]
 anyhow.workspace = true
 fastcrypto.workspace = true
+serde-reflection.workspace = true
 tempfile.workspace = true
 
 iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
 
+iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-serde-reflection.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
@@ -27,6 +28,3 @@ move-core-types.workspace = true
 move-ir-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
-
-[dev-dependencies]
-datatest-stable.workspace = true

@@ -13,13 +13,13 @@ const BREAKPOINTS: Partial<ScreenBreakpoints> & { default: number } = {
 
 const screens = getTailwindScreens(BREAKPOINTS);
 
-const staticPreset: Partial<Config> = merge({}, BASE_CONFIG, {
+const staticPreset: Config = merge({}, BASE_CONFIG, {
     theme: {
         screens,
     },
     corePlugins: {
         container: false,
     },
-} satisfies Partial<Config>);
+});
 
 export default staticPreset;

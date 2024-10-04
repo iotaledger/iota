@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading } from '_app/shared/heading';
-import { Text } from '_app/shared/text';
+import { Title, TitleSize } from '@iota/apps-ui-kit';
 import { useAppSelector } from '_hooks';
+import cn from 'clsx';
 import { Feature } from '_src/shared/experimentation/features';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -12,9 +12,8 @@ import { useEffect, useMemo } from 'react';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
-import Loading from '../loading';
-import { IotaApp, type DAppEntry } from './IotaApp';
-import { IotaAppEmpty } from './IotaAppEmpty';
+import { Loading, NoData, PageTemplate } from '_components';
+import { type DAppEntry, IotaApp } from './IotaApp';
 
 function ConnectedDapps() {
     const backgroundClient = useBackgroundClient();
@@ -61,31 +60,29 @@ function ConnectedDapps() {
                 }),
         [allPermissions, ecosystemApps],
     );
+
     return (
         <Loading loading={loading}>
-            <div className="flex justify-center">
-                <Heading variant="heading6" color="gray-90" weight="semibold">
-                    Active Connections
-                </Heading>
-            </div>
-            <div className="my-4">
-                <Text variant="pBodySmall" color="gray-80" weight="normal">
-                    Apps you have connected to through the Iota Wallet in this browser.
-                </Text>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3.75">
-                {connectedApps.length ? (
-                    connectedApps.map((app) => (
-                        <IotaApp key={app.permissionID} {...app} displayType="card" />
-                    ))
-                ) : (
-                    <>
-                        <IotaAppEmpty displayType="card" />
-                        <IotaAppEmpty displayType="card" />
-                    </>
-                )}
-            </div>
+            <PageTemplate title="Apps" isTitleCentered>
+                <div
+                    className={cn('flex flex-1 flex-col gap-md', {
+                        'h-full items-center': !connectedApps?.length,
+                    })}
+                >
+                    {connectedApps.length ? (
+                        <div className="flex flex-col gap-xs">
+                            <div className="flex min-h-[56px] items-center">
+                                <Title title="Active Connections" size={TitleSize.Small} />
+                            </div>
+                            {connectedApps.map((app) => (
+                                <IotaApp key={app.permissionID} {...app} displayType="card" />
+                            ))}
+                        </div>
+                    ) : (
+                        <NoData message="No connected apps found." />
+                    )}
+                </div>
+            </PageTemplate>
         </Loading>
     );
 }

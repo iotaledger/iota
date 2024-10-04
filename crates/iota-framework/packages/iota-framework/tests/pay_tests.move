@@ -29,9 +29,9 @@ module iota::pay_tests {
         let coin2 = scenario.take_from_sender<Coin<IOTA>>();
 
         scenario.next_tx(TEST_SENDER_ADDR);
-        assert!(coin1.value() == 3, 0);
-        assert!(coin2.value() == 3, 0);
-        assert!(coin.value() == 4, 0);
+        assert!(coin1.value() == 3);
+        assert!(coin2.value() == 3);
+        assert!(coin.value() == 4);
         assert!(
             !scenario.has_most_recent_for_sender<Coin<IOTA>>(),
             1
@@ -52,12 +52,12 @@ module iota::pay_tests {
         scenario.next_tx(TEST_SENDER_ADDR);
         let mut split_coins = coin.divide_into_n(3, scenario.ctx());
 
-        assert!(split_coins.length() == 2, 0);
+        assert!(split_coins.length() == 2);
         let coin1 = split_coins.pop_back();
         let coin2 = split_coins.pop_back();
-        assert!(coin1.value() == 3, 0);
-        assert!(coin2.value() == 3, 0);
-        assert!(coin.value() == 4, 0);
+        assert!(coin1.value() == 3);
+        assert!(coin2.value() == 3);
+        assert!(coin.value() == 4);
 
         split_coins.destroy_empty();
         test_utils::destroy(coin);
@@ -82,9 +82,9 @@ module iota::pay_tests {
         scenario.next_tx(TEST_SENDER_ADDR);
         let coin2 = scenario.take_from_sender<Coin<IOTA>>();
 
-        assert!(coin1.value() == 4, 0);
-        assert!(coin2.value() == 1, 0);
-        assert!(coin.value() == 5, 0);
+        assert!(coin1.value() == 4);
+        assert!(coin2.value() == 1);
+        assert!(coin.value() == 5);
 
         test_utils::destroy(coin);
         test_utils::destroy(coin1);
@@ -104,8 +104,8 @@ module iota::pay_tests {
 
         scenario.next_tx(TEST_SENDER_ADDR);
         let coin1 = scenario.take_from_sender<Coin<IOTA>>();
-        assert!(coin1.value() == 3, 0);
-        assert!(coin.value() == 7, 0);
+        assert!(coin1.value() == 3);
+        assert!(coin.value() == 7);
 
         test_utils::destroy(coin);
         test_utils::destroy(coin1);
@@ -124,7 +124,7 @@ module iota::pay_tests {
         coin.split_and_transfer(20, TEST_SENDER_ADDR, scenario.ctx());
         scenario.next_tx(TEST_SENDER_ADDR);
         let coin_transfer_fail = scenario.take_from_sender<Coin<IOTA>>();
-        assert!(coin_transfer_fail.value() == 7, 0);
+        assert!(coin_transfer_fail.value() == 7);
 
         test_utils::destroy(coin);
         test_utils::destroy(coin_transfer_fail);
@@ -146,8 +146,8 @@ module iota::pay_tests {
         let coin1 = scenario.take_from_sender<Coin<IOTA>>();
 
         // result is `3` coins of balance `2`
-        assert!(coin1.value() == 6, 0);
-        assert!(coin.value() == 4, 0);
+        assert!(coin1.value() == 6);
+        assert!(coin.value() == 4);
 
         test_utils::destroy(coin);
         test_utils::destroy(coin1);

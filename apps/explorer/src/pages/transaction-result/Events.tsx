@@ -2,16 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronRight12 } from '@iota/icons';
-import { type IotaEvent } from '@iota/iota.js/client';
-import { formatAddress, parseStructTag } from '@iota/iota.js/utils';
-import { Text } from '@iota/ui';
-import * as Collapsible from '@radix-ui/react-collapsible';
+import { KeyValueInfo } from '@iota/apps-ui-kit';
+import { type IotaEvent } from '@iota/iota-sdk/client';
+import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
+import { TriangleDown } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 
-import { SyntaxHighlighter } from '~/components';
-import { CopyToClipboard, DescriptionItem, Divider, ObjectLink } from '~/components/ui';
+import { FieldCollapsible, SyntaxHighlighter } from '~/components';
+import { Divider, ObjectLink } from '~/components/ui';
 
 function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);
@@ -19,45 +18,56 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
     const objectLinkLabel = [formatAddress(address), module, name].join('::');
 
     return (
-        <div>
+        <div className="w-full">
             <div className="flex flex-col gap-3">
-                <DescriptionItem title="Type" align="start" labelWidth="sm">
-                    <Text variant="pBody/medium" color="steel-darker">
-                        {objectLinkLabel}
-                    </Text>
-                </DescriptionItem>
+                <KeyValueInfo
+                    keyText="Type"
+                    value={objectLinkLabel}
+                    copyText={objectLinkLabel}
+                    fullwidth
+                    isTruncated
+                />
 
-                <DescriptionItem title="Event Emitter" align="start" labelWidth="sm">
-                    <div className="flex items-center gap-1">
+                <KeyValueInfo
+                    keyText="Event Emitter"
+                    value={
                         <ObjectLink
                             objectId={event.packageId}
                             queryStrings={{ module: event.transactionModule }}
                             label={`${formatAddress(event.packageId)}::${event.transactionModule}`}
                         />
-                        <CopyToClipboard color="steel" copyText={event.packageId} />
-                    </div>
-                </DescriptionItem>
+                    }
+                    copyText={event.packageId}
+                    fullwidth
+                    isTruncated
+                />
 
-                <Collapsible.Root open={open} onOpenChange={setOpen} asChild>
-                    <>
-                        <Collapsible.Trigger className="flex cursor-pointer items-center gap-1.5">
-                            <Text variant="body/semibold" color="steel-dark">
+                <FieldCollapsible
+                    hideBorder
+                    onOpenChange={(isOpen) => setOpen(isOpen)}
+                    hideArrow
+                    render={() => (
+                        <div className="flex w-full flex-row justify-between gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
+                            <span className="text-body-md">
                                 {open ? 'Hide' : 'View'} Event Data
-                            </Text>
+                            </span>
 
-                            <ChevronRight12
-                                className={clsx('h-3 w-3 text-steel-dark', open && 'rotate-90')}
+                            <TriangleDown
+                                className={clsx(
+                                    'h-5 w-5',
+                                    open
+                                        ? 'rotate-0 transition-transform ease-linear'
+                                        : '-rotate-90 transition-transform ease-linear',
+                                )}
                             />
-                        </Collapsible.Trigger>
-
-                        <Collapsible.Content className="rounded-lg border border-transparent bg-white p-5">
-                            <SyntaxHighlighter
-                                code={JSON.stringify(event, null, 2)}
-                                language="json"
-                            />
-                        </Collapsible.Content>
-                    </>
-                </Collapsible.Root>
+                        </div>
+                    )}
+                    open={open}
+                >
+                    <div className="mt-md">
+                        <SyntaxHighlighter code={JSON.stringify(event, null, 2)} language="json" />
+                    </div>
+                </FieldCollapsible>
             </div>
 
             {divider && (
@@ -75,7 +85,7 @@ interface EventsProps {
 
 export function Events({ events }: EventsProps) {
     return (
-        <div>
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {events.map((event, index) => (
                 <Event key={event.type} event={event} divider={index !== events.length - 1} />
             ))}

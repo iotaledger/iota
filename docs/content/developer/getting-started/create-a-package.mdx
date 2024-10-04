@@ -1,0 +1,125 @@
+---
+description: How to create a Move package in IOTA
+tags: [ move, getting-started ]
+---
+
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/create-a-package.json';
+
+# Create a Move Package
+
+Once you have [installed IOTA](install-iota.mdx), you are ready to create your first IOTA
+Move [package](../iota-101/move-overview/package-upgrades/introduction.mdx). In IOTA, packages are the way to organize
+the [modules](create-a-module.mdx) that make up your smart contract program. When you publish a package to any IOTA
+network, it will be assigned an address you can use to interact with the package by
+issuing [transactions](../iota-101/transactions/transactions.mdx).
+
+Use the following command to create a standard package:
+
+```shell
+iota move new first_package
+```
+
+The command will create and populate the `first_package` directory with a skeleton for an IOTA Move project,
+consisting of the following files and directories:
+
+## `Move.toml`
+
+The `Move.toml` file is the package's manifest. It describes the package and its dependencies.
+
+:::tip Comments in `.toml` files
+In `.toml` files, use the hash mark (`#`) to denote a comment.
+:::
+
+```toml file=<rootDir>/examples/move/first_package/Move.toml
+```
+
+:::tip Using a local version of IOTA
+
+For local testnet development and testing it is recommended to use the local dependency of the `Iota` framework for faster and more reliable builds. See the commented line in the example above as an example pointing towards your local checkout of the `iota` repository.
+
+:::
+
+### Package
+
+The `[package]` section describes the package. By default, the `iota move new` command populates only the `name` value
+of the metadata.
+
+- `name`: The package name when it is imported.
+- `version`: The package version. It can be used in release management.
+- `edition`: The edition of the Move language; currently, the only valid value is `2024`.
+
+### Dependencies
+
+The `[dependencies]` section specifies the dependencies of the project. The dependency specification can be a git
+repository URL or a path to the local directory.
+
+```toml file=<rootDir>/examples/move/first_package/Move.toml#L10-L15
+```
+
+Packages also import addresses from other packages. For example, the `Iota` dependency adds the `std` and `iota` addresses
+to the project. These addresses can be used in the code as aliases for the addresses.
+
+### Resolving Version Conflicts with `override`
+
+If you have two dependencies that use different versions of the same package, you can override the dependency in
+the `[dependencies]` section. To do so, add the `override` field to the dependency. The version specified in
+the `[dependencies]` section will be used instead of the one specified in the dependency itself.
+
+```toml file=<rootDir>/examples/move/first_package/Move.toml#L17-L19
+```
+
+### Dev-dependencies
+
+You can also add a `[dev-dependencies]` section to the manifest to override dependencies in the dev and test modes. For
+example, if you want to use a different version of the IOTA package in dev mode, you can add a custom dependency
+specification to the `[dev-dependencies]` section.
+
+### Addresses
+
+The `[addresses]` section is used to add aliases for the addresses you use in your package. You can add any address in
+this section, and then use its alias in the code instead of the actual address. For example, if you
+add `alice = "0xA11CE"` to this section, you can use `alice` as `0xA11CE` in the code.
+
+### Dev-addresses
+
+Much like the `[dev-dependencies]` section, you can also define `[dev-addresses]` to override the addresses you defined
+in the `[addresses]` section for test and dev modes.
+
+:::note Override Only
+You cannot introduce new aliases in this section, only override the ones you defined in [`[addresses]`](#addresses).
+:::
+
+## TOML Styles
+
+The TOML format supports two styles for tables: inline and multiline. The examples above use the inline style, but it is
+also possible to use the multiline style. You wouldn't want to use it for the `[package]` section, but it can be useful
+for the dependencies.
+
+<Tabs groupId="toml-style">
+<TabItem label="Inline" value="inline">
+
+```move
+[dependencies]
+iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+MyPackage = { local = "../my-package" }
+```
+
+</TabItem>
+<TabItem label="Multiline" value="multiline">
+```move
+[dependencies.iota]
+override = true
+git = "https://github.com/iotaledger/iota.git"
+subdir = "crates/iota-framework/packages/iota-framework"
+rev = "framework/testnet"
+
+[dependencies.MyPackage]
+local = "../my-package"
+
+```
+</TabItem>
+</Tabs>
+
+
+<Quiz questions={questions} />

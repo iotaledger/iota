@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use anemo::{rpc::Status, types::response::StatusCode, Request, Response, Result};
+use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
 use iota_types::{
@@ -19,7 +19,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 
 use super::{PeerHeights, StateSync, StateSyncMessage};
 
@@ -47,6 +47,9 @@ impl<S> StateSync for Server<S>
 where
     S: WriteStore + Send + Sync + 'static,
 {
+    /// Pushes a checkpoint summary to the server.
+    /// If the checkpoint is higher than the highest verified checkpoint, it
+    /// will notify the event loop to potentially sync it.
     async fn push_checkpoint_summary(
         &self,
         request: Request<Checkpoint>,
@@ -83,6 +86,8 @@ where
         Ok(Response::new(()))
     }
 
+    /// Gets a checkpoint summary by digest or sequence number, or get the
+    /// latest one.
     async fn get_checkpoint_summary(
         &self,
         request: Request<GetCheckpointSummaryRequest>,
@@ -104,6 +109,8 @@ where
         Ok(Response::new(checkpoint))
     }
 
+    /// Gets the highest synced checkpoint and the lowest available checkpoint
+    /// of the node.
     async fn get_checkpoint_availability(
         &self,
         _request: Request<()>,
@@ -124,6 +131,7 @@ where
         }))
     }
 
+    /// Gets the contents of a checkpoint.
     async fn get_checkpoint_contents(
         &self,
         request: Request<CheckpointContentsDigest>,
@@ -226,10 +234,12 @@ where
                 }
             })?;
 
-            struct SemaphoreExtension(#[allow(dead_code)] OwnedSemaphorePermit);
+            struct SemaphoreExtension(#[allow(unused)] OwnedSemaphorePermit);
             inner.call(req).await.map(move |mut response| {
                 // Insert permit as extension so it's not dropped until the response is sent.
-                response.extensions_mut().insert(SemaphoreExtension(permit));
+                response
+                    .extensions_mut()
+                    .insert(Arc::new(SemaphoreExtension(permit)));
                 response
             })
         };

@@ -116,7 +116,7 @@ Unlock an <code>AliasOutput</code> locked to the alias address.
 Unlock a <code>CoinManagerTreasuryCap</code> locked to the alias address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T: store, key&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, treasury_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;&gt;): <a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, treasury_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;&gt;): <a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;
 </code></pre>
 
 
@@ -125,7 +125,7 @@ Unlock a <code>CoinManagerTreasuryCap</code> locked to the alias address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T: key + store&gt;(
+<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T&gt;(
   self: &<b>mut</b> Alias,
   treasury_to_unlock: Receiving&lt;CoinManagerTreasuryCap&lt;T&gt;&gt;,
 ): CoinManagerTreasuryCap&lt;T&gt; {

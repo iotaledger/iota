@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 
 export function useCreateSendAssetTransaction(
@@ -18,7 +18,7 @@ export function useCreateSendAssetTransaction(
                 throw new Error('Missing data');
             }
 
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.transferObjects([tx.object(objectId)], to);
 
             return signAndExecuteTransactionBlock({

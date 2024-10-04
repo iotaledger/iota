@@ -42,7 +42,7 @@ The Stardust storage deposit return unlock condition.
  The address to which the consuming transaction should deposit the amount defined in Return Amount.
 </dd>
 <dt>
-<code>return_amount: u64</code>
+<code>return_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The amount of coins the consuming transaction should deposit to the address defined in Return Address.
@@ -118,7 +118,7 @@ Get the unlock condition's <code>return_address</code>.
 Get the unlock condition's <code>return_amount</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_return_amount">return_amount</a>(condition: &<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_return_amount">return_amount</a>(condition: &<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -127,7 +127,7 @@ Get the unlock condition's <code>return_amount</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_return_amount">return_amount</a>(condition: &<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">StorageDepositReturnUnlockCondition</a>): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_return_amount">return_amount</a>(condition: &<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">StorageDepositReturnUnlockCondition</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     condition.return_amount
 }
 </code></pre>

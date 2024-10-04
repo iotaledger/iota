@@ -3,20 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '_src/shared/constants';
-import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
-import { Text } from '_src/ui/app/shared/text';
-import { IconTooltip } from '_src/ui/app/shared/tooltip';
+import { determineCountDownText } from '_src/ui/app/shared/countdown-timer';
 import {
+    type ExtendedDelegatedStake,
+    TimeUnit,
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
-    type ExtendedDelegatedStake,
+    useTimeAgo,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
-import { cva, cx, type VariantProps } from 'class-variance-authority';
-import type { ReactNode } from 'react';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { ImageIcon } from '../../shared/image-icon';
 
-import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export enum StakeState {
     WarmUp = 'WARM_UP',
@@ -26,84 +27,13 @@ export enum StakeState {
     InActive = 'IN_ACTIVE',
 }
 
-const STATUS_COPY = {
+const STATUS_COPY: { [key in StakeState]: string } = {
     [StakeState.WarmUp]: 'Starts Earning',
     [StakeState.Earning]: 'Staking Rewards',
     [StakeState.CoolDown]: 'Available to withdraw',
     [StakeState.Withdraw]: 'Withdraw',
     [StakeState.InActive]: 'Inactive',
 };
-
-const STATUS_VARIANT = {
-    [StakeState.WarmUp]: 'warmUp',
-    [StakeState.Earning]: 'earning',
-    [StakeState.CoolDown]: 'coolDown',
-    [StakeState.Withdraw]: 'withDraw',
-    [StakeState.InActive]: 'inActive',
-} as const;
-
-const cardStyle = cva(
-    [
-        'group flex no-underline flex-col p-3.75 pr-2 py-3 box-border w-full rounded-2xl border border-solid h-36',
-    ],
-    {
-        variants: {
-            variant: {
-                warmUp: 'bg-white border border-gray-45 text-steel-dark hover:bg-iota/10 hover:border-iota/30',
-                earning:
-                    'bg-white border border-gray-45 text-steel-dark hover:bg-iota/10 hover:border-iota/30',
-                coolDown:
-                    'bg-warning-light border-transparent text-steel-darker hover:border-warning',
-                withDraw:
-                    'bg-success-light border-transparent text-success-dark hover:border-success',
-                inActive: 'bg-issue-light border-transparent text-issue hover:border-issue',
-            },
-        },
-    },
-);
-
-export interface StakeCardContentProps extends VariantProps<typeof cardStyle> {
-    statusLabel: string;
-    statusText: string;
-    children?: ReactNode;
-    earnColor?: boolean;
-    earningRewardEpoch?: number | null;
-}
-
-function StakeCardContent({
-    children,
-    statusLabel,
-    statusText,
-    variant,
-    earnColor,
-    earningRewardEpoch,
-}: StakeCardContentProps) {
-    const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(earningRewardEpoch || 0);
-    return (
-        <div className={cardStyle({ variant })}>
-            {children}
-            <div className="flex flex-col gap-1">
-                <div className="text-subtitle font-medium">{statusLabel}</div>
-                <div
-                    className={cx(
-                        'text-bodySmall font-semibold',
-                        earnColor ? 'text-success-dark' : '',
-                    )}
-                >
-                    {earningRewardEpoch && rewardEpochTime > 0 ? (
-                        <CountDownTimer
-                            timestamp={rewardEpochTime}
-                            variant="bodySmall"
-                            label="in"
-                        />
-                    ) : (
-                        statusText
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
 
 interface StakeCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -141,7 +71,6 @@ export function StakeCard({
         IOTA_TYPE_ARG,
     );
     const [rewardsStaked] = useFormatCoin(rewards, IOTA_TYPE_ARG);
-    const isEarning = delegationState === StakeState.Earning && rewards > 0n;
 
     // Applicable only for warm up
     const epochBeforeRewards = delegationState === StakeState.WarmUp ? earningRewardsEpoch : null;
@@ -156,6 +85,35 @@ export function StakeCard({
         [StakeState.InActive]: 'Not earning rewards',
     };
 
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(Number(epochBeforeRewards) || 0);
+    const timeAgo = useTimeAgo({
+        timeFrom: rewardEpochTime || null,
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_HOUR,
+    });
+
+    const validatorMeta = useMemo(() => {
+        if (!data) return null;
+
+        return (
+            data.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
+            null
+        );
+    }, [validatorAddress, data]);
+
+    const rewardTime = () => {
+        if (Number(epochBeforeRewards) && rewardEpochTime > 0) {
+            return determineCountDownText({
+                timeAgo,
+                label: 'in',
+            });
+        }
+
+        return statusText[delegationState];
+    };
+
     return (
         <Link
             data-testid="stake-card"
@@ -165,40 +123,24 @@ export function StakeCard({
             }).toString()}`}
             className="no-underline"
         >
-            <StakeCardContent
-                variant={STATUS_VARIANT[delegationState]}
-                statusLabel={STATUS_COPY[delegationState]}
-                statusText={statusText[delegationState]}
-                earnColor={isEarning}
-                earningRewardEpoch={Number(epochBeforeRewards)}
-            >
-                <div className="mb-1 flex">
-                    <ValidatorLogo
-                        validatorAddress={validatorAddress}
-                        size="subtitle"
-                        iconSize="md"
-                        stacked
-                        activeEpoch={extendedStake.stakeRequestEpoch}
+            <Card type={CardType.Default}>
+                <CardImage>
+                    <ImageIcon
+                        src={validatorMeta?.imageUrl || null}
+                        label={validatorMeta?.name || ''}
+                        fallback={validatorMeta?.name || ''}
                     />
-
-                    <div className="text-pBody text-steel opacity-0 group-hover:opacity-100">
-                        <IconTooltip
-                            tip="Object containing the delegated staked IOTA tokens, owned by each delegator"
-                            placement="top"
-                        />
-                    </div>
-                </div>
-                <div className="flex-1">
-                    <div className="flex items-baseline gap-1">
-                        <Text variant="body" weight="semibold" color="gray-90">
-                            {principalStaked}
-                        </Text>
-                        <Text variant="subtitle" weight="normal" color="gray-90">
-                            {symbol}
-                        </Text>
-                    </div>
-                </div>
-            </StakeCardContent>
+                </CardImage>
+                <CardBody
+                    title={validatorMeta?.name || ''}
+                    subtitle={`${principalStaked} ${symbol}`}
+                />
+                <CardAction
+                    title={rewardTime()}
+                    subtitle={STATUS_COPY[delegationState]}
+                    type={CardActionType.SupportingText}
+                />
+            </Card>
         </Link>
     );
 }

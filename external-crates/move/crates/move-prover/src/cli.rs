@@ -15,18 +15,18 @@ use std::{
 
 use anyhow::anyhow;
 use clap::{Arg, Command};
-use codespan_reporting::diagnostic::Severity;
 use log::LevelFilter;
 use move_compiler::shared::NumericalAddress;
-use move_docgen::DocgenOptions;
-use move_errmapgen::ErrmapOptions;
-use move_model::options::ModelBuilderOptions;
-use move_stackless_bytecode::options::{AutoTraceLevel, ProverOptions};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use simplelog::{
     CombinedLogger, Config, ConfigBuilder, LevelPadding, SimpleLogger, TermLogger, TerminalMode,
 };
+
+use codespan_reporting::diagnostic::Severity;
+use move_docgen::DocgenOptions;
+use move_model::options::ModelBuilderOptions;
+use move_stackless_bytecode::options::{AutoTraceLevel, ProverOptions};
 
 /// Atomic used to prevent re-initialization of logging.
 static LOGGER_CONFIGURED: AtomicBool = AtomicBool::new(false);
@@ -34,8 +34,8 @@ static LOGGER_CONFIGURED: AtomicBool = AtomicBool::new(false);
 /// Atomic used to detect whether we are running in test mode.
 static TEST_MODE: AtomicBool = AtomicBool::new(false);
 
-/// Represents options provided to the tool. Most of those options are
-/// configured via a toml source; some over the command line flags.
+/// Represents options provided to the tool. Most of those options are configured via a toml
+/// source; some over the command line flags.
 ///
 /// NOTE: any fields carrying structured data must appear at the end for making
 /// toml printing work. When changing this config, use `mvp --print-config` to
@@ -49,15 +49,12 @@ pub struct Options {
     pub verbosity_level: LevelFilter,
     /// Whether to run the documentation generator instead of the prover.
     pub run_docgen: bool,
-    /// Whether to run the error map generator instead of the prover.
-    pub run_errmapgen: bool,
-    /// Whether to run the internal reference escape analysis instead of the
-    /// prover
+    /// Whether to run the internal reference escape analysis instead of the prover
     pub run_escape: bool,
     /// The paths to the Move sources.
     pub move_sources: Vec<String>,
-    /// The paths to any dependencies for the Move sources. Those will not be
-    /// verified but can be used by `move_sources`.
+    /// The paths to any dependencies for the Move sources. Those will not be verified but
+    /// can be used by `move_sources`.
     pub move_deps: Vec<String>,
     /// The values assigned to named addresses in the Move code being verified.
     pub move_named_address_values: Vec<String>,
@@ -71,11 +68,6 @@ pub struct Options {
     pub docgen: DocgenOptions,
     /// Options for the prover.
     pub prover: ProverOptions,
-    /// Options for the error map generator.
-    /// TODO: this currently create errors during deserialization, so skip them
-    /// for this.
-    #[serde(skip_serializing)]
-    pub errmapgen: ErrmapOptions,
 }
 
 impl Default for Options {
@@ -83,7 +75,6 @@ impl Default for Options {
         Self {
             output_path: "output.bpl".to_string(),
             run_docgen: false,
-            run_errmapgen: false,
             run_escape: false,
             verbosity_level: LevelFilter::Info,
             move_sources: vec![],
@@ -92,7 +83,6 @@ impl Default for Options {
             model_builder: ModelBuilderOptions::default(),
             prover: ProverOptions::default(),
             docgen: DocgenOptions::default(),
-            errmapgen: ErrmapOptions::default(),
             experimental_pipeline: false,
         }
     }
@@ -111,9 +101,9 @@ impl Options {
         Self::create_from_toml(&std::fs::read_to_string(toml_file)?)
     }
 
-    // Creates options from command line arguments. This parses the arguments and
-    // terminates the program on errors, printing usage information. The first
-    // argument is expected to be the program name.
+    // Creates options from command line arguments. This parses the arguments and terminates
+    // the program on errors, printing usage information. The first argument is expected to be
+    // the program name.
     pub fn create_from_args(args: &[String]) -> anyhow::Result<Options> {
         // Clap definition of the command line interface.
         let is_number = |s: &str| {
@@ -294,13 +284,6 @@ impl Options {
                     .action(clap::ArgAction::SetTrue)
                     .help("runs the ABI generator instead of the prover. \
                     Generated ABIs will be written into the directory `./abi` unless configured otherwise via toml"),
-            )
-            .arg(
-                Arg::new("errmapgen")
-                    .long("errmapgen")
-                    .action(clap::ArgAction::SetTrue)
-                    .help("runs the error map generator instead of the prover. \
-                    The generated error map will be written to `errmap` unless configured otherwise"),
             )
             .arg(
                 Arg::new("packedtypesgen")
@@ -552,8 +535,8 @@ impl Options {
             Use `--print-config` to see format and current values. \
             See `move-prover/src/cli.rs::Option` for documentation.");
 
-        // Parse the arguments. This will abort the program on parsing errors and print
-        // help. It will also accept options like --help.
+        // Parse the arguments. This will abort the program on parsing errors and print help.
+        // It will also accept options like --help.
         let matches = cli.get_matches_from(args);
 
         // Initialize options.
@@ -647,15 +630,10 @@ impl Options {
         }
         if matches.contains_id("docgen-template") {
             options.run_docgen = true;
-            options.docgen.root_doc_templates = vec![
-                matches
-                    .get_one::<String>("docgen-template")
-                    .map(|s| s.to_string())
-                    .unwrap(),
-            ]
-        }
-        if matches.get_flag("errmapgen") {
-            options.run_errmapgen = true;
+            options.docgen.root_doc_templates = vec![matches
+                .get_one::<String>("docgen-template")
+                .map(|s| s.to_string())
+                .unwrap()]
         }
         if matches.get_flag("escape") {
             options.run_escape = true;
@@ -689,8 +667,8 @@ impl Options {
         }
     }
 
-    /// Sets up logging based on provided options. This should be called as
-    /// early as possible and before any use of info!, warn! etc.
+    /// Sets up logging based on provided options. This should be called as early as possible
+    /// and before any use of info!, warn! etc.
     pub fn setup_logging(&self) {
         if LOGGER_CONFIGURED
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
@@ -726,14 +704,12 @@ impl Options {
             .expect("UnexpectedSimpleLogger failure");
     }
 
-    /// Convenience function to enable debugging (like high verbosity) on this
-    /// instance.
+    /// Convenience function to enable debugging (like high verbosity) on this instance.
     pub fn enable_debug(&mut self) {
         self.verbosity_level = LevelFilter::Debug;
     }
 
-    /// Convenience function to set verbosity level to only show errors and
-    /// warnings.
+    /// Convenience function to set verbosity level to only show errors and warnings.
     pub fn set_quiet(&mut self) {
         self.verbosity_level = LevelFilter::Warn
     }

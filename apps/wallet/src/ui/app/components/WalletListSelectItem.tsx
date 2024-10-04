@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CheckFill16, XFill16 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import { useEffect, useRef } from 'react';
 
@@ -88,13 +88,13 @@ export function WalletListSelectItem({
                 />
             ) : null}
             {isDisconnect && selected ? (
-                <XFill16 className="text-base font-bold text-issue-dark" />
+                <XFill16 className="text-issue-dark text-base font-bold" />
             ) : null}
             <Text mono variant="body" weight="semibold">
                 {formatAddress(address)}
             </Text>
             {isDisconnect && !selected ? (
-                <div className="flex flex-1 justify-end text-issue-dark">
+                <div className="text-issue-dark flex flex-1 justify-end">
                     <Text variant="subtitle" weight="normal">
                         Disconnect
                     </Text>

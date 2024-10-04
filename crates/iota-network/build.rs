@@ -18,7 +18,7 @@ fn main() -> Result<()> {
         PathBuf::from(env::var("OUT_DIR")?)
     };
 
-    let codec_path = "mysten_network::codec::BcsCodec";
+    let codec_path = "iota_network_stack::codec::BcsCodec";
 
     let validator_service = Service::builder()
         .name("Validator")
@@ -39,6 +39,24 @@ fn main() -> Result<()> {
                 .route_name("CertifiedTransactionV2")
                 .input_type("iota_types::transaction::CertifiedTransaction")
                 .output_type("iota_types::messages_grpc::HandleCertificateResponseV2")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            Method::builder()
+                .name("handle_certificate_v3")
+                .route_name("CertifiedTransactionV3")
+                .input_type("iota_types::messages_grpc::HandleCertificateRequestV3")
+                .output_type("iota_types::messages_grpc::HandleCertificateResponseV3")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            Method::builder()
+                .name("handle_soft_bundle_certificates_v3")
+                .route_name("SoftBundleCertifiedTransactionsV3")
+                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV3")
+                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV3")
                 .codec_path(codec_path)
                 .build(),
         )
@@ -111,7 +129,7 @@ fn main() -> Result<()> {
 }
 
 fn build_anemo_services(out_dir: &Path) {
-    let codec_path = "mysten_network::codec::anemo::BcsSnappyCodec";
+    let codec_path = "iota_network_stack::codec::anemo::BcsSnappyCodec";
 
     let discovery = anemo_build::manual::Service::builder()
         .name("Discovery")

@@ -4,12 +4,12 @@
 
 use std::{path::PathBuf, sync::Arc, thread::JoinHandle, time::Duration};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     base_types::{ConciseableName, IotaAddress, ObjectID},
-    crypto::{deterministic_random_account_key, AccountKeyPair},
-    gas_coin::TOTAL_SUPPLY_NANOS,
+    crypto::{AccountKeyPair, deterministic_random_account_key},
+    gas_coin::NANOS_PER_IOTA,
     object::Owner,
 };
 use prometheus::Registry;
@@ -17,15 +17,18 @@ use rand::seq::SliceRandom;
 use test_cluster::TestClusterBuilder;
 use tokio::{
     runtime::Builder,
-    sync::{oneshot, Barrier},
+    sync::{Barrier, oneshot},
     time::sleep,
 };
 use tracing::info;
 
 use crate::{
-    bank::BenchmarkBank, options::Opts, util::get_ed25519_keypair_from_keystore, FullNodeProxy,
-    LocalValidatorAggregatorProxy, ValidatorProxy,
+    FullNodeProxy, LocalValidatorAggregatorProxy, ValidatorProxy, bank::BenchmarkBank,
+    options::Opts, util::get_ed25519_keypair_from_keystore,
 };
+
+/// Balance of the primary gas owner in the local environment.
+const LOCAL_ENV_PRIMARY_GAS_OWNER_BALANCE: u64 = 2_300_000_000 * NANOS_PER_IOTA;
 
 pub enum Env {
     // Mode where benchmark in run on a validator cluster that gets spun up locally
@@ -102,9 +105,7 @@ impl Env {
                 let cluster = TestClusterBuilder::new()
                     .with_accounts(vec![AccountConfig {
                         address: Some(primary_gas_owner),
-                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator
-                        // stakes in genesis allocation.
-                        gas_amounts: vec![TOTAL_SUPPLY_NANOS / 2],
+                        gas_amounts: vec![LOCAL_ENV_PRIMARY_GAS_OWNER_BALANCE],
                     }])
                     .with_num_validators(committee_size)
                     .build()

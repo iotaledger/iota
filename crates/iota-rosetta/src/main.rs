@@ -19,19 +19,19 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_config::{
-    iota_config_dir, Config, NodeConfig, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME,
+    Config, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME, NodeConfig, iota_config_dir,
 };
 use iota_node::IotaNode;
 use iota_rosetta::{
+    IOTA, RosettaOfflineServer, RosettaOnlineServer,
     types::{CurveType, IotaEnv, PrefundedAccount},
-    RosettaOfflineServer, RosettaOnlineServer, IOTA,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::{info, log::warn};
 
 #[derive(Parser)]
@@ -139,7 +139,7 @@ impl RosettaServerCommand {
             RosettaServerCommand::StartOfflineServer { env, addr } => {
                 info!("Starting Rosetta Offline Server.");
                 let server = RosettaOfflineServer::new(env);
-                server.serve(addr).await??;
+                server.serve(addr).await;
             }
             RosettaServerCommand::StartOnlineRemoteServer {
                 env,
@@ -154,7 +154,7 @@ impl RosettaServerCommand {
                 let rosetta_path = data_path.join("rosetta_db");
                 info!("Rosetta db path : {rosetta_path:?}");
                 let rosetta = RosettaOnlineServer::new(env, iota_client);
-                rosetta.serve(addr).await??;
+                rosetta.serve(addr).await;
             }
 
             RosettaServerCommand::StartOnlineServer {
@@ -177,7 +177,7 @@ impl RosettaServerCommand {
                 info!("Overriding Iota db path to : {:?}", config.db_path);
 
                 let registry_service =
-                    mysten_metrics::start_prometheus_server(config.metrics_address);
+                    iota_metrics::start_prometheus_server(config.metrics_address);
                 // Staring a full node for the rosetta server.
                 let rpc_address = format!("http://127.0.0.1:{}", config.json_rpc_address.port());
                 let _node = IotaNode::start(config, registry_service, None).await?;
@@ -187,7 +187,7 @@ impl RosettaServerCommand {
                 let rosetta_path = data_path.join("rosetta_db");
                 info!("Rosetta db path : {rosetta_path:?}");
                 let rosetta = RosettaOnlineServer::new(env, iota_client);
-                rosetta.serve(addr).await??;
+                rosetta.serve(addr).await;
             }
         };
         Ok(())

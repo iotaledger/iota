@@ -16,28 +16,31 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::Balance,
+    IOTA_FRAMEWORK_ADDRESS,
+    balance::{Balance, Supply},
     base_types::{ObjectID, SequenceNumber},
-    coin::Coin,
+    coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     id::UID,
     object::{Data, MoveObject, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 /// The number of Nanos per Iota token
 pub const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
-/// Total supply denominated in Iota
-pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
+/// Total supply in IOTA at genesis, after the migration from a Stardust ledger,
+/// before any inflation mechanism
+pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 
 // Note: cannot use checked arithmetic here since `const unwrap` is still
 // unstable.
-/// Total supply denominated in Nanos
-pub const TOTAL_SUPPLY_NANOS: u64 = TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
+/// Total supply at genesis denominated in Nanos, after the migration from a
+/// Stardust ledger, before any inflation mechanism
+pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
 pub const GAS_MODULE_NAME: &IdentStr = ident_str!("iota");
 pub const GAS_STRUCT_NAME: &IdentStr = ident_str!("IOTA");
+pub const GAS_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("IotaTreasuryCap");
 
 pub use checked::*;
 
@@ -167,6 +170,33 @@ mod checked {
     impl Display for GasCoin {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             write!(f, "Coin {{ id: {}, value: {} }}", self.id(), self.value())
+        }
+    }
+
+    // Rust version of the IotaTreasuryCap type
+    #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+    pub struct IotaTreasuryCap {
+        pub inner: TreasuryCap,
+    }
+
+    impl IotaTreasuryCap {
+        pub fn type_() -> StructTag {
+            StructTag {
+                address: IOTA_FRAMEWORK_ADDRESS,
+                module: GAS_MODULE_NAME.to_owned(),
+                name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
+                type_params: Vec::new(),
+            }
+        }
+
+        /// Returns the `TreasuryCap<IOTA>` object ID.
+        pub fn id(&self) -> &ObjectID {
+            self.inner.id.object_id()
+        }
+
+        /// Returns the total `Supply` of `Coin<IOTA>`.
+        pub fn total_supply(&self) -> &Supply {
+            &self.inner.total_supply
         }
     }
 }

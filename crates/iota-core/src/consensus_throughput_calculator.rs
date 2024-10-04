@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeMap, VecDeque},
     num::NonZeroU64,
@@ -106,13 +107,10 @@ impl ThroughputProfileRanges {
         }
 
         // By default the Low profile should exist with throughput 0
-        assert_eq!(
-            *p.get(&0).unwrap(),
-            ThroughputProfile {
-                level: Level::Low,
-                throughput: 0
-            }
-        );
+        assert_eq!(*p.get(&0).unwrap(), ThroughputProfile {
+            level: Level::Low,
+            throughput: 0
+        });
 
         Self { profiles: p }
     }
@@ -480,34 +478,22 @@ mod tests {
     pub fn test_throughput_profile_ranges() {
         let ranges = ThroughputProfileRanges::default();
 
-        assert_eq!(
-            ranges.resolve(0),
-            ThroughputProfile {
-                level: Low,
-                throughput: 0
-            }
-        );
-        assert_eq!(
-            ranges.resolve(1_000),
-            ThroughputProfile {
-                level: Low,
-                throughput: 0
-            }
-        );
-        assert_eq!(
-            ranges.resolve(2_000),
-            ThroughputProfile {
-                level: High,
-                throughput: 2_000
-            }
-        );
-        assert_eq!(
-            ranges.resolve(u64::MAX),
-            ThroughputProfile {
-                level: High,
-                throughput: 2_000
-            }
-        );
+        assert_eq!(ranges.resolve(0), ThroughputProfile {
+            level: Low,
+            throughput: 0
+        });
+        assert_eq!(ranges.resolve(1_000), ThroughputProfile {
+            level: Low,
+            throughput: 0
+        });
+        assert_eq!(ranges.resolve(2_000), ThroughputProfile {
+            level: High,
+            throughput: 2_000
+        });
+        assert_eq!(ranges.resolve(u64::MAX), ThroughputProfile {
+            level: High,
+            throughput: 2_000
+        });
     }
 
     #[test]

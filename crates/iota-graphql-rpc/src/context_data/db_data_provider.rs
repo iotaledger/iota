@@ -4,71 +4,47 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
+use diesel::PgConnection;
 use iota_indexer::{
-    apis::GovernanceReadApi, db::PgConnectionPoolConfig, indexer_reader::IndexerReader,
+    apis::GovernanceReadApi, db::ConnectionPoolConfig, indexer_reader::IndexerReader,
 };
 use iota_json_rpc_types::Stake as RpcStakedIota;
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     governance::StakedIota as NativeStakedIota,
-    iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummary as NativeIotaSystemStateSummary, IotaValidatorSummary,
-    },
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeIotaSystemStateSummary,
 };
 
 use crate::{
-    config::{DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_SERVER_DB_POOL_SIZE},
     error::Error,
     types::{address::Address, iota_address::IotaAddress, validator::Validator},
 };
 
 pub(crate) struct PgManager {
-    pub inner: IndexerReader,
+    pub inner: IndexerReader<PgConnection>,
 }
 
 impl PgManager {
-    pub(crate) fn new(inner: IndexerReader) -> Self {
+    pub(crate) fn new(inner: IndexerReader<PgConnection>) -> Self {
         Self { inner }
     }
 
     /// Create a new underlying reader, which is used by this type as well as
     /// other data providers.
-    pub(crate) fn reader(db_url: impl Into<String>) -> Result<IndexerReader, Error> {
-        Self::reader_with_config(
-            db_url,
-            DEFAULT_SERVER_DB_POOL_SIZE,
-            DEFAULT_REQUEST_TIMEOUT_MS,
-        )
-    }
-
     pub(crate) fn reader_with_config(
         db_url: impl Into<String>,
         pool_size: u32,
         timeout_ms: u64,
-    ) -> Result<IndexerReader, Error> {
-        let mut config = PgConnectionPoolConfig::default();
+    ) -> Result<IndexerReader<PgConnection>, Error> {
+        let mut config = ConnectionPoolConfig::default();
         config.set_pool_size(pool_size);
         config.set_statement_timeout(Duration::from_millis(timeout_ms));
-        IndexerReader::new_with_config(db_url, config)
+        IndexerReader::<PgConnection>::new_with_config(db_url, config)
             .map_err(|e| Error::Internal(format!("Failed to create reader: {e}")))
     }
 }
 
 /// Implement methods to be used by graphql resolvers
 impl PgManager {
-    /// Retrieve the validator APYs
-    pub(crate) async fn fetch_validator_apys(
-        &self,
-        address: &NativeIotaAddress,
-    ) -> Result<Option<f64>, Error> {
-        let governance_api = GovernanceReadApi::new(self.inner.clone());
-
-        governance_api
-            .get_validator_apy(address)
-            .await
-            .map_err(|e| Error::Internal(format!("{e}")))
-    }
-
     /// If no epoch was requested or if the epoch requested is in progress,
     /// returns the latest iota system state.
     pub(crate) async fn fetch_iota_system_state(
@@ -80,7 +56,7 @@ impl PgManager {
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await?;
 
-        if epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch) {
+        if epoch_id.is_none() || epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch) {
             Ok(latest_iota_system_state)
         } else {
             Ok(self
@@ -125,27 +101,17 @@ impl PgManager {
 /// inherit this checkpoint, so that when viewing the `Validator`'s state, it
 /// will be as if it was read at the same checkpoint.
 pub(crate) fn convert_to_validators(
-    validators: Vec<IotaValidatorSummary>,
-    system_state: Option<NativeIotaSystemStateSummary>,
+    system_state_at_requested_epoch: NativeIotaSystemStateSummary,
     checkpoint_viewed_at: u64,
+    requested_for_epoch: u64,
 ) -> Vec<Validator> {
-    let (at_risk, reports) = if let Some(NativeIotaSystemStateSummary {
-        at_risk_validators,
-        validator_report_records,
-        ..
-    }) = system_state
-    {
-        (
-            BTreeMap::from_iter(at_risk_validators),
-            BTreeMap::from_iter(validator_report_records),
-        )
-    } else {
-        Default::default()
-    };
+    let at_risk = BTreeMap::from_iter(system_state_at_requested_epoch.at_risk_validators);
+    let reports = BTreeMap::from_iter(system_state_at_requested_epoch.validator_report_records);
 
-    validators
+    system_state_at_requested_epoch
+        .active_validators
         .into_iter()
-        .map(|validator_summary| {
+        .map(move |validator_summary| {
             let at_risk = at_risk.get(&validator_summary.iota_address).copied();
             let report_records = reports.get(&validator_summary.iota_address).map(|addrs| {
                 addrs
@@ -153,7 +119,7 @@ pub(crate) fn convert_to_validators(
                     .cloned()
                     .map(|a| Address {
                         address: IotaAddress::from(a),
-                        checkpoint_viewed_at: Some(checkpoint_viewed_at),
+                        checkpoint_viewed_at,
                     })
                     .collect()
             });
@@ -163,6 +129,7 @@ pub(crate) fn convert_to_validators(
                 at_risk,
                 report_records,
                 checkpoint_viewed_at,
+                requested_for_epoch,
             }
         })
         .collect()

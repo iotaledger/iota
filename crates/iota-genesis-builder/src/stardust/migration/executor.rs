@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 use iota_adapter_v0::{
-    adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
+    adapter::new_move_vm, execution_mode, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
 };
 use iota_framework::BuiltInFramework;
@@ -19,12 +19,12 @@ use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
     coin_manager::{CoinManager, CoinManagerTreasuryCap},
     collection_types::Bag,
     dynamic_field::Field,
-    execution_mode,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -34,7 +34,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
         coin_type::CoinType,
-        output::{foundry::create_foundry_amount_coin, Nft},
+        output::{Nft, foundry::create_foundry_amount_coin},
         stardust_to_iota_address, stardust_to_iota_address_owner,
     },
     timelock::timelock,
@@ -42,7 +42,6 @@ use iota_types::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
     },
-    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v0::move_vm::MoveVM;
@@ -51,8 +50,8 @@ use crate::{
     process_package,
     stardust::{
         migration::{
-            create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
+            MigrationTargetNetwork, PACKAGE_DEPS, create_migration_context, package_module_bytes,
+            verification::created_objects::CreatedObjects,
         },
         types::{output_header::OutputHeader, token_scheme::SimpleTokenSchemeU64},
     },
@@ -116,7 +115,11 @@ impl Executor {
                 metrics.clone(),
             )?;
         }
-        let move_vm = Arc::new(new_move_vm(all_natives(silent), &protocol_config, None)?);
+        let move_vm = Arc::new(new_move_vm(
+            all_natives(silent, &protocol_config),
+            &protocol_config,
+            None,
+        )?);
 
         let system_packages_and_objects = store.objects().keys().copied().collect();
         Ok(Self {
@@ -190,12 +193,14 @@ impl Executor {
         pt: ProgrammableTransaction,
     ) -> Result<InnerTemporaryStore> {
         let input_objects = input_objects.into_inner();
+        let epoch_id = 0; // Genesis
         let mut temporary_store = TemporaryStore::new(
             &self.store,
             input_objects,
             vec![],
             self.tx_context.digest(),
             &self.protocol_config,
+            epoch_id,
         );
         let mut gas_charger = GasCharger::new_unmetered(self.tx_context.digest());
         programmable_transactions::execution::execute::<execution_mode::Normal>(
@@ -408,7 +413,9 @@ impl Executor {
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
-                let token_type = foundry_ledger_data.canonical_coin_type();
+                let token_type =
+                    foundry_ledger_data.to_canonical_string(/* with_prefix */ true);
+                let bag_key = foundry_ledger_data.to_canonical_string(/* with_prefix */ false);
 
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
@@ -425,7 +432,7 @@ impl Executor {
                     token_type.parse()?,
                     adjusted_amount,
                 )?;
-                pt::bag_add(&mut builder, bag, balance, token_type)?;
+                pt::bag_add(&mut builder, bag, bag_key, balance, token_type)?;
             }
 
             // The `Bag` object does not have the `drop` ability so we have to use it
@@ -764,18 +771,19 @@ mod pt {
     pub fn bag_add(
         builder: &mut ProgrammableTransactionBuilder,
         bag: Argument,
+        bag_key: String,
         balance: Argument,
         token_type: String,
     ) -> Result<()> {
         let key_type: StructTag = NATIVE_TOKEN_BAG_KEY_TYPE.parse()?;
         let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
-        let token_name = builder.pure(token_type)?;
+        let bag_key_arg = builder.pure(bag_key)?;
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
             ident_str!("add").into(),
             vec![key_type.into(), value_type.into()],
-            vec![bag, token_name, balance],
+            vec![bag, bag_key_arg, balance],
         );
         Ok(())
     }
@@ -823,12 +831,14 @@ impl FoundryLedgerData {
         }
     }
 
-    pub(crate) fn canonical_coin_type(&self) -> String {
+    pub(crate) fn to_canonical_string(&self, with_prefix: bool) -> String {
         format!(
             "{}::{}::{}",
-            self.coin_type_origin.package,
+            self.coin_type_origin
+                .package
+                .to_canonical_string(with_prefix),
             self.coin_type_origin.module_name,
-            self.coin_type_origin.struct_name
+            self.coin_type_origin.datatype_name
         )
     }
 }

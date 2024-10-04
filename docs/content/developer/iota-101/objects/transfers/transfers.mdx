@@ -2,16 +2,19 @@
 title: Transfers
 ---
 
-Everything on Iota is an object and your smart contracts are inevitably going to need to move those objects around the network, transferring them from one owner to another. The topics in this section explore the options you have on Iota around transferring objects on the network.
+Everything on IOTA is an object, and your smart contracts will often need to move these objects across the network,
+transferring them from one owner to another.
 
 ## Custom Transfer Rules
 
-On Iota, you can create custom transfer rules for objects that define the conditions that must be met for a valid transfer operation. The object you want to create custom transfer rules for cannot have the `store` ability, as that ability enables unrestricted transfers for the type via `iota::transfer::public_transfer` or the `TransferObjects` transaction command.
-
-Go to [Custom Transfer Rules](custom-rules.mdx).
+IOTA allows you to define [custom transfer rules](custom-rules.mdx) for objects,
+specifying the conditions that must be satisfied for a transfer to be valid.
+However, note that objects with the `store` ability cannot have custom transfer rules,
+as this ability allows for unrestricted transfers using [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer)
+or the `TransferObjects` transaction command.
 
 ## Transfer to Object
 
-On Iota, you are not limited to only transferring objects to an address. You can transfer an object to another object, where the receiving object provides access control to the received object.
+In addition to transferring objects to addresses, IOTA supports [transferring objects to other objects](transfer-to-object.mdx)..
+In this case, the receiving object manages access control to the transferred object, adding an extra layer of security and control.
 
-Go to [Transfer to Object](transfer-to-object.mdx). 

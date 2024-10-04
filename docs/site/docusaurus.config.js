@@ -6,6 +6,7 @@ import { themes } from "prism-react-renderer";
 import path from "path";
 import math from "remark-math";
 import katex from "rehype-katex";
+import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
@@ -26,7 +27,8 @@ const config = {
   },
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -74,7 +76,6 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
-    path.resolve(__dirname, `./src/plugins/framework`),
   ],
   presets: [
     [
@@ -86,7 +87,9 @@ const config = {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/iotaledger/iota/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
+          onInlineTags: "throw",
+          
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -105,6 +108,7 @@ const config = {
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
             ],
+            [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
           rehypePlugins: [katex],
         },
@@ -134,38 +138,28 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid"],
+  themes: ["@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      algolia: {
-        // The application ID provided by Algolia
-        appId: "ZF283DJAYX",
-
-        // Public API key: it is safe to commit it
-        apiKey: "7f24db6c4ec06d6905592deb228f4460",
-
-        indexName: "iota",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-
-        // Optional: Specify domains where the navigation should occur through window.location instead on history.push. Useful when our Algolia config crawls multiple documentation sites and we want to navigate with window.location.href to them.
-        // externalUrlRegex: "external\\.com|domain\\.com",
-
-        // Optional: Replace parts of the item URLs from Algolia. Useful when using the same search index for multiple deployments using a different baseUrl. You can use regexp or string in the `from` param. For example: localhost:3000 vs myCompany.com/docs
-        //replaceSearchResultPathname: {
-        //from: "/docs/", // or as RegExp: /\/docs\//
-        //to: "/",
-        //},
-
-        // Optional: Algolia search parameters
-        //searchParameters: {},
-
-        // Optional: path for search page that enabled by default (`false` to disable it)
-        searchPagePath: "search",
-
-        //... other Algolia params
+      typesense: {
+        // Replace this with the name of your index/collection.
+        // It should match the "index_name" entry in the scraper's "config.json" file.
+        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseServerConfig: {
+          nodes: [
+            {
+              host: 'docs-search.iota.org',
+              port: '',
+              protocol: 'https',
+            },
+          ],
+          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
+        },
+        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
+        typesenseSearchParameters: {},
+        // Optional
+        contextualSearch: true,
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -173,17 +167,16 @@ const config = {
           autoCollapseCategories: false,
         },
       },
-      colorMode:{
-        defaultMode: 'dark'
+      colorMode: {
+        defaultMode: "dark",
       },
-      announcementBar:{
-        id: 'integrate_your_exchange',
+      announcementBar: {
+        id: "integrate_your_exchange",
         content:
-            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+          '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
         isCloseable: false,
-        backgroundColor: '#0101ff',
-        textColor: '#FFFFFF',
-
+        backgroundColor: "#0101ff",
+        textColor: "#FFFFFF",
       },
       navbar: {
         title: "",
@@ -197,22 +190,18 @@ const config = {
             to: "about-iota",
           },
           {
-              label: "Developers",
-              to: "developer",
+            label: "Developers",
+            to: "developer",
           },
           {
-              label: "Node Operators",
-              to: "operator",
+            label: "Node Operators",
+            to: "operator",
           },
           {
-              label: "References",
-              to: "references",
+            label: "References",
+            to: "references",
           },
         ],
-      },
-      colorMode: {
-        defaultMode: 'dark',
-        disableSwitch: false,
       },
       footer: {
         logo: {

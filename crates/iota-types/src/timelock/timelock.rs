@@ -14,12 +14,12 @@ use super::{
     label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
 };
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     error::ExecutionError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 #[cfg(test)]
@@ -66,7 +66,7 @@ pub fn is_timelocked_vested_reward(
 
 /// Checks if an output is a vested reward, if it has a specific ID prefix,
 /// and if it contains a timelock unlock condition.
-fn is_vested_reward(output_id: OutputId, basic_output: &BasicOutput) -> bool {
+pub fn is_vested_reward(output_id: OutputId, basic_output: &BasicOutput) -> bool {
     let has_vesting_prefix = output_id.to_string().starts_with(VESTED_REWARD_ID_PREFIX);
 
     has_vesting_prefix && basic_output.unlock_conditions().timelock().is_some()

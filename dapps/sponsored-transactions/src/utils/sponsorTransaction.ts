@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaObjectRef } from '@iota/iota.js/client';
-import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota.js/faucet';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IotaObjectRef } from '@iota/iota-sdk/client';
+import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 import { client } from './rpc';
 
@@ -34,10 +34,10 @@ export async function sponsorTransaction(sender: string, transactionKindBytes: U
         retires -= 1;
     }
 
-    const tx = TransactionBlock.fromKind(transactionKindBytes);
+    const tx = Transaction.fromKind(transactionKindBytes);
     tx.setSender(sender);
     tx.setGasOwner(address);
     tx.setGasPayment(payment);
 
-    return keypair.signTransactionBlock(await tx.build({ client }));
+    return keypair.signTransaction(await tx.build({ client }));
 }

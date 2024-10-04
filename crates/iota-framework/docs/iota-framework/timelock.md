@@ -77,7 +77,7 @@ A timelock implementation.
  The locked object.
 </dd>
 <dt>
-<code>expiration_timestamp_ms: u64</code>
+<code>expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  This is the epoch time stamp of when the lock expires.
@@ -131,7 +131,7 @@ A timelock implementation.
 Sender is not @0x0 the system address.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_ENotSystemAddress">ENotSystemAddress</a>: u64 = 1;
+<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_ENotSystemAddress">ENotSystemAddress</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1;
 </code></pre>
 
 
@@ -141,7 +141,7 @@ Sender is not @0x0 the system address.
 For when trying to join two time-locked balances with different expiration time.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_EDifferentExpirationTime">EDifferentExpirationTime</a>: u64 = 4;
+<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_EDifferentExpirationTime">EDifferentExpirationTime</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 4;
 </code></pre>
 
 
@@ -151,7 +151,7 @@ For when trying to join two time-locked balances with different expiration time.
 For when trying to join two time-locked balances with different labels.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_EDifferentLabels">EDifferentLabels</a>: u64 = 5;
+<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_EDifferentLabels">EDifferentLabels</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 5;
 </code></pre>
 
 
@@ -161,7 +161,7 @@ For when trying to join two time-locked balances with different labels.
 Expiration timestamp of the lock is in the past.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_EExpireEpochIsPast">EExpireEpochIsPast</a>: u64 = 2;
+<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_EExpireEpochIsPast">EExpireEpochIsPast</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 2;
 </code></pre>
 
 
@@ -171,7 +171,7 @@ Expiration timestamp of the lock is in the past.
 The <code>new</code> function was called at a non-genesis epoch.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_ENotCalledAtGenesis">ENotCalledAtGenesis</a>: u64 = 0;
+<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_ENotCalledAtGenesis">ENotCalledAtGenesis</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 
@@ -181,7 +181,7 @@ The <code>new</code> function was called at a non-genesis epoch.
 The lock has not expired yet.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_ENotExpiredYet">ENotExpiredYet</a>: u64 = 3;
+<pre><code><b>const</b> <a href="../iota-framework/timelock.md#0x2_timelock_ENotExpiredYet">ENotExpiredYet</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 3;
 </code></pre>
 
 
@@ -193,7 +193,7 @@ The lock has not expired yet.
 Function to lock an object till a unix timestamp in milliseconds.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock">lock</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock">lock</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
 </code></pre>
 
 
@@ -202,7 +202,7 @@ Function to lock an object till a unix timestamp in milliseconds.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock">lock</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: u64, ctx: &<b>mut</b> TxContext): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock">lock</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt; {
     // Check that `expiration_timestamp_ms` is valid.
     <a href="../iota-framework/timelock.md#0x2_timelock_check_expiration_timestamp_ms">check_expiration_timestamp_ms</a>(expiration_timestamp_ms, ctx);
 
@@ -222,7 +222,7 @@ Function to lock an object till a unix timestamp in milliseconds.
 Function to lock a labeled object till a unix timestamp in milliseconds.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_with_label">lock_with_label</a>&lt;T: store, L&gt;(_: &<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;, locked: T, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_with_label">lock_with_label</a>&lt;T: store, L&gt;(_: &<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;, locked: T, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
 </code></pre>
 
 
@@ -234,7 +234,7 @@ Function to lock a labeled object till a unix timestamp in milliseconds.
 <pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_with_label">lock_with_label</a>&lt;T: store, L&gt;(
     _: &LabelerCap&lt;L&gt;,
     locked: T,
-    expiration_timestamp_ms: u64,
+    expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
 ): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt; {
     // Check that `expiration_timestamp_ms` is valid.
@@ -260,7 +260,7 @@ Function to lock an object <code>obj</code> until <code>expiration_timestamp_ms<
 Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this function to lock an object to an address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_and_transfer">lock_and_transfer</a>&lt;T: store&gt;(obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_and_transfer">lock_and_transfer</a>&lt;T: store&gt;(obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -272,7 +272,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
 <pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_and_transfer">lock_and_transfer</a>&lt;T: store&gt;(
     obj: T,
     <b>to</b>: <b>address</b>,
-    expiration_timestamp_ms: u64,
+    expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
 ) {
     <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(<a href="../iota-framework/timelock.md#0x2_timelock_lock">lock</a>(obj, expiration_timestamp_ms, ctx), <b>to</b>);
@@ -291,7 +291,7 @@ Function to lock a labeled object <code>obj</code> until <code>expiration_timest
 Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this function to lock a labeled object to an address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_with_label_and_transfer">lock_with_label_and_transfer</a>&lt;T: store, L&gt;(<a href="../iota-framework/labeler.md#0x2_labeler">labeler</a>: &<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;, obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_lock_with_label_and_transfer">lock_with_label_and_transfer</a>&lt;T: store, L&gt;(<a href="../iota-framework/labeler.md#0x2_labeler">labeler</a>: &<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;, obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -304,7 +304,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
     <a href="../iota-framework/labeler.md#0x2_labeler">labeler</a>: &LabelerCap&lt;L&gt;,
     obj: T,
     <b>to</b>: <b>address</b>,
-    expiration_timestamp_ms: u64,
+    expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
 ) {
     <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(<a href="../iota-framework/timelock.md#0x2_timelock_lock_with_label">lock_with_label</a>(<a href="../iota-framework/labeler.md#0x2_labeler">labeler</a>, obj, expiration_timestamp_ms, ctx), <b>to</b>);
@@ -422,7 +422,7 @@ Join everything in <code>others</code> with <code>self</code>.
 Split a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt;</code> and take a sub balance from it.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split">split</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split">split</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;, value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;
 </code></pre>
 
 
@@ -431,11 +431,11 @@ Split a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">Time
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split">split</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> TxContext): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split">split</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt;, value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt; {
     // Split the locked <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
     <b>let</b> value = self.locked.<a href="../iota-framework/timelock.md#0x2_timelock_split">split</a>(value);
 
-    // Pack the splitted <a href="../iota-framework/balance.md#0x2_balance">balance</a> into a <a href="../iota-framework/timelock.md#0x2_timelock">timelock</a>.
+    // Pack the split <a href="../iota-framework/balance.md#0x2_balance">balance</a> into a <a href="../iota-framework/timelock.md#0x2_timelock">timelock</a>.
     <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>(value, self.<a href="../iota-framework/timelock.md#0x2_timelock_expiration_timestamp_ms">expiration_timestamp_ms</a>(), self.<a href="../iota-framework/timelock.md#0x2_timelock_label">label</a>(), ctx)
 }
 </code></pre>
@@ -452,7 +452,7 @@ Split the given <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLo
 and transfer the newly split part to the sender address.
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split_balance">split_balance</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> entry <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split_balance">split_balance</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;, value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -461,7 +461,7 @@ and transfer the newly split part to the sender address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split_balance">split_balance</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> TxContext) {
+<pre><code><b>public</b> entry <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_split_balance">split_balance</a>&lt;T&gt;(self: &<b>mut</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;Balance&lt;T&gt;&gt;, value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext) {
     <a href="../iota-framework/timelock.md#0x2_timelock_split">split</a>(self, value, ctx).<a href="../iota-framework/timelock.md#0x2_timelock_transfer_to_sender">transfer_to_sender</a>(ctx)
 }
 </code></pre>
@@ -502,7 +502,7 @@ A utility function to transfer a <code><a href="../iota-framework/timelock.md#0x
 A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code> that can be invoked only by a system package.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_pack">system_pack</a>&lt;T: store&gt;(_: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, locked: T, expiration_timestamp_ms: u64, label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_pack">system_pack</a>&lt;T: store&gt;(_: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, locked: T, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
 </code></pre>
 
 
@@ -514,7 +514,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 <pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_pack">system_pack</a>&lt;T: store&gt;(
     _: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">SystemTimelockCap</a>,
     locked: T,
-    expiration_timestamp_ms: u64,
+    expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     label: Option&lt;String&gt;,
     ctx: &<b>mut</b> TxContext): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;
 {
@@ -533,7 +533,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code> that can be invoked only by a system package.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_unpack">system_unpack</a>&lt;T: store&gt;(_: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;): (T, u64, <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;)
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_unpack">system_unpack</a>&lt;T: store&gt;(_: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;): (T, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;)
 </code></pre>
 
 
@@ -542,7 +542,7 @@ An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_unpack">system_unpack</a>&lt;T: store&gt;(_: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">SystemTimelockCap</a>, lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): (T, u64, Option&lt;String&gt;) {
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_system_unpack">system_unpack</a>&lt;T: store&gt;(_: &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">SystemTimelockCap</a>, lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): (T, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, Option&lt;String&gt;) {
     <a href="../iota-framework/timelock.md#0x2_timelock_unpack">unpack</a>(lock)
 }
 </code></pre>
@@ -584,7 +584,7 @@ that is used as type related a label value.
 Function to get the expiration timestamp of a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_expiration_timestamp_ms">expiration_timestamp_ms</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;): u64
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_expiration_timestamp_ms">expiration_timestamp_ms</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -593,7 +593,7 @@ Function to get the expiration timestamp of a <code><a href="../iota-framework/t
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_expiration_timestamp_ms">expiration_timestamp_ms</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_expiration_timestamp_ms">expiration_timestamp_ms</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.expiration_timestamp_ms
 }
 </code></pre>
@@ -635,7 +635,7 @@ Function to get the remaining time of a <code><a href="../iota-framework/timeloc
 Returns 0 if the lock has expired.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_remaining_time">remaining_time</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_remaining_time">remaining_time</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -644,7 +644,7 @@ Returns 0 if the lock has expired.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_remaining_time">remaining_time</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;, ctx: &TxContext): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_remaining_time">remaining_time</a>&lt;T: store&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;, ctx: &TxContext): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     // Get the epoch timestamp.
     <b>let</b> current_timestamp_ms = ctx.epoch_timestamp_ms();
 
@@ -749,7 +749,7 @@ Check if a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">T
 A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code>.
 
 
-<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: u64, label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
 </code></pre>
 
 
@@ -760,7 +760,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 
 <pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(
     locked: T,
-    expiration_timestamp_ms: u64,
+    expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     label: Option&lt;String&gt;,
     ctx: &<b>mut</b> TxContext): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;
 {
@@ -785,7 +785,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code>.
 
 
-<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_unpack">unpack</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;): (T, u64, <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;)
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_unpack">unpack</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;): (T, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;)
 </code></pre>
 
 
@@ -794,7 +794,7 @@ An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_unpack">unpack</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): (T, u64, Option&lt;String&gt;) {
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_unpack">unpack</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): (T, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, Option&lt;String&gt;) {
     // Unpack the <a href="../iota-framework/timelock.md#0x2_timelock">timelock</a>.
     <b>let</b> <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a> {
         id,
@@ -846,7 +846,7 @@ A utility function to transfer a <code><a href="../iota-framework/timelock.md#0x
 An utility function to check that the <code>expiration_timestamp_ms</code> value is valid.
 
 
-<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_check_expiration_timestamp_ms">check_expiration_timestamp_ms</a>(expiration_timestamp_ms: u64, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_check_expiration_timestamp_ms">check_expiration_timestamp_ms</a>(expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -855,7 +855,7 @@ An utility function to check that the <code>expiration_timestamp_ms</code> value
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_check_expiration_timestamp_ms">check_expiration_timestamp_ms</a>(expiration_timestamp_ms: u64, ctx: &TxContext) {
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_check_expiration_timestamp_ms">check_expiration_timestamp_ms</a>(expiration_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &TxContext) {
     // Get the epoch timestamp.
     <b>let</b> epoch_timestamp_ms = ctx.epoch_timestamp_ms();
 

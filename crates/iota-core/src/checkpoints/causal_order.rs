@@ -157,6 +157,12 @@ impl RWLockDependencyBuilder {
                         .entry(*effect.transaction_digest())
                         .or_default()
                         .push(ObjectKey(oid, version)),
+                    InputSharedObject::Cancelled(..) => (), /* TODO: confirm that
+                                                             * consensus_commit_prologue is
+                                                             * always at the beginning of the
+                                                             * checkpoint, so that cancelled txn
+                                                             * don't need to worry about
+                                                             * dependency. */
                 }
             }
         }
@@ -181,8 +187,7 @@ impl RWLockDependencyBuilder {
             for dep in reads {
                 trace!(
                     "Assuming additional dependency when constructing checkpoint {:?} -> {:?}",
-                    digest,
-                    *dep
+                    digest, *dep
                 );
                 v.insert(*dep);
             }

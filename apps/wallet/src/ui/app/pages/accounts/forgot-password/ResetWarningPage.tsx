@@ -2,16 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { Navigate, useNavigate } from 'react-router-dom';
-
-import { RecoverAccountsGroup } from '../../../components/accounts/RecoverAccountsGroup';
+import { PageTemplate, RecoverAccountsGroup } from '_components';
 import { useAccountGroups } from '../../../hooks/useAccountGroups';
-import { Heading } from '../../../shared/heading';
-import { Text } from '../../../shared/text';
 import { getGroupTitle } from '../manage/AccountGroup';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
+import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
 
 export function ResetWarningPage() {
     const navigate = useNavigate();
@@ -29,36 +26,40 @@ export function ResetWarningPage() {
     if (!accountGroupsToRemove.length && !isPending) {
         return <Navigate to="../reset" replace />;
     }
+
+    function handleClose() {
+        navigate('/');
+    }
+
+    function handleNext() {
+        navigate('../reset');
+    }
+
     return (
-        <div className="flex h-full w-full flex-col items-center overflow-auto">
-            <div className="flex flex-col items-center gap-2 text-center">
-                <Heading variant="heading1" color="gray-90" as="h1" weight="bold">
-                    Reset Password
-                </Heading>
-                <Text variant="pBody" color="gray-90">
-                    To ensure wallet security, the following accounts will be removed as part of the
-                    password reset process. You will need to connect/import them again.
-                </Text>
+        <PageTemplate
+            title="Reset your Password"
+            isTitleCentered
+            onClose={handleClose}
+            showBackButton
+        >
+            <div className="flex h-full flex-col gap-lg overflow-auto">
+                <span className="text-center text-label-lg text-neutral-40">
+                    To protect the security of your wallet, the accounts listed will be deleted as
+                    part of the password reset procedure. Please reconnect or reimport them once the
+                    process is complete.
+                </span>
+                <div className="flex w-full flex-1 flex-col gap-lg overflow-auto">
+                    {accountGroupsToRemove.map(([sourceID, accounts]) => (
+                        <RecoverAccountsGroup
+                            key={sourceID}
+                            accounts={accounts}
+                            title={getGroupTitle(accounts[0])}
+                        />
+                    ))}
+                </div>
+
+                <Button htmlType={ButtonHtmlType.Submit} text="Continue" onClick={handleNext} />
             </div>
-            <div className="mb-10 mt-5 flex w-full flex-1 flex-col gap-8 overflow-auto rounded-lg bg-hero-darkest/5 px-4 py-6">
-                {accountGroupsToRemove.map(([sourceID, accounts]) => (
-                    <RecoverAccountsGroup
-                        key={sourceID}
-                        accounts={accounts}
-                        title={getGroupTitle(accounts[0])}
-                    />
-                ))}
-            </div>
-            <div className="flex w-full gap-3">
-                <Button variant="outline" size="tall" text="Back" onClick={() => navigate(-1)} />
-                <Button
-                    type="submit"
-                    variant="primary"
-                    size="tall"
-                    text="Continue"
-                    onClick={() => navigate('../reset')}
-                />
-            </div>
-        </div>
+        </PageTemplate>
     );
 }

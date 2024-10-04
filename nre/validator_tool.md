@@ -1,5 +1,3 @@
-# Validator Tool
-
 ## Overview
 
 This document is focused on using Validator Tool.
@@ -8,7 +6,7 @@ This document is focused on using Validator Tool.
 
 ## Preparation
 
-1. Make sure you have completed all the [prerequisites](https://docs.iota.io/devnet/build/install).
+1. Make sure you have completed all the [prerequisites](https://wiki.iota.org/devnet/build/install).
 
 2. Build the `iota` binary, which you will need for the genesis ceremony. This step can be done on any machine you like. It does not have to be done on the machine on which you will run the validator.
 
@@ -37,7 +35,7 @@ This document is focused on using Validator Tool.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.io/devnet/build/cli-client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://wiki.iota.org/devnet/build/cli-client).
 
 ```bash
 $IOTA_BINARY client
@@ -105,7 +103,7 @@ $IOTA_BINARY validator update-metadata --help
 
 #### Operation Cap
 
-Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](iota_for_node_operators.md#operation-cap).
+Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-operation/validator-tasks#operation-cap).
 
 The Operation Cap holder (either the valdiator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
@@ -155,7 +153,7 @@ $IOTA_BINARY validator make-validator-info <name> <description> <image-url> <pro
 
 This will generate a `validator.info` file and key pair files. The output of this command includes:
 
-1. Four key pair files (Read [more here](iota_for_node_operators.md#key-management)). ==Set their permissions with the minimal visibility (chmod 600, for example) and store them securely==. They are needed when running the validator node as covered below.
+1. Four key pair files (Read [more here](./validator-operation/validator-tasks/#key-management)). ==Set their permissions with the minimal visibility (chmod 600, for example) and store them securely==. They are needed when running the validator node as covered below.
    a. If you follow this guide thoroughly, this key pair is actually copied from your `iota.keystore` file.
 2. `validator.info` file that contains your validator info. **Double check all information is correct**.
 
@@ -170,6 +168,8 @@ to submit an on-chain transaction to become a validator candidate. The parameter
 At this point you are validator candidate and can start to accept self staking and delegated staking.
 
 **If you haven't, start a fullnode now to catch up with the network. When you officially join the committee but is not fully up-to-date, you cannot make meaningful contribution to the network and may be subject to peer reporting hence face the risk of reduced staking rewards for you and your delegators.**
+
+Add stake to a validator's staking pool: https://docs.iota.org/references/framework/iota-system/iota_system#function-request_add_stake
 
 Once you collect enough staking amount, run
 

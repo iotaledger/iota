@@ -5,12 +5,12 @@
 //! BridgeAuthorityAggregator aggregates signatures from BridgeCommittee.
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     sync::Arc,
     time::Duration,
 };
 
-use iota_common::authority_aggregation::{quorum_map_then_reduce_with_timeout, ReduceOutput};
+use iota_authority_aggregation::{ReduceOutput, quorum_map_then_reduce_with_timeout_and_prefs};
 use iota_types::{
     base_types::ConciseableName,
     committee::{StakeUnit, TOTAL_VOTING_POWER},
@@ -34,7 +34,7 @@ pub struct BridgeAuthorityAggregator {
 
 impl BridgeAuthorityAggregator {
     pub fn new(committee: Arc<BridgeCommittee>) -> Self {
-        let clients = committee
+        let clients: BTreeMap<BridgeAuthorityPublicKeyBytes, Arc<BridgeClient>> = committee
             .members()
             .iter()
             .filter_map(|(name, authority)| {
@@ -68,9 +68,8 @@ impl BridgeAuthorityAggregator {
     pub async fn request_committee_signatures(
         &self,
         action: BridgeAction,
-        threshold: StakeUnit,
     ) -> BridgeResult<VerifiedCertifiedBridgeAction> {
-        let state = GetSigsState::new(threshold, self.committee.clone());
+        let state = GetSigsState::new(action.approval_threshold(), self.committee.clone());
         request_sign_bridge_action_into_certification(
             action,
             self.committee.clone(),
@@ -129,6 +128,11 @@ impl GetSigsState {
             }
         }
         if self.total_ok_stake >= self.validity_threshold {
+            info!(
+                "Got enough signatures from {} validators with total_ok_stake {}",
+                self.sigs.len(),
+                self.total_ok_stake
+            );
             let signatures = self
                 .sigs
                 .iter()
@@ -143,7 +147,6 @@ impl GetSigsState {
                 sig_info,
             );
             // `BridgeClient` already verified individual signatures
-            // TODO: should we verify again here?
             Ok(Some(VerifiedCertifiedBridgeAction::new_from_verified(
                 certified_action,
             )))
@@ -168,9 +171,30 @@ async fn request_sign_bridge_action_into_certification(
     clients: Arc<BTreeMap<BridgeAuthorityPublicKeyBytes, Arc<BridgeClient>>>,
     state: GetSigsState,
 ) -> BridgeResult<VerifiedCertifiedBridgeAction> {
-    let (result, _) = quorum_map_then_reduce_with_timeout(
+    // `preferences` is used as a trick here to influence the order of validators to
+    // be requested.
+    // * if `Some(_)`, then we will request validators in the order of the voting
+    //   power.
+    // * if `None`, we still refer to voting power, but they are shuffled by
+    //   randomness.
+    // Because ethereum gas price is not negligible, when the signatures are to be
+    // verified on ethereum, we pass in `Some` to make sure the validators with
+    // higher voting power are requested first to save gas cost.
+    let preference = match action {
+        BridgeAction::IotaToEthBridgeAction(_) => Some(BTreeSet::new()),
+        BridgeAction::EthToIotaBridgeAction(_) => None,
+        _ => {
+            if action.chain_id().is_iota_chain() {
+                None
+            } else {
+                Some(BTreeSet::new())
+            }
+        }
+    };
+    let (result, _) = quorum_map_then_reduce_with_timeout_and_prefs(
         committee,
         clients,
+        preference.as_ref(),
         state,
         |_name, client| {
             Box::pin(async move { client.request_sign_bridge_action(action.clone()).await })
@@ -208,8 +232,7 @@ async fn request_sign_bridge_action_into_certification(
                     }
                 };
 
-                // If bad stake (including blocklisted stake) is too high to reach validity
-                // threshold, return error
+                // If bad stake (including blocklisted stake) is too high to reach validity threshold, return error
                 if state.is_too_many_error() {
                     ReduceOutput::Failed(state)
                 } else {
@@ -223,16 +246,18 @@ async fn request_sign_bridge_action_into_certification(
     .await
     .map_err(|state| {
         error!(
-            "Failed to get enough signatures, bad stake: {}, blocklisted stake: {}, good stake: {}",
+            "Failed to get enough signatures, bad stake: {}, blocklisted stake: {}, good stake: {}, validity threshold: {}",
             state.total_bad_stake,
             state.committee.total_blocklisted_stake(),
-            state.total_ok_stake
+            state.total_ok_stake,
+            state.validity_threshold,
         );
         BridgeError::AuthoritySignatureAggregationTooManyError(format!(
-            "Failed to get enough signatures, bad stake: {}, blocklisted stake: {}, good stake: {}",
+            "Failed to get enough signatures, bad stake: {}, blocklisted stake: {}, good stake: {}, validity threshold: {}",
             state.total_bad_stake,
             state.committee.total_blocklisted_stake(),
-            state.total_ok_stake
+            state.total_ok_stake,
+            state.validity_threshold,
         ))
     })?;
     Ok(result)
@@ -315,10 +340,13 @@ mod tests {
         let mock3 = BridgeRequestMockHandler::new();
 
         // start servers
-        let (_handles, authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
-            vec![2500, 2500, 2500, 2500],
-            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
-        );
+        let (_handles, authorities, secrets) =
+            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
+                mock0.clone(),
+                mock1.clone(),
+                mock2.clone(),
+                mock3.clone(),
+            ]);
 
         let committee = BridgeCommittee::new(authorities).unwrap();
 
@@ -333,6 +361,9 @@ mod tests {
             Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
+            None,
+            None,
+            None,
         );
 
         // All authorities return signatures
@@ -356,7 +387,7 @@ mod tests {
             iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[3])),
         );
-        agg.request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+        agg.request_committee_signatures(action.clone())
             .await
             .unwrap();
 
@@ -366,7 +397,7 @@ mod tests {
             iota_tx_event_index,
             Err(BridgeError::RestAPIError("".into())),
         );
-        agg.request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+        agg.request_committee_signatures(action.clone())
             .await
             .unwrap();
 
@@ -376,7 +407,7 @@ mod tests {
             iota_tx_event_index,
             Err(BridgeError::RestAPIError("".into())),
         );
-        agg.request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+        agg.request_committee_signatures(action.clone())
             .await
             .unwrap();
 
@@ -387,7 +418,7 @@ mod tests {
             Err(BridgeError::RestAPIError("".into())),
         );
         let err = agg
-            .request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+            .request_committee_signatures(action.clone())
             .await
             .unwrap_err();
         assert!(matches!(
@@ -406,10 +437,13 @@ mod tests {
         let mock3 = BridgeRequestMockHandler::new();
 
         // start servers
-        let (_handles, mut authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
-            vec![2500, 2500, 2500, 2500],
-            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
-        );
+        let (_handles, mut authorities, secrets) =
+            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
+                mock0.clone(),
+                mock1.clone(),
+                mock2.clone(),
+                mock3.clone(),
+            ]);
         // 0 and 1 are blocklisted
         authorities[0].is_blocklisted = true;
         authorities[1].is_blocklisted = true;
@@ -427,6 +461,9 @@ mod tests {
             Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
+            None,
+            None,
+            None,
         );
 
         // Only mock authority 2 and 3 to return signatures, such that if
@@ -443,7 +480,7 @@ mod tests {
             Ok(sign_action_with_key(&action, &secrets[3])),
         );
         let certified = agg
-            .request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+            .request_committee_signatures(action.clone())
             .await
             .unwrap();
         let signers = certified
@@ -467,7 +504,7 @@ mod tests {
             Err(BridgeError::RestAPIError("".into())),
         );
         let err = agg
-            .request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+            .request_committee_signatures(action.clone())
             .await
             .unwrap_err();
         assert!(matches!(
@@ -483,7 +520,7 @@ mod tests {
             Ok(sign_action_with_key(&action, &secrets[2])),
         );
         let err = agg
-            .request_committee_signatures(action.clone(), VALIDITY_THRESHOLD)
+            .request_committee_signatures(action.clone())
             .await
             .unwrap_err();
         assert!(matches!(
@@ -561,6 +598,9 @@ mod tests {
             Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
+            None,
+            None,
+            None,
         );
 
         let sig_0 = sign_action_with_key(&action, &secrets[0]);
@@ -632,7 +672,7 @@ mod tests {
         );
         assert_eq!(state.total_ok_stake, 2501);
 
-        // Collect signtuare from authority 2 - reach validity threshold
+        // Collect signature from authority 2 - reach validity threshold
         let sig_2 = sign_action_with_key(&action, &secrets[2]);
         // returns Ok(None)
         let certificate = state

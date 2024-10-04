@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -14,8 +14,13 @@ use iota_types::{
     dynamic_field::DynamicFieldName,
     event::EventID,
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+    core::{RpcResult, SubscriptionResult},
+    proc_macros::rpc,
+};
 
+/// Provides methods to query transactions, events, or objects and allows to
+/// subscribe to data streams.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {
@@ -75,11 +80,11 @@ pub trait IndexerApi {
         &self,
         /// The filter criteria of the event stream. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
         filter: EventFilter,
-    );
+    ) -> SubscriptionResult;
 
     /// Subscribe to a stream of Iota transaction effects
     #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
-    fn subscribe_transaction(&self, filter: TransactionFilter);
+    fn subscribe_transaction(&self, filter: TransactionFilter) -> SubscriptionResult;
 
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]
@@ -104,25 +109,4 @@ pub trait IndexerApi {
         /// The Name of the dynamic field
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
-
-    /// Return the resolved address given resolver and name
-    #[rustfmt::skip]
-    #[method(name = "resolveNameServiceAddress")]
-    async fn resolve_name_service_address(
-        &self,
-        /// The name to resolve
-        name: String,
-    ) -> RpcResult<Option<IotaAddress>>;
-
-    /// Return the resolved names given address,
-    /// if multiple names are resolved, the first one is the primary name.
-    #[rustfmt::skip]
-    #[method(name = "resolveNameServiceNames")]
-    async fn resolve_name_service_names(
-        &self,
-        /// The address to resolve
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>>;
 }

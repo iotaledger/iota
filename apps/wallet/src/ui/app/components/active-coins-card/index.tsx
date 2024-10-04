@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Loading from '_components/loading';
+import { Loading } from '_components';
 import { useCoinsReFetchingConfig } from '_hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
 import { CoinItem } from './CoinItem';
 import { filterAndSortTokenBalances } from '@iota/core';
@@ -45,18 +45,17 @@ export function ActiveCoinsCard({
                             to={`/send/select?${new URLSearchParams({
                                 type: activeCoin.coinType,
                             }).toString()}`}
-                            className="flex w-full items-center gap-2 overflow-hidden rounded-2lg border border-solid border-gray-45 no-underline"
+                            className="border-gray-45 flex w-full items-center gap-2 overflow-hidden rounded-2lg border border-solid no-underline"
                         >
                             <CoinItem
                                 coinType={activeCoin.coinType}
                                 balance={BigInt(activeCoin.totalBalance)}
-                                isActive
                             />
                         </Link>
                     )
                 ) : (
                     <div className="flex w-full flex-col">
-                        <div className="mt-2 flex flex-col items-center justify-between divide-x-0 divide-y divide-solid divide-gray-45">
+                        <div className="divide-gray-45 mt-2 flex flex-col items-center justify-between divide-x-0 divide-y divide-solid">
                             {coins?.map(({ coinType, totalBalance }) => (
                                 <Link
                                     to={`/send?${new URLSearchParams({

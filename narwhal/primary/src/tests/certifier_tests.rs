@@ -2,14 +2,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::num::NonZeroUsize;
 
 use crypto::KeyPair as DefinedKeyPair;
 use fastcrypto::traits::KeyPair;
 use network::client::NetworkClient;
 use prometheus::Registry;
-use rand::{rngs::StdRng, SeedableRng};
-use test_utils::{latest_protocol_version, CommitteeFixture};
+use rand::{SeedableRng, rngs::StdRng};
+use test_utils::{CommitteeFixture, latest_protocol_version};
 use tokio::{sync::watch, time::Duration};
 use types::{
     CertificateAPI, MockPrimaryToPrimary, PreSubscribedBroadcastSender, PrimaryToPrimaryServer,
@@ -18,8 +19,8 @@ use types::{
 
 use super::*;
 use crate::{
-    common::create_db_stores, consensus::ConsensusRound, PrimaryChannelMetrics,
-    NUM_SHUTDOWN_RECEIVERS,
+    NUM_SHUTDOWN_RECEIVERS, PrimaryChannelMetrics, common::create_db_stores,
+    consensus::ConsensusRound,
 };
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]

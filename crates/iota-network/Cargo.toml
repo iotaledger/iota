@@ -1,7 +1,7 @@
 [package]
 name = "iota-network"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -17,8 +17,8 @@ tower.workspace = true
 
 iota-archival.workspace = true
 iota-config.workspace = true
+iota-macros.workspace = true
 iota-storage.workspace = true
-iota-swarm-config.workspace = true
 iota-types.workspace = true
 
 anyhow.workspace = true
@@ -28,8 +28,8 @@ bytes.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 tap.workspace = true
@@ -42,6 +42,8 @@ tonic-build.workspace = true
 
 [dev-dependencies]
 ed25519-consensus.workspace = true
+iota-macros.workspace = true
+iota-swarm-config.workspace = true
 telemetry-subscribers.workspace = true
 tempfile = "3.3.0"
 tokio = { workspace = true, features = ["test-util"] }

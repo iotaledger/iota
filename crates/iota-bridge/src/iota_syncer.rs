@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The IotaSyncer module is responsible for synchronizing Events emitted on
-//! Iota blockchain from concerned bridge packages.
+//! The IotaSyncer module is responsible for synchronizing Events emitted
+//! on Iota blockchain from concerned modules of bridge package 0x9.
 
 use std::{collections::HashMap, sync::Arc};
 
 use iota_json_rpc_types::IotaEvent;
-use iota_types::{event::EventID, Identifier};
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
+use iota_types::{BRIDGE_PACKAGE_ID, Identifier, event::EventID};
 use tokio::{
     task::JoinHandle,
     time::{self, Duration},
@@ -18,16 +18,13 @@ use tokio::{
 use crate::{
     error::BridgeResult,
     iota_client::{IotaClient, IotaClientInner},
-    iota_transaction_builder::get_bridge_package_id,
     retry_with_max_elapsed_time,
 };
 
-// TODO: use the right package id
-// const PACKAGE_ID: ObjectID = IOTA_SYSTEM_PACKAGE_ID;
 const IOTA_EVENTS_CHANNEL_SIZE: usize = 1000;
 
 /// Map from contract address to their start cursor (exclusive)
-pub type IotaTargetModules = HashMap<Identifier, EventID>;
+pub type IotaTargetModules = HashMap<Identifier, Option<EventID>>;
 
 pub struct IotaSyncer<C> {
     iota_client: Arc<IotaClient<C>>,
@@ -52,19 +49,22 @@ where
         query_interval: Duration,
     ) -> BridgeResult<(
         Vec<JoinHandle<()>>,
-        mysten_metrics::metered_channel::Receiver<(Identifier, Vec<IotaEvent>)>,
+        iota_metrics::metered_channel::Receiver<(Identifier, Vec<IotaEvent>)>,
     )> {
-        let (events_tx, events_rx) = mysten_metrics::metered_channel::channel(
+        let (events_tx, events_rx) = iota_metrics::metered_channel::channel(
             IOTA_EVENTS_CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
-                .channels
+                .channel_inflight
                 .with_label_values(&["iota_events_queue"]),
         );
 
         let mut task_handles = vec![];
         for (module, cursor) in self.cursors {
-            let events_rx_clone = events_tx.clone();
+            let events_rx_clone: iota_metrics::metered_channel::Sender<(
+                Identifier,
+                Vec<IotaEvent>,
+            )> = events_tx.clone();
             let iota_client_clone = self.iota_client.clone();
             task_handles.push(spawn_logged_monitored_task!(
                 Self::run_event_listening_task(
@@ -83,8 +83,8 @@ where
         // The module where interested events are defined.
         // Module is always of bridge package 0x9.
         module: Identifier,
-        mut cursor: EventID,
-        events_sender: mysten_metrics::metered_channel::Sender<(Identifier, Vec<IotaEvent>)>,
+        mut cursor: Option<EventID>,
+        events_sender: iota_metrics::metered_channel::Sender<(Identifier, Vec<IotaEvent>)>,
         iota_client: Arc<IotaClient<C>>,
         query_interval: Duration,
     ) {
@@ -94,12 +94,8 @@ where
         loop {
             interval.tick().await;
             let Ok(Ok(events)) = retry_with_max_elapsed_time!(
-                iota_client.query_events_by_module(
-                    *get_bridge_package_id(),
-                    module.clone(),
-                    cursor
-                ),
-                Duration::from_secs(10)
+                iota_client.query_events_by_module(BRIDGE_PACKAGE_ID, module.clone(), cursor),
+                Duration::from_secs(120)
             ) else {
                 tracing::error!("Failed to query events from iota client after retry");
                 continue;
@@ -107,17 +103,12 @@ where
 
             let len = events.data.len();
             if len != 0 {
-                // Note: it's extremely critical to make sure the IotaEvents we send via this
-                // channel are complete per transaction level. Namely, we should
-                // never send a partial list of events for a transaction.
-                // Otherwise, we may end up missing events. See `iota_client.
-                // query_events_by_module` for how this is implemented.
                 events_sender
                     .send((module.clone(), events.data))
                     .await
                     .expect("All Iota event channel receivers are closed");
                 if let Some(next) = events.next_cursor {
-                    cursor = next;
+                    cursor = Some(next);
                 }
                 tracing::info!(?module, ?cursor, "Observed {len} new Iota events");
             }
@@ -128,7 +119,7 @@ where
 #[cfg(test)]
 mod tests {
     use iota_json_rpc_types::EventPage;
-    use iota_types::{digests::TransactionDigest, event::EventID, Identifier};
+    use iota_types::{Identifier, digests::TransactionDigest, event::EventID};
     use prometheus::Registry;
     use tokio::time::timeout;
 
@@ -139,7 +130,7 @@ mod tests {
     async fn test_iota_syncer_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let mock = IotaMockClient::default();
         let client = Arc::new(IotaClient::new_for_testing(mock.clone()));
@@ -154,8 +145,8 @@ mod tests {
         add_event_response(&mock, module_bar.clone(), cursor, empty_events.clone());
 
         let target_modules = HashMap::from_iter(vec![
-            (module_foo.clone(), cursor),
-            (module_bar.clone(), cursor),
+            (module_foo.clone(), Some(cursor)),
+            (module_bar.clone(), Some(cursor)),
         ]);
         let interval = Duration::from_millis(200);
         let (_handles, mut events_rx) = IotaSyncer::new(client, target_modules)
@@ -168,7 +159,7 @@ mod tests {
 
         // Module Foo has new events
         let mut event_1: IotaEvent = IotaEvent::random_for_testing();
-        let package_id = *get_bridge_package_id();
+        let package_id = BRIDGE_PACKAGE_ID;
         event_1.type_.address = package_id.into();
         event_1.type_.module = module_foo.clone();
         let module_foo_events_1: iota_json_rpc_types::Page<IotaEvent, EventID> = EventPage {
@@ -217,7 +208,7 @@ mod tests {
 
     async fn assert_no_more_events(
         interval: Duration,
-        events_rx: &mut mysten_metrics::metered_channel::Receiver<(Identifier, Vec<IotaEvent>)>,
+        events_rx: &mut iota_metrics::metered_channel::Receiver<(Identifier, Vec<IotaEvent>)>,
     ) {
         match timeout(interval * 2, events_rx.recv()).await {
             Err(_e) => (),
@@ -231,11 +222,6 @@ mod tests {
         cursor: EventID,
         events: EventPage,
     ) {
-        mock.add_event_response(
-            *get_bridge_package_id(),
-            module.clone(),
-            cursor,
-            events.clone(),
-        );
+        mock.add_event_response(BRIDGE_PACKAGE_ID, module.clone(), cursor, events.clone());
     }
 }

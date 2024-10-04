@@ -13,7 +13,7 @@ module iota_system::genesis {
     use iota_system::iota_system;
     use iota_system::validator;
 
-    struct GenesisValidatorMetadata has drop, copy {
+    public struct GenesisValidatorMetadata has drop, copy {
         name: vector<u8>,
         description: vector<u8>,
         image_url: vector<u8>,
@@ -36,15 +36,10 @@ module iota_system::genesis {
         worker_address: vector<u8>,
     }
 
-    struct GenesisChainParameters has drop, copy {
+    public struct GenesisChainParameters has drop, copy {
         protocol_version: u64,
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
-
-        stake_subsidy_start_epoch: u64,
-        stake_subsidy_initial_distribution_amount: u64,
-        stake_subsidy_period_length: u64,
-        stake_subsidy_decrease_rate: u16,
 
         max_validator_count: u64,
         min_validator_joining_stake: u64,
@@ -53,12 +48,12 @@ module iota_system::genesis {
         validator_low_stake_grace_period: u64,
     }
 
-    struct TokenDistributionSchedule has drop {
-        stake_subsidy_fund_nanos: u64,
+    public struct TokenDistributionSchedule has drop {
+        pre_minted_supply: u64,
         allocations: vector<TokenAllocation>,
     }
 
-    struct TokenAllocation has drop {
+    public struct TokenAllocation has drop {
         recipient_address: address,
         amount_nanos: u64,
         staked_with_validator: Option<address>,
@@ -66,7 +61,7 @@ module iota_system::genesis {
 
     fun create(
         iota_system_state_id: UID,
-        iota_supply: Balance<IOTA>,
+        mut iota_supply: Balance<IOTA>,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
@@ -74,9 +69,9 @@ module iota_system::genesis {
     ) {
         assert!(tx_context::epoch(ctx) == 0, 0);
 
-        let validators = vector::empty();
+        let mut validators = vector::empty();
         let count = vector::length(&genesis_validators);
-        let i = 0;
+        let mut i = 0;
         while (i < count) {
             let GenesisValidatorMetadata {
                 name: _,

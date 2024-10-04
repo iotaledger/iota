@@ -6,20 +6,14 @@ import { Text } from '@iota/ui';
 
 import { CollapsibleCard, CollapsibleSection, ObjectLink } from '~/components/ui';
 
-import type { OwnedObjectRef } from '@iota/iota.js/client';
+import type { OwnedObjectRef } from '@iota/iota-sdk/client';
 
 export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
     if (!data?.length) return null;
 
     return (
-        <CollapsibleCard title="Changes" size="sm" shadow>
-            <CollapsibleSection
-                title={
-                    <Text variant="body/semibold" color="success-dark">
-                        Updated
-                    </Text>
-                }
-            >
+        <CollapsibleCard title="Changes">
+            <CollapsibleSection title="Updated">
                 <div className="flex flex-col gap-2">
                     {data.map((object) => {
                         const { objectId } = object.reference;

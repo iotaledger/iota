@@ -1,7 +1,7 @@
 [package]
 name = "narwhal-network"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -13,9 +13,9 @@ bytes.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 dashmap.workspace = true
 futures.workspace = true
+iota-common.workspace = true
 iota-macros.workspace = true
-mysten-common.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 quinn-proto.workspace = true
@@ -28,9 +28,7 @@ anemo.workspace = true
 anemo-tower.workspace = true
 anyhow.workspace = true
 axum.workspace = true
-axum-server.workspace = true
 tower.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true
-test-utils = { path = "../test-utils", package = "narwhal-test-utils" }

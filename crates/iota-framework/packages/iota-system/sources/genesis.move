@@ -6,14 +6,13 @@ module iota_system::genesis {
 
     use std::string::String;
 
-    use iota::balance::{Self, Balance};
-    use iota::iota::{Self, IOTA};
+    use iota::balance;
+    use iota::iota::{Self, IotaTreasuryCap};
     use iota::timelock::SystemTimelockCap;
     use iota_system::iota_system;
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set;
     use iota_system::iota_system_state_inner;
-    use iota_system::stake_subsidy;
     use iota_system::timelocked_staking;
 
     public struct GenesisValidatorMetadata has drop, copy {
@@ -44,12 +43,6 @@ module iota_system::genesis {
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
 
-        // Stake Subsidy parameters
-        stake_subsidy_start_epoch: u64,
-        stake_subsidy_initial_distribution_amount: u64,
-        stake_subsidy_period_length: u64,
-        stake_subsidy_decrease_rate: u16,
-
         // Validator committee parameters
         max_validator_count: u64,
         min_validator_joining_stake: u64,
@@ -59,7 +52,7 @@ module iota_system::genesis {
     }
 
     public struct TokenDistributionSchedule {
-        stake_subsidy_fund_nanos: u64,
+        pre_minted_supply: u64,
         allocations: vector<TokenAllocation>,
     }
 
@@ -79,6 +72,8 @@ module iota_system::genesis {
     const ENotCalledAtGenesis: u64 = 0;
     /// The `create` function was called with duplicate validators.
     const EDuplicateValidator: u64 = 1;
+    /// The `create` function was called with wrong pre-minted supply.
+    const EWrongPreMintedSupply: u64 = 2;
 
     #[allow(unused_function)]
     /// This function will be explicitly called once at genesis.
@@ -86,7 +81,7 @@ module iota_system::genesis {
     /// all the information we need in the system.
     fun create(
         iota_system_state_id: UID,
-        mut iota_supply: Balance<IOTA>,
+        mut iota_treasury_cap: IotaTreasuryCap,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         token_distribution_schedule: TokenDistributionSchedule,
@@ -98,11 +93,12 @@ module iota_system::genesis {
         assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
 
         let TokenDistributionSchedule {
-            stake_subsidy_fund_nanos,
+            pre_minted_supply,
             allocations,
         } = token_distribution_schedule;
 
-        let subsidy_fund = iota_supply.split(stake_subsidy_fund_nanos);
+        assert!(iota_treasury_cap.total_supply() == pre_minted_supply, EWrongPreMintedSupply);
+
         let storage_fund = balance::zero();
 
         // Create all the `Validator` structs
@@ -160,7 +156,7 @@ module iota_system::genesis {
 
         // Allocate tokens and staking operations
         allocate_tokens(
-            iota_supply,
+            &mut iota_treasury_cap,
             allocations,
             &mut validators,
             timelock_genesis_label,
@@ -172,7 +168,6 @@ module iota_system::genesis {
 
         let system_parameters = iota_system_state_inner::create_system_parameters(
             genesis_chain_parameters.epoch_duration_ms,
-            genesis_chain_parameters.stake_subsidy_start_epoch,
 
             // Validator committee parameters
             genesis_chain_parameters.max_validator_count,
@@ -184,29 +179,21 @@ module iota_system::genesis {
             ctx,
         );
 
-        let stake_subsidy = stake_subsidy::create(
-            subsidy_fund,
-            genesis_chain_parameters.stake_subsidy_initial_distribution_amount,
-            genesis_chain_parameters.stake_subsidy_period_length,
-            genesis_chain_parameters.stake_subsidy_decrease_rate,
-            ctx,
-        );
-
         iota_system::create(
             iota_system_state_id,
+            iota_treasury_cap,
             validators,
             storage_fund,
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             system_parameters,
-            stake_subsidy,
             system_timelock_cap,
             ctx,
         );
     }
 
     fun allocate_tokens(
-        mut iota_supply: Balance<IOTA>,
+        iota_treasury_cap: &mut IotaTreasuryCap,
         mut allocations: vector<TokenAllocation>,
         validators: &mut vector<Validator>,
         timelock_genesis_label: Option<String>,
@@ -221,7 +208,7 @@ module iota_system::genesis {
                 staked_with_timelock_expiration,
             } = allocations.pop_back();
 
-            let allocation_balance = iota_supply.split(amount_nanos);
+            let allocation_balance = iota_treasury_cap.mint_balance(amount_nanos, ctx);
 
             if (staked_with_validator.is_some()) {
                 let validator_address = staked_with_validator.destroy_some();
@@ -253,10 +240,6 @@ module iota_system::genesis {
             };
         };
         allocations.destroy_empty();
-
-        // Provided allocations must fully allocate the iota_supply and there
-        // should be none left at this point.
-        iota_supply.destroy_zero();
     }
 
     fun activate_validators(validators: &mut vector<Validator>) {

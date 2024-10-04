@@ -1,12 +1,10 @@
 ---
-description: 'Explore methods in the Call Context that facilitate the handling and transfer of asset balances in smart contracts using the `dividend` example.'
-tags:
-  - Call Context
-  - Asset Balances
-  - ScBalances Proxy
-  - ScTransfer Proxy
-  - Dividend Smart Contract
+description: Explore methods in the Call Context that facilitate the handling and transfer of asset balances in smart contracts using the `dividend` example.
 image: /img/logo/WASP_logo_dark.png
+tags:
+  - how-to
+  - evm
+  - schema
 ---
 
 import Tabs from '@theme/Tabs';
@@ -47,7 +45,7 @@ Here's how it works:
 1. **Setup**: Establish a list of members with associated address/factor pairs and calculate the total factor sum.
 2. **Function**: The `divide()` function manages the dividend distribution.
 3. **Dividend Allocation**:
-   - **Input**: Iotas sent to the `divide()` function.
+   - **Input**: IOTAs sent to the `divide()` function.
    - **Distribution**: Proportional to the individual's factor.
    - **Example**: For factors A:50, B:30, and C:20 (total 100):
      - **A receives**: 50/100 of the input iotas.

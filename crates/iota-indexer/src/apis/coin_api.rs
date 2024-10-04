@@ -3,34 +3,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{
-    coin_api::{parse_to_struct_tag, parse_to_type_tag},
     IotaRpcModule,
+    coin_api::{parse_to_struct_tag, parse_to_type_tag},
 };
-use iota_json_rpc_api::{cap_page_limit, CoinReadApiServer};
+use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata, Page};
 use iota_open_rpc::Module;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
-    gas_coin::{GAS, TOTAL_SUPPLY_NANOS},
+    gas_coin::GAS,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::indexer_reader::IndexerReader;
 
-pub(crate) struct CoinReadApi {
-    inner: IndexerReader,
+pub(crate) struct CoinReadApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl CoinReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection> CoinReadApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 }
 
 #[async_trait]
-impl CoinReadApiServer for CoinReadApi {
+impl<T: R2D2Connection + 'static> CoinReadApiServer for CoinReadApi<T> {
     async fn get_coins(
         &self,
         owner: IotaAddress,
@@ -138,7 +139,11 @@ impl CoinReadApiServer for CoinReadApi {
         let coin_struct = parse_to_struct_tag(&coin_type)?;
         if GAS::is_gas(&coin_struct) {
             Ok(Supply {
-                value: TOTAL_SUPPLY_NANOS,
+                value: self
+                    .inner
+                    .spawn_blocking(|this| this.get_latest_iota_system_state())
+                    .await?
+                    .iota_total_supply,
             })
         } else {
             self.inner
@@ -149,7 +154,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 }
 
-impl IotaRpcModule for CoinReadApi {
+impl<T: R2D2Connection> IotaRpcModule for CoinReadApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

@@ -6,8 +6,8 @@ import { CONSTANTS, QueryKey } from "@/constants";
 import { useTransactionExecution } from "@/hooks/useTransactionExecution";
 import { ApiEscrowObject, ApiLockedObject } from "@/types/types";
 import { useCurrentAccount, useIotaClient } from "@iota/dapp-kit";
-import { IotaObjectData } from "@iota/iota.js/client";
-import { TransactionBlock } from "@iota/iota.js/transactions";
+import { IotaObjectData } from "@iota/iota-sdk/client";
+import { Transaction } from "@iota/iota-sdk/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 /**
@@ -29,7 +29,7 @@ export function useAcceptEscrowMutation() {
     }) => {
       if (!currentAccount?.address)
         throw new Error("You need to connect your wallet!");
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
 
       const escrowObject = await client.multiGetObjects({
         ids: [escrow.itemId, locked.itemId],
@@ -91,7 +91,7 @@ export function useCancelEscrowMutation() {
     }) => {
       if (!currentAccount?.address)
         throw new Error("You need to connect your wallet!");
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
 
       const item = txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::shared::return_to_sender`,
@@ -130,7 +130,7 @@ export function useCreateEscrowMutation() {
       if (!currentAccount?.address)
         throw new Error("You need to connect your wallet!");
 
-      const txb = new TransactionBlock();
+      const txb = new Transaction();
       txb.moveCall({
         target: `${CONSTANTS.escrowContract.packageId}::shared::create`,
         arguments: [

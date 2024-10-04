@@ -9,7 +9,7 @@ use iota_config::genesis::UnsignedGenesis;
 use iota_types::{
     base_types::ObjectID,
     coin::CoinMetadata,
-    gas_coin::{GasCoin, NANOS_PER_IOTA, TOTAL_SUPPLY_NANOS},
+    gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
@@ -60,10 +60,6 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
             system_object.storage_fund.non_refundable_balance.value(),
         ),
     );
-    entry.insert(
-        "Stake Subsidy".to_string(),
-        (STR_IOTA, system_object.stake_subsidy.balance.value()),
-    );
 
     // Prepare Object Info
     let mut owner_map = BTreeMap::new();
@@ -94,7 +90,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                         .entry(object.owner.to_string())
                         .or_default();
                     entry.insert(object_id_str, (STR_STAKED_IOTA, staked_iota.principal()));
-                    // Assert pool id is associated with a knonw validator.
+                    // Assert pool id is associated with a known validator.
                     let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
 
@@ -109,12 +105,12 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
         }
     }
     println!(
-        "Total Number of Objects/Pacakges: {}",
+        "Total Number of Objects/Packages: {}",
         genesis.objects().len()
     );
 
     // Always check the Total Supply
-    examine_total_supply(&iota_distribution, false);
+    examine_total_supply(&system_object.iota_treasury_cap, &iota_distribution, false);
 
     // Main loop for inspection
     let main_options: Vec<&str> =
@@ -127,7 +123,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
         .prompt();
         match ans {
             Ok(name) if name == STR_IOTA_DISTRIBUTION => {
-                examine_total_supply(&iota_distribution, true)
+                examine_total_supply(&system_object.iota_treasury_cap, &iota_distribution, true)
             }
             Ok(name) if name == STR_VALIDATORS => {
                 examine_validators(&validator_options, &validator_map);
@@ -251,6 +247,7 @@ fn examine_object(
 }
 
 fn examine_total_supply(
+    iota_treasury_cap: &IotaTreasuryCap,
     iota_distribution: &BTreeMap<String, BTreeMap<String, (&str, u64)>>,
     print: bool,
 ) {
@@ -274,7 +271,7 @@ fn examine_total_supply(
             println!("{:#?}\n", coins);
         }
     }
-    assert_eq!(total_iota, TOTAL_SUPPLY_NANOS);
+    assert_eq!(total_iota, iota_treasury_cap.total_supply().value);
     // Always print this.
     println!(
         "Total Supply of Iota: {total_iota} NANOS or {} IOTA",
@@ -332,7 +329,7 @@ fn display_validator(validator: &IotaValidatorGenesis) {
         validator.staking_pool.pending_total_iota_withdraw
     );
     println!(
-        "Pendign Pool Token Withdraw: {}",
+        "Pending Pool Token Withdraw: {}",
         validator.staking_pool.pending_pool_token_withdraw
     );
     println!(

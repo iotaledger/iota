@@ -8,12 +8,11 @@ x-common-validator: &common-validator
     - RPC_WORKER_THREAD=12
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
-  command: &common-command
-    [
-      "/usr/local/bin/iota-node",
-      "--config-path",
-      "/opt/iota/config/validator.yaml",
-    ]
+  command: &common-command [
+    "/usr/local/bin/iota-node",
+    "--config-path",
+    "/opt/iota/config/validator.yaml",
+  ]
   restart: on-failure
   logging: &common-logging
     driver: "json-file"
@@ -153,7 +152,7 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
       - RPC_WORKER_THREAD=12
-    command: 
+    command:
       - /usr/local/bin/iota-indexer
       - --db-url=postgres://iota_indexer:iota_indexer@postgres_primary:5432/iota_indexer
       - --rpc-client-url=http://fullnode-3:9000
@@ -208,7 +207,7 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
       - RPC_WORKER_THREAD=12
-    command: 
+    command:
       - /usr/local/bin/iota-faucet
       - --port=5003
       - --host-ip=0.0.0.0
@@ -244,11 +243,11 @@ services:
       POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     command: |
-      postgres 
-      -c wal_level=replica 
-      -c hot_standby=on 
-      -c max_wal_senders=10 
-      -c max_replication_slots=10 
+      postgres
+      -c wal_level=replica
+      -c hot_standby=on
+      -c max_wal_senders=10
+      -c max_replication_slots=10
       -c hot_standby_feedback=on
       -c 'max_connections=1000'
     volumes:
@@ -309,4 +308,4 @@ networks:
     driver: bridge
     ipam:
       config:
-      - subnet: 10.0.0.0/24
+        - subnet: 10.0.0.0/24

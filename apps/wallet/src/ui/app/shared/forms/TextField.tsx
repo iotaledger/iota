@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
-
-import { Input } from './controls/Input';
-import { PasswordInput } from './controls/PasswordInput';
 import FormField from './FormField';
+import { Input, InputType } from '@iota/apps-ui-kit';
 
 type TextFieldProps = {
     name: string;
@@ -15,11 +13,17 @@ type TextFieldProps = {
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     ({ label, ...props }, forwardedRef) => {
-        const InputComponent = props.type === 'password' ? PasswordInput : Input;
-
+        const value = props.value ? String(props.value) : '';
+        const defaultValue = props.defaultValue ? String(props.defaultValue) : '';
         return (
             <FormField name={props.name} label={label}>
-                <InputComponent {...props} ref={forwardedRef} />
+                <Input
+                    {...props}
+                    defaultValue={defaultValue}
+                    type={props.type === 'password' ? InputType.Password : InputType.Text}
+                    value={value}
+                    ref={forwardedRef}
+                />
             </FormField>
         );
     },

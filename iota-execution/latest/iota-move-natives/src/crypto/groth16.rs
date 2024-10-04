@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::collections::VecDeque;
 
 use move_binary_format::errors::PartialVMResult;
@@ -96,15 +97,14 @@ pub fn prepare_verifying_key_internal(
     }
 
     match result {
-        Ok(pvk) => Ok(NativeResult::ok(
-            cost,
-            smallvec![Value::struct_(values::Struct::pack(vec![
+        Ok(pvk) => Ok(NativeResult::ok(cost, smallvec![Value::struct_(
+            values::Struct::pack(vec![
                 Value::vector_u8(pvk[0].to_vec()),
                 Value::vector_u8(pvk[1].to_vec()),
                 Value::vector_u8(pvk[2].to_vec()),
                 Value::vector_u8(pvk[3].to_vec())
-            ]))],
-        )),
+            ])
+        )])),
         Err(_) => Ok(NativeResult::err(cost, INVALID_VERIFYING_KEY)),
     }
 }
@@ -249,8 +249,7 @@ pub fn verify_groth16_proof_internal(
         return Ok(NativeResult::err(cost, INVALID_CURVE));
     }
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::bool(result.unwrap_or(false))],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::bool(
+        result.unwrap_or(false)
+    )]))
 }

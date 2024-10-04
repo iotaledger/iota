@@ -6,7 +6,7 @@ import cx from 'classnames';
 import { ArrowRight } from '@iota/ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components';
 
-interface ListItemProps {
+export interface ListItemProps {
     /**
      * Has right icon (optional).
      */
@@ -32,21 +32,37 @@ export function ListItem({
     isDisabled,
     children,
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
+    function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+        if ((event.key === 'Enter' || event.key === ' ') && !isDisabled && onClick) {
+            onClick();
+        }
+    }
+
+    function handleClick() {
+        if (!isDisabled && onClick) {
+            onClick();
+        }
+    }
+
     return (
         <div
-            onClick={onClick}
             className={cx(
-                'w-full pb-xs',
+                'w-full',
                 {
-                    'border-b border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+                    'border-b border-shader-neutral-light-8 pb-xs dark:border-shader-neutral-dark-8':
                         !hideBottomBorder,
                 },
                 { 'opacity-40': isDisabled },
             )}
         >
             <div
+                onClick={handleClick}
+                role="button"
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
                 className={cx(
-                    'relative flex min-h-[48px] flex-row items-center justify-between text-neutral-10 dark:text-neutral-92',
+                    'relative flex flex-row items-center justify-between px-md py-sm text-neutral-10 dark:text-neutral-92',
+                    !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',
                     { 'state-layer': !isDisabled },
                 )}
             >

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::collections::VecDeque;
 
 use fastcrypto::{
@@ -91,8 +92,7 @@ pub fn ed25519_verify(
         return Ok(NativeResult::ok(cost, smallvec![Value::bool(false)]));
     };
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::bool(public_key.verify(&msg_ref, &signature).is_ok())],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::bool(
+        public_key.verify(&msg_ref, &signature).is_ok()
+    )]))
 }

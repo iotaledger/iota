@@ -84,7 +84,12 @@ test('DepthSearch with found addresses', async () => {
     });
 
     assert(foundAccounts.length === 1); // expected number of accounts - 1 as we make a search by isolated address;
-    assert(foundAccounts[0].addresses.length === 7); // expected number of addresses - 5 as we have a hit on positions: (0,0,0), (0,2,0);
+
+    // we expect to have at least 4 addresses (indexes: 0, 1, 2, 3).
+    // But as we have a hit on positions: (0,0,0), (0,2,0).
+    // Because of 2 (last index with balance) + 4 (addressGapLimit) = 6 last expected index.
+    // Number of elements should be 7
+    assert(foundAccounts[0].addresses.length === 7);
 });
 
 test('Merge accounts', async () => {
@@ -113,5 +118,6 @@ test('Merge accounts', async () => {
     assert(mergedAccounts.length === 4);
 
     // merged accounts count is 4 because max index for both accounts is 5.
-    assert(mergedAccounts[0].addresses.length === 5); // expected number of addresses - 5 as we have a hit on positions: (0,0,0), (0,2,0);
+    assert(mergedAccounts[0].addresses.length === 4); // for account 0 max number of address is 4;
+    assert(mergedAccounts[1].addresses.length === 5); // for account 1 max number of address is 5;
 });

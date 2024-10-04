@@ -1,39 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export interface ID {
-    bytes: string;
-}
-
-export interface UID {
-    id: ID;
-}
-
-export interface Balance {
-    value: number;
-}
-
-export interface Timelocked {
-    id: UID;
-    locked: Balance;
-    expirationTimestampMs: number;
-    label?: string;
-}
-
-export interface StakedIota {
-    id: UID;
-    poolId: ID;
-    stakeActivationEpoch: number;
-    principal: Balance;
-}
-
-export interface TimelockedStakedIota {
-    id: UID;
-    stakedIota: StakedIota;
-    expirationTimestampMs: number;
-    label?: string;
-}
-
 export enum SupplyIncreaseUserType {
     Staker = 'Staker',
     Entity = 'Entity',

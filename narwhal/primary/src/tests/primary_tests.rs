@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     num::NonZeroUsize,
@@ -20,23 +21,23 @@ use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::{NodeStorage, VoteDigestStore};
 use test_utils::{
-    latest_protocol_version, make_optimal_signed_certificates, temp_dir, CommitteeFixture,
+    CommitteeFixture, latest_protocol_version, make_optimal_signed_certificates, temp_dir,
 };
 use tokio::{sync::watch, time::timeout};
 use types::{
-    now, Certificate, CertificateAPI, FetchCertificatesRequest, Header, HeaderAPI,
-    MockPrimaryToWorker, PreSubscribedBroadcastSender, PrimaryToPrimary, RequestVoteRequest,
-    SignatureVerificationState,
+    Certificate, CertificateAPI, FetchCertificatesRequest, Header, HeaderAPI, MockPrimaryToWorker,
+    PreSubscribedBroadcastSender, PrimaryToPrimary, RequestVoteRequest, SignatureVerificationState,
+    now,
 };
-use worker::{metrics::initialise_metrics, TrivialTransactionValidator, Worker};
+use worker::{TrivialTransactionValidator, Worker, metrics::initialise_metrics};
 
-use super::{Primary, PrimaryReceiverHandler, CHANNEL_CAPACITY};
+use super::{CHANNEL_CAPACITY, Primary, PrimaryReceiverHandler};
 use crate::{
+    NUM_SHUTDOWN_RECEIVERS,
     common::create_db_stores,
     consensus::{ConsensusRound, LeaderSchedule, LeaderSwapTable},
     metrics::{PrimaryChannelMetrics, PrimaryMetrics},
     synchronizer::Synchronizer,
-    NUM_SHUTDOWN_RECEIVERS,
 };
 
 #[tokio::test]
@@ -58,7 +59,7 @@ async fn test_get_network_peers_from_admin_server() {
     let store = NodeStorage::reopen(temp_dir(), None);
     let client_1 = NetworkClient::new_from_keypair(&authority_1.network_keypair());
 
-    let (tx_new_certificates, _rx_new_certificates) = mysten_metrics::metered_channel::channel(
+    let (tx_new_certificates, _rx_new_certificates) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_NEW_CERTS,
@@ -66,7 +67,7 @@ async fn test_get_network_peers_from_admin_server() {
         )
         .unwrap(),
     );
-    let (tx_feedback, rx_feedback) = mysten_metrics::metered_channel::channel(
+    let (tx_feedback, rx_feedback) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_COMMITTED_CERTS,
@@ -173,7 +174,7 @@ async fn test_get_network_peers_from_admin_server() {
     };
 
     // TODO: Rework test-utils so that macro can be used for the channels below.
-    let (tx_new_certificates_2, _rx_new_certificates_2) = mysten_metrics::metered_channel::channel(
+    let (tx_new_certificates_2, _rx_new_certificates_2) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_NEW_CERTS,
@@ -181,7 +182,7 @@ async fn test_get_network_peers_from_admin_server() {
         )
         .unwrap(),
     );
-    let (tx_feedback_2, rx_feedback_2) = mysten_metrics::metered_channel::channel(
+    let (tx_feedback_2, rx_feedback_2) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_COMMITTED_CERTS,
@@ -1025,30 +1026,18 @@ async fn test_fetch_certificates_v2_handler() {
     // Each test case contains (lower bound round, skip rounds, max items, expected
     // output).
     let test_cases = vec![
-        (
-            0,
-            vec![vec![], vec![], vec![], vec![]],
-            20,
-            vec![1, 1, 1, 1, 2, 2, 2, 3, 3, 4],
-        ),
-        (
-            0,
-            vec![vec![1u64], vec![1], vec![], vec![]],
-            20,
-            vec![1, 1, 2, 2, 2, 3, 3, 4],
-        ),
-        (
-            0,
-            vec![vec![], vec![], vec![1], vec![1]],
-            20,
-            vec![1, 1, 2, 2, 2, 3, 3, 4],
-        ),
-        (
-            1,
-            vec![vec![], vec![], vec![2], vec![2]],
-            4,
-            vec![2, 3, 3, 4],
-        ),
+        (0, vec![vec![], vec![], vec![], vec![]], 20, vec![
+            1, 1, 1, 1, 2, 2, 2, 3, 3, 4,
+        ]),
+        (0, vec![vec![1u64], vec![1], vec![], vec![]], 20, vec![
+            1, 1, 2, 2, 2, 3, 3, 4,
+        ]),
+        (0, vec![vec![], vec![], vec![1], vec![1]], 20, vec![
+            1, 1, 2, 2, 2, 3, 3, 4,
+        ]),
+        (1, vec![vec![], vec![], vec![2], vec![2]], 4, vec![
+            2, 3, 3, 4,
+        ]),
         (1, vec![vec![], vec![], vec![2], vec![2]], 2, vec![2, 3]),
         (
             0,
@@ -1059,12 +1048,9 @@ async fn test_fetch_certificates_v2_handler() {
         (2, vec![vec![], vec![], vec![], vec![]], 3, vec![3, 3, 4]),
         (2, vec![vec![], vec![], vec![], vec![]], 2, vec![3, 3]),
         // Check that round 2 and 4 are fetched for the last authority, skipping round 3.
-        (
-            1,
-            vec![vec![], vec![], vec![3], vec![3]],
-            5,
-            vec![2, 2, 2, 4],
-        ),
+        (1, vec![vec![], vec![], vec![3], vec![3]], 5, vec![
+            2, 2, 2, 4,
+        ]),
     ];
     for (lower_bound_round, skip_rounds_vec, max_items, expected_rounds) in test_cases {
         let req = FetchCertificatesRequest::default()

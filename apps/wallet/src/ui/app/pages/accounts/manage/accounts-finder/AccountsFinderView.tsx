@@ -2,27 +2,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search24 } from '@iota/icons';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
-import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
-import { useParams } from 'react-router-dom';
-import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { useAccounts } from '_src/ui/app/hooks/useAccounts';
-import { getKey } from '_src/ui/app/helpers/accounts';
-import { useMemo, useState } from 'react';
-import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
-import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
-import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
-import { AccountType } from '_src/background/accounts/Account';
-import { ConnectLedgerModal } from '_src/ui/app/components/ledger/ConnectLedgerModal';
-import toast from 'react-hot-toast';
-import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
+import {
+    LoadingIndicator,
+    AccountBalanceItem,
+    VerifyPasswordModal,
+    ConnectLedgerModal,
+    useIotaLedgerClient,
+} from '_components';
 import {
     AccountSourceType,
     type AccountSourceSerializedUI,
 } from '_src/background/account-sources/AccountSource';
+import { AccountType } from '_src/background/accounts/Account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
+import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import { getKey } from '_src/ui/app/helpers/accounts';
+import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
+import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
+import { useAccounts } from '_src/ui/app/hooks/useAccounts';
+import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
+import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
+import { Button } from '_src/ui/app/shared/ButtonUI';
+import { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
+import { useParams } from 'react-router-dom';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -37,15 +40,21 @@ function getAccountSourceType(
     }
 }
 
+enum SearchPhase {
+    Ready, // initialized and ready to start
+    Ongoing, // search ongoing
+    Idle, // search has finished and is idle, ready to start again
+}
+
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
     const accountSourceType = getAccountSourceType(accountSource);
-    const [searched, setSearched] = useState(false);
     const [password, setPassword] = useState('');
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
@@ -60,7 +69,7 @@ export function AccountsFinderView(): JSX.Element {
                       type: 'software',
                       sourceID: accountSourceId!,
                   },
-        [password, accountSourceId],
+        [password, accountSourceId, accountSourceType],
     );
     const { find } = useAccountsFinder({
         accountSourceType,
@@ -75,9 +84,13 @@ export function AccountsFinderView(): JSX.Element {
         setPasswordModalVisible(true);
     }
 
-    async function findMore() {
-        await find();
-        setSearched(true);
+    async function runAccountsFinder() {
+        try {
+            setSearchPhase(SearchPhase.Ongoing);
+            await find();
+        } finally {
+            setSearchPhase(SearchPhase.Idle);
+        }
     }
 
     const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
@@ -85,6 +98,27 @@ export function AccountsFinderView(): JSX.Element {
         accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
     const isLedgerLocked =
         accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient;
+
+    const searchOptions = (() => {
+        if (searchPhase === SearchPhase.Ready) {
+            return {
+                text: 'Search',
+                icon: <Search24 />,
+            };
+        }
+        if (searchPhase === SearchPhase.Ongoing) {
+            return {
+                text: '',
+                icon: <LoadingIndicator />,
+            };
+        }
+        return {
+            text: 'Search again',
+            icon: <Search24 />,
+        };
+    })();
+
+    const isSearchOngoing = searchPhase === SearchPhase.Ongoing;
 
     return (
         <>
@@ -114,14 +148,25 @@ export function AccountsFinderView(): JSX.Element {
                             <Button
                                 variant="outline"
                                 size="tall"
-                                text={searched ? 'Search again' : 'Search'}
-                                after={<Search24 />}
-                                onClick={findMore}
+                                text={searchOptions.text}
+                                after={searchOptions.icon}
+                                onClick={runAccountsFinder}
+                                disabled={isSearchOngoing}
                             />
 
                             <div className="flex flex-row gap-2">
-                                <Button variant="outline" size="tall" text="Skip" />
-                                <Button variant="outline" size="tall" text="Continue" />
+                                <Button
+                                    variant="outline"
+                                    size="tall"
+                                    text="Skip"
+                                    disabled={isSearchOngoing}
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="tall"
+                                    text="Continue"
+                                    disabled={isSearchOngoing}
+                                />
                             </div>
                         </>
                     )}

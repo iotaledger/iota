@@ -9,9 +9,9 @@ use async_trait::async_trait;
 use iota_core::{
     authority_aggregator::AuthorityAggregator,
     authority_client::NetworkAuthorityClient,
-    quorum_driver::{reconfig_observer::ReconfigObserver, QuorumDriver},
+    quorum_driver::{QuorumDriver, reconfig_observer::ReconfigObserver},
 };
-use iota_network::default_mysten_network_config;
+use iota_network::default_iota_network_config;
 use iota_types::iota_system_state::IotaSystemStateTrait;
 use tracing::{error, info, trace};
 
@@ -24,6 +24,7 @@ use tracing::{error, info, trace};
 /// 2. because of 1, if it misses intermediate committee(s) and we happen to
 ///    have a big committee rotation, it may fail to get quorum on the latest
 ///    committee info from demissioned validators and then stop working.
+///
 /// Background: this is a temporary solution for stress before
 /// we see fullnode reconfiguration stabilizes.
 #[derive(Clone, Default)]
@@ -50,13 +51,12 @@ impl EmbeddedReconfigObserver {
         {
             Err(err) => Err(err),
             Ok(committee_info) => {
-                let network_config = default_mysten_network_config();
-                let new_epoch = committee_info.committee.epoch;
+                let network_config = default_iota_network_config();
+                let new_epoch = committee_info.epoch();
                 if new_epoch <= cur_epoch {
                     trace!(
                         cur_epoch,
-                        new_epoch,
-                        "Ignored Committee from a previous or current epoch",
+                        new_epoch, "Ignored Committee from a previous or current epoch",
                     );
                     return Ok(auth_agg);
                 }

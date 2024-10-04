@@ -7,6 +7,7 @@ use iota_config::genesis::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
+    gas_coin::STARDUST_TOTAL_SUPPLY_NANOS,
     object::Object,
     stardust::coin_kind::get_gas_balance_maybe,
 };
@@ -39,7 +40,7 @@ impl GenesisStake {
         std::mem::take(&mut self.timelocks_to_burn)
     }
 
-    /// Take the inner timelock objects that must be splitted.
+    /// Take the inner timelock objects that must be split.
     ///
     /// This follows the semantics of [`std::mem::take`].
     pub fn take_timelocks_to_split(&mut self) -> Vec<(ObjectRef, u64, IotaAddress)> {
@@ -64,6 +65,11 @@ impl GenesisStake {
     /// inner token allocations.
     pub fn to_token_distribution_schedule(&self) -> TokenDistributionSchedule {
         let mut builder = TokenDistributionScheduleBuilder::new();
+
+        let pre_minted_supply = self.calculate_pre_minted_supply();
+
+        builder.set_pre_minted_supply(pre_minted_supply);
+
         for allocation in self.token_allocation.clone() {
             builder.add_allocation(allocation);
         }
@@ -73,9 +79,12 @@ impl GenesisStake {
     /// Extend a vanilla [`TokenDistributionSchedule`] with the
     /// inner token allocations.
     ///
-    /// ## Panic
+    /// The resulting schedule is guaranteed to contain allocations
+    /// that sum up the initial total supply of Iota in nanos.
     ///
-    /// The method panics if the resulting schedule is invalid.
+    /// ## Errors
+    ///
+    /// The method fails if the resulting schedule contains is invalid.
     pub fn extend_vanilla_token_distribution_schedule(
         &self,
         mut vanilla_schedule: TokenDistributionSchedule,
@@ -83,9 +92,14 @@ impl GenesisStake {
         vanilla_schedule
             .allocations
             .extend(self.token_allocation.clone());
-        vanilla_schedule.stake_subsidy_fund_nanos -= self.sum_token_allocation();
+        vanilla_schedule.pre_minted_supply = self.calculate_pre_minted_supply();
         vanilla_schedule.validate();
         vanilla_schedule
+    }
+
+    /// Calculates the part of the IOTA supply that is pre-minted.
+    fn calculate_pre_minted_supply(&self) -> u64 {
+        STARDUST_TOTAL_SUPPLY_NANOS - self.sum_token_allocation()
     }
 }
 
@@ -156,8 +170,8 @@ pub fn pick_objects_for_allocation<'obj>(
 /// This function iterates in turn over [`TimeLock`] and
 /// [`GasCoin`][iota_types::gas_coin::GasCoin] objects created
 /// during stardust migration that are owned by the `delegator`.
-pub fn delegate_genesis_stake(
-    validators: &[GenesisValidatorInfo],
+pub fn delegate_genesis_stake<'info>(
+    validators: impl Iterator<Item = &'info GenesisValidatorInfo>,
     delegator: IotaAddress,
     migration_objects: &MigrationObjects,
     amount_nanos: u64,

@@ -1,15 +1,10 @@
 ---
-description: 'IOTA Smart Contracts chains keep a ledger of on-chain account balances. On-chain accounts are identified
-by an AgentID.'
+description: IOTA Smart Contracts chains keep a ledger of on-chain account balances. On-chain accounts are identified by an AgentID.
 image: /img/iota-evm/tutorial/accounts.png
 tags:
-
-- smart contracts
-- on-chain account
-- ownership
-- accounts Contract
-- explanation
-
+  - explanation
+  - isc-accounts
+  - evm
 ---
 
 # How Accounts Work
@@ -49,9 +44,8 @@ Any _smart contract_ can be the owner of a L2 account. Recall that a smart
 contract is uniquely identified in a chain by a [_hname_](smart-contract-anatomy.md#identifying-a-smart-contract).
 However, the hname is not enough to identify the account since a smart contract on another chain could own it.
 
-Thus, the Agent ID of a smart contract is composed as the contract hname plus the [_chain
-ID_](states.md#digital-assets-on-the-chain), with syntax `<hname>@<chain-id>`. For
-example: `cebf5908@tgl1pzehtgythywhnhnz26s2vtpe2wy4y64pfcwkp9qvzhpwghzxhwkps2tk0nd`.
+Thus, the Agent ID of a smart contract is composed as the contract hname plus the [_chain ID_](states.md#digital-assets-on-the-chain), with syntax `<hname>@<chain-id>`.
+For example: `cebf5908@tgl1pzehtgythywhnhnz26s2vtpe2wy4y64pfcwkp9qvzhpwghzxhwkps2tk0nd`.
 
 Note that this allows trustless transfers of assets between smart contracts on the same or different chains.
 
@@ -78,9 +72,9 @@ Tokens in an Ethereum account can only be moved by sending an Ethereum transacti
 The [`accounts` core contract](../../../references/iota-evm/core-contracts/accounts.md) is responsible for managing the L2 ledger.
 By calling this contract, it is possible to:
 
--   [View current account balances](../how-tos/core-contracts/basics/get-balance.md)
--   [Deposit funds to the chain](../how-tos/send-funds-from-L1-to-L2.mdx)
--   [Withdraw funds from the chain](../how-tos/core-contracts/basics/send-assets-to-l1.mdx)
+- [View current account balances](../how-tos/core-contracts/basics/get-balance.md)
+- [Deposit funds to the chain](../how-tos/send-funds-from-L1-to-L2.mdx)
+- [Withdraw funds from the chain](../how-tos/core-contracts/basics/send-assets-to-l1.mdx)
 
 ## Example
 

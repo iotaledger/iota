@@ -12,6 +12,7 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::local_ip_utils;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_rosetta::{
+    RosettaOfflineServer, RosettaOnlineServer,
     operations::Operations,
     types::{
         AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier,
@@ -21,34 +22,39 @@ use iota_rosetta::{
         IotaEnv, NetworkIdentifier, Signature, SignatureType, SubAccount, SubAccountType,
         TransactionIdentifierResponse,
     },
-    RosettaOfflineServer, RosettaOnlineServer,
 };
 use iota_sdk::IotaClient;
 use iota_types::{base_types::IotaAddress, crypto::IotaSignature};
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use tokio::task::JoinHandle;
 
-pub async fn start_rosetta_test_server(
-    client: IotaClient,
-) -> (RosettaClient, Vec<JoinHandle<hyper::Result<()>>>) {
+pub async fn start_rosetta_test_server(client: IotaClient) -> (RosettaClient, Vec<JoinHandle<()>>) {
     let online_server = RosettaOnlineServer::new(IotaEnv::LocalNet, client);
     let offline_server = RosettaOfflineServer::new(IotaEnv::LocalNet);
     let local_ip = local_ip_utils::localhost_for_testing();
     let port = local_ip_utils::get_available_port(&local_ip);
     let rosetta_address = format!("{}:{}", local_ip, port);
-    let online_handle = online_server.serve(SocketAddr::from_str(&rosetta_address).unwrap());
+    let online_handle = tokio::spawn(async move {
+        online_server
+            .serve(SocketAddr::from_str(&rosetta_address).unwrap())
+            .await
+    });
     let offline_port = local_ip_utils::get_available_port(&local_ip);
     let offline_address = format!("{}:{}", local_ip, offline_port);
-    let offline_handle = offline_server.serve(SocketAddr::from_str(&offline_address).unwrap());
+    let offline_handle = tokio::spawn(async move {
+        offline_server
+            .serve(SocketAddr::from_str(&offline_address).unwrap())
+            .await
+    });
 
     // allow rosetta to process the genesis block.
     tokio::task::yield_now().await;
-    (
-        RosettaClient::new(port, offline_port),
-        vec![online_handle, offline_handle],
-    )
+    (RosettaClient::new(port, offline_port), vec![
+        online_handle,
+        offline_handle,
+    ])
 }
 
 pub struct RosettaClient {
@@ -115,27 +121,21 @@ impl RosettaClient {
         println!("Preprocess : {preprocess:?}");
         // Metadata
         let metadata: ConstructionMetadataResponse = self
-            .call(
-                RosettaEndpoint::Metadata,
-                &ConstructionMetadataRequest {
-                    network_identifier: network_identifier.clone(),
-                    options: preprocess.options,
-                    public_keys: vec![],
-                },
-            )
+            .call(RosettaEndpoint::Metadata, &ConstructionMetadataRequest {
+                network_identifier: network_identifier.clone(),
+                options: preprocess.options,
+                public_keys: vec![],
+            })
             .await;
         println!("Metadata : {metadata:?}");
         // Payload
         let payloads: ConstructionPayloadsResponse = self
-            .call(
-                RosettaEndpoint::Payloads,
-                &ConstructionPayloadsRequest {
-                    network_identifier: network_identifier.clone(),
-                    operations: operations.clone(),
-                    metadata: Some(metadata.metadata),
-                    public_keys: vec![],
-                },
-            )
+            .call(RosettaEndpoint::Payloads, &ConstructionPayloadsRequest {
+                network_identifier: network_identifier.clone(),
+                operations: operations.clone(),
+                metadata: Some(metadata.metadata),
+                public_keys: vec![],
+            })
             .await;
         println!("Payload : {payloads:?}");
         // Combine
@@ -145,30 +145,24 @@ impl RosettaClient {
         let signature = keystore.sign_hashed(&signer, &bytes).unwrap();
         let public_key = keystore.get_key(&signer).unwrap().public();
         let combine: ConstructionCombineResponse = self
-            .call(
-                RosettaEndpoint::Combine,
-                &ConstructionCombineRequest {
-                    network_identifier: network_identifier.clone(),
-                    unsigned_transaction: payloads.unsigned_transaction,
-                    signatures: vec![Signature {
-                        signing_payload: signing_payload.clone(),
-                        public_key: public_key.into(),
-                        signature_type: SignatureType::Ed25519,
-                        hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
-                    }],
-                },
-            )
+            .call(RosettaEndpoint::Combine, &ConstructionCombineRequest {
+                network_identifier: network_identifier.clone(),
+                unsigned_transaction: payloads.unsigned_transaction,
+                signatures: vec![Signature {
+                    signing_payload: signing_payload.clone(),
+                    public_key: public_key.into(),
+                    signature_type: SignatureType::Ed25519,
+                    hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
+                }],
+            })
             .await;
         println!("Combine : {combine:?}");
         // Submit
         let submit = self
-            .call(
-                RosettaEndpoint::Submit,
-                &ConstructionSubmitRequest {
-                    network_identifier,
-                    signed_transaction: combine.signed_transaction,
-                },
-            )
+            .call(RosettaEndpoint::Submit, &ConstructionSubmitRequest {
+                network_identifier,
+                signed_transaction: combine.signed_transaction,
+            })
             .await;
         println!("Submit : {submit:?}");
         submit

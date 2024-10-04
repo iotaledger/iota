@@ -15,14 +15,14 @@ use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
-    gas_coin::TOTAL_SUPPLY_NANOS,
-    object::{MoveObject, Object, Owner, OBJECT_START_VERSION},
+    gas_coin::NANOS_PER_IOTA,
+    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
@@ -40,14 +40,17 @@ fn generate_random_gas_data(
                                   * obj-owned too */
     owned_by_sender: bool, // whether to set owned gas coins to be owned by the sender
 ) -> GasDataWithObjects {
+    // This value is nested from the STARDUST_TOTAL_SUPPLY_NANOS constant that had
+    // been used as the maximum gas balance here before the inflation mechanism
+    // was implemented.
+    const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
+
     let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
 
-    let max_gas_balance = TOTAL_SUPPLY_NANOS;
-
-    let total_gas_balance = rng.gen_range(0..=max_gas_balance);
+    let total_gas_balance = rng.gen_range(0..=MAX_GAS_BALANCE);
     let mut remaining_gas_balance = total_gas_balance;
     let num_gas_objects = gas_coin_owners.len();
     let gas_coin_owners = gas_coin_owners

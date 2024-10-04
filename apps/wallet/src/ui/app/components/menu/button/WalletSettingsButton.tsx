@@ -2,27 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Close, Settings } from '@iota/ui-icons';
+import { useMenuIsOpen, useNextMenuUrl } from '_components';
 import { ButtonOrLink } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { HamburgerOpen24 as HamburgerOpenIcon, Settings24 as SettingsIcon } from '@iota/icons';
 import { cx } from 'class-variance-authority';
-
-import { useMenuIsOpen, useNextMenuUrl } from '../hooks';
 
 export function WalletSettingsButton() {
     const isOpen = useMenuIsOpen();
     const menuUrl = useNextMenuUrl(!isOpen, '/');
-    const IconComponent = isOpen ? HamburgerOpenIcon : SettingsIcon;
+    const IconComponent = isOpen ? Close : Settings;
 
     return (
         <ButtonOrLink
             className={cx(
-                'ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent hover:text-hero-dark',
+                'hover:text-hero-dark ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-xs text-neutral-10 [&_svg]:h-5 [&_svg]:w-5',
                 { 'text-steel': !isOpen, 'text-gray-90': isOpen },
             )}
             aria-label={isOpen ? 'Close settings menu' : 'Open settings menu'}
             to={menuUrl}
         >
-            <IconComponent className="h-6 w-6" />
+            <IconComponent />
         </ButtonOrLink>
     );
 }

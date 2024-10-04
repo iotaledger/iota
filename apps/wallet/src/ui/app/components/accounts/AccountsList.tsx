@@ -14,6 +14,8 @@ import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { Heading } from '../../shared/heading';
 import { AccountListItem } from './AccountListItem';
 import { FooterLink } from './FooterLink';
+import { useUnlockAccount } from './UnlockAccountContext';
+import { type SerializedUIAccount } from '_src/background/accounts/Account';
 
 export function AccountsList() {
     const accountGroups = useAccountGroups();
@@ -21,12 +23,19 @@ export function AccountsList() {
     const activeAccount = useActiveAccount();
     const backgroundClient = useBackgroundClient();
     const [isSwitchToAccountOpen, setIsSwitchToAccountOpen] = useState(false);
+    const { unlockAccount, lockAccount } = useUnlockAccount();
 
     const otherAccounts = useMemo(
         () => accounts.filter((a) => a.id !== activeAccount?.id) || [],
         [accounts, activeAccount?.id],
     );
-
+    function handleLockAndUnlockClick(account: SerializedUIAccount) {
+        if (account.isLocked) {
+            unlockAccount(account);
+        } else {
+            lockAccount(account);
+        }
+    }
     const handleSelectAccount = async (accountID: string) => {
         const account = accounts?.find((a) => a.id === accountID);
         if (!account) return;
@@ -41,7 +50,7 @@ export function AccountsList() {
     if (!accounts || !activeAccount) return null;
 
     return (
-        <div className="flex w-full select-none flex-col gap-5 rounded-xl border border-solid border-hero/10 bg-gradients-graph-cards p-4">
+        <div className="border-hero/10 flex w-full select-none flex-col gap-5 rounded-xl border border-solid bg-gradients-graph-cards p-4">
             <Heading variant="heading5" weight="semibold" color="steel-darker">
                 Accounts
             </Heading>
@@ -53,10 +62,20 @@ export function AccountsList() {
                 onValueChange={handleSelectAccount}
             >
                 <>
-                    <Collapsible defaultOpen title="Current" shade="darker">
+                    <Collapsible defaultOpen title="Current">
                         <ToggleGroup.Item asChild value={activeAccount.id}>
                             <div>
-                                <AccountListItem account={activeAccount} editable showLock />
+                                <AccountListItem
+                                    account={activeAccount}
+                                    editable
+                                    showLock
+                                    onLockAccountClick={() =>
+                                        handleLockAndUnlockClick(activeAccount)
+                                    }
+                                    onUnlockAccountClick={() =>
+                                        handleLockAndUnlockClick(activeAccount)
+                                    }
+                                />
                             </div>
                         </ToggleGroup.Item>
                     </Collapsible>
@@ -66,7 +85,6 @@ export function AccountsList() {
                             isOpen={isSwitchToAccountOpen}
                             onOpenChange={setIsSwitchToAccountOpen}
                             title="Switch To"
-                            shade="darker"
                         >
                             <div className="flex flex-col gap-3">
                                 {otherAccounts.map((account) => {
@@ -77,7 +95,16 @@ export function AccountsList() {
                                             value={account.id}
                                         >
                                             <div>
-                                                <AccountListItem account={account} showLock />
+                                                <AccountListItem
+                                                    account={account}
+                                                    showLock
+                                                    onLockAccountClick={() =>
+                                                        handleLockAndUnlockClick(account)
+                                                    }
+                                                    onUnlockAccountClick={() =>
+                                                        handleLockAndUnlockClick(account)
+                                                    }
+                                                />
                                             </div>
                                         </ToggleGroup.Item>
                                     );

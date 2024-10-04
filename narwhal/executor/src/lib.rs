@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 mod errors;
 mod state;
 mod subscriber;
@@ -12,9 +13,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache};
 pub use errors::{SubscriberError, SubscriberResult};
+use iota_metrics::metered_channel;
 use iota_protocol_config::ProtocolConfig;
 use mockall::automock;
-use mysten_metrics::metered_channel;
 use network::client::NetworkClient;
 use prometheus::Registry;
 pub use state::ExecutionIndices;
@@ -71,7 +72,7 @@ impl Executor {
         let arc_metrics = Arc::new(metrics);
 
         // Spawn the subscriber.
-        let subscriber_handle = spawn_subscriber(
+        let subscriber_handles = spawn_subscriber(
             authority_id,
             worker_cache,
             committee,
@@ -87,7 +88,7 @@ impl Executor {
         // Return the handle.
         info!("Consensus subscriber successfully started");
 
-        Ok(subscriber_handle)
+        Ok(subscriber_handles)
     }
 }
 

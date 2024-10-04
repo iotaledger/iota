@@ -7,29 +7,34 @@ on:
     inputs:
       iota_node:
         type: boolean
-        description: 'Release iota-node image'
+        description: "Release iota-node image"
         required: false
         default: false
       iota_indexer:
         type: boolean
-        description: 'Release iota-indexer image'
+        description: "Release iota-indexer image"
         required: false
         default: false
       iota_tools:
         type: boolean
-        description: 'Release iota-tools image'
+        description: "Release iota-tools image"
+        required: false
+        default: false
+      iota_graphql_rpc:
+        type: boolean
+        description: "Release iota-graphql-rpc image"
         required: false
         default: false
 
 jobs:
   build-iota-node:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_node == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_node == 'true' || github.event_name == 'release'
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -42,13 +47,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-node
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -57,18 +62,28 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-node
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-node/Dockerfile
           platforms: linux/amd64
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
+          pull: true
 
   build-iota-indexer:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release'
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -86,13 +101,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-indexer
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -101,18 +116,28 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-indexer
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-indexer/Dockerfile
           platforms: linux/amd64
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
+          pull: true
 
   build-iota-tools:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release'
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -130,13 +155,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-tools
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -145,11 +170,75 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-tools
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-tools/Dockerfile
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
+          pull: true
+
+  build-iota-graphql-rpc:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_graphql_rpc == 'true' || github.event_name == 'release'
+    runs-on: self-hosted
+    environment: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta for iota-graphql-rpc
+        id: meta-tools
+        uses: docker/metadata-action@v5
+        with:
+          images: docker-registry.iota.org/iota-graphql-rpc
+          tags: |
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+          registry: ${{ secrets.DOCKER_REGISTRY_URL }}
+
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
+      - name: Build and push Docker image for iota-graphql-rpc
+        uses: docker/build-push-action@v5
+        with:
+          ssh: default
+          context: .
+          file: docker/iota-graphql-rpc/Dockerfile
+          platforms: linux/amd64
+          tags: ${{ steps.meta-tools.outputs.tags }}
+          push: true
+          pull: true

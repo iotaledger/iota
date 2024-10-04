@@ -1,11 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { IOTA_SYSTEM_STATE_OBJECT_ID } from '@iota/iota.js/utils';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { IOTA_SYSTEM_STATE_OBJECT_ID } from '@iota/iota-sdk/utils';
 
 export function createStakeTransaction(amount: bigint, validator: string) {
-    const tx = new TransactionBlock();
+    const tx = new Transaction();
     const stakeCoin = tx.splitCoins(tx.gas, [amount]);
     tx.moveCall({
         target: '0x3::iota_system::request_add_stake',

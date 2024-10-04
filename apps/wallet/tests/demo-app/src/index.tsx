@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaWallet } from '_src/dapp-interface/WalletStandardInterface';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { getWallets, ReadonlyWalletAccount, type Wallet } from '@iota/wallet-standard';
 import { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 
 function getDemoTransaction(address: string) {
-    const txb = new TransactionBlock();
+    const txb = new Transaction();
     const [coin] = txb.splitCoins(txb.gas, [1]);
     txb.transferObjects([coin], address);
     return txb;
@@ -31,7 +31,7 @@ function getAccount(account: ReadonlyWalletAccount, useWrongAccount: boolean) {
 }
 
 function findIotaWallet(wallets: readonly Wallet[]) {
-    return (wallets.find((aWallet) => aWallet.name.includes('Iota Wallet')) ||
+    return (wallets.find((aWallet) => aWallet.name.includes('IOTA Wallet')) ||
         null) as IotaWallet | null;
 }
 
@@ -67,11 +67,11 @@ function App() {
         }
     }, [iotaWallet]);
     if (!iotaWallet) {
-        return <h1>Iota Wallet not found</h1>;
+        return <h1>IOTA Wallet not found</h1>;
     }
     return (
         <>
-            <h1>Iota Wallet is installed. ({iotaWallet.name})</h1>
+            <h1>IOTA Wallet is installed. ({iotaWallet.name})</h1>
             {accounts.length ? (
                 <ul data-testid="accounts-list">
                     {accounts.map((anAccount) => (
@@ -97,9 +97,9 @@ function App() {
                     const txb = getDemoTransaction(accounts[0]?.address || '');
                     try {
                         await iotaWallet.features[
-                            'iota:signAndExecuteTransactionBlock'
-                        ].signAndExecuteTransactionBlock({
-                            transactionBlock: txb,
+                            'iota:signAndExecuteTransaction'
+                        ].signAndExecuteTransaction({
+                            transaction: txb,
                             account: getAccount(accounts[0], useWrongAccounts),
                             chain: 'iota:unknown',
                         });
@@ -115,13 +115,11 @@ function App() {
                     setError(null);
                     const txb = getDemoTransaction(accounts[0]?.address || '');
                     try {
-                        await iotaWallet.features['iota:signTransactionBlock'].signTransactionBlock(
-                            {
-                                transactionBlock: txb,
-                                account: getAccount(accounts[0], useWrongAccounts),
-                                chain: 'iota:unknown',
-                            },
-                        );
+                        await iotaWallet.features['iota:signTransaction'].signTransaction({
+                            transaction: txb,
+                            account: getAccount(accounts[0], useWrongAccounts),
+                            chain: 'iota:unknown',
+                        });
                     } catch (e) {
                         setError((e as Error).message);
                     }

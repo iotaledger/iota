@@ -1,9 +1,8 @@
 {
     "name": "@iota/create-dapp",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "A CLI for creating new Iota dApps",
-    "homepage": "https://sdk.mystenlabs.com",
-    "version": "0.2.9",
+    "version": "0.1.0",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",
@@ -21,8 +20,8 @@
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "tsc --build",
         "prepublishOnly": "pnpm build",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
@@ -36,12 +35,12 @@
     },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
-        "typescript": "^5.3.3"
+        "typescript": "^5.5.3"
     },
     "dependencies": {
         "@iota/dapp-kit": "workspace:*",
-        "@iota/iota.js": "workspace:*",
-        "@types/node": "^20.4.2",
+        "@iota/iota-sdk": "workspace:*",
+        "@types/node": "^20.14.10",
         "enquirer": "^2.4.1"
     },
     "sideEffects": false,

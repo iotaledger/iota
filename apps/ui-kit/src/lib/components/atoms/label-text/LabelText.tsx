@@ -5,12 +5,14 @@ import React from 'react';
 import cx from 'classnames';
 import { LabelTextSize } from './labelText.enums';
 import { LABEL_TEXT_SIZE, SUPPORTING_TEXT_SIZE, TEXT_SIZE } from './labelText.classes';
+import { Info } from '@iota/ui-icons';
+import { TooltipPosition, Tooltip } from '../tooltip';
 
 interface LabelTextProps {
     /**
      * The size of the LabelText.
      */
-    size: LabelTextSize;
+    size?: LabelTextSize;
     /**
      * The position of the LabelText.
      */
@@ -24,22 +26,27 @@ interface LabelTextProps {
      */
     label: string;
     /**
-     * Show the supporting label.
-     */
-    showSupportingLabel: boolean;
-    /**
      * The text of the LabelText.
      */
     text: string;
+    /**
+     * The tooltip position.
+     */
+    tooltipPosition?: TooltipPosition;
+    /**
+     * The tooltip text.
+     */
+    tooltipText?: string;
 }
 
 export function LabelText({
-    size,
+    size = LabelTextSize.Medium,
     isCentered,
     supportingLabel,
     label,
-    showSupportingLabel,
     text,
+    tooltipPosition,
+    tooltipText,
 }: LabelTextProps): React.JSX.Element {
     const textClasses = TEXT_SIZE[size];
     const supportingLabelClasses = SUPPORTING_TEXT_SIZE[size];
@@ -48,13 +55,13 @@ export function LabelText({
     const gapClass = size === LabelTextSize.Small ? 'gap-0.5' : 'gap-1';
     return (
         <div className={cx('flex flex-col', centeredClasses, gapClass)}>
-            <div className="flex flex-row items-center gap-0.5">
+            <div className="flex flex-row flex-wrap items-center gap-0.5">
                 <span
                     className={cx('font-inter text-neutral-10 dark:text-neutral-92', textClasses)}
                 >
                     {text}
                 </span>
-                {showSupportingLabel && supportingLabel && (
+                {supportingLabel && (
                     <span
                         className={cx(
                             'font-inter text-neutral-60 dark:text-neutral-40',
@@ -65,11 +72,21 @@ export function LabelText({
                     </span>
                 )}
             </div>
-            <span
-                className={cx('font-inter text-neutral-60 dark:text-neutral-40', labelTextClasses)}
-            >
-                {label}
-            </span>
+            <div className="flex flex-row items-center gap-x-0.5">
+                <span
+                    className={cx(
+                        'font-inter text-neutral-60 dark:text-neutral-40',
+                        labelTextClasses,
+                    )}
+                >
+                    {label}
+                </span>
+                {tooltipText && (
+                    <Tooltip text={tooltipText} position={tooltipPosition}>
+                        <Info className="text-neutral-60 dark:text-neutral-40" />
+                    </Tooltip>
+                )}
+            </div>
         </div>
     );
 }

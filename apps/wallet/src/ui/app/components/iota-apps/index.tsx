@@ -16,7 +16,7 @@ import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 
-function AppsPlayGround() {
+export function AppsPlayGround() {
     const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value;
     const { tagName } = useParams();
 
@@ -45,23 +45,23 @@ function AppsPlayGround() {
         <>
             <div className="mb-4 flex justify-center">
                 <Heading variant="heading6" color="gray-90" weight="semibold">
-                    Iota Apps
+                    IOTA Apps
                 </Heading>
             </div>
 
             <AppsPageBanner />
 
             {filteredEcosystemApps?.length ? (
-                <div className="rounded-xl bg-gray-40 p-4">
+                <div className="bg-gray-40 rounded-xl p-4">
                     <Text variant="pBodySmall" color="gray-75" weight="normal">
                         Apps below are actively curated but do not indicate any endorsement or
-                        relationship with Iota Wallet. Please DYOR.
+                        relationship with IOTA Wallet. Please DYOR.
                     </Text>
                 </div>
             ) : null}
 
             {filteredEcosystemApps?.length ? (
-                <div className="mt-2 flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
+                <div className="divide-gray-45 mt-2 flex flex-col divide-x-0 divide-y divide-solid">
                     {filteredEcosystemApps.map((app) => (
                         <IotaApp
                             key={app.link}

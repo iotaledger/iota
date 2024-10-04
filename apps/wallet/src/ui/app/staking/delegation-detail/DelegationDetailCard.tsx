@@ -2,18 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import BottomMenuLayout, { Content } from '_app/shared/bottom-menu-layout';
-import { Button } from '_app/shared/ButtonUI';
-import { Card } from '_app/shared/card';
-import { CardItem } from '_app/shared/card/CardItem';
-import { Text } from '_app/shared/text';
-import { IconTooltip } from '_app/shared/tooltip';
-import Alert from '_components/alert';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { Alert, LoadingIndicator } from '_components';
 import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import {
     useBalance,
     useCoinMetadata,
@@ -21,18 +13,20 @@ import {
     useGetValidatorsApy,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    useFormatCoin,
+    formatPercentageDisplay,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@iota/icons';
-import { Network, type StakeObject } from '@iota/iota.js/client';
-import { MICROS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Network, type StakeObject } from '@iota/iota-sdk/client';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { Heading } from '../../shared/heading';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { StakeAmount } from '../home/StakeAmount';
+import { CardType, Panel, KeyValueInfo, Divider, Button, ButtonType } from '@iota/apps-ui-kit';
+import { useNavigate } from 'react-router-dom';
+import { ValidatorLogo } from '../validators/ValidatorLogo';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -40,6 +34,7 @@ interface DelegationDetailCardProps {
 }
 
 export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationDetailCardProps) {
+    const navigate = useNavigate();
     const {
         data: system,
         isPending: loadingValidators,
@@ -82,7 +77,6 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }, [allDelegation, stakedId]);
 
     const totalStake = BigInt(delegationData?.principal || 0n);
-
     const iotaEarned = BigInt(
         (delegationData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward ||
             0n,
@@ -90,6 +84,9 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: 0,
     };
+
+    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned, IOTA_TYPE_ARG);
+    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
 
     const delegationId = delegationData?.status === 'Active' && delegationData?.stakedIotaId;
 
@@ -123,167 +120,82 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         );
     }
 
+    if (hasInactiveValidatorDelegation) {
+        <div className="mb-3">
+            <Alert>
+                Unstake IOTA from this inactive validator and stake on an active validator to start
+                earning rewards again.
+            </Alert>
+        </div>;
+    }
+
+    function handleAddNewStake() {
+        navigate(stakeByValidatorAddress);
+        ampli.clickedStakeIota({
+            isCurrentlyStaking: true,
+            sourceFlow: 'Delegation detail card',
+        });
+    }
+
+    function handleUnstake() {
+        navigate(stakeByValidatorAddress + '&unstake=true');
+        ampli.clickedUnstakeIota({
+            stakedAmount: Number(totalStake / NANO_PER_IOTA),
+            validatorAddress,
+        });
+    }
+
     return (
-        <div className="flex h-full flex-grow flex-col flex-nowrap">
-            <BottomMenuLayout>
-                <Content>
-                    <div className="flex w-full flex-col items-center justify-center">
-                        {hasInactiveValidatorDelegation ? (
-                            <div className="mb-3">
-                                <Alert>
-                                    Unstake IOTA from this inactive validator and stake on an active
-                                    validator to start earning rewards again.
-                                </Alert>
-                            </div>
-                        ) : null}
-                        <div className="flex w-full">
-                            <Card
-                                header={
-                                    <div className="grid w-full grid-cols-2 divide-x divide-y-0 divide-solid divide-gray-45">
-                                        <CardItem title="Your Stake">
-                                            <StakeAmount balance={totalStake} variant="heading5" />
-                                        </CardItem>
-
-                                        <CardItem title="Earned">
-                                            <StakeAmount
-                                                balance={iotaEarned}
-                                                variant="heading5"
-                                                isEarnedRewards
-                                            />
-                                        </CardItem>
-                                    </div>
-                                }
-                                padding="none"
-                            >
-                                <div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
-                                    <CardItem
-                                        title={
-                                            <div className="flex items-start gap-1 text-steel-darker">
-                                                APY
-                                                <div className="text-steel">
-                                                    <IconTooltip
-                                                        tip="Annual Percentage Yield"
-                                                        placement="top"
-                                                    />
-                                                </div>
-                                            </div>
-                                        }
-                                    >
-                                        <div className="flex items-baseline gap-0.5">
-                                            <Heading
-                                                variant="heading4"
-                                                weight="semibold"
-                                                color="gray-90"
-                                                leading="none"
-                                            >
-                                                {isApyApproxZero ? '~' : ''}
-                                                {apy}
-                                            </Heading>
-
-                                            <Text
-                                                variant="subtitleSmall"
-                                                weight="medium"
-                                                color="steel-dark"
-                                            >
-                                                %
-                                            </Text>
-                                        </div>
-                                    </CardItem>
-
-                                    <CardItem
-                                        title={
-                                            <div className="flex gap-1 text-steel-darker">
-                                                Commission
-                                                <div className="text-steel">
-                                                    <IconTooltip
-                                                        tip="Validator commission"
-                                                        placement="top"
-                                                    />
-                                                </div>
-                                            </div>
-                                        }
-                                    >
-                                        <div className="flex items-baseline gap-0.5">
-                                            <Heading
-                                                variant="heading4"
-                                                weight="semibold"
-                                                color="gray-90"
-                                                leading="none"
-                                            >
-                                                {commission}
-                                            </Heading>
-
-                                            <Text
-                                                variant="subtitleSmall"
-                                                weight="medium"
-                                                color="steel-dark"
-                                            >
-                                                %
-                                            </Text>
-                                        </div>
-                                    </CardItem>
-                                </div>
-                            </Card>
-                        </div>
-                        <div className="my-3.75 flex w-full gap-2.5">
-                            {!hasInactiveValidatorDelegation ? (
-                                <Button
-                                    size="tall"
-                                    variant="outline"
-                                    to={stakeByValidatorAddress}
-                                    before={<StakeAdd16 />}
-                                    text="Stake IOTA"
-                                    onClick={() => {
-                                        ampli.clickedStakeIota({
-                                            isCurrentlyStaking: true,
-                                            sourceFlow: 'Delegation detail card',
-                                        });
-                                    }}
-                                    disabled={showRequestMoreIotaToken}
-                                />
-                            ) : null}
-
-                            {Boolean(totalStake) && delegationId && (
-                                <Button
-                                    data-testid="unstake-button"
-                                    size="tall"
-                                    variant="outline"
-                                    to={stakeByValidatorAddress + '&unstake=true'}
-                                    onClick={() => {
-                                        ampli.clickedUnstakeIota({
-                                            stakedAmount: Number(totalStake / MICROS_PER_IOTA),
-                                            validatorAddress,
-                                        });
-                                    }}
-                                    text="Unstake IOTA"
-                                    before={<StakeRemove16 />}
-                                />
-                            )}
-                        </div>
+        <div className="flex h-full w-full flex-col justify-between">
+            <div className="flex flex-col gap-y-md">
+                <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
+                <Panel hasBorder>
+                    <div className="flex flex-col gap-y-sm p-md">
+                        <KeyValueInfo
+                            keyText="Your Stake"
+                            value={totalStakeFormatted}
+                            supportingLabel={totalStakeSymbol}
+                            fullwidth
+                        />
+                        <KeyValueInfo
+                            keyText="Earned"
+                            value={iotaEarnedFormatted}
+                            supportingLabel={iotaEarnedSymbol}
+                            fullwidth
+                        />
+                        <Divider />
+                        <KeyValueInfo
+                            keyText="APY"
+                            value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                            fullwidth
+                        />
+                        <KeyValueInfo
+                            keyText="Commission"
+                            value={`${commission.toString()}%`}
+                            fullwidth
+                        />
                     </div>
-                </Content>
-
-                {/* show faucet request button on devnet or testnet whenever there is only one coin  */}
-                {showRequestMoreIotaToken ? (
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-8/12 text-center">
-                            <Text variant="pSubtitle" weight="medium" color="steel-darker">
-                                You need a minimum of {MIN_NUMBER_IOTA_TO_STAKE} IOTA to continue
-                                staking.
-                            </Text>
-                        </div>
-                        <FaucetRequestButton size="tall" />
-                    </div>
-                ) : (
+                </Panel>
+            </div>
+            <div className="my-3.75 flex w-full gap-2.5">
+                {Boolean(totalStake) && delegationId && (
                     <Button
-                        size="tall"
-                        variant="secondary"
-                        to="/stake"
-                        before={<ArrowLeft16 />}
-                        text="Back"
+                        type={ButtonType.Secondary}
+                        onClick={handleUnstake}
+                        text="Unstake"
+                        fullWidth
                     />
                 )}
-            </BottomMenuLayout>
+                {!hasInactiveValidatorDelegation ? (
+                    <Button
+                        type={ButtonType.Primary}
+                        text="Stake"
+                        onClick={handleAddNewStake}
+                        disabled={showRequestMoreIotaToken}
+                        fullWidth
+                    />
+                ) : null}
+            </div>
         </div>
     );
 }

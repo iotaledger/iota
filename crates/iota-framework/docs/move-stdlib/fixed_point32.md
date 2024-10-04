@@ -46,7 +46,7 @@ decimal.
 
 <dl>
 <dt>
-<code>value: u64</code>
+<code>value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
@@ -66,17 +66,17 @@ decimal.
 The denominator provided was zero
 
 
-<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDENOMINATOR">EDENOMINATOR</a>: u64 = 65537;
+<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDENOMINATOR">EDENOMINATOR</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 65537;
 </code></pre>
 
 
 
 <a name="0x1_fixed_point32_EDIVISION"></a>
 
-The quotient value would be too large to be held in a <code>u64</code>
+The quotient value would be too large to be held in a <code><a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 
 
-<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDIVISION">EDIVISION</a>: u64 = 131074;
+<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDIVISION">EDIVISION</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 131074;
 </code></pre>
 
 
@@ -86,17 +86,17 @@ The quotient value would be too large to be held in a <code>u64</code>
 A division by zero was encountered
 
 
-<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</a>: u64 = 65540;
+<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 65540;
 </code></pre>
 
 
 
 <a name="0x1_fixed_point32_EMULTIPLICATION"></a>
 
-The multiplied value would be too large to be held in a <code>u64</code>
+The multiplied value would be too large to be held in a <code><a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 
 
-<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</a>: u64 = 131075;
+<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 131075;
 </code></pre>
 
 
@@ -106,7 +106,7 @@ The multiplied value would be too large to be held in a <code>u64</code>
 The computed ratio when converting to a <code><a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a></code> would be unrepresentable
 
 
-<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_ERATIO_OUT_OF_RANGE">ERATIO_OUT_OF_RANGE</a>: u64 = 131077;
+<pre><code><b>const</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_ERATIO_OUT_OF_RANGE">ERATIO_OUT_OF_RANGE</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 131077;
 </code></pre>
 
 
@@ -130,7 +130,7 @@ fractional part of the product. This will abort if the product
 overflows.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_multiply_u64">multiply_u64</a>(val: u64, multiplier: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_multiply_u64">multiply_u64</a>(val: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, multiplier: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -139,7 +139,7 @@ overflows.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_multiply_u64">multiply_u64</a>(val: u64, multiplier: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a>): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_multiply_u64">multiply_u64</a>(val: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, multiplier: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     // The product of two 64 bit values <b>has</b> 128 bits, so perform the
     // multiplication <b>with</b> u128 <a href="../iota-framework/types.md#0x2_types">types</a> and keep the full 128 bit product
     // <b>to</b> avoid losing accuracy.
@@ -149,7 +149,7 @@ overflows.
     <b>let</b> product = unscaled_product &gt;&gt; 32;
     // Check whether the value is too large.
     <b>assert</b>!(product &lt;= <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</a>);
-    product <b>as</b> u64
+    product <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 }
 </code></pre>
 
@@ -166,7 +166,7 @@ fractional part of the quotient. This will abort if the divisor
 is zero or if the quotient overflows.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_divide_u64">divide_u64</a>(val: u64, divisor: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_divide_u64">divide_u64</a>(val: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, divisor: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -175,7 +175,7 @@ is zero or if the quotient overflows.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_divide_u64">divide_u64</a>(val: u64, divisor: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a>): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_divide_u64">divide_u64</a>(val: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, divisor: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     // Check for division by zero.
     <b>assert</b>!(divisor.value != 0, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</a>);
     // First convert <b>to</b> 128 bits and then shift left <b>to</b>
@@ -186,7 +186,7 @@ is zero or if the quotient overflows.
     <b>assert</b>!(quotient &lt;= <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_EDIVISION">EDIVISION</a>);
     // the value may be too large, which will cause the cast <b>to</b> fail
     // <b>with</b> an arithmetic error.
-    quotient <b>as</b> u64
+    quotient <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 }
 </code></pre>
 
@@ -210,7 +210,7 @@ very small imprecision in the binary representation could change the
 rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_rational">create_from_rational</a>(numerator: u64, denominator: u64): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_rational">create_from_rational</a>(numerator: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, denominator: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>
 </code></pre>
 
 
@@ -219,7 +219,7 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_rational">create_from_rational</a>(numerator: u64, denominator: u64): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> {
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_rational">create_from_rational</a>(numerator: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, denominator: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> {
     // If the denominator is zero, this will <b>abort</b>.
     // Scale the numerator <b>to</b> have 64 fractional bits and the denominator
     // <b>to</b> have 32 fractional bits, so that the quotient will have 32
@@ -232,7 +232,7 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
     // Return the quotient <b>as</b> a fixed-point number. We first need <b>to</b> check whether the cast
     // can succeed.
     <b>assert</b>!(quotient &lt;= <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_ERATIO_OUT_OF_RANGE">ERATIO_OUT_OF_RANGE</a>);
-    <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> { value: quotient <b>as</b> u64 }
+    <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> { value: quotient <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a> }
 }
 </code></pre>
 
@@ -247,7 +247,7 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 Create a fixedpoint value from a raw value.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_raw_value">create_from_raw_value</a>(value: u64): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_raw_value">create_from_raw_value</a>(value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>
 </code></pre>
 
 
@@ -256,7 +256,7 @@ Create a fixedpoint value from a raw value.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_raw_value">create_from_raw_value</a>(value: u64): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> {
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_create_from_raw_value">create_from_raw_value</a>(value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> {
     <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a> { value }
 }
 </code></pre>
@@ -274,7 +274,7 @@ adding or subtracting FixedPoint32 values, can be done using the raw
 values directly.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -283,7 +283,7 @@ values directly.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a>): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     num.value
 }
 </code></pre>

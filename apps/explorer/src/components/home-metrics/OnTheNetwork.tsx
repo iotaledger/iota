@@ -4,75 +4,103 @@
 
 import { CoinFormat, formatBalance } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading } from '@iota/ui';
+import { Divider, LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 
-import { Card, Divider } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
-import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+
+const FALLBACK = '--';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();
     const { data: referenceGasPrice } = useIotaClientQuery('getReferenceGasPrice');
+    const { data: totalSupply } = useIotaClientQuery('getTotalSupply', {
+        coinType: IOTA_TYPE_ARG,
+    });
     const gasPriceFormatted =
         typeof referenceGasPrice === 'bigint'
             ? formatBalance(referenceGasPrice, 0, CoinFormat.FULL)
             : null;
+    const totalSupplyFormatted = totalSupply?.value
+        ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
+        : null;
+
+    const currentTpsFormatted = networkMetrics?.currentTps
+        ? formatBalance(Math.floor(networkMetrics.currentTps), 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const tps30DaysFormatted = networkMetrics?.tps30Days
+        ? formatBalance(Math.floor(networkMetrics.tps30Days), 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const totalPackagesFormatted = networkMetrics?.totalPackages
+        ? formatBalance(networkMetrics.totalPackages, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const totalObjectsFormatted = networkMetrics?.totalObjects
+        ? formatBalance(networkMetrics.totalObjects, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
     return (
-        <Card bg="white/80" spacing="lg" height="full">
-            <div className="flex flex-col gap-4">
-                <Heading variant="heading4/semibold" color="steel-darker">
-                    Network Activity
-                </Heading>
-                <div className="flex gap-6">
-                    <FormattedStatsAmount
-                        label="TPS now"
-                        amount={
-                            networkMetrics?.currentTps
-                                ? Math.floor(networkMetrics.currentTps)
-                                : undefined
-                        }
-                        size="md"
-                    />
-                    <FormattedStatsAmount
-                        label="Peak 30d TPS"
-                        tooltip="Peak TPS in the past 30 days excluding this epoch"
-                        amount={
-                            networkMetrics?.tps30Days
-                                ? Math.floor(networkMetrics?.tps30Days)
-                                : undefined
-                        }
-                        size="md"
-                    />
+        <Panel>
+            <Title title="Network Activity" size={TitleSize.Medium} />
+            <div className="flex flex-col gap-md p-md--rs">
+                <div className="flex gap-md">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="TPS Now"
+                            text={currentTpsFormatted}
+                        />
+                    </div>
+
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Peak 30d TPS"
+                            text={tps30DaysFormatted}
+                        />
+                    </div>
                 </div>
-                <Divider color="hero/10" />
 
-                <StatsWrapper
-                    orientation="horizontal"
-                    label="Reference Gas Price"
-                    tooltip="The reference gas price of the current epoch"
-                    postfix={gasPriceFormatted !== null ? 'MICROS' : null}
-                    size="sm"
-                >
-                    {gasPriceFormatted}
-                </StatsWrapper>
+                <Divider />
 
-                <Divider color="hero/10" />
+                <div className="flex gap-x-md">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Total Packages"
+                            text={totalPackagesFormatted}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Objects"
+                            text={totalObjectsFormatted}
+                        />
+                    </div>
+                </div>
 
-                <div className="flex flex-1 flex-col gap-2">
-                    <FormattedStatsAmount
-                        orientation="horizontal"
-                        label="Total Packages"
-                        amount={networkMetrics?.totalPackages}
-                        size="sm"
-                    />
-                    <FormattedStatsAmount
-                        orientation="horizontal"
-                        label="Objects"
-                        amount={networkMetrics?.totalObjects}
-                        size="sm"
-                    />
+                <div className="flex gap-md">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Reference Gas Price"
+                            text={gasPriceFormatted ?? '-'}
+                            supportingLabel={gasPriceFormatted !== null ? 'IOTA' : undefined}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Total Supply"
+                            text={totalSupplyFormatted ?? '-'}
+                            supportingLabel={totalSupplyFormatted !== null ? 'IOTA' : undefined}
+                        />
+                    </div>
                 </div>
             </div>
-        </Card>
+        </Panel>
     );
 }

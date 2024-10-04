@@ -9,12 +9,9 @@ Behind the scenes, `create_regulated_currency` uses the `create_currency` functi
 
 ```move title="regcoin.move"
 module examples::regcoin {
-    use std::option;
     use iota::coin;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
-    struct REGCOIN has drop {}
+    public struct REGCOIN has drop {}
 
     fun init(witness: REGCOIN, ctx: &mut TxContext) {
         let (treasury, deny_cap, metadata) = coin::create_regulated_currency(witness, 6, b"REGCOIN", b"", b"", option::none(), ctx);
@@ -75,7 +72,7 @@ Created Objects:
 
 As you might have noticed, the publish action creates a `RegulatedCoinMetadata` object along with the standard `CoinMetadata` object. You don't need to explicitly call the `freeze_object` on the `RegulatedCoinMetadata` object, however, because `create_regulated_currency` automatically performs this action.
 
-The output also shows the three objects that the publisher now owns: `UpgradeCap` for [package upgrades](../iota-move-concepts/packages/upgrade.mdx), `TreasuryCap` for minting or burning coins, and the `DenyCap` for adding or removing addresses to or from the deny list for this coin.
+The output also shows the three objects that the publisher now owns: `UpgradeCap` for [package upgrades](../move-overview/package-upgrades/upgrade.mdx), `TreasuryCap` for minting or burning coins, and the `DenyCap` for adding or removing addresses to or from the deny list for this coin.
 
 ## DenyList
 
@@ -127,4 +124,4 @@ MutatedObjects:
 
 ```
 
-For all `Coin` functions available, see the IOTA framework [`coin` module documentation](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/coin.md).
+For all `Coin` functions available, see the IOTA framework [`coin` module documentation](/references/framework/iota-framework/coin.mdx).

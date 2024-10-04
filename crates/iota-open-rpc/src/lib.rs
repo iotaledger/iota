@@ -4,12 +4,12 @@
 
 extern crate core;
 
-use std::collections::{btree_map::Entry::Occupied, BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, btree_map::Entry::Occupied};
 
 use schemars::{
+    JsonSchema,
     gen::{SchemaGenerator, SchemaSettings},
     schema::SchemaObject,
-    JsonSchema,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -185,23 +185,6 @@ impl MethodRouting {
             (_, _, _) => false,
         }
     }
-}
-
-#[test]
-fn test_version_matching() {
-    let routing = MethodRouting::eq("1.5", "test");
-    assert!(routing.matches("1.5"));
-    assert!(!routing.matches("1.6"));
-    assert!(!routing.matches("1.4"));
-
-    let routing = MethodRouting::le("1.5", "test");
-    assert!(routing.matches("1.5"));
-    assert!(routing.matches("1.4.5"));
-    assert!(routing.matches("1.4"));
-    assert!(routing.matches("1.3"));
-
-    assert!(!routing.matches("1.6"));
-    assert!(!routing.matches("1.5.1"));
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -407,18 +390,15 @@ impl RpcModuleDocBuilder {
             Some(doc.trim().to_string())
         };
         let name = format!("{}_{}", namespace, name);
-        self.methods.insert(
-            name.clone(),
-            Method {
-                name,
-                description,
-                params,
-                result,
-                tags,
-                examples: Vec::new(),
-                deprecated,
-            },
-        );
+        self.methods.insert(name.clone(), Method {
+            name,
+            description,
+            params,
+            result,
+            tags,
+            examples: Vec::new(),
+            deprecated,
+        });
     }
 
     pub fn create_content_descriptor<T: JsonSchema>(
@@ -447,4 +427,26 @@ struct Components {
     content_descriptors: BTreeMap<String, ContentDescriptor>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     schemas: BTreeMap<String, SchemaObject>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_matching() {
+        let routing = MethodRouting::eq("1.5", "test");
+        assert!(routing.matches("1.5"));
+        assert!(!routing.matches("1.6"));
+        assert!(!routing.matches("1.4"));
+
+        let routing = MethodRouting::le("1.5", "test");
+        assert!(routing.matches("1.5"));
+        assert!(routing.matches("1.4.5"));
+        assert!(routing.matches("1.4"));
+        assert!(routing.matches("1.3"));
+
+        assert!(!routing.matches("1.6"));
+        assert!(!routing.matches("1.5.1"));
+    }
 }

@@ -1,10 +1,13 @@
 [package]
 name = "iota-benchmark"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
@@ -42,10 +45,10 @@ tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
+iota-metrics.workspace = true
 move-core-types.workspace = true
-mysten-metrics.workspace = true
 narwhal-node.workspace = true
-sysinfo.workspace = true
+sysinfo = "0.31"
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]

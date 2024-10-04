@@ -1,0 +1,119 @@
+---
+description: Learn how to use the std::debug module in Move for debugging and printing values.
+tags: [move, getting-started, testing]
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/debug.json';
+
+# Debugging
+
+Move does not currently have a built-in debugger. However, you can leverage the `std::debug` module to print various values directly to the console. This approach helps you observe and understand the behavior and logic of your modules. Start by importing the debug module into your source file:
+
+```move
+use std::debug;
+```
+
+To print a variable `v`, irrespective of its type, use the following code:
+
+```move
+debug::print(&v);
+```
+
+If `v` is already a reference, you can use:
+
+```move
+debug::print(v);
+```
+
+Additionally, the debug module offers a function to display the current stack trace:
+
+```move
+debug::print_stack_trace();
+```
+
+Moreover, if an abort or assertion fails, the stack trace at that failure point is automatically printed.
+
+## Implementing Debug in `my_module`
+
+To demonstrate the use of the `std::debug` module, update your `my_module` by integrating debug statements. Specifically, modify the `new_sword` function to output the `forge` value both before and after incrementing `swords_created`. Incorporate a `print_stack_trace` as well, resulting in the following function:
+
+```move
+/// Constructor for creating swords.
+public fun new_sword(forge: &mut Forge, magic: u64, strength: u64, ctx: &mut TxContext): Sword {
+    debug::print(forge);
+
+    // Increment the `swords_created` counter.
+    forge.swords_created = forge.swords_created + 1;
+
+    debug::print(forge);
+    debug::print_stack_trace();
+
+    // Create a sword.
+    Sword {
+        id: object::new(ctx),
+        magic: magic,
+        strength: strength,
+    }
+}
+```
+
+To view the output, execute the module's tests:
+
+```shell
+$ iota move test test_sword_transactions
+```
+
+This will display the expected results as the test calls the `new_sword` function:
+
+```shell
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING my_first_package
+Running Move unit tests
+[debug] 0x0::my_module::Forge {
+  id: 0x2::object::UID {
+    id: 0x2::object::ID {
+      bytes: @<OBJECT-ID>
+    }
+  },
+  swords_created: 0
+}
+[debug] 0x0::my_module::Forge {
+  id: 0x2::object::UID {
+    id: 0x2::object::ID {
+      bytes: @<OBJECT-ID>
+    }
+  },
+  swords_created: 1
+}
+Call Stack:
+    [0] 0000000000000000000000000000000000000000000000000000000000000000::my_module::test_sword_transactions
+
+        Code:
+            [24] LdU64(7)
+            [25] CopyLoc(5)
+            [26] Call(13)
+          > [27] Call(6)
+            [28] CopyLoc(4)
+            [29] CallGeneric(2)
+            [30] CopyLoc(5)
+
+        Locals:
+            [0] -
+            [1] -
+            [2] 000000000000000000000000000000000000000000000000000000000000face
+            [3] { { { <OBJECT-ID-WITHOUT-0x> } }, 1 }
+            [4] 000000000000000000000000000000000000000000000000000000000000cafe
+            [5] (&) { 1, { 000000000000000000000000000000000000000000000000000000000000babe, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0 } }
+            [6] { 1, { 000000000000000000000000000000000000000000000000000000000000babe, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0 } }
+            [7] -
+
+
+Operand Stack:
+
+[ PASS    ] 0x0::my_module::test_sword_transactions
+Test result: OK. Total tests: 1; passed: 1; failed: 0
+```
+
+
+<Quiz questions={questions} />

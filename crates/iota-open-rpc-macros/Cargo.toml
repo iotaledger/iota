@@ -1,17 +1,16 @@
 [package]
 name = "iota-open-rpc-macros"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 proc-macro = true
 
 [dependencies]
-derive-syn-parse.workspace = true
+derive-syn-parse = "0.1"
 itertools.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true

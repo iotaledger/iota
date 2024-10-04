@@ -7,21 +7,21 @@ on:
   workflow_call:
     inputs:
       iota_commit:
-        description: 'IOTA repo commit to tag'
+        description: "IOTA repo commit to tag"
         type: string
         required: true
       tag_name:
-        description: 'Tag Name'
+        description: "Tag Name"
         type: string
         required: true
   workflow_dispatch:
     inputs:
       iota_commit:
-        description: 'IOTA repo commit to tag'
+        description: "IOTA repo commit to tag"
         type: string
         required: true
       tag_name:
-        description: 'Tag Name'
+        description: "Tag Name"
         type: string
         required: true
 
@@ -32,17 +32,17 @@ env:
 jobs:
   tag:
     name: Tag
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
 
-    - name: Tag
-      uses: julbme/gh-action-manage-tag@v1
-      with:
-        name: ${{ env.TAG_NAME }}
-        state: present
-        from: ${{ env.IOTA_COMMIT }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag
+        uses: julbme/gh-action-manage-tag@v1
+        with:
+          name: ${{ env.TAG_NAME }}
+          state: present
+          from: ${{ env.IOTA_COMMIT }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

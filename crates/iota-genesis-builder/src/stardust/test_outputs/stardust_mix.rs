@@ -5,10 +5,13 @@
 //! Multi mnemonics, multi accounts, multi addresses.
 
 use iota_sdk::{
-    client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
+    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
     types::block::{
         address::{AliasAddress, Ed25519Address},
         output::{
+            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
+            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
+            UnlockCondition,
             feature::{
                 Feature, Irc27Metadata, Irc30Metadata, IssuerFeature, MetadataFeature,
                 SenderFeature, TagFeature,
@@ -18,29 +21,21 @@ use iota_sdk::{
                 ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
                 StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
             },
-            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
-            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
-            UnlockCondition,
         },
     },
 };
-use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::new_vested_output,
-    types::{output_header::OutputHeader, output_index::random_output_index},
+    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
+    types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
 };
 
-const MERGE_MILESTONE_INDEX: u32 = 7669900;
-const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
-
-const IOTA_COIN_TYPE: u32 = 4218;
 const OUTPUT_IOTA_AMOUNT: u64 = 1_000_000;
+const STORAGE_DEPOSIT_AMOUNT: u64 = 500_000;
 
 struct StardustWallet {
     mnemonic: &'static str,
-    coin_type: u32,
     // bip path values for account, internal, address
     addresses: &'static [[u32; 3]],
 }
@@ -49,25 +44,21 @@ const STARDUST_MIX: &[StardustWallet] = &[
     // First public address only
     StardustWallet {
         mnemonic: "chest inquiry stick anger scheme tail void cup toe game copy jump law bone risk pull crowd dry raw baby want tip oak dice",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[[0, 0, 0]],
     },
     // Multiple public addresses
     StardustWallet {
         mnemonic: "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 5]],
     },
     // Multiple internal addresses
     StardustWallet {
         mnemonic: "face tag all fade win east asset taxi holiday need slow fold play pull away earn bus room run one kidney mail design space",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[[0, 1, 1], [0, 1, 2], [0, 1, 5]],
     },
     // Multiple public and internal addresses
     StardustWallet {
         mnemonic: "rain flip mad lamp owner siren tower buddy wolf shy tray exit glad come dry tent they pond wrist web cliff mixed seek drum",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[
             // public
             [0, 0, 0],
@@ -83,7 +74,6 @@ const STARDUST_MIX: &[StardustWallet] = &[
     // Multiple accounts multiple public and internal addresses
     StardustWallet {
         mnemonic: "oak eye use bus high enact city desk gaze sure radio text ice food give foil raw dove attitude van clap tenant human other",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[
             // account 2
             // public
@@ -120,7 +110,6 @@ const STARDUST_MIX: &[StardustWallet] = &[
     // Everything crazy
     StardustWallet {
         mnemonic: "crazy drum raw dirt tooth where fee base warm beach trim rule sign silk fee fee dad large creek venue coin steel hub scale",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[
             // account 0
             // public
@@ -166,23 +155,19 @@ const STARDUST_MIX: &[StardustWallet] = &[
     },
 ];
 
-pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    let randomness_seed = random::<u64>();
-    println!("stardust_mix randomness seed: {randomness_seed}");
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
+pub(crate) async fn outputs(
+    rng: &mut StdRng,
+    vested_index: &mut u32,
+    coin_type: u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
-
-    let mut vested_rewards_transaction_id = [0; 32];
-    // Prepare a transaction ID with the vested reward prefix.
-    vested_rewards_transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
 
     for wallet in STARDUST_MIX {
         let secret_manager = MnemonicSecretManager::try_from_mnemonic(wallet.mnemonic)?;
         for [account_index, internal, address_index] in wallet.addresses {
             let address = secret_manager
                 .generate_ed25519_addresses(
-                    wallet.coin_type,
+                    coin_type,
                     *account_index,
                     *address_index..address_index + 1,
                     if *internal == 1 {
@@ -195,22 +180,23 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
             // Random add up to 2 aliases with foundry and native tokens
             let (alias_foundry_outputs, native_tokens_for_basic_outputs) =
-                random_alias_foundry_native_token(address, &mut rng)?;
+                random_alias_foundry_native_token(address, rng)?;
             let native_tokens_for_nft_outputs = native_tokens_for_basic_outputs.clone();
             outputs.extend(alias_foundry_outputs);
 
             outputs.push(new_vested_output(
-                &mut vested_rewards_transaction_id,
-                vested_index,
+                *vested_index,
                 OUTPUT_IOTA_AMOUNT,
                 address,
                 None,
+                rng,
             )?);
+            *vested_index -= 1;
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Basic(BasicOutputBuilder::new_with_amount(OUTPUT_IOTA_AMOUNT)),
                 address,
                 native_tokens_for_basic_outputs,
-                &mut rng,
+                rng,
             )?);
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Nft(NftOutputBuilder::new_with_amount(
@@ -219,7 +205,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                 )),
                 address,
                 native_tokens_for_nft_outputs,
-                &mut rng,
+                rng,
             )?);
         }
     }
@@ -237,12 +223,13 @@ fn new_basic_or_nft_outputs(
 
     builder = builder.add_unlock_condition(AddressUnlockCondition::new(address));
 
+    let mut rng_clone = rng.clone();
     let mut add_output_with_unlock_conditions = |unlock_conditions: Vec<UnlockCondition>| {
         let mut new_builder = builder.clone();
         for unlock_condition in unlock_conditions {
             new_builder = new_builder.add_unlock_condition(unlock_condition)
         }
-        outputs.push(finish_with_header(new_builder.finish()));
+        outputs.push(finish_with_header(new_builder.finish(), &mut rng_clone));
     };
 
     add_output_with_unlock_conditions(vec![]);
@@ -251,20 +238,20 @@ fn new_basic_or_nft_outputs(
         ExpirationUnlockCondition::new(address, rng.gen())?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
     add_output_with_unlock_conditions(vec![
         StorageDepositReturnUnlockCondition::new(
             Ed25519Address::new([0u8; 32]),
-            500_0000,
+            STORAGE_DEPOSIT_AMOUNT,
             u64::MAX,
         )?
         .into(),
     ]);
     add_output_with_unlock_conditions(vec![
         AddressUnlockCondition::new(Ed25519Address::new([0u8; 32])).into(),
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
         TimelockUnlockCondition::new(rng.gen())?.into(),
@@ -273,7 +260,7 @@ fn new_basic_or_nft_outputs(
     add_output_with_unlock_conditions(vec![
         TimelockUnlockCondition::new(rng.gen())?.into(),
         ExpirationUnlockCondition::new(address, rng.gen())?.into(),
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
     outputs.push(finish_with_header(
@@ -287,6 +274,7 @@ fn new_basic_or_nft_outputs(
                 get_nft_immutable_metadata().to_bytes(),
             )?)
             .finish(),
+        rng,
     ));
 
     Ok(outputs)
@@ -317,6 +305,7 @@ fn random_alias_foundry_native_token(
                 .with_foundry_counter(1)
                 .add_native_token(NativeToken::new(token_id, 100)?)
                 .finish()?,
+            rng,
         ));
         let metadata = Irc30Metadata::new(&format!("My Native Token {i}"), "MNT", 10)
             .with_description("A native token for testing");
@@ -329,6 +318,7 @@ fn random_alias_foundry_native_token(
                 ))
                 .add_immutable_feature(MetadataFeature::try_from(metadata)?)
                 .finish()?,
+            rng,
         ));
 
         // Only half the remaining amount as it will be duplicated for nft outputs
@@ -337,11 +327,11 @@ fn random_alias_foundry_native_token(
     Ok((outputs, native_tokens_for_basic_outputs))
 }
 
-fn finish_with_header(builder: impl Into<Output>) -> (OutputHeader, Output) {
+fn finish_with_header(builder: impl Into<Output>, rng: &mut StdRng) -> (OutputHeader, Output) {
     (
         OutputHeader::new_testing(
-            random::<[u8; 32]>(),
-            random_output_index(),
+            rng.gen::<[u8; 32]>(),
+            random_output_index_with_rng(rng),
             [0; 32],
             MERGE_MILESTONE_INDEX,
             MERGE_TIMESTAMP_SECS,

@@ -54,7 +54,7 @@ The Stardust timelock unlock condition.
 The timelock is not expired error.
 
 
-<pre><code><b>const</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_ETimelockNotExpired">ETimelockNotExpired</a>: u64 = 0;
+<pre><code><b>const</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_ETimelockNotExpired">ETimelockNotExpired</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 

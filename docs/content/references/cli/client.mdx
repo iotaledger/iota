@@ -3,6 +3,7 @@ title: IOTA Client CLI
 description: The IOTA Client CLI provides command-level access to interact with the IOTA network.
 ---
 
+import AlphaNet from "../../_snippets/alphanet.mdx";
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
 The IOTA CLI `client` command provides command-level access to interact with the IOTA network. Typical uses for `iota client` include publishing Move smart contracts, getting the information of an object, executing transactions, or managing addresses.
@@ -36,20 +37,21 @@ Commands:
   object                      Get object info
   objects                     Obtain all objects owned by the address. It also accepts an address by its alias
   pay                         Pay coins to recipients following specified amounts, with input coins. Length of recipients must be the same as that of amounts
-  pay-all-iota                 Pay all residual IOTA coins to the recipient with input coins, after deducting the gas cost. The input coins also include the coin for gas payment, so no extra gas coin is required
-  pay-iota                     Pay IOTA coins to recipients following following specified amounts, with input coins. Length of recipients must be the same as that of amounts. The input coins also include the coin for
+  pay-all-iota                Pay all residual IOTA coins to the recipient with input coins, after deducting the gas cost. The input coins also include the coin for gas payment, so no extra gas coin is required
+  pay-iota                    Pay IOTA coins to recipients following following specified amounts, with input coins. Length of recipients must be the same as that of amounts. The input coins also include the coin for
                                   gas payment, so no extra gas coin is required
+  ptb                         Run a PTB either from file or from the provided args
   publish                     Publish Move modules
   split-coin                  Split a coin object into multiple coins
   switch                      Switch active address and network(e.g., devnet, local rpc server)
-  tx-block                    Get the effects of executing the given transaction block
+  tx-block                    Get a transaction block with the effects, events and object changes of its execution
   transfer                    Transfer object
-  transfer-iota                Transfer IOTA, and pay gas with the same IOTA coin object. If amount is specified, only the amount is transferred; otherwise the entire object is transferred
+  transfer-iota               Transfer IOTA, and pay gas with the same IOTA coin object. If amount is specified, only the amount is transferred; otherwise the entire object is transferred
   upgrade                     Upgrade Move modules
   verify-bytecode-meter       Run the bytecode verifier on the package
   verify-source               Verify local Move packages against on-chain packages, and optionally their dependencies
-  profile-transaction         Profile the gas usage of a transaction. Unless an output filepath is not specified, outputs a file `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a flamegraph
-                                  tool such as speedscope
+  profile-transaction         Profile the gas usage of a transaction. Unless an output filepath is not specified, outputs a file `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a flamegraph tool
+                                  such as speedscope
   replay-transaction          Replay a given transaction to view transaction effects. Set environment variable MOVE_VM_STEP=1 to debug
   replay-batch                Replay transactions listed in a file
   replay-checkpoint           Replay all transactions in a range of checkpoints
@@ -75,12 +77,14 @@ The following examples demonstrate some of the most often used commands.
 Use the `iota client envs` command to find the network environments set up in the CLI. The information for these environments is also stored in the client.yaml file in the IOTA configuration directory (`~/.iota/iota_config`).
 
 ```shell
-╭────────┬────────────────────────────────────┬────────╮
-│ alias  │ url                                │ active │
-├────────┼────────────────────────────────────┼────────┤
-│ devnet │ https://fullnode.devnet.iota.io:443 │ *  	   │
-╰────────┴────────────────────────────────────┴────────╯
+╭────────┬─────────────────────────────────────┬────────╮
+│ alias  │ url                                 │ active │
+├────────┼─────────────────────────────────────┼────────┤
+│ devnet │ https://fullnode.devnet.iota.io:443 │ *      │
+╰────────┴─────────────────────────────────────┴────────╯
 ```
+
+<AlphaNet />
 
 ### Create network environment
 
@@ -123,15 +127,15 @@ $ iota client objects 0x36df11369cf00ecf0be68d6ba965b0abe2e883bc5245911e3a29ebfa
 ╭───────────────────────────────────────────────────────────────────────────────────────╮
 | ╭────────────┬──────────────────────────────────────────────────────────────────────╮ │
 │ │ objectId   │  0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf3acb57f  │ │
-│ │ version	   │  33363559                                                        	  │ │
-│ │ digest 	   │  IY7/qsIJhliQL0uxwSzNYu0SMcn5AMsqQklSGngn1V0=                    	  │ │
-│ │ objectType │  0x0000..0002::coin::Coin                                        	  │ │
+│ │ version    │  33363559                                                            │ │
+│ │ digest     │  IY7/qsIJhliQL0uxwSzNYu0SMcn5AMsqQklSGngn1V0=                        │ │
+│ │ objectType │  0x0000..0002::coin::Coin                                            │ │
 │ ╰────────────┴──────────────────────────────────────────────────────────────────────╯ │
 │ ╭────────────┬──────────────────────────────────────────────────────────────────────╮ │
 │ │ objectId   │  0xfffe59fb6f78b1ced7f6537e69a205cc45d105270857bfd66332f9a627a38ae0  │ │
-│ │ version	   │  33370864                                                            │ │
-│ │ digest     │  b+tKChvujbCk/UCm8L+lflyb6Vjt7beB+uz6+ahUHmM=                    	  │ │
-│ │ objectType │  0x0000..0002::coin::Coin                                        	  │ │
+│ │ version    │  33370864                                                            │ │
+│ │ digest     │  b+tKChvujbCk/UCm8L+lflyb6Vjt7beB+uz6+ahUHmM=                        │ │
+│ │ objectType │  0x0000..0002::coin::Coin                                            │ │
 │ ╰────────────┴──────────────────────────────────────────────────────────────────────╯ │
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -143,51 +147,51 @@ Use `iota client object <OBJECT-ID>` to list object information for the ID you p
 ```
 $ iota client object 0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf3acb57f
 ╭───────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ objectId  	│  0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf3acb57f                                             	  │
-│ version   	│  33363559                                                                                                       	  │
-│ digest    	│  3FzvXJVVVcXb9H6dEXdARaY9EmxXyyNFduet3X4eYV4x                                                                   	  │
-│ objType   	│  0x2::coin::Coin<0x2::iota::IOTA>                                                                                 	  │
-│ ownerType 	│  AddressOwner                                                                                                   	  │
-│ prevTx    	│  ES2RQThjRE5u8rwiUEnhcnMoLA3cHeEGYJ8Pq98tmyAc                                                                   	  │
-│ storageRebate │  988000                                                                                                         	  │
-│ content   	│ ╭───────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────╮ │
-│           	│ │ dataType      	  │  moveObject                                                                            	    │ │
-│           	│ │ type          	  │  0x2::coin::Coin<0x2::iota::IOTA>                                                       	    │ │
-│           	│ │ hasPublicTransfer │  true                                                                                   	│ │
-│           	│ │ fields        	  │ ╭─────────┬───────────────────────────────────────────────────────────────────────────────╮ │ │
-│           	│ │               	  │ │ balance │  530076676                                                                	  │ │ │
-│           	│ │               	  │ │ id  	  │ ╭────┬──────────────────────────────────────────────────────────────────────╮ │ │ │
-│           	│ │               	  │ │     	  │ │ id │  0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf3acb57f  │ │ │ │
-│           	│ │               	  │ │     	  │ ╰────┴──────────────────────────────────────────────────────────────────────╯ │ │ │
-│           	│ │               	  │ ╰─────────┴───────────────────────────────────────────────────────────────────────────────╯ │ │
-│           	│ ╰───────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ objectId      │  0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf3acb57f                                                 │
+│ version       │  33363559                                                                                                           │
+│ digest        │  3FzvXJVVVcXb9H6dEXdARaY9EmxXyyNFduet3X4eYV4x                                                                       │
+│ objType       │  0x2::coin::Coin<0x2::iota::IOTA>                                                                                   │
+│ ownerType     │  AddressOwner                                                                                                       │
+│ prevTx        │  ES2RQThjRE5u8rwiUEnhcnMoLA3cHeEGYJ8Pq98tmyAc                                                                       │
+│ storageRebate │  988000                                                                                                             │
+│ content       │ ╭───────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│               │ │ dataType          │  moveObject                                                                                 │ │
+│               │ │ type              │  0x2::coin::Coin<0x2::iota::IOTA>                                                           │ │
+│               │ │ hasPublicTransfer │  true                                                                                       │ │
+│               │ │ fields            │ ╭─────────┬───────────────────────────────────────────────────────────────────────────────╮ │ │
+│               │ │                   │ │ balance │  530076676                                                                    │ │ │
+│               │ │                   │ │ id      │ ╭────┬──────────────────────────────────────────────────────────────────────╮ │ │ │
+│               │ │                   │ │         │ │ id │  0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf3acb57f  │ │ │ │
+│               │ │                   │ │         │ ╰────┴──────────────────────────────────────────────────────────────────────╯ │ │ │
+│               │ │                   │ ╰─────────┴───────────────────────────────────────────────────────────────────────────────╯ │ │
+│               │ ╰───────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────╯ │
 ╰───────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ### Get dynamic fields of an object
 
-Use the `iota client dynamic-field <DYNAMIC-FIELD-ID>` command to list the details of the dynamic field with the ID you provide.
+Use the `iota client dynamic-field <OBJECT-ID>` command to list the dynamic field details of the object with the ID you provide.
 
 ```
 $ iota client dynamic-field 0x5
-╭─────────────┬───────────────────────────────────────────────────────────────────────────────────────────╮
-│ hasNextPage │  false                                                                                	  │
-│ nextCursor  │  0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1                   	  │
-│ data     	  │ ╭───────────────────────────────────────────────────────────────────────────────────────╮ │
-│         	  │ │ ╭────────────┬──────────────────────────────────────────────────────────────────────╮ │ │
-│         	  │ │ │ name   	   │ ╭───────┬───────╮                                                	  │ │ │
-│         	  │ │ │        	   │ │ type  │  u64  │                                                	  │ │ │
-│         	  │ │ │        	   │ │ value │  2	 │                                                	  │ │ │
-│         	  │ │ │        	   │ ╰───────┴───────╯                                                	  │ │ │
-│         	  │ │ │ bcsName	   │  LQM2cdzDY3                                                      	  │ │ │
-│         	  │ │ │ type   	   │  DynamicField                                                    	  │ │ │
-│         	  │ │ │ objectType │  0x3::iota_system_state_inner::IOTASystemStateInnerV2              	  │ │ │
-│         	  │ │ │ objectId   │  0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1  │ │ │
-│         	  │ │ │ version	   │  112                                                             	  │ │ │
-│         	  │ │ │ digest 	   │  HMrm1KNKjq3GfB1cWTRdvRo8gk7auhgvoZXaVoyEHqUR                    	  │ │ │
-│         	  │ │ ╰────────────┴──────────────────────────────────────────────────────────────────────╯ │ │
-│         	  │ ╰───────────────────────────────────────────────────────────────────────────────────────╯ │
-╰─────────────┴───────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────┬──────────────────────────────────────────────────────────────────────────────────────────╮
+│ hasNextPage │  false                                                                                   │
+│ nextCursor  │  0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1                      │
+│ data        │ ╭──────────────────────────────────────────────────────────────────────────────────────╮ │
+│             │ │ ╭────────────┬─────────────────────────────────────────────────────────────────────╮ │ │
+│             │ │ │ name       │ ╭───────┬───────╮                                                   │ │ │
+│             │ │ │            │ │ type  │  u64  │                                                   │ │ │
+│             │ │ │            │ │ value │  2    │                                                   │ │ │
+│             │ │ │            │ ╰───────┴───────╯                                                   │ │ │
+│             │ │ │ bcsName    │  LQM2cdzDY3                                                         │ │ │
+│             │ │ │ type       │  DynamicField                                                       │ │ │
+│             │ │ │ objectType │  0x3::iota_system_state_inner::IOTASystemStateInnerV2               │ │ │
+│             │ │ │ objectId   │  0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1 │ │ │
+│             │ │ │ version    │  112                                                                │ │ │
+│             │ │ │ digest     │  HMrm1KNKjq3GfB1cWTRdvRo8gk7auhgvoZXaVoyEHqUR                       │ │ │
+│             │ │ ╰────────────┴─────────────────────────────────────────────────────────────────────╯ │ │
+│             │ ╰──────────────────────────────────────────────────────────────────────────────────────╯ │
+╰─────────────┴──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ### Replay a transaction
@@ -294,7 +298,7 @@ your published smart contract, and finally run the profiler on the transaction t
 
 ## Publish a Move package
 
-One of the main uses of the `iota client` command is to publish smart contracts on the IOTA network. This example switches the current environment to the Devnet network, then builds, tests, and publishes one of the existing Move examples available in the IOTA repository: [iota/examples/move](https://github.com/iotaledger/iota/tree/main/examples/move)
+One of the main uses of the `iota client` command is to publish smart contracts on the IOTA network. This example switches the current environment to the Devnet network, then builds, tests, and publishes one of the existing Move examples available in the IOTA repository: [iota/examples/move](https://github.com/iotaledger/iota/tree/develop/examples/move)
 
 This example also makes use of `iota move` commands. To learn more about those commands, see [IOTA Move CLI](./move.mdx).
 
@@ -350,7 +354,7 @@ This example also makes use of `iota move` commands. To learn more about those c
    ```shell
    $ iota client gas
    ╭────────────────────────────────────────────────────────────────────┬─────────────╮
-   │ gasCoinId                                                      	 │ gasBalance  │
+   │ gasCoinId                                                          │ gasBalance  │
    ├────────────────────────────────────────────────────────────────────┼─────────────┤
    │ 0x01b2795ba5800c8f7cb7d7c56abe19e24c656ed6764f3ccc5e66da3de52402a8 │ 10000000000 │
    ╰────────────────────────────────────────────────────────────────────┴─────────────╯
@@ -364,8 +368,8 @@ This example also makes use of `iota move` commands. To learn more about those c
    ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
    │ Sender: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                                   │
    │ Gas Owner: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                                │
-   │ Gas Budget: 5000000000 MICROS                                                                                  │
-   │ Gas Price: 1000 MICROS                                                                                         │
+   │ Gas Budget: 5000000000 NANOS                                                                                 │
+   │ Gas Price: 1000 NANOS                                                                                        │
    │ Gas Payment:                                                                                                 │
    │  ┌──                                                                                                         │
    │  │ ID: 0x01b2795ba5800c8f7cb7d7c56abe19e24c656ed6764f3ccc5e66da3de52402a8                                    │
@@ -479,7 +483,7 @@ This example also makes use of `iota move` commands. To learn more about those c
    │  │ ObjectID: 0x01b2795ba5800c8f7cb7d7c56abe19e24c656ed6764f3ccc5e66da3de52402a8                    │
    │  │ Sender: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                      │
    │  │ Owner: Account Address ( 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea )   │
-   │  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                      │
+   │  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                    │
    │  │ Version: 3                                                                                      │
    │  │ Digest: 46rvdbXkw5qqsBYbUGChzgFatJAYPmarPmFHgRRJiiU9                                            │
    │  └──                                                                                               │
@@ -496,7 +500,7 @@ This example also makes use of `iota move` commands. To learn more about those c
    ├───────────────────────────────────────────────────────────────────────────────────────────────────┤
    │  ┌──                                                                                              │
    │  │ Owner: Account Address ( 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea )  │
-   │  │ CoinType: 0x2::iota::IOTA                                                                        │
+   │  │ CoinType: 0x2::iota::IOTA                                                                      │
    │  │ Amount: -10000680                                                                              │
    │  └──                                                                                              │
    ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯

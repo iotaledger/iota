@@ -2,18 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { ButtonSegment, ButtonSegmentType, KeyValueInfo } from '@iota/apps-ui-kit';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import {
     parseSerializedSignature,
     type PublicKey,
     type SignatureScheme,
-} from '@iota/iota.js/cryptography';
-import { parsePartialSignatures } from '@iota/iota.js/multisig';
-import { normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
-import { publicKeyFromRawBytes } from '@iota/iota.js/verify';
-import { Text } from '@iota/ui';
+} from '@iota/iota-sdk/cryptography';
+import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
+import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
+import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 
-import { AddressLink, DescriptionItem, DescriptionList, TabHeader } from '~/components/ui';
+import { AddressLink } from '~/components/ui';
 
 type SignaturePubkeyPair = {
     signatureScheme: SignatureScheme;
@@ -28,33 +28,35 @@ interface SignaturePanelProps {
 function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.Element {
     const { signature, signatureScheme } = data;
     return (
-        <TabHeader title={title}>
-            <DescriptionList>
-                <DescriptionItem title="Scheme" align="start" labelWidth="sm">
-                    <Text variant="pBody/medium" color="steel-darker">
-                        {signatureScheme}
-                    </Text>
-                </DescriptionItem>
-                <DescriptionItem title="Address" align="start" labelWidth="sm">
+        <div className="flex w-full flex-col gap-md">
+            <ButtonSegment selected label={title} type={ButtonSegmentType.Underlined} />
+            <KeyValueInfo keyText="Scheme" value={signatureScheme} fullwidth />
+            <KeyValueInfo
+                keyText="Address"
+                value={
                     <AddressLink
-                        noTruncate
                         address={'address' in data ? data.address : data.publicKey.toIotaAddress()}
                     />
-                </DescriptionItem>
-                {'publicKey' in data ? (
-                    <DescriptionItem title="Iota Public Key" align="start" labelWidth="sm">
-                        <Text variant="pBody/medium" color="steel-darker">
-                            {data.publicKey.toIotaPublicKey()}
-                        </Text>
-                    </DescriptionItem>
-                ) : null}
-                <DescriptionItem title="Signature" align="start" labelWidth="sm">
-                    <Text variant="pBody/medium" color="steel-darker">
-                        {toB64(signature)}
-                    </Text>
-                </DescriptionItem>
-            </DescriptionList>
-        </TabHeader>
+                }
+                fullwidth
+            />
+            {'publicKey' in data ? (
+                <KeyValueInfo
+                    keyText="Iota Public Key"
+                    value={data.publicKey.toIotaPublicKey()}
+                    copyText={data.publicKey.toIotaPublicKey()}
+                    isTruncated
+                    fullwidth
+                />
+            ) : null}
+            <KeyValueInfo
+                keyText="Signature"
+                copyText={toB64(signature)}
+                value={toB64(signature)}
+                isTruncated
+                fullwidth
+            />
+        </div>
     );
 }
 
@@ -95,13 +97,6 @@ export function Signatures({ transaction }: SignaturesProps) {
             if (parsed.signatureScheme === 'MultiSig') {
                 return parsePartialSignatures(parsed.multisig);
             }
-            if (parsed.signatureScheme === 'ZkLogin') {
-                return {
-                    signatureScheme: parsed.signatureScheme,
-                    address: parsed.zkLogin.address,
-                    signature: parsed.signature,
-                };
-            }
 
             return {
                 ...parsed,
@@ -119,13 +114,11 @@ export function Signatures({ transaction }: SignaturesProps) {
         : null;
 
     return (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {userSignatures.length > 0 && (
-                <div className="flex flex-col gap-8">
+                <div className="flex w-full flex-col gap-lg">
                     {userSignatures.map((signature, index) => (
-                        <div key={index}>
-                            <SignaturePanel title="User Signature" signature={signature} />
-                        </div>
+                        <SignaturePanel key={index} title="User Signature" signature={signature} />
                     ))}
                 </div>
             )}

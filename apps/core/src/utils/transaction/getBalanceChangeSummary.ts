@@ -5,8 +5,8 @@ import {
     type DryRunTransactionBlockResponse,
     type ObjectOwner,
     type IotaTransactionBlockResponse,
-} from '@iota/iota.js/client';
-import { normalizeIotaObjectId, parseStructTag } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { normalizeIotaObjectId, parseStructTag } from '@iota/iota-sdk/utils';
 
 export type BalanceChange = {
     coinType: string;
@@ -68,8 +68,8 @@ export const getBalanceChangeSummary = (
 };
 
 export const getRecognizedUnRecognizedTokenChanges = (changes: BalanceChange[]) => {
-    const recognizedTokenChanges = [];
-    const unRecognizedTokenChanges = [];
+    const recognizedTokenChanges: BalanceChange[] = [];
+    const unRecognizedTokenChanges: BalanceChange[] = [];
     for (const change of changes) {
         if (change.unRecognizedToken) {
             unRecognizedTokenChanges.push(change);

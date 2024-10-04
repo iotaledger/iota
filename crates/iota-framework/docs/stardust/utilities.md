@@ -31,7 +31,7 @@ title: Module `0x107a::utilities`
 Returned when trying to extract a <code>Balance&lt;T&gt;</code> from a <code>Bag</code> and the balance is zero.
 
 
-<pre><code><b>const</b> <a href="utilities.md#0x107a_utilities_EZeroNativeTokenBalance">EZeroNativeTokenBalance</a>: u64 = 0;
+<pre><code><b>const</b> <a href="utilities.md#0x107a_utilities_EZeroNativeTokenBalance">EZeroNativeTokenBalance</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 

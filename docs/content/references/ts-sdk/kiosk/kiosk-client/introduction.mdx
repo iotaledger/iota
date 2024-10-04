@@ -1,3 +1,5 @@
+import AlphaNet from "../../../../_snippets/alphanet.mdx";
+
 # Kiosk Client
 
 Kiosk Client is the base for all Kiosk SDK functionality.
@@ -10,14 +12,16 @@ Kiosk Client is the base for all Kiosk SDK functionality.
 You can follow the example to create a `KioskClient`. The client currently supports `MAINNET` and
 `TESTNET`. View next section for usage in other networks.
 
-_Mysten Kiosk rules and extensions are not supported in Devnet due to network wipes (that would
+_IOTA Kiosk rules and extensions are not supported in Devnet due to network wipes (that would
 require constantly changing the package IDs)._
+
+<AlphaNet />
 
 ```typescript
 import { KioskClient, Network } from '@iota/kiosk';
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
-// We need a Iota Client. You can re-use the IotaClient of your project
+// We need a IOTA Client. You can re-use the IotaClient of your project
 // (it's not recommended to create a new one).
 const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 

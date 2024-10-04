@@ -3,12 +3,8 @@ description:  'How to manage a chain using the Grafana dashboard, a client to re
 validators.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-  - Smart Contracts
-  - Chain
-  - Management
-  - Grafana
-
+  - how-to
+  - isc
 ---
 
 # Manage a Chain
@@ -33,9 +29,9 @@ the next owner. The next owner must call `claimChainOwnership` to finalize the p
 
 For new access nodes to join the network, they need to:
 
--   Be added as a trusted peer to at least 1 of the existing nodes.
--   Be added by the administrator to the list of access nodes by calling `changeAccessNodes`. There is a helper in
-    wasp-cli to do so:
+- Be added as a trusted peer to at least 1 of the existing nodes.
+- Be added by the administrator to the list of access nodes by calling `changeAccessNodes`. There is a helper in
+  wasp-cli to do so:
 
 ```shell
 wasp-cli chain gov-change-access-nodes accept <pubkey (0x...)>
@@ -59,9 +55,9 @@ This node won't be "officially" recognized by the committee but will still be ab
 You can do this in different ways, depending on who controls the [governor address](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#alias-output)
 from the alias output of the chain.
 
--   If the chain governor address is the chain committee, you can perform the rotation by calling
-    `rotateStateController` after adding the next state controller via `addAllowedStateControllerAddress`.
--   If the chain governor address is a regular user wallet that you control, you can issue the rotation transaction using wasp-cli:
+- If the chain governor address is the chain committee, you can perform the rotation by calling
+  `rotateStateController` after adding the next state controller via `addAllowedStateControllerAddress`.
+- If the chain governor address is a regular user wallet that you control, you can issue the rotation transaction using wasp-cli:
 
 ```shell
 wasp-cli chain rotate <new controller address>

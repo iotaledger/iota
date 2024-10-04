@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_src/ui/app/shared/text';
-import { ChevronDown12, ChevronRight12 } from '@iota/icons';
-import { TypeTagSerializer, type TypeTag } from '@iota/iota.js/bcs';
-import { type TransactionArgument, type Transactions } from '@iota/iota.js/transactions';
-import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
-import { useState } from 'react';
+import { TypeTagSerializer, type TypeTag } from '@iota/iota-sdk/bcs';
+import { type TransactionArgument, type Transactions } from '@iota/iota-sdk/transactions';
+import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
+import { Collapsible } from '_src/ui/app/shared/collapse';
+import { TitleSize } from '@iota/apps-ui-kit';
 
 type TransactionType = ReturnType<(typeof Transactions)[keyof typeof Transactions]>;
 type MakeMoveVecTransaction = ReturnType<(typeof Transactions)['MakeMoveVec']>;
@@ -65,7 +64,7 @@ function convertCommandArgumentToString(
     }
 }
 
-function convertCommandToString({ kind, ...command }: TransactionType) {
+function convertCommandToString({ kind, ...command }: TransactionType): string {
     const commandArguments = Object.entries(command);
 
     return commandArguments
@@ -94,28 +93,13 @@ interface CommandProps {
 }
 
 export function Command({ command }: CommandProps) {
-    const [expanded, setExpanded] = useState(true);
-
     return (
-        <div>
-            <button
-                onClick={() => setExpanded((expanded) => !expanded)}
-                className="flex w-full items-center gap-2 border-none bg-transparent p-0"
-            >
-                <Text variant="body" weight="semibold" color="steel-darker">
-                    {command.kind}
-                </Text>
-                <div className="h-px flex-1 bg-gray-40" />
-                <div className="text-steel">
-                    {expanded ? <ChevronDown12 /> : <ChevronRight12 />}
-                </div>
-            </button>
-
-            {expanded && (
-                <div className="mt-2 text-pBodySmall font-medium text-steel">
-                    ({convertCommandToString(command)})
-                </div>
-            )}
-        </div>
+        <Collapsible hideBorder defaultOpen title={command.kind} titleSize={TitleSize.Small}>
+            <div className="flex flex-col gap-y-sm px-md">
+                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                    {convertCommandToString(command)}
+                </span>
+            </div>
+        </Collapsible>
     );
 }

@@ -14,19 +14,20 @@ use iota_config::{
     node::AuthorityOverloadConfig,
 };
 use iota_macros::nondeterministic;
-use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
-    crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey},
+    crypto::{AccountKeyPair, KeypairTraits, PublicKey, get_key_pair_from_rng},
     object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
 use rand::rngs::OsRng;
 
 use crate::{
     genesis_config::{
-        AccountConfig, GenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
-        DEFAULT_GAS_AMOUNT,
+        AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig,
+        ValidatorGenesisConfigBuilder,
     },
     network_config::NetworkConfig,
     node_config_builder::ValidatorConfigBuilder,
@@ -63,6 +64,14 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
+pub type StateAccumulatorV2EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+
+#[derive(Clone)]
+pub enum StateAccumulatorV2EnabledConfig {
+    Global(bool),
+    PerValidator(StateAccumulatorV2EnabledCallback),
+}
+
 pub struct ConfigBuilder<R = OsRng> {
     rng: Option<R>,
     config_directory: PathBuf,
@@ -75,6 +84,11 @@ pub struct ConfigBuilder<R = OsRng> {
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     data_ingestion_dir: Option<PathBuf>,
+    policy_config: Option<PolicyConfig>,
+    firewall_config: Option<RemoteFirewallConfig>,
+    max_submit_position: Option<usize>,
+    submit_delay_step_override_millis: Option<u64>,
+    state_accumulator_v2_enabled_config: Option<StateAccumulatorV2EnabledConfig>,
     empty_validator_genesis: bool,
 }
 
@@ -92,6 +106,11 @@ impl ConfigBuilder {
             num_unpruned_validators: None,
             authority_overload_config: None,
             data_ingestion_dir: None,
+            policy_config: None,
+            firewall_config: None,
+            max_submit_position: None,
+            submit_delay_step_override_millis: None,
+            state_accumulator_v2_enabled_config: None,
             empty_validator_genesis: false,
         }
     }
@@ -210,8 +229,54 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
+    pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
+        self.state_accumulator_v2_enabled_config =
+            Some(StateAccumulatorV2EnabledConfig::Global(enabled));
+        self
+    }
+
+    pub fn with_state_accumulator_v2_enabled_callback(
+        mut self,
+        func: StateAccumulatorV2EnabledCallback,
+    ) -> Self {
+        self.state_accumulator_v2_enabled_config =
+            Some(StateAccumulatorV2EnabledConfig::PerValidator(func));
+        self
+    }
+
+    pub fn with_state_accumulator_v2_enabled_config(
+        mut self,
+        c: StateAccumulatorV2EnabledConfig,
+    ) -> Self {
+        self.state_accumulator_v2_enabled_config = Some(c);
+        self
+    }
+
     pub fn with_authority_overload_config(mut self, c: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(c);
+        self
+    }
+
+    pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
+        self.policy_config = config;
+        self
+    }
+
+    pub fn with_firewall_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
+        self.firewall_config = config;
+        self
+    }
+
+    pub fn with_max_submit_position(mut self, max_submit_position: usize) -> Self {
+        self.max_submit_position = Some(max_submit_position);
+        self
+    }
+
+    pub fn with_submit_delay_step_override_millis(
+        mut self,
+        submit_delay_step_override_millis: u64,
+    ) -> Self {
+        self.submit_delay_step_override_millis = Some(submit_delay_step_override_millis);
         self
     }
 
@@ -228,6 +293,11 @@ impl<R> ConfigBuilder<R> {
             jwk_fetch_interval: self.jwk_fetch_interval,
             authority_overload_config: self.authority_overload_config,
             data_ingestion_dir: self.data_ingestion_dir,
+            policy_config: self.policy_config,
+            firewall_config: self.firewall_config,
+            max_submit_position: self.max_submit_position,
+            submit_delay_step_override_millis: self.submit_delay_step_override_millis,
+            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
             empty_validator_genesis: self.empty_validator_genesis,
         }
     }
@@ -318,7 +388,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
         };
 
-        let genesis_config = self
+        let mut genesis_config = self
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
 
@@ -356,16 +426,8 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
-            for source in &genesis_config.migration_sources {
-                let reader = source
-                    .to_reader()
-                    .expect("migration source should be readable");
-                builder = builder
-                    .add_migration_objects(reader)
-                    .expect("migrated stated should be added without errors");
-            }
-            if !genesis_config.migration_sources.is_empty() {
-                tracing::info!("Added migrated state");
+            for source in std::mem::take(&mut genesis_config.migration_sources) {
+                builder = builder.add_migration_source(source);
             }
 
             for (i, validator) in validators.iter().enumerate() {
@@ -392,7 +454,20 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             .enumerate()
             .map(|(idx, validator)| {
                 let mut builder = ValidatorConfigBuilder::new()
-                    .with_config_directory(self.config_directory.clone());
+                    .with_config_directory(self.config_directory.clone())
+                    .with_policy_config(self.policy_config.clone())
+                    .with_firewall_config(self.firewall_config.clone());
+
+                if let Some(max_submit_position) = self.max_submit_position {
+                    builder = builder.with_max_submit_position(max_submit_position);
+                }
+
+                if let Some(submit_delay_step_override_millis) =
+                    self.submit_delay_step_override_millis
+                {
+                    builder = builder
+                        .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
+                }
 
                 if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
                     builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
@@ -418,6 +493,14 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         }
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);
+                }
+                if let Some(acc_v2_config) = &self.state_accumulator_v2_enabled_config {
+                    let state_accumulator_v2_enabled: bool = match acc_v2_config {
+                        StateAccumulatorV2EnabledConfig::Global(enabled) => *enabled,
+                        StateAccumulatorV2EnabledConfig::PerValidator(func) => func(idx),
+                    };
+                    builder =
+                        builder.with_state_accumulator_v2_enabled(state_accumulator_v2_enabled);
                 }
                 if let Some(num_unpruned_validators) = self.num_unpruned_validators {
                     if idx < num_unpruned_validators {

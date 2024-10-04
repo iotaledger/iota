@@ -1,7 +1,85 @@
 ---
- title: Units
- description: Explains the units for IOTA and Shimmer tokens
+title: Units and Conversions
+description: Explains the units for IOTA and Shimmer tokens
 ---
+import MigrationWarning from '../../_snippets/migration-warning.mdx';
 
- - IOTA and Shimmer token units, representation and conversion
- - Timestamps in Stardust UTXOs and in Move
+<MigrationWarning/ >
+
+## IOTA
+
+The IOTA token, the native token on IOTA Stardust, is represented as a `Coin<IOTA>` object on IOTA Rebased. The IOTA coin type lives on `0x2::iota::IOTA`. **The amount of decimals has changed for IOTA Rebased from 6 to 9 decimals.**
+
+### Example
+
+- You own `1.234567` IOTA on Stardust on address `iota1qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx`.
+- This address is represented as `0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3` in hex format.
+- After the migration, you will end up with an owned object on address `0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3` for IOTA Rebased.
+- This owned object will be of the type `Coin<0x2::iota::IOTA>` with a `Balance` of `1234567000` represented as `1.234567000`, given the new 9 decimal format.
+
+```bash
+╭───────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ objectId      │  0xde7a1588162458db4e003b0192c300f51caf5afbbe65a8f9f56964cfaddb3c30                                                 │
+│ version       │  1                                                                                                                  │
+│ digest        │  ABbc7w4dqVXHU2zu26xdfaUzkzfjE4YYQW3epEFsh8uh                                                                       │
+│ objType       │  0x2::coin::Coin<0x2::iota::IOTA>                                                                                   │
+│ owner         │ ╭──────────────┬──────────────────────────────────────────────────────────────────────╮                             │
+│               │ │ AddressOwner │  0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3  │                             │
+│               │ ╰──────────────┴──────────────────────────────────────────────────────────────────────╯                             │
+│ prevTx        │  9vHM6saxeYewLy2UpnVNGYvFznh4tgzk4Es4koCWV4UA                                                                       │
+│ storageRebate │  0                                                                                                                  │
+│ content       │ ╭───────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│               │ │ dataType          │  moveObject                                                                                 │ │
+│               │ │ type              │  0x2::coin::Coin<0x2::iota::IOTA>                                                           │ │
+│               │ │ hasPublicTransfer │  true                                                                                       │ │
+│               │ │ fields            │ ╭─────────┬───────────────────────────────────────────────────────────────────────────────╮ │ │
+│               │ │                   │ │ balance │  1234567000                                                                   │ │ │
+│               │ │                   │ │ id      │ ╭────┬──────────────────────────────────────────────────────────────────────╮ │ │ │
+│               │ │                   │ │         │ │ id │  0xde7a1588162458db4e003b0192c300f51caf5afbbe65a8f9f56964cfaddb3c30  │ │ │ │
+│               │ │                   │ │         │ ╰────┴──────────────────────────────────────────────────────────────────────╯ │ │ │
+│               │ │                   │ ╰─────────┴───────────────────────────────────────────────────────────────────────────────╯ │ │
+│               │ ╰───────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────╯ │
+╰───────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+## Shimmer
+
+Similar to [IOTA](#iota), the Native Shimmer token (SMR) from the Shimmer network will be available on the IOTA Rebased network as a `Coin<SMR>` object. With IOTA Rebased, there will no longer be a Shimmer network, so any assets from Shimmer will be available on the IOTA network instead. The SMR coin type lives on `0x2::smr::SMR`. **The amount of decimals remains the same, at 6, unlike with the IOTA token.**
+
+### Example
+
+- You own `1.234567` SMR on the Shimmer network on address `smr1qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx`.
+- This address is represented as `0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3` in hex format.
+- After the migration, you will end up with a. owned object on address `0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3` for IOTA Rebased.
+- This owned object will be of the type `Coin<0x2::smr::SMR>` with a `Balance` of `1234567` represented as `1.234567`.
+
+```bash
+╭───────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ objectId      │  0xde7a1588162458db4e003b0192c300f51caf5afbbe65a8f9f56964cfaddb3c30                                                 │
+│ version       │  1                                                                                                                  │
+│ digest        │  ABbc7w4dqVXHU2zu26xdfaUzkzfjE4YYQW3epEFsh8uh                                                                       │
+│ objType       │  0x2::coin::Coin<0x2::smr::SMR>                                                                                     │
+│ owner         │ ╭──────────────┬──────────────────────────────────────────────────────────────────────╮                             │
+│               │ │ AddressOwner │  0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3  │                             │
+│               │ ╰──────────────┴──────────────────────────────────────────────────────────────────────╯                             │
+│ prevTx        │  9vHM6saxeYewLy2UpnVNGYvFznh4tgzk4Es4koCWV4UA                                                                       │
+│ storageRebate │  0                                                                                                                  │
+│ content       │ ╭───────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│               │ │ dataType          │  moveObject                                                                                 │ │
+│               │ │ type              │  0x2::coin::Coin<0x2::smr::SMR>                                                             │ │
+│               │ │ hasPublicTransfer │  true                                                                                       │ │
+│               │ │ fields            │ ╭─────────┬───────────────────────────────────────────────────────────────────────────────╮ │ │
+│               │ │                   │ │ balance │  1234567                                                                      │ │ │
+│               │ │                   │ │ id      │ ╭────┬──────────────────────────────────────────────────────────────────────╮ │ │ │
+│               │ │                   │ │         │ │ id │  0xde7a1588162458db4e003b0192c300f51caf5afbbe65a8f9f56964cfaddb3c30  │ │ │ │
+│               │ │                   │ │         │ ╰────┴──────────────────────────────────────────────────────────────────────╯ │ │ │
+│               │ │                   │ ╰─────────┴───────────────────────────────────────────────────────────────────────────────╯ │ │
+│               │ ╰───────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────╯ │
+╰───────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+## Timestamps
+
+In IOTA Stardust, you had transaction timestamps for every transaction (which offer no guarantees, given that they could arbitrarily be set by the sender of a transaction) and global Milestone timestamps, which were set for the milestone confirming a transaction. For any use case where timestamps are critical, the milestone timestamp, in seconds since the Unix epoch, should've been used. 
+
+With IOTA Rebased, we no longer have these milestones to rely on. Instead, we can use on-chain time using the `Clock` module in Move to get a timestamp of the last checkpoint (again, a Unix epoch-based timestamp, but this time in milliseconds since the Unix epoch). To learn more, please read [the section about On-Chain time](../iota-101/access-time.mdx). 

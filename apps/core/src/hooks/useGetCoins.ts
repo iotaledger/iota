@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { PaginatedCoins } from '@iota/iota.js/client';
+import { PaginatedCoins } from '@iota/iota-sdk/client';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 const MAX_COINS_PER_REQUEST = 10;
@@ -17,7 +17,6 @@ export function useGetCoins(
     return useInfiniteQuery<PaginatedCoins>({
         queryKey: ['get-coins', address, coinType, maxCoinsPerRequest],
         initialPageParam: null,
-        getNextPageParam: ({ hasNextPage, nextCursor }) => (hasNextPage ? nextCursor : null),
         queryFn: ({ pageParam }) =>
             client.getCoins({
                 owner: address!,
@@ -25,6 +24,7 @@ export function useGetCoins(
                 cursor: pageParam as string | null,
                 limit: maxCoinsPerRequest,
             }),
+        getNextPageParam: ({ hasNextPage, nextCursor }) => (hasNextPage ? nextCursor : null),
         enabled: !!address,
     });
 }

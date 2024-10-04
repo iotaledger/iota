@@ -52,6 +52,9 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
+ChainIdentifier:
+  NEWTYPESTRUCT:
+    TYPENAME: CheckpointDigest
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -222,6 +225,10 @@ CompressedSignature:
       ZkLogin:
         NEWTYPE:
           TYPENAME: ZkLoginAuthenticatorAsBytes
+CongestedObjects:
+  NEWTYPESTRUCT:
+    SEQ:
+      TYPENAME: ObjectID
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -237,6 +244,29 @@ ConsensusCommitPrologueV2:
     - commit_timestamp_ms: U64
     - consensus_commit_digest:
         TYPENAME: ConsensusCommitDigest
+ConsensusCommitPrologueV3:
+  STRUCT:
+    - epoch: U64
+    - round: U64
+    - sub_dag_index:
+        OPTION: U64
+    - commit_timestamp_ms: U64
+    - consensus_commit_digest:
+        TYPENAME: ConsensusCommitDigest
+    - consensus_determined_version_assignments:
+        TYPENAME: ConsensusDeterminedVersionAssignments
+ConsensusDeterminedVersionAssignments:
+  ENUM:
+    0:
+      CancelledTransactions:
+        NEWTYPE:
+          SEQ:
+            TUPLE:
+              - TYPENAME: TransactionDigest
+              - SEQ:
+                  TUPLE:
+                    - TYPENAME: ObjectID
+                    - TYPENAME: SequenceNumber
 Data:
   ENUM:
     0:
@@ -286,6 +316,7 @@ EndOfEpochData:
     - epochCommitments:
         SEQ:
           TYPENAME: CheckpointCommitment
+    - epochSupplyChange: I64
 EndOfEpochTransactionKind:
   ENUM:
     0:
@@ -302,12 +333,31 @@ EndOfEpochTransactionKind:
       RandomnessStateCreate: UNIT
     4:
       DenyListStateCreate: UNIT
+    5:
+      BridgeStateCreate:
+        NEWTYPE:
+          TYPENAME: ChainIdentifier
+    6:
+      BridgeCommitteeInit:
+        NEWTYPE:
+          TYPENAME: SequenceNumber
 Envelope:
   STRUCT:
     - data:
         TYPENAME: SenderSignedData
     - auth_signature:
         TYPENAME: EmptySignInfo
+Event:
+  STRUCT:
+    - package_id:
+        TYPENAME: ObjectID
+    - transaction_module:
+        TYPENAME: Identifier
+    - sender:
+        TYPENAME: IotaAddress
+    - type_:
+        TYPENAME: StructTag
+    - contents: BYTES
 ExecutionData:
   STRUCT:
     - transaction:
@@ -424,6 +474,23 @@ ExecutionFailureStatus:
       SharedObjectOperationNotAllowed: UNIT
     32:
       InputObjectDeleted: UNIT
+    33:
+      ExecutionCancelledDueToSharedObjectCongestion:
+        STRUCT:
+          - congested_objects:
+              TYPENAME: CongestedObjects
+    34:
+      AddressDeniedForCoin:
+        STRUCT:
+          - address:
+              TYPENAME: IotaAddress
+          - coin_type: STR
+    35:
+      CoinTypeGlobalPause:
+        STRUCT:
+          - coin_type: STR
+    36:
+      ExecutionCancelledDueToRandomnessUnavailable: UNIT
 ExecutionStatus:
   ENUM:
     0:
@@ -479,6 +546,9 @@ GenesisTransaction:
     - objects:
         SEQ:
           TYPENAME: GenesisObject
+    - events:
+        SEQ:
+          TYPENAME: Event
 IDOperation:
   ENUM:
     0:
@@ -973,6 +1043,10 @@ TransactionKind:
       ConsensusCommitPrologueV2:
         NEWTYPE:
           TYPENAME: ConsensusCommitPrologueV2
+    8:
+      ConsensusCommitPrologueV3:
+        NEWTYPE:
+          TYPENAME: ConsensusCommitPrologueV3
 TypeArgumentError:
   ENUM:
     0:
@@ -982,7 +1056,7 @@ TypeArgumentError:
 TypeOrigin:
   STRUCT:
     - module_name: STR
-    - struct_name: STR
+    - datatype_name: STR
     - package:
         TYPENAME: ObjectID
 TypeTag:
@@ -1046,6 +1120,12 @@ UnchangedSharedKind:
       ReadDeleted:
         NEWTYPE:
           TYPENAME: SequenceNumber
+    3:
+      Cancelled:
+        NEWTYPE:
+          TYPENAME: SequenceNumber
+    4:
+      PerEpochConfig: UNIT
 UpgradeInfo:
   STRUCT:
     - upgraded_id:

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useTransactionSummary } from '@iota/core';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { BalanceChanges } from './BalanceChanges';
 import { ObjectChanges } from './ObjectChanges';
@@ -28,7 +28,7 @@ export function TransactionSummary({ transaction }: TransactionSummaryProps): JS
     const upgradedSystemPackages = summary?.upgradedSystemPackages;
 
     return (
-        <div className="flex flex-wrap gap-4 md:gap-8">
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {balanceChanges && transactionKindName === 'ProgrammableTransaction' && (
                 <BalanceChanges changes={balanceChanges} />
             )}

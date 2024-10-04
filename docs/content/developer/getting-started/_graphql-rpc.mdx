@@ -5,11 +5,11 @@ description: Intoductory guide to making queries of the IOTA RPC using the Graph
 
 The quickest way to access the GraphQL service for IOTA RPC is through the online IDE that provides a complete toolbox for fetching data and executing transactions on the network. The online IDE provides features such as auto-completion (use Ctrl+Space or just start typing), built-in documentation (Book icon, top-left), multi-tabs, and more.
 
-The online IDE is available for [Mainnet](https://iota-mainnet.mystenlabs.com/graphql) and [Testnet](https://iota-testnet.mystenlabs.com/graphql). This guide contains various queries that you can try directly in the IDE.
+The online IDE is available for [Mainnet](https://iota-mainnet.iota.org/graphql) and [Testnet](https://iota-testnet.iota.org/graphql). This guide contains various queries that you can try directly in the IDE.
 
 :::info
 - Any existing addresses/object IDs in these examples refer to `mainnet` data only.
-- Both [mainnet](https://iota-mainnet.mystenlabs.com/graphql) and [testnet](https://iota-testnet.mystenlabs.com/graphql) services are rate-limited to keep network throughput optimized.
+- Both [mainnet](https://iota-mainnet.iota.org/graphql) and [testnet](https://iota-testnet.iota.org/graphql) services are rate-limited to keep network throughput optimized.
 :::
 
 For more details about some concepts used in the examples below, please see the [GraphQL concepts](../graphql-rpc.mdx) page, and consult the [reference](../../references/iota-graphql.mdx) for full documentation on the supported schema.
@@ -278,7 +278,7 @@ fragment Value on MoveValue {
 }
 ```
 
-## Paginating checkpoints forward, five at a time {#page-forward}
+## Paginating checkpoints forward, five at a time
 
 ```graphql
 query ($after: String) {
@@ -303,7 +303,7 @@ This example uses GraphQL [variables](../graphql-rpc.mdx#variables) and [paginat
 
 :::
 
-## Paginating checkpoints backwards, five at a time {#page-back}
+## Paginating checkpoints backwards, five at a time
 
 ```graphql
 query ($before: String) {

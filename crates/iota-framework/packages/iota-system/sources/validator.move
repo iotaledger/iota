@@ -16,20 +16,6 @@ module iota_system::validator {
     use iota::event;
     use iota::bag::Bag;
     use iota::bag;
-    /* friend iota_system::genesis; */
-    /* friend iota_system::iota_system_state_inner; */
-    /* friend iota_system::validator_wrapper; */
-    /* friend iota_system::validator_set; */
-    /* friend iota_system::voting_power; */
-
-    /* #[test_only] */
-    /* friend iota_system::validator_tests; */
-    /* #[test_only] */
-    /* friend iota_system::validator_set_tests; */
-    /* #[test_only] */
-    /* friend iota_system::iota_system_tests; */
-    /* #[test_only] */
-    /* friend iota_system::governance_test_utils; */
 
     /// Invalid proof_of_possession field in ValidatorMetadata
     const EInvalidProofOfPossession: u64 = 0;
@@ -85,7 +71,7 @@ module iota_system::validator {
     const MAX_VALIDATOR_METADATA_LENGTH: u64 = 256;
 
     // TODO: Move this to onchain config when we have a good way to do it.
-    /// Max gas price a validator can set is 100K MICROS.
+    /// Max gas price a validator can set is 100K NANOS.
     const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
     public struct ValidatorMetadata has store {

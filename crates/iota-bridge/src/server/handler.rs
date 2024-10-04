@@ -12,8 +12,8 @@ use ethers::{providers::JsonRpcClient, types::TxHash};
 use iota_types::digests::TransactionDigest;
 use lru::LruCache;
 use tap::TapFallible;
-use tokio::sync::{oneshot, Mutex};
-use tracing::{info, instrument};
+use tokio::sync::{Mutex, oneshot};
+use tracing::info;
 
 use super::governance_verifier::GovernanceVerifier;
 use crate::{
@@ -21,6 +21,7 @@ use crate::{
     error::{BridgeError, BridgeResult},
     eth_client::EthClient,
     iota_client::{IotaClient, IotaClientInner},
+    metrics::BridgeMetrics,
     types::{BridgeAction, SignedBridgeAction},
 };
 
@@ -52,6 +53,8 @@ pub trait BridgeRequestHandlerTrait {
 
 #[async_trait::async_trait]
 pub trait ActionVerifier<K>: Send + Sync {
+    // Name of the verifier, used for metrics
+    fn name(&self) -> &'static str;
     async fn verify(&self, key: K) -> BridgeResult<BridgeAction>;
 }
 
@@ -68,6 +71,10 @@ impl<C> ActionVerifier<(TransactionDigest, u16)> for IotaActionVerifier<C>
 where
     C: IotaClientInner + Send + Sync + 'static,
 {
+    fn name(&self) -> &'static str {
+        "IotaActionVerifier"
+    }
+
     async fn verify(&self, key: (TransactionDigest, u16)) -> BridgeResult<BridgeAction> {
         let (tx_digest, event_idx) = key;
         self.iota_client
@@ -82,6 +89,10 @@ impl<C> ActionVerifier<(TxHash, u16)> for EthActionVerifier<C>
 where
     C: JsonRpcClient + Send + Sync + 'static,
 {
+    fn name(&self) -> &'static str {
+        "EthActionVerifier"
+    }
+
     async fn verify(&self, key: (TxHash, u16)) -> BridgeResult<BridgeAction> {
         let (tx_hash, event_idx) = key;
         self.eth_client
@@ -96,6 +107,7 @@ struct SignerWithCache<K> {
     verifier: Arc<dyn ActionVerifier<K>>,
     mutex: Arc<Mutex<()>>,
     cache: LruCache<K, Arc<Mutex<Option<BridgeResult<SignedBridgeAction>>>>>,
+    metrics: Arc<BridgeMetrics>,
 }
 
 impl<K> SignerWithCache<K>
@@ -105,18 +117,20 @@ where
     fn new(
         signer: Arc<BridgeAuthorityKeyPair>,
         verifier: impl ActionVerifier<K> + 'static,
+        metrics: Arc<BridgeMetrics>,
     ) -> Self {
         Self {
             signer,
             verifier: Arc::new(verifier),
             mutex: Arc::new(Mutex::new(())),
             cache: LruCache::new(NonZeroUsize::new(1000).unwrap()),
+            metrics,
         }
     }
 
     fn spawn(
         mut self,
-        mut rx: mysten_metrics::metered_channel::Receiver<(
+        mut rx: iota_metrics::metered_channel::Receiver<(
             K,
             oneshot::Sender<BridgeResult<SignedBridgeAction>>,
         )>,
@@ -150,11 +164,20 @@ where
     async fn sign(&mut self, key: K) -> BridgeResult<SignedBridgeAction> {
         let signer = self.signer.clone();
         let verifier = self.verifier.clone();
+        let verifier_name = verifier.name();
         let entry = self.get_cache_entry(key.clone()).await;
         let mut guard = entry.lock().await;
         if let Some(result) = &*guard {
+            self.metrics
+                .signer_with_cache_hit
+                .with_label_values(&[verifier_name])
+                .inc();
             return result.clone();
         }
+        self.metrics
+            .signer_with_cache_miss
+            .with_label_values(&[verifier_name])
+            .inc();
         match verifier.verify(key.clone()).await {
             Ok(bridge_action) => {
                 let sig = BridgeAuthoritySignInfo::new(&bridge_action, &signer);
@@ -192,15 +215,15 @@ where
 }
 
 pub struct BridgeRequestHandler {
-    iota_signer_tx: mysten_metrics::metered_channel::Sender<(
+    iota_signer_tx: iota_metrics::metered_channel::Sender<(
         (TransactionDigest, u16),
         oneshot::Sender<BridgeResult<SignedBridgeAction>>,
     )>,
-    eth_signer_tx: mysten_metrics::metered_channel::Sender<(
+    eth_signer_tx: iota_metrics::metered_channel::Sender<(
         (TxHash, u16),
         oneshot::Sender<BridgeResult<SignedBridgeAction>>,
     )>,
-    governance_signer_tx: mysten_metrics::metered_channel::Sender<(
+    governance_signer_tx: iota_metrics::metered_channel::Sender<(
         BridgeAction,
         oneshot::Sender<BridgeResult<SignedBridgeAction>>,
     )>,
@@ -215,35 +238,47 @@ impl BridgeRequestHandler {
         iota_client: Arc<IotaClient<SC>>,
         eth_client: Arc<EthClient<EP>>,
         approved_governance_actions: Vec<BridgeAction>,
+        metrics: Arc<BridgeMetrics>,
     ) -> Self {
-        let (iota_signer_tx, iota_rx) = mysten_metrics::metered_channel::channel(
+        let (iota_signer_tx, iota_rx) = iota_metrics::metered_channel::channel(
             1000,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
-                .channels
+                .channel_inflight
                 .with_label_values(&["server_iota_action_signing_queue"]),
         );
-        let (eth_signer_tx, eth_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_signer_tx, eth_rx) = iota_metrics::metered_channel::channel(
             1000,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
-                .channels
+                .channel_inflight
                 .with_label_values(&["server_eth_action_signing_queue"]),
         );
-        let (governance_signer_tx, governance_rx) = mysten_metrics::metered_channel::channel(
+        let (governance_signer_tx, governance_rx) = iota_metrics::metered_channel::channel(
             1000,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
-                .channels
+                .channel_inflight
                 .with_label_values(&["server_governance_action_signing_queue"]),
         );
         let signer = Arc::new(signer);
 
-        SignerWithCache::new(signer.clone(), IotaActionVerifier { iota_client }).spawn(iota_rx);
-        SignerWithCache::new(signer.clone(), EthActionVerifier { eth_client }).spawn(eth_rx);
+        SignerWithCache::new(
+            signer.clone(),
+            IotaActionVerifier { iota_client },
+            metrics.clone(),
+        )
+        .spawn(iota_rx);
+        SignerWithCache::new(
+            signer.clone(),
+            EthActionVerifier { eth_client },
+            metrics.clone(),
+        )
+        .spawn(eth_rx);
         SignerWithCache::new(
             signer.clone(),
             GovernanceVerifier::new(approved_governance_actions).unwrap(),
+            metrics.clone(),
         )
         .spawn(governance_rx);
 
@@ -257,13 +292,11 @@ impl BridgeRequestHandler {
 
 #[async_trait]
 impl BridgeRequestHandlerTrait for BridgeRequestHandler {
-    #[instrument(level = "info", skip(self))]
     async fn handle_eth_tx_hash(
         &self,
         tx_hash_hex: String,
         event_idx: u16,
     ) -> Result<Json<SignedBridgeAction>, BridgeError> {
-        info!("Received handle eth tx request");
         let tx_hash = TxHash::from_str(&tx_hash_hex).map_err(|_| BridgeError::InvalidTxHash)?;
 
         let (tx, rx) = oneshot::channel();
@@ -272,18 +305,16 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
             .await
             .unwrap_or_else(|_| panic!("Server eth signing channel is closed"));
         let signed_action = rx
-            .blocking_recv()
+            .await
             .unwrap_or_else(|_| panic!("Server signing task's oneshot channel is dropped"))?;
         Ok(Json(signed_action))
     }
 
-    #[instrument(level = "info", skip(self))]
     async fn handle_iota_tx_digest(
         &self,
         tx_digest_base58: String,
         event_idx: u16,
     ) -> Result<Json<SignedBridgeAction>, BridgeError> {
-        info!("Received handle iota tx request");
         let tx_digest = TransactionDigest::from_str(&tx_digest_base58)
             .map_err(|_e| BridgeError::InvalidTxHash)?;
         let (tx, rx) = oneshot::channel();
@@ -292,7 +323,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
             .await
             .unwrap_or_else(|_| panic!("Server iota signing channel is closed"));
         let signed_action = rx
-            .blocking_recv()
+            .await
             .unwrap_or_else(|_| panic!("Server signing task's oneshot channel is dropped"))?;
         Ok(Json(signed_action))
     }
@@ -301,7 +332,6 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
         &self,
         action: BridgeAction,
     ) -> Result<Json<SignedBridgeAction>, BridgeError> {
-        info!("Received handle governace action request");
         if !action.is_governace_action() {
             return Err(BridgeError::ActionIsNotGovernanceAction(action));
         }
@@ -310,7 +340,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
             .send((action, tx))
             .await
             .unwrap_or_else(|_| panic!("Server governance action signing channel is closed"));
-        let signed_action = rx.blocking_recv().unwrap_or_else(|_| {
+        let signed_action = rx.await.unwrap_or_else(|_| {
             panic!("Server governance action task's oneshot channel is dropped")
         })?;
         Ok(Json(signed_action))
@@ -323,20 +353,21 @@ mod tests {
 
     use ethers::types::{Address as EthAddress, TransactionReceipt};
     use iota_json_rpc_types::IotaEvent;
-    use iota_types::{base_types::IotaAddress, crypto::get_key_pair};
+    use iota_types::{
+        base_types::IotaAddress,
+        bridge::{BridgeChainId, TOKEN_ID_USDC},
+        crypto::get_key_pair,
+    };
 
     use super::*;
     use crate::{
         eth_mock_provider::EthMockProvider,
-        events::{init_all_struct_tags, IotaToEthTokenBridgeV1, MoveTokenBridgeEvent},
+        events::{IotaToEthTokenBridgeV1, MoveTokenDepositedEvent, init_all_struct_tags},
         iota_mock_client::IotaMockClient,
         test_utils::{
             get_test_iota_to_eth_bridge_action, get_test_log_and_action, mock_last_finalized_block,
         },
-        types::{
-            BridgeActionType, BridgeChainId, EmergencyAction, EmergencyActionType,
-            LimitUpdateAction, TokenId,
-        },
+        types::{EmergencyAction, EmergencyActionType, LimitUpdateAction},
     };
 
     #[tokio::test]
@@ -347,7 +378,9 @@ mod tests {
         let iota_verifier = IotaActionVerifier {
             iota_client: Arc::new(IotaClient::new_for_testing(iota_client_mock.clone())),
         };
-        let mut iota_signer_with_cache = SignerWithCache::new(signer.clone(), iota_verifier);
+        let metrics = Arc::new(BridgeMetrics::new_for_testing());
+        let mut iota_signer_with_cache =
+            SignerWithCache::new(signer.clone(), iota_verifier, metrics);
 
         // Test `get_cache_entry` creates a new entry if not exist
         let iota_tx_digest = TransactionDigest::random();
@@ -369,6 +402,9 @@ mod tests {
         let action = get_test_iota_to_eth_bridge_action(
             Some(iota_tx_digest),
             Some(iota_event_idx),
+            None,
+            None,
+            None,
             None,
             None,
         );
@@ -413,23 +449,20 @@ mod tests {
         );
 
         // TODO: test BridgeEventInUnrecognizedIotaPackage,
-        // IotaBridgeEvent::try_from_iota_event and BridgeEventNotActionable to be
-        // cached
+        // IotaBridgeEvent::try_from_iota_event and BridgeEventNotActionable to
+        // be cached
 
         // Test `sign` caches Ok result
-        let emitted_event_1 = MoveTokenBridgeEvent {
-            message_type: BridgeActionType::TokenTransfer as u8,
+        let emitted_event_1 = MoveTokenDepositedEvent {
             seq_num: 1,
-            source_chain: BridgeChainId::IotaLocalTest as u8,
+            source_chain: BridgeChainId::IotaCustom as u8,
             sender_address: IotaAddress::random_for_testing_only().to_vec(),
-            target_chain: BridgeChainId::EthLocalTest as u8,
+            target_chain: BridgeChainId::EthCustom as u8,
             target_address: EthAddress::random().as_bytes().to_vec(),
-            token_type: TokenId::USDC as u8,
-            amount: 12345,
+            token_type: TOKEN_ID_USDC,
+            amount_iota_adjusted: 12345,
         };
 
-        // TODO: remove once we don't rely on env var to get package id
-        std::env::set_var("BRIDGE_PACKAGE_ID", "0x0b");
         init_all_struct_tags();
 
         let mut iota_event_1 = IotaEvent::random_for_testing();
@@ -443,10 +476,10 @@ mod tests {
         let iota_event_idx_2 = 1;
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![iota_event_2.clone()]);
 
-        iota_client_mock.add_events_by_tx_digest(
-            iota_tx_digest,
-            vec![iota_event_1.clone(), iota_event_2.clone()],
-        );
+        iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![
+            iota_event_1.clone(),
+            iota_event_2.clone(),
+        ]);
         let signed_1 = iota_signer_with_cache
             .sign((iota_tx_digest, iota_event_idx))
             .await
@@ -489,7 +522,9 @@ mod tests {
         let eth_verifier = EthActionVerifier {
             eth_client: Arc::new(eth_client),
         };
-        let mut eth_signer_with_cache = SignerWithCache::new(signer.clone(), eth_verifier);
+        let metrics = Arc::new(BridgeMetrics::new_for_testing());
+        let mut eth_signer_with_cache =
+            SignerWithCache::new(signer.clone(), eth_verifier, metrics.clone());
 
         // Test `get_cache_entry` creates a new entry if not exist
         let eth_tx_hash = TxHash::random();
@@ -552,13 +587,13 @@ mod tests {
     #[tokio::test]
     async fn test_signer_with_governace_verifier() {
         let action_1 = BridgeAction::EmergencyAction(EmergencyAction {
-            chain_id: BridgeChainId::EthLocalTest,
+            chain_id: BridgeChainId::EthCustom,
             nonce: 1,
             action_type: EmergencyActionType::Pause,
         });
         let action_2 = BridgeAction::LimitUpdateAction(LimitUpdateAction {
-            chain_id: BridgeChainId::EthLocalTest,
-            sending_chain_id: BridgeChainId::IotaLocalTest,
+            chain_id: BridgeChainId::EthCustom,
+            sending_chain_id: BridgeChainId::IotaCustom,
             nonce: 1,
             new_usd_limit: 10000,
         });
@@ -575,7 +610,8 @@ mod tests {
 
         let (_, kp): (_, BridgeAuthorityKeyPair) = get_key_pair();
         let signer = Arc::new(kp);
-        let mut signer_with_cache = SignerWithCache::new(signer.clone(), verifier);
+        let metrics = Arc::new(BridgeMetrics::new_for_testing());
+        let mut signer_with_cache = SignerWithCache::new(signer.clone(), verifier, metrics.clone());
 
         // action_1 is signable
         signer_with_cache.sign(action_1.clone()).await.unwrap();
@@ -595,7 +631,7 @@ mod tests {
 
         // alter action_1 to action_3
         let action_3 = BridgeAction::EmergencyAction(EmergencyAction {
-            chain_id: BridgeChainId::EthLocalTest,
+            chain_id: BridgeChainId::EthCustom,
             nonce: 1,
             action_type: EmergencyActionType::Unpause,
         });
@@ -612,7 +648,7 @@ mod tests {
         ));
 
         // Non governace action is not signable
-        let action_4 = get_test_iota_to_eth_bridge_action(None, None, None, None);
+        let action_4 = get_test_iota_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert!(matches!(
             signer_with_cache.sign(action_4.clone()).await.unwrap_err(),
             BridgeError::ActionIsNotGovernanceAction(..)

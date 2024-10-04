@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaValidatorSummary } from '@iota/iota.js/client';
-import { Heading } from '@iota/ui';
-
-import { Card, Stats } from '~/components/ui';
-import { DelegationAmount } from './DelegationAmount';
+import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
+import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
+import { CoinFormat, formatBalance, useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -22,137 +21,163 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
-    // TODO: add missing fields
-    // const numberOfDelegators = 0;
-    //  const networkStakingParticipation = 0;
-    //  const votedLastRound =  0;
-    //  const lastNarwhalRound = 0;
+    // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
+    const numberOfDelegators = 0;
+    const networkStakingParticipation = 0;
+    const votedLastRound = 0;
+    const lastNarwhalRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
     const commission = Number(validatorData.commissionRate) / 100;
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
+    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
+    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin(epochRewards, IOTA_TYPE_ARG);
+    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin(
+        rewardsPoolBalance,
+        IOTA_TYPE_ARG,
+    );
+    const nextEpochGasPriceAmount = formatBalance(
+        validatorData.nextEpochGasPrice,
+        0,
+        CoinFormat.FULL,
+    );
     return (
-        <div className="flex flex-col items-stretch gap-5 md:flex-row">
-            <div className="flex-grow">
-                <Card spacing="lg" height="full">
-                    <div className="flex basis-full flex-col gap-8 md:basis-1/3">
-                        <Heading as="div" variant="heading4/semibold" color="steel-darker">
-                            IOTA Staked on Validator
-                        </Heading>
-                        <div className="flex flex-col gap-8 lg:flex-row">
-                            <Stats
-                                label="Staking APY"
-                                tooltip="This is the Annualized Percentage Yield of the a specific validator’s past operations. Note there is no guarantee this APY will be true in the future."
-                                unavailable={apy === null}
-                            >
-                                {apy}%
-                            </Stats>
-                            <Stats
-                                label="Total IOTA Staked"
-                                tooltip="The total IOTA staked on the network by validators and delegators to validate the network and earn rewards."
-                                unavailable={totalStake <= 0}
-                            >
-                                <DelegationAmount amount={totalStake} isStats />
-                            </Stats>
-                        </div>
-                        <div className="flex flex-col gap-8 lg:flex-row">
-                            <Stats
-                                label="Commission"
-                                tooltip="Fee charged by the validator for staking services"
-                            >
-                                <Heading as="h3" variant="heading2/semibold" color="steel-darker">
-                                    {commission}%
-                                </Heading>
-                            </Stats>
-                            <Stats
-                                label="Delegators"
-                                tooltip="The number of active delegators"
-                                unavailable
-                            />
-                        </div>
+        <div className="flex flex-col gap-lg md:flex-row">
+            <Panel>
+                <Title title="Staked on Validator" />
+                <div className="grid grid-cols-2 gap-md p-md--rs">
+                    <div className="grid grid-rows-1 gap-md">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Staking APY"
+                            text={apy === null ? 'N/A' : `${apy}%`}
+                            tooltipText="This represents the Annualized Percentage Yield based on a specific validator's past activities. Keep in mind that this APY may not hold true in the future."
+                            tooltipPosition={TooltipPosition.Right}
+                        />
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Total IOTA Staked"
+                            text={formattedTotalStakeAmount}
+                            supportingLabel={totalStakeSymbol}
+                            tooltipText="The total amount of IOTA staked on the network by validators and delegators to secure the network and earn rewards."
+                            tooltipPosition={TooltipPosition.Right}
+                        />
                     </div>
-                </Card>
-            </div>
-
-            <div className="flex-grow">
-                <Card spacing="lg" height="full">
-                    <div className="flex basis-full flex-col items-stretch gap-8 md:basis-80">
-                        <Heading as="div" variant="heading4/semibold" color="steel-darker">
-                            Validator Staking Rewards
-                        </Heading>
-                        <div className="flex flex-col gap-8">
-                            <Stats
-                                label="Last Epoch Rewards"
-                                tooltip="The stake rewards collected during the last epoch."
-                                unavailable={epochRewards === null}
-                            >
-                                <DelegationAmount
-                                    amount={typeof epochRewards === 'number' ? epochRewards : 0n}
-                                    isStats
-                                />
-                            </Stats>
-
-                            <Stats
-                                label="Reward Pool"
-                                tooltip="Amount currently in this validator’s reward pool"
-                                unavailable={Number(rewardsPoolBalance) <= 0}
-                            >
-                                <DelegationAmount amount={rewardsPoolBalance} isStats />
-                            </Stats>
-                        </div>
+                    <div className="grid grid-rows-1 gap-md">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Commission"
+                            text={`${commission}%`}
+                            tooltipText="The charge imposed by the validator for their staking services."
+                            tooltipPosition={TooltipPosition.Right}
+                        />
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Delegators"
+                            text={numberOfDelegators || '--'}
+                            tooltipText={
+                                !numberOfDelegators
+                                    ? 'Coming soon'
+                                    : 'The number of delegators who have staked on this validator.'
+                            }
+                            tooltipPosition={TooltipPosition.Right}
+                        />
                     </div>
-                </Card>
-            </div>
-
-            <div className="flex-grow">
-                <Card spacing="lg" height="full">
-                    <div className="flex max-w-full flex-col gap-8">
-                        <Heading as="div" variant="heading4/semibold" color="steel-darker">
-                            Network Participation
-                        </Heading>
-                        <div className="flex flex-col gap-8">
-                            <div className="flex flex-col gap-8 lg:flex-row">
-                                <Stats
-                                    label="Checkpoint Participation"
-                                    tooltip="The percentage of checkpoints certified thus far by this validator."
-                                    unavailable
-                                />
-
-                                <Stats
-                                    label="Voted Last Round"
-                                    tooltip="Did this validator vote in the latest round."
-                                    unavailable
-                                />
-                            </div>
-                            <div className="flex flex-col gap-8 lg:flex-row">
-                                <Stats
-                                    label="Tallying Score"
-                                    tooltip="A score generated by validators to evaluate each other’s performance throughout Iota’s regular operations."
-                                    unavailable={!tallyingScore}
-                                >
-                                    {tallyingScore}
-                                </Stats>
-                                <Stats
-                                    label="Last Narwhal Round"
-                                    tooltip="Latest Narwhal round for this epoch."
-                                    unavailable
-                                />
-                                <Stats
-                                    label="Proposed Next Epoch Gas Price"
-                                    tooltip="This validator's gas price quote for the next epoch."
-                                >
-                                    <DelegationAmount
-                                        amount={validatorData.nextEpochGasPrice}
-                                        isStats
-                                        inMICROS
-                                    />
-                                </Stats>
-                            </div>
-                        </div>
+                </div>
+            </Panel>
+            <Panel>
+                <Title title="Validator Staking Rewards" />
+                <div className="grid grid-cols-2 gap-md p-md--rs">
+                    <LabelText
+                        size={LabelTextSize.Medium}
+                        label="Last Epoch Rewards"
+                        text={typeof epochRewards === 'number' ? formattedEpochRewards : '0'}
+                        supportingLabel={epochRewardsSymbol}
+                        tooltipText={
+                            epochRewards === null
+                                ? 'Coming soon'
+                                : 'The staking rewards earned during the previous epoch.'
+                        }
+                        tooltipPosition={TooltipPosition.Right}
+                    />
+                    <LabelText
+                        size={LabelTextSize.Medium}
+                        label="Reward Pool"
+                        text={formattedRewardsPoolBalance}
+                        supportingLabel={rewardsPoolBalanceSymbol}
+                        tooltipText={
+                            Number(rewardsPoolBalance) <= 0
+                                ? 'Coming soon'
+                                : 'The current balance in this validator’s reward pool.'
+                        }
+                        tooltipPosition={TooltipPosition.Right}
+                    />
+                </div>
+            </Panel>
+            <Panel>
+                <Title title="Network Participation" />
+                <div className="grid grid-cols-2 gap-md p-md--rs">
+                    <div className="grid grid-rows-1 gap-md">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Checkpoint Participation"
+                            text={networkStakingParticipation || '--'}
+                            tooltipText={
+                                !networkStakingParticipation
+                                    ? 'Coming soon'
+                                    : 'The proportion of checkpoints that this validator has certified to date.'
+                            }
+                            tooltipPosition={TooltipPosition.Right}
+                        />
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Voted Last Round"
+                            text={votedLastRound || '--'}
+                            tooltipText={
+                                !votedLastRound
+                                    ? 'Coming soon'
+                                    : 'This validator’s participation in the voting for the most recent round.'
+                            }
+                            tooltipPosition={TooltipPosition.Right}
+                        />
                     </div>
-                </Card>
-            </div>
+                    <div className="grid grid-rows-1 gap-md">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Tallying Score"
+                            text={tallyingScore ?? '--'}
+                            tooltipText={
+                                !tallyingScore
+                                    ? 'Coming soon'
+                                    : 'A score created by validators to assess each other’s performance during Iota’s standard operations.'
+                            }
+                            tooltipPosition={TooltipPosition.Right}
+                        />
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Last Narwhal round"
+                            text={lastNarwhalRound || '--'}
+                            tooltipText={
+                                !lastNarwhalRound
+                                    ? 'Coming soon'
+                                    : 'The most recent Narwhal round for this epoch.'
+                            }
+                            tooltipPosition={TooltipPosition.Right}
+                        />
+                    </div>
+                    <div className="grid grid-rows-1 gap-md">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Proposed next epoch gas price"
+                            text={nextEpochGasPriceAmount}
+                            supportingLabel="nano"
+                            tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
+                            tooltipPosition={TooltipPosition.Right}
+                        />
+                    </div>
+                </div>
+            </Panel>
         </div>
     );
 }

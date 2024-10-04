@@ -197,7 +197,7 @@ pub enum DependencyMode {
 }
 
 /// Wrapper struct to display a package as an inline table in the lock file
-/// (matching the convention in the source manifest). This is necessary because
+/// (matching the convention in the source manifest).  This is necessary because
 /// the `toml` crate does not currently support serializing types as inline
 /// tables.
 struct PackageTOML<'a>(&'a Package);
@@ -1269,10 +1269,10 @@ impl DependencyGraph {
         for (id, pkg) in &self.package_table {
             writeln!(writer, "\n[[move.package]]")?;
 
-            writeln!(writer, "name = {}", str_escape(id.as_str())?)?;
+            writeln!(writer, "name = {}", str_escape(id.as_str()))?;
             writeln!(writer, "source = {}", PackageTOML(pkg))?;
             if let Some(version) = &pkg.version {
-                writeln!(writer, "version = {}", str_escape(version.as_str())?)?;
+                writeln!(writer, "version = {}", str_escape(version.as_str()))?;
             }
 
             self.write_dependencies_to_lock(*id, &mut writer)?;
@@ -1552,10 +1552,10 @@ impl fmt::Display for Package {
                 subdir,
             }) => {
                 write!(f, "git = ")?;
-                f.write_str(&str_escape(git_url.as_str())?)?;
+                f.write_str(&str_escape(git_url.as_str()))?;
 
                 write!(f, ", rev = ")?;
-                f.write_str(&str_escape(git_rev.as_str())?)?;
+                f.write_str(&str_escape(git_rev.as_str()))?;
 
                 write!(f, ", subdir = ")?;
                 f.write_str(&path_escape(subdir)?)?;
@@ -1571,10 +1571,10 @@ impl fmt::Display for Package {
 
                 f.write_str(&custom_key)?;
                 write!(f, " = ")?;
-                f.write_str(&str_escape(node_url.as_str())?)?;
+                f.write_str(&str_escape(node_url.as_str()))?;
 
                 write!(f, ", address = ")?;
-                f.write_str(&str_escape(package_address.as_str())?)?;
+                f.write_str(&str_escape(package_address.as_str()))?;
 
                 write!(f, ", subdir = ")?;
                 f.write_str(&path_escape(subdir)?)?;
@@ -1622,11 +1622,11 @@ impl<'a> fmt::Display for DependencyTOML<'a> {
         f.write_str("{ ")?;
 
         write!(f, "name = ")?;
-        f.write_str(&str_escape(name.as_str())?)?;
+        f.write_str(&str_escape(name.as_str()))?;
 
         if let Some(digest) = digest {
             write!(f, ", digest = ")?;
-            f.write_str(&str_escape(digest.as_str())?)?;
+            f.write_str(&str_escape(digest.as_str()))?;
         }
 
         if let Some(subst) = subst {
@@ -1646,18 +1646,18 @@ impl<'a> fmt::Display for SubstTOML<'a> {
             addr: &PM::NamedAddress,
             subst: &PM::SubstOrRename,
         ) -> fmt::Result {
-            f.write_str(&str_escape(addr.as_str())?)?;
+            f.write_str(&str_escape(addr.as_str()))?;
             write!(f, " = ")?;
 
             match subst {
                 PM::SubstOrRename::RenameFrom(named) => {
-                    f.write_str(&str_escape(named.as_str())?)?;
+                    f.write_str(&str_escape(named.as_str()))?;
                 }
 
                 PM::SubstOrRename::Assign(account) => {
                     f.write_str(&str_escape(
                         &account.to_canonical_string(/* with_prefix */ false),
-                    )?)?;
+                    ))?;
                 }
             }
 
@@ -1685,13 +1685,14 @@ impl<'a> fmt::Display for SubstTOML<'a> {
 }
 
 /// Escape a string to output in a TOML file.
-fn str_escape(s: &str) -> Result<String, fmt::Error> {
-    toml::to_string(s).map_err(|_| fmt::Error)
+fn str_escape(s: &str) -> String {
+    toml::Value::String(s.to_string()).to_string()
 }
 
 /// Escape a path to output in a TOML file.
 fn path_escape(p: &Path) -> Result<String, fmt::Error> {
-    str_escape(p.to_str().ok_or(fmt::Error)?)
+    // Handle non-UTF-8 paths by escaping the lossy representation
+    Ok(str_escape(p.to_string_lossy().as_ref()))
 }
 
 fn format_deps(

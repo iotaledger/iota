@@ -1,0 +1,53 @@
+name: Build Wallet App (nightly)
+
+on:
+  schedule:
+    # At 20:58 on every day-of-week from Monday through Friday
+    - cron: "58 20 * * 1-5"
+  workflow_dispatch:
+    inputs:
+
+env:
+  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_NIGHTLY_BUILD_APPS_BACKEND }}
+  TAG_NAME: "${{ github.event.inputs.iota_branch || 'develop' }}"
+
+jobs:
+  wallet-nightly-build:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: [self-hosted]
+    steps:
+      - name: Create artifact name
+        shell: bash
+        run: |
+          export artifact_name="wallet-nightly-$(date -Idate)"
+          echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
+      - name: Checking out
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@v3
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Build Wallet
+        run: pnpm wallet build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.artifact_name }}
+          path: |
+            ./apps/wallet/dist

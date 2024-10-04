@@ -107,7 +107,7 @@ Holds all related objects to a Coin in a convenient shared function
  Immutable Metadata object, only to be used as a last resort if the original metadata is frozen
 </dd>
 <dt>
-<code>maximum_supply: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;</code>
+<code>maximum_supply: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;</code>
 </dt>
 <dd>
  Optional maximum supply, if set you can't mint more as this number - can only be set once
@@ -335,7 +335,7 @@ Event triggered if the ownership of the metadata part of a <code><a href="coin_m
 The error returned if additional metadata already exists and you try to overwrite
 
 
-<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EAdditionalMetadataAlreadyExists">EAdditionalMetadataAlreadyExists</a>: u64 = 2;
+<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EAdditionalMetadataAlreadyExists">EAdditionalMetadataAlreadyExists</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 2;
 </code></pre>
 
 
@@ -345,7 +345,7 @@ The error returned if additional metadata already exists and you try to overwrit
 The error returned if you try to edit nonexisting additional metadata
 
 
-<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EAdditionalMetadataDoesNotExist">EAdditionalMetadataDoesNotExist</a>: u64 = 3;
+<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EAdditionalMetadataDoesNotExist">EAdditionalMetadataDoesNotExist</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 3;
 </code></pre>
 
 
@@ -355,7 +355,7 @@ The error returned if you try to edit nonexisting additional metadata
 The error returned if a attempt is made to change the maximum supply after setting it
 
 
-<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyAlreadySet">EMaximumSupplyAlreadySet</a>: u64 = 1;
+<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyAlreadySet">EMaximumSupplyAlreadySet</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1;
 </code></pre>
 
 
@@ -365,7 +365,7 @@ The error returned if a attempt is made to change the maximum supply after setti
 The error returned when the maximum supply reached.
 
 
-<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyReached">EMaximumSupplyReached</a>: u64 = 0;
+<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyReached">EMaximumSupplyReached</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 
@@ -375,7 +375,7 @@ The error returned when the maximum supply reached.
 The error returned if you try to edit immutable metadata
 
 
-<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>: u64 = 4;
+<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 4;
 </code></pre>
 
 
@@ -630,7 +630,7 @@ A one-time callable function to set a maximum mintable supply on a coin.
 This can only be set once and is irrevertable.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_enforce_maximum_supply">enforce_maximum_supply</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, maximum_supply: u64)
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_enforce_maximum_supply">enforce_maximum_supply</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, maximum_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>)
 </code></pre>
 
 
@@ -642,7 +642,7 @@ This can only be set once and is irrevertable.
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_enforce_maximum_supply">enforce_maximum_supply</a>&lt;T&gt;(
     _: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt;,
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
-    maximum_supply: u64
+    maximum_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 ) {
     <b>assert</b>!(<a href="../move-stdlib/option.md#0x1_option_is_none">option::is_none</a>(&manager.maximum_supply), <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyAlreadySet">EMaximumSupplyAlreadySet</a>);
     <a href="../move-stdlib/option.md#0x1_option_fill">option::fill</a>(&<b>mut</b> manager.maximum_supply, maximum_supply);
@@ -847,7 +847,7 @@ and thus the ability to change any of the metadata has been renounced.
 Get the total supply as a number
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): u64
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -856,7 +856,7 @@ Get the total supply as a number
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     <a href="coin.md#0x2_coin_total_supply">coin::total_supply</a>(&manager.treasury_cap)
 }
 </code></pre>
@@ -873,7 +873,7 @@ Get the maximum supply possible as a number.
 If no maximum set it's the maximum u64 possible
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): u64
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -882,7 +882,7 @@ If no maximum set it's the maximum u64 possible
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     <a href="../move-stdlib/option.md#0x1_option_get_with_default">option::get_with_default</a>(&manager.maximum_supply, 18_446_744_073_709_551_615u64)
 }
 </code></pre>
@@ -898,7 +898,7 @@ If no maximum set it's the maximum u64 possible
 Convenience function returning the remaining supply that can be minted still
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_available_supply">available_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): u64
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_available_supply">available_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -907,7 +907,7 @@ Convenience function returning the remaining supply that can be minted still
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_available_supply">available_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): u64 {
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_available_supply">available_supply</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>(manager) - <a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>(manager)
 }
 </code></pre>
@@ -974,7 +974,7 @@ Create a coin worth <code>value</code> and increase the total supply
 in <code>cap</code> accordingly.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint">mint</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, value: u64, ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint">mint</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;
 </code></pre>
 
 
@@ -986,7 +986,7 @@ in <code>cap</code> accordingly.
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint">mint</a>&lt;T&gt;(
     _: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt;,
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
-    value: u64,
+    value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
 ): Coin&lt;T&gt; {
     <b>assert</b>!(<a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>(manager) + value &lt;= <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>(manager), <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyReached">EMaximumSupplyReached</a>);
@@ -1007,7 +1007,7 @@ supply in <code>cap</code> accordingly.
 Aborts if <code>value</code> + <code>cap.total_supply</code> >= U64_MAX
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint_balance">mint_balance</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, value: u64): <a href="balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint_balance">mint_balance</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;
 </code></pre>
 
 
@@ -1019,7 +1019,7 @@ Aborts if <code>value</code> + <code>cap.total_supply</code> >= U64_MAX
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint_balance">mint_balance</a>&lt;T&gt;(
     _: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt;,
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
-    value: u64
+    value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 ): Balance&lt;T&gt; {
     <b>assert</b>!(<a href="coin_manager.md#0x2_coin_manager_total_supply">total_supply</a>(manager) + value &lt;= <a href="coin_manager.md#0x2_coin_manager_maximum_supply">maximum_supply</a>(manager), <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyReached">EMaximumSupplyReached</a>);
     <a href="coin.md#0x2_coin_mint_balance">coin::mint_balance</a>(&<b>mut</b> manager.treasury_cap, value)
@@ -1038,7 +1038,7 @@ Destroy the coin <code>c</code> and decrease the total supply in <code>cap</code
 accordingly.
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_burn">burn</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, c: <a href="coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;): u64
+<pre><code><b>public</b> entry <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_burn">burn</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, c: <a href="coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1051,7 +1051,7 @@ accordingly.
     _: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt;,
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
     c: Coin&lt;T&gt;
-): u64 {
+): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     <a href="coin.md#0x2_coin_burn">coin::burn</a>(&<b>mut</b> manager.treasury_cap, c)
 }
 </code></pre>
@@ -1067,7 +1067,7 @@ accordingly.
 Mint <code>amount</code> of <code>Coin</code> and send it to <code>recipient</code>. Invokes <code><a href="coin_manager.md#0x2_coin_manager_mint">mint</a>()</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint_and_transfer">mint_and_transfer</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, amount: u64, recipient: <b>address</b>, ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint_and_transfer">mint_and_transfer</a>&lt;T&gt;(_: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;, amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, recipient: <b>address</b>, ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1079,7 +1079,7 @@ Mint <code>amount</code> of <code>Coin</code> and send it to <code>recipient</co
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_mint_and_transfer">mint_and_transfer</a>&lt;T&gt;(
    _: &<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt;,
    manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
-   amount: u64,
+   amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
    recipient: <b>address</b>,
    ctx: &<b>mut</b> TxContext
 ) {

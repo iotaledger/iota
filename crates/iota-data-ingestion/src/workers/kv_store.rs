@@ -9,17 +9,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use aws_config::timeout::TimeoutConfig;
+use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{
+    Client,
     primitives::Blob,
     types::{AttributeValue, PutRequest, WriteRequest},
-    Client,
 };
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::config::{Credentials, Region};
-use backoff::{backoff::Backoff, ExponentialBackoff};
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use iota_data_ingestion_core::Worker;
 use iota_storage::http_key_value_store::TaggedKey;
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
@@ -68,7 +68,7 @@ impl KVStoreWorker {
             .operation_attempt_timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(3))
             .build();
-        let aws_config = aws_config::from_env()
+        let aws_config = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
             .region(Region::new(config.aws_region))
             .timeout_config(timeout_config)
@@ -106,7 +106,7 @@ impl KVStoreWorker {
                             "bcs",
                             AttributeValue::B(Blob::new(bcs::to_bytes(value.borrow())?)),
                         )
-                        .build(),
+                        .build()?,
                 ))
                 .build();
             items.push(item);

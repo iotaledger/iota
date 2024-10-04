@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::VecDeque, ops::Mul};
 
 use fastcrypto::hash::{Blake2b256, HashFunction, Keccak256};
@@ -48,12 +49,9 @@ fn hash<H: HashFunction<DIGEST_SIZE>, const DIGEST_SIZE: usize>(
                 .mul((((msg_ref.len() + block_size - 1) / block_size) as u64).into())
     );
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::vector_u8(
-            H::digest(msg.as_bytes_ref().as_slice()).digest
-        )],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::vector_u8(H::digest(msg.as_bytes_ref().as_slice()).digest)
+    ]))
 }
 
 #[derive(Clone)]

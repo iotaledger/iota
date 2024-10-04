@@ -41,7 +41,7 @@ module iota_system::stake_tests {
     // Generated using [fn test_proof_of_possession]
     const NEW_VALIDATOR_POP: vector<u8> = x"8b93fc1b33379e2796d361c4056f0f04ad5aea7f4a8c02eaac57340ff09b6dc158eb1945eece103319167f420daf0cb3";
 
-    const MICROS_PER_IOTA: u64 = 1_000_000_000;
+    const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
     #[test]
     fun test_split_join_staked_iota() {
@@ -55,7 +55,7 @@ module iota_system::stake_tests {
         {
             let mut staked_iota = scenario.take_from_sender<StakedIota>();
             let ctx = scenario.ctx();
-            staked_iota.split_to_sender(20 * MICROS_PER_IOTA, ctx);
+            staked_iota.split_to_sender(20 * NANOS_PER_IOTA, ctx);
             scenario.return_to_sender(staked_iota);
         };
 
@@ -63,19 +63,22 @@ module iota_system::stake_tests {
         scenario.next_tx(STAKER_ADDR_1);
         {
             let staked_iota_ids = scenario.ids_for_sender<StakedIota>();
-            assert!(staked_iota_ids.length() == 2, 101); // staked iota split to 2 coins
+
+            assert!(staked_iota_ids.length() == 2); // staked iota split to 2 coins
 
             let mut part1 = scenario.take_from_sender_by_id<StakedIota>(staked_iota_ids[0]);
             let part2 = scenario.take_from_sender_by_id<StakedIota>(staked_iota_ids[1]);
 
             let amount1 = part1.amount();
             let amount2 = part2.amount();
-            assert!(amount1 == 20 * MICROS_PER_IOTA || amount1 == 40 * MICROS_PER_IOTA, 102);
-            assert!(amount2 == 20 * MICROS_PER_IOTA || amount2 == 40 * MICROS_PER_IOTA, 103);
-            assert!(amount1 + amount2 == 60 * MICROS_PER_IOTA, 104);
+
+            assert!(amount1 == 20 * NANOS_PER_IOTA || amount1 == 40 * NANOS_PER_IOTA);
+            assert!(amount2 == 20 * NANOS_PER_IOTA || amount2 == 40 * NANOS_PER_IOTA);
+            assert!(amount1 + amount2 == 60 * NANOS_PER_IOTA);
 
             part1.join(part2);
-            assert!(part1.amount() == 60 * MICROS_PER_IOTA, 105);
+            assert!(part1.amount() == 60 * NANOS_PER_IOTA);
+
             scenario.return_to_sender(part1);
         };
         scenario_val.end();
@@ -120,7 +123,7 @@ module iota_system::stake_tests {
             let mut staked_iota = scenario.take_from_sender<StakedIota>();
             let ctx = scenario.ctx();
             // The remaining amount after splitting is below the threshold so this should fail.
-            staked_iota.split_to_sender(1 * MICROS_PER_IOTA + 1, ctx);
+            staked_iota.split_to_sender(1 * NANOS_PER_IOTA + 1, ctx);
             scenario.return_to_sender(staked_iota);
         };
         scenario_val.end();
@@ -140,7 +143,7 @@ module iota_system::stake_tests {
             let mut staked_iota = scenario.take_from_sender<StakedIota>();
             let ctx = scenario.ctx();
             // The remaining amount after splitting is below the threshold so this should fail.
-            let stake = staked_iota.split(1 * MICROS_PER_IOTA + 1, ctx);
+            let stake = staked_iota.split(1 * NANOS_PER_IOTA + 1, ctx);
             test_utils::destroy(stake);
             scenario.return_to_sender(staked_iota);
         };
@@ -162,11 +165,11 @@ module iota_system::stake_tests {
 
             // Create a stake to VALIDATOR_ADDR_1.
             system_state_mut_ref.request_add_stake(
-                coin::mint_for_testing(60 * MICROS_PER_IOTA, ctx), VALIDATOR_ADDR_1, ctx
+                coin::mint_for_testing(60 * NANOS_PER_IOTA, ctx), VALIDATOR_ADDR_1, ctx
             );
 
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * MICROS_PER_IOTA, 101);
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * MICROS_PER_IOTA, 102);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * NANOS_PER_IOTA);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * NANOS_PER_IOTA);
 
             test_scenario::return_shared(system_state);
         };
@@ -177,21 +180,21 @@ module iota_system::stake_tests {
         {
 
             let staked_iota = scenario.take_from_sender<StakedIota>();
-            assert!(staked_iota.amount() == 60 * MICROS_PER_IOTA, 105);
 
+            assert!(staked_iota.amount() == 60 * NANOS_PER_IOTA);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * MICROS_PER_IOTA, 103);
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * MICROS_PER_IOTA, 104);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * NANOS_PER_IOTA);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * NANOS_PER_IOTA);
 
             let ctx = scenario.ctx();
 
             // Unstake from VALIDATOR_ADDR_1
             system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
 
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * MICROS_PER_IOTA, 107);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * NANOS_PER_IOTA);
             test_scenario::return_shared(system_state);
         };
 
@@ -200,7 +203,7 @@ module iota_system::stake_tests {
         scenario.next_tx(STAKER_ADDR_1);
         {
             let mut system_state = scenario.take_shared<IotaSystemState>();
-            assert!(system_state.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * MICROS_PER_IOTA, 107);
+            assert!(system_state.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * NANOS_PER_IOTA);
             test_scenario::return_shared(system_state);
         };
         scenario_val.end();
@@ -227,12 +230,12 @@ module iota_system::stake_tests {
 
         assert_validator_total_stake_amounts(
             vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2],
-            vector[200 * MICROS_PER_IOTA, 100 * MICROS_PER_IOTA],
+            vector[200 * NANOS_PER_IOTA, 100 * NANOS_PER_IOTA],
             scenario
         );
 
         if (should_distribute_rewards) {
-            // Each validator pool gets 30 MICROS and each validator gets an additional 10 MICROS.
+            // Each validator pool gets 40 IOTA.
             advance_epoch_with_reward_amounts(0, 80, scenario);
         } else {
             advance_epoch(scenario);
@@ -242,8 +245,7 @@ module iota_system::stake_tests {
 
         advance_epoch(scenario);
 
-        let reward_amt = if (should_distribute_rewards) 15 * MICROS_PER_IOTA else 0;
-        let validator_reward_amt = if (should_distribute_rewards) 10 * MICROS_PER_IOTA else 0;
+        let reward_amt = if (should_distribute_rewards) 20 * NANOS_PER_IOTA else 0;
 
         // Make sure stake withdrawal happens
         scenario.next_tx(STAKER_ADDR_1);
@@ -251,10 +253,10 @@ module iota_system::stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
 
             let staked_iota = scenario.take_from_sender<StakedIota>();
-            assert_eq(staked_iota.amount(), 100 * MICROS_PER_IOTA);
+            assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
 
             // Unstake from VALIDATOR_ADDR_1
             assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 0);
@@ -262,7 +264,7 @@ module iota_system::stake_tests {
             system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
 
             // Make sure they have all of their stake.
-            assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt);
+            assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
 
             test_scenario::return_shared(system_state);
         };
@@ -270,10 +272,9 @@ module iota_system::stake_tests {
         // Validator unstakes now.
         assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 0);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
-        if (should_distribute_rewards) unstake(VALIDATOR_ADDR_1, 0, scenario);
 
         // Make sure have all of their stake. NB there is no epoch change. This is immediate.
-        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt + validator_reward_amt);
+        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
 
         scenario_val.end();
     }
@@ -294,10 +295,8 @@ module iota_system::stake_tests {
         // this epoch, they should get the rewards from this epoch.
         advance_epoch_with_reward_amounts(0, 80, scenario);
 
-        // Each validator pool gets 30 MICROS and validators shares the 20 MICROS from the storage fund
-        // so validator gets another 10 MICROS.
-        let reward_amt = 15 * MICROS_PER_IOTA;
-        let validator_reward_amt = 10 * MICROS_PER_IOTA;
+        // Each validator pool gets 40 IOTA.
+        let reward_amt = 20 * NANOS_PER_IOTA;
 
         // Make sure stake withdrawal happens
         scenario.next_tx(STAKER_ADDR_1);
@@ -306,7 +305,7 @@ module iota_system::stake_tests {
             let system_state_mut_ref = &mut system_state;
 
             let staked_iota = scenario.take_from_sender<StakedIota>();
-            assert_eq(staked_iota.amount(), 100 * MICROS_PER_IOTA);
+            assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
 
             // Unstake from VALIDATOR_ADDR_1
             assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 0);
@@ -314,7 +313,7 @@ module iota_system::stake_tests {
             system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
 
             // Make sure they have all of their stake.
-            assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt);
+            assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
 
             test_scenario::return_shared(system_state);
         };
@@ -322,10 +321,9 @@ module iota_system::stake_tests {
         // Validator unstakes now.
         assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 0);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
-        unstake(VALIDATOR_ADDR_1, 0, scenario);
 
         // Make sure have all of their stake. NB there is no epoch change. This is immediate.
-        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt + validator_reward_amt);
+        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
 
         scenario_val.end();
     }
@@ -351,7 +349,7 @@ module iota_system::stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
 
             test_scenario::return_shared(system_state);
         };
@@ -370,7 +368,7 @@ module iota_system::stake_tests {
 
         add_validator_candidate(NEW_VALIDATOR_ADDR, b"name5", b"/ip4/127.0.0.1/udp/85", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
 
-        // Delegate 100 MICROS to the preactive validator
+        // Delegate 100 NANOS to the preactive validator
         stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
 
         // Advance epoch twice with some rewards
@@ -379,7 +377,7 @@ module iota_system::stake_tests {
 
         // Unstake from the preactive validator. There should be no rewards earned.
         unstake(STAKER_ADDR_1, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * MICROS_PER_IOTA);
+        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
 
         scenario_val.end();
     }
@@ -407,14 +405,19 @@ module iota_system::stake_tests {
         set_up_iota_system_state_with_storage_fund();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
+        // At this point we got the following distribution of stake:
+        // V1: 100, V2: 100, storage fund: 100
 
         add_validator_candidate(NEW_VALIDATOR_ADDR, b"name3", b"/ip4/127.0.0.1/udp/83", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
 
         // Delegate 100 IOTA to the preactive validator
         stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
+        // At this point we got the following distribution of stake:
+        // V1: 100, V2: 100, V3: 100, storage fund: 100
+    
         advance_epoch_with_reward_amounts(0, 300, scenario);
         // At this point we got the following distribution of stake:
-        // V1: 250, V2: 250, storage fund: 100
+        // V1: 250, V2: 250, V3: 100, storage fund: 100
 
         stake_with(STAKER_ADDR_2, NEW_VALIDATOR_ADDR, 50, scenario);
         stake_with(STAKER_ADDR_3, NEW_VALIDATOR_ADDR, 100, scenario);
@@ -422,26 +425,28 @@ module iota_system::stake_tests {
         // Now the preactive becomes active
         add_validator(NEW_VALIDATOR_ADDR, scenario);
         advance_epoch(scenario);
-
         // At this point we got the following distribution of stake:
         // V1: 250, V2: 250, V3: 250, storage fund: 100
 
         advance_epoch_with_reward_amounts(0, 85, scenario);
+        // At this point we got the following distribution of stake:
+        // V1: 278_330_500_000, V2: 278_330_500_000, V3: 278_339_000_000, storage fund: 100
 
-        // staker 1 and 3 unstake from the validator and earns about 2/5 * (85 - 10) * 1/3 = 10 IOTA each.
+        // staker 1 and 3 unstake from the validator and earns about 2/5 * 85 * 1/3 = 11.33 IOTA each.
         // Although they stake in different epochs, they earn the same rewards as long as they unstake
         // in the same epoch because the validator was preactive when they staked.
-        // So they will both get slightly more than 110 IOTA in total balance.
+        // So they will both get slightly more than 111 IOTA in total balance.
         unstake(STAKER_ADDR_1, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 110002000000);
+        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 111_335_600_000);
         unstake(STAKER_ADDR_3, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 110002000000);
+        assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 111_335_600_000);
 
         advance_epoch_with_reward_amounts(0, 85, scenario);
         unstake(STAKER_ADDR_2, 0, scenario);
-        // staker 2 earns about 5 IOTA from the previous epoch and 24-ish from this one
-        // so in total she has about 50 + 5 + 24 = 79 IOTA.
-        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 78862939078);
+        // staker 2 earns about 1/5 * 85 * 1/3 = 5.66 IOTA from the previous epoch
+        // and 85 * 1/3 = 28.33 from this one
+        // so in total she has about 50 + 5.66 + 28.33 = 83.99 IOTA.
+        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 84_006_800_000);
 
         scenario_val.end();
     }
@@ -484,7 +489,7 @@ module iota_system::stake_tests {
 
         add_validator_candidate(NEW_VALIDATOR_ADDR, b"name2", b"/ip4/127.0.0.1/udp/82", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
 
-        // Delegate 100 MICROS to the preactive validator
+        // Delegate 100 NANOS to the preactive validator
         stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
 
         // Advance epoch and give out some rewards. The candidate should get nothing, of course.
@@ -500,7 +505,7 @@ module iota_system::stake_tests {
 
         // Unstake now and the staker should get no rewards.
         unstake(STAKER_ADDR_1, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * MICROS_PER_IOTA);
+        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
 
         scenario_val.end();
     }
@@ -532,8 +537,8 @@ module iota_system::stake_tests {
         rates: &Table<u64, PoolTokenExchangeRate>, epoch: u64, iota_amount: u64, pool_token_amount: u64
     ) {
         let rate = &rates[epoch];
-        assert_eq(rate.iota_amount(), iota_amount * MICROS_PER_IOTA);
-        assert_eq(rate.pool_token_amount(), pool_token_amount * MICROS_PER_IOTA);
+        assert_eq(rate.iota_amount(), iota_amount * NANOS_PER_IOTA);
+        assert_eq(rate.pool_token_amount(), pool_token_amount * NANOS_PER_IOTA);
     }
 
     fun set_up_iota_system_state() {

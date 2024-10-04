@@ -4,19 +4,18 @@
 
 use std::{collections::HashSet, net::SocketAddr};
 
-use hyper::body::HttpBody;
+use http_body::Body;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
 };
-use jsonrpsee::{
-    server::logger::{HttpRequest, Logger, MethodKind, TransportProtocol},
-    types::Params,
-};
+use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
 use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec,
+    HistogramVec, IntCounterVec, IntGaugeVec, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 use tokio::time::Instant;
+
+use crate::logger::{Logger, TransportProtocol};
 
 const SPAM_LABEL: &str = "SPAM";
 const LATENCY_SEC_BUCKETS: &[f64] = &[

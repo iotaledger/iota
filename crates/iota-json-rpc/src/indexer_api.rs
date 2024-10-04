@@ -2,74 +2,98 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use async_trait::async_trait;
-use futures::{future, Stream};
+use futures::{Stream, StreamExt};
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
-    cap_page_limit, validate_limit, IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics,
-    ReadApiServer, QUERY_MAX_RESULT_LIMIT,
+    IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT, ReadApiServer,
+    cap_page_limit, validate_limit,
 };
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
     ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldName, Field},
+    dynamic_field::DynamicFieldName,
     error::IotaObjectResponseError,
     event::EventID,
 };
 use jsonrpsee::{
-    core::{error::SubscriptionClosed, RpcResult},
-    types::SubscriptionResult,
-    RpcModule, SubscriptionSink,
+    PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
+    core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
 use move_core_types::language_storage::TypeTag;
-use mysten_metrics::spawn_monitored_task;
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tracing::{debug, instrument, warn};
+use tracing::{debug, instrument};
 
 use crate::{
-    authority_state::{StateRead, StateReadResult},
+    IotaRpcModule,
+    authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
-    with_tracing, IotaRpcModule,
+    logger::FutureWithTracing as _,
 };
 
+async fn pipe_from_stream<T: Serialize>(
+    pending: PendingSubscriptionSink,
+    mut stream: impl Stream<Item = T> + Unpin,
+) -> Result<(), anyhow::Error> {
+    let sink = pending.accept().await?;
+
+    loop {
+        tokio::select! {
+            _ = sink.closed() => break Ok(()),
+            maybe_item = stream.next() => {
+                let Some(item) = maybe_item else {
+                    break Ok(());
+                };
+
+                let msg = SubscriptionMessage::from_json(&item)?;
+
+                if let Err(e) = sink.send_timeout(msg, Duration::from_secs(60)).await {
+                    match e {
+                        // The subscription or connection was closed.
+                        SendTimeoutError::Closed(_) => break Ok(()),
+                        // The subscription send timeout expired
+                        // the message is returned and you could save that message
+                        // and retry again later.
+                        SendTimeoutError::Timeout(_) => break Err(anyhow::anyhow!("Subscription timeout expired")),
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn spawn_subscription<S, T>(
-    mut sink: SubscriptionSink,
+    pending: PendingSubscriptionSink,
     rx: S,
     permit: Option<OwnedSemaphorePermit>,
 ) where
     S: Stream<Item = T> + Unpin + Send + 'static,
-    T: Serialize,
+    T: Serialize + Send,
 {
     spawn_monitored_task!(async move {
         let _permit = permit;
-        match sink.pipe_from_stream(rx).await {
-            SubscriptionClosed::Success => {
+        match pipe_from_stream(pending, rx).await {
+            Ok(_) => {
                 debug!("Subscription completed.");
-                sink.close(SubscriptionClosed::Success);
             }
-            SubscriptionClosed::RemotePeerAborted => {
-                debug!("Subscription aborted by remote peer.");
-                sink.close(SubscriptionClosed::RemotePeerAborted);
-            }
-            SubscriptionClosed::Failed(err) => {
+            Err(err) => {
                 debug!("Subscription failed: {err:?}");
-                sink.close(err);
             }
-        };
+        }
     });
 }
 const DEFAULT_MAX_SUBSCRIPTIONS: usize = 100;
@@ -78,7 +102,6 @@ pub struct IndexerApi<R> {
     state: Arc<dyn StateRead>,
     read_api: R,
     transaction_kv_store: Arc<TransactionKeyValueStore>,
-    name_service_config: NameServiceConfig,
     pub metrics: Arc<JsonRpcMetrics>,
     subscription_semaphore: Arc<Semaphore>,
 }
@@ -88,7 +111,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
         state: Arc<AuthorityState>,
         read_api: R,
         transaction_kv_store: Arc<TransactionKeyValueStore>,
-        name_service_config: NameServiceConfig,
         metrics: Arc<JsonRpcMetrics>,
         max_subscriptions: Option<usize>,
     ) -> Self {
@@ -97,7 +119,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
             state,
             transaction_kv_store,
             read_api,
-            name_service_config,
             metrics,
             subscription_semaphore: Arc::new(Semaphore::new(max_subscriptions)),
         }
@@ -124,16 +145,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
             Err(_) => bail!("Resources exhausted"),
         }
     }
-
-    fn get_latest_checkpoint_timestamp_ms(&self) -> StateReadResult<u64> {
-        let latest_checkpoint = self.state.get_latest_checkpoint_sequence_number()?;
-
-        let checkpoint = self
-            .state
-            .get_verified_checkpoint_by_sequence_number(latest_checkpoint)?;
-
-        Ok(checkpoint.timestamp_ms)
-    }
 }
 
 #[async_trait]
@@ -146,16 +157,15 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
-        with_tracing!(async move {
+        async move {
             let limit =
                 validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(IotaRpcInputError::from)?;
             self.metrics.get_owned_objects_limit.report(limit as u64);
             let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
             let options = options.unwrap_or_default();
-            let mut objects = self
-                .state
-                .get_owner_objects_with_limit(address, cursor, limit + 1, filter)
-                .map_err(Error::from)?;
+            let mut objects =
+                self.state
+                    .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
 
             // objects here are of size (limit + 1), where the last one is the cursor for
             // the next page
@@ -171,7 +181,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                     let object_ids = objects.iter().map(|obj| obj.object_id).collect();
                     self.read_api
                         .multi_get_objects(object_ids, Some(options))
-                        .await?
+                        .await
+                        .map_err(|e| Error::InternalError(anyhow!(e)))?
                 }
                 false => objects
                     .into_iter()
@@ -190,7 +201,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 next_cursor,
                 has_next_page,
             })
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -202,7 +215,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<TransactionBlocksPage> {
-        with_tracing!(async move {
+        async move {
             let limit = cap_page_limit(limit);
             self.metrics.query_tx_blocks_limit.report(limit as u64);
             let descending = descending_order.unwrap_or_default();
@@ -220,6 +233,10 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 )
                 .await
                 .map_err(Error::from)?;
+            // De-dup digests, duplicate digests are possible, for example,
+            // when get_transactions_by_move_function with module or function being None.
+            let mut seen = HashSet::new();
+            digests.retain(|digest| seen.insert(*digest));
 
             // extract next cursor
             let has_next_page = digests.len() > limit;
@@ -234,7 +251,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             } else {
                 self.read_api
                     .multi_get_transaction_blocks(digests, Some(opts))
-                    .await?
+                    .await
+                    .map_err(|e| Error::InternalError(anyhow!(e)))?
             };
 
             self.metrics
@@ -248,7 +266,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 next_cursor,
                 has_next_page,
             })
-        })
+        }
+        .trace()
+        .await
     }
     #[instrument(skip(self))]
     async fn query_events(
@@ -259,7 +279,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage> {
-        with_tracing!(async move {
+        async move {
             let descending = descending_order.unwrap_or_default();
             let limit = cap_page_limit(limit);
             self.metrics.query_events_limit.report(limit as u64);
@@ -289,11 +309,17 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 next_cursor,
                 has_next_page,
             })
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
-    fn subscribe_event(&self, sink: SubscriptionSink, filter: EventFilter) -> SubscriptionResult {
+    fn subscribe_event(
+        &self,
+        sink: PendingSubscriptionSink,
+        filter: EventFilter,
+    ) -> SubscriptionResult {
         let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
@@ -307,7 +333,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
 
     fn subscribe_transaction(
         &self,
-        sink: SubscriptionSink,
+        sink: PendingSubscriptionSink,
         filter: TransactionFilter,
     ) -> SubscriptionResult {
         let permit = self.acquire_subscribe_permit()?;
@@ -329,7 +355,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage> {
-        with_tracing!(async move {
+        async move {
             let limit = cap_page_limit(limit);
             self.metrics.get_dynamic_fields_limit.report(limit as u64);
             let mut data = self
@@ -350,7 +376,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 next_cursor,
                 has_next_page,
             })
-        })
+        }
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
@@ -359,7 +387,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        with_tracing!(async move {
+        async move {
             let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
 
             let id = self
@@ -371,132 +399,15 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 self.read_api
                     .get_object(id, Some(IotaObjectDataOptions::full_content()))
                     .await
-                    .map_err(Error::from)
+                    .map_err(|e| Error::InternalError(anyhow!(e)))
             } else {
                 Ok(IotaObjectResponse::new_with_error(
                     IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
                 ))
             }
-        })
-    }
-
-    #[instrument(skip(self))]
-    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
-        with_tracing!(async move {
-            // prepare the requested domain's field id.
-            let domain = name.parse::<Domain>().map_err(Error::from)?;
-            let record_id = self.name_service_config.record_field_id(&domain);
-
-            // prepare the parent's field id.
-            let parent_domain = domain.parent();
-            let parent_record_id = self.name_service_config.record_field_id(&parent_domain);
-
-            let current_timestamp_ms = self.get_latest_checkpoint_timestamp_ms()?;
-
-            // Do these two reads in parallel.
-            let mut requests = vec![self.state.get_object(&record_id)];
-
-            // Also add the parent in the DB reads if the requested domain is a subdomain.
-            if domain.is_subdomain() {
-                requests.push(self.state.get_object(&parent_record_id));
-            }
-
-            // Couldn't find a `multi_get_object` for this crate (looks like it uses a k,v
-            // db) Always fetching both parent + child at the same time (even
-            // for node subdomains), to avoid sequential db reads. We do this
-            // because we do not know if the requested domain is a node
-            // subdomain or a leaf subdomain, and we can save a trip to the db.
-            let mut results = future::try_join_all(requests).await?;
-
-            // Removing without checking vector len, since it is known (== 1 or 2 depending
-            // on whether it is a subdomain or not).
-            let Some(object) = results.remove(0) else {
-                return Ok(None);
-            };
-
-            let name_record = NameRecord::try_from(object)?;
-
-            // Handling SLD names & node subdomains is the same (we handle them as `node`
-            // records) We check their expiration, and and if not expired,
-            // return the target address.
-            if !name_record.is_leaf_record() {
-                return if !name_record.is_node_expired(current_timestamp_ms) {
-                    Ok(name_record.target_address)
-                } else {
-                    Err(Error::from(NameServiceError::NameExpired))
-                };
-            }
-
-            // == Handle leaf subdomains case ==
-            // We can remove since we know that if we're here, we have a parent
-            // (which also means we queried it in the future above).
-            let Some(parent_object) = results.remove(0) else {
-                return Err(Error::from(NameServiceError::NameExpired));
-            };
-
-            let parent_name_record = NameRecord::try_from(parent_object)?;
-
-            // For a leaf record, we check that:
-            // 1. The parent is a valid parent for that leaf record
-            // 2. The parent is not expired
-            if parent_name_record.is_valid_leaf_parent(&name_record)
-                && !parent_name_record.is_node_expired(current_timestamp_ms)
-            {
-                Ok(name_record.target_address)
-            } else {
-                Err(Error::from(NameServiceError::NameExpired))
-            }
-        })
-    }
-
-    #[instrument(skip(self))]
-    async fn resolve_name_service_names(
-        &self,
-        address: IotaAddress,
-        _cursor: Option<ObjectID>,
-        _limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>> {
-        with_tracing!(async move {
-            let reverse_record_id = self
-                .name_service_config
-                .reverse_record_field_id(address.as_ref());
-
-            let mut result = Page {
-                data: vec![],
-                next_cursor: None,
-                has_next_page: false,
-            };
-
-            let Some(field_reverse_record_object) =
-                self.state.get_object(&reverse_record_id).await?
-            else {
-                return Ok(result);
-            };
-
-            let domain = field_reverse_record_object
-                .to_rust::<Field<IotaAddress, Domain>>()
-                .ok_or_else(|| {
-                    Error::UnexpectedError(format!("Malformed Object {reverse_record_id}"))
-                })?
-                .value;
-
-            let domain_name = domain.to_string();
-
-            let resolved_address = self
-                .resolve_name_service_address(domain_name.clone())
-                .await?;
-
-            // If looking up the domain returns an empty result, we return an empty result.
-            if resolved_address.is_none() {
-                return Ok(result);
-            }
-
-            // TODO(manos): Discuss why is this even a paginated response.
-            // This API is always going to return a single domain name.
-            result.data.push(domain_name);
-
-            Ok(result)
-        })
+        }
+        .trace()
+        .await
     }
 }
 

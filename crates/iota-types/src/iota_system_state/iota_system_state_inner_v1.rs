@@ -2,26 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    AdvanceEpochParams, IotaSystemStateTrait,
 };
 use crate::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::{AuthorityPublicKeyBytes, verify_proof_of_possession},
     error::IotaError,
+    gas_coin::IotaTreasuryCap,
     id::ID,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     multiaddr::Multiaddr,
@@ -42,9 +41,6 @@ const E_METADATA_INVALID_WORKER_ADDR: u64 = 7;
 pub struct SystemParametersV1 {
     /// The duration of an epoch, in milliseconds.
     pub epoch_duration_ms: u64,
-
-    /// The starting epoch in which stake subsidies start being paid out
-    pub stake_subsidy_start_epoch: u64,
 
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
@@ -471,43 +467,20 @@ pub struct IotaSystemStateInnerV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
+    pub iota_treasury_cap: IotaTreasuryCap,
     pub validators: ValidatorSetV1,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV1,
     pub reference_gas_price: u64,
     pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
-    pub stake_subsidy: StakeSubsidyV1,
     pub safe_mode: bool,
-    pub safe_mode_storage_rewards: Balance,
+    pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_rewards: Balance,
     pub safe_mode_storage_rebates: u64,
     pub safe_mode_non_refundable_storage_fee: u64,
     pub epoch_start_timestamp_ms: u64,
     pub extra_fields: Bag,
     // TODO: Use getters instead of all pub.
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct StakeSubsidyV1 {
-    /// Balance of IOTA set aside for stake subsidies that will be drawn down
-    /// over time.
-    pub balance: Balance,
-
-    /// Count of the number of times stake subsidies have been distributed.
-    pub distribution_counter: u64,
-
-    /// The amount of stake subsidy to be drawn down per distribution.
-    /// This amount decays and decreases over time.
-    pub current_distribution_amount: u64,
-
-    /// Number of distributions to occur before the distribution amount decays.
-    pub stake_subsidy_period_length: u64,
-
-    /// The rate at which the distribution amount decays at the end of each
-    /// period. Expressed in basis points.
-    pub stake_subsidy_decrease_rate: u16,
-
-    pub extra_fields: Bag,
 }
 
 impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
@@ -542,7 +515,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
     fn advance_epoch_safe_mode(&mut self, params: &AdvanceEpochParams) {
         self.epoch = params.epoch;
         self.safe_mode = true;
-        self.safe_mode_storage_rewards
+        self.safe_mode_storage_charges
             .deposit_for_safe_mode(params.storage_charge);
         self.safe_mode_storage_rebates += params.storage_rebate;
         self.safe_mode_computation_rewards
@@ -553,24 +526,23 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.validators.active_validators {
-            let verified_metadata = validator.verified_metadata();
-            let name = verified_metadata.iota_pubkey_bytes();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: verified_metadata.net_address.clone(),
-                    narwhal_primary_address: verified_metadata.primary_address.clone(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+        let validators = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let verified_metadata = validator.verified_metadata();
+                let name = verified_metadata.iota_pubkey_bytes();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -626,6 +598,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_treasury_cap,
             validators:
                 ValidatorSetV1 {
                     total_stake,
@@ -663,7 +636,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             storage_fund,
             parameters:
                 SystemParametersV1 {
-                    stake_subsidy_start_epoch,
                     epoch_duration_ms,
                     max_validator_count,
                     min_validator_joining_stake,
@@ -677,17 +649,8 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
                 VecMap {
                     contents: validator_report_records,
                 },
-            stake_subsidy:
-                StakeSubsidyV1 {
-                    balance: stake_subsidy_balance,
-                    distribution_counter: stake_subsidy_distribution_counter,
-                    current_distribution_amount: stake_subsidy_current_distribution_amount,
-                    stake_subsidy_period_length,
-                    stake_subsidy_decrease_rate,
-                    extra_fields: _,
-                },
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
@@ -698,22 +661,20 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_total_supply: iota_treasury_cap.total_supply().value,
+            iota_treasury_cap_id: iota_treasury_cap.id().to_owned(),
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),
             storage_fund_non_refundable_balance: storage_fund.non_refundable_balance.value(),
             reference_gas_price,
             safe_mode,
-            safe_mode_storage_rewards: safe_mode_storage_rewards.value(),
+            safe_mode_storage_charges: safe_mode_storage_charges.value(),
             safe_mode_computation_rewards: safe_mode_computation_rewards.value(),
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
-            stake_subsidy_start_epoch,
             epoch_duration_ms,
-            stake_subsidy_distribution_counter,
-            stake_subsidy_balance: stake_subsidy_balance.value(),
-            stake_subsidy_current_distribution_amount,
             total_stake,
             active_validators: active_validators
                 .into_iter()
@@ -741,8 +702,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
         }
     }
 }

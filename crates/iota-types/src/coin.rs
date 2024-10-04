@@ -12,12 +12,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
     base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     object::{Data, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");
@@ -150,7 +150,7 @@ impl TreasuryCap {
 
     /// Create a TreasuryCap from BCS bytes
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
-        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserializationError {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
             error: format!("Unable to deserialize TreasuryCap object: {}", err),
         })
     }
@@ -161,6 +161,19 @@ impl TreasuryCap {
             name: COIN_TREASURE_CAP_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
+        }
+    }
+
+    /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
+    /// so.
+    pub fn is_treasury_with_coin_type(other: &StructTag) -> Option<&StructTag> {
+        if Self::is_treasury_type(other) && other.type_params.len() == 1 {
+            match other.type_params.first() {
+                Some(TypeTag::Struct(coin_type)) => Some(coin_type),
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -177,7 +190,7 @@ impl TryFrom<Object> for TreasuryCap {
             Data::Package(_) => {}
         }
 
-        Err(IotaError::TypeError {
+        Err(IotaError::Type {
             error: format!("Object type is not a TreasuryCap: {:?}", object),
         })
     }
@@ -209,7 +222,7 @@ impl CoinMetadata {
 
     /// Create a coin from BCS bytes
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
-        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserializationError {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
             error: format!("Unable to deserialize CoinMetadata object: {}", err),
         })
     }
@@ -220,6 +233,19 @@ impl CoinMetadata {
             name: COIN_METADATA_STRUCT_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
+        }
+    }
+
+    /// Checks if the provided type is `CoinMetadata<T>`, returning the type T
+    /// if so.
+    pub fn is_coin_metadata_with_coin_type(other: &StructTag) -> Option<&StructTag> {
+        if Self::is_coin_metadata(other) && other.type_params.len() == 1 {
+            match other.type_params.first() {
+                Some(TypeTag::Struct(coin_type)) => Some(coin_type),
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -243,7 +269,7 @@ impl TryFrom<&Object> for CoinMetadata {
             Data::Package(_) => {}
         }
 
-        Err(IotaError::TypeError {
+        Err(IotaError::Type {
             error: format!("Object type is not a CoinMetadata: {:?}", object),
         })
     }

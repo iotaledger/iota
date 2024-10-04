@@ -3,6 +3,9 @@ title: IOTA Exchange Integration Guide
 description: Learn the primary tasks necessary to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange.
 ---
 
+import AlphaNet from "../../_snippets/alphanet.mdx";
+
+
 This topic describes how to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange. The specific requirements and processes to implement an integration vary between exchanges. Rather than provide a step-by-step guide, this topic provides information about the primary tasks necessary to complete an integration. After the guidance about how to configure an integration, you can also find information and code samples related to staking on the IOTA network.
 
 ## Requirements to configure a IOTA integration
@@ -70,7 +73,7 @@ println!("Address: 0x{}", iota_address_string);
 This example generates a new address with the TypeScript SDK:
 
 ```ts
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
  
 const keypair = new Ed25519Keypair();
 const address = keypair.getPublicKey().toIotaAddress();
@@ -94,6 +97,8 @@ You can track balance changes by calling `iotax_getBalance` at predefined interv
 ### Using cURL
 
 The following bash example demonstrates how to use `iotax_getBalance` for address `0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3`. If you use a network other than Devnet, replace the value for `rpc` with the URL to the appropriate Full node.
+
+<AlphaNet />
 
 ```bash
 rpc="https://fullnode.devnet.iota.org:443"
@@ -128,6 +133,8 @@ curl -X POST -H 'Content-type: application/json' --data-raw "$data" $rpc
 
 ### Using Rust
 
+<AlphaNet />
+
 The following example demonstrates using `iotax_getBalance` in Rust:
 ```rust
 use std::str::FromStr;
@@ -152,7 +159,7 @@ async fn main() -> Result<(), anyhow::Error> {
 This example does the same with TypeScript:
 
 ```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
 
@@ -185,9 +192,9 @@ For more information about confirming finality, see the [Verifying Finality](../
 ### Checkpoint API operations
 
 IOTA Checkpoint API operations include:
- - [iota_getCheckpoint](/iota-api-ref#iota_getCheckpoint) - Retrieves the specified checkpoint.
- - [iota_getLatestCheckpointSequenceNumber](/iota-api-ref#iota_getLatestCheckpointSequenceNumber) - Retrieves the sequence number of the most recently executed checkpoint.
- - [iota_getCheckpoints](/iota-api-ref#iota_getCheckpoints) - Retrieves a paginated list of checkpoints that occurred during the specified interval. Pending a future release.
+ - [iota_getCheckpoint](/iota-api-ref#iota_getcheckpoint) - Retrieves the specified checkpoint.
+ - [iota_getLatestCheckpointSequenceNumber](/iota-api-ref#iota_getlatestcheckpointsequencenumber) - Retrieves the sequence number of the most recently executed checkpoint.
+ - [iota_getCheckpoints](/iota-api-ref#iota_getcheckpoints) - Retrieves a paginated list of checkpoints that occurred during the specified interval. Pending a future release.
 
 ## IOTA balance transfer
 
@@ -209,29 +216,29 @@ While it's possible to directly call the JSON-RPC API to integrate, we highly re
 
 IOTA supports the following API operations related to transferring IOTA between addresses:
 
- - [iota_transferObject](/iota-api-ref#iota_transferObject)
+ - [unsafe_transferObject](/iota-api-ref#unsafe_transferobject)
    Because IOTA tokens are objects, you can transfer IOTA tokens just like any other object. This method requires a gas token. For transfering tokens there are better alternatives, as listed below.
 
- - [iota_payAllIota](/iota-api-ref#iota_payAllIota)
+ - [unsafe_payAllIota](/iota-api-ref#unsafe_payalliota)
    This method accepts an array of IOTA token IDs. It merges all existing tokens into one, deducts the gas fee, then sends the merged token to the recipient address.
 
    The method is especially useful if you want to transfer all IOTA from an address. To merge together all coins for an address, set the recipient as the same address. This is a native IOTA method so is not considered a transaction in IOTA.
 
- - [iota_payIota](/iota-api-ref#iota_payIota)
+ - [unsafe_payIota](/iota-api-ref#unsafe_payiota)
    This operation accepts an array of IOTA token IDs, an array of amounts, and an array of recipient addresses.
 
    The amounts and recipients array map one to one. Even if you use only one recipient address, you must include it for each amount in the amount array.
 
    The operation merges all of the tokens provided into one token object and settles the gas fees. It then splits the token according to the amounts in the amounts array and sends the first token to the first recipient, the second token to the second recipient, and so on. Any remaining IOTA on the token stays in the source address.
 
-   The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `iota_payIota` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA. You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
+   The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `unsafe_payIota` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA. You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
 
- - [iota_pay](/iota-api-ref#iota_pay)
-   This method is similar to `iota_payIota`, but it accepts any kind of coin or token instead of only IOTA (for example, SMR). You must include a IOTA gas token, and all of the coins or tokens must be the same type.
+ - [unsafe_pay](/iota-api-ref#unsafe_pay)
+   This method is similar to `unsafe_payIota`, but it accepts any kind of coin or token instead of only IOTA (for example, SMR). You must include a IOTA gas token, and all of the coins or tokens must be the same type.
 
- - [iota_transferIota](/iota-api-ref#iota_transferIota)
+ - [unsafe_transferIota](/iota-api-ref#unsafe_transferiota)
     This method accepts only one IOTA token object and an amount to send to the recipient. It uses the same token for gas fees, so the amount to transfer must be strictly less than the value of the IOTA token used.
 
 ## Signing transactions
 
-Refer to [IOTA Signatures](../cryptography/explanations/transaction-auth/signatures.mdx) for more details on signature validity requirements.
+Refer to [IOTA Signatures](../cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.

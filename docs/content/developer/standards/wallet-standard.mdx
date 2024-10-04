@@ -13,23 +13,23 @@ You need to create a class that represents your wallet. You can use the `Wallet`
 `@iota/wallet-standard` to help ensure your class adheres to the standard.
 
 ```tsx
-import { IOTA_DEVNET_CHAIN, Wallet } from '@iota/wallet-standard';
+import { IOTA_TESTNET_CHAIN, Wallet } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
-	get version() {
-		// Return the version of the Wallet Standard this implements (in this case, 1.0.0).
-		return '1.0.0';
-	}
-	get name() {
-		return 'Wallet Name';
-	}
-	get icon() {
-		return 'some-icon-data-url';
-	}
-	// Return the IOTA chains that your wallet supports.
-	get chains() {
-		return [IOTA_DEVNET_CHAIN];
-	}
+  get version() {
+    // Return the version of the Wallet Standard this implements (in this case, 1.0.0).
+    return '1.0.0';
+  }
+  get name() {
+    return 'Wallet Name';
+  }
+  get icon() {
+    return 'some-icon-data-url';
+  }
+  // Return the IOTA chains that your wallet supports.
+  get chains() {
+    return [IOTA_TESTNET_CHAIN];
+  }
 }
 ```
 
@@ -64,7 +64,7 @@ import {
 } from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
-	/* ... existing code from above ... */
+  /* ... existing code from above ... */
 
   get features(): ConnectFeature & EventsFeature & IOTAFeatures {
     return {
@@ -76,10 +76,10 @@ class YourWallet implements Wallet {
         version: "1.0.0",
         on: this.#on,
       },
-			"iota:signPersonalMessage": {
+      "iota:signPersonalMessage": {
         version: "1.0.0",
-				signPersonalMessage: this.#signPersonalMessage,
-			},
+        signPersonalMessage: this.#signPersonalMessage,
+      },
       "iota:signTransactionBlock": {
         version: "1.0.0",
         signTransactionBlock: this.#signTransactionBlock,
@@ -99,7 +99,7 @@ class YourWallet implements Wallet {
     // Your wallet's connect implementation
   };
 
-	#signPersonalMessage: IOTASignPersonalMessageMethod = () => {
+  #signPersonalMessage: IOTASignPersonalMessageMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
@@ -126,26 +126,26 @@ required interface.
 import { ReadonlyWalletAccount } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
-	get accounts() {
-		// Assuming we already have some internal representation of accounts:
-		return someWalletAccounts.map(
-			(walletAccount) =>
-				// Return
-				new ReadonlyWalletAccount({
-					address: walletAccount.iotaAddress,
-					publicKey: walletAccount.pubkey,
-					// The IOTA chains that your wallet supports.
-					chains: [IOTA_DEVNET_CHAIN],
-					// The features that this account supports. This can be a subset of the wallet's supported features.
-					// These features must exist on the wallet as well.
-					features: [
-						'iota:signPersonalMessage',
-						'iota:signTransactionBlock',
-						'iota:signAndExecuteTransactionBlock',
-					],
-				}),
-		);
-	}
+  get accounts() {
+    // Assuming we already have some internal representation of accounts:
+    return someWalletAccounts.map(
+      (walletAccount) =>
+        // Return
+        new ReadonlyWalletAccount({
+          address: walletAccount.iotaAddress,
+          publicKey: walletAccount.pubkey,
+          // The IOTA chains that your wallet supports.
+          chains: [IOTA_TESTNET_CHAIN],
+          // The features that this account supports. This can be a subset of the wallet's supported features.
+          // These features must exist on the wallet as well.
+          features: [
+            'iota:signPersonalMessage',
+            'iota:signTransactionBlock',
+            'iota:signAndExecuteTransactionBlock',
+          ],
+        }),
+    );
+  }
 }
 ```
 

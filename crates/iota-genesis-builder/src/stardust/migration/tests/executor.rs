@@ -5,21 +5,21 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
-        unlock_condition::ImmutableAliasAddressUnlockCondition, AliasId, FoundryOutputBuilder,
-        NativeToken, NativeTokens, SimpleTokenScheme, UnlockCondition,
+        AliasId, FoundryOutputBuilder, NativeToken, NativeTokens, SimpleTokenScheme,
+        UnlockCondition, unlock_condition::ImmutableAliasAddressUnlockCondition,
     },
 };
 use iota_types::{
     balance::Balance,
-    dynamic_field::{derive_dynamic_field_id, Field},
+    dynamic_field::{Field, derive_dynamic_field_id},
     object::Owner,
     stardust::coin_type::CoinType,
 };
 
 use crate::stardust::{
     migration::{
-        executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
-        MigrationTargetNetwork,
+        MigrationTargetNetwork, executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE,
+        tests::random_output_header,
     },
     native_token::{
         package_builder,
@@ -111,7 +111,7 @@ fn create_bag_with_pt() {
     );
     let token_as_df = tokens[0].to_rust::<Field<String, Balance>>().unwrap();
     // Verify name
-    let expected_name = coin_type_tag.to_canonical_string(true);
+    let expected_name = coin_type_tag.to_canonical_string(false);
     assert_eq!(token_as_df.name, expected_name);
     // Verify value
     let expected_balance = Balance::new(token_amount);

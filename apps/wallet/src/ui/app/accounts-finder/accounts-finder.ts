@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinBalance } from '@iota/iota.js/client';
+import { type CoinBalance } from '@iota/iota-sdk/client';
 import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import type { FindBalance } from './types';
 
@@ -28,7 +28,6 @@ export async function recoverAccounts(params: RecoverAccountsParams): Promise<Ac
     } = params;
 
     const accounts: AccountFromFinder[] = [];
-    let targetAccountIndex = accountStartIndex + accountGapLimit;
 
     // isolated search for one account;
     if (!accountGapLimit) {
@@ -44,6 +43,7 @@ export async function recoverAccounts(params: RecoverAccountsParams): Promise<Ac
     }
 
     // we search for accounts in the given range
+    let targetAccountIndex = accountStartIndex + accountGapLimit;
     for (let accountIndex = accountStartIndex; accountIndex < targetAccountIndex; accountIndex++) {
         const accountData = await recoverAccount({
             accountIndex,
@@ -102,7 +102,7 @@ async function recoverAccount(
     }
 
     // on each fixed account index, we search for addresses in the given range
-    let targetAddressIndex = addressStartIndex + addressGapLimit + 1;
+    let targetAddressIndex = addressStartIndex + addressGapLimit;
     for (let addressIndex = addressStartIndex; addressIndex < targetAddressIndex; addressIndex++) {
         const { addresses, isBalanceExists: isHasBalance } = await searchBalances({
             accountIndex,

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use serde::{Deserialize, Serialize};
 use types::{Round, SequenceNumber};
 
@@ -17,16 +18,6 @@ pub struct ExecutionIndices {
     /// The index of the last transaction was executed (used for
     /// crash-recovery).
     pub transaction_index: SequenceNumber,
-}
-
-impl ExecutionIndices {
-    pub fn end_for_commit(commit_round: u64) -> Self {
-        ExecutionIndices {
-            last_committed_round: commit_round,
-            sub_dag_index: SequenceNumber::MAX,
-            transaction_index: SequenceNumber::MAX,
-        }
-    }
 }
 
 impl Ord for ExecutionIndices {

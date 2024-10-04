@@ -1,7 +1,7 @@
 [package]
 name = "iota-data-ingestion"
-version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+version.workspace = true
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,9 +9,9 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-aws-config.workspace = true
-aws-sdk-dynamodb.workspace = true
-aws-sdk-s3.workspace = true
+aws-config = "1.5.6"
+aws-sdk-dynamodb = "1.42"
+aws-sdk-s3 = "1.50"
 backoff.workspace = true
 base64-url.workspace = true
 bcs.workspace = true
@@ -20,9 +20,9 @@ bytes.workspace = true
 futures.workspace = true
 iota-archival.workspace = true
 iota-data-ingestion-core.workspace = true
+iota-metrics.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
 notify.workspace = true
 object_store.workspace = true
 prometheus.workspace = true

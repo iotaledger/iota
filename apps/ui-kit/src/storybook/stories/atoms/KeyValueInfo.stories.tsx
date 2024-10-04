@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { KeyValueInfo, ValueSize } from '@/components';
+import { KeyValueInfo, TooltipPosition, ValueSize } from '@/components';
 
-const meta = {
+const meta: Meta<typeof KeyValueInfo> = {
     component: KeyValueInfo,
     tags: ['autodocs'],
     render: (props) => {
@@ -23,8 +23,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         keyText: 'Label',
-        valueText: 'Value',
-        showInfoIcon: false,
+        value: 'Value',
         supportingLabel: 'IOTA',
         size: ValueSize.Small,
     },
@@ -32,19 +31,23 @@ export const Default: Story = {
         keyText: {
             control: 'text',
         },
-        valueText: {
+        value: {
             control: 'text',
         },
-        showInfoIcon: {
-            control: 'boolean',
+        copyText: {
+            control: 'text',
+        },
+        tooltipText: {
+            control: 'text',
+        },
+        tooltipPosition: {
+            control: {
+                type: 'select',
+                options: Object.values(TooltipPosition),
+            },
         },
         supportingLabel: {
             control: 'text',
-        },
-        valueLink: {
-            control: {
-                type: 'text',
-            },
         },
         size: {
             control: {

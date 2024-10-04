@@ -11,9 +11,9 @@ use std::{
 
 use crypto::{NetworkPublicKey, PublicKey, PublicKeyBytes};
 use fastcrypto::traits::EncodeDecodeBase64;
-use mysten_network::Multiaddr;
-use mysten_util_mem::MallocSizeOf;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use iota_network_stack::Multiaddr;
+use iota_util_mem::MallocSizeOf;
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 
 use crate::{CommitteeUpdateError, ConfigError, Epoch, Stake};
@@ -538,7 +538,7 @@ mod tests {
 
     use crypto::{KeyPair, NetworkKeyPair, PublicKey};
     use fastcrypto::traits::KeyPair as _;
-    use mysten_network::Multiaddr;
+    use iota_network_stack::Multiaddr;
     use rand::thread_rng;
 
     use crate::{Authority, Committee};

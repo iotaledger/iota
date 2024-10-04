@@ -3,65 +3,121 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useTransactionData } from '_src/ui/app/hooks';
-import { Tab as HeadlessTab, type TabProps } from '@headlessui/react';
-import { type TransactionBlock } from '@iota/iota.js/transactions';
+import { type Transaction } from '@iota/iota-sdk/transactions';
 
-import { SummaryCard } from '../SummaryCard';
 import { Command } from './Command';
 import { Input } from './Input';
+import { Collapsible } from '_src/ui/app/shared/collapse';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    Panel,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
+import { useEffect, useState } from 'react';
+import { Alert, Loading } from '_src/ui/app/components';
 
 interface TransactionDetailsProps {
     sender?: string;
-    transaction: TransactionBlock;
+    transaction: Transaction;
 }
 
-const Tab = (props: TabProps<'div'>) => (
-    <HeadlessTab
-        className="-mb-px cursor-pointer border-0 border-b border-solid border-transparent bg-transparent p-0 pb-2 text-body font-semibold text-steel-darker outline-none ui-selected:border-hero ui-selected:text-hero-dark"
-        {...props}
-    />
-);
+enum DetailsCategory {
+    Commands = 'Commands',
+    Inputs = 'Inputs',
+}
+const DETAILS_CATEGORIES = [
+    {
+        label: 'Commands',
+        value: DetailsCategory.Commands,
+    },
+    {
+        label: 'Inputs',
+        value: DetailsCategory.Inputs,
+    },
+];
 
 export function TransactionDetails({ sender, transaction }: TransactionDetailsProps) {
+    const [selectedDetailsCategory, setSelectedDetailsCategory] = useState<DetailsCategory | null>(
+        null,
+    );
     const { data: transactionData, isPending, isError } = useTransactionData(sender, transaction);
-    if (transactionData?.transactions.length === 0 && transactionData.inputs.length === 0) {
+    useEffect(() => {
+        if (transactionData) {
+            const defaultCategory =
+                transactionData.commands.length > 0
+                    ? DetailsCategory.Commands
+                    : transactionData.inputs.length > 0
+                      ? DetailsCategory.Inputs
+                      : null;
+
+            if (defaultCategory) {
+                setSelectedDetailsCategory(defaultCategory);
+            }
+        }
+    }, [transactionData]);
+
+    if (transactionData?.commands.length === 0 && transactionData.inputs.length === 0) {
         return null;
     }
     return (
-        <SummaryCard header="Transaction Details" initialExpanded>
-            {isPending || isError ? (
-                <div className="ml-0 text-pBodySmall font-medium text-steel-darker">
-                    {isPending ? 'Gathering data...' : "Couldn't gather data"}
-                </div>
-            ) : transactionData ? (
-                <div>
-                    <HeadlessTab.Group>
-                        <HeadlessTab.List className="mb-6 flex gap-6 border-0 border-b border-solid border-gray-45">
-                            {!!transactionData.transactions.length && <Tab>Transactions</Tab>}
-                            {!!transactionData.inputs.length && <Tab>Inputs</Tab>}
-                        </HeadlessTab.List>
-                        <HeadlessTab.Panels>
-                            {!!transactionData.transactions.length && (
-                                <HeadlessTab.Panel className="flex flex-col gap-6">
-                                    {/* TODO: Rename components: */}
-                                    {transactionData.transactions.map((command, index) => (
-                                        <Command key={index} command={command} />
-                                    ))}
-                                </HeadlessTab.Panel>
-                            )}
-                            {!!transactionData.inputs.length && (
-                                <HeadlessTab.Panel className="flex flex-col gap-2">
-                                    {transactionData.inputs.map((input, index) => (
-                                        <Input key={index} input={input} />
-                                    ))}
-                                </HeadlessTab.Panel>
-                            )}
-                        </HeadlessTab.Panels>
-                    </HeadlessTab.Group>
-                </div>
-            ) : (
-                ''
-            )}
-        </SummaryCard>
+        <Panel hasBorder>
+            <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
+                <Collapsible
+                    hideBorder
+                    defaultOpen
+                    render={() => <Title size={TitleSize.Small} title="Transaction Details" />}
+                >
+                    <SegmentedButton type={SegmentedButtonType.Transparent}>
+                        {DETAILS_CATEGORIES.map(({ label, value }) => (
+                            <ButtonSegment
+                                type={ButtonSegmentType.Underlined}
+                                key={value}
+                                onClick={() => setSelectedDetailsCategory(value)}
+                                label={label}
+                                selected={selectedDetailsCategory === value}
+                                disabled={
+                                    DetailsCategory.Commands === value
+                                        ? transactionData?.commands.length === 0
+                                        : DetailsCategory.Inputs === value
+                                          ? transactionData?.inputs.length === 0
+                                          : false
+                                }
+                            />
+                        ))}
+                    </SegmentedButton>
+                    <Loading loading={isPending}>
+                        {isError ? (
+                            <Alert>
+                                <div>
+                                    <strong>Couldn't gather data</strong>
+                                </div>
+                            </Alert>
+                        ) : null}
+                        <div className="flex flex-col p-md">
+                            {selectedDetailsCategory === DetailsCategory.Commands &&
+                                !!transactionData?.commands.length && (
+                                    <div className="flex flex-col gap-md">
+                                        {transactionData?.commands.map((command, index) => (
+                                            <Command key={index} command={command} />
+                                        ))}
+                                    </div>
+                                )}
+                            {selectedDetailsCategory === DetailsCategory.Inputs &&
+                                !!transactionData?.inputs.length && (
+                                    <div className="flex flex-col gap-md">
+                                        {transactionData?.inputs.map((input, index) => (
+                                            <Input key={index} input={input} />
+                                        ))}
+                                    </div>
+                                )}
+                        </div>
+                    </Loading>
+                </Collapsible>
+            </div>
+        </Panel>
     );
 }

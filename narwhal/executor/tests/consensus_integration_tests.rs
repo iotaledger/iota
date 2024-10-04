@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::BTreeSet, sync::Arc};
 
 use bytes::Bytes;
 use fastcrypto::hash::Hash;
-use narwhal_executor::{get_restored_consensus_output, MockExecutionState};
+use narwhal_executor::{MockExecutionState, get_restored_consensus_output};
 use primary::{
+    NUM_SHUTDOWN_RECEIVERS,
     consensus::{
         Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
     },
-    NUM_SHUTDOWN_RECEIVERS,
 };
 use prometheus::Registry;
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
-use test_utils::{cluster::Cluster, latest_protocol_version, temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, cluster::Cluster, latest_protocol_version, temp_dir};
 use tokio::sync::watch;
 use types::{Certificate, PreSubscribedBroadcastSender, Round, TransactionProto};
 
@@ -173,7 +174,7 @@ async fn test_internal_consensus_output() {
         // serialise and send
         let tr = bcs::to_bytes(&tx).unwrap();
         let txn = TransactionProto {
-            transaction: Bytes::from(tr),
+            transactions: vec![Bytes::from(tr)],
         };
         client.submit_transaction(txn).await.unwrap();
 

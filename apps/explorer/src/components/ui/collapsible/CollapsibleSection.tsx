@@ -1,20 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ChevronRight12 } from '@iota/icons';
-import { Text } from '@iota/ui';
-import * as Collapsible from '@radix-ui/react-collapsible';
-import clsx from 'clsx';
+import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
 import { type ReactNode, useState } from 'react';
-
-import { Divider } from '~/components/ui';
 
 interface CollapsibleSectionProps {
     children: ReactNode;
     defaultOpen?: boolean;
-    title?: string | ReactNode;
+    title?: string;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    render?: ({ isOpen }: { isOpen: boolean }) => ReactNode;
+    titleSize?: TitleSize;
+    hideArrow?: boolean;
+    hideBorder?: boolean;
 }
 
 export function CollapsibleSection({
@@ -23,39 +22,34 @@ export function CollapsibleSection({
     children,
     open,
     onOpenChange,
+    render,
+    titleSize = TitleSize.Small,
+    hideArrow,
+    hideBorder,
 }: CollapsibleSectionProps): JSX.Element {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const isOpenState = typeof open === 'undefined' ? isOpen : open;
     const setOpenState = typeof onOpenChange === 'undefined' ? setIsOpen : onOpenChange;
-
     return (
-        <Collapsible.Root
-            open={isOpenState}
-            onOpenChange={setOpenState}
-            className="flex w-full flex-col gap-3"
-        >
-            {title && (
-                <Collapsible.Trigger>
-                    <div className="flex items-center gap-2">
-                        {typeof title === 'string' ? (
-                            <Text color="steel-darker" variant="body/semibold">
-                                {title}
-                            </Text>
+        <div className="px-md--rs pb-lg pt-xs">
+            <Accordion hideBorder={hideBorder}>
+                {title && (
+                    <AccordionHeader
+                        hideBorder={hideBorder}
+                        hideArrow={hideArrow}
+                        isExpanded={isOpen}
+                        onToggle={() => setOpenState(!isOpenState)}
+                    >
+                        {render ? (
+                            render({ isOpen: isOpenState })
                         ) : (
-                            title
+                            <Title size={titleSize} title={title ?? ''} />
                         )}
-                        <Divider />
-                        <ChevronRight12
-                            className={clsx(
-                                'h-4 w-4 cursor-pointer text-gray-45',
-                                isOpenState && 'rotate-90',
-                            )}
-                        />
-                    </div>
-                </Collapsible.Trigger>
-            )}
+                    </AccordionHeader>
+                )}
 
-            <Collapsible.Content>{children}</Collapsible.Content>
-        </Collapsible.Root>
+                <AccordionContent isExpanded={isOpenState}>{children}</AccordionContent>
+            </Accordion>
+        </div>
     );
 }

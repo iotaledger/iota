@@ -7,13 +7,14 @@ use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
-        feature::{Irc30Metadata, MetadataFeature},
-        unlock_condition::ImmutableAliasAddressUnlockCondition,
         AliasId, Feature, FoundryOutput, FoundryOutputBuilder, NativeTokens, Output, OutputId,
         SimpleTokenScheme, TokenScheme,
+        feature::{Irc30Metadata, MetadataFeature},
+        unlock_condition::ImmutableAliasAddressUnlockCondition,
     },
 };
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, TxContext},
     coin::Coin,
@@ -24,7 +25,6 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::coin_type::CoinType,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
-    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_binary_format::errors::VMError;
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
@@ -32,12 +32,12 @@ use rand::random;
 
 use crate::stardust::{
     migration::{
+        MigrationTargetNetwork,
         executor::Executor,
         migration::{
-            Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
+            MIGRATION_PROTOCOL_VERSION, Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
-        MigrationTargetNetwork,
     },
     types::{output_header::OutputHeader, output_index::random_output_index},
 };
@@ -267,9 +267,11 @@ fn extract_native_tokens_from_bag(
                 .native_tokens()
                 .get(native_token_id)
                 .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
-            let token_type = foundry_ledger_data.canonical_coin_type();
-            let token_type_tag = token_type.parse::<TypeTag>()?;
-            Ok((native_token, token_type, token_type_tag))
+            let bag_key = foundry_ledger_data.to_canonical_string(/* with_prefix */ false);
+            let token_type_tag = foundry_ledger_data
+                .to_canonical_string(/* with_prefix */ true)
+                .parse::<TypeTag>()?;
+            Ok((native_token, bag_key, token_type_tag))
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
@@ -307,8 +309,8 @@ fn extract_native_tokens_from_bag(
 
         builder.transfer_arg(IotaAddress::default(), gas_coin_arg);
 
-        for (_, token_type, token_type_tag) in &native_tokens {
-            let token_type_arg = builder.pure(token_type.clone())?;
+        for (_, bag_key, token_type_tag) in &native_tokens {
+            let bag_key_arg = builder.pure(bag_key.clone())?;
             let token_balance_arg = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("bag").into(),
@@ -319,7 +321,7 @@ fn extract_native_tokens_from_bag(
                         .expect("should be a valid type tag"),
                     Balance::type_(token_type_tag.clone()).into(),
                 ],
-                vec![bag_arg, token_type_arg],
+                vec![bag_arg, bag_key_arg],
             );
 
             let minted_coin_arg = builder.programmable_move_call(

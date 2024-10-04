@@ -1,4 +1,5 @@
 name: Codecov
+
 on:
   push:
     branches:
@@ -6,28 +7,29 @@ on:
   pull_request:
     branches:
       - develop
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
   diff:
-    runs-on: [self-hosted-rust]
+    if: github.event.pull_request.draft == false
+    runs-on: [self-hosted]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Detect Changes
-        uses: './.github/actions/diffs'
+        uses: "./.github/actions/diffs"
         id: diff
 
   codecov-grcov:
     name: Generate code coverage
     needs: diff
     if: github.event.pull_request.draft == false && needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     strategy:
       fail-fast: true
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - run: rustup component add llvm-tools-preview
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
       # 'librocksdb-sys' src directory which is managed by cargo
@@ -47,14 +49,14 @@ jobs:
         with:
           command: build
         env:
-          RUSTFLAGS: '-Cinstrument-coverage'
-          RUSTDOCFLAGS: '-Cinstrument-coverage'
+          RUSTFLAGS: "-Cinstrument-coverage"
+          RUSTDOCFLAGS: "-Cinstrument-coverage"
 
       - name: Run tests
         env:
-          RUSTFLAGS: '-Cinstrument-coverage'
-          RUSTDOCFLAGS: '-Cinstrument-coverage'
-          LLVM_PROFILE_FILE: 'codecov-instrumentation-%p-%m.profraw'
+          RUSTFLAGS: "-Cinstrument-coverage"
+          RUSTDOCFLAGS: "-Cinstrument-coverage"
+          LLVM_PROFILE_FILE: "codecov-instrumentation-%p-%m.profraw"
         run: cargo test
 
       - name: Run grcov

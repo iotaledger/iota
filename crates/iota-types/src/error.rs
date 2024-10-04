@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fmt::Debug};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::{AsRefStr, IntoStaticStr};
+use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
 use tonic::Status;
 use typed_store_error::TypedStoreError;
@@ -90,12 +90,12 @@ macro_rules! assert_invariant {
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
 pub enum UserInputError {
-    #[error("Mutable object {object_id} cannot appear more than one in one transaction.")]
+    #[error("Mutable object {object_id} cannot appear more than one in one transaction")]
     MutableObjectUsedMoreThanOnce { object_id: ObjectID },
-    #[error("Wrong number of parameters for the transaction.")]
+    #[error("Wrong number of parameters for the transaction")]
     ObjectInputArityViolation,
     #[error(
-        "Could not find the referenced object {:?} at version {:?}.",
+        "Could not find the referenced object {:?} at version {:?}",
         object_id,
         version
     )]
@@ -104,7 +104,7 @@ pub enum UserInputError {
         version: Option<SequenceNumber>,
     },
     #[error(
-        "Object {provided_obj_ref:?} is not available for consumption, its current version: {current_version:?}."
+        "Object {provided_obj_ref:?} is not available for consumption, its current version: {current_version:?}"
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,
@@ -114,26 +114,26 @@ pub enum UserInputError {
     PackageVerificationTimedout { err: String },
     #[error("Dependent package not found on-chain: {package_id:?}")]
     DependentPackageNotFound { package_id: ObjectID },
-    #[error("Mutable parameter provided, immutable parameter expected.")]
+    #[error("Mutable parameter provided, immutable parameter expected")]
     ImmutableParameterExpectedError { object_id: ObjectID },
     #[error("Size limit exceeded: {limit} is {value}")]
     SizeLimitExceeded { limit: String, value: String },
     #[error(
         "Object {child_id:?} is owned by object {parent_id:?}. \
-        Objects owned by other objects cannot be used as input arguments."
+        Objects owned by other objects cannot be used as input arguments"
     )]
     InvalidChildObjectArgument {
         child_id: ObjectID,
         parent_id: ObjectID,
     },
     #[error(
-        "Invalid Object digest for object {object_id:?}. Expected digest : {expected_digest:?}."
+        "Invalid Object digest for object {object_id:?}. Expected digest : {expected_digest:?}"
     )]
     InvalidObjectDigest {
         object_id: ObjectID,
         expected_digest: ObjectDigest,
     },
-    #[error("Sequence numbers above the maximal value are not usable for transfers.")]
+    #[error("Sequence numbers above the maximal value are not usable for transfers")]
     InvalidSequenceNumber,
     #[error("A move object is expected, instead a move package is passed: {object_id}")]
     MovePackageAsObject { object_id: ObjectID },
@@ -142,22 +142,22 @@ pub enum UserInputError {
     #[error("Transaction was not signed by the correct sender: {}", error)]
     IncorrectUserSignature { error: String },
 
-    #[error("Object used as shared is not shared.")]
+    #[error("Object used as shared is not shared")]
     NotSharedObjectError,
     #[error("The transaction inputs contain duplicated ObjectRef's")]
     DuplicateObjectRefInput,
 
     // Gas related errors
-    #[error("Transaction gas payment missing.")]
+    #[error("Transaction gas payment missing")]
     MissingGasPayment,
-    #[error("Gas object is not an owned object with owner: {:?}.", owner)]
+    #[error("Gas object is not an owned object with owner: {:?}", owner)]
     GasObjectNotOwnedObject { owner: Owner },
-    #[error("Gas budget: {:?} is higher than max: {:?}.", gas_budget, max_budget)]
+    #[error("Gas budget: {:?} is higher than max: {:?}", gas_budget, max_budget)]
     GasBudgetTooHigh { gas_budget: u64, max_budget: u64 },
-    #[error("Gas budget: {:?} is lower than min: {:?}.", gas_budget, min_budget)]
+    #[error("Gas budget: {:?} is lower than min: {:?}", gas_budget, min_budget)]
     GasBudgetTooLow { gas_budget: u64, min_budget: u64 },
     #[error(
-        "Balance of gas object {:?} is lower than the needed amount: {:?}.",
+        "Balance of gas object {:?} is lower than the needed amount: {:?}",
         gas_balance,
         needed_gas_amount
     )]
@@ -176,7 +176,7 @@ pub enum UserInputError {
         gas_price: u64,
         reference_gas_price: u64,
     },
-    #[error("Gas price cannot exceed {:?} micros", max_gas_price)]
+    #[error("Gas price cannot exceed {:?} nanos", max_gas_price)]
     GasPriceTooHigh { max_gas_price: u64 },
     #[error("Object {object_id} is not a gas object")]
     InvalidGasObject { object_id: ObjectID },
@@ -194,7 +194,7 @@ pub enum UserInputError {
         asked_version: SequenceNumber,
         latest_version: SequenceNumber,
     },
-    #[error("Object deleted at reference {:?}.", object_ref)]
+    #[error("Object deleted at reference {:?}", object_ref)]
     ObjectDeleted { object_ref: ObjectRef },
     #[error("Invalid Batch Transaction: {}", error)]
     InvalidBatchTransaction { error: String },
@@ -204,7 +204,7 @@ pub enum UserInputError {
     EmptyInputCoins,
 
     #[error(
-        "IOTA payment transactions use first input coin for gas payment, but found a different gas object."
+        "IOTA payment transactions use first input coin for gas payment, but found a different gas object"
     )]
     UnexpectedGasPaymentObject,
 
@@ -212,7 +212,7 @@ pub enum UserInputError {
     SharedObjectStartingVersionMismatch,
 
     #[error(
-        "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call."
+        "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
     )]
     TransferObjectWithoutPublicTransferError { object_id: ObjectID },
 
@@ -250,7 +250,7 @@ pub enum UserInputError {
     TransactionCursorNotFound(u64),
 
     #[error(
-        "Object {:?} is a system object and cannot be accessed by user transactions.",
+        "Object {:?} is a system object and cannot be accessed by user transactions",
         object_id
     )]
     InaccessibleSystemObject { object_id: ObjectID },
@@ -262,7 +262,7 @@ pub enum UserInputError {
         publish_count: u64,
     },
 
-    #[error("Immutable parameter provided, mutable parameter expected.")]
+    #[error("Immutable parameter provided, mutable parameter expected")]
     MutableParameterExpected { object_id: ObjectID },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
@@ -273,6 +273,33 @@ pub enum UserInputError {
 
     #[error("Commands following a command with Random can only be TransferObjects or MergeCoins")]
     PostRandomCommandRestrictions,
+
+    // Soft Bundle related errors
+    #[error(
+        "Number of transactions exceeds the maximum allowed ({:?}) in a Soft Bundle",
+        limit
+    )]
+    TooManyTransactionsInSoftBundle { limit: u64 },
+    #[error("Transaction {:?} in Soft Bundle contains no shared objects", digest)]
+    NoSharedObjectError { digest: TransactionDigest },
+    #[error("Transaction {:?} in Soft Bundle has already been executed", digest)]
+    AlreadyExecutedError { digest: TransactionDigest },
+    #[error("At least one certificate in Soft Bundle has already been processed")]
+    CeritificateAlreadyProcessed,
+    #[error(
+        "Gas price for transaction {:?} in Soft Bundle mismatch: want {:?}, have {:?}",
+        digest,
+        expected,
+        actual
+    )]
+    GasPriceMismatchError {
+        digest: TransactionDigest,
+        expected: u64,
+        actual: u64,
+    },
+
+    #[error("Coin type is globally paused for use: {coin_type}")]
+    CoinTypeGlobalPause { coin_type: String },
 }
 
 #[derive(
@@ -290,9 +317,9 @@ pub enum UserInputError {
 )]
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
 pub enum IotaObjectResponseError {
-    #[error("Object {:?} does not exist.", object_id)]
+    #[error("Object {:?} does not exist", object_id)]
     NotExists { object_id: ObjectID },
-    #[error("Cannot find dynamic field for parent object {:?}.", parent_object_id)]
+    #[error("Cannot find dynamic field for parent object {:?}", parent_object_id)]
     DynamicFieldNotFound { parent_object_id: ObjectID },
     #[error(
         "Object has been deleted object_id: {:?} at version: {:?} in digest {:?}",
@@ -307,7 +334,7 @@ pub enum IotaObjectResponseError {
         /// Base64 string representing the object digest
         digest: ObjectDigest,
     },
-    #[error("Unknown Error.")]
+    #[error("Unknown Error")]
     Unknown,
     #[error("Display Error: {:?}", error)]
     DisplayError { error: String },
@@ -320,10 +347,10 @@ pub enum IotaObjectResponseError {
 )]
 pub enum IotaError {
     #[error("Error checking transaction input objects: {:?}", error)]
-    UserInputError { error: UserInputError },
+    UserInput { error: UserInputError },
 
     #[error("Error checking transaction object: {:?}", error)]
-    IotaObjectResponseError { error: IotaObjectResponseError },
+    IotaObjectResponse { error: IotaObjectResponseError },
 
     #[error("Expecting a single owner, shared ownership found")]
     UnexpectedOwnerType,
@@ -352,15 +379,18 @@ pub enum IotaError {
         threshold: u64,
     },
 
+    #[error("Soft bundle must only contain transactions of UserTransaction kind")]
+    InvalidTxKindInSoftBundle,
+
     // Signature verification
     #[error("Signature is not valid: {}", error)]
     InvalidSignature { error: String },
-    #[error("Required Signature from {expected} is absent {:?}.", actual)]
+    #[error("Required Signature from {expected} is absent {:?}", actual)]
     SignerSignatureAbsent {
         expected: String,
         actual: Vec<String>,
     },
-    #[error("Expect {expected} signer signatures but got {actual}.")]
+    #[error("Expect {expected} signer signatures but got {actual}")]
     SignerSignatureNumberMismatch { expected: usize, actual: usize },
     #[error("Value was not signed by the correct sender: {}", error)]
     IncorrectSigner { error: String },
@@ -418,8 +448,6 @@ pub enum IotaError {
     },
     #[error("Transaction is already finalized but with different user signatures")]
     TxAlreadyFinalizedWithDifferentUserSigs,
-    #[error("System Transaction not accepted")]
-    InvalidSystemTransaction,
 
     // Account access
     #[error("Invalid authenticator")]
@@ -431,6 +459,8 @@ pub enum IotaError {
 
     #[error("Invalid digest length. Expected {expected}, got {actual}")]
     InvalidDigestLength { expected: usize, actual: usize },
+    #[error("Invalid DKG message size")]
+    InvalidDkgMessageSize,
 
     #[error("Unexpected message.")]
     UnexpectedMessage,
@@ -451,7 +481,7 @@ pub enum IotaError {
     #[error("Module not found in package: {module_name:?}.")]
     ModuleNotFound { module_name: String },
     #[error("Type error while binding function arguments: {error:?}.")]
-    TypeError { error: String },
+    Type { error: String },
     #[error("Circular object ownership detected")]
     CircularObjectOwnership,
 
@@ -497,14 +527,6 @@ pub enum IotaError {
         authority: AuthorityName,
         reason: String,
     },
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "StorageError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_StorageError,
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "GenericStorageError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_GenericStorageError,
     #[error(
         "Attempted to access {object} through parent {given_parent}, \
         but it's actual parent is {actual_owner}"
@@ -515,17 +537,11 @@ pub enum IotaError {
         actual_owner: Owner,
     },
 
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "StorageMissingFieldError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_StorageMissingFieldError,
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "StorageCorruptedFieldError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_StorageCorruptedFieldError,
-
     #[error("Authority Error: {error:?}")]
-    GenericAuthorityError { error: String },
+    GenericAuthority { error: String },
+
+    #[error("Generic Bridge Error: {error:?}")]
+    GenericBridgeError { error: String },
 
     #[error("Failed to dispatch subscription: {error:?}")]
     FailedToDispatchSubscription { error: String },
@@ -537,15 +553,15 @@ pub enum IotaError {
     ExtraFieldFailedToDeserialize { error: String },
 
     #[error("Failed to execute transaction locally by Orchestrator: {error:?}")]
-    TransactionOrchestratorLocalExecutionError { error: String },
+    TransactionOrchestratorLocalExecution { error: String },
 
     // Errors returned by authority and client read API's
     #[error("Failure serializing transaction in the requested format: {:?}", error)]
-    TransactionSerializationError { error: String },
+    TransactionSerialization { error: String },
     #[error("Failure serializing object in the requested format: {:?}", error)]
-    ObjectSerializationError { error: String },
+    ObjectSerialization { error: String },
     #[error("Failure deserializing object in the requested format: {:?}", error)]
-    ObjectDeserializationError { error: String },
+    ObjectDeserialization { error: String },
     #[error("Event store component is not active on this node")]
     NoEventStore,
 
@@ -568,9 +584,9 @@ pub enum IotaError {
 
     // Cryptography errors.
     #[error("Signature key generation error: {0}")]
-    SignatureKeyGenError(String),
+    SignatureKeyGen(String),
     #[error("Key Conversion Error: {0}")]
-    KeyConversionError(String),
+    KeyConversion(String),
     #[error("Invalid Private Key provided")]
     InvalidPrivateKey,
 
@@ -581,10 +597,10 @@ pub enum IotaError {
     // Epoch related errors.
     #[error("Validator temporarily stopped processing transactions due to epoch change")]
     ValidatorHaltedAtEpochEnd,
-    #[error("Validator has stopped operations for this epoch")]
-    EpochEnded,
+    #[error("Operations for epoch {0} have ended")]
+    EpochEnded(EpochId),
     #[error("Error when advancing epoch: {:?}", error)]
-    AdvanceEpochError { error: String },
+    AdvanceEpoch { error: String },
 
     #[error("Transaction Expired")]
     TransactionExpired,
@@ -592,19 +608,23 @@ pub enum IotaError {
     // These are errors that occur when an RPC fails and is simply the utf8 message sent in a
     // Tonic::Status
     #[error("{1} - {0}")]
-    RpcError(String, String),
+    Rpc(String, String),
 
+    #[error("Method not allowed")]
+    InvalidRpcMethodError,
+
+    // TODO: We should fold this into UserInputError::Unsupported.
     #[error("Use of disabled feature: {:?}", error)]
-    UnsupportedFeatureError { error: String },
+    UnsupportedFeature { error: String },
 
     #[error("Unable to communicate with the Quorum Driver channel: {:?}", error)]
-    QuorumDriverCommunicationError { error: String },
+    QuorumDriverCommunication { error: String },
 
     #[error("Operation timed out")]
-    TimeoutError,
+    Timeout,
 
     #[error("Error executing {0}")]
-    ExecutionError(String),
+    Execution(String),
 
     #[error("Invalid committee composition")]
     InvalidCommittee(String),
@@ -616,10 +636,13 @@ pub enum IotaError {
     IndexStoreNotAvailable,
 
     #[error("Failed to read dynamic field from table in the object store: {0}")]
-    DynamicFieldReadError(String),
+    DynamicFieldRead(String),
 
     #[error("Failed to read or deserialize system state related data structures on-chain: {0}")]
-    IotaSystemStateReadError(String),
+    IotaSystemStateRead(String),
+
+    #[error("Failed to read or deserialize bridge related data structures on-chain: {0}")]
+    IotaBridgeRead(String),
 
     #[error("Unexpected version error: {0}")]
     UnexpectedVersion(String),
@@ -631,10 +654,10 @@ pub enum IotaError {
     Unknown(String),
 
     #[error("Failed to perform file operation: {0}")]
-    FileIOError(String),
+    FileIO(String),
 
     #[error("Failed to get JWK")]
-    JWKRetrievalError,
+    JWKRetrieval,
 
     #[error("Storage error: {0}")]
     Storage(String),
@@ -643,6 +666,12 @@ pub enum IotaError {
         "Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds."
     )]
     ValidatorOverloadedRetryAfter { retry_after_secs: u64 },
+
+    #[error("Too many requests")]
+    TooManyRequests,
+
+    #[error("The request did not contain a certificate")]
+    NoCertificateProvidedError,
 }
 
 #[repr(u64)]
@@ -683,17 +712,20 @@ impl From<iota_protocol_config::Error> for IotaError {
 
 impl From<ExecutionError> for IotaError {
     fn from(error: ExecutionError) -> Self {
-        IotaError::ExecutionError(error.to_string())
+        IotaError::Execution(error.to_string())
     }
 }
 
 impl From<Status> for IotaError {
     fn from(status: Status) -> Self {
+        if status.message() == "Too many requests" {
+            return Self::TooManyRequests;
+        }
         let result = bcs::from_bytes::<IotaError>(status.details());
         if let Ok(iota_error) = result {
             iota_error
         } else {
-            Self::RpcError(
+            Self::Rpc(
                 status.message().to_owned(),
                 status.code().description().to_owned(),
             )
@@ -728,9 +760,15 @@ impl From<ExecutionErrorKind> for IotaError {
 
 impl From<&str> for IotaError {
     fn from(error: &str) -> Self {
-        IotaError::GenericAuthorityError {
+        IotaError::GenericAuthority {
             error: error.to_string(),
         }
+    }
+}
+
+impl From<String> for IotaError {
+    fn from(error: String) -> Self {
+        IotaError::GenericAuthority { error }
     }
 }
 
@@ -739,21 +777,21 @@ impl TryFrom<IotaError> for UserInputError {
 
     fn try_from(err: IotaError) -> Result<Self, Self::Error> {
         match err {
-            IotaError::UserInputError { error } => Ok(error),
-            other => anyhow::bail!("error {:?} is not UserInputError", other),
+            IotaError::UserInput { error } => Ok(error),
+            other => anyhow::bail!("error {:?} is not UserInput", other),
         }
     }
 }
 
 impl From<UserInputError> for IotaError {
     fn from(error: UserInputError) -> Self {
-        IotaError::UserInputError { error }
+        IotaError::UserInput { error }
     }
 }
 
 impl From<IotaObjectResponseError> for IotaError {
     fn from(error: IotaObjectResponseError) -> Self {
-        IotaError::IotaObjectResponseError { error }
+        IotaError::IotaObjectResponse { error }
     }
 }
 
@@ -772,15 +810,14 @@ impl IotaError {
     /// errors in logs.
     pub fn is_retryable(&self) -> (bool, bool) {
         let retryable = match self {
-            // Network error
-            IotaError::RpcError { .. } => true,
+            IotaError::Rpc { .. } => true,
 
             // Reconfig error
             IotaError::ValidatorHaltedAtEpochEnd => true,
             IotaError::MissingCommitteeAtEpoch(..) => true,
             IotaError::WrongEpoch { .. } => true,
 
-            IotaError::UserInputError { error } => {
+            IotaError::UserInput { error } => {
                 match error {
                     // Only ObjectNotFound and DependentPackageNotFound is potentially retryable
                     UserInputError::ObjectNotFound { .. } => true,
@@ -799,12 +836,17 @@ impl IotaError {
             IotaError::ValidatorOverloadedRetryAfter { .. } => true,
 
             // Non retryable error
-            IotaError::ExecutionError(..) => false,
+            IotaError::Execution(..) => false,
             IotaError::ByzantineAuthoritySuspicion { .. } => false,
             IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. } => false,
             IotaError::TxAlreadyFinalizedWithDifferentUserSigs => false,
             IotaError::FailedToVerifyTxCertWithExecutedEffects { .. } => false,
             IotaError::ObjectLockConflict { .. } => false,
+
+            // NB: This is not an internal overload, but instead an imposed rate
+            // limit / blocking of a client. It must be non-retryable otherwise
+            // we will make the threat worse through automatic retries.
+            IotaError::TooManyRequests => false,
 
             // For all un-categorized errors, return here with categorized = false.
             _ => return (false, false),
@@ -815,7 +857,7 @@ impl IotaError {
 
     pub fn is_object_or_package_not_found(&self) -> bool {
         match self {
-            IotaError::UserInputError { error } => {
+            IotaError::UserInput { error } => {
                 matches!(
                     error,
                     UserInputError::ObjectNotFound { .. }
@@ -838,6 +880,13 @@ impl IotaError {
 
     pub fn is_retryable_overload(&self) -> bool {
         matches!(self, IotaError::ValidatorOverloadedRetryAfter { .. })
+    }
+
+    pub fn retry_after_secs(&self) -> u64 {
+        match self {
+            IotaError::ValidatorOverloadedRetryAfter { retry_after_secs } => *retry_after_secs,
+            _ => 0,
+        }
     }
 }
 

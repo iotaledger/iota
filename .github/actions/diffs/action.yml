@@ -4,9 +4,6 @@ outputs:
   isDoc:
     description: True when changes happened to some documentation
     value: "${{ steps.diff.outputs.isDoc }}"
-  isOldDoc:
-    description: True when changes happened to old doc folder
-    value: "${{ steps.diff.outputs.isOldDoc }}"    
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
@@ -20,44 +17,53 @@ outputs:
 runs:
   using: composite
   steps:
-  - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-  - name: Detect Changes
-    uses: dorny/paths-filter@v2.10.2
-    id: diff
-    with:
-      filters: |
-        isRust:
-          - 'consensus/**'
-          - 'crates/**'
-          - 'external-crates/**'
-          - 'narwhal/**'
-          - 'sui-execution/**'
-          - '.github/workflows/codecov.yml'
-          - '.github/workflows/rust.yml'
-          - '.github/workflows/external.yml'
-        isDoc:
-          - 'docs/content/**'
-          - '*.mdx'
-          - '.github/workflows/docs.yml'
-        isOldDoc:
-          - 'doc/**'
-          - '*.md'  
-        isMove:
-          - 'crates/sui-framework/**'
-          - 'crates/sui-framework-build/**'
-          - 'crates/sui-framework-tests/**'
-          - 'crates/sui_move/**'
-          - 'Cargo.toml'
-          - 'examples/**'
-          - 'sui_programmability/**'
-        isReleaseNotesEligible:
-          - 'consensus/**'
-          - 'crates/**'
-          - 'dashboards/**'
-          - 'doc/**'
-          - 'docker/**'
-          - 'external-crates/**'
-          - 'kiosk/**'
-          - 'narwhal/**'
-          - 'nre/**'
-          - 'sui-execution/**'
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+    - name: Detect Changes
+      uses: dorny/paths-filter@v3
+      id: diff
+      with:
+        filters: |
+          isRust:
+            - "consensus/**"
+            - "crates/**"
+            - "external-crates/**"
+            - "narwhal/**"
+            - "iota-execution/**"
+            - "docs/examples/rust/**"
+            - ".github/workflows/hierarchy.yml"
+            - ".github/workflows/codecov.yml"
+            - ".github/workflows/_rust.yml"
+            - ".github/workflows/_rust_tests.yml"
+            - ".github/workflows/_rust_lints.yml"
+            - ".github/workflows/_external_rust_tests.yml"
+            - ".github/workflows/_external_rust_lints.yml"
+            - ".github/workflows/_mysticeti_tests.yml"
+            - "Cargo.toml"
+            - "Cargo.lock"
+            - ".config/nextest.toml"
+          isDoc:
+            - "docs/content/**"
+            - "docs/site/**"
+            - "*.mdx"
+            - ".github/workflows/_docs_lint.yml"
+            - ".github/workflows/_docusaurus.yml"
+          isMove:
+            - "crates/iota-framework/**"
+            - "crates/iota-framework-build/**"
+            - "crates/iota-framework-tests/**"
+            - "crates/iota-move/**"
+            - "Cargo.toml"
+            - "examples/**"
+            - "iota_programmability/**"
+            - ".github/workflows/_move_tests.yml"
+          isReleaseNotesEligible:
+            - "consensus/**"
+            - "crates/**"
+            - "dashboards/**"
+            - "doc/**"
+            - "docker/**"
+            - "external-crates/**"
+            - "kiosk/**"
+            - "narwhal/**"
+            - "nre/**"
+            - "iota-execution/**"

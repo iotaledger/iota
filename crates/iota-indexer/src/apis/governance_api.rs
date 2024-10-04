@@ -5,8 +5,9 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
-use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
+use cached::{SizedCache, proc_macro::cached};
+use diesel::r2d2::R2D2Connection;
+use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter,
@@ -18,10 +19,10 @@ use iota_types::{
     committee::EpochId,
     governance::StakedIota,
     iota_serde::BigInt,
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, PoolTokenExchangeRate},
+    iota_system_state::{PoolTokenExchangeRate, iota_system_state_summary::IotaSystemStateSummary},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
@@ -29,12 +30,12 @@ use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 
 #[derive(Clone)]
-pub struct GovernanceReadApi {
-    inner: IndexerReader,
+pub struct GovernanceReadApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl GovernanceReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 
@@ -51,14 +52,10 @@ impl GovernanceReadApi {
         let system_state_summary: IotaSystemStateSummary =
             self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
-        let stake_subsidy_start_epoch = system_state_summary.stake_subsidy_start_epoch;
 
-        let exchange_rate_table = exchange_rates(self, system_state_summary).await?;
+        let exchange_rate_table = exchange_rates(self, &system_state_summary).await?;
 
-        let apys = iota_json_rpc::governance_api::calculate_apys(
-            stake_subsidy_start_epoch,
-            exchange_rate_table,
-        );
+        let apys = iota_json_rpc::governance_api::calculate_apys(exchange_rate_table);
 
         Ok(ValidatorApys { apys, epoch })
     }
@@ -161,7 +158,7 @@ impl GovernanceReadApi {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, system_state_summary)
+        let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
             .map(|rates| (rates.pool_id, rates))
@@ -219,7 +216,7 @@ impl GovernanceReadApi {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
 
-        let rates = exchange_rates(self, system_state_summary)
+        let rates = exchange_rates(self, &system_state_summary)
             .await?
             .into_iter()
             .map(|rates| (rates.pool_id, rates))
@@ -301,14 +298,14 @@ fn stake_status(
     convert = "{ system_state_summary.epoch }",
     result = true
 )]
-async fn exchange_rates(
-    state: &GovernanceReadApi,
-    system_state_summary: IotaSystemStateSummary,
+pub async fn exchange_rates(
+    state: &GovernanceReadApi<impl R2D2Connection>,
+    system_state_summary: &IotaSystemStateSummary,
 ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
     // Get validator rate tables
     let mut tables = vec![];
 
-    for validator in system_state_summary.active_validators {
+    for validator in &system_state_summary.active_validators {
         tables.push((
             validator.iota_address,
             validator.staking_pool_id,
@@ -329,7 +326,7 @@ async fn exchange_rates(
         .await?
     {
         let pool_id: iota_types::id::ID = bcs::from_bytes(&df.bcs_name).map_err(|e| {
-            iota_types::error::IotaError::ObjectDeserializationError {
+            iota_types::error::IotaError::ObjectDeserialization {
                 error: e.to_string(),
             }
         })?;
@@ -368,11 +365,9 @@ async fn exchange_rates(
         {
             let dynamic_field = df
                 .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(
-                    || iota_types::error::IotaError::ObjectDeserializationError {
-                        error: "dynamic field malformed".to_owned(),
-                    },
-                )?;
+                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserialization {
+                    error: "dynamic field malformed".to_owned(),
+                })?;
 
             rates.push((dynamic_field.name, dynamic_field.value));
         }
@@ -400,7 +395,7 @@ fn validators_apys_map(apys: ValidatorApys) -> BTreeMap<IotaAddress, f64> {
 }
 
 #[async_trait]
-impl GovernanceReadApiServer for GovernanceReadApi {
+impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<T> {
     async fn get_stakes_by_ids(
         &self,
         staked_iota_ids: Vec<ObjectID>,
@@ -418,7 +413,18 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
+        let stakes = self
+            .inner
+            .multi_get_objects_in_blocking_task(timelocked_staked_iota_ids)
+            .await?
+            .into_iter()
+            .map(|stored_object| {
+                let object = iota_types::object::Object::try_from(stored_object)?;
+                TimelockedStakedIota::try_from(&object).map_err(IndexerError::from)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.get_delegated_timelocked_stakes(stakes)
             .await
             .map_err(Into::into)
     }
@@ -459,7 +465,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 }
 
-impl IotaRpcModule for GovernanceReadApi {
+impl<T: R2D2Connection> IotaRpcModule for GovernanceReadApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

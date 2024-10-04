@@ -11,7 +11,7 @@ use std::{
 
 use config::{AuthorityIdentifier, Committee, WorkerId};
 use fastcrypto::hash::Hash as _;
-use mysten_metrics::{
+use iota_metrics::{
     metered_channel::{Receiver, Sender},
     spawn_logged_monitored_task,
 };
@@ -19,13 +19,14 @@ use storage::ProposerStore;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
-    time::{sleep, sleep_until, Duration, Instant},
+    time::{Duration, Instant, sleep, sleep_until},
 };
 use tracing::{debug, enabled, error, info, trace};
 use types::{
-    error::{DagError, DagResult},
-    now, BatchDigest, Certificate, CertificateAPI, ConditionalBroadcastReceiver, Header, HeaderAPI,
+    BatchDigest, Certificate, CertificateAPI, ConditionalBroadcastReceiver, Header, HeaderAPI,
     HeaderV1, Round, TimestampMs,
+    error::{DagError, DagResult},
+    now,
 };
 
 use crate::{consensus::LeaderSchedule, metrics::PrimaryMetrics};

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type MoveCallMetric } from '@iota/iota.js/client';
-import { Text } from '@iota/ui';
-import { useMemo } from 'react';
+import { TableCellText, TableCellBase } from '@iota/apps-ui-kit';
+import { type MoveCallMetric } from '@iota/iota-sdk/client';
+import { type ColumnDef } from '@tanstack/react-table';
 
 import { ObjectLink, PlaceholderTable, TableCard } from '~/components/ui';
 
@@ -13,66 +13,71 @@ interface TopPackagesTableProps {
     isLoading: boolean;
 }
 
-function TxnCountHeader(): JSX.Element {
-    return (
-        <div className="w-full text-right">
-            <Text variant="bodySmall/medium">Transactions</Text>
-        </div>
-    );
-}
+const tableColumns: ColumnDef<MoveCallMetric>[] = [
+    {
+        header: 'Module',
+        id: 'module',
+        cell({ row: { original: metric } }) {
+            const item = metric[0];
+            return (
+                <TableCellBase>
+                    <ObjectLink objectId={`${item.package}?module=${item.module}`}>
+                        <TableCellText>{item.module}</TableCellText>
+                    </ObjectLink>
+                </TableCellBase>
+            );
+        },
+    },
+    {
+        header: 'Function',
+        id: 'function',
+        cell({ row: { original: metric } }) {
+            const item = metric[0];
+            return (
+                <TableCellBase>
+                    <TableCellText>{item.function}</TableCellText>
+                </TableCellBase>
+            );
+        },
+    },
+    {
+        header: 'Function',
+        id: 'function',
+        cell({ row: { original: metric } }) {
+            const item = metric[0].package;
+            return (
+                <TableCellBase>
+                    <ObjectLink objectId={item}>
+                        <TableCellText>{item}</TableCellText>
+                    </ObjectLink>
+                </TableCellBase>
+            );
+        },
+    },
+    {
+        header: 'Count',
+        id: 'count',
+        cell({ row: { original: metric } }) {
+            const item = metric[1];
+            return (
+                <TableCellBase>
+                    <TableCellText>{item}</TableCellText>
+                </TableCellBase>
+            );
+        },
+    },
+];
 
 export function TopPackagesTable({ data, isLoading }: TopPackagesTableProps) {
-    const tableData = useMemo(
-        () => ({
-            data: data?.map(([item, count]) => ({
-                module: (
-                    <ObjectLink
-                        label={item.module}
-                        objectId={`${item.package}?module=${item.module}`}
-                    />
-                ),
-                function: <Text variant="bodySmall/medium">{item.function}</Text>,
-                package: <ObjectLink objectId={item.package} />,
-                count: (
-                    <div className="text-right">
-                        <Text mono variant="body/medium">
-                            {Number(count).toLocaleString()}
-                        </Text>
-                    </div>
-                ),
-            })),
-            columns: [
-                {
-                    header: 'Package ID',
-                    accessorKey: 'package',
-                },
-                {
-                    header: 'Module',
-                    accessorKey: 'module',
-                },
-                {
-                    header: 'Function',
-                    accessorKey: 'function',
-                },
-                {
-                    header: TxnCountHeader,
-                    accessorKey: 'count',
-                },
-            ],
-        }),
-        [data],
-    );
-
     if (isLoading) {
         return (
             <PlaceholderTable
                 colHeadings={['Module', 'Function', 'Package ID', 'Count']}
                 rowCount={10}
                 rowHeight="15px"
-                colWidths={['100px', '120px', '40px', '204px']}
             />
         );
     }
 
-    return <TableCard data={tableData.data} columns={tableData.columns} />;
+    return <TableCard data={data} columns={tableColumns} />;
 }

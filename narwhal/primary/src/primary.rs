@@ -5,7 +5,7 @@
 
 use std::{
     cmp::Reverse,
-    collections::{btree_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap},
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, btree_map::Entry},
     net::Ipv4Addr,
     sync::Arc,
     thread::sleep,
@@ -13,9 +13,9 @@ use std::{
 };
 
 use anemo::{
-    codegen::InboundRequestLayer,
-    types::{response::StatusCode, Address, PeerInfo},
     Network, PeerId,
+    codegen::InboundRequestLayer,
+    types::{Address, PeerInfo, response::StatusCode},
 };
 use anemo_tower::{
     auth::{AllowedPeers, RequireAuthorizationLayer},
@@ -26,18 +26,18 @@ use anemo_tower::{
 };
 use async_trait::async_trait;
 use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache};
-use crypto::{traits::EncodeDecodeBase64, KeyPair, NetworkKeyPair, NetworkPublicKey, Signature};
+use crypto::{KeyPair, NetworkKeyPair, NetworkPublicKey, Signature, traits::EncodeDecodeBase64};
 use fastcrypto::{
     hash::Hash,
     signature_service::SignatureService,
     traits::{KeyPair as _, ToFromBytes},
 };
-use iota_protocol_config::ProtocolConfig;
-use mysten_metrics::{
-    metered_channel::{channel_with_total, Receiver, Sender},
+use iota_metrics::{
+    metered_channel::{Receiver, Sender, channel_with_total},
     monitored_scope,
 };
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{Multiaddr, multiaddr::Protocol};
+use iota_protocol_config::ProtocolConfig;
 use network::{
     client::NetworkClient,
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
@@ -55,20 +55,20 @@ use tokio::{
 use tower::ServiceBuilder;
 use tracing::{debug, error, info, instrument, warn};
 use types::{
-    ensure,
+    Certificate, CertificateAPI, CertificateDigest, FetchCertificatesRequest,
+    FetchCertificatesResponse, Header, HeaderAPI, MetadataAPI, PreSubscribedBroadcastSender,
+    PrimaryToPrimary, PrimaryToPrimaryServer, RequestVoteRequest, RequestVoteResponse, Round,
+    SendCertificateRequest, SendCertificateResponse, Vote, VoteInfoAPI, WorkerOthersBatchMessage,
+    WorkerOwnBatchMessage, WorkerToPrimary, WorkerToPrimaryServer, ensure,
     error::{DagError, DagResult},
-    now, validate_received_certificate_version, Certificate, CertificateAPI, CertificateDigest,
-    FetchCertificatesRequest, FetchCertificatesResponse, Header, HeaderAPI, MetadataAPI,
-    PreSubscribedBroadcastSender, PrimaryToPrimary, PrimaryToPrimaryServer, RequestVoteRequest,
-    RequestVoteResponse, Round, SendCertificateRequest, SendCertificateResponse, Vote, VoteInfoAPI,
-    WorkerOthersBatchMessage, WorkerOwnBatchMessage, WorkerToPrimary, WorkerToPrimaryServer,
+    now, validate_received_certificate_version,
 };
 
 use crate::{
     certificate_fetcher::CertificateFetcher,
     certifier::Certifier,
     consensus::{ConsensusRound, LeaderSchedule},
-    metrics::{initialise_metrics, PrimaryMetrics},
+    metrics::{PrimaryMetrics, initialise_metrics},
     proposer::{OurDigestMessage, Proposer},
     state_handler::StateHandler,
     synchronizer::Synchronizer,

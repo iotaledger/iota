@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,7 +10,7 @@ use serde_with::serde_as;
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
     base_types::{AuthorityName, IotaAddress, ObjectID},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     id::ID,
@@ -42,13 +40,19 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub system_state_version: u64,
+    /// The current IOTA supply.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub iota_total_supply: u64,
+    /// The `TreasuryCap<IOTA>` object ID.
+    pub iota_treasury_cap_id: ObjectID,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub storage_fund_total_object_storage_rebates: u64,
-    /// The non-refundable portion of the storage fund coming from storage
-    /// reinvestment, non-refundable storage rebates and any leftover
+    /// The non-refundable portion of the storage fund coming from
+    /// non-refundable storage rebates and any leftover
     /// staking rewards.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -62,11 +66,11 @@ pub struct IotaSystemStateSummary {
     /// advance_epoch, and ended up executing advance_epoch_safe_mode.
     /// It can be reset once we are able to successfully execute advance_epoch.
     pub safe_mode: bool,
-    /// Amount of storage rewards accumulated (and not yet distributed) during
+    /// Amount of storage charges accumulated (and not yet distributed) during
     /// safe mode.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub safe_mode_storage_rewards: u64,
+    pub safe_mode_storage_charges: u64,
     /// Amount of computation rewards accumulated (and not yet distributed)
     /// during safe mode.
     #[schemars(with = "BigInt<u64>")]
@@ -91,11 +95,6 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub epoch_duration_ms: u64,
-
-    /// The starting epoch in which stake subsidies start being paid out
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_start_epoch: u64,
 
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
@@ -127,30 +126,6 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub validator_low_stake_grace_period: u64,
-
-    // Stake subsidy information
-    /// Balance of IOTA set aside for stake subsidies that will be drawn down
-    /// over time.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_balance: u64,
-    /// This counter may be different from the current epoch number if
-    /// in some epochs we decide to skip the subsidy.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_distribution_counter: u64,
-    /// The amount of stake subsidy to be drawn down per epoch.
-    /// This amount decays and decreases over time.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_current_distribution_amount: u64,
-    /// Number of distributions to occur before the distribution amount decays.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_period_length: u64,
-    /// The rate at which the distribution amount decays at the end of each
-    /// period. Expressed in basis points.
-    pub stake_subsidy_decrease_rate: u16,
 
     // Validator set
     /// Total amount of stake from all active validators at the beginning of the
@@ -204,24 +179,25 @@ pub struct IotaSystemStateSummary {
 
 impl IotaSystemStateSummary {
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.active_validators {
-            let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: Multiaddr::try_from(validator.net_address.clone()).unwrap(),
-                    narwhal_primary_address: Multiaddr::try_from(validator.primary_address.clone())
+        let validators = self
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: Multiaddr::try_from(validator.net_address.clone())
+                            .unwrap(),
+                        narwhal_primary_address: Multiaddr::try_from(
+                            validator.primary_address.clone(),
+                        )
                         .unwrap(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 }
 
@@ -343,27 +319,23 @@ impl Default for IotaSystemStateSummary {
             epoch: 0,
             protocol_version: 1,
             system_state_version: 1,
+            iota_total_supply: 0,
+            iota_treasury_cap_id: ObjectID::ZERO,
             storage_fund_total_object_storage_rebates: 0,
             storage_fund_non_refundable_balance: 0,
             reference_gas_price: 1,
             safe_mode: false,
-            safe_mode_storage_rewards: 0,
+            safe_mode_storage_charges: 0,
             safe_mode_computation_rewards: 0,
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 0,
-            stake_subsidy_start_epoch: 0,
             max_validator_count: 0,
             min_validator_joining_stake: 0,
             validator_low_stake_threshold: 0,
             validator_very_low_stake_threshold: 0,
             validator_low_stake_grace_period: 0,
-            stake_subsidy_balance: 0,
-            stake_subsidy_distribution_counter: 0,
-            stake_subsidy_current_distribution_amount: 0,
-            stake_subsidy_period_length: 0,
-            stake_subsidy_decrease_rate: 0,
             total_stake: 0,
             active_validators: vec![],
             pending_active_validators_id: ObjectID::ZERO,
@@ -469,7 +441,7 @@ where
         &ID::new(pool_id),
     )
     .map_err(|err| {
-        IotaError::IotaSystemStateReadError(format!(
+        IotaError::IotaSystemStateRead(format!(
             "Failed to load candidate address from pool mappings: {:?}",
             err
         ))

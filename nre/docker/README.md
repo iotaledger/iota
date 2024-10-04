@@ -26,7 +26,7 @@ network-key-pair:
 
 ## Connectivity
 
-You may need to explicitly open the ports outlined in [Iota for Node Operators](../iota_for_node_operators.md#connectivity) for the required Iota Node connectivity.
+You may need to explicitly open the ports outlined in [Iota for Node Operators](../validator-tasks#connectivity) for the required Iota Node connectivity.
 
 ## Start the node
 
@@ -80,8 +80,8 @@ sudo docker compose down
 2. Update docker-compose.yaml to reference the new image
 
 ```
--    image: mysten/iota-node:<OLD_IOTA_SHA>
-+    image: mysten/iota-node:<NEW_IOTA_SHA>
+-    image: iotaledger/iota-node:<OLD_IOTA_SHA>
++    image: iotaledger/iota-node:<NEW_IOTA_SHA>
 ```
 
 3. Start docker compose in detached mode:

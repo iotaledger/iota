@@ -15,7 +15,8 @@ use iota_types::{
     iota_serde::IotaStructTag,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest,
+        CheckpointSequenceNumber, EndOfEpochData,
     },
     move_package::MovePackage,
     object::{Object, Owner},
@@ -48,6 +49,8 @@ pub struct IndexedCheckpoint {
     pub successful_tx_num: usize,
     pub end_of_epoch_data: Option<EndOfEpochData>,
     pub end_of_epoch: bool,
+    pub min_tx_sequence_number: u64,
+    pub max_tx_sequence_number: u64,
 }
 
 impl IndexedCheckpoint {
@@ -60,6 +63,9 @@ impl IndexedCheckpoint {
             + checkpoint.epoch_rolling_gas_cost_summary.storage_cost as i64
             - checkpoint.epoch_rolling_gas_cost_summary.storage_rebate as i64;
         let tx_digests = contents.iter().map(|t| t.transaction).collect::<Vec<_>>();
+        let max_tx_sequence_number = checkpoint.network_total_transactions - 1;
+        // NOTE: + 1u64 first to avoid subtraction with overflow
+        let min_tx_sequence_number = max_tx_sequence_number + 1u64 - tx_digests.len() as u64;
         let auth_sig = &checkpoint.auth_sig().signature;
         Self {
             sequence_number: checkpoint.sequence_number,
@@ -81,10 +87,15 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
+            min_tx_sequence_number,
+            max_tx_sequence_number,
         }
     }
 }
 
+/// Represents system state and summary info at the start and end of an epoch.
+/// Optional fields are populated at epoch boundary, since they cannot be
+/// determined at the start of the epoch.
 #[derive(Clone, Debug, Default)]
 pub struct IndexedEpochInfo {
     pub epoch: u64,
@@ -98,14 +109,13 @@ pub struct IndexedEpochInfo {
     pub epoch_total_transactions: Option<u64>,
     pub last_checkpoint_id: Option<u64>,
     pub epoch_end_timestamp: Option<u64>,
-    pub storage_fund_reinvestment: Option<u64>,
     pub storage_charge: Option<u64>,
     pub storage_rebate: Option<u64>,
-    pub stake_subsidy_amount: Option<u64>,
     pub total_gas_fees: Option<u64>,
     pub total_stake_rewards_distributed: Option<u64>,
-    pub leftover_storage_fund_inflow: Option<u64>,
     pub epoch_commitments: Option<Vec<CheckpointCommitment>>,
+    pub burnt_tokens_amount: Option<u64>,
+    pub minted_tokens_amount: Option<u64>,
 }
 
 impl IndexedEpochInfo {
@@ -130,6 +140,9 @@ impl IndexedEpochInfo {
         }
     }
 
+    /// Creates `IndexedEpochInfo` for epoch X-1 at the boundary of epoch X-1 to
+    /// X. `network_total_tx_num_at_last_epoch_end` is needed to determine
+    /// the number of transactions that occurred in the epoch X-1.
     pub fn from_end_of_epoch_data(
         system_state_summary: &IotaSystemStateSummary,
         last_checkpoint_summary: &CertifiedCheckpointSummary,
@@ -144,11 +157,8 @@ impl IndexedEpochInfo {
             ),
             last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_fund_reinvestment: Some(event.storage_fund_reinvestment),
             storage_charge: Some(event.storage_charge),
             storage_rebate: Some(event.storage_rebate),
-            leftover_storage_fund_inflow: Some(event.leftover_storage_fund_inflow),
-            stake_subsidy_amount: Some(event.stake_subsidy_amount),
             total_gas_fees: Some(event.total_gas_fees),
             total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
             epoch_commitments: last_checkpoint_summary
@@ -164,6 +174,8 @@ impl IndexedEpochInfo {
             protocol_version: 0,
             total_stake: 0,
             storage_fund_balance: 0,
+            burnt_tokens_amount: Some(event.burnt_tokens_amount),
+            minted_tokens_amount: Some(event.minted_tokens_amount),
         }
     }
 }
@@ -178,6 +190,10 @@ pub struct IndexedEvent {
     pub package: ObjectID,
     pub module: String,
     pub event_type: String,
+    pub event_type_package: ObjectID,
+    pub event_type_module: String,
+    /// Struct name of the event, without type parameters.
+    pub event_type_name: String,
     pub bcs: Vec<u8>,
     pub timestamp_ms: u64,
 }
@@ -200,8 +216,53 @@ impl IndexedEvent {
             package: event.package_id,
             module: event.transaction_module.to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
+            event_type_package: event.type_.address.into(),
+            event_type_module: event.type_.module.to_string(),
+            event_type_name: event.type_.name.to_string(),
             bcs: event.contents.clone(),
             timestamp_ms,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EventIndex {
+    pub tx_sequence_number: u64,
+    pub event_sequence_number: u64,
+    pub sender: IotaAddress,
+    pub emit_package: ObjectID,
+    pub emit_module: String,
+    pub type_package: ObjectID,
+    pub type_module: String,
+    /// Struct name of the event, without type parameters.
+    pub type_name: String,
+    /// Type instantiation of the event, with type name and type parameters, if
+    /// any.
+    pub type_instantiation: String,
+}
+
+impl EventIndex {
+    pub fn from_event(
+        tx_sequence_number: u64,
+        event_sequence_number: u64,
+        event: &iota_types::event::Event,
+    ) -> Self {
+        let type_instantiation = event
+            .type_
+            .to_canonical_string(/* with_prefix */ true)
+            .splitn(3, "::")
+            .collect::<Vec<_>>()[2]
+            .to_string();
+        Self {
+            tx_sequence_number,
+            event_sequence_number,
+            sender: event.sender,
+            emit_package: event.package_id,
+            emit_module: event.transaction_module.to_string(),
+            type_package: event.type_.address.into(),
+            type_module: event.type_.module.to_string(),
+            type_name: event.type_.name.to_string(),
+            type_instantiation,
         }
     }
 }
@@ -271,44 +332,20 @@ pub enum DynamicFieldKind {
 
 #[derive(Clone, Debug)]
 pub struct IndexedObject {
-    pub object_id: ObjectID,
-    pub object_version: u64,
-    pub object_digest: ObjectDigest,
-    pub checkpoint_sequence_number: u64,
-    pub owner_type: OwnerType,
-    pub owner_id: Option<IotaAddress>,
+    pub checkpoint_sequence_number: CheckpointSequenceNumber,
     pub object: Object,
-    pub coin_type: Option<String>,
-    pub coin_balance: Option<u64>,
     pub df_info: Option<DynamicFieldInfo>,
 }
 
 impl IndexedObject {
     pub fn from_object(
-        checkpoint_sequence_number: u64,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         object: Object,
         df_info: Option<DynamicFieldInfo>,
     ) -> Self {
-        let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
-        let coin_type = object
-            .coin_type_maybe()
-            .map(|t| t.to_canonical_string(/* with_prefix */ true));
-        let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
-        } else {
-            None
-        };
-
         Self {
             checkpoint_sequence_number,
-            object_id: object.id(),
-            object_version: object.version().value(),
-            object_digest: object.digest(),
-            owner_type,
-            owner_id,
             object,
-            coin_type,
-            coin_balance,
             df_info,
         }
     }
@@ -352,12 +389,13 @@ pub struct IndexedTransaction {
 #[derive(Debug, Clone)]
 pub struct TxIndex {
     pub tx_sequence_number: u64,
+    pub tx_kind: TransactionKind,
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
     pub input_objects: Vec<ObjectID>,
     pub changed_objects: Vec<ObjectID>,
     pub payers: Vec<IotaAddress>,
-    pub senders: Vec<IotaAddress>,
+    pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,
     pub move_calls: Vec<(ObjectID, String, String)>,
 }

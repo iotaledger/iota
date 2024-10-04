@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        get_module, load_package_object_from_object_store, BackingPackageStore,
-        ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        get_module, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -74,7 +74,7 @@ impl InMemoryStore {
             .and_then(|sequence_number| self.get_checkpoint_by_sequence_number(*sequence_number))
     }
 
-    pub fn get_highest_checkpint(&self) -> Option<&VerifiedCheckpoint> {
+    pub fn get_highest_checkpoint(&self) -> Option<&VerifiedCheckpoint> {
         self.checkpoints
             .last_key_value()
             .map(|(_, checkpoint)| checkpoint)
@@ -258,7 +258,7 @@ impl ChildObjectResolver for InMemoryStore {
         }
 
         if child_object.version() > child_version_upper_bound {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "TODO InMemoryStorage::read_child_object does not yet support bounded reads"
                     .to_owned(),
             });
@@ -392,8 +392,8 @@ impl SimulatorStore for InMemoryStore {
         self.get_checkpoint_by_digest(digest).cloned()
     }
 
-    fn get_highest_checkpint(&self) -> Option<VerifiedCheckpoint> {
-        self.get_highest_checkpint().cloned()
+    fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
+        self.get_highest_checkpoint().cloned()
     }
 
     fn get_checkpoint_contents(

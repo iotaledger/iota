@@ -3,15 +3,8 @@ description: 'The evm core contract provides the necessary infrastructure to acc
 EVM code.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-- smart contracts
-- core
-- root
-- initialization
-- entry points
-- fees
-- ownership
-- views
+- core-contract
+- evm
 - reference
 ---
 
@@ -24,7 +17,7 @@ It also includes the implementation of the [ISC Magic contract](../../../develop
 
 :::note
 
-For more information about how ISC supports EVM contracts, refer to the [EVM](../../../developer/iota-evm/getting-started/languages-and-vms.mdx#evmsolidity-based-smart-contracts) section.
+For more information about how ISC supports EVM contracts, refer to the [EVM](../../../developer/iota-evm/getting-started/languages-and-vms.mdx#what-is-evmsolidity) section.
 
 :::
 
@@ -55,7 +48,7 @@ Some parameters of the `evm` contract can be specified by passing them to the
 
   :::
 
-- `evmw` (optional [`GasRatio`](#gasratio) - default: `1:1`): The ISC to EVM gas ratio.
+- `evmw` (optional [`GasRatio`](./governance.md#ratio32) - default: `1:1`): The ISC to EVM gas ratio.
 
 ### `registerERC20NativeToken`
 
@@ -85,8 +78,8 @@ this endpoint.
 
 This endpoint is intended to be used in case the foundry is controlled by chain
 A, and the owner of the foundry wishes to register the ERC20 contract on chain
-B. In that case, the owner must call this endpoint on chain A with `target =
-chain B`. The request to chain B is then sent as an on-ledger request.
+B. In that case, the owner must call this endpoint on chain A with `target = chain B`.
+The request to chain B is then sent as an on-ledger request.
 After a few minutes, call
 [`getERC20ExternalNativeTokenAddress`](#geterc20externalnativetokenaddress)
 on chain B to find out the address of the ERC20 contract.
@@ -110,7 +103,7 @@ Registers an ERC20 contract to act as a proxy for the native tokens.
 Only an alias address can call this endpoint.
 
 If the foundry is controlled by another ISC chain, the foundry owner can call
-[`registerERC20NativeTokenOnRemoteChain`](#registererc20nativetokenonchain)
+[`registerERC20NativeTokenOnRemoteChain`](#registererc20nativetokenonremotechain)
 on that chain, which will automatically call this endpoint on the chain set as
 target.
 
@@ -141,7 +134,7 @@ The call will fail if the address is taken by another collection with the same p
 ### `getERC20ExternalNativeTokenAddress`
 
 Returns the address of an ERC20 contract registered with
-[`registerERC20NativeTokenOnRemoteChain`](#registererc20nativetokenonchain).
+[`registerERC20NativeTokenOnRemoteChain`](#registererc20nativetokenonremotechain).
 
 Only the foundry owner can call this endpoint.
 

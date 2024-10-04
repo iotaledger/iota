@@ -4,7 +4,7 @@
 
 import { Text } from '_app/shared/text';
 import { IconTooltip } from '_app/shared/tooltip';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { LoadingIndicator } from '_components';
 import { roundFloat, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
@@ -53,7 +53,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
                     <Text variant="subtitle" weight="medium" color="steel-darker">
                         % APY
                     </Text>
-                    <div className="flex items-baseline text-body text-steel">
+                    <div className="text-steel flex items-baseline text-body">
                         <IconTooltip
                             tip="The average APY of all validators you are currently staking your IOTA on."
                             placement="top"

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{fs::File, io::Write};
 
 use clap::Parser;
@@ -10,8 +11,8 @@ use fastcrypto::{
     hash::Hash,
     traits::{KeyPair as _, Signer},
 };
-use mysten_network::Multiaddr;
-use rand::{prelude::StdRng, SeedableRng};
+use iota_network_stack::Multiaddr;
+use rand::{SeedableRng, prelude::StdRng};
 use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, Header, HeaderDigest, HeaderV1Builder,
@@ -89,25 +90,21 @@ fn get_registry() -> Result<Registry> {
 
     let worker_pk = network_keys[0].public().clone();
     let signature = keys[0].sign(header.digest().as_ref());
-    let certificate = Certificate::new_unsigned(
-        &committee,
-        Header::V1(header.clone()),
-        vec![(authority.id(), signature)],
-    )
+    let certificate = Certificate::new_unsigned(&committee, Header::V1(header.clone()), vec![(
+        authority.id(),
+        signature,
+    )])
     .unwrap();
     tracer.trace_value(&mut samples, &certificate)?;
 
     // WorkerIndex & WorkerInfo will be present in a protocol message once dynamic
     // worker integration is complete.
     let worker_index = WorkerIndex(
-        vec![(
-            0,
-            WorkerInfo {
-                name: worker_pk,
-                worker_address: "/ip4/127.0.0.1/udp/500".to_string().parse().unwrap(),
-                transactions: "/ip4/127.0.0.1/tcp/400/http".to_string().parse().unwrap(),
-            },
-        )]
+        vec![(0, WorkerInfo {
+            name: worker_pk,
+            worker_address: "/ip4/127.0.0.1/udp/500".to_string().parse().unwrap(),
+            transactions: "/ip4/127.0.0.1/tcp/400/http".to_string().parse().unwrap(),
+        })]
         .into_iter()
         .collect(),
     );

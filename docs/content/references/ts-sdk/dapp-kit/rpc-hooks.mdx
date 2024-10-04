@@ -1,7 +1,7 @@
 # Rpc Hooks
 
-Iota dApp Kit ships with hooks for each of the RPC methods defined in the
-[JSON RPC specification](https://docs.iota.io/iota-api-ref).
+IOTA dApp Kit ships with hooks for each of the RPC methods defined in the
+[JSON RPC specification](/iota-api-ref).
 
 ## useIotaClientQuery
 
@@ -143,27 +143,5 @@ function MyComponent() {
             Dry run transaction
         </Button>
     );
-}
-```
-
-## useResolveIotaNSName
-
-To get the IotaNS name for a given address, use the `useResolveIotaNSName` hook.
-
-```tsx
-import { useResolveIotaNSName } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { data, isPending } = useResolveIotaNSName('0x123');
-
-    if (isPending) {
-        return <div>Loading...</div>;
-    }
-
-    if (data) {
-        return <div>Domain name is: {data}</div>;
-    }
-
-    return <div>Domain name not found</div>;
 }
 ```

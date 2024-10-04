@@ -3,7 +3,7 @@ title: IOTA Archives
 description: The archive is a historical record of all transactions on IOTA. Enable archiving on your Full nodes as a best practice.
 ---
 
-A IOTA archive is a history of all transaction data on IOTA, trailing behind the latest checkpoint by 10 minutes. As a IOTA node operator, you can write this history to an object store like S3, GCS, or similar for safe keeping. Saving this archive data is considered a best practice because IOTA prunes transactions on Full nodes to remove historical transactions and their effects. Peer nodes, for example, might not catch up with all transactions and effects through synchronization if they lag behind the current epoch by more than the latest few epochs. Instead of relying on synchronization, peer nodes can fallback to downloading this information from an archive.
+An IOTA archive is a history of all transaction data on IOTA, trailing behind the latest checkpoint by 10 minutes. As an IOTA node operator, you can write this history to an object store like S3, GCS, or similar for safe keeping. Saving this archive data is considered a best practice because IOTA prunes transactions on Full nodes to remove historical transactions and their effects. Peer nodes, for example, might not catch up with all transactions and effects through synchronization if they lag behind the current epoch by more than the latest few epochs. Instead of relying on synchronization, peer nodes can fallback to downloading this information from an archive.
 
 IOTA Archival nodes (Full nodes that write to an archive) don't store historical state on local storage and don't help query historical data. They serve the purpose of enabling peer nodes to catch up to the latest checkpoint and are useful for auditing and verifying the complete history of all transactions on the network.
 
@@ -38,7 +38,7 @@ state-archive-read-config:
     use-for-pruning-watermark: true
 ```
 
-## Set up archival fallback {#set-up-archival-fallback}
+## Set up archival fallback
 
 To enable your node to fallback to an archive in case of lag, add this to your fullnode.yaml file:
 
@@ -49,9 +49,9 @@ To enable your node to fallback to an archive in case of lag, add this to your f
 state-archive-read-config:
   - object-store-config:
       object-store: "S3"
-      # Use mysten-testnet-archives for testnet 
-      # Use mysten-mainnet-archives for mainnet
-      bucket: "mysten-<testnet|mainnet>-archives"
+      # Use iota-testnet-archives for testnet 
+      # Use iota-mainnet-archives for mainnet
+      bucket: "iota-<testnet|mainnet>-archives"
       # Use your AWS account access key id
       aws-access-key-id: "<AWS-ACCESS-KEY-ID>"
       # Use your AWS account secret access key
@@ -72,9 +72,9 @@ state-archive-read-config:
 state-archive-read-config:
   - object-store-config:
       object-store: "GCS"
-      # Use mysten-mainnet-archives for mainnet
+      # Use iota-mainnet-archives for mainnet
       # Notice there is no archive bucket setup for testnet in GCS
-      bucket: "mysten-<testnet|mainnet>-archives"
+      bucket: "iota-<testnet|mainnet>-archives"
       # Use your gcloud service account credentials
       google-service-account: "</path/to/service/account/credentials>"
       object-store-connection-limit: 20
@@ -101,8 +101,8 @@ Even though these buckets are publicly readable, you need to make sure to proper
             ],
             "Effect": "Allow",
             "Resource": [
-                "arn:aws:s3:::mysten-mainnet-archives/*",
-                "arn:aws:s3:::mysten-mainnet-archives"
+                "arn:aws:s3:::iota-mainnet-archives/*",
+                "arn:aws:s3:::iota-mainnet-archives"
             ]
         }
     ]

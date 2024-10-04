@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Test the change of APY with heavy transactions
+// Test heavy transactions.
 
 //# init --protocol-version 1 --simulator --accounts A --addresses P0=0x0
 

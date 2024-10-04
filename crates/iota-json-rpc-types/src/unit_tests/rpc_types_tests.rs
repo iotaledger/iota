@@ -6,10 +6,11 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     gas_coin::GasCoin,
     object::{MoveObject, Owner},
-    parse_iota_struct_tag, IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
+    parse_iota_struct_tag,
 };
 use move_core_types::{
     annotated_value::{MoveStruct, MoveValue},
@@ -138,12 +139,11 @@ fn test_serde() {
     for value in test_values {
         let json = serde_json::to_string(&value).unwrap();
         let serde_value: IotaMoveValue = serde_json::from_str(&json)
-            .map_err(|e| anyhow!("Serde failed for [{:?}], Error msg : {}", value, e))
+            .map_err(|e| anyhow!("Serde failed for [{value:?}], Error msg : {e}"))
             .unwrap();
         assert_eq!(
             value, serde_value,
-            "Error converting {:?} [{json}], got {:?}",
-            value, serde_value
+            "Error converting {value:?} [{json}], got {serde_value:?}",
         )
     }
 }

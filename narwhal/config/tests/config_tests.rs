@@ -30,9 +30,9 @@ use config::{
 };
 use crypto::PublicKey;
 use insta::assert_json_snapshot;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use narwhal_config as config;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tempfile::tempdir;
 use test_utils::CommitteeFixture;
 

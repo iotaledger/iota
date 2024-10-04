@@ -18,7 +18,10 @@ use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
-pub use read_store::ReadStore;
+pub use read_store::{
+    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStore,
+    RestStateReader,
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 pub use shared_in_memory_store::{SharedInMemoryStore, SingleCheckpointSharedInMemoryStore};
@@ -27,7 +30,7 @@ pub use write_store::WriteStore;
 use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
     committee::EpochId,
-    error::{IotaError, IotaResult},
+    error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     move_package::MovePackage,
     object::Object,
@@ -58,6 +61,13 @@ impl InputKey {
         match self {
             InputKey::VersionedObject { version, .. } => Some(*version),
             InputKey::Package { .. } => None,
+        }
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        match self {
+            InputKey::VersionedObject { version, .. } => version.is_cancelled(),
+            InputKey::Package { .. } => false,
         }
     }
 }
@@ -185,6 +195,15 @@ pub trait ChildObjectResolver {
     ) -> IotaResult<Option<Object>>;
 }
 
+pub struct DenyListResult {
+    /// Ok if all regulated coin owners are allowed.
+    /// Err if any regulated coin owner is denied (returning the error for first
+    /// one denied).
+    pub result: Result<(), ExecutionError>,
+    /// The number of non-gas-coin owners in the transaction results
+    pub num_non_gas_coin_owners: u64,
+}
+
 /// An abstraction of the (possibly distributed) store for objects, and (soon)
 /// events and transactions
 pub trait Storage {
@@ -203,6 +222,10 @@ pub trait Storage {
         &mut self,
         wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
     );
+
+    /// Check coin denylist during execution,
+    /// and the number of non-gas-coin owners.
+    fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult;
 }
 
 pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectID>>;
@@ -237,7 +260,13 @@ pub trait BackingPackageStore {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>>;
 }
 
-impl<S: BackingPackageStore> BackingPackageStore for Arc<S> {
+impl<S: ?Sized + BackingPackageStore> BackingPackageStore for Box<S> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+        BackingPackageStore::get_package_object(self.as_ref(), package_id)
+    }
+}
+
+impl<S: ?Sized + BackingPackageStore> BackingPackageStore for Arc<S> {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         BackingPackageStore::get_package_object(self.as_ref(), package_id)
     }
@@ -261,12 +290,9 @@ pub fn load_package_object_from_object_store(
 ) -> IotaResult<Option<PackageObject>> {
     let package = store.get_object(package_id)?;
     if let Some(obj) = &package {
-        fp_ensure!(
-            obj.is_package(),
-            IotaError::BadObjectType {
-                error: format!("Package expected, Move object found: {package_id}"),
-            }
-        );
+        fp_ensure!(obj.is_package(), IotaError::BadObjectType {
+            error: format!("Package expected, Move object found: {package_id}"),
+        });
     }
     Ok(package.map(PackageObject::new))
 }
@@ -296,8 +322,8 @@ pub fn get_package_objects<'a>(
     }
 }
 
-pub fn get_module<S: BackingPackageStore>(
-    store: S,
+pub fn get_module(
+    store: impl BackingPackageStore,
     module_id: &ModuleId,
 ) -> Result<Option<Vec<u8>>, IotaError> {
     Ok(store
@@ -312,11 +338,54 @@ pub fn get_module<S: BackingPackageStore>(
 }
 
 pub fn get_module_by_id<S: BackingPackageStore>(
-    store: S,
+    store: &S,
     id: &ModuleId,
 ) -> anyhow::Result<Option<CompiledModule>, IotaError> {
     Ok(get_module(store, id)?
         .map(|bytes| CompiledModule::deserialize_with_defaults(&bytes).unwrap()))
+}
+
+/// A `BackingPackageStore` that resolves packages from a backing store, but
+/// also includes any packages that were published in the current transaction
+/// execution. This can be used to resolve Move modules right after transaction
+/// execution, but newly published packages have not yet been committed to the
+/// backing store on a fullnode.
+pub struct PostExecutionPackageResolver {
+    backing_store: Arc<dyn BackingPackageStore>,
+    new_packages: BTreeMap<ObjectID, PackageObject>,
+}
+
+impl PostExecutionPackageResolver {
+    pub fn new(
+        backing_store: Arc<dyn BackingPackageStore>,
+        output_objects: &Option<Vec<Object>>,
+    ) -> Self {
+        let new_packages = output_objects
+            .iter()
+            .flatten()
+            .filter_map(|o| {
+                if o.is_package() {
+                    Some((o.id(), PackageObject::new(o.clone())))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Self {
+            backing_store,
+            new_packages,
+        }
+    }
+}
+
+impl BackingPackageStore for PostExecutionPackageResolver {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+        if let Some(package) = self.new_packages.get(package_id) {
+            Ok(Some(package.clone()))
+        } else {
+            self.backing_store.get_package_object(package_id)
+        }
+    }
 }
 
 pub trait ParentSync {
@@ -467,9 +536,19 @@ impl From<&ObjectRef> for ObjectKey {
     }
 }
 
+#[derive(Clone)]
 pub enum ObjectOrTombstone {
     Object(Object),
     Tombstone(ObjectRef),
+}
+
+impl ObjectOrTombstone {
+    pub fn as_objref(&self) -> ObjectRef {
+        match self {
+            ObjectOrTombstone::Object(obj) => obj.compute_object_reference(),
+            ObjectOrTombstone::Tombstone(obref) => *obref,
+        }
+    }
 }
 
 impl From<Object> for ObjectOrTombstone {
@@ -481,7 +560,9 @@ impl From<Object> for ObjectOrTombstone {
 /// Fetch the `ObjectKey`s (IDs and versions) for non-shared input objects.
 /// Includes owned, and immutable objects as well as the gas objects, but not
 /// move packages or shared objects.
-pub fn transaction_input_object_keys(tx: &SenderSignedData) -> IotaResult<Vec<ObjectKey>> {
+pub fn transaction_non_shared_input_object_keys(
+    tx: &SenderSignedData,
+) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
         .intent_message()

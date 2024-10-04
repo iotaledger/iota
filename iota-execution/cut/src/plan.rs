@@ -8,10 +8,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use thiserror::Error;
 use toml::value::Value;
-use toml_edit::{self, Document, Item};
+use toml_edit::{self, DocumentMut, Item};
 
 use crate::{
     args::Args,
@@ -184,19 +184,16 @@ impl CutPlan {
                     bail!(Error::ExistingPackage(pkg_name, dst_path));
                 }
 
-                self.planned_packages.insert(
-                    pkg_name,
-                    CutPackage {
-                        dst_name,
-                        dst_path,
-                        src_path: src.to_path_buf(),
-                        ws_state: if let Some(ws) = &self.ws {
-                            ws.state(src)?
-                        } else {
-                            WorkspaceState::Unknown
-                        },
+                self.planned_packages.insert(pkg_name, CutPackage {
+                    dst_name,
+                    dst_path,
+                    src_path: src.to_path_buf(),
+                    ws_state: if let Some(ws) = &self.ws {
+                        ws.state(src)?
+                    } else {
+                        WorkspaceState::Unknown
                     },
-                );
+                });
 
                 Ok(())
             }
@@ -321,7 +318,7 @@ impl CutPlan {
     /// information).
     fn update_package(&self, package: &CutPackage) -> Result<()> {
         let path = package.dst_path.join("Cargo.toml");
-        let mut toml = fs::read_to_string(&path)?.parse::<Document>()?;
+        let mut toml = fs::read_to_string(&path)?.parse::<DocumentMut>()?;
 
         // Update the package name
         toml["package"]["name"] = toml_edit::value(&package.dst_name);
@@ -422,7 +419,7 @@ impl CutPlan {
             bail!(Error::NoWorkspace(path));
         }
 
-        let mut toml = fs::read_to_string(&path)?.parse::<Document>()?;
+        let mut toml = fs::read_to_string(&path)?.parse::<DocumentMut>()?;
         for package in self.packages.values() {
             match package.ws_state {
                 WorkspaceState::Unknown => {
@@ -853,12 +850,6 @@ mod tests {
                     "$PATH/iota-execution/exec-cut",
                 },
                 packages: {
-                    "move-core-types": CutPackage {
-                        dst_name: "move-core-types-feature",
-                        src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/iota-execution/cut-move-core-types",
-                        ws_state: Exclude,
-                    },
                     "iota-adapter-latest": CutPackage {
                         dst_name: "iota-adapter-feature",
                         src_path: "$PATH/iota-execution/latest/iota-adapter",
@@ -876,6 +867,12 @@ mod tests {
                         src_path: "$PATH/iota-execution/latest/iota-verifier",
                         dst_path: "$PATH/iota-execution/exec-cut/iota-verifier",
                         ws_state: Member,
+                    },
+                    "move-core-types": CutPackage {
+                        dst_name: "move-core-types-feature",
+                        src_path: "$PATH/external-crates/move/crates/move-core-types",
+                        dst_path: "$PATH/iota-execution/cut-move-core-types",
+                        ws_state: Exclude,
                     },
                 },
             }"#]]
@@ -954,12 +951,6 @@ mod tests {
                     "$PATH/iota-execution/feature",
                 },
                 packages: {
-                    "move-core-types": CutPackage {
-                        dst_name: "move-core-types-feature",
-                        src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/iota-execution/feature/move/crates/move-core-types",
-                        ws_state: Exclude,
-                    },
                     "iota-adapter-latest": CutPackage {
                         dst_name: "iota-adapter-feature",
                         src_path: "$PATH/iota-execution/latest/iota-adapter",
@@ -977,6 +968,12 @@ mod tests {
                         src_path: "$PATH/iota-execution/latest/iota-verifier",
                         dst_path: "$PATH/iota-execution/feature/iota-verifier",
                         ws_state: Member,
+                    },
+                    "move-core-types": CutPackage {
+                        dst_name: "move-core-types-feature",
+                        src_path: "$PATH/external-crates/move/crates/move-core-types",
+                        dst_path: "$PATH/iota-execution/feature/move/crates/move-core-types",
+                        ws_state: Exclude,
                     },
                 },
             }"#]]
@@ -1361,12 +1358,6 @@ mod tests {
                     "$PATH/iota-execution/exec-cut",
                 },
                 packages: {
-                    "move-core-types": CutPackage {
-                        dst_name: "move-core-types-feature",
-                        src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/iota-execution/cut-move-core-types",
-                        ws_state: Unknown,
-                    },
                     "iota-adapter-latest": CutPackage {
                         dst_name: "iota-adapter-feature",
                         src_path: "$PATH/iota-execution/latest/iota-adapter",
@@ -1383,6 +1374,12 @@ mod tests {
                         dst_name: "iota-verifier-feature",
                         src_path: "$PATH/iota-execution/latest/iota-verifier",
                         dst_path: "$PATH/iota-execution/exec-cut/iota-verifier",
+                        ws_state: Unknown,
+                    },
+                    "move-core-types": CutPackage {
+                        dst_name: "move-core-types-feature",
+                        src_path: "$PATH/external-crates/move/crates/move-core-types",
+                        dst_path: "$PATH/iota-execution/cut-move-core-types",
                         ws_state: Unknown,
                     },
                 },

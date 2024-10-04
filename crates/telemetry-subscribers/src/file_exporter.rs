@@ -9,12 +9,16 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use futures::{future::BoxFuture, FutureExt};
-use opentelemetry::{
-    sdk::export::trace::{ExportResult, SpanData, SpanExporter},
-    trace::TraceError,
+use futures::{FutureExt, future::BoxFuture};
+use opentelemetry::trace::TraceError;
+use opentelemetry_proto::{
+    tonic::collector::trace::v1::ExportTraceServiceRequest,
+    transform::{
+        common::tonic::ResourceAttributesWithSchema,
+        trace::tonic::group_spans_by_resource_and_scope,
+    },
 };
-use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 use prost::Message;
 
 #[derive(Clone)]
@@ -94,7 +98,10 @@ impl SpanExporter for FileExporter {
                 .with_file(|maybe_file| {
                     if let Some(file) = maybe_file {
                         let request = ExportTraceServiceRequest {
-                            resource_spans: batch.into_iter().map(Into::into).collect(),
+                            resource_spans: group_spans_by_resource_and_scope(
+                                batch,
+                                &ResourceAttributesWithSchema::default(),
+                            ),
                         };
 
                         let buf = request.encode_length_delimited_to_vec();

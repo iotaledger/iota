@@ -2,16 +2,14 @@
 description: How to get the balance of L1 assets on L2
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - native assets
+  - evm
   - balance
-  - EVM
   - how-to
 ---
 
 # Get Balance
 
 Once you have your L1 assets on L2, you might want to check their balance. This guide explains how to do so by calling the three functions `getL2BalanceBaseTokens`, `getL2BalanceNativeTokens`and `getL2NFTAmount` for the corresponding token types.
-
 
 ## Example Code
 
@@ -71,4 +69,3 @@ contract GetBalance {
     }
 }
 ```
-

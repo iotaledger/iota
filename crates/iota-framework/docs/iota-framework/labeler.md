@@ -56,7 +56,7 @@ Can be publicly transferred like any other object.
 Error code for when a type passed to the <code>create_labeler_cap</code> function is not a one-time witness.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</a>: u64 = 0;
+<pre><code><b>const</b> <a href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 

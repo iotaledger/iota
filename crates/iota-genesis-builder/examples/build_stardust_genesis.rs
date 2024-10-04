@@ -3,14 +3,11 @@
 
 //! Creating a genesis blob out of a local stardust objects snapshot.
 
-use std::{
-    fs::File,
-    io::{BufReader, Read},
-};
+use std::path::PathBuf;
 
 use clap::Parser;
 use iota_config::genesis::TokenDistributionScheduleBuilder;
-use iota_genesis_builder::{Builder, BROTLI_COMPRESSOR_BUFFER_SIZE, OBJECT_SNAPSHOT_FILE_PATH};
+use iota_genesis_builder::{Builder, OBJECT_SNAPSHOT_FILE_PATH, SnapshotSource};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
@@ -19,13 +16,6 @@ use rand::rngs::OsRng;
     about = "Example Tool for generating a genesis file from a Stardust Migration Objects snapshot"
 )]
 struct Cli {
-    #[clap(
-        short,
-        long,
-        default_value_t = false,
-        help = "Decompress the input object snapshot"
-    )]
-    decompress: bool,
     #[clap(long, default_value_t = OBJECT_SNAPSHOT_FILE_PATH.to_string(), help = "Path to the Stardust Migration Objects snapshot file")]
     snapshot_path: String,
 }
@@ -36,18 +26,11 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     // Prepare the reader for the objects snapshot
-    let input_file = File::open(cli.snapshot_path)?;
-    let object_snapshot_reader: Box<dyn Read> = if cli.decompress {
-        Box::new(brotli::Decompressor::new(
-            input_file,
-            BROTLI_COMPRESSOR_BUFFER_SIZE,
-        ))
-    } else {
-        Box::new(BufReader::new(input_file))
-    };
+    let path = PathBuf::from(cli.snapshot_path);
+    let object_snapshot_source = SnapshotSource::Local(path);
 
     // Start building
-    let mut builder = Builder::new().add_migration_objects(object_snapshot_reader)?;
+    let mut builder = Builder::new().add_migration_source(object_snapshot_source);
 
     // Create validators
     let mut validators = Vec::new();

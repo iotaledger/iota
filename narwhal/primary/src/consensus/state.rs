@@ -6,7 +6,7 @@
 #![allow(clippy::mutable_key_type)]
 
 use std::{
-    cmp::{max, Ordering},
+    cmp::{Ordering, max},
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
     sync::Arc,
@@ -14,7 +14,7 @@ use std::{
 
 use config::{AuthorityIdentifier, Committee};
 use fastcrypto::hash::Hash;
-use mysten_metrics::{metered_channel, spawn_logged_monitored_task};
+use iota_metrics::{metered_channel, spawn_logged_monitored_task};
 use storage::{CertificateStore, ConsensusStore};
 use tokio::{sync::watch, task::JoinHandle};
 use tracing::{debug, info, instrument};
@@ -24,7 +24,7 @@ use types::{
 };
 
 use crate::consensus::{
-    bullshark::Bullshark, metrics::ConsensusMetrics, utils::gc_round, ConsensusError,
+    ConsensusError, bullshark::Bullshark, metrics::ConsensusMetrics, utils::gc_round,
 };
 
 #[cfg(test)]

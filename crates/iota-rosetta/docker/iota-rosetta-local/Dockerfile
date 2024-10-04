@@ -9,6 +9,22 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Build application
 FROM chef AS builder
 
+# TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh <<EOT
+  set -e
+  echo "Setting Git SSH protocol"
+  (
+    set +e
+    ssh -T git@github.com
+    if [ ! "$?" = "1" ]; then
+      echo "No GitHub SSH key loaded, exiting..."
+      exit 1
+    fi
+  )
+EOT
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+
 RUN curl -sSfL https://raw.githubusercontent.com/coinbase/rosetta-cli/master/scripts/install.sh | sh -s
 
 COPY Cargo.toml Cargo.lock ./
@@ -17,7 +33,10 @@ COPY crates crates
 COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
-RUN cargo build --release --bin iota --bin iota-rosetta
+COPY docs docs
+
+# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+RUN --mount=type=ssh cargo build --release --bin iota --bin iota-rosetta
 
 # Production Image
 FROM ubuntu:latest AS runtime

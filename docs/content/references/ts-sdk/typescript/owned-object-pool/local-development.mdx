@@ -10,7 +10,7 @@ If you would like to extend the library by developing on your local machine, fir
 the repository.
 
 ```sh
-git clone https://github.com/MystenLabs/Iota_Owned_Object_Pools.git
+git clone https://github.com/iotaledger/Iota_Owned_Object_Pools.git
 ```
 
 Use a package manager to install dependencies from the root of the project.
@@ -43,7 +43,7 @@ iota client switch --env testnet && iota client envs
 
 Also, make sure that your admin account (the account `iota client active-address` identifies) owns
 enough IOTA. You can get IOTA for a test network from the
-[Iota faucet](https://docs.iota.io/guides/developer/getting-started/get-coins).
+[IOTA faucet](../../../../developer/getting-started/get-coins.mdx).
 
 Next, run the setup script:
 
@@ -59,14 +59,14 @@ The Testnet network is typically used for testing. Switch to Testnet with:
 `iota client switch --env testnet`
 
 At the end of the setup, your `.env` should look like the template
-[`.test.env.example.`](https://github.com/MystenLabs/coin_management_system/blob/main/test/.env.example):
+[`.test.env.example.`](https://github.com/iotaledger/coin_management_system/blob/main/test/.env.example):
 
 ```ts
 # The Admin should also be the publisher of the nft_app smart contract
 ADMIN_ADDRESS= ...
 ADMIN_SECRET_KEY= ...
 
-# A user address that is used as a receiver of txbs. Used for testing.
+# A user address that is used as a receiver of txs. Used for testing.
 TEST_USER_ADDRESS= ...
 TEST_USER_SECRET= ...
 

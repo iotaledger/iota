@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::VecDeque, sync::Arc};
 
 use config::{Committee, Stake};
@@ -13,8 +14,8 @@ use tracing::{debug, error_span};
 use types::{Certificate, CertificateAPI, CommittedSubDag, HeaderAPI, ReputationScores, Round};
 
 use crate::consensus::{
-    metrics::ConsensusMetrics, utils, ConsensusError, ConsensusState, Dag, LeaderSchedule,
-    LeaderSwapTable, Outcome,
+    ConsensusError, ConsensusState, Dag, LeaderSchedule, LeaderSwapTable, Outcome,
+    metrics::ConsensusMetrics, utils,
 };
 
 #[cfg(test)]

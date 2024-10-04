@@ -68,7 +68,7 @@ The Stardust expiration unlock condition.
 The output can not be unlocked by the sender error.
 
 
-<pre><code><b>const</b> <a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</a>: u64 = 0;
+<pre><code><b>const</b> <a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 

@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::iota_system {
+    use std::vector;
+
     use iota::balance::Balance;
     use iota::object::UID;
     use iota::iota::IOTA;
@@ -14,14 +16,12 @@ module iota_system::iota_system {
     use iota_system::iota_system_state_inner::IotaSystemStateInner;
     use iota_system::iota_system_state_inner;
 
-    friend iota_system::genesis;
-
-    struct IotaSystemState has key {
+    public struct IotaSystemState has key {
         id: UID,
         version: u64,
     }
 
-    public(friend) fun create(
+    public(package) fun create(
         id: UID,
         validators: vector<Validator>,
         storage_fund: Balance<IOTA>,
@@ -39,7 +39,7 @@ module iota_system::iota_system {
             ctx,
         );
         let version = iota_system_state_inner::genesis_system_state_version();
-        let self = IotaSystemState {
+        let mut self = IotaSystemState {
             id,
             version,
         };
@@ -48,7 +48,7 @@ module iota_system::iota_system {
     }
 
     fun advance_epoch(
-        storage_reward: Balance<IOTA>,
+        storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         wrapper: &mut IotaSystemState,
         new_epoch: u64,
@@ -67,13 +67,17 @@ module iota_system::iota_system {
             self,
             new_epoch,
             next_protocol_version,
-            storage_reward,
+            storage_charge,
             computation_reward,
             storage_rebate,
             epoch_start_timestamp_ms,
         );
 
         storage_rebate
+    }
+
+    public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
+        vector::empty()
     }
 
     fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInner {

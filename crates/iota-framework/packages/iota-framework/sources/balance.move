@@ -10,8 +10,6 @@ module iota::balance {
     /// Allows calling `.into_coin()` on a `Balance` to turn it into a coin.
     public use fun iota::coin::from_balance as Balance.into_coin;
 
-    /* friend iota::iota; */
-
     /// For when trying to destroy a non-zero balance.
     const ENonZero: u64 = 0;
     /// For when an overflow is happening on Supply operations.
@@ -20,6 +18,8 @@ module iota::balance {
     const ENotEnough: u64 = 2;
     /// Sender is not @0x0 the system address.
     const ENotSystemAddress: u64 = 3;
+    /// Epoch is not 0 (the genesis epoch).
+    const ENotGenesisEpoch: u64 = 4;
 
     /// A Supply of T. Used for minting and burning.
     /// Wrapped into a `TreasuryCap` in the `Coin` module.
@@ -112,6 +112,17 @@ module iota::balance {
         let Balance { value: _ } = self;
     }
 
+    #[allow(unused_function)]
+    /// CAUTION: this function destroys a `Balance` without decreasing the supply.
+    /// It should only be called by the genesis txn to destroy parts of the IOTA supply
+    /// which was created during the migration and for no other reason.
+    fun destroy_genesis_supply<T>(self: Balance<T>, ctx: &TxContext) {
+        assert!(ctx.sender() == @0x0, ENotSystemAddress);
+        assert!(ctx.epoch() == 0, ENotGenesisEpoch);
+
+        let Balance { value: _ } = self;
+    }
+
     /// Destroy a `Supply` preventing any further minting and burning.
     public(package) fun destroy_supply<T>(self: Supply<T>): u64 {
         let Supply { value } = self;
@@ -151,7 +162,7 @@ module iota::balance_tests {
 
         balance.join(another);
 
-        assert!(balance.value() == 1000, 0);
+        assert!(balance.value() == 1000);
 
         let balance1 = balance.split(333);
         let balance2 = balance.split(333);
@@ -159,9 +170,9 @@ module iota::balance_tests {
 
         balance.destroy_zero();
 
-        assert!(balance1.value() == 333, 1);
-        assert!(balance2.value() == 333, 2);
-        assert!(balance3.value() == 334, 3);
+        assert!(balance1.value() == 333);
+        assert!(balance2.value() == 333);
+        assert!(balance3.value() == 334);
 
         test_utils::destroy(balance1);
         test_utils::destroy(balance2);

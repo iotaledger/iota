@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import ExternalLink from '_src/ui/app/components/external-link';
+import { ExternalLink } from '_components';
 import { X32 } from '@iota/icons';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';

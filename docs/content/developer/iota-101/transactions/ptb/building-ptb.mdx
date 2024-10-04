@@ -3,12 +3,12 @@ title: Building Programmable Transaction Blocks
 description: Using the IOTA TypeScript SDK, you can create programmable transaction blocks to perform multiple commands in a single transaction.
 ---
 
-This guide explores creating a programmable transaction block (PTB) on IOTA using the TypeScript SDK. For an overview of what a PTB is, see [Programmable Transaction Blocks](prog-txn-blocks.mdx) in the Concepts section. If you don't already have the IOTA TypeScript SDK, follow the [install instructions](https://sdk.mystenlabs.com/typescript/install) on the IOTA TypeScript SDK site.
+This guide explores creating a programmable transaction block (PTB) on IOTA using the TypeScript SDK. For an overview of what a PTB is, see [Programmable Transaction Blocks](prog-txn-blocks.mdx) in the Concepts section. If you don't already have the IOTA TypeScript SDK, follow the [install instructions](../../../../references/ts-sdk/typescript/install.mdx) on the IOTA TypeScript SDK site.
 
-This example starts by constructing a PTB to send IOTA. If you are familiar with the legacy IOTA transaction types, this is similar to a `payIOTA` transaction. To construct transactions, import the `TransactionBlock` class, and construct it:
+This example starts by constructing a PTB to send IOTA. If you are familiar with the legacy IOTA transaction types, this is similar to a `payIota` transaction. To construct transactions, import the `TransactionBlock` class, and construct it:
 
 ```ts
-import { TransactionBlock } from "@iota/iota.js";
+import { TransactionBlock } from "@iota/iota-sdk";
 const txb = new TransactionBlock();
 ```
 
@@ -142,7 +142,7 @@ const txb = TransactionBlock.from(bytes);
 In the event that you want to build a PTB offline (as in with no `provider` required), you need to fully define all of your input values, and gas configuration (see the following example). For pure values, you can provide a `Uint8Array` which is used directly in the transaction. For objects, you can use the `Inputs` helper to construct an object reference.
 
 ```ts
-import { Inputs } from "@iota/iota.js";
+import { Inputs } from "@iota/iota-sdk";
 
 // For pure values:
 txb.pure(pureValueAsBytes);

@@ -4,18 +4,18 @@
 
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import cn from 'clsx';
-import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-
+import { useCallback, useMemo, useState } from 'react';
+import { Button, ButtonType, Header } from '@iota/apps-ui-kit';
+import { Loader } from '@iota/ui-icons';
 import { useAccountByAddress } from '../../hooks/useAccountByAddress';
-import { Button } from '../../shared/ButtonUI';
-import { UnlockAccountButton } from '../accounts/UnlockAccountButton';
-import { DAppInfoCard } from '../DAppInfoCard';
+import { DAppInfoCard, UnlockAccountButton } from '_components';
 
 interface UserApproveContainerProps {
     children: ReactNode | ReactNode[];
     origin: string;
     originFavIcon?: string;
+    headerTitle?: string;
     rejectTitle: string;
     approveTitle: string;
     approveDisabled?: boolean;
@@ -34,6 +34,7 @@ export function UserApproveContainer({
     origin,
     originFavIcon,
     children,
+    headerTitle,
     rejectTitle,
     approveTitle,
     approveDisabled = false,
@@ -57,8 +58,9 @@ export function UserApproveContainer({
     const { data: selectedAccount } = useAccountByAddress(address);
     const parsedOrigin = useMemo(() => new URL(origin), [origin]);
     return (
-        <div className="flex h-full flex-1 flex-col flex-nowrap">
-            <div className="flex flex-1 flex-col pb-0">
+        <div className="flex h-full flex-1 flex-col flex-nowrap gap-md">
+            {headerTitle && <Header title={headerTitle} titleCentered />}
+            <div className="flex flex-1 flex-col gap-md p-md">
                 <DAppInfoCard
                     name={parsedOrigin.host}
                     url={origin}
@@ -66,39 +68,40 @@ export function UserApproveContainer({
                     iconUrl={originFavIcon}
                     connectedAddress={!addressHidden && address ? address : undefined}
                 />
-                <div className="flex flex-1 flex-col bg-hero-darkest/5 px-6">{children}</div>
+                <div className="flex flex-1 flex-col">{children}</div>
             </div>
-            <div className="sticky bottom-0">
+            <div className="sticky bottom-0 z-10">
                 <div
-                    className={cn(
-                        'flex items-center gap-2.5 bg-hero-darkest/5 px-5 py-4 backdrop-blur-lg',
-                        {
-                            'flex-row-reverse': isWarning,
-                        },
-                    )}
+                    className={cn('flex items-center bg-white p-md pt-sm', {
+                        'flex-row-reverse': isWarning,
+                    })}
                 >
                     {!checkAccountLock || !selectedAccount?.isLocked ? (
-                        <>
+                        <div className="flex w-full gap-md">
                             <Button
-                                size="tall"
-                                variant="secondary"
+                                type={ButtonType.Secondary}
                                 onClick={() => {
                                     handleOnResponse(false);
                                 }}
                                 disabled={submitting}
                                 text={rejectTitle}
+                                fullWidth
                             />
                             <Button
-                                size="tall"
-                                variant={isWarning ? 'secondary' : 'primary'}
+                                fullWidth
+                                type={isWarning ? ButtonType.Secondary : ButtonType.Primary}
                                 onClick={() => {
                                     handleOnResponse(true);
                                 }}
+                                icon={
+                                    (submitting || approveLoading) && (
+                                        <Loader className="animate-spin" />
+                                    )
+                                }
                                 disabled={approveDisabled}
-                                loading={submitting || approveLoading}
                                 text={approveTitle}
                             />
-                        </>
+                        </div>
                     ) : (
                         <UnlockAccountButton account={selectedAccount} title="Unlock to Approve" />
                     )}

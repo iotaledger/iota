@@ -1131,7 +1131,7 @@ module deepbook::clob {
     /// Skip any order_id that is invalid.
     /// Note that this function can reduce gas cost even further if caller has multiple orders at the same price level,
     /// and if orders with the same price are grouped together in the vector.
-    /// For example, if we have the following order_id to price mapping, {0: 100., 1: 200., 2: 100., 3: 200.}.
+    /// For example, if we have the following order_id to price mapping, \{0: 100., 1: 200., 2: 100., 3: 200.}.
     /// Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
     public fun batch_cancel_order<BaseAsset, QuoteAsset>(
         pool: &mut Pool<BaseAsset, QuoteAsset>,
@@ -1342,8 +1342,6 @@ module deepbook::clob {
 
     #[test_only] use iota::test_scenario::{Self, Scenario};
 
-    #[test_only] const E_NULL: u64 = 0;
-
     #[test_only] public struct USD {}
 
     #[test_only]
@@ -1422,17 +1420,17 @@ module deepbook::clob {
         open_orders: &vector<Order>,
     ) {
         let (tick_exists, tick_index) = find_leaf(tree, price);
-        assert!(tick_exists, E_NULL);
+        assert!(tick_exists);
         let tick_level = borrow_leaf_by_index(tree, tick_index);
-        assert!(tick_level.price == price, E_NULL);
+        assert!(tick_level.price == price);
         let mut total_quote_amount: u64 = 0;
-        assert!(linked_table::length(&tick_level.open_orders) == vector::length(open_orders), E_NULL);
+        assert!(linked_table::length(&tick_level.open_orders) == vector::length(open_orders));
         let mut i_order = 0;
         while (i_order < vector::length(open_orders)) {
             let order = vector::borrow(open_orders, i_order);
             total_quote_amount = total_quote_amount + order.quantity;
-            assert!(order.price == price, E_NULL);
-            assert!(contains_order(&tick_level.open_orders, order), E_NULL);
+            assert!(order.price == price);
+            assert!(contains_order(&tick_level.open_orders, order));
             i_order = i_order + 1;
         };
     }
@@ -1443,7 +1441,7 @@ module deepbook::clob {
         price: u64,
     ) {
         let (tick_exists, _) = find_leaf(tree, price);
-        assert!(!tick_exists, E_NULL);
+        assert!(!tick_exists);
     }
 
 
@@ -1623,12 +1621,12 @@ module deepbook::clob {
         usr_open_orders: &LinkedTable<u64, u64>,
         usr_open_orders_cmp: &vector<u64>,
     ) {
-        assert!(2 * linked_table::length(usr_open_orders) == vector::length(usr_open_orders_cmp), 0);
+        assert!(2 * linked_table::length(usr_open_orders) == vector::length(usr_open_orders_cmp));
         let mut i_order = 0;
         while (i_order < vector::length(usr_open_orders_cmp)) {
             let order_id = *vector::borrow(usr_open_orders_cmp, i_order);
             i_order = i_order + 1;
-            assert!(linked_table::contains(usr_open_orders, order_id), 0);
+            assert!(linked_table::contains(usr_open_orders, order_id));
             let price_cmp = *vector::borrow(usr_open_orders_cmp, i_order);
             let price = *linked_table::borrow(usr_open_orders, order_id);
             assert!(price_cmp == price, ENotEqual);

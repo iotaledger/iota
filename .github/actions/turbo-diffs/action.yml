@@ -11,12 +11,13 @@ runs:
       with:
         fetch-depth: 0
     - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+    - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
       with:
-        version: 9
+        node-version: "20"
     - id: changes
       name: Detect changes
       shell: bash
-      run: echo "packages=$(pnpm --silent dlx turbo run build --filter="...[origin/main]" --dry=json | jq -c ".packages")" >> $GITHUB_OUTPUT
+      run: echo "packages=$(pnpm --silent dlx turbo@2 run build --filter="...[origin/develop]" --dry=json | jq -c ".packages")" >> $GITHUB_OUTPUT
     - name: Print changes for easy debugging
       shell: bash
       run: echo ${{ steps.changes.outputs.packages }}

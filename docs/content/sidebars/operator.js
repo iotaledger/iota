@@ -10,9 +10,28 @@ const operator = [
     'operator/snapshots',
     'operator/archives',
     'operator/genesis',
+    'operator/indexer-functions',
     'operator/validator-committee',
-    'operator/validator-tasks',
-    'operator/node-tools',
+    {
+        type: 'category',
+        label: 'Validator Operation',
+        items: [
+            'operator/validator-operation/validator-tasks',
+            'operator/validator-operation/ansible/README',
+            'operator/validator-operation/docker/README',
+            'operator/validator-operation/systemd/README',
+        ]
+    },
+    'operator/validator-tools',
+    {
+        type: 'category',
+        label: 'Node Monitoring and Metrics',
+        items: [
+            'operator/telemetry/telemetry-subscribers',
+            'operator/telemetry/iota-metrics',
+            'operator/telemetry/iota-telemetry',
+        ],
+    },
     {
         type: 'category',
         label: 'IOTA EVM Network',

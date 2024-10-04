@@ -2,24 +2,16 @@ consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
-anemo-benchmark:
-  - "crates/anemo-benchmark/**"
-data-transform:
-  - "crates/data-transform/**"
-mysten-common:
-  - "crates/mysten-common/**"
-mysten-metrics:
-  - "crates/mysten-metrics/**"
-mysten-network:
-  - "crates/mysten-network/**"
-mysten-service:
-  - "crates/mysten-service/**"
-mysten-service-boilerplate:
-  - "crates/mysten-service-boilerplate/**"
-mysten-util-mem:
-  - "crates/mysten-util-mem/**"
-mysten-util-mem-derive:
-  - "crates/mysten-util-mem-derive/**"
+iota-common:
+  - "crates/iota-common/**"
+iota-metrics:
+  - "crates/iota-metrics/**"
+iota-network-stack:
+  - "crates/iota-network-stack/**"
+iota-util-mem:
+  - "crates/iota-util-mem/**"
+iota-util-mem-derive:
+  - "crates/iota-util-mem-derive/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 shared-crypto:
@@ -46,8 +38,6 @@ iota-bridge:
   - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
-iota-common:
-  - "crates/iota-common/**"
 iota-config:
   - "crates/iota-config/**"
 iota-core:
@@ -112,8 +102,6 @@ iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
   - "crates/iota-open-rpc-macros/**"
-iota-oracle:
-  - "crates/iota-oracle/**"
 iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
@@ -122,8 +110,6 @@ iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
   - "crates/iota-protocol-config-macros/**"
-iota-proxy:
-  - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
 iota-rest-api:
@@ -132,6 +118,8 @@ iota-rosetta:
   - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
+iota-sdk:
+  - "crates/iota-sdk/**"
 iota-simulator:
   - "crates/iota-simulator/**"
 iota-single-node-benchmark:
@@ -150,12 +138,8 @@ iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
   - "crates/iota-swarm-config/**"
-iota-telemetry:
-  - "crates/iota-telemetry/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
-iota-test-validator:
-  - "crates/iota-test-validator/**"
 iota-tls:
   - "crates/iota-tls/**"
 iota-tool:
@@ -172,10 +156,6 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
-iotans-indexer:
-  - "crates/iotans-indexer/**"
-iotaop-cli:
-  - "crates/iotaop-cli/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:

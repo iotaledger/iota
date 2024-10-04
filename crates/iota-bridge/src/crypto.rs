@@ -13,8 +13,8 @@ use fastcrypto::{
     error::FastCryptoError,
     hash::{HashFunction, Keccak256},
     secp256k1::{
-        recoverable::Secp256k1RecoverableSignature, Secp256k1KeyPair, Secp256k1PublicKey,
-        Secp256k1PublicKeyAsBytes,
+        Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes,
+        recoverable::Secp256k1RecoverableSignature,
     },
     traits::{KeyPair, RecoverableSigner, ToFromBytes, VerifyRecoverable},
 };
@@ -65,6 +65,18 @@ impl ToFromBytes for BridgeAuthorityPublicKeyBytes {
     }
 }
 
+/// implement `FromStr` for `BridgeAuthorityPublicKeyBytes`
+/// to convert a hex-string to public key bytes.
+impl std::str::FromStr for BridgeAuthorityPublicKeyBytes {
+    type Err = FastCryptoError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = Hex::decode(s).map_err(|e| {
+            FastCryptoError::GeneralError(format!("Failed to decode hex string: {}", e))
+        })?;
+        Self::from_bytes(&bytes)
+    }
+}
+
 pub struct ConciseBridgeAuthorityPublicKeyBytesRef<'a>(&'a BridgeAuthorityPublicKeyBytes);
 
 impl Debug for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
@@ -109,7 +121,6 @@ pub struct BridgeAuthoritySignInfo {
 impl BridgeAuthoritySignInfo {
     pub fn new(msg: &BridgeAction, secret: &BridgeAuthorityKeyPair) -> Self {
         let msg_bytes = msg.to_bytes();
-
         Self {
             authority_pub_key: secret.public().clone(),
             signature: secret.sign_recoverable_with_hash::<Keccak256>(&msg_bytes),
@@ -175,24 +186,26 @@ mod tests {
 
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
-    use iota_types::{base_types::IotaAddress, crypto::get_key_pair, digests::TransactionDigest};
+    use iota_types::{
+        base_types::IotaAddress,
+        bridge::{BridgeChainId, TOKEN_ID_ETH},
+        crypto::get_key_pair,
+        digests::TransactionDigest,
+    };
     use prometheus::Registry;
 
     use super::*;
     use crate::{
         events::EmittedIotaToEthTokenBridgeV1,
         test_utils::{get_test_authority_and_key, get_test_iota_to_eth_bridge_action},
-        types::{
-            BridgeAction, BridgeAuthority, BridgeChainId, IotaToEthBridgeAction,
-            SignedBridgeAction, TokenId,
-        },
+        types::{BridgeAction, BridgeAuthority, IotaToEthBridgeAction, SignedBridgeAction},
     };
 
     #[test]
     fn test_sign_and_verify_bridge_event_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let (mut authority1, pubkey, secret) = get_test_authority_and_key(5000, 9999);
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
@@ -203,7 +216,7 @@ mod tests {
         let committee = BridgeCommittee::new(vec![authority1.clone(), authority2.clone()]).unwrap();
 
         let action: BridgeAction =
-            get_test_iota_to_eth_bridge_action(None, Some(1), Some(1), Some(100));
+            get_test_iota_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
 
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
 
@@ -222,7 +235,7 @@ mod tests {
         ));
 
         let mismatched_action: BridgeAction =
-            get_test_iota_to_eth_bridge_action(None, Some(2), Some(3), Some(4));
+            get_test_iota_to_eth_bridge_action(None, Some(2), Some(3), Some(4), None, None, None);
         // Verification should fail - mismatched action
         assert!(matches!(
             verify_signed_bridge_action(
@@ -238,7 +251,7 @@ mod tests {
         // Signature is invalid (signed over different message), verification should
         // fail
         let action2: BridgeAction =
-            get_test_iota_to_eth_bridge_action(None, Some(3), Some(5), Some(77));
+            get_test_iota_to_eth_bridge_action(None, Some(3), Some(5), Some(77), None, None, None);
 
         let invalid_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let signed_action = SignedBridgeAction::new_from_data_and_sig(action.clone(), invalid_sig);
@@ -265,11 +278,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "invalid test data"]
     fn test_bridge_sig_verification_regression_test() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let public_key_bytes =
             Hex::decode("02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4")
@@ -336,8 +348,8 @@ mod tests {
                 eth_chain_id: BridgeChainId::EthSepolia,
                 eth_address: EthAddress::from_str("0xb18f79Fe671db47393315fFDB377Da4Ea1B7AF96")
                     .unwrap(),
-                token_id: TokenId::ETH,
-                amount: 100000u64,
+                token_id: TOKEN_ID_ETH,
+                amount_iota_adjusted: 100000u64,
             },
         });
         let sig = BridgeAuthoritySignInfo {

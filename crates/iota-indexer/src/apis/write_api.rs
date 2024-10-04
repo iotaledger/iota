@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use iota_json_rpc::IotaRpcModule;
-use iota_json_rpc_api::{WriteApiClient, WriteApiServer};
+use iota_json_rpc_api::{WriteApiClient, WriteApiServer, error_object_from_rpc};
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
@@ -14,7 +14,7 @@ use iota_open_rpc::Module;
 use iota_types::{
     base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
 };
-use jsonrpsee::{core::RpcResult, http_client::HttpClient, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
 use crate::types::IotaTransactionBlockResponseWithOptions;
 
@@ -42,7 +42,8 @@ impl WriteApiServer for WriteApi {
         let iota_transaction_response = self
             .fullnode
             .execute_transaction_block(tx_bytes, signatures, options.clone(), request_type)
-            .await?;
+            .await
+            .map_err(error_object_from_rpc)?;
         Ok(IotaTransactionBlockResponseWithOptions {
             response: iota_transaction_response,
             options: options.unwrap_or_default(),
@@ -67,13 +68,17 @@ impl WriteApiServer for WriteApi {
                 additional_args,
             )
             .await
+            .map_err(error_object_from_rpc)
     }
 
     async fn dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        self.fullnode.dry_run_transaction_block(tx_bytes).await
+        self.fullnode
+            .dry_run_transaction_block(tx_bytes)
+            .await
+            .map_err(error_object_from_rpc)
     }
 }
 

@@ -5,34 +5,19 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::{ArgGroup, Parser};
-use iota_config::{node::RunWithRange, Config, NodeConfig};
+use iota_common::sync::async_once_cell::AsyncOnceCell;
+use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::metrics;
-use iota_protocol_config::SupportedProtocolVersions;
-use iota_telemetry::send_telemetry_event;
+use iota_node::IotaNode;
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
+    supported_protocol_versions::SupportedProtocolVersions,
 };
-use mysten_common::sync::async_once_cell::AsyncOnceCell;
-use tokio::{sync::broadcast, time::sleep};
+use tokio::sync::broadcast;
 use tracing::{error, info};
 
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
@@ -85,7 +70,7 @@ fn main() {
 
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
-    let registry_service = mysten_metrics::start_prometheus_server(config.metrics_address);
+    let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
@@ -107,11 +92,6 @@ fn main() {
         config.metrics_address
     );
 
-    {
-        let _enter = runtimes.metrics.enter();
-        metrics::start_metrics_push_task(&config, registry_service.clone());
-    }
-
     if let Some(listen_address) = args.listen_address {
         config.network_address = listen_address;
     }
@@ -122,7 +102,7 @@ fn main() {
 
     // Run node in a separate runtime so that admin/monitoring functions continue to
     // work if it deadlocks.
-    let node_once_cell = Arc::new(AsyncOnceCell::<Arc<iota_node::IotaNode>>::new());
+    let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
     let rpc_runtime = runtimes.json_rpc.handle().clone();
 
@@ -130,7 +110,7 @@ fn main() {
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
     runtimes.iota_node.spawn(async move {
-        match iota_node::IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
+        match IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
@@ -145,22 +125,20 @@ fn main() {
         let node = node_once_cell_clone.get().await;
         let mut shutdown_rx = node.subscribe_to_shutdown_channel();
 
-        // when we get a shutdown signal from iota-node, forward it on to the runtime_shutdown_channel here in
-        // main to signal runtimes to all shutdown.
-        tokio::select! {
-           _ = shutdown_rx.recv() => {
-                runtime_shutdown_tx.send(()).expect("failed to forward shutdown signal from iota-node to iota-node main");
-            }
-        }
+        // when we get a shutdown signal from iota-node, forward it on to the
+        // runtime_shutdown_channel here in main to signal all runtimes to shutdown.
+        _ = shutdown_rx.recv().await;
+        runtime_shutdown_tx
+            .send(())
+            .expect("failed to forward shutdown signal from iota-node to iota-node main");
         // TODO: Do we want to provide a way for the node to gracefully shutdown?
         loop {
             tokio::time::sleep(Duration::from_secs(1000)).await;
         }
     });
 
-    let node_once_cell_clone = node_once_cell.clone();
     runtimes.metrics.spawn(async move {
-        let node = node_once_cell_clone.get().await;
+        let node = node_once_cell.get().await;
         let chain_identifier = match node.state().get_chain_identifier() {
             Some(chain_identifier) => chain_identifier.to_string(),
             None => "unknown".to_string(),
@@ -168,7 +146,7 @@ fn main() {
 
         info!("Iota chain identifier: {chain_identifier}");
         prometheus_registry
-            .register(mysten_metrics::uptime_metric(
+            .register(iota_metrics::uptime_metric(
                 if is_validator {
                     "validator"
                 } else {
@@ -180,15 +158,6 @@ fn main() {
             .unwrap();
 
         iota_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
-    });
-
-    runtimes.metrics.spawn(async move {
-        let node = node_once_cell.get().await;
-        let state = node.state();
-        loop {
-            send_telemetry_event(state.clone(), is_validator).await;
-            sleep(Duration::from_secs(3600)).await;
-        }
     });
 
     // wait for SIGINT on the main thread
@@ -203,7 +172,7 @@ fn main() {
 }
 
 #[cfg(not(unix))]
-async fn wait_termination(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>) {
+async fn wait_termination(mut shutdown_rx: broadcast::Receiver<()>) {
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
         _ = shutdown_rx.recv() => {},
@@ -211,7 +180,7 @@ async fn wait_termination(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>)
 }
 
 #[cfg(unix)]
-async fn wait_termination(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>) {
+async fn wait_termination(mut shutdown_rx: broadcast::Receiver<()>) {
     use futures::FutureExt;
     use tokio::signal::unix::*;
 

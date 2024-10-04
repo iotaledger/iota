@@ -30,7 +30,7 @@
 ///
 /// - `locked` - Similar to `placed` except that `take` is disabled and the only
 /// way to move the asset out of the Kiosk is to `list` it or
-/// `list_with_purchase_cap` therefore performing a trade (isiotang a
+/// `list_with_purchase_cap` therefore performing a trade (issuing a
 /// `TransferRequest`). The check on the `lock` function makes sure that the
 /// `TransferPolicy` exists to not lock the item in a `Kiosk` forever.
 ///
@@ -56,7 +56,7 @@
 /// applications and not use it for direct trading (eg sending to another
 /// account).
 ///
-/// ### Using multiple Transfer Policies for different "tracks":
+/// ### Using multiple Transfer Policies for different 'tracks':
 ///
 /// Every `purchase` or `purchase_with_purchase_cap` creates a `TransferRequest`
 /// hot potato which must be resolved in a matching `TransferPolicy` for the
@@ -101,7 +101,6 @@ module iota::kiosk {
     // - `place_internal`
     // - `lock_internal`
     // - `uid_mut_internal`
-    /* friend iota::kiosk_extension; */
 
     /// Trying to withdraw profits and sender is not owner.
     const ENotOwner: u64 = 0;

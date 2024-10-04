@@ -2,34 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, path::PathBuf};
+use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use clap::*;
 use fastcrypto::encoding::Encoding;
+use futures::{StreamExt, future::join_all};
 use iota_archival::{read_manifest_as_json, write_manifest_from_json};
 use iota_config::{
+    Config,
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-    Config,
 };
 use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_client::AuthorityAPI};
 use iota_protocol_config::Chain;
-use iota_replay::{execute_replay_command, ReplayToolCommand};
+use iota_replay::{ReplayToolCommand, execute_replay_command};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
 use iota_types::{
     base_types::*,
+    crypto::AuthorityPublicKeyBytes,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
+    messages_grpc::TransactionInfoRequest,
     transaction::{SenderSignedData, Transaction},
 };
 use telemetry_subscribers::TracingHandle;
 
 use crate::{
+    ConciseObjectOutput, GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
     check_completed_snapshot,
-    db_tool::{execute_db_tool_command, print_db_all_tables, DbToolCommand},
+    db_tool::{DbToolCommand, execute_db_tool_command, print_db_all_tables},
     download_db_snapshot, download_formal_snapshot, dump_checkpoints_from_archive,
-    get_latest_available_epoch, get_object, get_transaction_block, make_clients, pkg_dump,
-    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum, ConciseObjectOutput,
-    GroupedObjectOutput, VerboseObjectOutput,
+    get_latest_available_epoch, get_object, get_transaction_block, make_clients,
+    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum,
 };
 
 #[derive(Parser, Clone, ValueEnum)]
@@ -38,32 +42,30 @@ pub enum Verbosity {
     Concise,
     Verbose,
 }
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
 
 #[derive(Parser)]
-#[command(
-    name = "iota-tool",
-    about = "Debugging utilities for iota",
-    rename_all = "kebab-case",
-    author,
-    version = VERSION,
-)]
 pub enum ToolCommand {
+    /// Inspect if a specific object is or all gas objects owned by an address
+    /// are locked by validators
+    #[command(name = "locked-object")]
+    LockedObject {
+        /// Either id or address must be provided
+        /// The object to check
+        #[arg(long, help = "The object ID to fetch")]
+        id: Option<ObjectID>,
+        /// Either id or address must be provided
+        /// If provided, check all gas objects owned by this account
+        #[arg(long = "address")]
+        address: Option<IotaAddress>,
+        /// RPC address to provide the up-to-date committee info
+        #[arg(long = "fullnode-rpc-url")]
+        fullnode_rpc_url: String,
+        /// Should attempt to rescue the object if it's locked but not fully
+        /// locked
+        #[arg(long = "rescue")]
+        rescue: bool,
+    },
+
     /// Fetch the same object from all validators
     #[command(name = "fetch-object")]
     FetchObject {
@@ -79,14 +81,9 @@ pub enum ToolCommand {
         )]
         validator: Option<AuthorityName>,
 
-        // At least one of genesis or fullnode_rpc_url must be provided
-        #[arg(long = "genesis")]
-        genesis: Option<PathBuf>,
-
-        // At least one of genesis or fullnode_rpc_url must be provided
         // RPC address to provide the up-to-date committee info
         #[arg(long = "fullnode-rpc-url")]
-        fullnode_rpc_url: Option<String>,
+        fullnode_rpc_url: String,
 
         /// Concise mode groups responses by results.
         /// prints tabular output suitable for processing with unix tools. For
@@ -114,14 +111,9 @@ pub enum ToolCommand {
     /// Fetch the effects association with transaction `digest`
     #[command(name = "fetch-transaction")]
     FetchTransaction {
-        // At least one of genesis or fullnode_rpc_url must be provided
-        #[arg(long = "genesis")]
-        genesis: Option<PathBuf>,
-
-        // At least one of genesis or fullnode_rpc_url must be provided
         // RPC address to provide the up-to-date committee info
         #[arg(long = "fullnode-rpc-url")]
-        fullnode_rpc_url: Option<String>,
+        fullnode_rpc_url: String,
 
         #[arg(long, help = "The transaction ID to fetch")]
         digest: TransactionDigest,
@@ -187,22 +179,28 @@ pub enum ToolCommand {
         max_content_length: usize,
     },
 
-    /// Download all packages to the local filesystem from an indexer database.
-    /// Each package gets its own sub-directory, named for its ID on-chain,
-    /// containing two metadata files (linkage.json and origins.json) as
-    /// well as a file for every module it contains. Each module
-    /// file is named for its module name, with a .mv suffix, and contains Move
-    /// bytecode (suitable for passing into a disassembler).
+    /// Download all packages to the local filesystem from a GraphQL service.
+    /// Each package gets its own sub-directory, named for its ID on chain
+    /// and version containing two metadata files (linkage.json and
+    /// origins.json), a file containing the overall object and a file for every
+    /// module it contains. Each module file is named for its module name, with
+    /// a .mv suffix, and contains Move bytecode (suitable for passing into
+    /// a disassembler).
     #[command(name = "dump-packages")]
     DumpPackages {
-        /// Connection information for the Indexer's Postgres DB.
+        /// Connection information for a GraphQL service.
         #[clap(long, short)]
-        db_url: String,
+        rpc_url: String,
 
         /// Path to a non-existent directory that can be created and filled with
         /// package information.
         #[clap(long, short)]
         output_dir: PathBuf,
+
+        /// Only fetch packages that were created before this checkpoint (given
+        /// by its sequence number).
+        #[clap(long)]
+        before_checkpoint: Option<u64>,
 
         /// If false (default), log level will be overridden to "off", and
         /// output will be reduced to necessary status information.
@@ -233,14 +231,9 @@ pub enum ToolCommand {
     /// authenticated checkpoint.
     #[command(name = "fetch-checkpoint")]
     FetchCheckpoint {
-        // At least one of genesis or fullnode_rpc_url must be provided
-        #[arg(long = "genesis")]
-        genesis: Option<PathBuf>,
-
-        // At least one of genesis or fullnode_rpc_url must be provided
         // RPC address to provide the up-to-date committee info
         #[arg(long = "fullnode-rpc-url")]
-        fullnode_rpc_url: Option<String>,
+        fullnode_rpc_url: String,
 
         #[arg(long, help = "Fetch checkpoint at a specific sequence number")]
         sequence_number: Option<CheckpointSequenceNumber>,
@@ -265,9 +258,12 @@ pub enum ToolCommand {
         about = "Downloads the legacy database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadDBSnapshot {
-        #[clap(long = "epoch")]
+        #[clap(long = "epoch", conflicts_with = "latest")]
         epoch: Option<u64>,
-        #[clap(long = "path", default_value = "/tmp")]
+        #[clap(
+            long = "path",
+            help = "the path to write the downloaded snapshot files"
+        )]
         path: PathBuf,
         /// skip downloading indexes dir
         #[clap(long = "skip-indexes")]
@@ -283,11 +279,12 @@ pub enum ToolCommand {
         network: Chain,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
-        #[clap(long = "snapshot-bucket")]
+        #[clap(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
         snapshot_bucket: Option<String>,
         /// Snapshot bucket type
         #[clap(
             long = "snapshot-bucket-type",
+            conflicts_with = "no_sign_request",
             help = "Required if --no-sign-request is not set"
         )]
         snapshot_bucket_type: Option<ObjectStoreType>,
@@ -301,12 +298,17 @@ pub enum ToolCommand {
         /// If true, no authentication is needed for snapshot restores
         #[clap(
             long = "no-sign-request",
-            help = "if set, --snapshot-bucket and --snapshot-bucket-type are ignored"
+            conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
+            help = "if set, no authentication is needed for snapshot restore"
         )]
         no_sign_request: bool,
         /// Download snapshot of the latest available epoch.
         /// If `--epoch` is specified, then this flag gets ignored.
-        #[clap(long = "latest")]
+        #[clap(
+            long = "latest",
+            conflicts_with = "epoch",
+            help = "defaults to latest available snapshot in chosen bucket"
+        )]
         latest: bool,
         /// If false (default), log level will be overridden to "off",
         /// and output will be reduced to necessary status information.
@@ -322,20 +324,19 @@ pub enum ToolCommand {
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadFormalSnapshot {
-        #[clap(long = "epoch")]
+        #[clap(long = "epoch", conflicts_with = "latest")]
         epoch: Option<u64>,
         #[clap(long = "genesis")]
         genesis: PathBuf,
-        #[clap(long = "path", default_value = "/tmp")]
+        #[clap(long = "path")]
         path: PathBuf,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
         #[clap(long = "num-parallel-downloads")]
         num_parallel_downloads: Option<usize>,
-        /// If true, perform snapshot and checkpoint summary verification.
-        /// Defaults to true.
-        #[clap(long = "verify")]
-        verify: Option<bool>,
+        /// Verification mode to employ.
+        #[clap(long = "verify", default_value = "normal")]
+        verify: Option<SnapshotVerifyMode>,
         /// Network to download snapshot for. Defaults to "mainnet".
         /// If `--snapshot-bucket` or `--archive-bucket` is not specified,
         /// the value of this flag is used to construct default bucket names.
@@ -343,11 +344,12 @@ pub enum ToolCommand {
         network: Chain,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
-        #[clap(long = "snapshot-bucket")]
+        #[clap(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
         snapshot_bucket: Option<String>,
         /// Snapshot bucket type
         #[clap(
             long = "snapshot-bucket-type",
+            conflicts_with = "no_sign_request",
             help = "Required if --no-sign-request is not set"
         )]
         snapshot_bucket_type: Option<ObjectStoreType>,
@@ -355,26 +357,34 @@ pub enum ToolCommand {
         /// Only applicable if `--snapshot-bucket-type` is "file".
         #[clap(long = "snapshot-path")]
         snapshot_path: Option<PathBuf>,
-        /// Archival bucket name. If not specified, defaults are
-        /// based on value of `--network` flag.
-        #[clap(long = "archive-bucket")]
-        archive_bucket: Option<String>,
-        #[clap(long = "archive-bucket-type", default_value = "s3")]
-        archive_bucket_type: ObjectStoreType,
         /// If true, no authentication is needed for snapshot restores
         #[clap(
             long = "no-sign-request",
-            help = "if set, --snapshot-bucket and --snapshot-bucket-type are ignored"
+            conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
+            help = "if set, no authentication is needed for snapshot restore"
         )]
         no_sign_request: bool,
         /// Download snapshot of the latest available epoch.
         /// If `--epoch` is specified, then this flag gets ignored.
-        #[clap(long = "latest")]
+        #[clap(
+            long = "latest",
+            conflicts_with = "epoch",
+            help = "defaults to latest available snapshot in chosen bucket"
+        )]
         latest: bool,
         /// If false (default), log level will be overridden to "off",
         /// and output will be reduced to necessary status information.
         #[clap(long = "verbose")]
         verbose: bool,
+
+        /// If provided, all checkpoint summaries from genesis to the end of the
+        /// target epoch will be downloaded and (if --verify is
+        /// provided) full checkpoint chain verification
+        /// will be performed. If omitted, only end of epoch checkpoint
+        /// summaries will be downloaded, and (if --verify is provided)
+        /// will be verified via committee signature.
+        #[clap(long = "all-checkpoints")]
+        all_checkpoints: bool,
     },
 
     #[clap(name = "replay")]
@@ -385,8 +395,20 @@ pub enum ToolCommand {
         safety_checks: bool,
         #[arg(long = "authority")]
         use_authority: bool,
-        #[arg(long = "cfg-path", short)]
+        #[arg(
+            long = "cfg-path",
+            short,
+            help = "Path to the network config file. This should be specified when rpc_url is not present. \
+            If not specified we will use the default network config file at ~/.iota-replay/network-config.yaml"
+        )]
         cfg_path: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "The name of the chain to replay from, could be one of: mainnet, testnet, devnet.\
+            When rpc_url is not specified, this is used to load the corresponding config from the network config file.\
+            If not specified, mainnet will be used by default"
+        )]
+        chain: Option<String>,
         #[command(subcommand)]
         cmd: ReplayToolCommand,
     },
@@ -405,24 +427,142 @@ pub enum ToolCommand {
     },
 }
 
+async fn check_locked_object(
+    iota_client: &Arc<IotaClient>,
+    committee: Arc<BTreeMap<AuthorityPublicKeyBytes, u64>>,
+    id: ObjectID,
+    rescue: bool,
+) -> anyhow::Result<()> {
+    let clients = Arc::new(make_clients(iota_client).await?);
+    let output = get_object(id, None, None, clients.clone()).await?;
+    let output = GroupedObjectOutput::new(output, committee);
+    if output.fully_locked {
+        println!("Object {} is fully locked.", id);
+        return Ok(());
+    }
+    let top_record = output.voting_power.first().unwrap();
+    let top_record_stake = top_record.1;
+    let top_record = top_record.0.unwrap();
+    if top_record.4.is_none() {
+        println!(
+            "Object {} does not seem to be locked by majority of validators (unlocked stake: {})",
+            id, top_record_stake
+        );
+        return Ok(());
+    }
+
+    let tx_digest = top_record.2;
+    if !rescue {
+        println!("Object {} is rescueable, top tx: {:?}", id, tx_digest);
+        return Ok(());
+    }
+    println!("Object {} is rescueable, trying tx {}", id, tx_digest);
+    let validator = output
+        .grouped_results
+        .get(&Some(top_record))
+        .unwrap()
+        .first()
+        .unwrap();
+    let client = &clients.get(validator).unwrap().1;
+    let tx = client
+        .handle_transaction_info_request(TransactionInfoRequest {
+            transaction_digest: tx_digest,
+        })
+        .await?
+        .transaction;
+    let res = iota_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::new(tx),
+            IotaTransactionBlockResponseOptions::full_content(),
+            None,
+        )
+        .await;
+    match res {
+        Ok(_) => {
+            println!("Transaction executed successfully ({:?})", tx_digest);
+        }
+        Err(e) => {
+            println!("Failed to execute transaction ({:?}): {:?}", tx_digest, e);
+        }
+    }
+    Ok(())
+}
+
 impl ToolCommand {
     #[allow(clippy::format_in_format_args)]
     pub async fn execute(self, tracing_handle: TracingHandle) -> Result<(), anyhow::Error> {
         match self {
+            ToolCommand::LockedObject {
+                id,
+                fullnode_rpc_url,
+                rescue,
+                address,
+            } => {
+                let iota_client =
+                    Arc::new(IotaClientBuilder::default().build(fullnode_rpc_url).await?);
+                let committee = Arc::new(
+                    iota_client
+                        .governance_api()
+                        .get_committee_info(None)
+                        .await?
+                        .validators
+                        .into_iter()
+                        .collect::<BTreeMap<_, _>>(),
+                );
+                let object_ids = match id {
+                    Some(id) => vec![id],
+                    None => {
+                        let address = address.expect("Either id or address must be provided");
+                        iota_client
+                            .coin_read_api()
+                            .get_coins_stream(address, None)
+                            .map(|c| c.coin_object_id)
+                            .collect()
+                            .await
+                    }
+                };
+                for ids in object_ids.chunks(30) {
+                    let mut tasks = vec![];
+                    for id in ids {
+                        tasks.push(check_locked_object(
+                            &iota_client,
+                            committee.clone(),
+                            *id,
+                            rescue,
+                        ))
+                    }
+                    join_all(tasks)
+                        .await
+                        .into_iter()
+                        .collect::<Result<Vec<_>, _>>()?;
+                }
+            }
             ToolCommand::FetchObject {
                 id,
                 validator,
-                genesis,
                 version,
                 fullnode_rpc_url,
                 verbosity,
                 concise_no_header,
             } => {
-                let output = get_object(id, version, validator, genesis, fullnode_rpc_url).await?;
+                let iota_client =
+                    Arc::new(IotaClientBuilder::default().build(fullnode_rpc_url).await?);
+                let clients = Arc::new(make_clients(&iota_client).await?);
+                let output = get_object(id, version, validator, clients).await?;
 
                 match verbosity {
                     Verbosity::Grouped => {
-                        println!("{}", GroupedObjectOutput(output));
+                        let committee = Arc::new(
+                            iota_client
+                                .governance_api()
+                                .get_committee_info(None)
+                                .await?
+                                .validators
+                                .into_iter()
+                                .collect::<BTreeMap<_, _>>(),
+                        );
+                        println!("{}", GroupedObjectOutput::new(output, committee));
                     }
                     Verbosity::Verbose => {
                         println!("{}", VerboseObjectOutput(output));
@@ -436,14 +576,13 @@ impl ToolCommand {
                 }
             }
             ToolCommand::FetchTransaction {
-                genesis,
                 digest,
                 show_input_tx,
                 fullnode_rpc_url,
             } => {
                 print!(
                     "{}",
-                    get_transaction_block(digest, genesis, show_input_tx, fullnode_rpc_url).await?
+                    get_transaction_block(digest, show_input_tx, fullnode_rpc_url).await?
                 );
             }
             ToolCommand::DbTool { db_path, cmd } => {
@@ -454,8 +593,9 @@ impl ToolCommand {
                 }
             }
             ToolCommand::DumpPackages {
-                db_url,
+                rpc_url,
                 output_dir,
+                before_checkpoint,
                 verbose,
             } => {
                 if !verbose {
@@ -464,7 +604,7 @@ impl ToolCommand {
                         .expect("Failed to update log level");
                 }
 
-                pkg_dump::dump(db_url, output_dir).await?;
+                iota_package_dump::dump(rpc_url, output_dir, before_checkpoint).await?;
             }
             ToolCommand::DumpValidators { genesis, concise } => {
                 let genesis = Genesis::load(genesis).unwrap();
@@ -489,11 +629,12 @@ impl ToolCommand {
                 println!("{:#?}", genesis);
             }
             ToolCommand::FetchCheckpoint {
-                genesis,
                 sequence_number,
                 fullnode_rpc_url,
             } => {
-                let clients = make_clients(genesis, fullnode_rpc_url).await?;
+                let iota_client =
+                    Arc::new(IotaClientBuilder::default().build(fullnode_rpc_url).await?);
+                let clients = make_clients(&iota_client).await?;
 
                 for (name, (_, client)) in clients {
                     let resp = client
@@ -533,11 +674,10 @@ impl ToolCommand {
                 snapshot_bucket,
                 snapshot_bucket_type,
                 snapshot_path,
-                archive_bucket,
-                archive_bucket_type,
                 no_sign_request,
                 latest,
                 verbose,
+                all_checkpoints,
             } => {
                 if !verbose {
                     tracing_handle
@@ -553,13 +693,13 @@ impl ToolCommand {
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Chain::Mainnet, false) => Some(
                             env::var("MAINNET_FORMAL_SIGNED_BUCKET")
-                                .unwrap_or("mysten-mainnet-formal".to_string()),
+                                .unwrap_or("iota-mainnet-formal".to_string()),
                         ),
                         (Chain::Mainnet, true) => env::var("MAINNET_FORMAL_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, true) => env::var("TESTNET_FORMAL_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, _) => Some(
                             env::var("TESTNET_FORMAL_SIGNED_BUCKET")
-                                .unwrap_or("mysten-testnet-formal".to_string()),
+                                .unwrap_or("iota-testnet-formal".to_string()),
                         ),
                         (Chain::Unknown, _) => {
                             panic!("Cannot generate default snapshot bucket for unknown network");
@@ -584,7 +724,7 @@ impl ToolCommand {
                     ObjectStoreType::S3
                 } else {
                     snapshot_bucket_type
-                        .expect("--snapshot-bucket-type must be set if not using --no-sign-request")
+                        .expect("You must set either --snapshot-bucket-type or --no-sign-request")
                 };
                 let snapshot_store_config = match snapshot_bucket_type {
                     ObjectStoreType::S3 => ObjectStoreConfig {
@@ -638,28 +778,79 @@ impl ToolCommand {
                     }
                 };
 
-                let archive_bucket = archive_bucket.or_else(|| match network {
-                    Chain::Mainnet => Some(
-                        env::var("MAINNET_ARCHIVE_BUCKET")
-                            .unwrap_or("mysten-mainnet-archives".to_string()),
-                    ),
-                    Chain::Testnet => Some(
-                        env::var("TESTNET_ARCHIVE_BUCKET")
-                            .unwrap_or("mysten-testnet-archives".to_string()),
-                    ),
-                    Chain::Unknown => {
-                        panic!("Cannot generate default archive bucket for unknown network");
+                let archive_bucket = Some(
+                    env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET").unwrap_or_else(|_| match network {
+                        Chain::Mainnet => "iota-mainnet-archives".to_string(),
+                        Chain::Testnet => "iota-testnet-archives".to_string(),
+                        Chain::Unknown => {
+                            panic!("Cannot generate default archive bucket for unknown network");
+                        }
+                    }),
+                );
+
+                let mut custom_archive_enabled = false;
+                if let Ok(custom_archive_check) = env::var("CUSTOM_ARCHIVE_BUCKET") {
+                    if custom_archive_check == "true" {
+                        custom_archive_enabled = true;
                     }
-                });
-                let aws_region =
-                    Some(env::var("AWS_ARCHIVE_REGION").unwrap_or("us-west-2".to_string()));
-                let archive_store_config = match archive_bucket_type {
-                    ObjectStoreType::S3 => ObjectStoreConfig {
+                }
+                let archive_store_config = if custom_archive_enabled {
+                    let aws_region = Some(
+                        env::var("FORMAL_SNAPSHOT_ARCHIVE_REGION")
+                            .unwrap_or("us-west-2".to_string()),
+                    );
+
+                    let archive_bucket_type = env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE").expect("If setting `CUSTOM_ARCHIVE_BUCKET=true` Must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE, and credentials");
+                    match archive_bucket_type.to_ascii_lowercase().as_str() {
+                        "s3" => ObjectStoreConfig {
+                            object_store: Some(ObjectStoreType::S3),
+                            bucket: archive_bucket.filter(|s| !s.is_empty()),
+                            aws_access_key_id: env::var("AWS_ARCHIVE_ACCESS_KEY_ID").ok(),
+                            aws_secret_access_key: env::var("AWS_ARCHIVE_SECRET_ACCESS_KEY").ok(),
+                            aws_region,
+                            aws_endpoint: env::var("AWS_ARCHIVE_ENDPOINT").ok(),
+                            aws_virtual_hosted_style_request: env::var(
+                                "AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS",
+                            )
+                            .ok()
+                            .and_then(|b| b.parse().ok())
+                            .unwrap_or(false),
+                            object_store_connection_limit: 50,
+                            no_sign_request: false,
+                            ..Default::default()
+                        },
+                        "gcs" => ObjectStoreConfig {
+                            object_store: Some(ObjectStoreType::GCS),
+                            bucket: archive_bucket,
+                            google_service_account: env::var(
+                                "GCS_ARCHIVE_SERVICE_ACCOUNT_FILE_PATH",
+                            )
+                            .ok(),
+                            object_store_connection_limit: 50,
+                            no_sign_request: false,
+                            ..Default::default()
+                        },
+                        "azure" => ObjectStoreConfig {
+                            object_store: Some(ObjectStoreType::Azure),
+                            bucket: archive_bucket,
+                            azure_storage_account: env::var("AZURE_ARCHIVE_STORAGE_ACCOUNT").ok(),
+                            azure_storage_access_key: env::var("AZURE_ARCHIVE_STORAGE_ACCESS_KEY")
+                                .ok(),
+                            object_store_connection_limit: 50,
+                            no_sign_request: false,
+                            ..Default::default()
+                        },
+                        _ => panic!(
+                            "If setting `CUSTOM_ARCHIVE_BUCKET=true` must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE to one of 'gcs', 'azure', or 's3' "
+                        ),
+                    }
+                } else {
+                    // if not explicitly overridden, just default to the permissionless archive
+                    // store
+                    ObjectStoreConfig {
                         object_store: Some(ObjectStoreType::S3),
                         bucket: archive_bucket.filter(|s| !s.is_empty()),
-                        aws_access_key_id: env::var("AWS_ARCHIVE_ACCESS_KEY_ID").ok(),
-                        aws_secret_access_key: env::var("AWS_ARCHIVE_SECRET_ACCESS_KEY").ok(),
-                        aws_region: aws_region.filter(|s| !s.is_empty()),
+                        aws_region: Some("us-west-2".to_string()),
                         aws_endpoint: env::var("AWS_ARCHIVE_ENDPOINT").ok(),
                         aws_virtual_hosted_style_request: env::var(
                             "AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS",
@@ -668,29 +859,8 @@ impl ToolCommand {
                         .and_then(|b| b.parse().ok())
                         .unwrap_or(false),
                         object_store_connection_limit: 200,
-                        no_sign_request,
+                        no_sign_request: true,
                         ..Default::default()
-                    },
-                    ObjectStoreType::GCS => ObjectStoreConfig {
-                        object_store: Some(ObjectStoreType::GCS),
-                        bucket: archive_bucket,
-                        google_service_account: env::var("GCS_ARCHIVE_SERVICE_ACCOUNT_FILE_PATH")
-                            .ok(),
-                        object_store_connection_limit: 200,
-                        no_sign_request,
-                        ..Default::default()
-                    },
-                    ObjectStoreType::Azure => ObjectStoreConfig {
-                        object_store: Some(ObjectStoreType::Azure),
-                        bucket: archive_bucket,
-                        azure_storage_account: env::var("AZURE_ARCHIVE_STORAGE_ACCOUNT").ok(),
-                        azure_storage_access_key: env::var("AZURE_ARCHIVE_STORAGE_ACCESS_KEY").ok(),
-                        object_store_connection_limit: 200,
-                        no_sign_request,
-                        ..Default::default()
-                    },
-                    ObjectStoreType::File => {
-                        panic!("Download from local filesystem is not supported")
                     }
                 };
                 let latest_available_epoch =
@@ -708,7 +878,7 @@ impl ToolCommand {
                     );
                 }
 
-                let verify = verify.unwrap_or(true);
+                let verify = verify.unwrap_or_default();
                 download_formal_snapshot(
                     &path,
                     epoch_to_download,
@@ -718,6 +888,7 @@ impl ToolCommand {
                     num_parallel_downloads,
                     network,
                     verify,
+                    all_checkpoints,
                 )
                 .await?;
             }
@@ -748,13 +919,13 @@ impl ToolCommand {
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Chain::Mainnet, false) => Some(
                             env::var("MAINNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("mysten-mainnet-snapshots".to_string()),
+                                .unwrap_or("iota-mainnet-snapshots".to_string()),
                         ),
                         (Chain::Mainnet, true) => env::var("MAINNET_DB_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, true) => env::var("TESTNET_DB_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, _) => Some(
                             env::var("TESTNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("mysten-testnet-snapshots".to_string()),
+                                .unwrap_or("iota-testnet-snapshots".to_string()),
                         ),
                         (Chain::Unknown, _) => {
                             panic!("Cannot generate default snapshot bucket for unknown network");
@@ -766,7 +937,7 @@ impl ToolCommand {
                     ObjectStoreType::S3
                 } else {
                     snapshot_bucket_type
-                        .expect("--snapshot-bucket-type must be set if not using --no-sign-request")
+                        .expect("You must set either --snapshot-bucket-type or --no-sign-request")
                 };
                 let snapshot_store_config = if no_sign_request {
                     let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
@@ -878,8 +1049,9 @@ impl ToolCommand {
                 cmd,
                 use_authority,
                 cfg_path,
+                chain,
             } => {
-                execute_replay_command(rpc_url, safety_checks, use_authority, cfg_path, cmd)
+                execute_replay_command(rpc_url, safety_checks, use_authority, cfg_path, chain, cmd)
                     .await?;
             }
             ToolCommand::VerifyArchive {
@@ -925,10 +1097,9 @@ impl ToolCommand {
                 )
                 .unwrap();
                 let transaction = Transaction::new(sender_signed_data);
-                let (agg, _) = AuthorityAggregatorBuilder::from_genesis(&genesis)
-                    .build()
-                    .unwrap();
-                let result = agg.process_transaction(transaction).await;
+                let (agg, _) =
+                    AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
+                let result = agg.process_transaction(transaction, None).await;
                 println!("{:?}", result);
             }
         };

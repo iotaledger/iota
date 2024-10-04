@@ -1,10 +1,13 @@
 [package]
 name = "iota-config"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 anemo.workspace = true
@@ -24,12 +27,11 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
 
+consensus-config.workspace = true
 iota-keys.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 narwhal-config.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
-tempfile.workspace = true

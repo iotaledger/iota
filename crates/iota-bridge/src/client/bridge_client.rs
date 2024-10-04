@@ -13,7 +13,7 @@ use fastcrypto::{
 use url::Url;
 
 use crate::{
-    crypto::{verify_signed_bridge_action, BridgeAuthorityPublicKeyBytes},
+    crypto::{BridgeAuthorityPublicKeyBytes, verify_signed_bridge_action},
     error::{BridgeError, BridgeResult},
     server::APPLICATION_JSON,
     types::{BridgeAction, BridgeCommittee, VerifiedSignedBridgeAction},
@@ -56,7 +56,7 @@ impl BridgeClient {
         self.committee = committee;
     }
 
-    // Important: the paths need to match the ones in mod.rs
+    // Important: the paths need to match the ones in server/mod.rs
     fn bridge_action_to_path(event: &BridgeAction) -> String {
         match event {
             BridgeAction::IotaToEthBridgeAction(e) => format!(
@@ -73,7 +73,7 @@ impl BridgeClient {
                 let nonce = a.nonce.to_string();
                 let type_ = (a.blocklist_type as u8).to_string();
                 let keys = a
-                    .blocklisted_members
+                    .members_to_update
                     .iter()
                     .map(|k| Hex::encode(k.as_bytes()))
                     .collect::<Vec<_>>()
@@ -96,7 +96,7 @@ impl BridgeClient {
             BridgeAction::AssetPriceUpdateAction(a) => {
                 let chain_id = (a.chain_id as u8).to_string();
                 let nonce = a.nonce.to_string();
-                let token_id = (a.token_id as u8).to_string();
+                let token_id = a.token_id.to_string();
                 let new_usd_price = a.new_usd_price.to_string();
                 format!("sign/update_asset_price/{chain_id}/{nonce}/{token_id}/{new_usd_price}")
             }
@@ -114,6 +114,64 @@ impl BridgeClient {
                     let call_data = Hex::encode(a.call_data.clone());
                     format!("{}/{}", path, call_data)
                 }
+            }
+            BridgeAction::AddTokensOnIotaAction(a) => {
+                let chain_id = (a.chain_id as u8).to_string();
+                let nonce = a.nonce.to_string();
+                let native = if a.native { "1" } else { "0" };
+                let token_ids = a
+                    .token_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let token_type_names = a
+                    .token_type_names
+                    .iter()
+                    .map(|name| name.to_canonical_string(true))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let token_prices = a
+                    .token_prices
+                    .iter()
+                    .map(|price| price.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!(
+                    "sign/add_tokens_on_iota/{chain_id}/{nonce}/{native}/{token_ids}/{token_type_names}/{token_prices}"
+                )
+            }
+            BridgeAction::AddTokensOnEvmAction(a) => {
+                let chain_id = (a.chain_id as u8).to_string();
+                let nonce = a.nonce.to_string();
+                let native = if a.native { "1" } else { "0" };
+                let token_ids = a
+                    .token_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let token_addresses = a
+                    .token_addresses
+                    .iter()
+                    .map(|name| format!("{:?}", name))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let token_iota_decimals = a
+                    .token_iota_decimals
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let token_prices = a
+                    .token_prices
+                    .iter()
+                    .map(|price| price.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!(
+                    "sign/add_tokens_on_evm/{chain_id}/{nonce}/{native}/{token_ids}/{token_addresses}/{token_iota_decimals}/{token_prices}"
+                )
             }
         }
     }
@@ -179,7 +237,13 @@ mod tests {
         hash::{HashFunction, Keccak256},
         traits::KeyPair,
     };
-    use iota_types::{base_types::IotaAddress, crypto::get_key_pair, digests::TransactionDigest};
+    use iota_types::{
+        TypeTag,
+        base_types::IotaAddress,
+        bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDT},
+        crypto::get_key_pair,
+        digests::TransactionDigest,
+    };
     use prometheus::Registry;
 
     use super::*;
@@ -191,7 +255,7 @@ mod tests {
         test_utils::{
             get_test_authority_and_key, get_test_iota_to_eth_bridge_action, run_mock_bridge_server,
         },
-        types::{BridgeChainId, SignedBridgeAction, TokenId},
+        types::SignedBridgeAction,
     };
 
     #[tokio::test]
@@ -202,7 +266,8 @@ mod tests {
 
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
         let committee = Arc::new(BridgeCommittee::new(vec![authority.clone()]).unwrap());
-        let action = get_test_iota_to_eth_bridge_action(None, Some(1), Some(1), Some(100));
+        let action =
+            get_test_iota_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
 
         // Ok
         let client = BridgeClient::new(pubkey_bytes.clone(), committee).unwrap();
@@ -259,7 +324,7 @@ mod tests {
     async fn test_bridge_client_request_sign_action() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let mock_handler = BridgeRequestMockHandler::new();
 
@@ -284,6 +349,9 @@ mod tests {
             Some(event_idx),
             Some(1),
             Some(100),
+            None,
+            None,
+            None,
         );
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
         let signed_event = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig.clone());
@@ -302,6 +370,9 @@ mod tests {
             Some(event_idx),
             Some(2),
             Some(200),
+            None,
+            None,
+            None,
         );
         let wrong_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let wrong_signed_action =
@@ -376,13 +447,13 @@ mod tests {
             iota_tx_digest,
             iota_tx_event_index,
             iota_bridge_event: EmittedIotaToEthTokenBridgeV1 {
-                iota_chain_id: BridgeChainId::IotaDevnet,
+                iota_chain_id: BridgeChainId::IotaCustom,
                 nonce: 1,
                 iota_address: IotaAddress::random_for_testing_only(),
                 eth_chain_id: BridgeChainId::EthSepolia,
                 eth_address: EthAddress::random(),
-                token_id: TokenId::USDT,
-                amount: 1,
+                token_id: TOKEN_ID_USDT,
+                amount_iota_adjusted: 1,
             },
         });
         assert_eq!(
@@ -402,10 +473,10 @@ mod tests {
                 eth_chain_id: BridgeChainId::EthSepolia,
                 nonce: 1,
                 eth_address: EthAddress::random(),
-                iota_chain_id: BridgeChainId::IotaDevnet,
+                iota_chain_id: BridgeChainId::IotaCustom,
                 iota_address: IotaAddress::random_for_testing_only(),
-                token_id: TokenId::USDT,
-                amount: 1,
+                token_id: TOKEN_ID_USDT,
+                iota_adjusted_amount: 1,
             },
         });
 
@@ -429,7 +500,7 @@ mod tests {
                 chain_id: BridgeChainId::EthSepolia,
                 nonce: 1,
                 blocklist_type: crate::types::BlocklistType::Blocklist,
-                blocklisted_members: vec![pub_key_bytes.clone()],
+                members_to_update: vec![pub_key_bytes.clone()],
             });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
@@ -445,7 +516,7 @@ mod tests {
                 chain_id: BridgeChainId::EthSepolia,
                 nonce: 1,
                 blocklist_type: crate::types::BlocklistType::Blocklist,
-                blocklisted_members: vec![pub_key_bytes.clone(), pub_key_bytes2.clone()],
+                members_to_update: vec![pub_key_bytes.clone(), pub_key_bytes2.clone()],
             });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
@@ -453,30 +524,30 @@ mod tests {
         );
 
         let action = BridgeAction::EmergencyAction(crate::types::EmergencyAction {
-            chain_id: BridgeChainId::IotaLocalTest,
+            chain_id: BridgeChainId::IotaCustom,
             nonce: 5,
             action_type: crate::types::EmergencyActionType::Pause,
         });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
-            "sign/emergency_button/3/5/0",
+            "sign/emergency_button/2/5/0",
         );
 
         let action = BridgeAction::LimitUpdateAction(crate::types::LimitUpdateAction {
-            chain_id: BridgeChainId::IotaLocalTest,
+            chain_id: BridgeChainId::IotaCustom,
             nonce: 10,
-            sending_chain_id: BridgeChainId::EthLocalTest,
+            sending_chain_id: BridgeChainId::EthCustom,
             new_usd_limit: 100,
         });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
-            "sign/update_limit/3/10/12/100",
+            "sign/update_limit/2/10/12/100",
         );
 
         let action = BridgeAction::AssetPriceUpdateAction(crate::types::AssetPriceUpdateAction {
-            chain_id: BridgeChainId::IotaDevnet,
+            chain_id: BridgeChainId::IotaCustom,
             nonce: 8,
-            token_id: TokenId::BTC,
+            token_id: TOKEN_ID_BTC,
             new_usd_price: 100_000_000,
         });
         assert_eq!(
@@ -487,7 +558,7 @@ mod tests {
         let action =
             BridgeAction::EvmContractUpgradeAction(crate::types::EvmContractUpgradeAction {
                 nonce: 123,
-                chain_id: BridgeChainId::EthLocalTest,
+                chain_id: BridgeChainId::EthCustom,
                 proxy_address: EthAddress::repeat_byte(6),
                 new_impl_address: EthAddress::repeat_byte(9),
                 call_data: vec![],
@@ -503,7 +574,7 @@ mod tests {
         let action =
             BridgeAction::EvmContractUpgradeAction(crate::types::EvmContractUpgradeAction {
                 nonce: 123,
-                chain_id: BridgeChainId::EthLocalTest,
+                chain_id: BridgeChainId::EthCustom,
                 proxy_address: EthAddress::repeat_byte(6),
                 new_impl_address: EthAddress::repeat_byte(9),
                 call_data: call_data.clone(),
@@ -517,7 +588,7 @@ mod tests {
         let action =
             BridgeAction::EvmContractUpgradeAction(crate::types::EvmContractUpgradeAction {
                 nonce: 123,
-                chain_id: BridgeChainId::EthLocalTest,
+                chain_id: BridgeChainId::EthCustom,
                 proxy_address: EthAddress::repeat_byte(6),
                 new_impl_address: EthAddress::repeat_byte(9),
                 call_data,
@@ -525,6 +596,41 @@ mod tests {
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
             "sign/upgrade_evm_contract/12/123/0606060606060606060606060606060606060606/0909090909090909090909090909090909090909/5cd8a76b000000000000000000000000000000000000000000000000000000000000002a",
+        );
+
+        let action = BridgeAction::AddTokensOnIotaAction(crate::types::AddTokensOnIotaAction {
+            nonce: 3,
+            chain_id: BridgeChainId::IotaCustom,
+            native: false,
+            token_ids: vec![99, 100, 101],
+            token_type_names: vec![
+                TypeTag::from_str("0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin1").unwrap(),
+                TypeTag::from_str("0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin2").unwrap(),
+                TypeTag::from_str("0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin3").unwrap(),
+            ],
+            token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
+        });
+        assert_eq!(
+            BridgeClient::bridge_action_to_path(&action),
+            "sign/add_tokens_on_iota/2/3/0/99,100,101/0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin1,0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin2,0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin3/1000000000,2000000000,3000000000",
+        );
+
+        let action = BridgeAction::AddTokensOnEvmAction(crate::types::AddTokensOnEvmAction {
+            nonce: 0,
+            chain_id: BridgeChainId::EthCustom,
+            native: true,
+            token_ids: vec![99, 100, 101],
+            token_addresses: vec![
+                EthAddress::repeat_byte(1),
+                EthAddress::repeat_byte(2),
+                EthAddress::repeat_byte(3),
+            ],
+            token_iota_decimals: vec![5, 6, 7],
+            token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
+        });
+        assert_eq!(
+            BridgeClient::bridge_action_to_path(&action),
+            "sign/add_tokens_on_evm/12/0/1/99,100,101/0x0101010101010101010101010101010101010101,0x0202020202020202020202020202020202020202,0x0303030303030303030303030303030303030303/5,6,7/1000000000,2000000000,3000000000",
         );
     }
 }

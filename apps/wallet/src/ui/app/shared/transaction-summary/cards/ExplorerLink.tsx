@@ -1,13 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
+import { ExplorerLinkType } from '_components';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
-import { ArrowUpRight12 } from '@iota/icons';
 import { useEffect, useState } from 'react';
 
-import { Text } from '../../text';
-import { Card } from '../Card';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { ArrowTopRight, Loader } from '@iota/ui-icons';
 
 const TIME_TO_WAIT_FOR_EXPLORER = 60 * 1000;
 
@@ -38,15 +37,27 @@ export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
         type: ExplorerLinkType.Transaction,
         transactionID: digest!,
     });
-    if (!shouldShowExplorerLink) return null;
+
+    function handleOpen() {
+        const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
+        if (newWindow) newWindow.opener = null;
+    }
+
     return (
-        <Card as="a" href={explorerHref!} target="_blank">
-            <div className="flex w-full items-center justify-center gap-1 tracking-wider">
-                <Text variant="captionSmall" weight="semibold">
-                    View on Explorer
-                </Text>
-                <ArrowUpRight12 className="text-pSubtitle text-steel" />
-            </div>
-        </Card>
+        <Button
+            type={ButtonType.Outlined}
+            text="View on Explorer"
+            onClick={handleOpen}
+            fullWidth
+            icon={
+                shouldShowExplorerLink ? (
+                    <ArrowTopRight />
+                ) : (
+                    <Loader className="animate-spin" data-testid="loading-indicator" />
+                )
+            }
+            iconAfterText
+            disabled={!shouldShowExplorerLink}
+        />
     );
 }

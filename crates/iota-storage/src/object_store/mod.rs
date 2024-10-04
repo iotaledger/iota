@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::{path::Path, DynObjectStore, ObjectMeta};
+use object_store::{DynObjectStore, ObjectMeta, path::Path};
 
 pub mod http;
 pub mod util;
@@ -50,7 +50,7 @@ pub trait ObjectStoreListExt: Send + Sync + 'static {
     async fn list_objects(
         &self,
         src: Option<&Path>,
-    ) -> object_store::Result<BoxStream<'_, object_store::Result<ObjectMeta>>>;
+    ) -> BoxStream<'_, object_store::Result<ObjectMeta>>;
 }
 
 macro_rules! as_ref_list_ext_impl {
@@ -60,7 +60,7 @@ macro_rules! as_ref_list_ext_impl {
             async fn list_objects(
                 &self,
                 src: Option<&Path>,
-            ) -> object_store::Result<BoxStream<'_, object_store::Result<ObjectMeta>>> {
+            ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
                 self.as_ref().list_objects(src).await
             }
         }
@@ -75,8 +75,8 @@ impl ObjectStoreListExt for Arc<DynObjectStore> {
     async fn list_objects(
         &self,
         src: Option<&Path>,
-    ) -> object_store::Result<BoxStream<'_, object_store::Result<ObjectMeta>>> {
-        self.list(src).await
+    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+        self.list(src)
     }
 }
 
@@ -103,7 +103,7 @@ as_ref_put_ext_impl!(Box<dyn ObjectStorePutExt>);
 #[async_trait]
 impl ObjectStorePutExt for Arc<DynObjectStore> {
     async fn put_bytes(&self, src: &Path, bytes: Bytes) -> Result<()> {
-        self.put(src, bytes).await?;
+        self.put(src, bytes.into()).await?;
         Ok(())
     }
 }

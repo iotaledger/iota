@@ -9,12 +9,11 @@ import {
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
 import { Check12, X12 } from '@iota/icons';
-import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { useIotaLedgerClient } from '../../ledger/IotaLedgerClientProvider';
-import LoadingIndicator from '../../loading/LoadingIndicator';
+import { useIotaLedgerClient, LoadingIndicator } from '_components';
 
 export interface VerifyLedgerConnectionLinkProps {
     accountAddress: string;
@@ -42,7 +41,7 @@ export function VerifyLedgerConnectionStatus({
         case VerificationStatus.Unknown:
             if (isPending) {
                 return (
-                    <div className="flex gap-1 text-hero-dark">
+                    <div className="text-hero-dark flex gap-1">
                         <LoadingIndicator color="inherit" />
                         <Text variant="bodySmall">Please confirm on your Ledger...</Text>
                     </div>

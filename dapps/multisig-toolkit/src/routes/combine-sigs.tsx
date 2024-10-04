@@ -2,10 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PublicKey, SerializedSignature } from '@iota/iota.js/cryptography';
-import { MultiSigPublicKey, publicKeyFromIotaBytes } from '@iota/iota.js/multisig';
-import { useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { PublicKey } from '@iota/iota-sdk/cryptography';
+import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
+import { publicKeyFromIotaBytes } from '@iota/iota-sdk/verify';
+import { useEffect, useState } from 'react';
 import { FieldValues, useFieldArray, useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,37 +18,89 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 export default function MultiSigCombineSignatureGenerator() {
     const [msAddress, setMSAddress] = useState('');
     const [msSignature, setMSSignature] = useState('');
-    const { register, control, handleSubmit } = useForm({
+    const [generatedUrl, setGeneratedUrl] = useState('');
+
+    const [query] = useSearchParams();
+
+    useEffect(() => {
+        const pks = query.get('pks');
+        const weights =
+            query
+                .get('weights')
+                ?.split(',')
+                .map((x) => x.trim()) || [];
+
+        const threshold = parseInt(query.get('threshold') ?? '') || 1;
+
+        if (pks) {
+            const pubKeys = JSON.parse(pks);
+            replacePubKeysArray(
+                pubKeys.map((key: string, index: number) => ({
+                    pubKey: key,
+                    weight: weights[index] || 1,
+                    signature: '',
+                })),
+            );
+        }
+        if (threshold) {
+            setValue('threshold', threshold);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query]);
+
+    const generateThresholdsUrl = () => {
+        const values = getValues();
+        const url = new URL(window.location.href);
+        url.searchParams.set('pks', JSON.stringify(values.pubKeys.map((item: any) => item.pubKey)));
+        url.searchParams.set('weights', values.pubKeys.map((item: any) => item.weight).join(','));
+        url.searchParams.set('threshold', values.threshold.toString());
+
+        setGeneratedUrl(url.href);
+        window.navigator.clipboard.writeText(url.href);
+        toast.success('Copied to clipboard');
+    };
+
+    const { register, control, handleSubmit, setValue, getValues } = useForm({
         defaultValues: {
-            pubKeys: [{ pubKey: 'Iota Pubkey', weight: '', signature: 'Iota Signature' }],
+            pubKeys: [{ pubKey: '', weight: '', signature: '' }],
             threshold: 1,
         },
     });
-    const { fields, append, remove } = useFieldArray({
+    const {
+        fields,
+        append,
+        remove,
+        replace: replacePubKeysArray,
+    } = useFieldArray({
         control,
         name: 'pubKeys',
     });
 
     // Perform generation of multisig address
     const onSubmit = (data: FieldValues) => {
-        // handle MultiSig Pubkeys, Weights, and Threshold
-        const pks: { publicKey: PublicKey; weight: number }[] = [];
-        const sigs: SerializedSignature[] = [];
-        data.pubKeys.forEach((item: Record<string, unknown>) => {
-            const pk = publicKeyFromIotaBytes(item.pubKey as string);
-            pks.push({ publicKey: pk, weight: item.weight as number });
-            if (item.signature) {
-                sigs.push(item.signature as string);
-            }
-        });
-        const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-            threshold: data.threshold,
-            publicKeys: pks,
-        });
-        const multisigIotaAddress = multiSigPublicKey.toIotaAddress();
-        setMSAddress(multisigIotaAddress);
-        const multisigCombinedSig = multiSigPublicKey.combinePartialSignatures(sigs);
-        setMSSignature(multisigCombinedSig);
+        try {
+            setGeneratedUrl(''); // clear for better visibility.
+            // handle MultiSig Pubkeys, Weights, and Threshold
+            const pks: { publicKey: PublicKey; weight: number }[] = [];
+            const sigs: string[] = [];
+            data.pubKeys.forEach((item: any) => {
+                const pk = publicKeyFromIotaBytes(item.pubKey);
+                pks.push({ publicKey: pk, weight: Number(item.weight) });
+                if (item.signature) {
+                    sigs.push(item.signature);
+                }
+            });
+            const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
+                threshold: data.threshold,
+                publicKeys: pks,
+            });
+            const multisigIotaAddress = multiSigPublicKey.toIotaAddress();
+            setMSAddress(multisigIotaAddress);
+            const multisigCombinedSig = multiSigPublicKey.combinePartialSignatures(sigs);
+            setMSSignature(multisigCombinedSig);
+        } catch (e: any) {
+            toast.error(e?.message ?? 'An error occurred');
+        }
     };
 
     return (
@@ -85,52 +142,55 @@ export default function MultiSigCombineSignatureGenerator() {
                         <div className="flex-1 p-2"></div>
                     </div>
                 </div>
-                <ul className="grid w-full gap-1.5">
+                <div className="grid w-full gap-1.5">
                     {fields.map((item, index) => {
                         return (
-                            <li key={item.id}>
+                            <div
+                                key={item.id}
+                                className="grid grid-cols-2 max-md:border-b max-md:pb-3 max-md:mb-3 lg:grid-cols-6 gap-3 "
+                            >
                                 <input
-                                    className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="min-h-[80px] lg:col-span-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     {...register(`pubKeys.${index}.pubKey`, { required: true })}
+                                    placeholder="Public Key"
                                 />
 
                                 <input
                                     className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     type="number"
                                     {...register(`pubKeys.${index}.weight`, { required: true })}
+                                    placeholder="Weight"
                                 />
                                 <input
-                                    className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="min-h-[80px] lg:col-span-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     {...register(`pubKeys.${index}.signature`, { required: false })}
+                                    placeholder="Signature (paste here or leave empty)"
                                 />
-
-                                <Button
-                                    className="min-h-[80px] rounded-md border border-input px-3 py-2 text-sm padding-2"
-                                    type="button"
-                                    onClick={() => remove(index)}
-                                >
-                                    Delete
-                                </Button>
-                            </li>
+                                <div>
+                                    <Button
+                                        className="min-h-[80px] w-auto rounded-md border border-input px-3 py-2 text-sm padding-2"
+                                        type="button"
+                                        onClick={() => remove(index)}
+                                    >
+                                        Delete
+                                    </Button>
+                                </div>
+                            </div>
                         );
                     })}
-                </ul>
-                <section>
+                </div>
+                <section className="flex flex-wrap gap-5">
                     <Button
                         type="button"
                         onClick={() => {
-                            append({
-                                pubKey: 'Iota Pubkey',
-                                weight: '',
-                                signature: 'Iota Signature',
-                            });
+                            append({ pubKey: '', weight: '', signature: '' });
                         }}
                     >
                         New PubKey
                     </Button>
                 </section>
                 <section>
-                    <label className="form-label min-h-[80px] rounded-md border text-sm px-3 py-2 ring-offset-background">
+                    <label className="form-label min-h-[80px] rounded-md text-sm px-3 py-2 ring-offset-background">
                         MultiSig Threshold Value:
                     </label>
                     <input
@@ -140,14 +200,39 @@ export default function MultiSigCombineSignatureGenerator() {
                     />
                 </section>
 
-                <Button type="submit">Submit</Button>
+                <section className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                    <Button type="submit" className="md:col-span-3">
+                        Combine signatures
+                    </Button>
+                    <Button variant={'outline'} type="button" onClick={generateThresholdsUrl}>
+                        Generate reusable URL
+                    </Button>
+                </section>
             </form>
+            {generatedUrl && (
+                <Card key={generatedUrl}>
+                    <CardHeader>
+                        <CardTitle>Reusable URL</CardTitle>
+                        <CardDescription>
+                            Using this URL you can skip adding the pubkeys, weights and threshold
+                            every time you use this tool for a particular multi-sig address.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-col gap-2">
+                            <div className="bg-muted rounded text-sm font-mono p-2 break-all">
+                                {generatedUrl}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
             {msAddress && (
                 <Card key={msAddress}>
                     <CardHeader>
                         <CardTitle>Iota MultiSig Address</CardTitle>
                         <CardDescription>
-                            https://docs.iota.io/testnet/learn/cryptography/iota-multisig
+                            https://wiki.iota.org/testnet/learn/cryptography/iota-multisig
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -164,7 +249,7 @@ export default function MultiSigCombineSignatureGenerator() {
                     <CardHeader>
                         <CardTitle>Iota MultiSig Combined Address</CardTitle>
                         <CardDescription>
-                            https://docs.iota.io/testnet/learn/cryptography/iota-multisig
+                            https://wiki.iota.org/testnet/learn/cryptography/iota-multisig
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

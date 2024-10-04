@@ -5,18 +5,11 @@
 import preset from '@iota/core/tailwind.config';
 import { type Config } from 'tailwindcss';
 import animatePlugin from 'tailwindcss-animate';
+import { uiKitStaticPreset } from '@iota/apps-ui-kit';
 
 export default {
-    presets: [preset],
-
-    /*
-     * NOTE: The Tailwind CSS reset doesn't mix well with the existing styles.
-     * We currently disable the CSS reset and expect components to adapt accordingly.
-     * When we fix this, we should use the following as a CSS reset: @tailwind base;
-     */
-    corePlugins: {
-        preflight: false,
-    },
+    presets: [preset, uiKitStaticPreset],
+    content: ['./src/**/*.{js,jsx,ts,tsx}', './node_modules/@iota/apps-ui-kit/dist/**/*.js'],
     theme: {
         extend: {
             colors: {
@@ -35,9 +28,9 @@ export default {
                 7.5: '1.875rem',
                 8: '2rem',
                 15: '3.75rem',
-                'popup-height': '680px',
+                'popup-height': '710px',
                 'popup-width': '360px',
-                'nav-height': '80px',
+                'nav-height': '60px',
             },
             boxShadow: {
                 'wallet-content': '0px -5px 20px 5px rgba(160, 182, 195, 0.15)',

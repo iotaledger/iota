@@ -1,13 +1,14 @@
 # Docs site
 
-For more complete docs, visit the [Iota TypeScript SDK docs](https://sdk.mystenlabs.com/)
+For more complete docs, visit the
+[IOTA TypeScript SDK docs](https://wiki.iota.org/references/ts-sdk/)
 
-# Iota TypeScript SDK
+# IOTA TypeScript SDK
 
-This is the Iota TypeScript SDK built on the Iota
+This is the IOTA TypeScript SDK built on the IOTA
 [JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx).
 It provides utility classes and functions for applications to sign transactions and interact with
-the Iota network.
+the IOTA network.
 
 WARNING: Note that we are still iterating on the RPC and SDK API before TestNet, therefore please
 expect frequent breaking changes in the short-term. We expect the API to stabilize after the
@@ -15,26 +16,26 @@ upcoming TestNet launch.
 
 ## Working with Devnet
 
-The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota.js) with the
+The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota-sdk) with the
 same bi-weekly release cycle as the Devnet validators and
 [RPC Server](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). To
 use the SDK in your project, you can do:
 
 ```bash
-$ npm install @iota/iota.js
+$ npm install @iota/iota-sdk
 ```
 
 You can also use your preferred npm client, such as yarn or pnpm.
 
 ## Working with local network
 
-Note that the `latest` tag for the [published SDK](https://www.npmjs.com/package/@iota/iota.js)
+Note that the `latest` tag for the [published SDK](https://www.npmjs.com/package/@iota/iota-sdk)
 might go out of sync with the RPC server on the `main` branch until the next release. If you're
 developing against a local network, we recommend using the `experimental`-tagged packages, which
 contain the latest changes from `main`.
 
 ```bash
-npm install @iota/iota.js@experimental
+npm install @iota/iota-sdk@experimental
 ```
 
 Refer to the
@@ -48,16 +49,20 @@ To get started you need to install [pnpm](https://pnpm.io/), then run the follow
 ```bash
 # Install all dependencies
 $ pnpm install
-# Run the build for the TypeScript SDK
+
+# Run `build` for the TypeScript SDK if you're in the `sdk/typescript` project
+$ pnpm run build
+
+# Run `sdk build` for the TypeScript SDK if you're in the root of `iota` repo
 $ pnpm sdk build
 ```
 
-> All `pnpm` commands below are intended to be run in the root of the Iota repo.
+> All `pnpm` commands below are intended to be run in the root of the IOTA repo.
 
 ## Type Doc
 
 You can view the generated [Type Doc](https://typedoc.org/) for the
-[current release of the SDK](https://www.npmjs.com/package/@iota/iota.js) at
+[current release of the SDK](https://www.npmjs.com/package/@iota/iota-sdk) at
 http://typescript-sdk-docs.s3-website-us-east-1.amazonaws.com/.
 
 For the latest docs for the `main` branch, run `pnpm doc` and open the
@@ -68,16 +73,16 @@ For the latest docs for the `main` branch, run `pnpm doc` and open the
 To run unit tests
 
 ```
-pnpm --filter @iota/iota.js test:unit
+pnpm --filter @iota/iota-sdk test:unit
 ```
 
 To run E2E tests against local network
 
 ```
-pnpm --filter @iota/iota.js prepare:e2e
+pnpm --filter @iota/iota-sdk prepare:e2e
 
 // This will run all e2e tests
-pnpm --filter @iota/iota.js test:e2e
+pnpm --filter @iota/iota-sdk test:e2e
 
 // Alternatively you can choose to run only one test file
 npx vitest txn-builder.test.ts
@@ -96,10 +101,10 @@ https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm
 To run E2E tests against Devnet
 
 ```
-VITE_FAUCET_URL='https://faucet.devnet.iota.io:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.io' pnpm --filter @iota/iota.js exec vitest e2e
+VITE_FAUCET_URL='https://faucet.devnet.iota.io:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.io' pnpm --filter @iota/iota-sdk exec vitest e2e
 ```
 
-## Connecting to Iota Network
+## Connecting to IOTA Network
 
 The `IotaClient` class provides a connection to the JSON-RPC Server and should be used for all
 read-only operations. The default URLs to connect with the RPC server are:
@@ -108,7 +113,7 @@ read-only operations. The default URLs to connect with the RPC server are:
 - Devnet: https://fullnode.devnet.iota.io
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // create a client connected to devnet
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
@@ -119,12 +124,12 @@ await client.getCoins({
 });
 ```
 
-For local development, you can run `cargo run --bin iota-test-validator` to spin up a local network
-with a local validator, a fullnode, and a faucet server. Refer to
-[this guide](https://docs.iota.io/build/iota-local-network) for more information.
+For local development, you can run `cargo run --bin --with-faucet --force-regenesis` to spin up a
+local network with a local validator, a fullnode, and a faucet server. Refer to
+[this guide](https://wiki.iota.org/build/iota-local-network) for more information.
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // create a client connected to devnet
 const client = new IotaClient({ url: getFullnodeUrl('localnet') });
@@ -138,7 +143,7 @@ await client.getCoins({
 You can also construct your own in custom connections, with the URL for your own fullnode
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // create a client connected to devnet
 const client = new IotaClient({
@@ -156,7 +161,7 @@ await client.getCoins({
 You can request iota from the faucet when running against devnet, testnet, or localnet
 
 ```typescript
-import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
+import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 
 await requestIotaFromFaucetV0({
     host: getFaucetHost('testnet'),
@@ -167,14 +172,14 @@ await requestIotaFromFaucetV0({
 ## Writing APIs
 
 For a primer for building transactions, refer to
-[this guide](https://docs.iota.io/build/prog-trans-ts-sdk).
+[this guide](https://wiki.iota.org/build/prog-trans-ts-sdk).
 
 ### Transfer Object
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -194,14 +199,14 @@ const result = await client.signAndExecuteTransactionBlock({
 console.log({ result });
 ```
 
-### Transfer Iota
+### Transfer IOTA
 
-To transfer `1000` MICROS to another address:
+To transfer `1000` NANOS to another address:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -222,9 +227,9 @@ console.log({ result });
 ### Merge coins
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -246,9 +251,9 @@ console.log({ result });
 ### Move Call
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
@@ -273,9 +278,9 @@ console.log({ result });
 To publish a package:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const { execSync } = require('child_process');
 // Generate a new Ed25519 Keypair
@@ -309,7 +314,7 @@ Fetch objects owned by the address
 `0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231`
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -325,7 +330,7 @@ Fetch object details for the object with id
 `0xe19739da1a701eadc21683c5b127e62b553e833e8a15a4f292f4f48b4afea3f2`
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -351,7 +356,7 @@ const txns = await client.multiGetObjects({
 Fetch transaction details from transaction digests:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -419,7 +424,7 @@ Fetch coins of type `0x65b0553a591d7b13376e03a408e112c706dc0909a79080c810b93b06f
 owned by an address:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -433,7 +438,7 @@ const coins = await client.getCoins({
 Fetch all coin objects owned by an address:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -446,7 +451,7 @@ const allCoins = await client.getAllCoins({
 Fetch the total coin balance for one coin type, owned by an address:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -464,7 +469,7 @@ Querying events created by transactions sent by account
 `0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231`
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -472,49 +477,5 @@ const client = new IotaClient({
 const events = client.queryEvents({
     query: { Sender: toolbox.address() },
     limit: 2,
-});
-```
-
-Subscribe to all events created by transactions sent by account
-`0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231`
-
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-
-const client = new IotaClient({
-    url: getFullnodeUrl('testnet'),
-});
-// calls RPC method 'iotax_subscribeEvent' with params:
-// [ { Sender: '0xbff6ccc8707aa517b4f1b95750a2a8c666012df3' } ]
-const unsubscribe = await client.subscribeEvent({
-    filter: {
-        Sender: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
-    },
-    onMessage(event) {
-        // handle subscription notification message here. This function is called once per subscription message.
-    },
-});
-
-// later, to unsubscribe:
-await unsubscribe();
-```
-
-Subscribe to all events created by a package's `nft` module
-
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-
-const client = new IotaClient({
-    url: getFullnodeUrl('testnet'),
-});
-const somePackage = '0x...';
-const devnetNftFilter = {
-    MoveModule: { package: somePackage, module: 'nft' },
-};
-const devNftSub = await client.subscribeEvent({
-    filter: devnetNftFilter,
-    onMessage(event) {
-        // handle subscription notification message here
-    },
 });
 ```

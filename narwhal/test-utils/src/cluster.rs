@@ -1,25 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc, time::Duration};
 
 use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::SerializedTransaction;
 use fastcrypto::traits::KeyPair as _;
+use iota_metrics::RegistryService;
+use iota_network_stack::multiaddr::Multiaddr;
 use itertools::Itertools;
-use mysten_metrics::RegistryService;
-use mysten_network::multiaddr::Multiaddr;
 use network::client::NetworkClient;
 use node::{
     execution_state::SimpleExecutionState, metrics::worker_metrics_registry,
     primary_node::PrimaryNode, worker_node::WorkerNode,
 };
-use prometheus::{proto::Metric, Registry};
+use prometheus::{Registry, proto::Metric};
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{
-    sync::{broadcast::Sender, mpsc::channel, RwLock, RwLockWriteGuard},
+    sync::{RwLock, RwLockWriteGuard, broadcast::Sender, mpsc::channel},
     task::JoinHandle,
 };
 use tonic::transport::Channel;
@@ -27,7 +28,7 @@ use tracing::info;
 use types::TransactionsClient;
 use worker::TrivialTransactionValidator;
 
-use crate::{latest_protocol_version, temp_dir, CommitteeFixture};
+use crate::{CommitteeFixture, latest_protocol_version, temp_dir};
 
 #[cfg(test)]
 #[path = "tests/cluster_tests.rs"]
@@ -180,8 +181,8 @@ impl Cluster {
     }
 
     /// Returns all the running authorities. Any authority that:
-    /// * has been started ever
-    /// * or has been stopped
+    ///     * has been started ever
+    ///     * or has been stopped
     /// will not be returned by this method.
     pub async fn authorities(&self) -> Vec<AuthorityDetails> {
         let mut result = Vec::new();
@@ -752,7 +753,7 @@ impl AuthorityDetails {
     ) -> TransactionsClient<Channel> {
         let internal = self.internal.read().await;
 
-        let config = mysten_network::config::Config::new();
+        let config = iota_network_stack::config::Config::new();
         let channel = config
             .connect_lazy(
                 &internal

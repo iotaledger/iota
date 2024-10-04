@@ -1,0 +1,261 @@
+---
+description: Learn how to build a client application using the IOTA TypeScript SDK and dApp Kit in a React environment.
+tags: [ typescript, sdk, getting-started, install]
+---
+
+import InfoPnpmRequired from "../../_snippets/info-pnpm-required.mdx";
+import AlphaNet from "../../_snippets/alphanet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/client-tssdk.json';
+
+# Client App with IOTA TypeScript SDK
+
+You can use this guide to set up a React application with dApp Kit. dApp Kit allows you to connect to wallets and query
+data from IOTA RPC nodes. You can also quickly scaffold a new app with all the steps in this exercise already
+implemented by running the following command in a terminal:
+
+<InfoPnpmRequired />
+
+<Tabs groupId="package-manager">
+<TabItem value="pnpm" label="pnpm">
+
+```bash
+pnpm create @iota/dapp --template react-client-dapp
+```
+
+</TabItem>
+<TabItem value="yarn" label="Yarn">
+
+```bash
+yarn create @iota/dapp --template react-client-dapp
+```
+
+</TabItem>
+</Tabs>
+
+## What is the IOTA TypeScript SDK?
+
+The [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx) (`@iota/iota-sdk`) provides the essential
+functionality needed to interact with the IOTA
+ecosystem from TypeScript. It's versatile enough to be used in any TypeScript or JavaScript project, including web apps,
+Node.js applications, or mobile apps developed with tools like React Native that support TypeScript.
+
+## What is dApp Kit?
+
+[dApp Kit](../../references/ts-sdk/dapp-kit/index.mdx). (`@iota/dapp-kit`) is a collection of React hooks, components,
+and utilities designed to simplify building
+decentralized applications (dApps) on the IOTA network.
+
+## Installing Dependencies
+
+To begin, you need a React application. The following instructions apply to any React app, so you can also add dApp Kit
+to an existing React app. If you're starting a new project, you can use [Vite](https://vitejs.dev/) to scaffold a new
+React app.
+
+Run the following command in your terminal, select React as the framework, and then choose one of the TypeScript
+templates:
+
+```bash npm2yarn
+npm init vite
+```
+
+Now that you have a React app, you can install the necessary dependencies to use dApp Kit:
+
+```bash npm2yarn
+npm install @iota/iota-sdk @iota/dapp-kit @tanstack/react-query
+```
+
+:::info Local version of the SDK
+
+If you'd like to use a locally compiled version of the SDK you can follow the instructions in the [Local Development](local-network.mdx#test-with-the-iota-typescript-sdk) section.
+
+:::
+
+## Setting Up Provider Components
+
+To use all the features of dApp Kit, wrap your app with several `Provider` components.
+
+Open the root component that renders your app (the default location used by the Vite template is `src/main.tsx`) and
+integrate or replace the current code with the following.
+
+### `QueryClientProvider`
+
+The first `Provider` to set up is the `QueryClientProvider` from `@tanstack/react-query`. This `Provider` manages
+request state for various hooks in dApp Kit. If you're already using `@tanstack/react-query`, dApp Kit can share the
+same `QueryClient` instance.
+
+```ts
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+	<React.StrictMode>
+		<QueryClientProvider client={queryClient}>
+			<App />
+		</QueryClientProvider>
+	</React.StrictMode>,
+);
+```
+<AlphaNet />
+
+### `IotaClientProvider`
+
+Next, set up the `IotaClientProvider`. This `Provider` delivers an `IOTAClient` instance from `@iota/iota.js` to all the
+hooks in dApp Kit. This provider manages which network dApp Kit connects to and can accept configurations for multiple
+networks. In this exercise, you'll connect to `devnet`.
+
+```ts
+import { IotaClientProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+const networks = {
+	devnet: { url: getFullnodeUrl('devnet') },
+	mainnet: { url: getFullnodeUrl('mainnet') },
+};
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+	<React.StrictMode>
+		<QueryClientProvider client={queryClient}>
+			<IotaClientProvider networks={networks} defaultNetwork="devnet">
+				<App />
+			</IotaClientProvider>
+		</QueryClientProvider>
+	</React.StrictMode>,
+);
+```
+
+
+### `WalletProvider`
+
+Finally, set up the `WalletProvider` from `@iota/dapp-kit`, and import styles for the `dapp-kit` components.
+
+```ts
+import '@iota/dapp-kit/dist/index.css';
+
+import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+const networks = {
+	devnet: { url: getFullnodeUrl('devnet') },
+	mainnet: { url: getFullnodeUrl('mainnet') },
+};
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+	<React.StrictMode>
+		<QueryClientProvider client={queryClient}>
+			<IotaClientProvider networks={networks} defaultNetwork="devnet">
+				<WalletProvider>
+					<App />
+				</WalletProvider>
+			</IotaClientProvider>
+		</QueryClientProvider>
+	</React.StrictMode>,
+);
+```
+
+## Connecting to a Wallet
+
+Once you've set [up all the `Providers`](#setting-up-provider-components), you can use dApp Kit hooks and components. To
+allow users to connect their wallets to your dApp, add a `ConnectButton`.
+
+```ts
+import { ConnectButton } from '@iota/dapp-kit';
+
+function App() {
+	return (
+		<div className="App">
+			<header className="App-header">
+				<ConnectButton />
+			</header>
+		</div>
+	);
+}
+```
+
+The `ConnectButton` component displays a button that opens a modal on click, enabling users to connect their wallet.
+Once connected, it displays their address and provides the option to disconnect.
+
+## Getting the Connected Wallet Address
+
+Now that you have a way for users to connect their wallets, you can start using the `useCurrentAccount` hook to get
+details about the connected wallet account.
+
+```ts
+import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
+
+function App() {
+	return (
+		<div className="App">
+			<header className="App-header">
+				<ConnectButton />
+			</header>
+
+			<ConnectedAccount />
+		</div>
+	);
+}
+
+function ConnectedAccount() {
+	const account = useCurrentAccount();
+
+	if (!account) {
+		return null;
+	}
+
+	return <div>Connected to {account.address}</div>;
+}
+```
+
+## Querying Data from IOTA RPC Nodes
+
+Now that you have the account connected, you can query for objects that the connected account owns:
+
+```ts
+import { useCurrentAccount, useIOTAClientQuery } from '@iota/dapp-kit';
+
+function ConnectedAccount() {
+	const account = useCurrentAccount();
+
+	if (!account) {
+		return null;
+	}
+
+	return (
+		<div>
+			<div>Connected to {account.address}</div>;
+			<OwnedObjects address={account.address} />
+		</div>
+	);
+}
+
+function OwnedObjects({ address }: { address: string }) {
+	const { data } = useIOTAClientQuery('getOwnedObjects', {
+		owner: address,
+	});
+	if (!data) {
+		return null;
+	}
+
+	return (
+		<ul>
+			{data.data.map((object) => (
+				<li key={object.data?.objectId}>
+					<a href={`https://explorer.iota.cafe/object/${object.data?.objectId}`}>
+						{object.data?.objectId}
+					</a>
+				</li>
+			))}
+		</ul>
+	);
+}
+```
+
+Now you have a dApp connected to wallets that can query data from RPC nodes.
+
+
+<Quiz questions={questions} />

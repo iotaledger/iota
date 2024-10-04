@@ -45,6 +45,7 @@ node_modules/
 .tsbuildinfo
 *.tsbuildinfo
 .turbo
+.pnpm-store
 
 # App build directories
 dist/
@@ -74,6 +75,7 @@ checkpoints_dir/*
 light_client.yaml
 docs/content/references/iota-api/iota-graphql/*
 docs/content/references/framework/**
+scripts/dependency_graphs/output/*
 
 lcov.info
 **/venv/

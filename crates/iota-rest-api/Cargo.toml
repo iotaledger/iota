@@ -7,19 +7,30 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
-axum.workspace = true
+async-trait.workspace = true
+axum = { workspace = true, features = ["matched-path"] }
 bcs.workspace = true
-mime = "0.3.17"
+iota-sdk2.workspace = true
+itertools.workspace = true
+mime = "0.3"
+openapiv3 = { git = "https://github.com/bmwill/openapiv3.git", rev = "ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963" }
+prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
+schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
+serde_yaml.workspace = true
 tap.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
 
 fastcrypto.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]
-tokio.workspace = true
+diffy = "0.3"

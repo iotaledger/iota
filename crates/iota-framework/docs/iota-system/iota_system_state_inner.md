@@ -48,14 +48,17 @@ title: Module `0x3::iota_system_state_inner`
 -  [Function `update_validator_next_epoch_network_pubkey`](#0x3_iota_system_state_inner_update_validator_next_epoch_network_pubkey)
 -  [Function `update_candidate_validator_network_pubkey`](#0x3_iota_system_state_inner_update_candidate_validator_network_pubkey)
 -  [Function `advance_epoch`](#0x3_iota_system_state_inner_advance_epoch)
+-  [Function `match_computation_reward_to_target_reward`](#0x3_iota_system_state_inner_match_computation_reward_to_target_reward)
 -  [Function `epoch`](#0x3_iota_system_state_inner_epoch)
 -  [Function `protocol_version`](#0x3_iota_system_state_inner_protocol_version)
 -  [Function `system_state_version`](#0x3_iota_system_state_inner_system_state_version)
 -  [Function `genesis_system_state_version`](#0x3_iota_system_state_inner_genesis_system_state_version)
 -  [Function `epoch_start_timestamp_ms`](#0x3_iota_system_state_inner_epoch_start_timestamp_ms)
 -  [Function `validator_stake_amount`](#0x3_iota_system_state_inner_validator_stake_amount)
+-  [Function `active_validator_voting_powers`](#0x3_iota_system_state_inner_active_validator_voting_powers)
 -  [Function `validator_staking_pool_id`](#0x3_iota_system_state_inner_validator_staking_pool_id)
 -  [Function `validator_staking_pool_mappings`](#0x3_iota_system_state_inner_validator_staking_pool_mappings)
+-  [Function `get_total_iota_supply`](#0x3_iota_system_state_inner_get_total_iota_supply)
 -  [Function `get_reporters_of`](#0x3_iota_system_state_inner_get_reporters_of)
 -  [Function `get_storage_fund_total_balance`](#0x3_iota_system_state_inner_get_storage_fund_total_balance)
 -  [Function `get_storage_fund_object_rebates`](#0x3_iota_system_state_inner_get_storage_fund_object_rebates)
@@ -65,6 +68,7 @@ title: Module `0x3::iota_system_state_inner`
 
 
 <pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
+<b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
@@ -77,7 +81,6 @@ title: Module `0x3::iota_system_state_inner`
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="../iota-framework/vec_map.md#0x2_vec_map">0x2::vec_map</a>;
 <b>use</b> <a href="../iota-framework/vec_set.md#0x2_vec_set">0x2::vec_set</a>;
-<b>use</b> <a href="stake_subsidy.md#0x3_stake_subsidy">0x3::stake_subsidy</a>;
 <b>use</b> <a href="staking_pool.md#0x3_staking_pool">0x3::staking_pool</a>;
 <b>use</b> <a href="storage_fund.md#0x3_storage_fund">0x3::storage_fund</a>;
 <b>use</b> <a href="validator.md#0x3_validator">0x3::validator</a>;
@@ -105,32 +108,26 @@ A list of system config parameters.
 
 <dl>
 <dt>
-<code>epoch_duration_ms: u64</code>
+<code>epoch_duration_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
 </dd>
 <dt>
-<code>stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
- The starting epoch in which stake subsidies start being paid out
-</dd>
-<dt>
-<code>max_validator_count: u64</code>
+<code>max_validator_count: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Maximum number of active validators at any moment.
  We do not allow the number of validators in any epoch to go above this.
 </dd>
 <dt>
-<code>min_validator_joining_stake: u64</code>
+<code>min_validator_joining_stake: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Lower-bound on the amount of stake required to become a validator.
 </dd>
 <dt>
-<code>validator_low_stake_threshold: u64</code>
+<code>validator_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Validators with stake amount below <code>validator_low_stake_threshold</code> are considered to
@@ -138,14 +135,14 @@ A list of system config parameters.
  threshold for more than <code>validator_low_stake_grace_period</code> number of epochs.
 </dd>
 <dt>
-<code>validator_very_low_stake_threshold: u64</code>
+<code>validator_very_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Validators with stake below <code>validator_very_low_stake_threshold</code> will be removed
  immediately at epoch change, no grace period.
 </dd>
 <dt>
-<code>validator_low_stake_grace_period: u64</code>
+<code>validator_low_stake_grace_period: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  A validator can have stake below <code>validator_low_stake_threshold</code>
@@ -180,38 +177,32 @@ Added min_validator_count.
 
 <dl>
 <dt>
-<code>epoch_duration_ms: u64</code>
+<code>epoch_duration_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
 </dd>
 <dt>
-<code>stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
- The starting epoch in which stake subsidies start being paid out
-</dd>
-<dt>
-<code>min_validator_count: u64</code>
+<code>min_validator_count: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Minimum number of active validators at any moment.
 </dd>
 <dt>
-<code>max_validator_count: u64</code>
+<code>max_validator_count: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Maximum number of active validators at any moment.
  We do not allow the number of validators in any epoch to go above this.
 </dd>
 <dt>
-<code>min_validator_joining_stake: u64</code>
+<code>min_validator_joining_stake: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Lower-bound on the amount of stake required to become a validator.
 </dd>
 <dt>
-<code>validator_low_stake_threshold: u64</code>
+<code>validator_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Validators with stake amount below <code>validator_low_stake_threshold</code> are considered to
@@ -219,14 +210,14 @@ Added min_validator_count.
  threshold for more than <code>validator_low_stake_grace_period</code> number of epochs.
 </dd>
 <dt>
-<code>validator_very_low_stake_threshold: u64</code>
+<code>validator_very_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Validators with stake below <code>validator_very_low_stake_threshold</code> will be removed
  immediately at epoch change, no grace period.
 </dd>
 <dt>
-<code>validator_low_stake_grace_period: u64</code>
+<code>validator_low_stake_grace_period: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  A validator can have stake below <code>validator_low_stake_threshold</code>
@@ -261,24 +252,30 @@ The top-level object containing all information of the Iota system.
 
 <dl>
 <dt>
-<code>epoch: u64</code>
+<code>epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The current epoch ID, starting from 0.
 </dd>
 <dt>
-<code>protocol_version: u64</code>
+<code>protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The current protocol version, starting from 1.
 </dd>
 <dt>
-<code>system_state_version: u64</code>
+<code>system_state_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The current version of the system state data structure type.
  This is always the same as IotaSystemState.version. Keeping a copy here so that
  we know what version it is by inspecting IotaSystemStateInner as well.
+</dd>
+<dt>
+<code>iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a></code>
+</dt>
+<dd>
+ The IOTA's TreasuryCap.
 </dd>
 <dt>
 <code>validators: <a href="validator_set.md#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</a></code>
@@ -299,7 +296,7 @@ The top-level object containing all information of the Iota system.
  A list of system config parameters.
 </dd>
 <dt>
-<code>reference_gas_price: u64</code>
+<code>reference_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The reference gas price for the current epoch.
@@ -318,12 +315,6 @@ The top-level object containing all information of the Iota system.
  the reports should be based on validator ids
 </dd>
 <dt>
-<code><a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a></code>
-</dt>
-<dd>
- Schedule of stake subsidies given out each epoch.
-</dd>
-<dt>
 <code>safe_mode: bool</code>
 </dt>
 <dd>
@@ -335,7 +326,7 @@ The top-level object containing all information of the Iota system.
  are out of safe mode.
 </dd>
 <dt>
-<code>safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>safe_mode_storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -347,19 +338,19 @@ The top-level object containing all information of the Iota system.
 
 </dd>
 <dt>
-<code>safe_mode_storage_rebates: u64</code>
+<code>safe_mode_storage_rebates: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>safe_mode_non_refundable_storage_fee: u64</code>
+<code>safe_mode_non_refundable_storage_fee: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>epoch_start_timestamp_ms: u64</code>
+<code>epoch_start_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Unix timestamp of the current epoch start
@@ -393,24 +384,30 @@ Uses SystemParametersV2 as the parameters.
 
 <dl>
 <dt>
-<code>epoch: u64</code>
+<code>epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The current epoch ID, starting from 0.
 </dd>
 <dt>
-<code>protocol_version: u64</code>
+<code>protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The current protocol version, starting from 1.
 </dd>
 <dt>
-<code>system_state_version: u64</code>
+<code>system_state_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The current version of the system state data structure type.
  This is always the same as IotaSystemState.version. Keeping a copy here so that
  we know what version it is by inspecting IotaSystemStateInner as well.
+</dd>
+<dt>
+<code>iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a></code>
+</dt>
+<dd>
+ The IOTA's TreasuryCap.
 </dd>
 <dt>
 <code>validators: <a href="validator_set.md#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</a></code>
@@ -431,7 +428,7 @@ Uses SystemParametersV2 as the parameters.
  A list of system config parameters.
 </dd>
 <dt>
-<code>reference_gas_price: u64</code>
+<code>reference_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  The reference gas price for the current epoch.
@@ -450,12 +447,6 @@ Uses SystemParametersV2 as the parameters.
  the reports should be based on validator ids
 </dd>
 <dt>
-<code><a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a></code>
-</dt>
-<dd>
- Schedule of stake subsidies given out each epoch.
-</dd>
-<dt>
 <code>safe_mode: bool</code>
 </dt>
 <dd>
@@ -467,7 +458,7 @@ Uses SystemParametersV2 as the parameters.
  are out of safe mode.
 </dd>
 <dt>
-<code>safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>safe_mode_storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -479,19 +470,19 @@ Uses SystemParametersV2 as the parameters.
 
 </dd>
 <dt>
-<code>safe_mode_storage_rebates: u64</code>
+<code>safe_mode_storage_rebates: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>safe_mode_non_refundable_storage_fee: u64</code>
+<code>safe_mode_non_refundable_storage_fee: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>epoch_start_timestamp_ms: u64</code>
+<code>epoch_start_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Unix timestamp of the current epoch start
@@ -526,73 +517,67 @@ the epoch advancement transaction.
 
 <dl>
 <dt>
-<code>epoch: u64</code>
+<code>epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>protocol_version: u64</code>
+<code>protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>reference_gas_price: u64</code>
+<code>reference_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>total_stake: u64</code>
+<code>total_stake: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>storage_fund_reinvestment: u64</code>
+<code>storage_charge: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>storage_charge: u64</code>
+<code>storage_rebate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>storage_rebate: u64</code>
+<code>storage_fund_balance: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>storage_fund_balance: u64</code>
+<code>total_gas_fees: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>stake_subsidy_amount: u64</code>
+<code>total_stake_rewards_distributed: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>total_gas_fees: u64</code>
+<code>burnt_tokens_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>total_stake_rewards_distributed: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>leftover_storage_fund_inflow: u64</code>
+<code>minted_tokens_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
@@ -611,7 +596,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ENotSystemAddress">ENotSystemAddress</a>: u64 = 2;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ENotSystemAddress">ENotSystemAddress</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 2;
 </code></pre>
 
 
@@ -656,7 +641,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EAdvancedToWrongEpoch">EAdvancedToWrongEpoch</a>: u64 = 8;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EAdvancedToWrongEpoch">EAdvancedToWrongEpoch</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 8;
 </code></pre>
 
 
@@ -665,7 +650,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>: u64 = 5;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 5;
 </code></pre>
 
 
@@ -674,7 +659,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ECannotReportOneself">ECannotReportOneself</a>: u64 = 3;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ECannotReportOneself">ECannotReportOneself</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 3;
 </code></pre>
 
 
@@ -683,7 +668,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ELimitExceeded">ELimitExceeded</a>: u64 = 1;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ELimitExceeded">ELimitExceeded</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1;
 </code></pre>
 
 
@@ -692,7 +677,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ENotValidator">ENotValidator</a>: u64 = 0;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ENotValidator">ENotValidator</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 
@@ -701,7 +686,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EReportRecordNotFound">EReportRecordNotFound</a>: u64 = 4;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EReportRecordNotFound">EReportRecordNotFound</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 4;
 </code></pre>
 
 
@@ -710,16 +695,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ESafeModeGasNotProcessed">ESafeModeGasNotProcessed</a>: u64 = 7;
-</code></pre>
-
-
-
-<a name="0x3_iota_system_state_inner_EStakeWithdrawBeforeActivation"></a>
-
-
-
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EStakeWithdrawBeforeActivation">EStakeWithdrawBeforeActivation</a>: u64 = 6;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ESafeModeGasNotProcessed">ESafeModeGasNotProcessed</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 7;
 </code></pre>
 
 
@@ -728,7 +704,7 @@ the epoch advancement transaction.
 
 
 
-<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SYSTEM_STATE_VERSION_V1">SYSTEM_STATE_VERSION_V1</a>: u64 = 1;
+<pre><code><b>const</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SYSTEM_STATE_VERSION_V1">SYSTEM_STATE_VERSION_V1</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1;
 </code></pre>
 
 
@@ -741,7 +717,7 @@ Create a new IotaSystemState object and make it shared.
 This function will be called only once in genesis.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create">create</a>(validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, initial_storage_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">iota_system_state_inner::IotaSystemStateInner</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create">create</a>(iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, initial_storage_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, epoch_start_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">iota_system_state_inner::IotaSystemStateInner</a>
 </code></pre>
 
 
@@ -751,12 +727,12 @@ This function will be called only once in genesis.
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create">create</a>(
+    iota_treasury_cap: IotaTreasuryCap,
     validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
     initial_storage_fund: Balance&lt;IOTA&gt;,
-    protocol_version: u64,
-    epoch_start_timestamp_ms: u64,
+    protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    epoch_start_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a>,
-    <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: StakeSubsidy,
     ctx: &<b>mut</b> TxContext,
 ): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">IotaSystemStateInner</a> {
     <b>let</b> validators = <a href="validator_set.md#0x3_validator_set_new">validator_set::new</a>(validators, ctx);
@@ -766,14 +742,14 @@ This function will be called only once in genesis.
         epoch: 0,
         protocol_version,
         system_state_version: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_genesis_system_state_version">genesis_system_state_version</a>(),
+        iota_treasury_cap,
         validators,
         <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>: <a href="storage_fund.md#0x3_storage_fund_new">storage_fund::new</a>(initial_storage_fund),
         parameters,
         reference_gas_price,
         validator_report_records: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode: <b>false</b>,
-        safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
+        safe_mode_storage_charges: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         safe_mode_computation_rewards: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         safe_mode_storage_rebates: 0,
         safe_mode_non_refundable_storage_fee: 0,
@@ -794,7 +770,7 @@ This function will be called only once in genesis.
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</a>(epoch_duration_ms: u64, stake_subsidy_start_epoch: u64, max_validator_count: u64, min_validator_joining_stake: u64, validator_low_stake_threshold: u64, validator_very_low_stake_threshold: u64, validator_low_stake_grace_period: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</a>(epoch_duration_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, max_validator_count: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, min_validator_joining_stake: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, validator_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, validator_very_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, validator_low_stake_grace_period: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>
 </code></pre>
 
 
@@ -804,20 +780,18 @@ This function will be called only once in genesis.
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</a>(
-    epoch_duration_ms: u64,
-    stake_subsidy_start_epoch: u64,
+    epoch_duration_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
 
     // Validator committee parameters
-    max_validator_count: u64,
-    min_validator_joining_stake: u64,
-    validator_low_stake_threshold: u64,
-    validator_very_low_stake_threshold: u64,
-    validator_low_stake_grace_period: u64,
+    max_validator_count: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    min_validator_joining_stake: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    validator_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    validator_very_low_stake_threshold: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    validator_low_stake_grace_period: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext,
 ): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a> {
     <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a> {
         epoch_duration_ms,
-        stake_subsidy_start_epoch,
         max_validator_count,
         min_validator_joining_stake,
         validator_low_stake_threshold,
@@ -852,14 +826,14 @@ This function will be called only once in genesis.
         epoch,
         protocol_version,
         system_state_version: _,
+        iota_treasury_cap,
         validators,
         <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>,
         parameters,
         reference_gas_price,
         validator_report_records,
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode,
-        safe_mode_storage_rewards,
+        safe_mode_storage_charges,
         safe_mode_computation_rewards,
         safe_mode_storage_rebates,
         safe_mode_non_refundable_storage_fee,
@@ -868,7 +842,6 @@ This function will be called only once in genesis.
     } = self;
     <b>let</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a> {
         epoch_duration_ms,
-        stake_subsidy_start_epoch,
         max_validator_count,
         min_validator_joining_stake,
         validator_low_stake_threshold,
@@ -880,11 +853,11 @@ This function will be called only once in genesis.
         epoch,
         protocol_version,
         system_state_version: 2,
+        iota_treasury_cap,
         validators,
         <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>,
         parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParametersV2">SystemParametersV2</a> {
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             min_validator_count: 4,
             max_validator_count,
             min_validator_joining_stake,
@@ -895,9 +868,8 @@ This function will be called only once in genesis.
         },
         reference_gas_price,
         validator_report_records,
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode,
-        safe_mode_storage_rewards,
+        safe_mode_storage_charges,
         safe_mode_computation_rewards,
         safe_mode_storage_rebates,
         safe_mode_non_refundable_storage_fee,
@@ -923,7 +895,7 @@ Note: <code>proof_of_possession</code> MUST be a valid signature using iota_addr
 To produce a valid PoP, run [fn test_proof_of_possession].
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_add_validator_candidate">request_add_validator_candidate</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, image_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, project_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, net_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, gas_price: u64, commission_rate: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_add_validator_candidate">request_add_validator_candidate</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, image_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, project_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, net_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -946,8 +918,8 @@ To produce a valid PoP, run [fn test_proof_of_possession].
     p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
-    gas_price: u64,
-    commission_rate: u64,
+    gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext,
 ) {
     <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="validator.md#0x3_validator_new">validator::new</a>(
@@ -1092,7 +1064,7 @@ A validator can call this function to submit a new gas price quote, to be
 used for the reference gas price calculation at the end of the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_gas_price">request_set_gas_price</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, cap: &<a href="validator_cap.md#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</a>, new_gas_price: u64)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_gas_price">request_set_gas_price</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, cap: &<a href="validator_cap.md#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</a>, new_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>)
 </code></pre>
 
 
@@ -1104,7 +1076,7 @@ used for the reference gas price calculation at the end of the epoch.
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_gas_price">request_set_gas_price</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
     cap: &UnverifiedValidatorOperationCap,
-    new_gas_price: u64,
+    new_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
 ) {
     // Verify the represented <b>address</b> is an active or pending <a href="validator.md#0x3_validator">validator</a>, and the capability is still valid.
     <b>let</b> verified_cap = self.validators.verify_cap(cap, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ACTIVE_OR_PENDING_VALIDATOR">ACTIVE_OR_PENDING_VALIDATOR</a>);
@@ -1125,7 +1097,7 @@ used for the reference gas price calculation at the end of the epoch.
 This function is used to set new gas price for candidate validators
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_set_candidate_validator_gas_price">set_candidate_validator_gas_price</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, cap: &<a href="validator_cap.md#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</a>, new_gas_price: u64)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_set_candidate_validator_gas_price">set_candidate_validator_gas_price</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, cap: &<a href="validator_cap.md#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</a>, new_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>)
 </code></pre>
 
 
@@ -1137,7 +1109,7 @@ This function is used to set new gas price for candidate validators
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_set_candidate_validator_gas_price">set_candidate_validator_gas_price</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
     cap: &UnverifiedValidatorOperationCap,
-    new_gas_price: u64,
+    new_gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
 ) {
     // Verify the represented <b>address</b> is an active or pending <a href="validator.md#0x3_validator">validator</a>, and the capability is still valid.
     <b>let</b> verified_cap = self.validators.verify_cap(cap, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ANY_VALIDATOR">ANY_VALIDATOR</a>);
@@ -1158,7 +1130,7 @@ A validator can call this function to set a new commission rate, updated at the 
 the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_commission_rate">request_set_commission_rate</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_commission_rate: u64, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_commission_rate">request_set_commission_rate</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1169,7 +1141,7 @@ the epoch.
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_commission_rate">request_set_commission_rate</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
-    new_commission_rate: u64,
+    new_commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &TxContext,
 ) {
     self.validators.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_set_commission_rate">request_set_commission_rate</a>(
@@ -1190,7 +1162,7 @@ the epoch.
 This function is used to set new commission rate for candidate validators
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_set_candidate_validator_commission_rate">set_candidate_validator_commission_rate</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_commission_rate: u64, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_set_candidate_validator_commission_rate">set_candidate_validator_commission_rate</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1201,7 +1173,7 @@ This function is used to set new commission rate for candidate validators
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_set_candidate_validator_commission_rate">set_candidate_validator_commission_rate</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
-    new_commission_rate: u64,
+    new_commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &TxContext,
 ) {
     <b>let</b> candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
@@ -1254,7 +1226,7 @@ Add stake to a validator's staking pool.
 Add stake to a validator's staking pool using multiple coins.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_add_stake_mul_coin">request_add_stake_mul_coin</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, stakes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;&gt;, stake_amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, validator_address: <b>address</b>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_add_stake_mul_coin">request_add_stake_mul_coin</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, stakes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;&gt;, stake_amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;, validator_address: <b>address</b>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
 </code></pre>
 
 
@@ -1266,7 +1238,7 @@ Add stake to a validator's staking pool using multiple coins.
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_add_stake_mul_coin">request_add_stake_mul_coin</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
     stakes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Coin&lt;IOTA&gt;&gt;,
-    stake_amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;,
+    stake_amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;,
     validator_address: <b>address</b>,
     ctx: &<b>mut</b> TxContext,
 ) : StakedIota {
@@ -1300,10 +1272,6 @@ Withdraw some portion of a stake from a validator's staking pool.
     staked_iota: StakedIota,
     ctx: &TxContext,
 ) : Balance&lt;IOTA&gt; {
-    <b>assert</b>!(
-        stake_activation_epoch(&staked_iota) &lt;= ctx.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch">epoch</a>(),
-        <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EStakeWithdrawBeforeActivation">EStakeWithdrawBeforeActivation</a>
-    );
     self.validators.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_request_withdraw_stake">request_withdraw_stake</a>(staked_iota, ctx)
 }
 </code></pre>
@@ -2056,11 +2024,14 @@ It does the following things:
 1. Add storage charge to the storage fund.
 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
 gas coins.
-3. Distribute computation charge to validator stake.
-4. Update all validators.
+3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+or smaller than the computation reward.
+4. Distribute the target reward to the validators.
+5. Burn any leftover rewards.
+6. Update all validators.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_epoch: u64, next_protocol_version: u64, storage_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64, non_refundable_storage_fee_amount: u64, storage_fund_reinvest_rate: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, next_protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, validator_target_reward: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, storage_charge: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, non_refundable_storage_fee_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, reward_slashing_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, epoch_start_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -2071,37 +2042,26 @@ gas coins.
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
-    new_epoch: u64,
-    next_protocol_version: u64,
-    <b>mut</b> storage_reward: Balance&lt;IOTA&gt;,
+    new_epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    next_protocol_version: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    validator_target_reward: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    <b>mut</b> storage_charge: Balance&lt;IOTA&gt;,
     <b>mut</b> computation_reward: Balance&lt;IOTA&gt;,
-    <b>mut</b> storage_rebate_amount: u64,
-    <b>mut</b> non_refundable_storage_fee_amount: u64,
-    storage_fund_reinvest_rate: u64, // share of storage fund's rewards that's reinvested
-                                     // into storage fund, in basis point.
-    reward_slashing_rate: u64, // how much rewards are slashed <b>to</b> punish a <a href="validator.md#0x3_validator">validator</a>, in bps.
-    epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
+    <b>mut</b> storage_rebate_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    <b>mut</b> non_refundable_storage_fee_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    reward_slashing_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, // how much rewards are slashed <b>to</b> punish a <a href="validator.md#0x3_validator">validator</a>, in bps.
+    epoch_start_timestamp_ms: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, // Timestamp of the epoch start
     ctx: &<b>mut</b> TxContext,
 ) : Balance&lt;IOTA&gt; {
-    <b>let</b> prev_epoch_start_timestamp = self.epoch_start_timestamp_ms;
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
 
-    <b>let</b> bps_denominator_u64 = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a> <b>as</b> u64;
+    <b>let</b> bps_denominator_u64 = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a> <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>;
     // Rates can't be higher than 100%.
-    <b>assert</b>!(
-        storage_fund_reinvest_rate &lt;= bps_denominator_u64
-        && reward_slashing_rate &lt;= bps_denominator_u64,
-        <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>,
-    );
-
-    // TODO: remove this in later upgrade.
-    <b>if</b> (self.parameters.stake_subsidy_start_epoch &gt; 0) {
-        self.parameters.stake_subsidy_start_epoch = 20;
-    };
+    <b>assert</b>!(reward_slashing_rate &lt;= bps_denominator_u64, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>);
 
     // Accumulate the gas summary during safe_mode before processing any rewards:
-    <b>let</b> safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
-    storage_reward.join(safe_mode_storage_rewards);
+    <b>let</b> safe_mode_storage_charges = self.safe_mode_storage_charges.withdraw_all();
+    storage_charge.join(safe_mode_storage_charges);
     <b>let</b> safe_mode_computation_rewards = self.safe_mode_computation_rewards.withdraw_all();
     computation_reward.join(safe_mode_computation_rewards);
     storage_rebate_amount = storage_rebate_amount + self.safe_mode_storage_rebates;
@@ -2109,49 +2069,24 @@ gas coins.
     non_refundable_storage_fee_amount = non_refundable_storage_fee_amount + self.safe_mode_non_refundable_storage_fee;
     self.safe_mode_non_refundable_storage_fee = 0;
 
-    <b>let</b> total_validators_stake = self.validators.total_stake();
-    <b>let</b> storage_fund_balance = self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.total_balance();
-    <b>let</b> total_stake = storage_fund_balance + total_validators_stake;
-
-    <b>let</b> storage_charge = storage_reward.value();
+    <b>let</b> storage_charge_value = storage_charge.value();
     <b>let</b> computation_charge = computation_reward.value();
 
-    // Include stake subsidy in the rewards given out <b>to</b> validators and stakers.
-    // Delay distributing any stake subsidies until after `stake_subsidy_start_epoch`.
-    // And <b>if</b> this epoch is shorter than the regular epoch duration, don't distribute any stake subsidy.
-    <b>let</b> <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a> =
-        <b>if</b> (ctx.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch">epoch</a>() &gt;= self.parameters.stake_subsidy_start_epoch  &&
-            epoch_start_timestamp_ms &gt;= prev_epoch_start_timestamp + self.parameters.epoch_duration_ms)
-        {
-            self.<a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>()
-        } <b>else</b> {
-            <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>()
-        };
-
-    <b>let</b> stake_subsidy_amount = <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>.value();
-    computation_reward.join(<a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>);
-
-    <b>let</b> total_stake_u128 = total_stake <b>as</b> u128;
-    <b>let</b> computation_charge_u128 = computation_charge <b>as</b> u128;
-
-    <b>let</b> storage_fund_reward_amount = storage_fund_balance <b>as</b> u128 * computation_charge_u128 / total_stake_u128;
-    <b>let</b> <b>mut</b> storage_fund_reward = computation_reward.split(storage_fund_reward_amount <b>as</b> u64);
-    <b>let</b> storage_fund_reinvestment_amount =
-        storage_fund_reward_amount * (storage_fund_reinvest_rate <b>as</b> u128) / <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a>;
-    <b>let</b> storage_fund_reinvestment = storage_fund_reward.split(
-        storage_fund_reinvestment_amount <b>as</b> u64,
+    <b>let</b> (<b>mut</b> total_validator_rewards, minted_tokens_amount, <b>mut</b> burnt_tokens_amount) = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</a>(
+        validator_target_reward,
+        computation_reward,
+        &<b>mut</b> self.iota_treasury_cap,
+        ctx
     );
 
     self.epoch = self.epoch + 1;
     // Sanity check <b>to</b> make sure we are advancing <b>to</b> the right epoch.
     <b>assert</b>!(new_epoch == self.epoch, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EAdvancedToWrongEpoch">EAdvancedToWrongEpoch</a>);
 
-    <b>let</b> computation_reward_amount_before_distribution = computation_reward.value();
-    <b>let</b> storage_fund_reward_amount_before_distribution = storage_fund_reward.value();
+    <b>let</b> total_validator_rewards_amount_before_distribution = total_validator_rewards.value();
 
     self.validators.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(
-        &<b>mut</b> computation_reward,
-        &<b>mut</b> storage_fund_reward,
+        &<b>mut</b> total_validator_rewards,
         &<b>mut</b> self.validator_report_records,
         reward_slashing_rate,
         self.parameters.validator_low_stake_threshold,
@@ -2162,27 +2097,23 @@ gas coins.
 
     <b>let</b> new_total_stake = self.validators.total_stake();
 
-    <b>let</b> computation_reward_amount_after_distribution = computation_reward.value();
-    <b>let</b> storage_fund_reward_amount_after_distribution = storage_fund_reward.value();
-    <b>let</b> computation_reward_distributed = computation_reward_amount_before_distribution - computation_reward_amount_after_distribution;
-    <b>let</b> storage_fund_reward_distributed = storage_fund_reward_amount_before_distribution - storage_fund_reward_amount_after_distribution;
+    <b>let</b> remaining_validator_rewards_amount_after_distribution = total_validator_rewards.value();
+    <b>let</b> total_validator_rewards_distributed = total_validator_rewards_amount_before_distribution - remaining_validator_rewards_amount_after_distribution;
 
     self.protocol_version = next_protocol_version;
 
     // Derive the reference gas price for the new epoch
     self.reference_gas_price = self.validators.derive_reference_gas_price();
     // Because of precision issues <b>with</b> integer divisions, we expect that there will be some
-    // remaining <a href="../iota-framework/balance.md#0x2_balance">balance</a> in `storage_fund_reward` and `computation_reward`.
-    // All of these go <b>to</b> the storage fund.
-    <b>let</b> <b>mut</b> leftover_staking_rewards = storage_fund_reward;
-    leftover_staking_rewards.join(computation_reward);
-    <b>let</b> leftover_storage_fund_inflow = leftover_staking_rewards.value();
+    // remaining <a href="../iota-framework/balance.md#0x2_balance">balance</a> in `total_validator_rewards`.
+    <b>let</b> leftover_staking_rewards = total_validator_rewards;
+    // Burn any remaining leftover rewards.
+    burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
+    self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
     <b>let</b> refunded_storage_rebate =
         self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(
-            storage_reward,
-            storage_fund_reinvestment,
-            leftover_staking_rewards,
+            storage_charge,
             storage_rebate_amount,
             non_refundable_storage_fee_amount,
         );
@@ -2193,25 +2124,68 @@ gas coins.
             protocol_version: self.protocol_version,
             reference_gas_price: self.reference_gas_price,
             total_stake: new_total_stake,
-            storage_charge,
-            storage_fund_reinvestment: storage_fund_reinvestment_amount <b>as</b> u64,
+            storage_charge: storage_charge_value,
             storage_rebate: storage_rebate_amount,
             storage_fund_balance: self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.total_balance(),
-            stake_subsidy_amount,
             total_gas_fees: computation_charge,
-            total_stake_rewards_distributed: computation_reward_distributed + storage_fund_reward_distributed,
-            leftover_storage_fund_inflow,
+            total_stake_rewards_distributed: total_validator_rewards_distributed,
+            burnt_tokens_amount,
+            minted_tokens_amount
         }
     );
     self.safe_mode = <b>false</b>;
     // Double check that the gas from safe mode <b>has</b> been processed.
     <b>assert</b>!(self.safe_mode_storage_rebates == 0
-        && self.safe_mode_storage_rewards.value() == 0
+        && self.safe_mode_storage_charges.value() == 0
         && self.safe_mode_computation_rewards.value() == 0, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ESafeModeGasNotProcessed">ESafeModeGasNotProcessed</a>);
 
     // Return the storage rebate split from storage fund that's already refunded <b>to</b> the transaction senders.
     // This will be burnt at the last step of epoch change programmable transaction.
     refunded_storage_rebate
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_state_inner_match_computation_reward_to_target_reward"></a>
+
+## Function `match_computation_reward_to_target_reward`
+
+Mint or burn IOTA tokens depending on the given target reward per validator
+and the amount of computation fees burned in this epoch.
+
+
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</a>(validator_target_reward: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, iota_treasury_cap: &<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): (<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</a>(
+    validator_target_reward: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    <b>mut</b> computation_reward: Balance&lt;IOTA&gt;,
+    iota_treasury_cap: &<b>mut</b> iota::iota::IotaTreasuryCap,
+    ctx: &TxContext,
+): (Balance&lt;IOTA&gt;, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>) {
+    <b>let</b> <b>mut</b> burnt_tokens_amount = 0;
+    <b>let</b> <b>mut</b> minted_tokens_amount = 0;
+    <b>if</b> (computation_reward.value() &lt; validator_target_reward) {
+        <b>let</b> tokens_to_mint = validator_target_reward - computation_reward.value();
+        <b>let</b> new_tokens = iota_treasury_cap.mint_balance(tokens_to_mint, ctx);
+        minted_tokens_amount = new_tokens.value();
+        computation_reward.join(new_tokens);
+    } <b>else</b> <b>if</b> (computation_reward.value() &gt; validator_target_reward) {
+        <b>let</b> tokens_to_burn = computation_reward.value() - validator_target_reward;
+        <b>let</b> rewards_to_burn = computation_reward.split(tokens_to_burn);
+        burnt_tokens_amount = rewards_to_burn.value();
+        iota_treasury_cap.burn_balance(rewards_to_burn, ctx);
+    };
+    (computation_reward, minted_tokens_amount, burnt_tokens_amount)
 }
 </code></pre>
 
@@ -2227,7 +2201,7 @@ Return the current epoch number. Useful for applications that need a coarse-grai
 since epochs are ever-increasing and epoch changes are intended to happen every 24 hours.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch">epoch</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch">epoch</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2236,7 +2210,7 @@ since epochs are ever-increasing and epoch changes are intended to happen every 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch">epoch</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch">epoch</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.epoch
 }
 </code></pre>
@@ -2251,7 +2225,7 @@ since epochs are ever-increasing and epoch changes are intended to happen every 
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_protocol_version">protocol_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_protocol_version">protocol_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2260,7 +2234,7 @@ since epochs are ever-increasing and epoch changes are intended to happen every 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_protocol_version">protocol_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_protocol_version">protocol_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.protocol_version
 }
 </code></pre>
@@ -2275,7 +2249,7 @@ since epochs are ever-increasing and epoch changes are intended to happen every 
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_system_state_version">system_state_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_system_state_version">system_state_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2284,7 +2258,7 @@ since epochs are ever-increasing and epoch changes are intended to happen every 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_system_state_version">system_state_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_system_state_version">system_state_version</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.system_state_version
 }
 </code></pre>
@@ -2301,7 +2275,7 @@ This function always return the genesis system state version, which is used to c
 It should never change for a given network.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_genesis_system_state_version">genesis_system_state_version</a>(): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_genesis_system_state_version">genesis_system_state_version</a>(): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2310,7 +2284,7 @@ It should never change for a given network.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_genesis_system_state_version">genesis_system_state_version</a>(): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_genesis_system_state_version">genesis_system_state_version</a>(): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SYSTEM_STATE_VERSION_V1">SYSTEM_STATE_VERSION_V1</a>
 }
 </code></pre>
@@ -2326,7 +2300,7 @@ It should never change for a given network.
 Returns unix timestamp of the start of current epoch
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch_start_timestamp_ms">epoch_start_timestamp_ms</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch_start_timestamp_ms">epoch_start_timestamp_ms</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2335,7 +2309,7 @@ Returns unix timestamp of the start of current epoch
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch_start_timestamp_ms">epoch_start_timestamp_ms</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_epoch_start_timestamp_ms">epoch_start_timestamp_ms</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.epoch_start_timestamp_ms
 }
 </code></pre>
@@ -2352,7 +2326,7 @@ Returns the total amount staked with <code>validator_addr</code>.
 Aborts if <code>validator_addr</code> is not an active validator.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_validator_stake_amount">validator_stake_amount</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, validator_addr: <b>address</b>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_validator_stake_amount">validator_stake_amount</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, validator_addr: <b>address</b>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2361,8 +2335,41 @@ Aborts if <code>validator_addr</code> is not an active validator.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_validator_stake_amount">validator_stake_amount</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>, validator_addr: <b>address</b>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_validator_stake_amount">validator_stake_amount</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>, validator_addr: <b>address</b>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.validators.validator_total_stake_amount(validator_addr)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_state_inner_active_validator_voting_powers"></a>
+
+## Function `active_validator_voting_powers`
+
+Returns the voting power for <code>validator_addr</code>.
+Aborts if <code>validator_addr</code> is not an active validator.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_active_validator_voting_powers">active_validator_voting_powers</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_active_validator_voting_powers">active_validator_voting_powers</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): VecMap&lt;<b>address</b>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt; {
+    <b>let</b> <b>mut</b> active_validators = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_active_validator_addresses">active_validator_addresses</a>(self);
+    <b>let</b> <b>mut</b> voting_powers = <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>();
+    <b>while</b> (!<a href="../move-stdlib/vector.md#0x1_vector_is_empty">vector::is_empty</a>(&active_validators)) {
+        <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="../move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</a>(&<b>mut</b> active_validators);
+        <b>let</b> <a href="voting_power.md#0x3_voting_power">voting_power</a> = <a href="validator_set.md#0x3_validator_set_validator_voting_power">validator_set::validator_voting_power</a>(&self.validators, <a href="validator.md#0x3_validator">validator</a>);
+        <a href="../iota-framework/vec_map.md#0x2_vec_map_insert">vec_map::insert</a>(&<b>mut</b> voting_powers, <a href="validator.md#0x3_validator">validator</a>, <a href="voting_power.md#0x3_voting_power">voting_power</a>);
+    };
+    voting_powers
 }
 </code></pre>
 
@@ -2423,6 +2430,31 @@ Returns reference to the staking pool mappings that map pool ids to active valid
 
 </details>
 
+<a name="0x3_iota_system_state_inner_get_total_iota_supply"></a>
+
+## Function `get_total_iota_supply`
+
+Returns the total iota supply.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_total_iota_supply">get_total_iota_supply</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_total_iota_supply">get_total_iota_supply</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
+    self.iota_treasury_cap.total_supply()
+}
+</code></pre>
+
+
+
+</details>
+
 <a name="0x3_iota_system_state_inner_get_reporters_of"></a>
 
 ## Function `get_reporters_of`
@@ -2459,7 +2491,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_total_balance">get_storage_fund_total_balance</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_total_balance">get_storage_fund_total_balance</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2468,7 +2500,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_total_balance">get_storage_fund_total_balance</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_total_balance">get_storage_fund_total_balance</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.total_balance()
 }
 </code></pre>
@@ -2483,7 +2515,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_object_rebates">get_storage_fund_object_rebates</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): u64
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_object_rebates">get_storage_fund_object_rebates</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -2492,7 +2524,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_object_rebates">get_storage_fund_object_rebates</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): u64 {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_get_storage_fund_object_rebates">get_storage_fund_object_rebates</a>(self: &<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.total_object_storage_rebates()
 }
 </code></pre>
@@ -2507,7 +2539,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_pool_exchange_rates">pool_exchange_rates</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, pool_id: &<a href="../iota-framework/object.md#0x2_object_ID">object::ID</a>): &<a href="../iota-framework/table.md#0x2_table_Table">table::Table</a>&lt;u64, <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_pool_exchange_rates">pool_exchange_rates</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, pool_id: &<a href="../iota-framework/object.md#0x2_object_ID">object::ID</a>): &<a href="../iota-framework/table.md#0x2_table_Table">table::Table</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>&gt;
 </code></pre>
 
 
@@ -2519,7 +2551,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_pool_exchange_rates">pool_exchange_rates</a>(
     self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>,
     pool_id: &ID
-): &Table&lt;u64, PoolTokenExchangeRate&gt;  {
+): &Table&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, PoolTokenExchangeRate&gt;  {
     <b>let</b> validators = &<b>mut</b> self.validators;
     validators.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_pool_exchange_rates">pool_exchange_rates</a>(pool_id)
 }
@@ -2561,7 +2593,7 @@ Returns all the validators who are currently reporting <code>addr</code>
 Extract required Balance from vector of Coin<IOTA>, transfer the remainder back to sender.
 
 
-<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_extract_coin_balance">extract_coin_balance</a>(coins: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;&gt;, amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_extract_coin_balance">extract_coin_balance</a>(coins: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;&gt;, amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -2570,7 +2602,7 @@ Extract required Balance from vector of Coin<IOTA>, transfer the remainder back 
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_extract_coin_balance">extract_coin_balance</a>(<b>mut</b> coins: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Coin&lt;IOTA&gt;&gt;, amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, ctx: &<b>mut</b> TxContext): Balance&lt;IOTA&gt; {
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_extract_coin_balance">extract_coin_balance</a>(<b>mut</b> coins: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Coin&lt;IOTA&gt;&gt;, amount: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;, ctx: &<b>mut</b> TxContext): Balance&lt;IOTA&gt; {
     <b>let</b> <b>mut</b> merged_coin = coins.pop_back();
     merged_coin.join_vec(coins);
 

@@ -6,14 +6,14 @@ use std::{num::NonZeroUsize, time::Duration};
 
 use config::Parameters;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use narwhal_node::{
     execution_state::SimpleExecutionState, primary_node::PrimaryNode, worker_node::WorkerNodes,
 };
 use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::NodeStorage;
-use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, temp_dir};
 use tokio::{sync::mpsc::channel, time::sleep};
 use worker::TrivialTransactionValidator;
 

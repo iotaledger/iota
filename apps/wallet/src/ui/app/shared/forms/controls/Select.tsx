@@ -16,12 +16,12 @@ const SelectTrigger = forwardRef<
 >(({ className, children, ...props }, ref) => (
     <SelectPrimitive.Trigger
         ref={ref}
-        className="group flex cursor-pointer items-center gap-0.5 rounded-lg border border-solid border-gray-45 bg-white px-4 py-3 text-steel-dark shadow-sm transition hover:border-steel hover:text-steel-darker focus:outline-none active:bg-hero/5 active:text-steel-dark disabled:cursor-default disabled:border-gray-45 disabled:bg-white disabled:text-gray-60"
+        className="border-gray-45 text-steel-dark hover:border-steel hover:text-steel-darker active:bg-hero/5 active:text-steel-dark disabled:border-gray-45 disabled:text-gray-60 group flex cursor-pointer items-center gap-0.5 rounded-lg border border-solid bg-white px-4 py-3 shadow-sm transition focus:outline-none disabled:cursor-default disabled:bg-white"
         {...props}
     >
         {children}
         <SelectPrimitive.Icon asChild>
-            <ChevronDown12 className="text-steel transition group-hover:text-steel-darker group-active:text-steel-dark group-disabled:text-gray-45" />
+            <ChevronDown12 className="text-steel group-hover:text-steel-darker group-active:text-steel-dark group-disabled:text-gray-45 transition" />
         </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
 ));
@@ -37,7 +37,7 @@ const SelectContent = forwardRef<
             className="z-[99999] min-w-[112px] bg-transparent"
             {...props}
         >
-            <SelectPrimitive.Viewport className="rounded-lg border border-solid border-gray-45 bg-white p-2 shadow-sm">
+            <SelectPrimitive.Viewport className="border-gray-45 rounded-lg border border-solid bg-white p-2 shadow-sm">
                 {children}
             </SelectPrimitive.Viewport>
         </SelectPrimitive.Content>
@@ -51,7 +51,7 @@ const SelectItem = forwardRef<
 >(({ className, children, ...props }, ref) => (
     <SelectPrimitive.Item
         ref={ref}
-        className="flex cursor-pointer items-center rounded-md p-2 text-steel-dark outline-none transition hover:bg-hero/5 hover:text-steel-darker"
+        className="text-steel-dark hover:bg-hero/5 hover:text-steel-darker flex cursor-pointer items-center rounded-md p-2 outline-none transition"
         {...props}
     >
         <SelectPrimitive.ItemText>

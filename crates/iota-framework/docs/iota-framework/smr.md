@@ -60,7 +60,7 @@ Name of the coin
 Sender is not @0x0 the system address.
 
 
-<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_ENotSystemAddress">ENotSystemAddress</a>: u64 = 1;
+<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_ENotSystemAddress">ENotSystemAddress</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1;
 </code></pre>
 
 
@@ -69,7 +69,7 @@ Sender is not @0x0 the system address.
 
 
 
-<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_EAlreadyMinted">EAlreadyMinted</a>: u64 = 0;
+<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_EAlreadyMinted">EAlreadyMinted</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 0;
 </code></pre>
 
 
@@ -80,7 +80,7 @@ The amount of Glows per Shimmer token based on the fact that micros is
 10^-6 of a Shimmer token
 
 
-<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_GLOW_PER_SMR">GLOW_PER_SMR</a>: u64 = 1000000;
+<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_GLOW_PER_SMR">GLOW_PER_SMR</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1000000;
 </code></pre>
 
 
@@ -90,7 +90,7 @@ The amount of Glows per Shimmer token based on the fact that micros is
 The total supply of Shimmer denominated in Glows
 
 
-<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_TOTAL_SUPPLY_GLOWS">TOTAL_SUPPLY_GLOWS</a>: u64 = 1813620509061365;
+<pre><code><b>const</b> <a href="../iota-framework/smr.md#0x2_smr_TOTAL_SUPPLY_GLOWS">TOTAL_SUPPLY_GLOWS</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1813620509061365;
 </code></pre>
 
 

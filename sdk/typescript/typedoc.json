@@ -11,8 +11,7 @@
         "src/multisig",
         "src/transactions",
         "src/utils",
-        "src/verify",
-        "src/zklogin"
+        "src/verify"
     ],
     "excludeInternal": true,
     "excludePrivate": true,

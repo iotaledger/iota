@@ -6,7 +6,7 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
-    io::{prelude::Write, BufWriter},
+    io::{BufWriter, prelude::Write},
 };
 
 use anyhow::Result;
@@ -14,21 +14,22 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
-    timelock::timelock::{self, is_timelocked_balance, TimeLock},
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
+    timelock::timelock::{self, TimeLock, is_timelocked_balance},
 };
+use move_binary_format::file_format_common::VERSION_MAX;
 use tracing::info;
 
 use crate::stardust::{
     migration::{
+        MigrationTargetNetwork,
         executor::Executor,
         verification::{created_objects::CreatedObjects, verify_outputs},
-        MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
     types::output_header::OutputHeader,
@@ -259,7 +260,7 @@ impl Migration {
 /// All the objects created during the migration.
 ///
 /// Internally it maintains indexes of [`TimeLock`] and
-/// [`iota_types::gas_coin::GasCoin`] objects groupped by their owners to
+/// [`iota_types::gas_coin::GasCoin`] objects grouped by their owners to
 /// accommodate queries of this sort.
 #[derive(Debug, Clone, Default)]
 pub struct MigrationObjects {
@@ -346,8 +347,8 @@ impl MigrationObjects {
             })
     }
 
-    /// Get [`TimeLock`] objects created during the migration togeter with their
-    /// expiration timestamp.
+    /// Get [`TimeLock`] objects created during the migration together with
+    /// their expiration timestamp.
     ///
     /// The query is filtered by the object owner.
     pub fn get_timelocks_and_expiration_by_owner(
@@ -406,7 +407,7 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
     pkg.get_modules()
         .map(|module| {
             let mut buf = Vec::new();
-            module.serialize(&mut buf)?;
+            module.serialize_with_version(VERSION_MAX, &mut buf)?;
             Ok(buf)
         })
         .collect::<Result<_>>()
@@ -433,7 +434,7 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::{to_genesis_object, TimeLock},
+        timelock::timelock::{TimeLock, to_genesis_object},
     };
 
     use super::*;

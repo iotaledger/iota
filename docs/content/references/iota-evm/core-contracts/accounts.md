@@ -2,12 +2,8 @@
 description: 'The `accounts` contract keeps the ledger of on-chain accounts.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - core contracts
-  - accounts
-  - deposit
-  - withdraw
-  - assets
-  - balance
+  - core-contract
+  - isc-accounts
   - reference
 ---
 
@@ -142,12 +138,11 @@ This operation cannot be reverted.
 
 - `s` (`uint32`): The serial number of the foundry.
 
-
 ### `foundryCreateNew(t TokenScheme) s SerialNumber`
 
 :::warning Deprecated
 
-This function is deprecated, please use [`nativeTokenCreate`](#nativetokencreatet-tokenscheme-s-serialnumber) instead
+This function is deprecated, please use [`nativeTokenCreate`](#nativetokencreatet-tokenscheme-tn-tokenname-ts-tokensymbol-td-tokendecimal-s-serialnumber) instead
 
 :::
 
@@ -165,7 +160,6 @@ The storage deposit for the new foundry must be provided via allowance (only the
 #### Returns
 
 - `s` (`uint32`): The serial number of the newly created foundry
-
 
 ### `mintNFT(I ImmutableData, a AgentID, C CollectionID, w WithdrawOnMint)`
 

@@ -9,14 +9,13 @@ use iota_types::{
     transaction::GasData,
 };
 
-use super::{
+use crate::types::{
     address::Address,
     big_int::BigInt,
     cursor::Page,
     iota_address::IotaAddress,
-    object::{self, ObjectFilter, ObjectKey, ObjectLookupKey},
+    object::{self, Object, ObjectFilter, ObjectKey},
 };
-use crate::types::object::Object;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GasInput {
@@ -24,9 +23,8 @@ pub(crate) struct GasInput {
     pub price: u64,
     pub budget: u64,
     pub payment_obj_keys: Vec<ObjectKey>,
-    /// The checkpoint sequence number at which this was viewed at, or None if
-    /// the data was requested at the latest checkpoint.
-    pub checkpoint_viewed_at: Option<u64>,
+    /// The checkpoint sequence number at which this was viewed at
+    pub checkpoint_viewed_at: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,7 +90,7 @@ impl GasInput {
     }
 
     /// An unsigned integer specifying the number of native tokens per gas unit
-    /// this transaction will pay (in MICROS).
+    /// this transaction will pay (in NANOS).
     async fn gas_price(&self) -> Option<BigInt> {
         Some(BigInt::from(self.price))
     }
@@ -107,12 +105,12 @@ impl GasInput {
 /// Breakdown of gas costs in effects.
 #[Object]
 impl GasCostSummary {
-    /// Gas paid for executing this transaction (in MICROS).
+    /// Gas paid for executing this transaction (in NANOS).
     async fn computation_cost(&self) -> Option<BigInt> {
         Some(BigInt::from(self.computation_cost))
     }
 
-    /// Gas paid for the data stored on-chain by this transaction (in MICROS).
+    /// Gas paid for the data stored on-chain by this transaction (in NANOS).
     async fn storage_cost(&self) -> Option<BigInt> {
         Some(BigInt::from(self.storage_cost))
     }
@@ -120,13 +118,13 @@ impl GasCostSummary {
     /// Part of storage cost that can be reclaimed by cleaning up data created
     /// by this transaction (when objects are deleted or an object is
     /// modified, which is treated as a deletion followed by a creation) (in
-    /// MICROS).
+    /// NANOS).
     async fn storage_rebate(&self) -> Option<BigInt> {
         Some(BigInt::from(self.storage_rebate))
     }
 
     /// Part of storage cost that is not reclaimed when data created by this
-    /// transaction is cleaned up (in MICROS).
+    /// transaction is cleaned up (in NANOS).
     async fn non_refundable_storage_fee(&self) -> Option<BigInt> {
         Some(BigInt::from(self.non_refundable_storage_fee))
     }
@@ -138,12 +136,9 @@ impl GasCostSummary {
 impl GasEffects {
     async fn gas_object(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
         Object::query(
-            ctx.data_unchecked(),
+            ctx,
             self.object_id,
-            ObjectLookupKey::VersionAt {
-                version: self.object_version,
-                checkpoint_viewed_at: Some(self.checkpoint_viewed_at),
-            },
+            Object::at_version(self.object_version, self.checkpoint_viewed_at),
         )
         .await
         .extend()
@@ -156,10 +151,9 @@ impl GasEffects {
 
 impl GasEffects {
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
-    /// which this `GasEffects` was queried for, or `None` if the data was
-    /// requested at the latest checkpoint. This is stored on `GasEffects`
-    /// so that when viewing that entity's state, it will be as if it was
-    /// read at the same checkpoint.
+    /// which this `GasEffects` was queried for. This is stored on
+    /// `GasEffects` so that when viewing that entity's state, it will be as
+    /// if it was read at the same checkpoint.
     pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
         let ((id, version, _digest), _owner) = effects.gas_object();
         Self {
@@ -173,11 +167,10 @@ impl GasEffects {
 
 impl GasInput {
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
-    /// which this `GasInput` was queried for, or `None` if the data was
-    /// requested at the latest checkpoint. This is stored on `GasInput` so
-    /// that when viewing that entity's state, it will be as if it was read
-    /// at the same checkpoint.
-    pub(crate) fn from(s: &GasData, checkpoint_viewed_at: Option<u64>) -> Self {
+    /// which this `GasInput` was queried for. This is stored on `GasInput`
+    /// so that when viewing that entity's state, it will be as if it was
+    /// read at the same checkpoint.
+    pub(crate) fn from(s: &GasData, checkpoint_viewed_at: u64) -> Self {
         Self {
             owner: s.owner.into(),
             price: s.price,
@@ -187,7 +180,7 @@ impl GasInput {
                 .iter()
                 .map(|o| ObjectKey {
                     object_id: o.0.into(),
-                    version: o.1.value(),
+                    version: o.1.value().into(),
                 })
                 .collect(),
             checkpoint_viewed_at,

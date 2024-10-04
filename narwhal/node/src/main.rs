@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![warn(
     future_incompatible,
     nonstandard_style,
@@ -9,6 +10,7 @@
     rust_2021_compatibility
 )]
 mod benchmark_client;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -16,7 +18,7 @@ use std::{
     sync::Arc,
 };
 
-use benchmark_client::{parse_url, url_to_multiaddr, Client, OperatingMode};
+use benchmark_client::{Client, OperatingMode, parse_url, url_to_multiaddr};
 use clap::{Parser, Subcommand};
 use config::{
     Committee, CommitteeBuilder, Epoch, Export, Import, Parameters, PrometheusMetricsParameters,
@@ -30,14 +32,14 @@ use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_network_keypair_from_file,
     write_authority_keypair_to_file, write_keypair_to_file,
 };
+use iota_metrics::start_prometheus_server;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey,
+        AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
-use mysten_metrics::start_prometheus_server;
 use narwhal_node as node;
 use narwhal_node::{
     metrics::NarwhalBenchMetrics, primary_node::PrimaryNode, worker_node::WorkerNode,
@@ -48,7 +50,7 @@ use node::{
     metrics::{primary_metrics_registry, worker_metrics_registry},
 };
 use prometheus::Registry;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{sync::mpsc::channel, time::Duration};
@@ -565,7 +567,7 @@ async fn run(
 
     // Make the data store.
     let certificate_store_cache_metrics =
-        CertificateStoreCacheMetrics::new(&registry_service.default_registry());
+        Arc::new(CertificateStoreCacheMetrics::new(registry_service.clone()));
     let store = NodeStorage::reopen(store_path, Some(certificate_store_cache_metrics.clone()));
 
     let client = NetworkClient::new_from_keypair(&primary_network_keypair);
@@ -662,7 +664,7 @@ async fn run(
                 .await?;
 
             let registry: Registry = registry_service.default_registry();
-            mysten_metrics::init_metrics(&registry);
+            iota_metrics::init_metrics(&registry);
             let metrics = NarwhalBenchMetrics::new(&registry);
 
             let target = addr;
@@ -698,12 +700,12 @@ async fn run(
     };
 
     if let Some(registry) = worker_registry {
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         registry_service.add(registry);
     }
 
     if let Some(registry) = primary_registry {
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         registry_service.add(registry);
     }
 

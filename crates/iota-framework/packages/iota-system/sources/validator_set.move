@@ -21,15 +21,6 @@ module iota_system::validator_set {
     use iota::bag::Bag;
     use iota::bag;
 
-    /* friend iota_system::genesis; */
-    /* friend iota_system::iota_system_state_inner; */
-
-    /* #[test_only] */
-    /* friend iota_system::validator_set_tests; */
-
-    /* #[test_only] */
-    /* friend iota_system::stake_tests; */
-
     public struct ValidatorSet has store {
         /// Total amount of stake from all active validators at the beginning of the epoch.
         total_stake: u64,
@@ -77,7 +68,6 @@ module iota_system::validator_set {
         stake: u64,
         commission_rate: u64,
         pool_staking_reward: u64,
-        storage_fund_staking_reward: u64,
         pool_token_exchange_rate: PoolTokenExchangeRate,
         tallying_rule_reporters: vector<address>,
         tallying_rule_global_score: u64,
@@ -92,7 +82,6 @@ module iota_system::validator_set {
         voting_power: u64,
         commission_rate: u64,
         pool_staking_reward: u64,
-        storage_fund_staking_reward: u64,
         pool_token_exchange_rate: PoolTokenExchangeRate,
         tallying_rule_reporters: vector<address>,
         tallying_rule_global_score: u64,
@@ -343,8 +332,7 @@ module iota_system::validator_set {
     ///   5. At the end, we calculate the total stake for the new epoch.
     public(package) fun advance_epoch(
         self: &mut ValidatorSet,
-        computation_reward: &mut Balance<IOTA>,
-        storage_fund_reward: &mut Balance<IOTA>,
+        total_validator_rewards: &mut Balance<IOTA>,
         validator_report_records: &mut VecMap<address, VecSet<address>>,
         reward_slashing_rate: u64,
         low_stake_threshold: u64,
@@ -356,11 +344,10 @@ module iota_system::validator_set {
         let total_voting_power = voting_power::total_voting_power();
 
         // Compute the reward distribution without taking into account the tallying rule slashing.
-        let (unadjusted_staking_reward_amounts, unadjusted_storage_fund_reward_amounts) = compute_unadjusted_reward_distribution(
+        let unadjusted_staking_reward_amounts = compute_unadjusted_reward_distribution(
             &self.active_validators,
             total_voting_power,
-            computation_reward.value(),
-            storage_fund_reward.value(),
+            total_validator_rewards.value(),
         );
 
         // Use the tallying rule report records for the epoch to compute validators that will be
@@ -371,30 +358,24 @@ module iota_system::validator_set {
 
         // Compute the reward adjustments of slashed validators, to be taken into
         // account in adjusted reward computation.
-        let (total_staking_reward_adjustment, individual_staking_reward_adjustments,
-             total_storage_fund_reward_adjustment, individual_storage_fund_reward_adjustments
-            ) =
+        let (total_staking_reward_adjustment, individual_staking_reward_adjustments) =
             compute_reward_adjustments(
                 get_validator_indices(&self.active_validators, &slashed_validators),
                 reward_slashing_rate,
                 &unadjusted_staking_reward_amounts,
-                &unadjusted_storage_fund_reward_amounts,
             );
 
         // Compute the adjusted amounts of stake each validator should get given the tallying rule
         // reward adjustments we computed before.
         // `compute_adjusted_reward_distribution` must be called before `distribute_reward` and `adjust_stake_and_gas_price` to
         // make sure we are using the current epoch's stake information to compute reward distribution.
-        let (adjusted_staking_reward_amounts, adjusted_storage_fund_reward_amounts) = compute_adjusted_reward_distribution(
+        let adjusted_staking_reward_amounts = compute_adjusted_reward_distribution(
             &self.active_validators,
             total_voting_power,
             total_slashed_validator_voting_power,
             unadjusted_staking_reward_amounts,
-            unadjusted_storage_fund_reward_amounts,
             total_staking_reward_adjustment,
             individual_staking_reward_adjustments,
-            total_storage_fund_reward_adjustment,
-            individual_storage_fund_reward_adjustments
         );
 
         // Distribute the rewards before adjusting stake so that we immediately start compounding
@@ -402,9 +383,7 @@ module iota_system::validator_set {
         distribute_reward(
             &mut self.active_validators,
             &adjusted_staking_reward_amounts,
-            &adjusted_storage_fund_reward_amounts,
-            computation_reward,
-            storage_fund_reward,
+            total_validator_rewards,
             ctx
         );
 
@@ -414,7 +393,7 @@ module iota_system::validator_set {
 
         // Emit events after we have processed all the rewards distribution and pending stakes.
         emit_validator_epoch_events(new_epoch, &self.active_validators, &adjusted_staking_reward_amounts,
-            &adjusted_storage_fund_reward_amounts, validator_report_records, &slashed_validators);
+            validator_report_records, &slashed_validators);
 
         // Note that all their staged next epoch metadata will be effectuated below.
         process_pending_validators(self, new_epoch);
@@ -541,6 +520,11 @@ module iota_system::validator_set {
     public fun validator_stake_amount(self: &ValidatorSet, validator_address: address): u64 {
         let validator = get_validator_ref(&self.active_validators, validator_address);
         validator.stake_amount()
+    }
+
+    public fun validator_voting_power(self: &ValidatorSet, validator_address: address): u64 {
+        let validator = get_validator_ref(&self.active_validators, validator_address);
+        validator.voting_power()
     }
 
     public fun validator_staking_pool_id(self: &ValidatorSet, validator_address: address): ID {
@@ -970,23 +954,17 @@ module iota_system::validator_set {
         }
     }
 
-    /// Compute both the individual reward adjustments and total reward adjustment for staking rewards
-    /// as well as storage fund rewards.
+    /// Compute both the individual reward adjustments and total reward adjustment for staking rewards.
     fun compute_reward_adjustments(
         mut slashed_validator_indices: vector<u64>,
         reward_slashing_rate: u64,
         unadjusted_staking_reward_amounts: &vector<u64>,
-        unadjusted_storage_fund_reward_amounts: &vector<u64>,
     ): (
         u64, // sum of staking reward adjustments
         VecMap<u64, u64>, // mapping of individual validator's staking reward adjustment from index -> amount
-        u64, // sum of storage fund reward adjustments
-        VecMap<u64, u64>, // mapping of individual validator's storage fund reward adjustment from index -> amount
     ) {
         let mut total_staking_reward_adjustment = 0;
         let mut individual_staking_reward_adjustments = vec_map::empty();
-        let mut total_storage_fund_reward_adjustment = 0;
-        let mut individual_storage_fund_reward_adjustments = vec_map::empty();
 
         while (!slashed_validator_indices.is_empty()) {
             let validator_index = slashed_validator_indices.pop_back();
@@ -1000,20 +978,9 @@ module iota_system::validator_set {
             // Insert into individual mapping and record into the total adjustment sum.
             individual_staking_reward_adjustments.insert(validator_index, staking_reward_adjustment_u128 as u64);
             total_staking_reward_adjustment = total_staking_reward_adjustment + (staking_reward_adjustment_u128 as u64);
-
-            // Do the same thing for storage fund rewards.
-            let unadjusted_storage_fund_reward = unadjusted_storage_fund_reward_amounts[validator_index];
-            let storage_fund_reward_adjustment_u128 =
-                unadjusted_storage_fund_reward as u128 * (reward_slashing_rate as u128)
-                / BASIS_POINT_DENOMINATOR;
-            individual_storage_fund_reward_adjustments.insert(validator_index, storage_fund_reward_adjustment_u128 as u64);
-            total_storage_fund_reward_adjustment = total_storage_fund_reward_adjustment + (storage_fund_reward_adjustment_u128 as u64);
         };
 
-        (
-            total_staking_reward_adjustment, individual_staking_reward_adjustments,
-            total_storage_fund_reward_adjustment, individual_storage_fund_reward_adjustments
-        )
+        (total_staking_reward_adjustment, individual_staking_reward_adjustments)
     }
 
     /// Process the validator report records of the epoch and return the addresses of the
@@ -1042,17 +1009,14 @@ module iota_system::validator_set {
     /// Given the current list of active validators, the total stake and total reward,
     /// calculate the amount of reward each validator should get, without taking into
     /// account the tallying rule results.
-    /// Returns the unadjusted amounts of staking reward and storage fund reward for each validator.
+    /// Returns the unadjusted amounts of staking reward for each validator.
     fun compute_unadjusted_reward_distribution(
         validators: &vector<Validator>,
         total_voting_power: u64,
         total_staking_reward: u64,
-        total_storage_fund_reward: u64,
-    ): (vector<u64>, vector<u64>) {
+    ): vector<u64> {
         let mut staking_reward_amounts = vector[];
-        let mut storage_fund_reward_amounts = vector[];
         let length = validators.length();
-        let storage_fund_reward_per_validator = total_storage_fund_reward / length;
         let mut i = 0;
         while (i < length) {
             let validator = &validators[i];
@@ -1062,33 +1026,26 @@ module iota_system::validator_set {
             let voting_power: u128 = validator.voting_power() as u128;
             let reward_amount = voting_power * (total_staking_reward as u128) / (total_voting_power as u128);
             staking_reward_amounts.push_back(reward_amount as u64);
-            // Storage fund's share of the rewards are equally distributed among validators.
-            storage_fund_reward_amounts.push_back(storage_fund_reward_per_validator);
             i = i + 1;
         };
-        (staking_reward_amounts, storage_fund_reward_amounts)
+        staking_reward_amounts
     }
 
     /// Use the reward adjustment info to compute the adjusted rewards each validator should get.
-    /// Returns the staking rewards each validator gets and the storage fund rewards each validator gets.
-    /// The staking rewards are shared with the stakers while the storage fund ones are not.
+    /// Returns the staking rewards each validator gets.
+    /// The staking rewards are shared with the stakers.
     fun compute_adjusted_reward_distribution(
         validators: &vector<Validator>,
         total_voting_power: u64,
         total_slashed_validator_voting_power: u64,
         unadjusted_staking_reward_amounts: vector<u64>,
-        unadjusted_storage_fund_reward_amounts: vector<u64>,
         total_staking_reward_adjustment: u64,
         individual_staking_reward_adjustments: VecMap<u64, u64>,
-        total_storage_fund_reward_adjustment: u64,
-        individual_storage_fund_reward_adjustments: VecMap<u64, u64>,
-    ): (vector<u64>, vector<u64>) {
+    ): vector<u64> {
         let total_unslashed_validator_voting_power = total_voting_power - total_slashed_validator_voting_power;
         let mut adjusted_staking_reward_amounts = vector[];
-        let mut adjusted_storage_fund_reward_amounts = vector[];
 
         let length = validators.length();
-        let num_unslashed_validators = length - individual_staking_reward_adjustments.size();
 
         let mut i = 0;
         while (i < length) {
@@ -1109,37 +1066,21 @@ module iota_system::validator_set {
                     // Otherwise the slashed rewards should be distributed among the unslashed
                     // validators so add the corresponding adjustment.
                     let adjustment = total_staking_reward_adjustment as u128 * voting_power
-                                   / (total_unslashed_validator_voting_power as u128);
+                                    / (total_unslashed_validator_voting_power as u128);
                     unadjusted_staking_reward_amount + (adjustment as u64)
                 };
             adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount);
 
-            // Compute adjusted storage fund reward.
-            let unadjusted_storage_fund_reward_amount = unadjusted_storage_fund_reward_amounts[i];
-            let adjusted_storage_fund_reward_amount =
-                // If the validator is one of the slashed ones, then subtract the adjustment.
-                if (individual_storage_fund_reward_adjustments.contains(&i)) {
-                    let adjustment = individual_storage_fund_reward_adjustments[&i];
-                    unadjusted_storage_fund_reward_amount - adjustment
-                } else {
-                    // Otherwise the slashed rewards should be equally distributed among the unslashed validators.
-                    let adjustment = total_storage_fund_reward_adjustment / num_unslashed_validators;
-                    unadjusted_storage_fund_reward_amount + adjustment
-                };
-            adjusted_storage_fund_reward_amounts.push_back(adjusted_storage_fund_reward_amount);
-
             i = i + 1;
         };
 
-        (adjusted_staking_reward_amounts, adjusted_storage_fund_reward_amounts)
+        adjusted_staking_reward_amounts
     }
 
     fun distribute_reward(
         validators: &mut vector<Validator>,
         adjusted_staking_reward_amounts: &vector<u64>,
-        adjusted_storage_fund_reward_amounts: &vector<u64>,
         staking_rewards: &mut Balance<IOTA>,
-        storage_fund_reward: &mut Balance<IOTA>,
         ctx: &mut TxContext
     ) {
         let length = validators.length();
@@ -1153,13 +1094,8 @@ module iota_system::validator_set {
             // Validator takes a cut of the rewards as commission.
             let validator_commission_amount = (staking_reward_amount as u128) * (validator.commission_rate() as u128) / BASIS_POINT_DENOMINATOR;
 
-            // The validator reward = storage_fund_reward + commission.
-            let mut validator_reward = staker_reward.split(validator_commission_amount as u64);
-
-            // Add storage fund rewards to the validator's reward.
-            validator_reward.join(
-	    	storage_fund_reward.split(adjusted_storage_fund_reward_amounts[i])
-	    );
+            // The validator reward = commission.
+            let validator_reward = staker_reward.split(validator_commission_amount as u64);
 
             // Add rewards to the validator. Don't try and distribute rewards though if the payout is zero.
             if (validator_reward.value() > 0) {
@@ -1182,7 +1118,6 @@ module iota_system::validator_set {
         new_epoch: u64,
         vs: &vector<Validator>,
         pool_staking_reward_amounts: &vector<u64>,
-        storage_fund_staking_reward_amounts: &vector<u64>,
         report_records: &VecMap<address, VecSet<address>>,
         slashed_validators: &vector<address>,
     ) {
@@ -1209,7 +1144,6 @@ module iota_system::validator_set {
                     voting_power: v.voting_power(),
                     commission_rate: v.commission_rate(),
                     pool_staking_reward: pool_staking_reward_amounts[i],
-                    storage_fund_staking_reward: storage_fund_staking_reward_amounts[i],
                     pool_token_exchange_rate: v.pool_token_exchange_rate_at_epoch(new_epoch),
                     tallying_rule_reporters,
                     tallying_rule_global_score,

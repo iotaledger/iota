@@ -2,12 +2,10 @@
 description: Example of a _Solo_ test. It deploys a new chain and invokes some view calls.
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - testing framework
-    - golang
-    - solo
-    - example
-    - new chain
-    - how-tos
+  - how-to
+  - evm
+  - solo
+  - testing
 ---
 
 # First Example
@@ -72,12 +70,12 @@ The output of the test will be something like this:
 
 :::note
 
--   The example uses [`stretchr/testify`](https://github.com/stretchr/testify) for assertions, but it is not strictly
-    required.
--   Addresses, chain IDs and other hashes should be the same on each run of the test because Solo uses a constant seed by
-    default.
--   The timestamps shown in the log come from the computer's timer, but the Solo environment operates on its own logical
-    time.
+- The example uses [`stretchr/testify`](https://github.com/stretchr/testify) for assertions, but it is not strictly
+  required.
+- Addresses, chain IDs and other hashes should be the same on each run of the test because Solo uses a constant seed by
+  default.
+- The timestamps shown in the log come from the computer's timer, but the Solo environment operates on its own logical
+  time.
 
 :::
 

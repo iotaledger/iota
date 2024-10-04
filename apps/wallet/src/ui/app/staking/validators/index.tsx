@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Alert from '_components/alert';
-import Loading from '_components/loading';
-import Overlay from '_components/overlay';
+import { Alert, Loading, Overlay } from '_components';
 import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -36,10 +34,11 @@ export function Validators() {
     return (
         <Overlay
             showModal
+            showBackButton
             title={isPending ? 'Loading' : pageTitle}
             closeOverlay={() => navigate('/')}
         >
-            <div className="flex h-full w-full flex-col flex-nowrap">
+            <div className="flex min-h-full flex-1">
                 <Loading loading={isPending}>
                     {isError ? (
                         <div className="mb-2">

@@ -2,24 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ButtonSegment, SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Alert from '_components/alert';
-import FiltersPortal from '_components/filters-tags';
-import Loading from '_components/loading';
-import LoadingSpinner from '_components/loading/LoadingIndicator';
-import { setToSessionStorage } from '_src/background/storage-utils';
-import { AssetFilterTypes, useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
-import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useOnScreen } from '@iota/core';
-import { useEffect, useMemo, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-
-import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
-import AssetsOptionsMenu from './AssetsOptionsMenu';
+import { Alert, Loading, LoadingIndicator, NoData, PageTemplate } from '_components';
+import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
 
+enum AssetCategory {
+    Visual = 'Visual',
+    Other = 'Other',
+    Hidden = 'Hidden',
+}
+
+const ASSET_CATEGORIES = [
+    {
+        label: 'Visual',
+        value: AssetCategory.Visual,
+    },
+    {
+        label: 'Other',
+        value: AssetCategory.Other,
+    },
+    {
+        label: 'Hidden',
+        value: AssetCategory.Hidden,
+    },
+];
+
 function NftsPage() {
+    const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
+    const observerElem = useRef<HTMLDivElement | null>(null);
+
     const accountAddress = useActiveAddress();
     const {
         data: ownedAssets,
@@ -28,80 +44,132 @@ function NftsPage() {
         isFetchingNextPage,
         error,
         isPending,
-        fetchNextPage,
         isError,
     } = useGetNFTs(accountAddress);
-    const observerElem = useRef<HTMLDivElement | null>(null);
-    const { isIntersecting } = useOnScreen(observerElem);
+
+    const isAssetsLoaded = !!ownedAssets;
+
     const isSpinnerVisible = isFetchingNextPage && hasNextPage;
 
-    useEffect(() => {
-        if (isIntersecting && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
+    const filteredAssets = (() => {
+        if (!ownedAssets) return [];
+        switch (selectedAssetCategory) {
+            case AssetCategory.Visual:
+                return ownedAssets.visual;
+            case AssetCategory.Other:
+                return ownedAssets.other;
+            default:
+                return [];
         }
-    }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
+    })();
 
-    const handleFilterChange = async (tag: { name: string; link: string }) => {
-        await setToSessionStorage<string>('NFTS_PAGE_NAVIGATION', tag.link);
-    };
-    const { filterType } = useParams();
-    const filteredNFTs = useMemo(() => {
-        if (!filterType) return ownedAssets?.visual;
-        return ownedAssets?.[filterType as AssetFilterTypes] ?? [];
-    }, [ownedAssets, filterType]);
-    const { hiddenAssetIds } = useHiddenAssets();
+    const filteredHiddenAssets = useMemo(() => {
+        return (
+            ownedAssets?.hidden
+                .flatMap((data) => {
+                    return {
+                        data: data,
+                        display: data?.display?.data,
+                    };
+                })
+                .sort((nftA, nftB) => {
+                    const nameA = nftA.display?.name || '';
+                    const nameB = nftB.display?.name || '';
+
+                    if (nameA < nameB) {
+                        return -1;
+                    } else if (nameA > nameB) {
+                        return 1;
+                    }
+                    return 0;
+                }) ?? []
+        );
+    }, [ownedAssets]);
+
+    useEffect(() => {
+        let computeSelectedCategory = false;
+        if (
+            (selectedAssetCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
+            (selectedAssetCategory === AssetCategory.Other && ownedAssets?.other.length === 0) ||
+            (selectedAssetCategory === AssetCategory.Hidden && ownedAssets?.hidden.length === 0) ||
+            !selectedAssetCategory
+        ) {
+            computeSelectedCategory = true;
+        }
+        if (computeSelectedCategory && ownedAssets) {
+            const defaultCategory =
+                ownedAssets.visual.length > 0
+                    ? AssetCategory.Visual
+                    : ownedAssets.other.length > 0
+                      ? AssetCategory.Other
+                      : ownedAssets.hidden.length > 0
+                        ? AssetCategory.Hidden
+                        : null;
+            setSelectedAssetCategory(defaultCategory);
+        }
+    }, [ownedAssets]);
 
     if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
-                <LoadingSpinner />
+                <LoadingIndicator />
             </div>
         );
     }
 
-    const tags = [
-        { name: 'Visual Assets', link: 'nfts' },
-        { name: 'Everything Else', link: 'nfts/other' },
-    ];
-
     return (
-        <div className="flex min-h-full flex-col flex-nowrap items-center gap-4">
-            <PageTitle
-                title="Assets"
-                after={hiddenAssetIds.length ? <AssetsOptionsMenu /> : null}
-            />
-            {!!ownedAssets?.other.length && (
-                <FiltersPortal firstLastMargin tags={tags} callback={handleFilterChange} />
-            )}
-            <Loading loading={isPending}>
-                {isError ? (
-                    <Alert>
-                        <div>
-                            <strong>Sync error (data might be outdated)</strong>
+        <PageTemplate title="Assets" isTitleCentered>
+            <div className="flex h-full w-full flex-col items-start gap-md">
+                {isAssetsLoaded &&
+                    Boolean(filteredAssets.length || filteredHiddenAssets.length) && (
+                        <SegmentedButton type={SegmentedButtonType.Filled}>
+                            {ASSET_CATEGORIES.map(({ label, value }) => (
+                                <ButtonSegment
+                                    key={value}
+                                    onClick={() => setSelectedAssetCategory(value)}
+                                    label={label}
+                                    selected={selectedAssetCategory === value}
+                                    disabled={
+                                        AssetCategory.Hidden === value
+                                            ? !filteredHiddenAssets.length
+                                            : AssetCategory.Visual === value
+                                              ? !ownedAssets?.visual.length
+                                              : !ownedAssets?.other.length
+                                    }
+                                />
+                            ))}
+                        </SegmentedButton>
+                    )}
+                <Loading loading={isPending}>
+                    {isError ? (
+                        <Alert>
+                            <div>
+                                <strong>Sync error (data might be outdated)</strong>
+                            </div>
+                            <small>{(error as Error).message}</small>
+                        </Alert>
+                    ) : null}
+                    <div className="flex h-full w-full flex-col">
+                        {selectedAssetCategory === AssetCategory.Visual ? (
+                            <VisualAssets items={filteredAssets} />
+                        ) : selectedAssetCategory === AssetCategory.Other ? (
+                            <NonVisualAssets items={filteredAssets} />
+                        ) : selectedAssetCategory === AssetCategory.Hidden ? (
+                            <HiddenAssets items={filteredHiddenAssets} />
+                        ) : (
+                            <NoData message="No assets found yet." />
+                        )}
+                    </div>
+                </Loading>
+                <div ref={observerElem}>
+                    {isSpinnerVisible ? (
+                        <div className="mt-1 flex w-full justify-center">
+                            <LoadingIndicator />
                         </div>
-                        <small>{(error as Error).message}</small>
-                    </Alert>
-                ) : null}
-                {filteredNFTs?.length ? (
-                    filterType === AssetFilterTypes.Other ? (
-                        <NonVisualAssets items={filteredNFTs} />
-                    ) : (
-                        <VisualAssets items={filteredNFTs} />
-                    )
-                ) : (
-                    <div className="flex flex-1 items-center self-center text-caption font-semibold text-steel-darker">
-                        No Assets found
-                    </div>
-                )}
-            </Loading>
-            <div ref={observerElem}>
-                {isSpinnerVisible ? (
-                    <div className="mt-1 flex w-full justify-center">
-                        <LoadingSpinner />
-                    </div>
-                ) : null}
+                    ) : null}
+                </div>
             </div>
-        </div>
+        </PageTemplate>
     );
 }
 

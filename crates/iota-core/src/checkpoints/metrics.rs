@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use mysten_metrics::histogram::Histogram;
+use iota_metrics::histogram::Histogram;
 use prometheus::{
+    IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, IntCounter,
-    IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
 pub struct CheckpointMetrics {
@@ -20,6 +20,8 @@ pub struct CheckpointMetrics {
     pub checkpoint_participation: IntCounterVec,
     pub last_received_checkpoint_signatures: IntGaugeVec,
     pub last_sent_checkpoint_signature: IntGauge,
+    pub last_skipped_checkpoint_signature_submission: IntGauge,
+    pub last_ignored_checkpoint_signature_received: IntGauge,
     pub highest_accumulated_epoch: IntGauge,
     pub checkpoint_creation_latency_ms: Histogram,
     pub remote_checkpoint_forks: IntCounter,
@@ -91,6 +93,18 @@ impl CheckpointMetrics {
                 registry
             )
             .unwrap(),
+            last_skipped_checkpoint_signature_submission: register_int_gauge_with_registry!(
+                "last_skipped_checkpoint_signature_submission",
+                "Last checkpoint signature that this validator skipped submitting because it was already certified.",
+                registry
+            )
+            .unwrap(),
+            last_ignored_checkpoint_signature_received: register_int_gauge_with_registry!(
+                "last_ignored_checkpoint_signature_received",
+                "Last received checkpoint signature that this validator ignored because it was already certified.",
+                registry
+            )
+            .unwrap(),
             highest_accumulated_epoch: register_int_gauge_with_registry!(
                 "highest_accumulated_epoch",
                 "Highest accumulated epoch",
@@ -99,7 +113,7 @@ impl CheckpointMetrics {
             .unwrap(),
             checkpoint_creation_latency_ms: Histogram::new_in_registry(
                 "checkpoint_creation_latency_ms",
-                "Latency from consensus commit timstamp to local checkpoint creation in milliseconds",
+                "Latency from consensus commit timestamp to local checkpoint creation in milliseconds",
                 registry,
             ),
             remote_checkpoint_forks: register_int_counter_with_registry!(

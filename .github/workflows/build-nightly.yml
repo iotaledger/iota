@@ -2,11 +2,11 @@ name: Build nightly IOTA binaries
 
 on:
   schedule:
-    - cron: '0 4 * * *' # Runs every day at 4 AM
+    - cron: "0 4 * * *" # Runs every day at 4 AM
   workflow_dispatch:
     inputs:
       iota_branch:
-        description: 'IOTA repo branch to build artifacts from (default: develop)'
+        description: "IOTA repo branch to build artifacts from (default: develop)"
         type: string
         required: false
 
@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 80
     strategy:
       matrix:
-        os: [ self-hosted-rust ]
+        os: [self-hosted]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
@@ -60,7 +60,7 @@ jobs:
         run: sudo apt-get install -y libpq-dev
 
       - name: Set os/arch variables
-        if: ${{ matrix.os != 'windows-ghcloud' }}
+        if: matrix.os != 'windows-ghcloud'
         shell: bash
         run: |
           export arch=$(uname -m)
@@ -76,7 +76,7 @@ jobs:
       - name: cargo build (release) for ${{ matrix.os }} platform
         shell: bash
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-test-validator
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-indexer --features indexer
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -84,4 +84,4 @@ jobs:
           name: ${{ env.artifact_name }}
           path: |
             ./target/release/iota
-            ./target/release/iota-test-validator
+            ./target/release/iota-indexer

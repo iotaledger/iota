@@ -1,9 +1,9 @@
 {
     "name": "@iota/bcs",
-    "version": "0.11.1",
+    "version": "0.1.0",
     "description": "BCS - Canonical Binary Serialization implementation for JavaScript",
     "license": "Apache-2.0",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "sideEffects": false,
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
@@ -27,8 +27,8 @@
         "prepublishOnly": "pnpm build",
         "test": "vitest run",
         "test:watch": "vitest",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
@@ -62,12 +62,12 @@
     "homepage": "https://github.com/iotaledger/iota#readme",
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
-        "@size-limit/preset-small-lib": "^8.2.6",
-        "size-limit": "^8.2.6",
-        "typescript": "^5.3.3",
-        "vitest": "^0.33.0"
+        "@size-limit/preset-small-lib": "^11.1.4",
+        "size-limit": "^11.1.4",
+        "typescript": "^5.5.3",
+        "vitest": "^2.0.1"
     },
     "dependencies": {
-        "bs58": "^5.0.0"
+        "bs58": "^6.0.0"
     }
 }

@@ -5,10 +5,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
-use iota_data_ingestion_core::{create_remote_store_client, Worker};
+use iota_data_ingestion_core::{Worker, create_remote_store_client};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::full_checkpoint_content::CheckpointData;
-use object_store::{path::Path, ObjectStore};
+use object_store::{ObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -38,7 +38,9 @@ impl Worker for BlobWorker {
             "{}.chk",
             checkpoint.checkpoint_summary.sequence_number
         ));
-        self.remote_store.put(&location, Bytes::from(bytes)).await?;
+        self.remote_store
+            .put(&location, Bytes::from(bytes).into())
+            .await?;
         Ok(())
     }
 }

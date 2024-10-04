@@ -14,7 +14,7 @@ use iota_types::stardust::error::StardustError;
 use move_compiler::parser::keywords;
 use rand::distributions::{Alphanumeric, DistString};
 use rand_pcg::Pcg64;
-use rand_seeder::Seeder;
+use rand_seeder::{Seeder, SipRng, rand_core::RngCore};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -231,9 +231,13 @@ fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> Stri
         let additional_part = if is_valid {
             refined_identifier
         } else {
+            let mut rng: SipRng = Seeder::from(seed).make_rng();
+            fn next_u128(rng: &mut SipRng) -> u128 {
+                (rng.next_u64() as u128) << 64 | rng.next_u64() as u128
+            }
             // Generate a new valid random identifier if the identifier is empty.
             Alphanumeric
-                .sample_string(&mut Pcg64::from(Seeder::from(seed).make_rng()), 7)
+                .sample_string(&mut Pcg64::new(next_u128(&mut rng), next_u128(&mut rng)), 7)
                 .to_lowercase()
         };
         final_identifier.push_str(&additional_part);
@@ -246,15 +250,15 @@ mod tests {
     use std::ops::{Add, Sub};
 
     use iota_sdk::{
+        U256, Url,
         types::block::{
             address::AliasAddress,
             output::{
+                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
                 feature::{Irc30Metadata, MetadataFeature},
                 unlock_condition::ImmutableAliasAddressUnlockCondition,
-                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
             },
         },
-        Url, U256,
     };
 
     use super::*;

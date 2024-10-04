@@ -1,3 +1,5 @@
+import AlphaNet from "../../../_snippets/alphanet.mdx";
+
 # Iota dApp Kit
 
 The Iota dApp Kit is a set of React components, hooks, and utilities to help you build a dApp for the
@@ -19,7 +21,7 @@ Some of the core features of the dApp Kit include:
 To use the Iota dApp Kit in your project, run the following command in your project root:
 
 ```sh npm2yarn
-npm i --save @iota/dapp-kit @iota/iota.js @tanstack/react-query
+npm i --save @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
 ```
 
 ## Setting up providers
@@ -28,9 +30,11 @@ To use the hooks and components in the dApp Kit, wrap your app with the provider
 following example. The props available on the providers are covered in more detail in their
 respective pages.
 
+<AlphaNet/>
+
 ```tsx
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to

@@ -14,21 +14,21 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Key
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AuthorityKeyPair, Ed25519IotaSignature,
-        EncodeDecodeBase64, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
-        Secp256r1IotaSignature, Signature, SignatureScheme,
+        AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
+        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
+        SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
-    transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentScope};
 use tempfile::TempDir;
 use tokio::test;
 
-use super::{write_keypair_to_file, KeyToolCommand};
+use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
     key_identity::KeyIdentity,
-    keytool::{read_authority_keypair_from_file, read_keypair_from_file, CommandOutput},
+    keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
 };
 
 const TEST_MNEMONIC: &str = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
@@ -290,8 +290,9 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
+    #[rustfmt::skip]
     // Test case matches with
-    // /mysten/iota/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts
+    // /iotaledger/iota/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
@@ -330,8 +331,9 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
+    #[rustfmt::skip]
     // Test case matches with
-    // /mysten/iota/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
+    // /iotaledger/iota/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
@@ -370,8 +372,9 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
+    #[rustfmt::skip]
     // Test case matches with
-    // /mysten/iota/sdk/typescript/test/unit/cryptography/secp256r1-keypair.test.ts
+    // /iotaledger/iota/sdk/typescript/test/unit/cryptography/secp256r1-keypair.test.ts
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "act wing dilemma glory episode region allow mad tourist humble muffin oblige",

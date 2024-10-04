@@ -7,12 +7,12 @@ use std::fmt::{Display, Formatter};
 use iota_types::transaction::write_sep;
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
 
 use crate::{
-    displays::Pretty, IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg,
-    IotaProgrammableMoveCall, IotaProgrammableTransactionBlock,
+    IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg, IotaProgrammableMoveCall,
+    IotaProgrammableTransactionBlock, displays::Pretty,
 };
 
 impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
@@ -26,8 +26,7 @@ impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
                     IotaCallArg::Pure(v) => {
                         let pure_arg = if let Some(t) = v.value_type() {
                             format!(
-                                "{i:<3} Pure Arg: Type: {}, Value: {}",
-                                t,
+                                "{i:<3} Pure Arg: Type: {t}, Value: {}",
                                 v.value().to_json_value()
                             )
                         } else {
@@ -36,22 +35,16 @@ impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
                         builder.push_record(vec![pure_arg]);
                     }
                     IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject { object_id, .. }) => {
-                        builder.push_record(vec![format!(
-                            "{i:<3} Imm/Owned Object ID: {}",
-                            object_id
-                        )]);
+                        builder
+                            .push_record(vec![format!("{i:<3} Imm/Owned Object ID: {object_id}")]);
                     }
                     IotaCallArg::Object(IotaObjectArg::SharedObject { object_id, .. }) => {
-                        builder.push_record(vec![format!(
-                            "{i:<3} Shared Object    ID: {}",
-                            object_id
-                        )]);
+                        builder
+                            .push_record(vec![format!("{i:<3} Shared Object    ID: {object_id}")]);
                     }
                     IotaCallArg::Object(IotaObjectArg::Receiving { object_id, .. }) => {
-                        builder.push_record(vec![format!(
-                            "{i:<3} Receiving Object ID: {}",
-                            object_id
-                        )]);
+                        builder
+                            .push_record(vec![format!("{i:<3} Receiving Object ID: {object_id}")]);
                     }
                 }
             }
@@ -62,7 +55,7 @@ impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            write!(f, "\n{}", table)?;
+            write!(f, "\n{table}")?;
         } else {
             write!(f, "\n  No input objects for this transaction")?;
         }
@@ -82,7 +75,7 @@ impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            write!(f, "\n{}", table)
+            write!(f, "\n{table}")
         } else {
             write!(f, "\n  No commands for this transaction")
         }
@@ -161,8 +154,7 @@ impl<'a> Display for Pretty<'a, IotaProgrammableMoveCall> {
 
         write!(
             f,
-            "MoveCall:\n ┌\n │ Function:  {} \n │ Module:    {}\n │ Package:   {}",
-            function, module, package
+            "MoveCall:\n ┌\n │ Function:  {function} \n │ Module:    {module}\n │ Package:   {package}",
         )?;
 
         if !type_arguments.is_empty() {
@@ -184,10 +176,10 @@ impl<'a> Display for Pretty<'a, IotaArgument> {
 
         let output = match argument {
             IotaArgument::GasCoin => "GasCoin".to_string(),
-            IotaArgument::Input(i) => format!("Input  {}", i),
-            IotaArgument::Result(i) => format!("Result {}", i),
-            IotaArgument::NestedResult(j, k) => format!("Nested Result {}: {}", j, k),
+            IotaArgument::Input(i) => format!("Input  {i}"),
+            IotaArgument::Result(i) => format!("Result {i}"),
+            IotaArgument::NestedResult(j, k) => format!("Nested Result {j}: {k}"),
         };
-        write!(f, "{}", output)
+        write!(f, "{output}")
     }
 }

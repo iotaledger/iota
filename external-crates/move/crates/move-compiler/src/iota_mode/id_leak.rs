@@ -2,21 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 
-use super::{
-    AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_NAME, BRIDGE_CREATE,
-    BRIDGE_MODULE_NAME, CLOCK_MODULE_NAME, DENY_LIST_CREATE, DENY_LIST_MODULE_NAME, ID_LEAK_DIAG,
-    IOTA_ADDR_NAME, IOTA_CLOCK_CREATE, IOTA_SYSTEM_ADDR_NAME, IOTA_SYSTEM_CREATE,
-    IOTA_SYSTEM_MODULE_NAME, OBJECT_MODULE_NAME, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME,
-    RANDOMNESS_STATE_CREATE, UID_TYPE_NAME,
-};
 use crate::{
     cfgir::{
-        self,
         absint::JoinResult,
         visitor::{
             LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain, SimpleExecutionContext,
@@ -26,11 +16,20 @@ use crate::{
     diag,
     diagnostics::{Diagnostic, Diagnostics},
     editions::Flavor,
-    expansion::ast::AbilitySet,
+    expansion::ast::{ModuleIdent, TargetKind},
     hlir::ast::{Exp, Label, ModuleCall, SingleType, Type, Type_, Var},
+    parser::ast::Ability_,
+    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
     iota_mode::{OBJECT_NEW, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT},
-    parser::ast::{Ability_, StructName},
-    shared::{unique_map::UniqueMap, CompilationEnv, Identifier},
+};
+use std::collections::BTreeMap;
+
+use super::{
+    AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_NAME, BRIDGE_CREATE,
+    BRIDGE_MODULE_NAME, CLOCK_MODULE_NAME, DENY_LIST_CREATE, DENY_LIST_MODULE_NAME, ID_LEAK_DIAG,
+    OBJECT_MODULE_NAME, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE,
+    IOTA_ADDR_NAME, IOTA_CLOCK_CREATE, IOTA_SYSTEM_ADDR_NAME, IOTA_SYSTEM_CREATE,
+    IOTA_SYSTEM_MODULE_NAME, UID_TYPE_NAME,
 };
 
 pub const FRESH_ID_FUNCTIONS: &[(Symbol, Symbol, Symbol)] = &[
@@ -65,7 +64,8 @@ pub const FUNCTIONS_TO_SKIP: &[(Symbol, Symbol, Symbol)] = &[
 
 pub struct IDLeakVerifier;
 pub struct IDLeakVerifierAI<'a> {
-    declared_abilities: &'a UniqueMap<StructName, AbilitySet>,
+    module: &'a ModuleIdent,
+    info: &'a TypingProgramInfo,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -94,19 +94,23 @@ impl SimpleAbsIntConstructor for IDLeakVerifier {
 
     fn new<'a>(
         env: &CompilationEnv,
-        program: &'a cfgir::ast::Program,
         context: &'a CFGContext<'a>,
         _init_state: &mut <Self::AI<'a> as SimpleAbsInt>::State,
     ) -> Option<Self::AI<'a>> {
         let module = &context.module;
-        let mdef = program.modules.get(module).unwrap();
-        let package_name = mdef.package_name;
+        let minfo = context.info.module(module);
+        let package_name = minfo.package;
         let config = env.package_config(package_name);
         if config.flavor != Flavor::Iota {
             // Skip if not iota
             return None;
         }
-        if config.is_dependency || !mdef.is_source_module {
+        if !matches!(
+            minfo.target_kind,
+            TargetKind::Source {
+                is_root_package: true
+            }
+        ) {
             // Skip non-source, dependency modules
             return None;
         }
@@ -120,8 +124,10 @@ impl SimpleAbsIntConstructor for IDLeakVerifier {
             }
         }
 
-        let declared_abilities = context.struct_declared_abilities.get(module).unwrap();
-        Some(IDLeakVerifierAI { declared_abilities })
+        Some(IDLeakVerifierAI {
+            module,
+            info: context.info,
+        })
     }
 }
 
@@ -156,7 +162,10 @@ impl<'a> SimpleAbsInt for IDLeakVerifierAI<'a> {
         let E::Pack(s, _tys, fields) = e__ else {
             return None;
         };
-        let abilities = self.declared_abilities.get(s).unwrap();
+        let abilities = {
+            let minfo = self.info.module(self.module);
+            &minfo.structs.get(s)?.abilities
+        };
         if !abilities.has_ability_(Ability_::Key) {
             return None;
         }

@@ -16,7 +16,7 @@ const TEST_DIR: &str = "tests";
 async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     use iota::client_ptb::{
         error::build_error_reports,
-        ptb::{to_source_string, PTBPreview, PTB},
+        ptb::{PTB, PTBPreview, to_source_string},
     };
     use test_cluster::TestClusterBuilder;
 
@@ -45,7 +45,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
             for e in rendered.iter() {
                 results.push(format!("{:?}", e));
             }
-            insta::assert_display_snapshot!(fname(), results.join("\n"));
+            insta::assert_snapshot!(fname(), results.join("\n"));
             return Ok(());
         }
     };
@@ -53,13 +53,10 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     // Preview (This is based on the parsed commands).
     let mut results = vec![];
     results.push(" === PREVIEW === ".to_string());
-    results.push(format!(
-        "{}",
-        PTBPreview {
-            program: &program,
-            program_metadata: &program_meta
-        }
-    ));
+    results.push(format!("{}", PTBPreview {
+        program: &program,
+        program_metadata: &program_meta
+    }));
 
     // === BUILD PTB ===
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -98,7 +95,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     }
 
     // === FINALLY DO THE ASSERTION ===
-    insta::assert_display_snapshot!(fname(), results.join("\n"));
+    insta::assert_snapshot!(fname(), results.join("\n"));
 
     Ok(())
 }

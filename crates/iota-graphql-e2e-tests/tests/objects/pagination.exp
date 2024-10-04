@@ -1,93 +1,66 @@
 processed 14 tasks
 
-task 1 'publish'. lines 7-20:
+task 1, lines 6-19:
+//# publish
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 22-22:
+task 2, line 21:
+//# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 3 'run'. lines 24-24:
+task 3, line 23:
+//# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 4 'run'. lines 26-26:
+task 4, line 25:
+//# run Test::M1::create --args 2 @A
 created: object(4,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 5 'run'. lines 28-28:
+task 5, line 27:
+//# run Test::M1::create --args 3 @A
 created: object(5,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 6 'run'. lines 30-30:
+task 6, line 29:
+//# run Test::M1::create --args 4 @A
 created: object(6,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 7 'create-checkpoint'. lines 32-32:
+task 7, line 31:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 8 'run-graphql'. lines 35-49:
+task 8, lines 33-43:
+//# run-graphql
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x17c2a9b2af8c0dbcf9560bf3b611f071f0468c193f11c95ed512d44b92fdfcce",
-                  "value": "4"
-                }
-              }
-            }
+            "cursor": "IA0aEaJEDlKDSC1RffR0g05xlej/ngllhWVEzxP/GJRzAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
-                  "value": "1"
-                }
-              }
-            }
+            "cursor": "ICQBOGJKQBVnTSjPn8d4hczgW9e+v+DLOnn6QGDo6U7zAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
-                  "value": "2"
-                }
-              }
-            }
+            "cursor": "ID3HvUbFPVmeQdDWVsKCpPr3nh9mRKSj7N245yafRVURAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
-                }
-              }
-            }
+            "cursor": "ILwUdsEdxfOAmqkMcN3XldEVIQbAQF/kmEzvivjUOCMYAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
-                  "value": "3"
-                }
-              }
-            }
+            "cursor": "IOilIztfYgbUm3NYHLbi80gIwVDLSHfs90ZoTKUdnHk9AQAAAAAAAAA="
           }
         ]
       }
@@ -95,31 +68,18 @@ Response: {
   }
 }
 
-task 9 'run-graphql'. lines 51-65:
+task 9, lines 45-55:
+//# run-graphql
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x17c2a9b2af8c0dbcf9560bf3b611f071f0468c193f11c95ed512d44b92fdfcce",
-                  "value": "4"
-                }
-              }
-            }
+            "cursor": "IA0aEaJEDlKDSC1RffR0g05xlej/ngllhWVEzxP/GJRzAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
-                  "value": "1"
-                }
-              }
-            }
+            "cursor": "ICQBOGJKQBVnTSjPn8d4hczgW9e+v+DLOnn6QGDo6U7zAQAAAAAAAAA="
           }
         ]
       }
@@ -127,31 +87,30 @@ Response: {
   }
 }
 
-task 10 'run-graphql'. lines 67-83:
+task 10, lines 57-69:
+//# run-graphql --cursors @{obj_5_0}
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 11, lines 71-81:
+//# run-graphql --cursors @{obj_4_0}
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
-                  "value": "1"
-                }
-              }
-            }
+            "cursor": "ICQBOGJKQBVnTSjPn8d4hczgW9e+v+DLOnn6QGDo6U7zAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
-                  "value": "2"
-                }
-              }
-            }
+            "cursor": "ID3HvUbFPVmeQdDWVsKCpPr3nh9mRKSj7N245yafRVURAQAAAAAAAAA="
           }
         ]
       }
@@ -159,31 +118,15 @@ Response: {
   }
 }
 
-task 11 'run-graphql'. lines 85-99:
+task 12, lines 83-93:
+//# run-graphql --cursors @{obj_3_0}
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
-                  "value": "3"
-                }
-              }
-            }
+            "cursor": "IA0aEaJEDlKDSC1RffR0g05xlej/ngllhWVEzxP/GJRzAQAAAAAAAAA="
           }
         ]
       }
@@ -191,63 +134,18 @@ Response: {
   }
 }
 
-task 12 'run-graphql'. lines 101-115:
+task 13, lines 95-104:
+//# run-graphql
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
-                  "value": "2"
-                }
-              }
-            }
+            "cursor": "ILwUdsEdxfOAmqkMcN3XldEVIQbAQF/kmEzvivjUOCMYAQAAAAAAAAA="
           },
           {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-}
-
-task 13 'run-graphql'. lines 117-130:
-Response: {
-  "data": {
-    "address": {
-      "objects": {
-        "edges": [
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
-                  "value": "3"
-                }
-              }
-            }
+            "cursor": "IOilIztfYgbUm3NYHLbi80gIwVDLSHfs90ZoTKUdnHk9AQAAAAAAAAA="
           }
         ]
       }

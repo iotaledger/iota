@@ -5,7 +5,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
@@ -70,24 +70,30 @@ async fn test_tx_more_than_maximum_gas_budget() {
 }
 
 // Out Of Gas Scenarios
-// "minimal storage" is storage for input objects after reset. Operations for
-// "minimal storage" can only happen if storage charges fail.
+//
+// Terms:
+// - OOG - Out Of Gas.
+// - Computation - is a price for computation.
+// - Storage - is a storage price.
+// - Minimal storage - is a storage price charged for updating input objects,
+//   which occurs if a storage charge fails and the rebate rate is less then
+//   100%.
+//
 // Single gas coin:
-// - OOG computation, storage (minimal storage) ok
-// - OOG for computation, OOG for minimal storage (e.g. computation is entire
-//   budget)
-// - computation ok, OOG for storage, minimal storage ok
-// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation
-//   is entire budget)
+// - Computation OOG, storage OK, minimal storage OK.
+// - Computation OOG(is entire budget), storage OK, minimal storage OK.
+// - Computation OK, storage OOG, minimal storage OK.
+// - Computation OK(is entire budget), storage OOG, minimal storage OK.
 //
-// With multiple gas coins is practically impossible to fail storage cost
-// because we get a significant among of MICROS back from smashing. So we try:
-// - OOG computation, storage ok
+// With multiple gas coins we try:
+// - Computation OOG, storage OK, minimal storage OK.
+// - Computation OK, storage OOG, minimal storage OK.
 //
-// impossible scenarios:
-// - OOG for computation, OOG for storage, minimal storage ok - OOG for
-//   computation implies
-// minimal storage is the only extra charge, so storage == minimal storage
+// Impossible scenarios:
+// - Computation OOG, storage OOG, minimal storage OK - OOG for computation
+//   implies.
+// - Minimal storage OOG - since the rebate rate is set to 100%, minimal storage
+//   is always valid.
 //
 
 // Helpers for OOG scenarios
@@ -293,9 +299,9 @@ async fn touch_gas_coins(
         .unwrap();
 }
 
-// - OOG computation, storage ok
+// Computation OOG, storage OK, minimal storage OK, single gas coin.
 #[tokio::test]
-async fn test_oog_computation_storage_ok_one_coin() -> IotaResult {
+async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
     let (sender, sender_key) = get_key_pair();
@@ -309,21 +315,21 @@ async fn test_oog_computation_storage_ok_one_coin() -> IotaResult {
         1,
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
-            assert!(
-                summary.computation_cost > 0
-                    && summary.storage_cost > 0
-                    && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
-            );
-            assert!(initial_value - gas_used == final_value);
+            assert!(summary.computation_cost > 0);
+            assert!(summary.storage_cost > 0);
+            assert!(summary.storage_rebate > 0);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
+            assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
     )
     .await
 }
 
+// Computation OOG, storage OK, minimal storage OK, multiple gas coins.
 #[tokio::test]
-async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
+async fn test_computation_oog_storage_ok_multi_gas_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
     let (sender, sender_key) = get_key_pair();
@@ -337,23 +343,21 @@ async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
         5,
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
-            assert!(
-                summary.computation_cost > 0
-                    && summary.storage_cost > 0
-                    && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
-            );
-            assert!(initial_value - gas_used == final_value);
+            assert!(summary.computation_cost > 0);
+            assert!(summary.storage_cost > 0);
+            assert!(summary.storage_rebate > 0);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
+            assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
     )
     .await
 }
 
-// OOG for computation, OOG for minimal storage (e.g. computation is entire
-// budget)
+// Computation OOG(is entire budget), storage OK, minimal storage OK, single gas
+// coin.
 #[tokio::test]
-async fn test_oog_computation_oog_storage_final_one_coin() -> IotaResult {
+async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaResult {
     const GAS_PRICE: u64 = 1000;
     const MAX_UNIT_BUDGET: u64 = 5_000_000;
     const BUDGET: u64 = MAX_UNIT_BUDGET * GAS_PRICE;
@@ -369,10 +373,9 @@ async fn test_oog_computation_oog_storage_final_one_coin() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
-            // currently when storage charges go out of gas, the storage data in the summary
-            // is zero
-            assert_eq!(summary.storage_cost, 0);
-            assert_eq!(summary.storage_rebate, 0);
+            assert!(summary.storage_cost > 0);
+            assert!(summary.storage_rebate > 0);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
             assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value - gas_used, final_value);
             Ok(())
@@ -381,9 +384,9 @@ async fn test_oog_computation_oog_storage_final_one_coin() -> IotaResult {
     .await
 }
 
-// - computation ok, OOG for storage, minimal storage ok
+// Computation OK, storage OOG, minimal storage OK, single gas coin.
 #[tokio::test]
-async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
+async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
     let (sender, sender_key) = get_key_pair();
@@ -400,12 +403,11 @@ async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
         1,
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
-            assert!(
-                summary.computation_cost > 0
-                    && summary.storage_cost > 0
-                    && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
-            );
+            assert!(summary.computation_cost > 0);
+            assert!(summary.storage_cost > 0);
+            assert!(summary.storage_rebate > 0);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
@@ -413,9 +415,9 @@ async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
     .await
 }
 
-// - computation ok, OOG for storage, minimal storage ok
+// Computation OK, storage OOG, minimal storage OK, multiple gas coins.
 #[tokio::test]
-async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult {
+async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
     let (sender, sender_key) = get_key_pair();
@@ -432,12 +434,10 @@ async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult 
         5,
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage();
-            assert!(
-                summary.computation_cost > 0
-                    && summary.storage_cost > 0
-                    && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
-            );
+            assert!(summary.computation_cost > 0);
+            assert!(summary.storage_cost > 0);
+            assert!(summary.storage_rebate > 0);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value as i64 - gas_used, final_value as i64);
             Ok(())
         },
@@ -445,10 +445,10 @@ async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult 
     .await
 }
 
-// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation
-//   is entire budget)
+// Computation OK(is entire budget), storage OOG, minimal storage OK, single gas
+// coin.
 #[tokio::test]
-async fn test_computation_ok_oog_storage_final_one_coin() -> IotaResult {
+async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_002_000;
     let (sender, sender_key) = get_key_pair();
@@ -466,10 +466,9 @@ async fn test_computation_ok_oog_storage_final_one_coin() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
-            // currently when storage charges go out of gas, the storage data in the summary
-            // is zero
-            assert_eq!(summary.storage_cost, 0);
-            assert_eq!(summary.storage_rebate, 0);
+            assert!(summary.storage_cost > 0);
+            assert!(summary.storage_rebate > 0);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
             assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value - gas_used, final_value);
             Ok(())

@@ -1,18 +1,31 @@
 [package]
 name = "test-cluster"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
+bcs.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
+jsonrpsee.workspace = true
+prometheus.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
+tracing.workspace = true
+
+iota-bridge.workspace = true
 iota-config.workspace = true
 iota-core = { workspace = true, features = ["test-utils"] }
 iota-framework.workspace = true
 iota-json-rpc.workspace = true
+iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-node.workspace = true
@@ -22,12 +35,6 @@ iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
-jsonrpsee.workspace = true
-prometheus.workspace = true
-rand.workspace = true
-tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
-tracing.workspace = true
-
 move-binary-format.workspace = true
 
 [target.'cfg(msim)'.dependencies]

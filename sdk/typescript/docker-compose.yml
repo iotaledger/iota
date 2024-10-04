@@ -1,12 +1,12 @@
-version: '3.8'
+version: "3.8"
 
 services:
-    db:
-        image: postgres
-        command: -c 'max_connections=500'
-        environment:
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: postgrespw
-            POSTGRES_DB: iota_indexer_v2
-        ports:
-            - '5435:5432'
+  db:
+    image: postgres
+    command: -c 'max_connections=500'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_DB: iota_indexer_v2
+    ports:
+      - "5435:5432"

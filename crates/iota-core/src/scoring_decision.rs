@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::ArcSwap;
@@ -10,7 +11,7 @@ use tracing::debug;
 
 use crate::{
     authority::AuthorityMetrics,
-    consensus_types::{committee_api::CommitteeAPI, AuthorityIndex},
+    consensus_types::{AuthorityIndex, committee_api::CommitteeAPI},
 };
 
 /// Updates list of authorities that are deemed to have low reputation scores by
@@ -18,7 +19,7 @@ use crate::{
 /// reliably participating for any reason. The algorithm is flagging as low
 /// scoring authorities all the validators that have the lowest scores up to the
 /// defined protocol_config.consensus_bad_nodes_stake_threshold. This is done to
-/// align the submission side with the Narwhal leader election schedule.
+/// align the submission side with the consensus leader election schedule.
 /// Practically we don't want to submit transactions for sequencing to
 /// validators that have low scores and are not part of the leader
 /// schedule since the chances of getting them sequenced are lower.
@@ -94,14 +95,14 @@ mod tests {
 
     use arc_swap::ArcSwap;
     use fastcrypto::traits::{InsecureDefault, KeyPair as _};
-    use mysten_network::Multiaddr;
+    use iota_network_stack::Multiaddr;
     use narwhal_config::{Committee, CommitteeBuilder};
     use narwhal_crypto::{KeyPair, NetworkPublicKey};
     use narwhal_types::ReputationScores;
     use prometheus::Registry;
     use rand::{
-        rngs::{OsRng, StdRng},
         SeedableRng,
+        rngs::{OsRng, StdRng},
     };
 
     use crate::{

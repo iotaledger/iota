@@ -9,7 +9,7 @@ use arc_swap::{ArcSwap, ArcSwapOption};
 use config::{Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{NetworkKeyPair, PublicKey};
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::{RegistryID, RegistryService};
 use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::NodeStorage;
@@ -17,11 +17,11 @@ use tokio::{sync::RwLock, task::JoinHandle};
 use tracing::{info, instrument};
 use types::PreSubscribedBroadcastSender;
 use worker::{
-    metrics::{initialise_metrics, Metrics},
-    TransactionValidator, Worker, NUM_SHUTDOWN_RECEIVERS,
+    NUM_SHUTDOWN_RECEIVERS, TransactionValidator, Worker,
+    metrics::{Metrics, initialise_metrics},
 };
 
-use crate::{metrics::new_registry, try_join_all, FuturesUnordered, NodeError};
+use crate::{FuturesUnordered, NodeError, metrics::new_registry, try_join_all};
 
 pub struct WorkerNodeInner {
     // The worker's id

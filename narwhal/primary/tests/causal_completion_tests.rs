@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::time::Duration;
 
 use bytes::Bytes;
-use test_utils::cluster::{setup_tracing, Cluster};
+use test_utils::cluster::{Cluster, setup_tracing};
 use tracing::info;
 use types::TransactionProto;
 
@@ -44,7 +45,7 @@ async fn test_restore_from_disk() {
         tokio::spawn(async move {
             let tr = bcs::to_bytes(&tx).unwrap();
             let txn = TransactionProto {
-                transaction: Bytes::from(tr),
+                transactions: vec![Bytes::from(tr)],
             };
 
             c.submit_transaction(txn).await.unwrap();

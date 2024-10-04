@@ -22,9 +22,9 @@ authority-store-pruning-config:
 
 protocol-key-pair:
   path: "protocol.key"
-network-key-pair: 
+network-key-pair:
   path: "network.key"
-account-key-pair: 
+account-key-pair:
   path: "account.key"
-worker-key-pair: 
+worker-key-pair:
   path: "worker.key"

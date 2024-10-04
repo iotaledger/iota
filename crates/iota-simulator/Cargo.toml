@@ -1,10 +1,13 @@
 [package]
 name = "iota-simulator"
 version = "0.7.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 move-package.workspace = true

@@ -5,12 +5,11 @@
 module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
     use iota::coin::Coin;
-    use iota_system::staking_pool::{stake_activation_epoch, StakedIota};
-    use iota::iota::IOTA;
+    use iota_system::staking_pool::StakedIota;
+    use iota::iota::{IOTA, IotaTreasuryCap};
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set::{Self, ValidatorSet};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
-    use iota_system::stake_subsidy::StakeSubsidy;
     use iota_system::storage_fund::{Self, StorageFund};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::vec_map::{Self, VecMap};
@@ -19,12 +18,6 @@ module iota_system::iota_system_state_inner {
     use iota::table::Table;
     use iota::bag::Bag;
     use iota::bag;
-
-    /* friend iota_system::genesis; */
-    /* friend iota_system::iota_system; */
-
-    /* #[test_only] */
-    /* friend iota_system::governance_test_utils; */
 
     // same as in validator_set
     const ACTIVE_VALIDATOR_ONLY: u8 = 1;
@@ -37,9 +30,6 @@ module iota_system::iota_system_state_inner {
     public struct SystemParameters has store {
         /// The duration of an epoch, in milliseconds.
         epoch_duration_ms: u64,
-
-        /// The starting epoch in which stake subsidies start being paid out
-        stake_subsidy_start_epoch: u64,
 
         /// Maximum number of active validators at any moment.
         /// We do not allow the number of validators in any epoch to go above this.
@@ -69,9 +59,6 @@ module iota_system::iota_system_state_inner {
     public struct SystemParametersV2 has store {
         /// The duration of an epoch, in milliseconds.
         epoch_duration_ms: u64,
-
-        /// The starting epoch in which stake subsidies start being paid out
-        stake_subsidy_start_epoch: u64,
 
         /// Minimum number of active validators at any moment.
         min_validator_count: u64,
@@ -110,6 +97,8 @@ module iota_system::iota_system_state_inner {
         /// This is always the same as IotaSystemState.version. Keeping a copy here so that
         /// we know what version it is by inspecting IotaSystemStateInner as well.
         system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: IotaTreasuryCap,
         /// Contains all information about the validators.
         validators: ValidatorSet,
         /// The storage fund.
@@ -127,8 +116,6 @@ module iota_system::iota_system_state_inner {
         /// Note that in case we want to support validator address change in future,
         /// the reports should be based on validator ids
         validator_report_records: VecMap<address, VecSet<address>>,
-        /// Schedule of stake subsidies given out each epoch.
-        stake_subsidy: StakeSubsidy,
 
         /// Whether the system is running in a downgraded safe mode due to a non-recoverable bug.
         /// This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode.
@@ -137,7 +124,7 @@ module iota_system::iota_system_state_inner {
         /// when advance_epoch_safe_mode is executed. They will eventually be processed once we
         /// are out of safe mode.
         safe_mode: bool,
-        safe_mode_storage_rewards: Balance<IOTA>,
+        safe_mode_storage_charges: Balance<IOTA>,
         safe_mode_computation_rewards: Balance<IOTA>,
         safe_mode_storage_rebates: u64,
         safe_mode_non_refundable_storage_fee: u64,
@@ -158,6 +145,8 @@ module iota_system::iota_system_state_inner {
         /// This is always the same as IotaSystemState.version. Keeping a copy here so that
         /// we know what version it is by inspecting IotaSystemStateInner as well.
         system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: IotaTreasuryCap,
         /// Contains all information about the validators.
         validators: ValidatorSet,
         /// The storage fund.
@@ -175,8 +164,6 @@ module iota_system::iota_system_state_inner {
         /// Note that in case we want to support validator address change in future,
         /// the reports should be based on validator ids
         validator_report_records: VecMap<address, VecSet<address>>,
-        /// Schedule of stake subsidies given out each epoch.
-        stake_subsidy: StakeSubsidy,
 
         /// Whether the system is running in a downgraded safe mode due to a non-recoverable bug.
         /// This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode.
@@ -185,7 +172,7 @@ module iota_system::iota_system_state_inner {
         /// when advance_epoch_safe_mode is executed. They will eventually be processed once we
         /// are out of safe mode.
         safe_mode: bool,
-        safe_mode_storage_rewards: Balance<IOTA>,
+        safe_mode_storage_charges: Balance<IOTA>,
         safe_mode_computation_rewards: Balance<IOTA>,
         safe_mode_storage_rebates: u64,
         safe_mode_non_refundable_storage_fee: u64,
@@ -203,14 +190,13 @@ module iota_system::iota_system_state_inner {
         protocol_version: u64,
         reference_gas_price: u64,
         total_stake: u64,
-        storage_fund_reinvestment: u64,
         storage_charge: u64,
         storage_rebate: u64,
         storage_fund_balance: u64,
-        stake_subsidy_amount: u64,
         total_gas_fees: u64,
         total_stake_rewards_distributed: u64,
-        leftover_storage_fund_inflow: u64,
+        burnt_tokens_amount: u64,
+        minted_tokens_amount: u64,
     }
 
     // Errors
@@ -221,7 +207,6 @@ module iota_system::iota_system_state_inner {
     const ECannotReportOneself: u64 = 3;
     const EReportRecordNotFound: u64 = 4;
     const EBpsTooLarge: u64 = 5;
-    const EStakeWithdrawBeforeActivation: u64 = 6;
     const ESafeModeGasNotProcessed: u64 = 7;
     const EAdvancedToWrongEpoch: u64 = 8;
 
@@ -232,12 +217,12 @@ module iota_system::iota_system_state_inner {
     /// Create a new IotaSystemState object and make it shared.
     /// This function will be called only once in genesis.
     public(package) fun create(
+        iota_treasury_cap: IotaTreasuryCap,
         validators: vector<Validator>,
         initial_storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         parameters: SystemParameters,
-        stake_subsidy: StakeSubsidy,
         ctx: &mut TxContext,
     ): IotaSystemStateInner {
         let validators = validator_set::new(validators, ctx);
@@ -247,14 +232,14 @@ module iota_system::iota_system_state_inner {
             epoch: 0,
             protocol_version,
             system_state_version: genesis_system_state_version(),
+            iota_treasury_cap,
             validators,
             storage_fund: storage_fund::new(initial_storage_fund),
             parameters,
             reference_gas_price,
             validator_report_records: vec_map::empty(),
-            stake_subsidy,
             safe_mode: false,
-            safe_mode_storage_rewards: balance::zero(),
+            safe_mode_storage_charges: balance::zero(),
             safe_mode_computation_rewards: balance::zero(),
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
@@ -266,7 +251,6 @@ module iota_system::iota_system_state_inner {
 
     public(package) fun create_system_parameters(
         epoch_duration_ms: u64,
-        stake_subsidy_start_epoch: u64,
 
         // Validator committee parameters
         max_validator_count: u64,
@@ -278,7 +262,6 @@ module iota_system::iota_system_state_inner {
     ): SystemParameters {
         SystemParameters {
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
@@ -293,14 +276,14 @@ module iota_system::iota_system_state_inner {
             epoch,
             protocol_version,
             system_state_version: _,
+            iota_treasury_cap,
             validators,
             storage_fund,
             parameters,
             reference_gas_price,
             validator_report_records,
-            stake_subsidy,
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
@@ -309,7 +292,6 @@ module iota_system::iota_system_state_inner {
         } = self;
         let SystemParameters {
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
@@ -321,11 +303,11 @@ module iota_system::iota_system_state_inner {
             epoch,
             protocol_version,
             system_state_version: 2,
+            iota_treasury_cap,
             validators,
             storage_fund,
             parameters: SystemParametersV2 {
                 epoch_duration_ms,
-                stake_subsidy_start_epoch,
                 min_validator_count: 4,
                 max_validator_count,
                 min_validator_joining_stake,
@@ -336,9 +318,8 @@ module iota_system::iota_system_state_inner {
             },
             reference_gas_price,
             validator_report_records,
-            stake_subsidy,
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
@@ -347,7 +328,7 @@ module iota_system::iota_system_state_inner {
         }
     }
 
-    // ==== public(friend) functions ====
+    // ==== public(package) functions ====
 
     /// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
@@ -523,10 +504,6 @@ module iota_system::iota_system_state_inner {
         staked_iota: StakedIota,
         ctx: &TxContext,
     ) : Balance<IOTA> {
-        assert!(
-            stake_activation_epoch(&staked_iota) <= ctx.epoch(),
-            EStakeWithdrawBeforeActivation
-        );
         self.validators.request_withdraw_stake(staked_iota, ctx)
     }
 
@@ -813,41 +790,33 @@ module iota_system::iota_system_state_inner {
     /// 1. Add storage charge to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
-    /// 3. Distribute computation charge to validator stake.
-    /// 4. Update all validators.
+    /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+    /// or smaller than the computation reward.
+    /// 4. Distribute the target reward to the validators.
+    /// 5. Burn any leftover rewards.
+    /// 6. Update all validators.
     public(package) fun advance_epoch(
         self: &mut IotaSystemStateInnerV2,
         new_epoch: u64,
         next_protocol_version: u64,
-        mut storage_reward: Balance<IOTA>,
+        validator_target_reward: u64,
+        mut storage_charge: Balance<IOTA>,
         mut computation_reward: Balance<IOTA>,
         mut storage_rebate_amount: u64,
         mut non_refundable_storage_fee_amount: u64,
-        storage_fund_reinvest_rate: u64, // share of storage fund's rewards that's reinvested
-                                         // into storage fund, in basis point.
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
-        let prev_epoch_start_timestamp = self.epoch_start_timestamp_ms;
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
 
         let bps_denominator_u64 = BASIS_POINT_DENOMINATOR as u64;
         // Rates can't be higher than 100%.
-        assert!(
-            storage_fund_reinvest_rate <= bps_denominator_u64
-            && reward_slashing_rate <= bps_denominator_u64,
-            EBpsTooLarge,
-        );
-
-        // TODO: remove this in later upgrade.
-        if (self.parameters.stake_subsidy_start_epoch > 0) {
-            self.parameters.stake_subsidy_start_epoch = 20;
-        };
+        assert!(reward_slashing_rate <= bps_denominator_u64, EBpsTooLarge);
 
         // Accumulate the gas summary during safe_mode before processing any rewards:
-        let safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
-        storage_reward.join(safe_mode_storage_rewards);
+        let safe_mode_storage_charges = self.safe_mode_storage_charges.withdraw_all();
+        storage_charge.join(safe_mode_storage_charges);
         let safe_mode_computation_rewards = self.safe_mode_computation_rewards.withdraw_all();
         computation_reward.join(safe_mode_computation_rewards);
         storage_rebate_amount = storage_rebate_amount + self.safe_mode_storage_rebates;
@@ -855,49 +824,24 @@ module iota_system::iota_system_state_inner {
         non_refundable_storage_fee_amount = non_refundable_storage_fee_amount + self.safe_mode_non_refundable_storage_fee;
         self.safe_mode_non_refundable_storage_fee = 0;
 
-        let total_validators_stake = self.validators.total_stake();
-        let storage_fund_balance = self.storage_fund.total_balance();
-        let total_stake = storage_fund_balance + total_validators_stake;
-
-        let storage_charge = storage_reward.value();
+        let storage_charge_value = storage_charge.value();
         let computation_charge = computation_reward.value();
 
-        // Include stake subsidy in the rewards given out to validators and stakers.
-        // Delay distributing any stake subsidies until after `stake_subsidy_start_epoch`.
-        // And if this epoch is shorter than the regular epoch duration, don't distribute any stake subsidy.
-        let stake_subsidy =
-            if (ctx.epoch() >= self.parameters.stake_subsidy_start_epoch  &&
-                epoch_start_timestamp_ms >= prev_epoch_start_timestamp + self.parameters.epoch_duration_ms)
-            {
-                self.stake_subsidy.advance_epoch()
-            } else {
-                balance::zero()
-            };
-
-        let stake_subsidy_amount = stake_subsidy.value();
-        computation_reward.join(stake_subsidy);
-
-        let total_stake_u128 = total_stake as u128;
-        let computation_charge_u128 = computation_charge as u128;
-
-        let storage_fund_reward_amount = storage_fund_balance as u128 * computation_charge_u128 / total_stake_u128;
-        let mut storage_fund_reward = computation_reward.split(storage_fund_reward_amount as u64);
-        let storage_fund_reinvestment_amount =
-            storage_fund_reward_amount * (storage_fund_reinvest_rate as u128) / BASIS_POINT_DENOMINATOR;
-        let storage_fund_reinvestment = storage_fund_reward.split(
-            storage_fund_reinvestment_amount as u64,
+        let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_reward_to_target_reward(
+            validator_target_reward,
+            computation_reward,
+            &mut self.iota_treasury_cap,
+            ctx
         );
 
         self.epoch = self.epoch + 1;
         // Sanity check to make sure we are advancing to the right epoch.
         assert!(new_epoch == self.epoch, EAdvancedToWrongEpoch);
 
-        let computation_reward_amount_before_distribution = computation_reward.value();
-        let storage_fund_reward_amount_before_distribution = storage_fund_reward.value();
+        let total_validator_rewards_amount_before_distribution = total_validator_rewards.value();
 
         self.validators.advance_epoch(
-            &mut computation_reward,
-            &mut storage_fund_reward,
+            &mut total_validator_rewards,
             &mut self.validator_report_records,
             reward_slashing_rate,
             self.parameters.validator_low_stake_threshold,
@@ -908,27 +852,23 @@ module iota_system::iota_system_state_inner {
 
         let new_total_stake = self.validators.total_stake();
 
-        let computation_reward_amount_after_distribution = computation_reward.value();
-        let storage_fund_reward_amount_after_distribution = storage_fund_reward.value();
-        let computation_reward_distributed = computation_reward_amount_before_distribution - computation_reward_amount_after_distribution;
-        let storage_fund_reward_distributed = storage_fund_reward_amount_before_distribution - storage_fund_reward_amount_after_distribution;
+        let remaining_validator_rewards_amount_after_distribution = total_validator_rewards.value();
+        let total_validator_rewards_distributed = total_validator_rewards_amount_before_distribution - remaining_validator_rewards_amount_after_distribution;
 
         self.protocol_version = next_protocol_version;
 
         // Derive the reference gas price for the new epoch
         self.reference_gas_price = self.validators.derive_reference_gas_price();
         // Because of precision issues with integer divisions, we expect that there will be some
-        // remaining balance in `storage_fund_reward` and `computation_reward`.
-        // All of these go to the storage fund.
-        let mut leftover_staking_rewards = storage_fund_reward;
-        leftover_staking_rewards.join(computation_reward);
-        let leftover_storage_fund_inflow = leftover_staking_rewards.value();
+        // remaining balance in `total_validator_rewards`.
+        let leftover_staking_rewards = total_validator_rewards;
+        // Burn any remaining leftover rewards.
+        burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
+        self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
         let refunded_storage_rebate =
             self.storage_fund.advance_epoch(
-                storage_reward,
-                storage_fund_reinvestment,
-                leftover_staking_rewards,
+                storage_charge,
                 storage_rebate_amount,
                 non_refundable_storage_fee_amount,
             );
@@ -939,25 +879,48 @@ module iota_system::iota_system_state_inner {
                 protocol_version: self.protocol_version,
                 reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
-                storage_charge,
-                storage_fund_reinvestment: storage_fund_reinvestment_amount as u64,
+                storage_charge: storage_charge_value,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
-                stake_subsidy_amount,
                 total_gas_fees: computation_charge,
-                total_stake_rewards_distributed: computation_reward_distributed + storage_fund_reward_distributed,
-                leftover_storage_fund_inflow,
+                total_stake_rewards_distributed: total_validator_rewards_distributed,
+                burnt_tokens_amount,
+                minted_tokens_amount
             }
         );
         self.safe_mode = false;
         // Double check that the gas from safe mode has been processed.
         assert!(self.safe_mode_storage_rebates == 0
-            && self.safe_mode_storage_rewards.value() == 0
+            && self.safe_mode_storage_charges.value() == 0
             && self.safe_mode_computation_rewards.value() == 0, ESafeModeGasNotProcessed);
 
         // Return the storage rebate split from storage fund that's already refunded to the transaction senders.
         // This will be burnt at the last step of epoch change programmable transaction.
         refunded_storage_rebate
+    }
+
+    /// Mint or burn IOTA tokens depending on the given target reward per validator
+    /// and the amount of computation fees burned in this epoch.
+    fun match_computation_reward_to_target_reward(
+        validator_target_reward: u64,
+        mut computation_reward: Balance<IOTA>,
+        iota_treasury_cap: &mut iota::iota::IotaTreasuryCap,
+        ctx: &TxContext,
+    ): (Balance<IOTA>, u64, u64) {
+        let mut burnt_tokens_amount = 0;
+        let mut minted_tokens_amount = 0;
+        if (computation_reward.value() < validator_target_reward) {
+            let tokens_to_mint = validator_target_reward - computation_reward.value();
+            let new_tokens = iota_treasury_cap.mint_balance(tokens_to_mint, ctx);
+            minted_tokens_amount = new_tokens.value();
+            computation_reward.join(new_tokens);
+        } else if (computation_reward.value() > validator_target_reward) {
+            let tokens_to_burn = computation_reward.value() - validator_target_reward;
+            let rewards_to_burn = computation_reward.split(tokens_to_burn);
+            burnt_tokens_amount = rewards_to_burn.value();
+            iota_treasury_cap.burn_balance(rewards_to_burn, ctx);
+        };
+        (computation_reward, minted_tokens_amount, burnt_tokens_amount)
     }
 
     /// Return the current epoch number. Useful for applications that need a coarse-grained concept of time,
@@ -991,6 +954,19 @@ module iota_system::iota_system_state_inner {
         self.validators.validator_total_stake_amount(validator_addr)
     }
 
+    /// Returns the voting power for `validator_addr`.
+    /// Aborts if `validator_addr` is not an active validator.
+    public(package) fun active_validator_voting_powers(self: &IotaSystemStateInnerV2): VecMap<address, u64> {
+        let mut active_validators = active_validator_addresses(self);
+        let mut voting_powers = vec_map::empty();
+        while (!vector::is_empty(&active_validators)) {
+            let validator = vector::pop_back(&mut active_validators);
+            let voting_power = validator_set::validator_voting_power(&self.validators, validator);
+            vec_map::insert(&mut voting_powers, validator, voting_power);
+        };
+        voting_powers
+    }
+
     /// Returns the staking pool id of a given validator.
     /// Aborts if `validator_addr` is not an active validator.
     public(package) fun validator_staking_pool_id(self: &IotaSystemStateInnerV2, validator_addr: address): ID {
@@ -1002,6 +978,11 @@ module iota_system::iota_system_state_inner {
     public(package) fun validator_staking_pool_mappings(self: &IotaSystemStateInnerV2): &Table<ID, address> {
 
         self.validators.staking_pool_mappings()
+    }
+
+    /// Returns the total iota supply.
+    public(package) fun get_total_iota_supply(self: &IotaSystemStateInnerV2): u64 {
+        self.iota_treasury_cap.total_supply()
     }
 
     /// Returns all the validators who are currently reporting `addr`
@@ -1080,11 +1061,6 @@ module iota_system::iota_system_state_inner {
     /// Return the currently candidate validator by address
     public(package) fun candidate_validator_by_address(self: &IotaSystemStateInnerV2, validator_address: address): &Validator {
         validators(self).get_candidate_validator_ref(validator_address)
-    }
-
-    #[test_only]
-    public(package) fun get_stake_subsidy_distribution_counter(self: &IotaSystemStateInnerV2): u64 {
-        self.stake_subsidy.get_distribution_counter()
     }
 
     #[test_only]

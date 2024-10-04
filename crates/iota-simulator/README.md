@@ -18,10 +18,10 @@ This allows us to:
 
 ## How it works:
 
-The code for the simulator itself lives in the https://github.com/MystenLabs/mysten-sim repository.
+The code for the simulator itself lives in the https://github.com/iotaledger/iota-sim repository.
 It has the following main components:
 
-1. A [runtime](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
+1. A [runtime](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
    - A "node" context for all running tasks. The node is a simulated machine, which can be killed, restarted, or paused.
    - A randomized but deterministic executor.
    - Simulated clock facilities, including timers, sleep(), etc.
@@ -37,11 +37,11 @@ It has the following main components:
 
 1. A library of interceptor functions which intercept various posix API calls in order to enforce determinism throughout the test. These include:
    - `getrandom()`, `getentropy()` - intercepted and delegated to the simulator PRNG.
-   - Various [socket api calls](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
+   - Various [socket api calls](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
    - `mach_absolute_time()`, `clock_gettime()`: Intercepted to provide deterministic high-resolution timing behavior.
    - TODO: `gettimeofday()`: We would like to intercept this to provide deterministic wall-clock operations (e.g. on dates, etc). However, intercepting this currently breaks RocksDB.
 
-   This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
+   This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
 
 1. Procedural macros that replace `#[tokio::test]` and run test code inside a testing environment. These are `#[iota_test]` and `#[sim_test]` and are documented below. The test harness created by these macros initializes the simulator runtime with a starting seed, generates the simulator configuration, and runs the test inside a newly created thread. The test must be run in its own thread in order to provide each test case with fresh thread local storage.
 
@@ -97,7 +97,7 @@ Simulation tests are declared in one of the following two ways:
 
 The `#[sim_test]` proc macro also takes a number of arguments, described below.
 
-The easiest way to write tests that run in the simulation testing framework is to use [SwarmBuilder](https://github.com/iotaledger/iota/blob/main/crates/iota-swarm/src/memory/swarm.rs#L47) to start your validators.
+The easiest way to write tests that run in the simulation testing framework is to use [SwarmBuilder](https://github.com/iotaledger/iota/blob/develop/crates/iota-swarm/src/memory/swarm.rs#L47) to start your validators.
 This is most often called indirectly via `start_test_network` in the test-utils crate.
 Swarm will create one simulator node (i.e. a simulated machine) per validator, and each validator will have its own unique IP address.
 
@@ -109,7 +109,7 @@ However, the fact that the validators are running on unique simulator nodes mean
 Swarm assumes a level of encapsulation that reflects what client code would actually experience in production.
 In other words, the only way to communicate with the validators when using Swarm is via the network.
 However, we have many tests that create validators and manipulate them more directly.
-https://github.com/iotaledger/iota/blob/main/crates/iota/tests/checkpoints_tests.rs is a good example of this.
+https://github.com/iotaledger/iota/blob/develop/crates/iota/tests/checkpoints_tests.rs is a good example of this.
 
 In these tests, the test code is able to break the simulator abstraction and directly manipulate the state of remote validators.
 Yet, the validators are still running on simulated nodes.
@@ -154,13 +154,13 @@ Also, the world will not end if you break this rule. You just might see confusin
 
 `#[sim_test]` currently accepts two arguments:
 
-- `config = "config_expr"` - This argument accepts a string which will be evaluated as an expression that returns the configuration for the test. Generally, you should make this a function call, and then define the function to return the config. The function must return a type that can implements `Into<TestConfig>` - the most common choice is `SimConfig`, but `Vec<SimConfig>` and `Vec<(usize /* repeat count */, SimConfig)>` are also supported by default. See https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/config.rs for the `TestConfig` implementation.
+- `config = "config_expr"` - This argument accepts a string which will be evaluated as an expression that returns the configuration for the test. Generally, you should make this a function call, and then define the function to return the config. The function must return a type that can implements `Into<TestConfig>` - the most common choice is `SimConfig`, but `Vec<SimConfig>` and `Vec<(usize /* repeat count */, SimConfig)>` are also supported by default. See https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/config.rs for the `TestConfig` implementation.
 
 - `check_determinism` - If set, the framework will run the test twice, and verify that it executes identically each time. (It does this by keeping a log which contains an entry for every call to the PRNG. Each entry contains a hash of the value yielded by the PRNG at that point + the current time.). Tests with `check_determinism` are usually for testing the framework itself, so you probably won't need to use this.
 
 ### Configuring the network:
 
-Network latency and packet loss can be configured using [SimConfig](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/config.rs#L8), which is re-exported from this crate as `iota_simulator::config::SimConfig`.
+Network latency and packet loss can be configured using [SimConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/config.rs#L8), which is re-exported from this crate as `iota_simulator::config::SimConfig`.
 
 To configure a test, you write:
 
@@ -189,11 +189,11 @@ For instance, you might do:
          ...
       }
 
-Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
+Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
 
-There is a small but growing library of functions for building network configs in [iota_simulator::configs](https://github.com/iotaledger/iota/blob/main/crates/iota-simulator/src/lib.rs).
+There is a small but growing library of functions for building network configs in [iota_simulator::configs](https://github.com/iotaledger/iota/blob/develop/crates/iota-simulator/src/lib.rs).
 
-There are also some examples of network configuration at https://github.com/iotaledger/iota/blob/main/crates/iota-benchmark/tests/simtest.rs#L52.
+There are also some examples of network configuration at https://github.com/iotaledger/iota/blob/develop/crates/iota-benchmark/tests/simtest.rs#L52.
 
 ### The `nondeterministic!` macro
 

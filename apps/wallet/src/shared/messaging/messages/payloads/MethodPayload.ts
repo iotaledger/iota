@@ -8,7 +8,7 @@ import type {
 } from '_src/background/account-sources/AccountSource';
 import type { AccountType, SerializedUIAccount } from '_src/background/accounts/Account';
 import { type Status } from '_src/background/storage-migration';
-import { type SerializedSignature } from '@iota/iota.js/cryptography';
+import { type SerializedSignature } from '@iota/iota-sdk/cryptography';
 
 import { isBasePayload } from './BasePayload';
 import type { Payload } from './Payload';

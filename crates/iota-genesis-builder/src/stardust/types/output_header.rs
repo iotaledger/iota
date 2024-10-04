@@ -5,7 +5,7 @@
 use std::mem::size_of;
 
 use anyhow::Result;
-use iota_sdk::types::block::{output::OutputId, payload::milestone::MilestoneIndex, BlockId};
+use iota_sdk::types::block::{BlockId, output::OutputId, payload::milestone::MilestoneIndex};
 use iota_types::base_types::ObjectID;
 use packable::Packable;
 

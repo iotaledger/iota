@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::collections::VecDeque;
 
 use fastcrypto::error::FastCryptoError;
@@ -97,10 +98,9 @@ pub fn check_zklogin_id_internal(
     );
 
     match result {
-        Ok(result) => Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::bool(result)],
-        )),
+        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::bool(result)
+        ])),
         Err(_) => Ok(NativeResult::err(context.gas_used(), INVALID_INPUT)),
     }
 }
@@ -184,10 +184,9 @@ pub fn check_zklogin_issuer_internal(
     let result = check_issuer_internal(&address, &address_seed, &issuer.as_bytes_ref());
 
     match result {
-        Ok(result) => Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::bool(result)],
-        )),
+        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::bool(result)
+        ])),
         Err(_) => Ok(NativeResult::err(context.gas_used(), INVALID_INPUT)),
     }
 }

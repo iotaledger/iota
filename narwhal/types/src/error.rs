@@ -2,12 +2,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::sync::Arc;
 
 use anemo::PeerId;
 use config::Epoch;
 use fastcrypto::hash::Digest;
-use mysten_common::sync::notify_once::NotifyOnce;
+use iota_common::sync::notify_once::NotifyOnce;
 use store::StoreError;
 use thiserror::Error;
 

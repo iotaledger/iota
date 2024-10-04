@@ -2,10 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaClient } from '@iota/iota.js/client';
-import { isValidIotaAddress } from '@iota/iota.js/utils';
+import type { IotaClient } from '@iota/iota-sdk/client';
+import { fromB64, isValidIotaAddress } from '@iota/iota-sdk/utils';
 
-import { bcs } from '../bcs.js';
+import '../bcs.js';
+
+import { TransferPolicyType } from '../bcs.js';
 import type { TransferPolicy, TransferPolicyCap } from '../types/index.js';
 import {
     TRANSFER_POLICY_CAP_TYPE,
@@ -51,7 +53,7 @@ export async function queryTransferPolicy(
                 );
             }
 
-            const parsed = bcs.de(TRANSFER_POLICY_TYPE, policy.bcs.bcsBytes, 'base64');
+            const parsed = TransferPolicyType.parse(fromB64(policy.bcs.bcsBytes));
 
             return {
                 id: policy?.objectId,

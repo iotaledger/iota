@@ -6,24 +6,22 @@
 //! One mnemonic/wallet, one account, multiple public and internal addresses.
 
 use iota_sdk::{
-    client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
+    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
     types::block::{
         address::Ed25519Address,
         output::{
-            unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output,
-            OUTPUT_INDEX_RANGE,
+            BasicOutputBuilder, OUTPUT_INDEX_RANGE, Output,
+            unlock_condition::AddressUnlockCondition,
         },
     },
 };
-use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
+    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
-const IOTA_COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 208;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 const MNEMONIC: &str = "axis art silk merit assist hour bright always day legal misery arm laundry mule ship upon oil ski cup hat skin wet old sea";
@@ -39,18 +37,18 @@ const ADDRESSES: &[[u32; 3]] = &[
     [0, 1, 2],
 ];
 
-pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(
+    rng: &mut StdRng,
+    vested_index: &mut u32,
+    coin_type: u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
-
-    let randomness_seed = random::<u64>();
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("vesting_schedule_portfolio_mix randomness seed: {randomness_seed}");
 
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager
             .generate_ed25519_addresses(
-                IOTA_COIN_TYPE,
+                coin_type,
                 *account_index,
                 *address_index..address_index + 1,
                 (*internal == 1).then_some(GenerateAddressOptions::internal()),
@@ -59,14 +57,14 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
         match address_index {
             0 => {
-                add_random_basic_output(&mut outputs, &mut rng, address)?;
+                add_random_basic_output(&mut outputs, rng, address)?;
             }
             1 => {
-                add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
+                add_vested_outputs(&mut outputs, rng, vested_index, address)?;
             }
             2 => {
-                add_random_basic_output(&mut outputs, &mut rng, address)?;
-                add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
+                add_random_basic_output(&mut outputs, rng, address)?;
+                add_vested_outputs(&mut outputs, rng, vested_index, address)?;
             }
             _ => unreachable!(),
         }
@@ -110,30 +108,26 @@ fn add_vested_outputs(
 ) -> anyhow::Result<()> {
     let (initial_unlock_amount, vested_amount) = initial_unlock_and_vested_amounts(rng);
 
-    let mut transaction_id = [0; 32];
-
-    // Prepare a transaction ID with the vested reward prefix.
-    transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
-
     outputs.push(new_vested_output(
-        &mut transaction_id,
-        vested_index,
+        *vested_index,
         initial_unlock_amount,
         address,
         None,
+        rng,
     )?);
+    *vested_index -= 1;
 
     for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
         let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
         outputs.push(new_vested_output(
-            &mut transaction_id,
-            vested_index,
+            *vested_index,
             vested_amount,
             address,
             Some(timelock),
+            rng,
         )?);
+        *vested_index -= 1;
     }
 
     Ok(())

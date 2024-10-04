@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
-use iota_json_rpc_api::{ReadApiServer, QUERY_MAX_RESULT_LIMIT};
+use diesel::r2d2::R2D2Connection;
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
+use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
-    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaLoadedChildObjectsResponse, IotaObjectDataOptions, IotaObjectResponse,
-    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ProtocolConfigResponse,
+    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -20,17 +20,17 @@ use iota_types::{
     iota_serde::BigInt,
     object::ObjectRead,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 #[derive(Clone)]
-pub(crate) struct ReadApi {
-    inner: IndexerReader,
+pub(crate) struct ReadApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl ReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection + 'static> ReadApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 
@@ -61,7 +61,7 @@ impl ReadApi {
 }
 
 #[async_trait]
-impl ReadApiServer for ReadApi {
+impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -84,7 +84,10 @@ impl ReadApiServer for ReadApi {
                         Ok(rendered_fields) => display_fields = Some(rendered_fields),
                         Err(e) => {
                             return Ok(IotaObjectResponse::new(
-                                Some((object_ref, o, layout, options, None).try_into()?),
+                                Some(
+                                    IotaObjectData::new(object_ref, o, layout, options, None)
+                                        .map_err(internal_error)?,
+                                ),
                                 Some(IotaObjectResponseError::DisplayError {
                                     error: e.to_string(),
                                 }),
@@ -93,7 +96,8 @@ impl ReadApiServer for ReadApi {
                     }
                 }
                 Ok(IotaObjectResponse::new_with_data(
-                    (object_ref, o, layout, options, display_fields).try_into()?,
+                    IotaObjectData::new(object_ref, o, layout, options, display_fields)
+                        .map_err(internal_error)?,
                 ))
             }
             ObjectRead::Deleted((object_id, version, digest)) => Ok(
@@ -179,10 +183,15 @@ impl ReadApiServer for ReadApi {
         _version: SequenceNumber,
         _options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+    }
+
+    async fn try_get_object_before_version(
+        &self,
+        _: ObjectID,
+        _: SequenceNumber,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn try_multi_get_past_objects(
@@ -190,10 +199,7 @@ impl ReadApiServer for ReadApi {
         _past_objects: Vec<IotaGetPastObjectRequest>,
         _options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>> {
@@ -202,7 +208,7 @@ impl ReadApiServer for ReadApi {
     }
 
     async fn get_checkpoint(&self, id: CheckpointId) -> RpcResult<Checkpoint> {
-        self.get_checkpoint(id).await.map_err(Into::into)
+        Ok(self.get_checkpoint(id).await?)
     }
 
     async fn get_checkpoints(
@@ -235,35 +241,11 @@ impl ReadApiServer for ReadApi {
         })
     }
 
-    async fn get_checkpoints_deprecated_limit(
-        &self,
-        cursor: Option<BigInt<u64>>,
-        limit: Option<BigInt<u64>>,
-        descending_order: bool,
-    ) -> RpcResult<CheckpointPage> {
-        self.get_checkpoints(
-            cursor,
-            limit.map(|l| l.into_inner() as usize),
-            descending_order,
-        )
-        .await
-    }
-
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
         self.inner
             .get_transaction_events_in_blocking_task(transaction_digest)
             .await
             .map_err(Into::into)
-    }
-
-    async fn get_loaded_child_objects(
-        &self,
-        _digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
     }
 
     async fn get_protocol_config(
@@ -295,7 +277,7 @@ impl ReadApiServer for ReadApi {
     }
 }
 
-impl IotaRpcModule for ReadApi {
+impl<T: R2D2Connection> IotaRpcModule for ReadApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

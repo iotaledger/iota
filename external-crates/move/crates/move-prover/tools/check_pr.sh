@@ -1,8 +1,6 @@
 #!/bin/bash
 # Copyright (c) The Diem Core Contributors
 # Copyright (c) The Move Contributors
-# SPDX-License-Identifier: Apache-2.0
-
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
@@ -91,7 +89,6 @@ if [ ! -z "$CHECKMORE" ]; then
   CRATES="$CRATES \
     $BASE/language/move-prover/move-abigen\
     $BASE/language/move-prover/move-docgen\
-    $BASE/language/move-prover/errmapgen\
     $BASE/language/move-prover/interpreter\
     $BASE/language/move-prover/interpreter-testsuite\
     $BASE/language/move-prover/lab\

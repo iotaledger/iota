@@ -3,15 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { LedgerLogo17, Iota } from '@iota/icons';
-
-function IotaIcon() {
-    return (
-        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-steel p-1 text-white">
-            <Iota />
-        </div>
-    );
-}
+import { Ledger, IotaLogoMark } from '@iota/ui-icons';
 
 interface AccountIconProps {
     account: SerializedUIAccount;
@@ -19,7 +11,7 @@ interface AccountIconProps {
 
 export function AccountIcon({ account }: AccountIconProps) {
     if (account.type === AccountType.LedgerDerived) {
-        return <LedgerLogo17 className="h-4 w-4" />;
+        return <Ledger className="h-5 w-5" />;
     }
-    return <IotaIcon />;
+    return <IotaLogoMark className="h-5 w-5" />;
 }
