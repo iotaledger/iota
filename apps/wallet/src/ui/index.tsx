@@ -95,8 +95,9 @@ function AppWrapper() {
                                         <UnlockAccountProvider>
                                             <div
                                                 className={cn(
-                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-screen flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                    isFullscreen && 'rounded-xl shadow-lg',
+                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                    isFullscreen && 'w-screen rounded-xl shadow-lg',
+                                                    !isFullscreen && 'w-popup-width',
                                                 )}
                                             >
                                                 <ErrorBoundary>
