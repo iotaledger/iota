@@ -74,7 +74,7 @@ module iota_system::validator {
     /// Max gas price a validator can set is 100K NANOS.
     const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
-    public struct ValidatorMetadata has store {
+    public struct ValidatorMetadataV1 has store {
         /// The Iota Address of the validator. This is the sender that created the ValidatorV1 object,
         /// and also the address to send validator/coins to during withdraws.
         iota_address: address,
@@ -119,7 +119,7 @@ module iota_system::validator {
 
     public struct ValidatorV1 has store {
         /// Summary of the validator.
-        metadata: ValidatorMetadata,
+        metadata: ValidatorMetadataV1,
         /// The voting power of this validator, which might be different from its
         /// stake amount.
         voting_power: u64,
@@ -176,8 +176,8 @@ module iota_system::validator {
         primary_address: String,
         worker_address: String,
         extra_fields: Bag,
-    ): ValidatorMetadata {
-        let metadata = ValidatorMetadata {
+    ): ValidatorMetadataV1 {
+        let metadata = ValidatorMetadataV1 {
             iota_address,
             protocol_pubkey_bytes,
             network_pubkey_bytes,
@@ -429,7 +429,7 @@ module iota_system::validator {
         self.staking_pool.is_preactive()
     }
 
-    public fun metadata(self: &ValidatorV1): &ValidatorMetadata {
+    public fun metadata(self: &ValidatorV1): &ValidatorMetadataV1 {
         &self.metadata
     }
 
@@ -850,7 +850,7 @@ module iota_system::validator {
     }
 
     /// Aborts if validator metadata is valid
-    public fun validate_metadata(metadata: &ValidatorMetadata) {
+    public fun validate_metadata(metadata: &ValidatorMetadataV1) {
         validate_metadata_bcs(bcs::to_bytes(metadata));
     }
 
@@ -861,9 +861,9 @@ module iota_system::validator {
     }
 
 
-    /// Create a new validator from the given `ValidatorMetadata`, called by both `new` and `new_for_testing`.
+    /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(
-        metadata: ValidatorMetadata,
+        metadata: ValidatorMetadataV1,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext
