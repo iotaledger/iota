@@ -27,10 +27,10 @@ use iota_types::{
     timelock::timelock::{self},
 };
 use packable::{
-    packer::{IoPacker, Packer},
     Packable,
+    packer::{IoPacker, Packer},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
 

@@ -10,7 +10,7 @@ import type {
     IotaClient,
     IotaMoveNormalizedModule,
 } from '@iota/iota-sdk/client';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
 
 import type {
@@ -60,8 +60,6 @@ import {
     PaginateTransactionBlockListsDocument,
     QueryEventsDocument,
     QueryTransactionBlocksDocument,
-    ResolveNameServiceAddressDocument,
-    ResolveNameServiceNamesDocument,
     TransactionBlockKindInput,
     TryGetPastObjectDocument,
 } from './generated/queries.js';
@@ -608,6 +606,7 @@ export const RPC_METHODS: {
                     ...pagination,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
+                    showRawEffects: options?.showRawEffects,
                     showObjectChanges: options?.showObjectChanges,
                     showRawInput: options?.showRawInput,
                     showInput: options?.showInput,
@@ -663,6 +662,7 @@ export const RPC_METHODS: {
                     digest,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
+                    showRawEffects: options?.showRawEffects,
                     showObjectChanges: options?.showObjectChanges,
                     showRawInput: options?.showRawInput,
                     showInput: options?.showInput,
@@ -684,6 +684,7 @@ export const RPC_METHODS: {
                     digests: digests,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
+                    showRawEffects: options?.showEffects,
                     showObjectChanges: options?.showObjectChanges,
                     showRawInput: options?.showRawInput,
                     showInput: options?.showInput,
@@ -827,10 +828,10 @@ export const RPC_METHODS: {
             validatorReportRecords: [], // TODO
             validatorVeryLowStakeThreshold:
                 systemState.systemParameters?.validatorVeryLowStakeThreshold,
-            validatorCandidatesId: '', // TODO
-            inactivePoolsId: '', // TODO
-            pendingActiveValidatorsId: '', // TODO
-            stakingPoolMappingsId: '', // TODO
+            validatorCandidatesId: systemState.validatorSet?.validatorCandidatesId,
+            inactivePoolsId: systemState.validatorSet?.inactivePoolsId,
+            pendingActiveValidatorsId: systemState.validatorSet?.pendingActiveValidatorsId,
+            stakingPoolMappingsId: systemState.validatorSet?.stakingPoolMappingsId,
         };
     },
     async queryEvents(transport, [query, cursor, limit, descending]) {
@@ -975,7 +976,7 @@ export const RPC_METHODS: {
                     cursor,
                 },
             },
-            (data) => data.object?.dynamicFields,
+            (data) => data.owner?.dynamicFields,
         );
 
         return {
@@ -1027,9 +1028,9 @@ export const RPC_METHODS: {
                 },
             },
             (data) => {
-                return data.object?.dynamicObjectField?.value?.__typename === 'MoveObject'
-                    ? data.object.dynamicObjectField.value.owner?.__typename === 'Parent'
-                        ? data.object.dynamicObjectField.value.owner.parent
+                return data.owner?.dynamicObjectField?.value?.__typename === 'MoveObject'
+                    ? data.owner.dynamicObjectField.value.owner?.__typename === 'Parent'
+                        ? data.owner.dynamicObjectField.value.owner.parent
                         : undefined
                     : undefined;
             },
@@ -1075,6 +1076,7 @@ export const RPC_METHODS: {
                     signatures,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
+                    showRawEffects: options?.showRawEffects,
                     showInput: options?.showInput,
                     showEvents: options?.showEvents,
                     showObjectChanges: options?.showObjectChanges,
@@ -1085,8 +1087,8 @@ export const RPC_METHODS: {
         );
 
         if (!effects?.transactionBlock) {
-            const txb = TransactionBlock.from(fromB64(txBytes));
-            return { errors: errors ?? undefined, digest: await txb.getDigest() };
+            const tx = Transaction.from(fromB64(txBytes));
+            return { errors: errors ?? undefined, digest: await tx.getDigest() };
         }
 
         await paginateTransactionBlockLists(transport, effects.transactionBlock);
@@ -1098,7 +1100,7 @@ export const RPC_METHODS: {
         );
     },
     async dryRunTransactionBlock(transport, [txBytes]) {
-        const txb = TransactionBlock.from(fromB64(txBytes));
+        const tx = Transaction.from(fromB64(txBytes));
         const { transaction, error } = await transport.graphqlQuery(
             {
                 query: DryRunTransactionBlockDocument,
@@ -1119,7 +1121,7 @@ export const RPC_METHODS: {
         }
 
         const result = mapGraphQLTransactionBlockToRpcTransactionBlock(
-            { ...transaction, digest: await txb.getDigest() },
+            { ...transaction, digest: await tx.getDigest() },
             {
                 showBalanceChanges: true,
                 showEffects: true,
@@ -1272,7 +1274,7 @@ export const RPC_METHODS: {
             epochTotalTransactions: '0', // TODO
             firstCheckpointId: epoch.firstCheckpoint?.nodes[0]?.sequenceNumber.toString()!,
             endOfEpochInfo: null,
-            referenceGasPrice: Number.parseInt(epoch.referenceGasPrice, 10),
+            referenceGasPrice: epoch.referenceGasPrice,
             epochStartTimestamp: new Date(epoch.startTimestamp).getTime().toString(),
         };
     },
@@ -1339,6 +1341,7 @@ export const RPC_METHODS: {
         const attributes: Record<string, ProtocolConfigValue | null> = {};
 
         const configTypeMap: Record<string, string> = {
+            max_accumulated_txn_cost_per_object_in_narwhal_commit: 'u64',
             max_arguments: 'u32',
             max_gas_payment_objects: 'u32',
             max_modules_in_publish: 'u32',
@@ -1347,6 +1350,7 @@ export const RPC_METHODS: {
             max_type_argument_depth: 'u32',
             max_type_arguments: 'u32',
             move_binary_format_version: 'u32',
+            min_move_binary_format_version: 'u32',
             random_beacon_reduction_allowed_delta: 'u16',
             random_beacon_dkg_timeout_round: 'u32',
             random_beacon_reduction_lower_bound: 'u32',
@@ -1368,6 +1372,7 @@ export const RPC_METHODS: {
             binary_field_instantiations: 'u16',
             binary_friend_decls: 'u16',
             max_package_dependencies: 'u32',
+            bridge_should_try_to_finalize_committee: 'bool',
         };
 
         for (const { key, value } of protocolConfig.configs) {
@@ -1389,35 +1394,6 @@ export const RPC_METHODS: {
             protocolVersion: protocolConfig.protocolVersion?.toString(),
             attributes,
             featureFlags,
-        };
-    },
-    async resolveNameServiceAddress(transport, [name]): Promise<string | null> {
-        const data = await transport.graphqlQuery({
-            query: ResolveNameServiceAddressDocument,
-            variables: {
-                domain: name,
-            },
-        });
-
-        return data.resolveIotansAddress?.address ?? null;
-    },
-    async resolveNameServiceNames(transport, [address, cursor, limit]) {
-        const iotansRegistrations = await transport.graphqlQuery(
-            {
-                query: ResolveNameServiceNamesDocument,
-                variables: {
-                    address: address,
-                    cursor,
-                    limit,
-                },
-            },
-            (data) => data.address?.iotansRegistrations,
-        );
-
-        return {
-            hasNextPage: iotansRegistrations.pageInfo.hasNextPage,
-            nextCursor: iotansRegistrations.pageInfo.endCursor ?? null,
-            data: iotansRegistrations?.nodes.map((node) => node.domain) ?? [],
         };
     },
 };
@@ -1443,13 +1419,11 @@ async function paginateTransactionBlockLists(
         transactionBlock.effects?.balanceChanges?.pageInfo.hasNextPage ?? false;
     let hasMoreObjectChanges =
         transactionBlock.effects?.objectChanges?.pageInfo.hasNextPage ?? false;
-    let hasMoreDependencies = transactionBlock.effects?.dependencies?.pageInfo.hasNextPage ?? false;
     let afterEvents = transactionBlock.effects?.events?.pageInfo.endCursor;
     let afterBalanceChanges = transactionBlock.effects?.balanceChanges?.pageInfo.endCursor;
     let afterObjectChanges = transactionBlock.effects?.objectChanges?.pageInfo.endCursor;
-    let afterDependencies = transactionBlock.effects?.dependencies?.pageInfo.endCursor;
 
-    while (hasMoreEvents || hasMoreBalanceChanges || hasMoreObjectChanges || hasMoreDependencies) {
+    while (hasMoreEvents || hasMoreBalanceChanges || hasMoreObjectChanges) {
         const page = await transport.graphqlQuery(
             {
                 query: PaginateTransactionBlockListsDocument,
@@ -1458,11 +1432,9 @@ async function paginateTransactionBlockLists(
                     afterEvents,
                     afterBalanceChanges,
                     afterObjectChanges,
-                    afterDependencies,
                     hasMoreEvents,
                     hasMoreBalanceChanges,
                     hasMoreObjectChanges,
-                    hasMoreDependencies,
                 },
             },
             (data) => data.transactionBlock?.effects,
@@ -1471,15 +1443,12 @@ async function paginateTransactionBlockLists(
         transactionBlock.effects?.events?.nodes.push(...(page.events?.nodes ?? []));
         transactionBlock.effects?.balanceChanges?.nodes.push(...(page.balanceChanges?.nodes ?? []));
         transactionBlock.effects?.objectChanges?.nodes.push(...(page.objectChanges?.nodes ?? []));
-        transactionBlock.effects?.dependencies?.nodes.push(...(page.dependencies?.nodes ?? []));
         hasMoreEvents = page.events?.pageInfo.hasNextPage ?? false;
         hasMoreBalanceChanges = page.balanceChanges?.pageInfo.hasNextPage ?? false;
         hasMoreObjectChanges = page.objectChanges?.pageInfo.hasNextPage ?? false;
-        hasMoreDependencies = page.dependencies?.pageInfo.hasNextPage ?? false;
         afterEvents = page.events?.pageInfo.endCursor;
         afterBalanceChanges = page.balanceChanges?.pageInfo.endCursor;
         afterObjectChanges = page.objectChanges?.pageInfo.endCursor;
-        afterDependencies = page.dependencies?.pageInfo.endCursor;
     }
 }
 

@@ -211,7 +211,7 @@ describe('IotaHTTPTransport', () => {
             expect(onMessage).toHaveBeenCalledTimes(0);
             socket1.emit('close');
 
-            await new Promise((resolve) => setTimeout(resolve, 20));
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
             expect(socket1.close).toHaveBeenCalled();
             expect(sockets.length).toEqual(2);

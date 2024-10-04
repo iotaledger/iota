@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use anemo::PeerId;
-use anyhow::{format_err, Result};
+use anyhow::{Result, format_err};
 use async_trait::async_trait;
 use crypto::NetworkPublicKey;
 use types::{
@@ -14,8 +14,8 @@ use types::{
 };
 
 use crate::{
-    traits::{PrimaryToPrimaryRpc, ReliableNetwork, WorkerRpc},
     CancelOnDropHandler, RetryConfig,
+    traits::{PrimaryToPrimaryRpc, ReliableNetwork, WorkerRpc},
 };
 
 fn send<F, R, Fut>(

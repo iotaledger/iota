@@ -94,10 +94,10 @@ export default function ExecuteTransaction() {
                         <div className="grid w-full gap-1.5">
                             <Label htmlFor="network">Select Network</Label>
                             <select
-                                style={{ color: 'black' }}
                                 id="network"
+                                className="bg-background border rounded-sm p-3 text-white"
                                 value={network}
-                                onChange={(e) => setNetwork(e.target.value)}
+                                onChange={(e) => setNetwork(e.target.value as NetworkType)}
                             >
                                 <option value="devnet">Devnet</option>
                                 <option value="testnet">Testnet</option>
@@ -128,7 +128,7 @@ export default function ExecuteTransaction() {
                                 View TX Digest on{' '}
                                 <a
                                     className="text-blue-500"
-                                    href={`https://iotaexplorer.com/txblock/${digest}`}
+                                    href={`https://explorer.iota.org/txblock/${digest}`}
                                 >
                                     Iota Explorer
                                 </a>

@@ -8,12 +8,14 @@
 
 use std::str::FromStr;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use docs_examples::utils::{clean_keystore, publish_custom_nft_package, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
+        IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
@@ -21,9 +23,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
         transaction::{Argument, CallArg, ObjectArg, Transaction, TransactionData},
-        TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     },
-    IotaClientBuilder,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
+    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
     println!("{sender:?}");
 

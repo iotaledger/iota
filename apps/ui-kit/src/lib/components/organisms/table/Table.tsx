@@ -1,114 +1,130 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren, useEffect } from 'react';
+import { PropsWithChildren, ReactNode } from 'react';
 import cx from 'classnames';
-import { TableRowType, TableProvider, useTableContext, TableProviderProps } from './TableContext';
-import { Button, ButtonSize, ButtonType, TableCell, TableCellType, TableHeaderCell } from '@/lib';
+import { TableProvider, useTableContext } from './TableContext';
+import {
+    Button,
+    ButtonProps,
+    ButtonSize,
+    ButtonType,
+    Checkbox,
+    TableCellBase,
+    TableHeaderCell,
+} from '@/lib';
 import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/ui-icons';
 
-export type TableProps = {
-    /**
-     * Does the table have pagination buttons.
-     */
-    hasPagination?: boolean;
+export interface TablePaginationOptions {
     /**
      * On Next page button click.
      */
-    onNextPageClick?: () => void;
+    onNext?: () => void;
     /**
      * On Previous page button click.
      */
-    onPreviousPageClick?: () => void;
+    onPrev?: () => void;
     /**
      * On First page button click.
      */
-    onFirstPageClick?: () => void;
+    onFirst?: () => void;
     /**
      * On Last page button click.
      */
-    onLastPageClick?: () => void;
+    onLast?: () => void;
     /**
-     * The label of the action button.
+     * Has Next button.
      */
-    actionLabel?: string;
+    hasNext?: boolean;
     /**
-     * On Action button click.
+     * Has Previous button.
      */
-    onActionClick?: () => void;
+    hasPrev?: boolean;
+    /**
+     * Has First button.
+     */
+    hasFirst?: boolean;
+    /**
+     * Has Last button.
+     */
+    hasLast?: boolean;
+}
+
+export type TableProps = {
+    /**
+     * Options for the table pagination.
+     */
+    paginationOptions?: TablePaginationOptions;
+    /**
+     * The action component..
+     */
+    action?: ReactNode;
     /**
      * The supporting label of the table.
      */
     supportingLabel?: string;
+    /**
+     * Numeric indexes of the selected rows.
+     */
+    selectedRowIndexes?: Set<number>;
+    /**
+     * Numeric indexes of all the rows.
+     */
+    rowIndexes: number[];
 };
 
 export function Table({
-    hasPagination,
-    actionLabel,
-    onNextPageClick,
-    onPreviousPageClick,
-    onFirstPageClick,
-    onLastPageClick,
-    onActionClick,
+    paginationOptions,
+    action,
     supportingLabel,
-    hasCheckboxColumn,
-    onRowCheckboxChange,
-    onHeaderCheckboxChange,
+    selectedRowIndexes = new Set(),
+    rowIndexes,
     children,
-}: PropsWithChildren<TableProps & TableProviderProps>): JSX.Element {
+}: PropsWithChildren<TableProps>): JSX.Element {
     return (
-        <TableProvider
-            hasCheckboxColumn={hasCheckboxColumn}
-            onRowCheckboxChange={onRowCheckboxChange}
-            onHeaderCheckboxChange={onHeaderCheckboxChange}
-        >
+        <TableProvider selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
             <div className="w-full">
                 <div className="overflow-auto">
                     <table className="w-full table-auto">{children}</table>
                 </div>
                 <div
                     className={cx('flex w-full items-center justify-between gap-2 pt-md', {
-                        hidden: !supportingLabel && !hasPagination && !actionLabel,
+                        hidden: !supportingLabel && !paginationOptions && !action,
                     })}
                 >
-                    {hasPagination && (
+                    {paginationOptions && (
                         <div className="flex gap-2">
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<DoubleArrowLeft />}
-                                onClick={onFirstPageClick}
+                                disabled={!paginationOptions.hasFirst}
+                                onClick={paginationOptions.onFirst}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<ArrowLeft />}
-                                onClick={onPreviousPageClick}
+                                disabled={!paginationOptions.hasPrev}
+                                onClick={paginationOptions.onPrev}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<ArrowRight />}
-                                onClick={onNextPageClick}
+                                disabled={!paginationOptions.hasNext}
+                                onClick={paginationOptions.onNext}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<DoubleArrowRight />}
-                                onClick={onLastPageClick}
+                                disabled={!paginationOptions.hasLast}
+                                onClick={paginationOptions.onLast}
                             />
                         </div>
                     )}
-                    {actionLabel && (
-                        <div className="flex">
-                            <Button
-                                type={ButtonType.Secondary}
-                                size={ButtonSize.Small}
-                                text={actionLabel}
-                                onClick={onActionClick}
-                            />
-                        </div>
-                    )}
+                    {action}
                     {supportingLabel && (
                         <span className="ml-auto text-label-md text-neutral-40 dark:text-neutral-60">
                             {supportingLabel}
@@ -120,94 +136,73 @@ export function Table({
     );
 }
 
+export function TableActionButton(props: PropsWithChildren<ButtonProps>) {
+    return <Button type={ButtonType.Secondary} size={ButtonSize.Small} {...props} />;
+}
+
 export function TableHeader({ children }: PropsWithChildren): JSX.Element {
     return <thead>{children}</thead>;
 }
 
-export function TableHeaderRow({ children }: PropsWithChildren): JSX.Element {
-    return <TableRow type={TableRowType.Header}>{children}</TableRow>;
-}
-
-export function TableBodyRow({
+export function TableRow({
     children,
-    rowIndex,
-}: PropsWithChildren<{ rowIndex: number }>): JSX.Element {
-    return (
-        <TableRow type={TableRowType.Body} rowIndex={rowIndex}>
-            {children}
-        </TableRow>
-    );
-}
-
-function TableRow({
-    children,
-    rowIndex,
-    type = TableRowType.Body,
-}: PropsWithChildren<{ rowIndex?: number; type: TableRowType }>): JSX.Element {
-    const { hasCheckboxColumn, registerRowCheckbox } = useTableContext();
-
-    useEffect(() => {
-        if (rowIndex !== undefined && rowIndex !== null) {
-            registerRowCheckbox(rowIndex);
-        }
-    }, [registerRowCheckbox, rowIndex]);
-
+    leading,
+}: PropsWithChildren<{ leading?: React.ReactNode }>): JSX.Element {
     return (
         <tr>
-            {hasCheckboxColumn && <TableRowCheckbox type={type} rowIndex={rowIndex} />}
+            {leading}
             {children}
         </tr>
     );
 }
 
+const TEXT_COLOR_CLASS = 'text-neutral-40 dark:text-neutral-60';
+const TEXT_SIZE_CLASS = 'text-body-md';
+
 export function TableBody({ children }: PropsWithChildren): JSX.Element {
-    return <tbody>{children}</tbody>;
+    return <tbody className={cx(TEXT_COLOR_CLASS, TEXT_SIZE_CLASS)}>{children}</tbody>;
 }
 
-function TableRowCheckbox({
-    type,
-    rowIndex,
-}: {
-    type: TableRowType;
-    rowIndex?: number;
-}): React.JSX.Element {
-    const {
-        toggleHeaderChecked,
-        toggleRowChecked,
-        rowsChecked,
-        isHeaderChecked,
-        isHeaderIndeterminate,
-        onRowCheckboxChange,
-        onHeaderCheckboxChange,
-    } = useTableContext();
+export interface TableRowCheckboxProps {
+    rowIndex: number;
+    onCheckboxChange: (checked: boolean) => void;
+}
 
-    if (type === TableRowType.Header) {
-        return (
-            <TableHeaderCell
-                isContentCentered
-                hasCheckbox
-                onCheckboxChange={(event) => {
-                    toggleHeaderChecked(event.target.checked);
-                    onHeaderCheckboxChange?.(event.target.checked);
-                }}
-                isChecked={isHeaderChecked}
-                columnKey={1}
-                isIndeterminate={isHeaderIndeterminate}
-            />
-        );
-    }
+export function TableRowCheckbox({
+    rowIndex,
+    onCheckboxChange,
+}: TableRowCheckboxProps): React.JSX.Element {
+    const { selectedRowIndexes } = useTableContext();
 
     return (
-        <TableCell
+        <TableCellBase isContentCentered>
+            <Checkbox
+                onCheckedChange={(event) => {
+                    onCheckboxChange(event.target.checked);
+                }}
+                isChecked={selectedRowIndexes.has(rowIndex)}
+            />
+        </TableCellBase>
+    );
+}
+
+export interface TableHeaderCheckboxProps {
+    onCheckboxChange: (checked: boolean) => void;
+}
+
+export function TableHeaderCheckbox({ onCheckboxChange }: TableHeaderCheckboxProps): JSX.Element {
+    const { isHeaderChecked, isHeaderIndeterminate } = useTableContext();
+
+    return (
+        <TableHeaderCell
             isContentCentered
-            onChange={(event) => {
-                if (rowIndex !== undefined) {
-                    const checkboxValues = toggleRowChecked?.(event.target.checked, rowIndex);
-                    onRowCheckboxChange?.(event.target.checked, rowIndex, checkboxValues);
-                }
+            hasCheckbox
+            onCheckboxChange={(event) => {
+                onCheckboxChange(event.target.checked);
             }}
-            type={TableCellType.Checkbox}
-            isChecked={rowIndex !== undefined && rowsChecked?.[rowIndex]}
+            isChecked={isHeaderChecked}
+            columnKey={1}
+            isIndeterminate={isHeaderIndeterminate}
         />
     );
 }

@@ -14,14 +14,11 @@ import {
 import { InputType } from './input.enums';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { ButtonUnstyled } from '../../atoms/button';
+import { InputPropsByType, NumericFormatInputProps } from './input.types';
+import { NumericFormat } from 'react-number-format';
 
-type InputPickedProps = Omit<
-    React.InputHTMLAttributes<HTMLInputElement>,
-    'type' | 'className' | 'ref'
->;
-
-export interface InputProps extends InputPickedProps, InputWrapperProps {
+export interface BaseInputProps extends InputWrapperProps {
     /**
      * A leading icon that is shown before the input
      */
@@ -39,17 +36,17 @@ export interface InputProps extends InputPickedProps, InputWrapperProps {
      */
     trailingElement?: React.JSX.Element;
     /**
-     * Ref for the input
-     */
-    ref?: React.RefObject<HTMLInputElement>;
-    /**
      * Is the content of the input visible
      */
     isContentVisible?: boolean;
     /**
      * Value of the input
      */
-    value?: string;
+    value?: string | number;
+    /**
+     * Default value of the input
+     */
+    defaultValue?: string | number;
     /**
      * onClearInput function that is called when the clear button is clicked
      */
@@ -58,70 +55,49 @@ export interface InputProps extends InputPickedProps, InputWrapperProps {
      * Shows toggle button to show/hide the content of the input field
      */
     isVisibilityToggleEnabled?: boolean;
-    /**
-     * Type of the input field
-     */
-    type: InputType;
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+export type InputProps = BaseInputProps & InputPropsByType;
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComponent(
     {
-        name,
         label,
-        placeholder,
         caption,
         disabled,
         errorMessage,
-        value,
         leadingIcon,
         supportingText,
         amountCounter,
-        pattern,
-        autoFocus,
         trailingElement,
-        onClearInput,
         isContentVisible,
+        value,
+        defaultValue,
+        onClearInput,
         isVisibilityToggleEnabled,
+        type,
         ...inputProps
     },
-    ref,
+    forwardRef,
 ) {
-    isVisibilityToggleEnabled ??= inputProps.type === InputType.Password;
-    const inputRef = useRef<HTMLInputElement | null>(null);
-
-    const [hasBlurred, setHasBlurred] = useState<boolean>(false);
+    isVisibilityToggleEnabled ??= type === InputType.Password;
+    const inputWrapperRef = useRef<HTMLDivElement | null>(null);
 
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
-        isContentVisible ?? inputProps.type !== InputType.Password,
+        isContentVisible ?? type !== InputType.Password,
     );
 
     useEffect(() => {
-        setIsInputContentVisible(isContentVisible ?? inputProps.type !== InputType.Password);
-    }, [inputProps.type, isContentVisible]);
+        setIsInputContentVisible(isContentVisible ?? type !== InputType.Password);
+    }, [type, isContentVisible]);
 
     function onToggleButtonClick() {
         setIsInputContentVisible((prev) => !prev);
     }
 
-    function focusInput() {
-        if (inputRef.current) {
-            inputRef.current.focus();
+    function focusOnInput() {
+        if (inputWrapperRef.current) {
+            inputWrapperRef.current.querySelector('input')?.focus();
         }
-    }
-
-    function handleBlur() {
-        setHasBlurred(true);
-    }
-
-    function assignRefs(element: HTMLInputElement) {
-        if (ref) {
-            if (typeof ref === 'function') {
-                ref(element);
-            } else {
-                ref.current = element;
-            }
-        }
-        inputRef.current = element;
     }
 
     return (
@@ -129,54 +105,103 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             label={label}
             caption={caption}
             disabled={disabled}
-            errorMessage={hasBlurred && errorMessage ? errorMessage : ''}
+            errorMessage={errorMessage}
             amountCounter={amountCounter}
             required={inputProps.required}
         >
             <div
                 className={cx('relative flex flex-row items-center gap-x-3', BORDER_CLASSES)}
-                onClick={focusInput}
+                onClick={focusOnInput}
+                ref={inputWrapperRef}
             >
                 {leadingIcon && (
                     <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
                 )}
-
-                <input
+                <InputElement
                     {...inputProps}
-                    name={name}
-                    placeholder={placeholder}
-                    disabled={disabled}
+                    inputRef={forwardRef}
                     value={value}
-                    ref={assignRefs}
-                    pattern={pattern}
-                    autoFocus={autoFocus}
                     type={
-                        inputProps.type === InputType.Password && isInputContentVisible
-                            ? 'text'
-                            : inputProps.type
+                        type === InputType.Password && isInputContentVisible ? InputType.Text : type
                     }
+                    disabled={disabled}
                     className={cx(
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,
                         INPUT_PLACEHOLDER_CLASSES,
                         INPUT_NUMBER_CLASSES,
                     )}
-                    onBlur={handleBlur}
                 />
 
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
                 <InputTrailingElement
                     value={value}
-                    type={inputProps.type}
+                    type={type}
                     onClearInput={onClearInput}
                     isContentVisible={isInputContentVisible}
                     trailingElement={trailingElement}
+                    isVisibilityToggleEnabled={isVisibilityToggleEnabled}
                     onToggleButtonClick={onToggleButtonClick}
                 />
             </div>
         </InputWrapper>
     );
 });
+
+function InputElement({
+    type,
+    inputRef,
+    ...inputProps
+}: InputProps & {
+    inputRef: React.ForwardedRef<HTMLInputElement>;
+    className: string;
+}) {
+    function preventScrollInputChange(e: React.WheelEvent<HTMLInputElement>) {
+        if (type === InputType.Number) {
+            const input = e.currentTarget;
+
+            input.blur();
+            e.stopPropagation();
+            setTimeout(() => {
+                input.focus({ preventScroll: true });
+            }, 0);
+        }
+    }
+    return type === InputType.NumericFormat ? (
+        <NumericFormatInput inputRef={inputRef} {...inputProps} type={type} />
+    ) : (
+        <input
+            ref={inputRef}
+            {...inputProps}
+            type={type}
+            onWheel={(e) => {
+                preventScrollInputChange(e);
+                inputProps.onWheel?.(e);
+            }}
+        />
+    );
+}
+
+function NumericFormatInput({
+    inputRef,
+    className,
+    type,
+    ...inputProps
+}: NumericFormatInputProps &
+    InputProps & {
+        inputRef: React.ForwardedRef<HTMLInputElement>;
+        className: string;
+        value?: string | number;
+    }) {
+    return (
+        <NumericFormat
+            className={className}
+            valueIsNumericString
+            getInputRef={inputRef}
+            {...inputProps}
+        />
+    );
+}
 
 function InputTrailingElement({
     value,
@@ -185,9 +210,13 @@ function InputTrailingElement({
     isContentVisible,
     trailingElement,
     onToggleButtonClick,
-}: InputProps & { onToggleButtonClick: (e: React.MouseEvent<HTMLButtonElement>) => void }) {
+    isVisibilityToggleEnabled,
+}: BaseInputProps & {
+    onToggleButtonClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    type: InputPropsByType['type'];
+}) {
     const showClearInput = Boolean(type === InputType.Text && value && onClearInput);
-    const showPasswordToggle = Boolean(type === InputType.Password && onToggleButtonClick);
+    const showPasswordToggle = Boolean(type === InputType.Password && isVisibilityToggleEnabled);
     const showTrailingElement = Boolean(trailingElement && !showClearInput && !showPasswordToggle);
 
     if (showClearInput) {

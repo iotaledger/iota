@@ -4,9 +4,6 @@ outputs:
   isDoc:
     description: True when changes happened to some documentation
     value: "${{ steps.diff.outputs.isDoc }}"
-  isOldDoc:
-    description: True when changes happened to old doc folder
-    value: "${{ steps.diff.outputs.isOldDoc }}"
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
@@ -43,15 +40,13 @@ runs:
             - ".github/workflows/_mysticeti_tests.yml"
             - "Cargo.toml"
             - "Cargo.lock"
+            - ".config/nextest.toml"
           isDoc:
             - "docs/content/**"
             - "docs/site/**"
             - "*.mdx"
             - ".github/workflows/_docs_lint.yml"
             - ".github/workflows/_docusaurus.yml"
-          isOldDoc:
-            - "doc/**"
-            - "*.md"
           isMove:
             - "crates/iota-framework/**"
             - "crates/iota-framework-build/**"

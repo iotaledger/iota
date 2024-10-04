@@ -10,22 +10,26 @@ use axum::{
 };
 pub use balance_changes::*;
 use hyper::{
-    header::{HeaderName, HeaderValue},
     Method, Request,
+    header::{HeaderName, HeaderValue},
 };
+pub use iota_config::node::ServerType;
+use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
-use jsonrpsee::{types::ErrorObjectOwned, Extensions, RpcModule};
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use jsonrpsee::{Extensions, RpcModule, types::ErrorObjectOwned};
 pub use object_changes::*;
 use prometheus::Registry;
 use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
@@ -37,6 +41,7 @@ use crate::{
 pub mod authority_state;
 pub mod axum_router;
 mod balance_changes;
+pub mod bridge_api;
 pub mod coin_api;
 pub mod error;
 pub mod governance_api;
@@ -58,6 +63,8 @@ pub struct JsonRpcServerBuilder {
     module: RpcModule<()>,
     rpc_doc: Project,
     registry: Registry,
+    policy_config: Option<PolicyConfig>,
+    firewall_config: Option<RemoteFirewallConfig>,
 }
 
 pub fn iota_rpc_doc(version: &str) -> Project {
@@ -73,17 +80,19 @@ pub fn iota_rpc_doc(version: &str) -> Project {
     )
 }
 
-pub enum ServerType {
-    WebSocket,
-    Http,
-}
-
 impl JsonRpcServerBuilder {
-    pub fn new(version: &str, prometheus_registry: &Registry) -> Self {
+    pub fn new(
+        version: &str,
+        prometheus_registry: &Registry,
+        policy_config: Option<PolicyConfig>,
+        firewall_config: Option<RemoteFirewallConfig>,
+    ) -> Self {
         Self {
             module: RpcModule::new(()),
             rpc_doc: iota_rpc_doc(version),
             registry: prometheus_registry.clone(),
+            policy_config,
+            firewall_config,
         }
     }
 
@@ -123,30 +132,19 @@ impl JsonRpcServerBuilder {
     fn trace_layer() -> TraceLayer<
         tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
         impl tower_http::trace::MakeSpan<Body> + Clone,
-        (),
-        (),
-        (),
-        (),
-        (),
     > {
-        TraceLayer::new_for_http()
-            .make_span_with(|request: &Request<Body>| {
-                let request_id = request
-                    .headers()
-                    .get("x-req-id")
-                    .and_then(|v| v.to_str().ok())
-                    .map(tracing::field::display);
+        TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+            let request_id = request
+                .headers()
+                .get("x-req-id")
+                .and_then(|v| v.to_str().ok())
+                .map(tracing::field::display);
 
-                tracing::info_span!("json-rpc-request", "x-req-id" = request_id)
-            })
-            .on_request(())
-            .on_response(())
-            .on_body_chunk(())
-            .on_eos(())
-            .on_failure(())
+            tracing::info_span!("json-rpc-request", "x-req-id" = request_id)
+        })
     }
 
-    pub fn to_router(&self, server_type: Option<ServerType>) -> Result<axum::Router, Error> {
+    pub async fn to_router(&self, server_type: ServerType) -> Result<axum::Router, Error> {
         let routing = self.rpc_doc.method_routing.clone();
 
         let disable_routing = env::var("DISABLE_BACKWARD_COMPATIBILITY")
@@ -171,6 +169,7 @@ impl JsonRpcServerBuilder {
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
+        let traffic_controller_metrics = TrafficControllerMetrics::new(&self.registry);
 
         let middleware = tower::ServiceBuilder::new()
             .layer(Self::trace_layer())
@@ -180,24 +179,27 @@ impl JsonRpcServerBuilder {
             module.into(),
             rpc_router,
             metrics_logger,
+            self.firewall_config.clone(),
+            self.policy_config.clone(),
+            traffic_controller_metrics,
             Extensions::new(),
         );
 
         let mut router = axum::Router::new();
 
         match server_type {
-            Some(ServerType::WebSocket) => {
+            ServerType::WebSocket => {
                 router = router
                     .route("/", get(ws_json_rpc_upgrade))
                     .route("/subscribe", get(ws_json_rpc_upgrade));
             }
-            Some(ServerType::Http) => {
+            ServerType::Http => {
                 router = router
                     .route("/", post(json_rpc_handler))
                     .route("/json-rpc", post(json_rpc_handler))
                     .route("/public", post(json_rpc_handler));
             }
-            None => {
+            ServerType::Both => {
                 router = router
                     .route("/", post(json_rpc_handler))
                     .route("/", get(ws_json_rpc_upgrade))
@@ -217,10 +219,11 @@ impl JsonRpcServerBuilder {
     pub async fn start(
         self,
         listen_address: SocketAddr,
-        _custom_runtime: Option<Handle>,
-        server_type: Option<ServerType>,
+        custom_runtime: Option<Handle>,
+        server_type: ServerType,
+        cancel: Option<CancellationToken>,
     ) -> Result<ServerHandle, Error> {
-        let app = self.to_router(server_type)?;
+        let app = self.to_router(server_type).await?;
 
         let listener = tokio::net::TcpListener::bind(listen_address)
             .await
@@ -231,11 +234,25 @@ impl JsonRpcServerBuilder {
         let addr = listener.local_addr().map_err(|e| {
             Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
         })?;
-        let handle = tokio::spawn(async move {
-            axum::serve(listener, app.into_make_service())
-                .await
-                .unwrap()
-        });
+
+        let fut = async move {
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .unwrap();
+            if let Some(cancel) = cancel {
+                // Signal that the server is shutting down, so other tasks can clean-up.
+                cancel.cancel();
+            }
+        };
+        let handle = if let Some(custom_runtime) = custom_runtime {
+            debug!("Spawning server with custom runtime");
+            custom_runtime.spawn(fut)
+        } else {
+            tokio::spawn(fut)
+        };
 
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),

@@ -44,6 +44,8 @@ yanked = "warn"
 ignore = [
   # we don't do RSA signing on Iota (only verifying for zklogin)
   "RUSTSEC-2023-0071",
+  # Cannot remove `proc-macro-error` until we can update `tabled`
+  "RUSTSEC-2024-0370",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -218,11 +220,11 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
   "https://github.com/aya-rs/aya.git",
-  "https://github.com/MystenLabs/mysten-sim.git",
+  "https://github.com/iotaledger/iota-sim.git",
   "https://github.com/MystenLabs/fastcrypto.git",
   "https://github.com/mystenlabs/anemo.git",
   "https://github.com/mystenmark/async-task.git",
-  "https://github.com/mystenmark/tokio-madsim-fork.git",
+  "https://github.com/iotaledger/tokio-madsim-fork.git",
   "https://github.com/nextest-rs/datatest-stable.git",
   "https://github.com/tokio-rs/prost",
   "https://github.com/zhiburt/tabled.git",

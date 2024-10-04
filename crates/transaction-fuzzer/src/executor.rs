@@ -6,7 +6,7 @@
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
 use iota_core::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
@@ -30,7 +30,7 @@ fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     path.extend(["data", test_dir]);
     let with_unpublished_deps = false;
     let config = BuildConfig::new_for_testing();
-    let package = config.build(path).unwrap();
+    let package = config.build(&path).unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),

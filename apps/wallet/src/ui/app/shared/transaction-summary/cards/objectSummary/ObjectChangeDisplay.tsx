@@ -2,38 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExplorerLink, ExplorerLinkType, NftImage } from '_components';
+import { ExplorerLinkType } from '_components';
 import { type IotaObjectChangeWithDisplay } from '@iota/core';
-import { formatAddress } from '@iota/iota-sdk/utils';
 
-import { Text } from '../../../text';
+import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
+import { ImageIcon } from '../../../image-icon';
+import { ArrowTopRight } from '@iota/ui-icons';
+import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 
 export function ObjectChangeDisplay({ change }: { change: IotaObjectChangeWithDisplay }) {
     const display = change?.display?.data;
+    const name = display?.name ?? '';
     const objectId = 'objectId' in change && change?.objectId;
+    const explorerHref = useExplorerLink({
+        type: ExplorerLinkType.Object,
+        objectID: objectId?.toString() ?? '',
+    });
 
     if (!display) return null;
+
+    function handleOpen() {
+        const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
+        if (newWindow) newWindow.opener = null;
+    }
+
     return (
-        <div className="group relative w-32 min-w-min cursor-pointer whitespace-nowrap">
-            <NftImage
-                size="md"
-                name={display.name ?? ''}
-                borderRadius="xl"
-                src={display.image_url ?? ''}
-            />
-            {objectId && (
-                <div className="full absolute bottom-2 left-1/2 -translate-x-1/2 justify-center rounded-lg bg-white/90 px-2 py-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <ExplorerLink
-                        type={ExplorerLinkType.Object}
-                        objectID={objectId}
-                        className="text-hero-dark no-underline"
-                    >
-                        <Text variant="pBodySmall" truncate mono>
-                            {formatAddress(objectId)}
-                        </Text>
-                    </ExplorerLink>
-                </div>
-            )}
-        </div>
+        <Card type={CardType.Default} onClick={handleOpen}>
+            <CardImage>
+                <ImageIcon src={display.image_url ?? ''} label={name} fallback="NFT" />
+            </CardImage>
+            <CardBody title={name} subtitle={display.description ?? ''} />
+            {objectId && <CardAction type={CardActionType.Link} icon={<ArrowTopRight />} />}
+        </Card>
     );
 }

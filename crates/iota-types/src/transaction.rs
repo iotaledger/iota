@@ -9,46 +9,54 @@ use std::{
     hash::Hash,
     iter,
     iter::once,
+    sync::Arc,
 };
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
+use iota_protocol_config::ProtocolConfig;
 use itertools::Either;
 use move_core_types::{
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::TypeTag,
 };
+use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
 use tap::Pipe;
 use tracing::trace;
 
-use super::{base_types::*, error::*};
+use super::{IOTA_BRIDGE_OBJECT_ID, base_types::*, error::*};
 use crate::{
-    authenticator_state::ActiveJwk,
-    committee::{EpochId, ProtocolVersion},
-    crypto::{
-        default_hash, AuthoritySignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        DefaultHash, Ed25519IotaSignature, EmptySignInfo, IotaSignatureInner, RandomnessRound,
-        Signature, Signer, ToFromBytes,
-    },
-    digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
-    execution::SharedInput,
-    message_envelope::{
-        AuthenticatedMessage, Envelope, Message, TrustedEnvelope, VerifiedEnvelope,
-    },
-    messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{ConsensusCommitPrologue, ConsensusCommitPrologueV2},
-    object::{MoveObject, Object, Owner},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    authenticator_state::ActiveJwk,
+    committee::{Committee, EpochId, ProtocolVersion},
+    crypto::{
+        AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
+        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
+    },
+    digests::{
+        CertificateDigest, ChainIdentifier, ConsensusCommitDigest, SenderSignedDataDigest,
+        ZKLoginInputsDigest,
+    },
+    event::Event,
+    execution::SharedInput,
+    message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
+    messages_checkpoint::CheckpointTimestamp,
+    messages_consensus::{
+        ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
+        ConsensusDeterminedVersionAssignments,
+    },
+    object::{MoveObject, Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    signature::{GenericSignature, VerifyParams},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
 };
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
@@ -189,6 +197,7 @@ pub struct ChangeEpoch {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
     pub objects: Vec<GenesisObject>,
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -289,6 +298,8 @@ pub enum TransactionKind {
     RandomnessStateUpdate(RandomnessStateUpdate),
     // V2 ConsensusCommitPrologue also includes the digest of the current consensus output.
     ConsensusCommitPrologueV2(ConsensusCommitPrologueV2),
+
+    ConsensusCommitPrologueV3(ConsensusCommitPrologueV3),
     // .. more transaction types go here
 }
 
@@ -300,6 +311,8 @@ pub enum EndOfEpochTransactionKind {
     AuthenticatorStateExpire(AuthenticatorStateExpire),
     RandomnessStateCreate,
     DenyListStateCreate,
+    BridgeStateCreate(ChainIdentifier),
+    BridgeCommitteeInit(SequenceNumber),
 }
 
 impl EndOfEpochTransactionKind {
@@ -347,6 +360,14 @@ impl EndOfEpochTransactionKind {
         Self::DenyListStateCreate
     }
 
+    pub fn new_bridge_create(chain_identifier: ChainIdentifier) -> Self {
+        Self::BridgeStateCreate(chain_identifier)
+    }
+
+    pub fn init_bridge_committee(bridge_shared_version: SequenceNumber) -> Self {
+        Self::BridgeCommitteeInit(bridge_shared_version)
+    }
+
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -366,20 +387,50 @@ impl EndOfEpochTransactionKind {
             }
             Self::RandomnessStateCreate => vec![],
             Self::DenyListStateCreate => vec![],
+            Self::BridgeStateCreate(_) => vec![],
+            Self::BridgeCommitteeInit(bridge_version) => vec![
+                InputObjectKind::SharedMoveObject {
+                    id: IOTA_BRIDGE_OBJECT_ID,
+                    initial_shared_version: *bridge_version,
+                    mutable: true,
+                },
+                InputObjectKind::SharedMoveObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                },
+            ],
         }
     }
 
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         match self {
-            Self::ChangeEpoch(_) => Either::Left(iter::once(SharedInputObject::IOTA_SYSTEM_OBJ)),
-            Self::AuthenticatorStateExpire(expire) => Either::Left(iter::once(SharedInputObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                initial_shared_version: expire.authenticator_obj_initial_shared_version(),
-                mutable: true,
-            })),
+            Self::ChangeEpoch(_) => {
+                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
+            }
+            Self::AuthenticatorStateExpire(expire) => Either::Left(
+                vec![SharedInputObject {
+                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    initial_shared_version: expire.authenticator_obj_initial_shared_version(),
+                    mutable: true,
+                }]
+                .into_iter(),
+            ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
             Self::RandomnessStateCreate => Either::Right(iter::empty()),
             Self::DenyListStateCreate => Either::Right(iter::empty()),
+            Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
+            Self::BridgeCommitteeInit(bridge_version) => Either::Left(
+                vec![
+                    SharedInputObject {
+                        id: IOTA_BRIDGE_OBJECT_ID,
+                        initial_shared_version: *bridge_version,
+                        mutable: true,
+                    },
+                    SharedInputObject::IOTA_SYSTEM_OBJ,
+                ]
+                .into_iter(),
+            ),
         }
     }
 
@@ -387,116 +438,47 @@ impl EndOfEpochTransactionKind {
         match self {
             Self::ChangeEpoch(_) => (),
             Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
-                // Transaction should have been rejected earlier (or never formed).
-                assert!(config.enable_jwk_consensus_updates());
+                if !config.enable_jwk_consensus_updates() {
+                    return Err(UserInputError::Unsupported(
+                        "authenticator state updates not enabled".to_string(),
+                    ));
+                }
             }
             Self::RandomnessStateCreate => {
-                // Transaction should have been rejected earlier (or never formed).
-                assert!(config.random_beacon());
+                if !config.random_beacon() {
+                    return Err(UserInputError::Unsupported(
+                        "random beacon not enabled".to_string(),
+                    ));
+                }
             }
             Self::DenyListStateCreate => {
-                // Transaction should have been rejected earlier (or never formed).
-                assert!(config.enable_coin_deny_list());
+                if !config.enable_coin_deny_list_v1() {
+                    return Err(UserInputError::Unsupported(
+                        "coin deny list not enabled".to_string(),
+                    ));
+                }
+            }
+            Self::BridgeStateCreate(_) => {
+                if !config.enable_bridge() {
+                    return Err(UserInputError::Unsupported(
+                        "bridge not enabled".to_string(),
+                    ));
+                }
+            }
+            Self::BridgeCommitteeInit(_) => {
+                if !config.enable_bridge() {
+                    return Err(UserInputError::Unsupported(
+                        "bridge not enabled".to_string(),
+                    ));
+                }
+                if !config.should_try_to_finalize_bridge_committee() {
+                    return Err(UserInputError::Unsupported(
+                        "should not try to finalize committee yet".to_string(),
+                    ));
+                }
             }
         }
         Ok(())
-    }
-}
-
-impl VersionedProtocolMessage for TransactionKind {
-    fn check_version_supported(&self, protocol_config: &ProtocolConfig) -> IotaResult {
-        // When adding new cases, they must be guarded by a feature flag and return
-        // UnsupportedFeatureError if the flag is not set.
-        match &self {
-            TransactionKind::ChangeEpoch(_)
-            | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologue(_) => Ok(()),
-            TransactionKind::ProgrammableTransaction(pt) => {
-                // NB: we don't use the `receiving_objects` method here since we don't want to
-                // check for any validity requirements such as duplicate
-                // receiving inputs at this point.
-                if !protocol_config.receiving_objects_supported() {
-                    let has_receiving_objects = pt
-                        .inputs
-                        .iter()
-                        .any(|arg| !arg.receiving_objects().is_empty());
-                    if has_receiving_objects {
-                        return Err(IotaError::UnsupportedFeature {
-                            error: format!(
-                                "receiving objects is not supported at {:?}",
-                                protocol_config.version
-                            ),
-                        });
-                    }
-                }
-                Ok(())
-            }
-            TransactionKind::AuthenticatorStateUpdate(_) => {
-                if protocol_config.enable_jwk_consensus_updates() {
-                    Ok(())
-                } else {
-                    Err(IotaError::UnsupportedFeature {
-                        error: "authenticator state updates not enabled".to_string(),
-                    })
-                }
-            }
-            TransactionKind::RandomnessStateUpdate(_) => {
-                if protocol_config.random_beacon() {
-                    Ok(())
-                } else {
-                    Err(IotaError::UnsupportedFeature {
-                        error: "randomness state updates not enabled".to_string(),
-                    })
-                }
-            }
-            TransactionKind::EndOfEpochTransaction(txns) => {
-                if !protocol_config.end_of_epoch_transaction_supported() {
-                    Err(IotaError::UnsupportedFeature {
-                        error: "EndOfEpochTransaction is not supported".to_string(),
-                    })
-                } else {
-                    for tx in txns {
-                        match tx {
-                            EndOfEpochTransactionKind::ChangeEpoch(_) => (),
-                            EndOfEpochTransactionKind::AuthenticatorStateCreate
-                            | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
-                                if !protocol_config.enable_jwk_consensus_updates() {
-                                    return Err(IotaError::UnsupportedFeature {
-                                        error: "authenticator state updates not enabled"
-                                            .to_string(),
-                                    });
-                                }
-                            }
-                            EndOfEpochTransactionKind::RandomnessStateCreate => {
-                                if !protocol_config.random_beacon() {
-                                    return Err(IotaError::UnsupportedFeature {
-                                        error: "random beacon not enabled".to_string(),
-                                    });
-                                }
-                            }
-                            EndOfEpochTransactionKind::DenyListStateCreate => {
-                                if !protocol_config.enable_coin_deny_list() {
-                                    return Err(IotaError::UnsupportedFeature {
-                                        error: "coin deny list not enabled".to_string(),
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    Ok(())
-                }
-            }
-            TransactionKind::ConsensusCommitPrologueV2(_) => {
-                if protocol_config.include_consensus_digest_in_prologue() {
-                    Ok(())
-                } else {
-                    Err(IotaError::UnsupportedFeature {
-                        error: "ConsensusCommitPrologueV2 is not supported".to_string(),
-                    })
-                }
-            }
-        }
     }
 }
 
@@ -548,7 +530,17 @@ impl CallArg {
                     }
                 );
             }
-            CallArg::Object(_) => (),
+            CallArg::Object(o) => match o {
+                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::SharedObject { .. } => (),
+                ObjectArg::Receiving(_) => {
+                    if !config.receiving_objects_supported() {
+                        return Err(UserInputError::Unsupported(format!(
+                            "receiving objects is not supported at {:?}",
+                            config.version
+                        )));
+                    }
+                }
+            },
         }
         Ok(())
     }
@@ -991,11 +983,18 @@ impl ProgrammableTransaction {
             command.validity_check(config)?;
         }
 
+        // If randomness is used, it must be enabled by protocol config.
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
             matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == IOTA_RANDOMNESS_STATE_OBJECT_ID)
         }) {
+            fp_ensure!(
+                config.random_beacon(),
+                UserInputError::Unsupported(
+                    "randomness is not enabled on this network".to_string(),
+                )
+            );
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
             for command in commands {
@@ -1186,6 +1185,7 @@ impl TransactionKind {
             | TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologue(_)
             | TransactionKind::ConsensusCommitPrologueV2(_)
+            | TransactionKind::ConsensusCommitPrologueV3(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
@@ -1234,7 +1234,9 @@ impl TransactionKind {
                 Either::Left(Either::Left(iter::once(SharedInputObject::IOTA_SYSTEM_OBJ)))
             }
 
-            Self::ConsensusCommitPrologue(_) | Self::ConsensusCommitPrologueV2(_) => {
+            Self::ConsensusCommitPrologue(_)
+            | Self::ConsensusCommitPrologueV2(_)
+            | Self::ConsensusCommitPrologueV3(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1278,6 +1280,7 @@ impl TransactionKind {
             | TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologue(_)
             | TransactionKind::ConsensusCommitPrologueV2(_)
+            | TransactionKind::ConsensusCommitPrologueV3(_)
             | TransactionKind::AuthenticatorStateUpdate(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
@@ -1302,7 +1305,9 @@ impl TransactionKind {
             Self::Genesis(_) => {
                 vec![]
             }
-            Self::ConsensusCommitPrologue(_) | Self::ConsensusCommitPrologueV2(_) => {
+            Self::ConsensusCommitPrologue(_)
+            | Self::ConsensusCommitPrologueV2(_)
+            | Self::ConsensusCommitPrologueV3(_) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1324,7 +1329,18 @@ impl TransactionKind {
                 }]
             }
             Self::EndOfEpochTransaction(txns) => {
-                txns.iter().flat_map(|txn| txn.input_objects()).collect()
+                // Dedup since transactions may have a overlap in input objects.
+                // Note: it's critical to ensure the order of inputs are deterministic.
+                let before_dedup: Vec<_> =
+                    txns.iter().flat_map(|txn| txn.input_objects()).collect();
+                let mut has_seen = HashSet::new();
+                let mut after_dedup = vec![];
+                for obj in before_dedup {
+                    if has_seen.insert(obj) {
+                        after_dedup.push(obj);
+                    }
+                }
+                after_dedup
             }
             Self::ProgrammableTransaction(p) => return p.input_objects(),
         };
@@ -1349,12 +1365,27 @@ impl TransactionKind {
             // and no validity or limit checks are performed.
             TransactionKind::ChangeEpoch(_)
             | TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologue(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_) => (),
+            | TransactionKind::ConsensusCommitPrologue(_) => (),
+            TransactionKind::ConsensusCommitPrologueV2(_) => {
+                if !config.include_consensus_digest_in_prologue() {
+                    return Err(UserInputError::Unsupported(
+                        "ConsensusCommitPrologueV2 is not supported".to_string(),
+                    ));
+                }
+            }
+            TransactionKind::ConsensusCommitPrologueV3(_) => {
+                if !config.record_consensus_determined_version_assignments_in_prologue() {
+                    return Err(UserInputError::Unsupported(
+                        "ConsensusCommitPrologueV3 is not supported".to_string(),
+                    ));
+                }
+            }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                // The transaction should have been rejected earlier if the feature is not
-                // enabled.
-                assert!(config.end_of_epoch_transaction_supported());
+                if !config.end_of_epoch_transaction_supported() {
+                    return Err(UserInputError::Unsupported(
+                        "EndOfEpochTransaction is not supported".to_string(),
+                    ));
+                }
 
                 for tx in txns {
                     tx.validity_check(config)?;
@@ -1362,14 +1393,18 @@ impl TransactionKind {
             }
 
             TransactionKind::AuthenticatorStateUpdate(_) => {
-                // The transaction should have been rejected earlier if the feature is not
-                // enabled.
-                assert!(config.enable_jwk_consensus_updates());
+                if !config.enable_jwk_consensus_updates() {
+                    return Err(UserInputError::Unsupported(
+                        "authenticator state updates not enabled".to_string(),
+                    ));
+                }
             }
             TransactionKind::RandomnessStateUpdate(_) => {
-                // The transaction should have been rejected earlier if the feature is not
-                // enabled.
-                assert!(config.random_beacon());
+                if !config.random_beacon() {
+                    return Err(UserInputError::Unsupported(
+                        "randomness state updates not enabled".to_string(),
+                    ));
+                }
             }
         };
         Ok(())
@@ -1404,6 +1439,7 @@ impl TransactionKind {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologue(_) => "ConsensusCommitPrologue",
             Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
+            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1435,6 +1471,16 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : Consensus Commit Prologue V2")?;
                 writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
                 writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
+            }
+            Self::ConsensusCommitPrologueV3(p) => {
+                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V3")?;
+                writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
+                writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
+                writeln!(
+                    writer,
+                    "Consensus determined version assignment: {:?}",
+                    p.consensus_determined_version_assignments
+                )?;
             }
             Self::ProgrammableTransaction(p) => {
                 writeln!(writer, "Transaction Kind : Programmable")?;
@@ -1475,41 +1521,8 @@ pub enum TransactionExpiration {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum TransactionData {
     V1(TransactionDataV1),
-}
-
-impl VersionedProtocolMessage for TransactionData {
-    fn message_version(&self) -> Option<u64> {
-        Some(match self {
-            Self::V1(_) => 1,
-        })
-    }
-
-    fn check_version_supported(&self, protocol_config: &ProtocolConfig) -> IotaResult {
-        // First check the gross version
-        let (message_version, supported) = match self {
-            Self::V1(_) => (1, SupportedProtocolVersions::new_for_message(1, u64::MAX)),
-            // Suppose we add V2 at protocol version 7, then we must change this to:
-            // Self::V1 => (1, SupportedProtocolVersions::new_for_message(1, u64::MAX)),
-            // Self::V2 => (2, SupportedProtocolVersions::new_for_message(7, u64::MAX)),
-            //
-            // Suppose we remove support for V1 after protocol version 12: we can do it like so:
-            // Self::V1 => (1, SupportedProtocolVersions::new_for_message(1, 12)),
-        };
-
-        if !supported.is_version_supported(protocol_config.version) {
-            return Err(IotaError::WrongMessageVersion {
-                error: format!(
-                    "TransactionDataV{} is not supported at {:?}. (Supported range is {:?}",
-                    message_version, protocol_config.version, supported
-                ),
-            });
-        }
-
-        // Now check interior versioned data
-        self.kind().check_version_supported(protocol_config)?;
-
-        Ok(())
-    }
+    // When new variants are introduced, it is important that we check version support
+    // in the validity_check function based on the protocol config.
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -1888,12 +1901,28 @@ impl TransactionData {
         )
     }
 
+    pub fn message_version(&self) -> u64 {
+        match self {
+            TransactionData::V1(_) => 1,
+        }
+    }
+
     pub fn execution_parts(&self) -> (TransactionKind, IotaAddress, Vec<ObjectRef>) {
         (
             self.kind().clone(),
             self.sender(),
             self.gas_data().payment.clone(),
         )
+    }
+
+    pub fn uses_randomness(&self) -> bool {
+        self.shared_input_objects()
+            .iter()
+            .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+    }
+
+    pub fn digest(&self) -> TransactionDigest {
+        TransactionDigest::new(default_hash(self))
     }
 }
 
@@ -1913,7 +1942,7 @@ pub trait TransactionDataAPI {
     fn into_kind(self) -> TransactionKind;
 
     /// Transaction signer and Gas owner
-    fn signers(&self) -> Vec<IotaAddress>;
+    fn signers(&self) -> NonEmpty<IotaAddress>;
 
     fn gas_data(&self) -> &GasData;
 
@@ -1980,8 +2009,8 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     /// Transaction signer and Gas owner
-    fn signers(&self) -> Vec<IotaAddress> {
-        let mut signers = vec![self.sender];
+    fn signers(&self) -> NonEmpty<IotaAddress> {
+        let mut signers = nonempty![self.sender];
         if self.gas_owner() != self.sender {
             signers.push(self.gas_owner());
         }
@@ -2108,9 +2137,9 @@ impl TransactionDataAPI for TransactionDataV1 {
 impl TransactionDataV1 {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct SenderSignedData(Vec<SenderSignedTransaction>);
+pub struct SenderSignedData(SizeOneVec<SenderSignedTransaction>);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SenderSignedTransaction {
     pub intent_message: IntentMessage<TransactionData>,
     /// A list of signatures signed by all transaction participants.
@@ -2119,61 +2148,65 @@ pub struct SenderSignedTransaction {
     pub tx_signatures: Vec<GenericSignature>,
 }
 
-impl SenderSignedData {
-    pub fn new(
-        tx_data: TransactionData,
-        intent: Intent,
-        tx_signatures: Vec<GenericSignature>,
-    ) -> Self {
-        Self(vec![SenderSignedTransaction {
-            intent_message: IntentMessage::new(intent, tx_data),
+impl Serialize for SenderSignedTransaction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(rename = "SenderSignedTransaction")]
+        struct SignedTxn<'a> {
+            intent_message: &'a IntentMessage<TransactionData>,
+            tx_signatures: &'a Vec<GenericSignature>,
+        }
+
+        if self.intent_message().intent != Intent::iota_transaction() {
+            return Err(serde::ser::Error::custom("invalid Intent for Transaction"));
+        }
+
+        let txn = SignedTxn {
+            intent_message: self.intent_message(),
+            tx_signatures: &self.tx_signatures,
+        };
+        txn.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SenderSignedTransaction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename = "SenderSignedTransaction")]
+        struct SignedTxn {
+            intent_message: IntentMessage<TransactionData>,
+            tx_signatures: Vec<GenericSignature>,
+        }
+
+        let SignedTxn {
+            intent_message,
             tx_signatures,
-        }])
-    }
+        } = Deserialize::deserialize(deserializer)?;
 
-    pub fn new_from_sender_signature(
-        tx_data: TransactionData,
-        intent: Intent,
-        tx_signature: Signature,
-    ) -> Self {
-        Self(vec![SenderSignedTransaction {
-            intent_message: IntentMessage::new(intent, tx_data),
-            tx_signatures: vec![tx_signature.into()],
-        }])
-    }
+        if intent_message.intent != Intent::iota_transaction() {
+            return Err(serde::de::Error::custom("invalid Intent for Transaction"));
+        }
 
-    pub fn inner_vec_mut_for_testing(&mut self) -> &mut Vec<SenderSignedTransaction> {
-        &mut self.0
+        Ok(Self {
+            intent_message,
+            tx_signatures,
+        })
     }
+}
 
-    pub fn inner(&self) -> &SenderSignedTransaction {
-        // assert is safe - SenderSignedTransaction::verify ensures length is 1.
-        assert_eq!(self.0.len(), 1);
-        self.0
-            .first()
-            .expect("SenderSignedData must contain exactly one transaction")
-    }
-
-    pub fn inner_mut(&mut self) -> &mut SenderSignedTransaction {
-        // assert is safe - SenderSignedTransaction::verify ensures length is 1.
-        assert_eq!(self.0.len(), 1);
-        self.0
-            .get_mut(0)
-            .expect("SenderSignedData must contain exactly one transaction")
-    }
-
-    // This function does not check validity of the signature
-    // or perform any de-dup checks.
-    pub fn add_signature(&mut self, new_signature: Signature) {
-        self.inner_mut().tx_signatures.push(new_signature.into());
-    }
-
-    fn get_signer_sig_mapping(
+impl SenderSignedTransaction {
+    pub(crate) fn get_signer_sig_mapping(
         &self,
         verify_legacy_zklogin_address: bool,
     ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
         let mut mapping = BTreeMap::new();
-        for sig in &self.inner().tx_signatures {
+        for sig in &self.tx_signatures {
             if verify_legacy_zklogin_address {
                 // Try deriving the address from the legacy padded way.
                 if let GenericSignature::ZkLoginAuthenticator(z) = sig {
@@ -2186,12 +2219,58 @@ impl SenderSignedData {
         Ok(mapping)
     }
 
+    pub fn intent_message(&self) -> &IntentMessage<TransactionData> {
+        &self.intent_message
+    }
+}
+
+impl SenderSignedData {
+    pub fn new(tx_data: TransactionData, tx_signatures: Vec<GenericSignature>) -> Self {
+        Self(SizeOneVec::new(SenderSignedTransaction {
+            intent_message: IntentMessage::new(Intent::iota_transaction(), tx_data),
+            tx_signatures,
+        }))
+    }
+
+    pub fn new_from_sender_signature(tx_data: TransactionData, tx_signature: Signature) -> Self {
+        Self(SizeOneVec::new(SenderSignedTransaction {
+            intent_message: IntentMessage::new(Intent::iota_transaction(), tx_data),
+            tx_signatures: vec![tx_signature.into()],
+        }))
+    }
+
+    pub fn inner(&self) -> &SenderSignedTransaction {
+        self.0.element()
+    }
+
+    pub fn into_inner(self) -> SenderSignedTransaction {
+        self.0.into_inner()
+    }
+
+    pub fn inner_mut(&mut self) -> &mut SenderSignedTransaction {
+        self.0.element_mut()
+    }
+
+    // This function does not check validity of the signature
+    // or perform any de-dup checks.
+    pub fn add_signature(&mut self, new_signature: Signature) {
+        self.inner_mut().tx_signatures.push(new_signature.into());
+    }
+
+    pub(crate) fn get_signer_sig_mapping(
+        &self,
+        verify_legacy_zklogin_address: bool,
+    ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
+        self.inner()
+            .get_signer_sig_mapping(verify_legacy_zklogin_address)
+    }
+
     pub fn transaction_data(&self) -> &TransactionData {
         &self.intent_message().value
     }
 
     pub fn intent_message(&self) -> &IntentMessage<TransactionData> {
-        &self.inner().intent_message
+        self.inner().intent_message()
     }
 
     pub fn tx_signatures(&self) -> &[GenericSignature] {
@@ -2231,31 +2310,79 @@ impl SenderSignedData {
         })
     }
 
-    /// Perform cheap validity checks on the sender signed transaction,
-    /// including its size, input count, command count, etc.
-    pub fn validity_check(&self, config: &ProtocolConfig) -> IotaResult {
+    fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
+        for sig in &self.inner().tx_signatures {
+            match sig {
+                GenericSignature::MultiSig(_) => {
+                    if !config.supports_upgraded_multisig() {
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::Unsupported(
+                                "upgraded multisig format not enabled on this network".to_string(),
+                            ),
+                        });
+                    }
+                }
+                GenericSignature::ZkLoginAuthenticator(_) => {
+                    if !config.zklogin_auth() {
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::Unsupported(
+                                "zklogin is not enabled on this network".to_string(),
+                            ),
+                        });
+                    }
+                }
+                GenericSignature::PasskeyAuthenticator(_) => {
+                    if !config.passkey_auth() {
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::Unsupported(
+                                "passkey is not enabled on this network".to_string(),
+                            ),
+                        });
+                    }
+                }
+                GenericSignature::Signature(_) | GenericSignature::MultiSigLegacy(_) => (),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate untrusted user transaction, including its size, input count,
+    /// command count, etc.
+    pub fn validity_check(&self, config: &ProtocolConfig, epoch: EpochId) -> IotaResult {
+        // Check that the features used by the user signatures are enabled on the
+        // network.
+        self.check_user_signature_protocol_compatibility(config)?;
+
+        // CRITICAL!!
+        // Users cannot send system transactions.
+        let tx_data = &self.transaction_data();
+        fp_ensure!(!tx_data.is_system_tx(), IotaError::UserInput {
+            error: UserInputError::Unsupported(
+                "SenderSignedData must not contain system transaction".to_string()
+            )
+        });
+
+        // Checks to see if the transaction has expired
+        if match &tx_data.expiration() {
+            TransactionExpiration::None => false,
+            TransactionExpiration::Epoch(exp_poch) => *exp_poch < epoch,
+        } {
+            return Err(IotaError::TransactionExpired);
+        }
+
         // Enforce overall transaction size limit.
         let tx_size = self.serialized_size()?;
         let max_tx_size_bytes = config.max_tx_size_bytes();
-
-        fp_ensure!(
-            tx_size as u64 <= max_tx_size_bytes,
-            IotaError::UserInput {
-                error: UserInputError::SizeLimitExceeded {
-                    limit: format!(
-                        "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
-                    ),
-                    value: tx_size.to_string(),
-                }
+        fp_ensure!(tx_size as u64 <= max_tx_size_bytes, IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded {
+                limit: format!(
+                    "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
+                ),
+                value: tx_size.to_string(),
             }
-        );
+        });
 
-        self.verify_user_input()?;
-
-        let tx_data = self.transaction_data();
-        tx_data
-            .check_version_supported(config)
-            .map_err(Into::<IotaError>::into)?;
         tx_data
             .validity_check(config)
             .map_err(Into::<IotaError>::into)?;
@@ -2264,153 +2391,14 @@ impl SenderSignedData {
     }
 }
 
-impl VersionedProtocolMessage for SenderSignedData {
-    fn message_version(&self) -> Option<u64> {
-        self.transaction_data().message_version()
-    }
-
-    fn check_version_supported(&self, protocol_config: &ProtocolConfig) -> IotaResult {
-        self.transaction_data()
-            .check_version_supported(protocol_config)?;
-
-        // This code does nothing right now. Its purpose is to cause a compiler error
-        // when a new signature type is added.
-        //
-        // When adding a new signature type, check if current_protocol_version
-        // predates support for the new type. If it does, return
-        // IotaError::WrongMessageVersion
-        for sig in &self.inner().tx_signatures {
-            match sig {
-                GenericSignature::MultiSig(_) => {
-                    if !protocol_config.supports_upgraded_multisig() {
-                        return Err(IotaError::UnsupportedFeature {
-                            error: "multisig format not enabled on this network".to_string(),
-                        });
-                    }
-                }
-                GenericSignature::Signature(_)
-                | GenericSignature::MultiSigLegacy(_)
-                | GenericSignature::ZkLoginAuthenticator(_) => (),
-            }
-        }
-        Ok(())
-    }
-}
-
 impl Message for SenderSignedData {
     type DigestType = TransactionDigest;
     const SCOPE: IntentScope = IntentScope::SenderSignedTransaction;
 
+    /// Computes the tx digest that encodes the Rust type prefix from Signable
+    /// trait.
     fn digest(&self) -> Self::DigestType {
-        TransactionDigest::new(default_hash(&self.intent_message().value))
-    }
-
-    fn verify_user_input(&self) -> IotaResult {
-        fp_ensure!(
-            self.0.len() == 1,
-            IotaError::UserInput {
-                error: UserInputError::Unsupported(
-                    "SenderSignedData must contain exactly one transaction".to_string()
-                )
-            }
-        );
-        let tx_data = &self.intent_message().value;
-        fp_ensure!(
-            !tx_data.is_system_tx(),
-            IotaError::UserInput {
-                error: UserInputError::Unsupported(
-                    "SenderSignedData must not contain system transaction".to_string()
-                )
-            }
-        );
-
-        // Verify signatures are well formed. Steps are ordered in asc complexity order
-        // to minimize abuse.
-        let signers = self.intent_message().value.signers();
-        // Signature number needs to match
-        fp_ensure!(
-            self.inner().tx_signatures.len() == signers.len(),
-            IotaError::SignerSignatureNumberMismatch {
-                actual: self.inner().tx_signatures.len(),
-                expected: signers.len()
-            }
-        );
-
-        // All required signers need to be sign.
-        let present_sigs = self.get_signer_sig_mapping(true)?;
-        for s in signers {
-            if !present_sigs.contains_key(&s) {
-                return Err(IotaError::SignerSignatureAbsent {
-                    expected: s.to_string(),
-                    actual: present_sigs.keys().map(|s| s.to_string()).collect(),
-                });
-            }
-        }
-
-        Ok(())
-    }
-
-    fn verify_epoch(&self, epoch: EpochId) -> IotaResult {
-        for sig in &self.inner().tx_signatures {
-            sig.verify_user_authenticator_epoch(epoch)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl AuthenticatedMessage for SenderSignedData {
-    // Checks that are required to be done outside cache.
-    fn verify_uncached_checks(&self, verify_params: &VerifyParams) -> IotaResult {
-        for (signer, signature) in
-            self.get_signer_sig_mapping(verify_params.verify_legacy_zklogin_address)?
-        {
-            signature.verify_uncached_checks(self.intent_message(), signer, verify_params)?;
-        }
-        Ok(())
-    }
-
-    fn verify_message_signature(&self, verify_params: &VerifyParams) -> IotaResult {
-        fp_ensure!(
-            self.0.len() == 1,
-            IotaError::UserInput {
-                error: UserInputError::Unsupported(
-                    "SenderSignedData must contain exactly one transaction".to_string()
-                )
-            }
-        );
-        if self.intent_message().value.is_system_tx() {
-            return Ok(());
-        }
-
-        // Verify signatures. Steps are ordered in asc complexity order to minimize
-        // abuse.
-        let signers = self.intent_message().value.signers();
-        // Signature number needs to match
-        fp_ensure!(
-            self.inner().tx_signatures.len() == signers.len(),
-            IotaError::SignerSignatureNumberMismatch {
-                actual: self.inner().tx_signatures.len(),
-                expected: signers.len()
-            }
-        );
-        // All required signers need to be sign.
-        let present_sigs =
-            self.get_signer_sig_mapping(verify_params.verify_legacy_zklogin_address)?;
-        for s in signers {
-            if !present_sigs.contains_key(&s) {
-                return Err(IotaError::SignerSignatureAbsent {
-                    expected: s.to_string(),
-                    actual: present_sigs.keys().map(|s| s.to_string()).collect(),
-                });
-            }
-        }
-
-        // Verify all present signatures.
-        for (signer, signature) in present_sigs {
-            signature.verify_claims(self.intent_message(), signer, verify_params)?;
-        }
-        Ok(())
+        self.intent_message().value.digest()
     }
 }
 
@@ -2467,11 +2455,6 @@ impl<S> Envelope<SenderSignedData, S> {
     pub fn is_sponsored_tx(&self) -> bool {
         self.data().intent_message().value.is_sponsored_tx()
     }
-
-    pub fn is_randomness_reader(&self) -> bool {
-        self.shared_input_objects()
-            .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
-    }
 }
 
 impl Transaction {
@@ -2504,11 +2487,7 @@ impl Transaction {
     }
 
     pub fn from_generic_sig_data(data: TransactionData, signatures: Vec<GenericSignature>) -> Self {
-        Self::new(SenderSignedData::new(
-            data,
-            Intent::iota_transaction(),
-            signatures,
-        ))
+        Self::new(SenderSignedData::new(data, signatures))
     }
 
     /// Returns the Base64 encoded tx_bytes
@@ -2551,8 +2530,8 @@ impl VerifiedTransaction {
         .pipe(Self::new_system_transaction)
     }
 
-    pub fn new_genesis_transaction(objects: Vec<GenesisObject>) -> Self {
-        GenesisTransaction { objects }
+    pub fn new_genesis_transaction(objects: Vec<GenesisObject>, events: Vec<Event>) -> Self {
+        GenesisTransaction { objects, events }
             .pipe(TransactionKind::Genesis)
             .pipe(Self::new_system_transaction)
     }
@@ -2584,6 +2563,29 @@ impl VerifiedTransaction {
             consensus_commit_digest,
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV2)
+        .pipe(Self::new_system_transaction)
+    }
+
+    pub fn new_consensus_commit_prologue_v3(
+        epoch: u64,
+        round: u64,
+        commit_timestamp_ms: CheckpointTimestamp,
+        consensus_commit_digest: ConsensusCommitDigest,
+        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+    ) -> Self {
+        ConsensusCommitPrologueV3 {
+            epoch,
+            round,
+            // sub_dag_index is reserved for when we have multi commits per round.
+            sub_dag_index: None,
+            commit_timestamp_ms,
+            consensus_commit_digest,
+            consensus_determined_version_assignments:
+                ConsensusDeterminedVersionAssignments::CancelledTransactions(
+                    cancelled_txn_version_assignment,
+                ),
+        }
+        .pipe(TransactionKind::ConsensusCommitPrologueV3)
         .pipe(Self::new_system_transaction)
     }
 
@@ -2629,7 +2631,6 @@ impl VerifiedTransaction {
             .pipe(|data| {
                 SenderSignedData::new_from_sender_signature(
                     data,
-                    Intent::iota_transaction(),
                     Ed25519IotaSignature::from_bytes(&[0; Ed25519IotaSignature::LENGTH])
                         .unwrap()
                         .into(),
@@ -2666,6 +2667,60 @@ pub type TrustedTransaction = TrustedEnvelope<SenderSignedData, EmptySignInfo>;
 pub type SignedTransaction = Envelope<SenderSignedData, AuthoritySignInfo>;
 pub type VerifiedSignedTransaction = VerifiedEnvelope<SenderSignedData, AuthoritySignInfo>;
 
+impl Transaction {
+    pub fn verify_signature_for_testing(
+        &self,
+        current_epoch: EpochId,
+        verify_params: &VerifyParams,
+    ) -> IotaResult {
+        verify_sender_signed_data_message_signatures(
+            self.data(),
+            current_epoch,
+            verify_params,
+            Arc::new(VerifiedDigestCache::new_empty()),
+        )
+    }
+
+    pub fn try_into_verified_for_testing(
+        self,
+        current_epoch: EpochId,
+        verify_params: &VerifyParams,
+    ) -> IotaResult<VerifiedTransaction> {
+        self.verify_signature_for_testing(current_epoch, verify_params)?;
+        Ok(VerifiedTransaction::new_from_verified(self))
+    }
+}
+
+impl SignedTransaction {
+    pub fn verify_signatures_authenticated_for_testing(
+        &self,
+        committee: &Committee,
+        verify_params: &VerifyParams,
+    ) -> IotaResult {
+        verify_sender_signed_data_message_signatures(
+            self.data(),
+            committee.epoch(),
+            verify_params,
+            Arc::new(VerifiedDigestCache::new_empty()),
+        )?;
+
+        self.auth_sig().verify_secure(
+            self.data(),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
+            committee,
+        )
+    }
+
+    pub fn try_into_verified_for_testing(
+        self,
+        committee: &Committee,
+        verify_params: &VerifyParams,
+    ) -> IotaResult<VerifiedSignedTransaction> {
+        self.verify_signatures_authenticated_for_testing(committee, verify_params)?;
+        Ok(VerifiedSignedTransaction::new_from_verified(self))
+    }
+}
+
 pub type CertifiedTransaction = Envelope<SenderSignedData, AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedTransaction {
@@ -2679,25 +2734,54 @@ impl CertifiedTransaction {
     pub fn gas_price(&self) -> u64 {
         self.data().transaction_data().gas_price()
     }
+
+    // TODO: Eventually we should remove all calls to verify_signature
+    // and make sure they all call verify to avoid repeated verifications.
+    pub fn verify_signatures_authenticated(
+        &self,
+        committee: &Committee,
+        verify_params: &VerifyParams,
+        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
+    ) -> IotaResult {
+        verify_sender_signed_data_message_signatures(
+            self.data(),
+            committee.epoch(),
+            verify_params,
+            zklogin_inputs_cache,
+        )?;
+        self.auth_sig().verify_secure(
+            self.data(),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
+            committee,
+        )
+    }
+
+    pub fn try_into_verified_for_testing(
+        self,
+        committee: &Committee,
+        verify_params: &VerifyParams,
+    ) -> IotaResult<VerifiedCertificate> {
+        self.verify_signatures_authenticated(
+            committee,
+            verify_params,
+            Arc::new(VerifiedDigestCache::new_empty()),
+        )?;
+        Ok(VerifiedCertificate::new_from_verified(self))
+    }
+
+    pub fn verify_committee_sigs_only(&self, committee: &Committee) -> IotaResult {
+        self.auth_sig().verify_secure(
+            self.data(),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
+            committee,
+        )
+    }
 }
 
 pub type VerifiedCertificate = VerifiedEnvelope<SenderSignedData, AuthorityStrongQuorumSignInfo>;
 pub type TrustedCertificate = TrustedEnvelope<SenderSignedData, AuthorityStrongQuorumSignInfo>;
 
-pub trait VersionedProtocolMessage {
-    /// Return version of message. Some messages depend on their enclosing
-    /// messages to know the version number, so not every implementor
-    /// implements this.
-    fn message_version(&self) -> Option<u64> {
-        None
-    }
-
-    /// Check that the version of the message is the correct one to use at this
-    /// protocol version.
-    fn check_version_supported(&self, protocol_config: &ProtocolConfig) -> IotaResult;
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum InputObjectKind {
     // A Move package, must be immutable.
     MovePackage(ObjectID),
@@ -2772,6 +2856,8 @@ pub enum ObjectReadResultKind {
     // The version of the object that the transaction intended to read, and the digest of the tx
     // that deleted it.
     DeletedSharedObject(SequenceNumber, TransactionDigest),
+    // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
+    CancelledTransactionSharedObject(SequenceNumber),
 }
 
 impl From<Object> for ObjectReadResultKind {
@@ -2790,6 +2876,14 @@ impl ObjectReadResult {
             panic!("only shared objects can be DeletedSharedObject");
         }
 
+        if let (
+            InputObjectKind::ImmOrOwnedMoveObject(_),
+            ObjectReadResultKind::CancelledTransactionSharedObject(_),
+        ) = (&input_object_kind, &object)
+        {
+            panic!("only shared objects can be CancelledTransactionSharedObject");
+        }
+
         Self {
             input_object_kind,
             object,
@@ -2804,6 +2898,7 @@ impl ObjectReadResult {
         match &self.object {
             ObjectReadResultKind::Object(object) => Some(object),
             ObjectReadResultKind::DeletedSharedObject(_, _) => None,
+            ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
         }
     }
 
@@ -2824,6 +2919,10 @@ impl ObjectReadResult {
             (
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::DeletedSharedObject(_, _),
+            ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::CancelledTransactionSharedObject(_),
             ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { mutable, .. }, _) => *mutable,
         }
@@ -2863,6 +2962,10 @@ impl ObjectReadResult {
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::DeletedSharedObject(_, _),
             ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::CancelledTransactionSharedObject(_),
+            ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { .. }, _) => None,
         }
     }
@@ -2882,14 +2985,18 @@ impl ObjectReadResult {
                 ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                     SharedInput::Deleted((id, *seq, mutable, *digest))
                 }
+                ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
+                    SharedInput::Cancelled((id, *seq))
+                }
             }),
         }
     }
 
-    pub fn get_previous_transaction(&self) -> TransactionDigest {
+    pub fn get_previous_transaction(&self) -> Option<TransactionDigest> {
         match &self.object {
-            ObjectReadResultKind::Object(obj) => obj.previous_transaction,
-            ObjectReadResultKind::DeletedSharedObject(_, digest) => *digest,
+            ObjectReadResultKind::Object(obj) => Some(obj.previous_transaction),
+            ObjectReadResultKind::DeletedSharedObject(_, digest) => Some(*digest),
+            ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
         }
     }
 }
@@ -2958,6 +3065,38 @@ impl InputObjects {
             .any(|obj| obj.is_deleted_shared_object())
     }
 
+    // Returns IDs of objects responsible for a tranaction being cancelled, and the
+    // corresponding reason for cancellation.
+    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectID>, SequenceNumber)> {
+        let mut contains_cancelled = false;
+        let mut cancel_reason = None;
+        let mut cancelled_objects = Vec::new();
+        for obj in &self.objects {
+            if let ObjectReadResultKind::CancelledTransactionSharedObject(version) = obj.object {
+                contains_cancelled = true;
+                if version == SequenceNumber::CONGESTED
+                    || version == SequenceNumber::RANDOMNESS_UNAVAILABLE
+                {
+                    // Verify we don't have multiple cancellation reasons.
+                    assert!(cancel_reason.is_none() || cancel_reason == Some(version));
+                    cancel_reason = Some(version);
+                    cancelled_objects.push(obj.id());
+                }
+            }
+        }
+
+        if !cancelled_objects.is_empty() {
+            Some((
+                cancelled_objects,
+                cancel_reason
+                    .expect("there should be a cancel reason if there are cancelled objects"),
+            ))
+        } else {
+            assert!(!contains_cancelled);
+            None
+        }
+    }
+
     pub fn filter_owned_objects(&self) -> Vec<ObjectRef> {
         let owned_objects: Vec<_> = self
             .objects
@@ -2987,7 +3126,7 @@ impl InputObjects {
     pub fn transaction_dependencies(&self) -> BTreeSet<TransactionDigest> {
         self.objects
             .iter()
-            .map(|obj| obj.get_previous_transaction())
+            .filter_map(|obj| obj.get_previous_transaction())
             .collect()
     }
 
@@ -3031,6 +3170,16 @@ impl InputObjects {
                             None
                         }
                     }
+                    (
+                        InputObjectKind::ImmOrOwnedMoveObject(_),
+                        ObjectReadResultKind::CancelledTransactionSharedObject(_),
+                    ) => {
+                        unreachable!()
+                    }
+                    (
+                        InputObjectKind::SharedMoveObject { .. },
+                        ObjectReadResultKind::CancelledTransactionSharedObject(_),
+                    ) => None,
                 },
             )
             .collect()
@@ -3048,6 +3197,7 @@ impl InputObjects {
                     object.data.try_as_move().map(MoveObject::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
+                ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
             })
             .chain(receiving_objects.iter().map(|object_ref| object_ref.1));
 

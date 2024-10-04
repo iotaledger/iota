@@ -3,49 +3,58 @@ processed 10 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 12-88:
+task 1, lines 12-88:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 12897200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 90-90:
+task 2, line 90:
+//# run test::m1::create --sender A
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 92-92:
+task 3, line 92:
+//# run test::m1::test_dof --args object(2,2) receiving(2,0) receiving(2,1) --sender A
 mutated: object(0,0), object(2,0), object(2,2)
 deleted: object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 4642308, non_refundable_storage_fee: 46892
+gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 4689200, non_refundable_storage_fee: 0
 
-task 4 'run'. lines 94-94:
+task 4, line 94:
+//# run test::m1::create --sender A
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5 'run'. lines 96-96:
+task 5, line 96:
+//# run test::m1::test_df --args object(4,2) receiving(4,0) receiving(4,1) --sender A
 mutated: object(0,0), object(4,0), object(4,2)
 deleted: object(4,1)
-gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 4642308, non_refundable_storage_fee: 46892
+gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 4689200, non_refundable_storage_fee: 0
 
-task 6 'run'. lines 98-98:
+task 6, line 98:
+//# run test::m1::create --sender A
 created: object(6,0), object(6,1), object(6,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 7 'run'. lines 100-100:
+task 7, line 100:
+//# run test::m1::test_dof_wrapper --args object(6,2) receiving(6,0) receiving(6,1) --sender A
 created: object(7,0)
 mutated: object(0,0), object(6,2)
 wrapped: object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 4050800,  storage_rebate: 3430944, non_refundable_storage_fee: 34656
+gas summary: computation_cost: 1000000, storage_cost: 4050800,  storage_rebate: 3465600, non_refundable_storage_fee: 0
 
-task 8 'run'. lines 102-102:
+task 8, line 102:
+//# run test::m1::create --sender A
 created: object(8,0), object(8,1), object(8,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 4689200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 9 'run'. lines 104-104:
+task 9, line 104:
+//# run test::m1::test_df_wrapper --args object(8,2) receiving(8,0) receiving(8,1) --sender A
 created: object(9,0)
 mutated: object(0,0), object(8,2)
 wrapped: object(8,0)
-gas summary: computation_cost: 1000000, storage_cost: 4050800,  storage_rebate: 3430944, non_refundable_storage_fee: 34656
+gas summary: computation_cost: 1000000, storage_cost: 4050800,  storage_rebate: 3465600, non_refundable_storage_fee: 0

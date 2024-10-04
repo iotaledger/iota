@@ -93,19 +93,15 @@ function ValidatorDetails(): JSX.Element {
     return (
         <PageLayout
             content={
-                <div className="mb-10">
-                    <div className="flex flex-col flex-nowrap gap-5 md:flex-row md:gap-0">
-                        <ValidatorMeta validatorData={validatorData} />
-                    </div>
-                    <div className="mt-5 md:mt-8">
-                        <ValidatorStats
-                            validatorData={validatorData}
-                            epoch={data.epoch}
-                            epochRewards={validatorRewards}
-                            apy={isApyApproxZero ? '~0' : apy}
-                            tallyingScore={tallyingScore}
-                        />
-                    </div>
+                <div className="flex flex-col gap-2xl">
+                    <ValidatorMeta validatorData={validatorData} />
+                    <ValidatorStats
+                        validatorData={validatorData}
+                        epoch={data.epoch}
+                        epochRewards={validatorRewards}
+                        apy={isApyApproxZero ? '~0' : apy}
+                        tallyingScore={tallyingScore}
+                    />
                     {atRiskRemainingEpochs !== null && (
                         <div className="mt-5">
                             <Banner

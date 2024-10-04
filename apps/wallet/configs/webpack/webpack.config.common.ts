@@ -16,24 +16,8 @@ import type { Configuration } from 'webpack';
 
 import packageJson from '../../package.json';
 
-function generateDateVersion(patch: number) {
-    const sha = gitRevSync.short();
-    const date = new Date();
-    const version = [
-        String(date.getUTCFullYear()).slice(2),
-        String(date.getUTCMonth() + 1),
-        String(date.getUTCDate()),
-        patch,
-    ].join('.');
-
-    return {
-        version,
-        version_name: `${version} (${sha})`,
-    };
-}
-
-const WALLET_BETA = process.env.WALLET_BETA === 'true';
-const PATCH_VERSION = Number(process.env.PATCH_VERSION) || 0;
+const WALLET_RC = process.env.WALLET_RC === 'true';
+const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
 
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -44,11 +28,25 @@ const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
 const IS_DEV = process.env.NODE_ENV === 'development';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
-const APP_NAME = WALLET_BETA ? 'IOTA Wallet (BETA)' : IS_DEV ? 'IOTA Wallet (DEV)' : 'IOTA Wallet';
+const APP_NAME = WALLET_RC ? 'IOTA Wallet (RC)' : IS_DEV ? 'IOTA Wallet (DEV)' : 'IOTA Wallet';
 
 dotenv.config({
     path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
 });
+
+// From package.json: x.y.z
+// App version (production): x.y.z
+// App version (rc): x.y.z.n
+function generateVersion(n: number | undefined) {
+    const sha = gitRevSync.short();
+    const packageVersion = packageJson.version;
+    const version = n !== undefined ? `${packageVersion}.${n}` : packageVersion;
+    const version_name = n !== undefined ? `${packageVersion}-rc.${n}` : packageVersion;
+    return {
+        version,
+        version_name: `${version_name} (${sha})`,
+    };
+}
 
 function loadTsConfig(tsConfigFilePath: string) {
     return new Promise<string>((res, rej) => {
@@ -99,7 +97,7 @@ async function generateAliasFromTs() {
 
 const commonConfig: () => Promise<Configuration> = async () => {
     const alias = await generateAliasFromTs();
-    const walletVersionDetails = generateDateVersion(PATCH_VERSION);
+    const walletVersionDetails = generateVersion(RC_VERSION);
     const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
     return {
         context: SRC_ROOT,
@@ -200,9 +198,15 @@ const commonConfig: () => Promise<Configuration> = async () => {
                                 description: packageJson.description,
                                 ...(IS_DEV
                                     ? {
-                                          key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HTQu/66edl64fM/SKDnHJmCz9SIYqM/QK7NM3vD1LTE2UNXzHX5Clj8geuoWAYS6HE/aFcd//qPnAh8TnPgqTS3IX+IbZsY/+kcokxIEWHly3eKEHWB32tQsGdJx6tgDzx8TRkFZEcCCdE4pFqQO68W3I/+8AQPosdd5fsIoF6OGKZ/i29mpGkYJSmMroCN5zYCQqvpjTBIkiTkI9TTjxmBid77pHyG4TsHz0wda4KxHV9ZtzZQXB4vexTku/Isczdtif7pDqFEDCAqEkpiGPyKoIuqrxc75IfpzIGFsIylycBr0fZellSsl2M6FM34R99/vUrGj5iWcjNmhYvZ8QIDAQAB',
+                                          key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1uOw+go7YTI8xNuHzIQC7J7x6Jw0in2UPptgcR1c+7aA3XSb03TVZkMXSMslCB7KTpaJOOQK1urLN3/FFos55f3vXixsjHT3pVbX/FhUmBK0kLOx8kl5Ns9ywVgBJyCSEnMrR1IlbiiU8GoXH1Bzb4SxkDELSQIZRetd+zTnwsUx/74grPT4EmgVglHBBYO75iJMsiJ/F0zMEsEQ+0SDfmU0v5Qh8slzryZr+8p8Q/mpNADzwS51o74feeGC5nAM5IgX0LyjRzCLXsiEmdC57KOaCpI7yhzDjXpye374oTdZJulv/tVeA1ymLIKQM5rfyeoqnxSOMsgGsvoM60WoYQIDAQAB',
                                       }
                                     : undefined),
+                                icons: {
+                                    16: `manifest/icons/iota-icon-16${WALLET_RC ? '-rc' : ''}.png`,
+                                    32: `manifest/icons/iota-icon-32${WALLET_RC ? '-rc' : ''}.png`,
+                                    48: `manifest/icons/iota-icon-48${WALLET_RC ? '-rc' : ''}.png`,
+                                    128: `manifest/icons/iota-icon-128${WALLET_RC ? '-rc' : ''}.png`,
+                                },
                             };
                             return JSON.stringify(manifestJson, null, 4);
                         },
@@ -218,7 +222,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.WALLET_KEYRING_PASSWORD': JSON.stringify(
                     IS_DEV ? 'DEV_PASS' : Buffer.from(randomBytes(64)).toString('hex'),
                 ),
-                'process.env.WALLET_BETA': WALLET_BETA,
+                'process.env.WALLET_RC': WALLET_RC,
                 'process.env.APP_NAME': JSON.stringify(APP_NAME),
                 'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
                 'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
@@ -228,7 +232,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 Buffer: ['buffer', 'Buffer'],
             }),
             new SentryWebpackPlugin({
-                org: 'mysten-labs',
+                org: 'iota-foundation',
                 project: 'wallet',
                 include: OUTPUT_ROOT,
                 dryRun: !IS_PROD || !sentryAuthToken,

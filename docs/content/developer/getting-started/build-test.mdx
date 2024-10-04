@@ -4,6 +4,8 @@ tags: [move, testing, how-to, cli]
 ---
 
 import TestingCheatSheet from "../../_snippets/testing-cheat-sheet.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/build-test.json';
 
 # Build and Test Packages
 
@@ -11,7 +13,7 @@ Once you have [created a package](create-a-package.mdx) and [added a module](cre
 
 ## Building your package
 
-You can use the `iota move build` command to build Move packages in the working directory, `my_first_package` in this case.
+You can use the `iota move build` command to build Move packages in the working directory, `first_package` in this case.
 
 ```shell
 iota move build
@@ -25,7 +27,7 @@ If your build is successful, the IOTA client will return the following:
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
 INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
-BUILDING my_first_package
+BUILDING first_package
 ```
 
 ## Test a Package
@@ -34,7 +36,7 @@ You can use the Move testing framework to write unit tests for your IOTA package
 
 ### Test Syntax
 
-You should add unit tests in their corresponding [module file](create-a-module.mdx). In Move, test functions are identified by the following:
+You should add unit tests in their corresponding [test file](create-a-module.mdx). In Move, test functions are identified by the following:
 
 * They are [`public`](create-a-module.mdx#public-functions) functions.
 * They have no parameters.
@@ -51,14 +53,14 @@ If you haven't added any tests, you should see the following output.
 ```shell
 INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
-BUILDING my_first_package
+BUILDING first_package
 Running Move unit tests
 Test result: OK. Total tests: 0; passed: 0; failed: 0
 ```
 
 ### Add Tests
 
-You can add your first unit test by copying the following public test function and adding it to the end of `my_first_module`, within the module definition.
+You can add your first unit test by copying the following public test function and adding it to `first_package_tests` file, within the `tests` directory.
 
 ```move
 #[test]
@@ -120,13 +122,7 @@ The compilation error provides all the necessary information to help you [debug]
 
 Move has many features to ensure your code is safe. In this case, the `Sword` struct represents a game asset that digitally mimics a real-world item. Much like a real sword, it cannot simply disappear. Since the `Sword` struct doesn't have the [`drop`](create-a-module.mdx#drop) ability, it has to be consumed before the function returns. However, since the `sword` mimics a real-world item, you don't want to allow it to disappear.
 
-Instead, you can fix the compilation error by adequately disposing of the `sword`. Add the following line to the beginning of the `test_sword_create` function to import the [`Transfer`](../../references/framework/iota-framework/transfer.mdx) module:
-
-```move
-use iota::transfer;
-```
-
-Now, you can add the following after the function's `!assert` call to transfer the `sword` to a freshly created dummy address:
+Instead, you can fix the compilation error by adequately disposing of the `sword`. Add the following after the function's `!assert` call to transfer the `sword` to a freshly created dummy address:
 
 ```move
 // Create a dummy address and transfer the sword.
@@ -320,11 +316,11 @@ This test function is more complex than the [previous example](#add-tests), so l
     test_scenario::end(scenario_val);
     ```
    
-Since [the `sword` cannot simply disappear](#debugging-tests), the function transfers the `sword` object to the fake address using the  `test_scenario::return_to_sender` function. If returning the object to a dummy address is not your desired behavior, you can also call the [`test_utils:destroy`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) function. 
+Since [the `sword` cannot simply disappear](#debugging-tests), the function transfers the `sword` object to the fake address using the  `test_scenario::return_to_sender` function. If returning the object to a dummy address is not your desired behavior, you can also call the [`test_utils:destroy`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) function. 
 
 :::tip Know your toolbox
 
-This guide only covers the basics. You should check out the available functions for both [`test_scenario`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) and [`test_utils`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) modules to see everything you can do. 
+This guide only covers the basics. You should check out the available functions for both [`test_scenario`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) and [`test_utils`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) modules to see everything you can do. 
 
 :::
 
@@ -422,3 +418,6 @@ fun test_sword_transactions() {
 ```
 
 You can refer to the source code for the package (with all the tests and functions properly adjusted) in the [first_package](https://github.com/iotaledger/iota/tree/develop/examples/move/first_package/sources/example.move) module in the `iota/examples` directory.
+
+
+<Quiz questions={questions} />

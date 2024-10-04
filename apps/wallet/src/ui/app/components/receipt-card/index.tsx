@@ -3,16 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
+import {
+    useTransactionSummary,
+    STAKING_REQUEST_EVENT,
+    UNSTAKING_REQUEST_EVENT,
+    formatDate,
+} from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
+import { StakeTxn } from './StakeTxn';
+import { UnStakeTxn } from './UnstakeTxn';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { CheckmarkFilled } from '@iota/ui-icons';
+import cl from 'clsx';
 import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
-import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
-import { StakeTxnCard } from './StakeTxnCard';
-import { StatusIcon } from './StatusIcon';
-import { UnStakeTxnCard } from './UnstakeTxnCard';
+import { GasFees } from '../../pages/approval-request/transaction-request/GasFees';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -20,14 +26,19 @@ interface TransactionStatusProps {
 }
 
 function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
+    const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
     return (
-        <div className="mb-4 flex flex-col items-center justify-center gap-3">
-            <StatusIcon status={success} />
-            <span data-testid="transaction-status" className="sr-only">
-                {success ? 'Transaction Success' : 'Transaction Failed'}
-            </span>
-            {timestamp && <DateCard timestamp={Number(timestamp)} size="md" />}
-        </div>
+        <InfoBox
+            type={success ? InfoBoxType.Default : InfoBoxType.Warning}
+            style={InfoBoxStyle.Elevated}
+            title={success ? 'Successfully sent' : 'Transaction Failed'}
+            supportingText={timestamp ? txnDate : ''}
+            icon={
+                <CheckmarkFilled
+                    className={cl('h-5 w-5', success ? 'text-primary-30' : 'text-neutral-10')}
+                />
+            }
+        ></InfoBox>
     );
 }
 
@@ -44,6 +55,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         currentAddress: activeAddress,
         recognizedPackagesList,
     });
+    const isSender = txn.transaction?.data.sender === activeAddress;
 
     if (!summary) return null;
 
@@ -51,37 +63,35 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
-    // todo: re-using the existing staking cards for now
-    if (stakedTxn || unstakeTxn)
-        return (
-            <div className="relative block h-full w-full">
+    return (
+        <div className="flex h-full w-full flex-col justify-between">
+            <div className="flex flex-col gap-md overflow-y-auto overflow-x-hidden">
                 <TransactionStatus
-                    success={summary?.status === 'success'}
+                    success={summary.status === 'success'}
                     timestamp={txn.timestampMs ?? undefined}
                 />
-                <section className="bg-iota/10 -mx-5 min-h-full">
-                    <div className="px-5 py-10">
-                        <div className="flex flex-col gap-4">
-                            {stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}
-                            {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
-                            <GasSummary gasSummary={summary?.gas} />
-                            <ExplorerLinkCard
-                                digest={summary?.digest}
-                                timestamp={summary?.timestamp ?? undefined}
-                            />
-                        </div>
-                    </div>
-                </section>
+                {stakedTxn || unstakeTxn ? (
+                    <>
+                        {stakedTxn ? (
+                            <StakeTxn event={stakedTxn} gasSummary={summary?.gas} />
+                        ) : null}
+                        {unstakeTxn ? (
+                            <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} />
+                        ) : null}
+                    </>
+                ) : (
+                    <>
+                        <TransactionSummary summary={summary} />
+                        {isSender && <GasFees gasSummary={summary?.gas} />}
+                    </>
+                )}
             </div>
-        );
-
-    return (
-        <div className="relative block h-full w-full">
-            <TransactionStatus
-                success={summary.status === 'success'}
-                timestamp={txn.timestampMs ?? undefined}
-            />
-            <TransactionSummary showGasSummary summary={summary} />
+            <div className="pt-sm">
+                <ExplorerLinkCard
+                    digest={summary?.digest}
+                    timestamp={summary?.timestamp ?? undefined}
+                />
+            </div>
         </div>
     );
 }

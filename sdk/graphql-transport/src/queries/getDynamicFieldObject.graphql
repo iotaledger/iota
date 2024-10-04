@@ -9,7 +9,7 @@ query getTypeLayout($type: String!) {
 }
 
 query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
-    object(address: $parentId) {
+    owner(address: $parentId) {
         dynamicObjectField(name: $name) {
             value {
                 __typename

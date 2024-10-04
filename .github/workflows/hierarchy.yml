@@ -11,13 +11,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-
 jobs:
   diff:
     runs-on: [self-hosted]
+    concurrency:
+      group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -25,7 +24,7 @@ jobs:
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
-      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota.js')) }}
+      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -38,6 +37,9 @@ jobs:
 
   dprint-format:
     runs-on: [self-hosted]
+    concurrency:
+      group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Check dprint formatting
@@ -48,8 +50,11 @@ jobs:
 
   license-check:
     name: license-check
+    concurrency:
+      group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     needs: diff
-    if: always() && needs.diff.outputs.isRust == 'true'
+    if: (!cancelled() && needs.diff.outputs.isRust == 'true')
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -58,18 +63,21 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: always() && needs.diff.outputs.isDoc == 'true' && github.event.pull_request.draft == false
+    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && !github.event.pull_request.draft)
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: always() && needs.diff.outputs.isDoc == 'true'
+    if: (!cancelled() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docs_lint.yml
 
   release-notes-description-check:
     name: release-notes-check
+    concurrency:
+      group: release-notes-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     needs: diff
-    if: always() && needs.diff.outputs.isReleaseNotesEligible == 'true'
+    if: (!cancelled() && needs.diff.outputs.isReleaseNotesEligible == 'true')
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -102,7 +110,11 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: always() && needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' && github.event.pull_request.draft == false
+    if: |
+      !cancelled() && !failure() &&
+      needs.diff.outputs.isRust == 'false' &&
+      needs.diff.outputs.isMove == 'true' &&
+      github.event.pull_request.draft == false
     uses: ./.github/workflows/_move_tests.yml
 
   rust:
@@ -111,13 +123,14 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: always()
+    if: (!cancelled() && !failure())
     uses: ./.github/workflows/_rust.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+    secrets: inherit
 
   e2e:
-    if: github.event.pull_request.draft == false
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft)
     needs:
       - diff
       - dprint-format

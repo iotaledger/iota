@@ -8,6 +8,7 @@
 //! cargo run --example sign_tx_guide
 
 mod utils;
+
 use anyhow::anyhow;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
@@ -18,26 +19,26 @@ use fastcrypto::{
     traits::{EncodeDecodeBase64, KeyPair},
 };
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::TransactionData,
     },
-    IotaClientBuilder,
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair_from_rng, IotaKeyPair, IotaSignature, Signer, ToFromBytes},
+    crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
     signature::GenericSignature,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentMessage};
 use utils::request_tokens_from_faucet;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // set up iota client for the desired network.
-    let iota_client = IotaClientBuilder::default().build_testnet().await?;
+    let client = IotaClientBuilder::default().build_testnet().await?;
 
     // deterministically generate a keypair, testing only, do not use for mainnet,
     // use the next section to randomly generate a keypair instead.
@@ -102,8 +103,8 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Sender: {sender:?}");
 
     // make sure the sender has a gas coin as an example.
-    request_tokens_from_faucet(sender, &iota_client).await?;
-    let gas_coin = iota_client
+    request_tokens_from_faucet(sender, &client).await?;
+    let gas_coin = client
         .coin_read_api()
         .get_coins(sender, None, None, None)
         .await?
@@ -120,7 +121,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let gas_budget = 5_000_000;
-    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+    let gas_price = client.read_api().get_reference_gas_price().await?;
 
     // create the transaction data that will be sent to the network.
     let tx_data = TransactionData::new_programmable(
@@ -153,13 +154,12 @@ async fn main() -> Result<(), anyhow::Error> {
     assert!(res.is_ok());
 
     // execute the transaction.
-    let transaction_response = iota_client
+    let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            iota_types::transaction::Transaction::from_generic_sig_data(
-                intent_msg.value,
-                vec![GenericSignature::Signature(iota_sig)],
-            ),
+            iota_types::transaction::Transaction::from_generic_sig_data(intent_msg.value, vec![
+                GenericSignature::Signature(iota_sig),
+            ]),
             IotaTransactionBlockResponseOptions::default(),
             None,
         )

@@ -2,41 +2,41 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Placeholder } from '@iota/ui';
 import { useMemo } from 'react';
 
 import { TableCard } from './TableCard';
+import { TableCellBase, TableCellPlaceholder } from '@iota/apps-ui-kit';
 
 export interface PlaceholderTableProps {
     rowCount: number;
     rowHeight: string;
     colHeadings: string[];
-    colWidths: string[];
+}
+
+function PlaceholderCell() {
+    return (
+        <TableCellBase>
+            <TableCellPlaceholder />
+        </TableCellBase>
+    );
 }
 
 export function PlaceholderTable({
     rowCount,
     rowHeight,
     colHeadings,
-    colWidths,
 }: PlaceholderTableProps): JSX.Element {
     const rowEntry = useMemo(
-        () =>
-            Object.fromEntries(
-                colHeadings.map((header, index) => [
-                    `a${index}`,
-                    <Placeholder key={index} width={colWidths[index]} height={rowHeight} />,
-                ]),
-            ),
-        [colHeadings, colWidths, rowHeight],
+        () => Object.fromEntries(colHeadings.map((index) => [`a${index}`, null])),
+        [colHeadings, rowHeight],
     );
 
     const loadingTable = useMemo(
         () => ({
             data: new Array(rowCount).fill(rowEntry),
-            columns: colHeadings.map((header, index) => ({
-                header: header,
-                accessorKey: `a${index}`,
+            columns: colHeadings.map((header) => ({
+                header,
+                cell: PlaceholderCell,
             })),
         }),
         [rowCount, rowEntry, colHeadings],

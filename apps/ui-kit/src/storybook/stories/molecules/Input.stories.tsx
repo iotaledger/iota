@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { Input, InputType } from '@/lib/components/molecules/input';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import { ComponentProps, useCallback, useEffect, useState } from 'react';
-import { ButtonUnstyled } from '@/lib/components/atoms/button/ButtonUnstyled';
+import { ButtonPill } from '@/lib/components/atoms/button';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -64,6 +64,11 @@ export const Default: Story = {
                 options: Object.values(InputType),
             },
         },
+        onValueChange: {
+            control: {
+                type: 'none',
+            },
+        },
     },
     render: (props) => <InputStory {...props} />,
 };
@@ -88,15 +93,12 @@ export const WithMaxTrailingButton: Story = {
         trailingElement: <PlaceholderReplace />,
     },
     render: ({ value, ...props }) => {
-        const [inputValue, setInputValue] = useState(value ?? '');
+        const [inputValue, setInputValue] = useState<string>('');
         const [error, setError] = useState<string | undefined>();
-
-        useEffect(() => {
-            setInputValue(value ?? '');
-        }, [value]);
 
         function onMaxClick() {
             setInputValue('10');
+            checkInputValidity(inputValue);
         }
 
         const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,27 +119,42 @@ export const WithMaxTrailingButton: Story = {
             checkInputValidity(inputValue);
         }, [inputValue]);
 
-        const TrailingMaxButton = () => {
-            return (
-                <ButtonUnstyled
-                    onClick={onMaxClick}
-                    className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs"
-                >
-                    <span className="font-inter text-label-md">Max</span>
-                </ButtonUnstyled>
-            );
-        };
-
         return (
             <Input
                 {...props}
                 required
                 label="Send Tokens"
                 value={inputValue}
-                trailingElement={<TrailingMaxButton />}
+                trailingElement={<ButtonPill onClick={onMaxClick}>Max</ButtonPill>}
                 errorMessage={error}
                 onChange={onChange}
                 onClearInput={() => setInputValue('')}
+            />
+        );
+    },
+};
+
+export const NumericFormatInput: Story = {
+    args: {
+        type: InputType.NumericFormat,
+        placeholder: 'Enter the IOTA Amount',
+        amountCounter: '10',
+        caption: 'Caption',
+        suffix: ' IOTA',
+        prefix: '~ ',
+    },
+    render: (props) => {
+        const [inputValue, setInputValue] = useState<string>('');
+
+        function onMaxClick() {
+            setInputValue('10');
+        }
+
+        return (
+            <InputStory
+                {...props}
+                value={inputValue}
+                trailingElement={<ButtonPill onClick={onMaxClick}>Max</ButtonPill>}
             />
         );
     },

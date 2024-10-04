@@ -16,7 +16,9 @@ interface OverlayProps {
     closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-lightest';
+    titleCentered?: boolean;
     showBackButton?: boolean;
+    onBack?: () => void;
 }
 
 export function Overlay({
@@ -24,8 +26,10 @@ export function Overlay({
     children,
     showModal,
     closeOverlay,
-    showBackButton,
     setShowModal,
+    titleCentered = true,
+    showBackButton,
+    onBack,
 }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
@@ -35,19 +39,26 @@ export function Overlay({
         [closeOverlay, setShowModal],
     );
     const navigate = useNavigate();
-    const handleBack = useCallback(() => navigate(-1), [navigate]);
+    const handleBack = useCallback(() => {
+        if (onBack) {
+            onBack();
+        } else {
+            navigate(-1);
+        }
+    }, [onBack, navigate]);
     return showModal ? (
         <Portal containerId="overlay-portal-container">
             <div className="absolute inset-0 z-[9999] flex flex-col flex-nowrap items-center backdrop-blur-[20px]">
                 {title && (
                     <Header
                         onBack={showBackButton ? handleBack : undefined}
-                        titleCentered
                         title={title}
                         onClose={closeModal}
+                        titleCentered={titleCentered}
+                        testId="overlay-title"
                     />
                 )}
-                <div className="flex w-full flex-1 overflow-hidden bg-neutral-100 p-md">
+                <div className="flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md">
                     {children}
                 </div>
             </div>

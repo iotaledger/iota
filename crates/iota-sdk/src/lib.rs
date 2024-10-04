@@ -15,10 +15,10 @@
 //! * [CoinReadApi] - provides read-only functions to work with the coins
 //! * [EventApi] - provides event related functions functions to
 //! * [GovernanceApi] - provides functionality related to staking
-//! * [QuorumDriverApi] - provides functionality to execute a transaction
-//! block and submit it to the fullnode(s)
-//! * [ReadApi] - provides functions for retrieving data about different
-//! objects and transactions
+//! * [QuorumDriverApi] - provides functionality to execute a transaction block
+//!   and submit it to the fullnode(s)
+//! * [ReadApi] - provides functions for retrieving data about different objects
+//!   and transactions
 //! * <a href="../iota_transaction_builder/struct.TransactionBuilder.html"
 //!   title="struct
 //!   iota_transaction_builder::TransactionBuilder">TransactionBuilder</a> -
@@ -41,7 +41,7 @@
 //! the Iota devnet, and the Iota testnet is shown below.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
-//! (see [here](https://github.com/stefan-mysten/iota/tree/rust_sdk_api_examples/crates/iota-sdk/examples#preqrequisites) for more information).
+//! (see [here](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/README.md#prerequisites) for more information).
 //!
 //! ```rust,no_run
 //! use iota_sdk::IotaClientBuilder;
@@ -80,6 +80,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use base64::Engine;
 pub use iota_json as json;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
@@ -99,7 +100,7 @@ use jsonrpsee::{
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::language_storage::StructTag;
-use rustls::crypto::{ring, CryptoProvider};
+use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
 
 use crate::{
@@ -115,6 +116,7 @@ pub mod wallet_context;
 
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
+pub const IOTA_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
 pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:5003/gas";
 pub const IOTA_DEVNET_URL: &str = "https://fullnode.devnet.iota.io:443";
 pub const IOTA_TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
@@ -147,6 +149,7 @@ pub struct IotaClientBuilder {
     max_concurrent_requests: usize,
     ws_url: Option<String>,
     ws_ping_interval: Option<Duration>,
+    basic_auth: Option<(String, String)>,
 }
 
 impl Default for IotaClientBuilder {
@@ -156,6 +159,7 @@ impl Default for IotaClientBuilder {
             max_concurrent_requests: 256,
             ws_url: None,
             ws_ping_interval: None,
+            basic_auth: None,
         }
     }
 }
@@ -182,6 +186,12 @@ impl IotaClientBuilder {
     /// Set the WebSocket ping interval
     pub fn ws_ping_interval(mut self, duration: Duration) -> Self {
         self.ws_ping_interval = Some(duration);
+        self
+    }
+
+    /// Set the basic auth credentials for the HTTP client
+    pub fn basic_auth(mut self, username: impl AsRef<str>, password: impl AsRef<str>) -> Self {
+        self.basic_auth = Some((username.as_ref().to_string(), password.as_ref().to_string()));
         self
     }
 
@@ -221,6 +231,16 @@ impl IotaClientBuilder {
         );
         headers.insert(CLIENT_SDK_TYPE_HEADER, HeaderValue::from_static("rust"));
 
+        if let Some((username, password)) = self.basic_auth {
+            let auth = base64::engine::general_purpose::STANDARD
+                .encode(format!("{}:{}", username, password));
+            headers.insert(
+                "authorization",
+                // reqwest::header::AUTHORIZATION,
+                HeaderValue::from_str(&format!("Basic {}", auth)).unwrap(),
+            );
+        }
+
         let ws = if let Some(url) = self.ws_url {
             let mut builder = WsClientBuilder::default()
                 .max_request_size(2 << 30)
@@ -232,7 +252,7 @@ impl IotaClientBuilder {
                 builder = builder.enable_ws_ping(PingConfig::new().ping_interval(duration))
             }
 
-            Some(builder.build(url).await?)
+            builder.build(url).await.ok()
         } else {
             None
         };
@@ -349,8 +369,10 @@ impl IotaClientBuilder {
         let rpc_methods = Self::parse_methods(&rpc_spec)?;
 
         let subscriptions = if let Some(ws) = ws {
-            let rpc_spec: Value = ws.request("rpc.discover", rpc_params![]).await?;
-            Self::parse_methods(&rpc_spec)?
+            match ws.request("rpc.discover", rpc_params![]).await {
+                Ok(rpc_spec) => Self::parse_methods(&rpc_spec)?,
+                Err(_) => Vec::new(),
+            }
         } else {
             Vec::new()
         };
@@ -389,7 +411,7 @@ impl IotaClientBuilder {
 /// ```rust,no_run
 /// use std::str::FromStr;
 ///
-/// use iota_sdk::{types::base_types::IotaAddress, IotaClientBuilder};
+/// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {

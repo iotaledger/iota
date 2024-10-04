@@ -5,10 +5,10 @@
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
+use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    error_object_from_rpc, GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics,
+    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
 };
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
@@ -25,21 +25,21 @@ use iota_types::{
     id::ID,
     iota_serde::BigInt,
     iota_system_state::{
-        get_validator_from_table, iota_system_state_summary::IotaSystemStateSummary,
-        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
+        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use itertools::Itertools;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{info, instrument};
 
 use crate::{
+    IotaRpcModule, ObjectProvider,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
-    logger::with_tracing,
-    IotaRpcModule, ObjectProvider,
+    logger::FutureWithTracing as _,
 };
 
 #[derive(Clone)]
@@ -353,16 +353,12 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedStake>> {
-        with_tracing(
-            async move { self.get_stakes_by_ids(staked_iota_ids).await },
-            None,
-        )
-        .await
+        self.get_stakes_by_ids(staked_iota_ids).trace().await
     }
 
     #[instrument(skip(self))]
     async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
-        with_tracing(async move { self.get_stakes(owner).await }, None).await
+        self.get_stakes(owner).trace().await
     }
 
     #[instrument(skip(self))]
@@ -370,14 +366,9 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        with_tracing(
-            async move {
-                self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
-                    .await
-            },
-            None,
-        )
-        .await
+        self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
+            .trace()
+            .await
     }
 
     #[instrument(skip(self))]
@@ -385,47 +376,41 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         owner: IotaAddress,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        with_tracing(async move { self.get_timelocked_stakes(owner).await }, None).await
+        self.get_timelocked_stakes(owner).trace().await
     }
 
     #[instrument(skip(self))]
     async fn get_committee_info(&self, epoch: Option<BigInt<u64>>) -> RpcResult<IotaCommittee> {
-        with_tracing(
-            async move {
-                self.state
-                    .get_or_latest_committee(epoch)
-                    .map(|committee| committee.into())
-                    .map_err(Error::from)
-            },
-            None,
-        )
+        async move {
+            self.state
+                .get_or_latest_committee(epoch)
+                .map(|committee| committee.into())
+                .map_err(Error::from)
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
-        with_tracing(
-            async move {
-                Ok(self
-                    .state
-                    .get_system_state()
-                    .map_err(Error::from)?
-                    .into_iota_system_state_summary())
-            },
-            None,
-        )
+        async move {
+            Ok(self
+                .state
+                .get_system_state()
+                .map_err(Error::from)?
+                .into_iota_system_state_summary())
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {
-        with_tracing(
-            async move {
-                let epoch_store = self.state.load_epoch_store_one_call_per_task();
-                Ok(epoch_store.reference_gas_price().into())
-            },
-            None,
-        )
+        async move {
+            let epoch_store = self.state.load_epoch_store_one_call_per_task();
+            Ok(epoch_store.reference_gas_price().into())
+        }
+        .trace()
         .await
     }
 
@@ -555,7 +540,7 @@ fn stake_status(
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
 #[cached(
-    ty = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
+    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
     convert = "{ _current_epoch }",
     result = true

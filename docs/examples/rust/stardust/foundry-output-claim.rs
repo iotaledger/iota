@@ -9,10 +9,12 @@ use anyhow::anyhow;
 use docs_examples::utils::{clean_keystore, fund_address, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
+        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
         base_types::ObjectID,
         coin_manager::CoinManagerTreasuryCap,
         crypto::SignatureScheme::ED25519,
@@ -21,9 +23,7 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
-        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
-    IotaClientBuilder,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use shared_crypto::intent::Intent;
@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default.
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
+    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
     println!("Sender address: {sender:?}");
 

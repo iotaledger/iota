@@ -4,7 +4,7 @@
 
 use std::{str::FromStr, time::Duration};
 
-use iota_config::{iota_config_dir, IOTA_CLIENT_CONFIG};
+use iota_config::{IOTA_CLIENT_CONFIG, iota_config_dir};
 use iota_faucet::FaucetError;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::AccountKeystore;

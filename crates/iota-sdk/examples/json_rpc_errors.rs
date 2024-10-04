@@ -8,15 +8,16 @@
 //! cargo run --example json_rpc_errors
 
 mod utils;
+
 use anyhow::bail;
 use iota_sdk::error::{Error, JsonRpcError};
 use utils::setup_for_read;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (iota, active_address) = setup_for_read().await?;
+    let (client, active_address) = setup_for_read().await?;
     let coin_type = Some("0x42".to_string());
-    let coins = iota
+    let coins = client
         .coin_read_api()
         .get_coins(active_address, coin_type.clone(), None, Some(5))
         .await;

@@ -7,11 +7,11 @@ use std::{
     marker::PhantomData,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::ReadBytesExt;
 use integer_encoding::{VarInt, VarIntReader};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub const MAX_VARINT_LENGTH: usize = 10;
 pub const BLOB_ENCODING_BYTES: usize = 1;

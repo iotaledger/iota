@@ -6,38 +6,42 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_indexer::framework::Handler;
+use iota_data_ingestion_core::Worker;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     transaction::{Command, TransactionDataAPI, TransactionKind},
 };
+use tokio::sync::Mutex;
 use tracing::error;
 
-use crate::{handlers::AnalyticsHandler, tables::TransactionEntry, FileType};
+use crate::{FileType, handlers::AnalyticsHandler, tables::TransactionEntry};
 
 pub struct TransactionHandler {
+    pub(crate) state: Mutex<State>,
+}
+
+pub(crate) struct State {
     pub(crate) transactions: Vec<TransactionEntry>,
 }
 
 #[async_trait::async_trait]
-impl Handler for TransactionHandler {
-    fn name(&self) -> &str {
-        "transaction"
-    }
-    async fn process_checkpoint(&mut self, checkpoint_data: &CheckpointData) -> Result<()> {
+impl Worker for TransactionHandler {
+    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<()> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
         } = checkpoint_data;
+        let mut state = self.state.lock().await;
         for checkpoint_transaction in checkpoint_transactions {
             self.process_transaction(
                 checkpoint_summary.epoch,
                 checkpoint_summary.sequence_number,
                 checkpoint_summary.timestamp_ms,
-                checkpoint_transaction,
+                &checkpoint_transaction,
                 &checkpoint_transaction.effects,
+                &mut state,
             )?;
         }
         Ok(())
@@ -46,30 +50,37 @@ impl Handler for TransactionHandler {
 
 #[async_trait::async_trait]
 impl AnalyticsHandler<TransactionEntry> for TransactionHandler {
-    fn read(&mut self) -> Result<Vec<TransactionEntry>> {
-        let cloned = self.transactions.clone();
-        self.transactions.clear();
+    async fn read(&self) -> Result<Vec<TransactionEntry>> {
+        let mut state = self.state.lock().await;
+        let cloned = state.transactions.clone();
+        state.transactions.clear();
         Ok(cloned)
     }
 
     fn file_type(&self) -> Result<FileType> {
         Ok(FileType::Transaction)
     }
+
+    fn name(&self) -> &str {
+        "transaction"
+    }
 }
 
 impl TransactionHandler {
     pub fn new() -> Self {
-        TransactionHandler {
+        let state = Mutex::new(State {
             transactions: vec![],
-        }
+        });
+        TransactionHandler { state }
     }
     fn process_transaction(
-        &mut self,
+        &self,
         epoch: u64,
         checkpoint: u64,
         timestamp_ms: u64,
         checkpoint_transaction: &CheckpointTransaction,
         effects: &TransactionEffects,
+        state: &mut State,
     ) -> Result<()> {
         let transaction = &checkpoint_transaction.transaction;
         let txn_data = transaction.transaction_data();
@@ -176,7 +187,7 @@ impl TransactionHandler {
             transaction_json: Some(transaction_json),
             effects_json: Some(effects_json),
         };
-        self.transactions.push(entry);
+        state.transactions.push(entry);
         Ok(())
     }
 }
@@ -184,7 +195,7 @@ impl TransactionHandler {
 #[cfg(test)]
 mod tests {
     use fastcrypto::encoding::{Base64, Encoding};
-    use iota_indexer::framework::Handler;
+    use iota_data_ingestion_core::Worker;
     use iota_types::{base_types::IotaAddress, storage::ReadStore};
     use simulacrum::Simulacrum;
 
@@ -207,9 +218,9 @@ mod tests {
             sim.get_checkpoint_contents_by_digest(&checkpoint.content_digest)?
                 .unwrap(),
         )?;
-        let mut txn_handler = TransactionHandler::new();
-        txn_handler.process_checkpoint(&checkpoint_data).await?;
-        let transaction_entries = txn_handler.transactions;
+        let txn_handler = TransactionHandler::new();
+        txn_handler.process_checkpoint(checkpoint_data).await?;
+        let transaction_entries = txn_handler.state.lock().await.transactions.clone();
         assert_eq!(transaction_entries.len(), 1);
         let db_txn = transaction_entries.first().unwrap();
 

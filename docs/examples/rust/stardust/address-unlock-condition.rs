@@ -12,11 +12,13 @@ use bip32::DerivationPath;
 use docs_examples::utils::{clean_keystore, fund_address, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::{
         IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
         IotaTransactionBlockResponseOptions,
     },
     types::{
+        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
@@ -25,9 +27,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::NftOutput,
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
-        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
-    IotaClientBuilder,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
@@ -50,8 +50,12 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{derivation_path:?}");
 
     // Derive the address of the first account and set it as default
-    let sender =
-        keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, Some(derivation_path))?;
+    let sender = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        ED25519,
+        Some(derivation_path),
+        None,
+    )?;
 
     println!("Sender address - {sender:?}");
 
@@ -199,7 +203,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 type_arguments,
                 arguments,
             ) {
-                // If the nft output can be unlocked, the command will be succesful and will
+                // If the nft output can be unlocked, the command will be successful and will
                 // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens and
                 // related nft object.
                 let extracted_base_token = Argument::NestedResult(extracted_assets, 0);

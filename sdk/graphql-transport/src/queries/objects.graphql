@@ -45,7 +45,7 @@ query getObject(
 
 query tryGetPastObject(
     $id: IotaAddress!
-    $version: Int
+    $version: UInt53
     $showBcs: Boolean = false
     $showOwner: Boolean = false
     $showPreviousTransaction: Boolean = false

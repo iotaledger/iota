@@ -14,3 +14,4 @@ export * from './select';
 export * from './table-header-cell';
 export * from './search';
 export * from './card';
+export * from './display-stats';

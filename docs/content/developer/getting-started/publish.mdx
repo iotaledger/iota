@@ -4,6 +4,8 @@ tags: [move, how-to, cli]
 ---
 
 import AddressPrefix from "../../_snippets/address-prefix.mdx";
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/publish.json';
 
 # Publish a Package
 
@@ -47,7 +49,7 @@ If this is your first time publishing a package, your active address should now 
 
 1. **Coin**: A `Coin` object that you obtained from the [Testnet faucet](get-coins.mdx).
 2. **Forge**: The `Forge` created when you published this package. The `init` function was executed during the publishing process, creating the `Forge` and assigning it to you (the sender).
-3. **UpgradeCap**: An `UpgradeCap` associated with the package. This object is used if you need to [upgrade your package](../iota-101/iota-move-concepts/packages/upgrade.mdx) or destroy it to make the package immutable.
+3. **UpgradeCap**: An `UpgradeCap` associated with the package. This object is used if you need to [upgrade your package](../iota-101/move-overview/package-upgrades/upgrade.mdx) or destroy it to make the package immutable.
 
 ```mermaid
 flowchart TB
@@ -158,3 +160,6 @@ After executing the transaction, verify the status of the `Sword` object using t
 ```
 
 Congratulations! You have successfully published a package to the IOTA network and modified the blockchain state using a programmable transaction block.
+
+
+<Quiz questions={questions} />

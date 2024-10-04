@@ -1,5 +1,20 @@
 # @iota/wallet-standard
 
+## 0.1.3
+
+### Patch Changes
+
+-   Updated dependencies [d423314]
+-   Updated dependencies [b91a3d5]
+-   Updated dependencies [a3c1937]
+    -   @iota/iota-sdk@0.2.0
+
+## 0.1.2
+
+### Patch Changes
+
+-   88b8857: Support non-default IOTA chains.
+
 ## 0.1.1
 
 ### Patch Changes

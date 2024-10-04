@@ -11,9 +11,8 @@ use std::{
 
 use config::{AuthorityIdentifier, Committee, Epoch, Stake, WorkerCache, WorkerId};
 use crypto::{
-    to_intent_message, AggregateSignature, AggregateSignatureBytes,
-    NarwhalAuthorityAggregateSignature, NarwhalAuthoritySignature, NetworkPublicKey, PublicKey,
-    Signature,
+    AggregateSignature, AggregateSignatureBytes, NarwhalAuthorityAggregateSignature,
+    NarwhalAuthoritySignature, NetworkPublicKey, PublicKey, Signature, to_intent_message,
 };
 use derive_builder::Builder;
 use enum_dispatch::enum_dispatch;
@@ -503,13 +502,10 @@ impl HeaderV1 {
 
     pub fn validate(&self, committee: &Committee, worker_cache: &WorkerCache) -> DagResult<()> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch
-            }
-        );
+        ensure!(self.epoch == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch
+        });
 
         // Ensure the header digest is well formed.
         ensure!(
@@ -861,11 +857,9 @@ impl Certificate {
             Self::V2(certificate) => certificate.origin(),
         }
     }
-}
 
-impl Default for Certificate {
-    fn default() -> Self {
-        Self::V2(CertificateV2::default())
+    pub fn default_for_testing() -> Certificate {
+        Certificate::V2(CertificateV2::default())
     }
 }
 
@@ -909,7 +903,7 @@ pub enum SignatureVerificationState {
     // and has not been verified yet.
     Unverified(AggregateSignatureBytes),
     // This state occurs when a certificate was either created locally, received
-    // via brodacast, or fetched but was not the parent of another certificate.
+    // via broadcast, or fetched but was not the parent of another certificate.
     // Therefore this certificate had to be verified directly.
     VerifiedDirectly(AggregateSignatureBytes),
     // This state occurs when the cert was a parent of another fetched certificate
@@ -1039,7 +1033,7 @@ impl CertificateV2 {
             })
             .map(|(index, _)| index as u32);
 
-        let signed_authorities= roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
+        let signed_authorities = roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
             .map_err(|_| DagError::InvalidBitmap("Failed to convert votes into a bitmap of authority keys. Something is likely very wrong...".to_string()))?;
 
         // Ensure that all authorities in the set of votes are known
@@ -1116,13 +1110,10 @@ impl CertificateV2 {
         worker_cache: &WorkerCache,
     ) -> DagResult<Certificate> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch() == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch()
-            }
-        );
+        ensure!(self.epoch() == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch()
+        });
 
         // Genesis certificates are always valid.
         if self.round() == 0 && Self::genesis(committee).contains(&self) {
@@ -1145,7 +1136,7 @@ impl CertificateV2 {
     }
 
     fn verify_signature(mut self, pks: Vec<PublicKey>) -> DagResult<Certificate> {
-        let aggregrate_signature_bytes = match self.signature_verification_state {
+        let aggregate_signature_bytes = match self.signature_verification_state {
             SignatureVerificationState::VerifiedIndirectly(_)
             | SignatureVerificationState::VerifiedDirectly(_)
             | SignatureVerificationState::Genesis => return Ok(Certificate::V2(self)),
@@ -1157,13 +1148,13 @@ impl CertificateV2 {
 
         // Verify the signatures
         let certificate_digest: Digest<{ crypto::DIGEST_LENGTH }> = Digest::from(self.digest());
-        AggregateSignature::try_from(aggregrate_signature_bytes)
+        AggregateSignature::try_from(aggregate_signature_bytes)
             .map_err(|_| DagError::InvalidSignature)?
             .verify_secure(&to_intent_message(certificate_digest), &pks[..])
             .map_err(|_| DagError::InvalidSignature)?;
 
         self.signature_verification_state =
-            SignatureVerificationState::VerifiedDirectly(aggregrate_signature_bytes.clone());
+            SignatureVerificationState::VerifiedDirectly(aggregate_signature_bytes.clone());
 
         Ok(Certificate::V2(self))
     }
@@ -1182,8 +1173,8 @@ impl CertificateV2 {
 }
 
 // Certificate version is validated against network protocol version. If
-// CertificateV2 is being used then the cert will also be marked as Unverifed as
-// this certificate is assumed to be received from the network. This
+// CertificateV2 is being used then the cert will also be marked as Unverified
+// as this certificate is assumed to be received from the network. This
 // SignatureVerificationState is why the modified certificate is being returned.
 pub fn validate_received_certificate_version(
     mut certificate: Certificate,
@@ -1345,6 +1336,7 @@ pub struct FetchCertificatesRequest {
     /// between
     /// - rounds of certificates to be skipped from the response and
     /// - the GC round.
+    ///
     /// These rounds are skipped because the requestor already has them.
     pub skip_rounds: Vec<(AuthorityIdentifier, Vec<u8>)>,
     /// Maximum number of certificates that should be returned.

@@ -69,7 +69,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
                     />
                 </CardImage>
                 <CardBody
-                    title={error ? 'Transaction Failed' : summary?.label ?? 'Unknown'}
+                    title={error ? 'Transaction Failed' : (summary?.label ?? 'Unknown')}
                     subtitle={transactionDate}
                 />
                 <CardAction

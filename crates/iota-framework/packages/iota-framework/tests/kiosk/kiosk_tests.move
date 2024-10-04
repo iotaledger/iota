@@ -21,11 +21,11 @@ module iota::kiosk_tests {
 
         let old_owner = kiosk.owner();
         kiosk.set_owner(&owner_cap, ctx);
-        assert!(kiosk.owner() == old_owner, 0);
+        assert!(kiosk.owner() == old_owner);
 
         kiosk.set_owner_custom(&owner_cap, @0xA11CE);
-        assert!(kiosk.owner() != old_owner, 0);
-        assert!(kiosk.owner() == @0xA11CE, 0);
+        assert!(kiosk.owner() != old_owner);
+        assert!(kiosk.owner() == @0xA11CE);
 
         test::return_kiosk(kiosk, owner_cap, ctx);
     }
@@ -39,9 +39,9 @@ module iota::kiosk_tests {
 
         kiosk.place(&owner_cap, asset);
 
-        assert!(kiosk.has_item(item_id), 0);
+        assert!(kiosk.has_item(item_id));
         let asset = kiosk.take(&owner_cap, item_id);
-        assert!(!kiosk.has_item(item_id), 0);
+        assert!(!kiosk.has_item(item_id));
 
         test::return_policy(policy, policy_cap, ctx);
         test::return_kiosk(kiosk, owner_cap, ctx);
@@ -69,10 +69,10 @@ module iota::kiosk_tests {
         let (policy, policy_cap) = test::get_policy(ctx);
 
         kiosk.place_and_list(&owner_cap, asset, AMT);
-        assert!(kiosk.is_listed(item_id), 0);
+        assert!(kiosk.is_listed(item_id));
         let payment = coin::mint_for_testing<IOTA>(AMT, ctx);
         let (asset, request) = kiosk.purchase(item_id, payment);
-        assert!(!kiosk.is_listed(item_id), 0);
+        assert!(!kiosk.is_listed(item_id));
         policy.confirm_request(request);
 
         test::return_kiosk(kiosk, owner_cap, ctx);
@@ -88,9 +88,9 @@ module iota::kiosk_tests {
         let (policy, policy_cap) = test::get_policy(ctx);
 
         kiosk.place_and_list(&owner_cap, asset, AMT);
-        assert!(kiosk.is_listed(item_id), 0);
+        assert!(kiosk.is_listed(item_id));
         kiosk.delist<Asset>(&owner_cap, item_id);
-        assert!(!kiosk.is_listed(item_id), 0);
+        assert!(!kiosk.is_listed(item_id));
         let asset = kiosk.take(&owner_cap, item_id);
 
         test::return_kiosk(kiosk, owner_cap, ctx);
@@ -179,9 +179,9 @@ module iota::kiosk_tests {
         kiosk.place(&owner_cap, asset);
         let purchase_cap = kiosk.list_with_purchase_cap(&owner_cap, item_id, AMT, ctx);
         let payment = coin::mint_for_testing<IOTA>(AMT, ctx);
-        assert!(kiosk.is_listed_exclusively(item_id), 0);
+        assert!(kiosk.is_listed_exclusively(item_id));
         let (asset, request) = kiosk.purchase_with_cap(purchase_cap, payment);
-        assert!(!kiosk.is_listed_exclusively(item_id), 0);
+        assert!(!kiosk.is_listed_exclusively(item_id));
         policy.confirm_request(request);
 
         test::return_kiosk(kiosk, owner_cap, ctx);
@@ -308,7 +308,7 @@ module iota::kiosk_tests {
         let (kiosk, owner_cap) = test::get_kiosk(ctx);
 
         let uid = kiosk.uid();
-        assert!(iota::object::uid_to_inner(uid) == iota::object::id(&kiosk), 0);
+        assert!(iota::object::uid_to_inner(uid) == iota::object::id(&kiosk));
 
         test::return_kiosk(kiosk, owner_cap, ctx);
     }

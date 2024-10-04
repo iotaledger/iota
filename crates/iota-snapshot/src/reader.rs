@@ -10,32 +10,32 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
-    future::{AbortRegistration, Abortable},
     StreamExt, TryStreamExt,
+    future::{AbortRegistration, Abortable},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::{
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     AuthorityStore,
+    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
 };
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
+        ObjectStoreGetExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
         util::{copy_file, copy_files, path_to_filesystem},
-        ObjectStoreGetExt, ObjectStorePutExt,
     },
 };
 use iota_types::{
@@ -51,7 +51,7 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    FileMetadata, FileType, Manifest, MAGIC_BYTES, MANIFEST_FILE_MAGIC, OBJECT_FILE_MAGIC,
+    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
 };
 
@@ -155,7 +155,7 @@ impl StateSnapshotReaderV1 {
         let progress_bar = m.add(
             ProgressBar::new(files.len() as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .ref files done\n({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .ref files done ({msg})",
                 )
                 .unwrap(),
             ),
@@ -187,7 +187,7 @@ impl StateSnapshotReaderV1 {
         &mut self,
         perpetual_db: &AuthorityPerpetualTables,
         abort_registration: AbortRegistration,
-        sender: Option<tokio::sync::mpsc::Sender<Accumulator>>,
+        sender: Option<tokio::sync::mpsc::Sender<(Accumulator, u64)>>,
     ) -> Result<()> {
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
@@ -258,7 +258,7 @@ impl StateSnapshotReaderV1 {
 
     fn spawn_accumulation_tasks(
         &self,
-        sender: tokio::sync::mpsc::Sender<Accumulator>,
+        sender: tokio::sync::mpsc::Sender<(Accumulator, u64)>,
         num_part_files: usize,
     ) -> JoinHandle<()> {
         // Spawn accumulation progress bar
@@ -268,7 +268,7 @@ impl StateSnapshotReaderV1 {
         let accum_progress_bar = self.m.add(
              ProgressBar::new(num_part_files as u64).with_style(
                  ProgressStyle::with_template(
-                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated ({msg})",
+                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot ({msg})",
                  )
                  .unwrap(),
              ),
@@ -325,9 +325,10 @@ impl StateSnapshotReaderV1 {
                         let sender_clone = sender.clone();
                         tokio::spawn(async move {
                             let mut partial_acc = Accumulator::default();
+                            let num_objects = obj_digests.len();
                             partial_acc.insert_all(obj_digests);
                             sender_clone
-                                .send(partial_acc)
+                                .send((partial_acc, num_objects as u64))
                                 .await
                                 .expect("Unable to send accumulator from snapshot reader");
                         })
@@ -369,7 +370,7 @@ impl StateSnapshotReaderV1 {
         let obj_progress_bar = self.m.add(
             ProgressBar::new(input_files.len() as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done\n({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done ({msg})",
                 )
                 .unwrap(),
             ),
@@ -407,8 +408,9 @@ impl StateSnapshotReaderV1 {
                                         );
                                         if timeout > max_timeout {
                                             panic!(
-                                                "Failed to get obj file after {} attempts",
-                                                attempts
+                                                "Failed to get obj file {} after {} attempts",
+                                                file_metadata.file_path(&epoch_dir),
+                                                attempts,
                                             );
                                         } else {
                                             attempts += 1;

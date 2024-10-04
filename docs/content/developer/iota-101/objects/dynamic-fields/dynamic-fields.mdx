@@ -1,32 +1,39 @@
 ---
-title: Dynamic (Object) Fields
-description: Dynamic fields and dynamic object fields on IOTA are added and removed dynamically, affect gas only when accessed, and store heterogeneous values.
+title: Dynamic Object Fields
+description: Dynamic fields and dynamic object fields on IOTA allow flexible storage and manipulation, with the ability to add, remove, and store heterogeneous values dynamically while only affecting gas costs when accessed.
 ---
 
-There are various ways to use object fields to store primitive data and other objects (wrapping), but there are a few limitations to these:
+When working with object fields in IOTA, you typically use them to store primitive data or wrap other objects.
+However, there are some limitations to this approach:
 
-1. Object's have a finite set of fields keyed by identifiers that are fixed when you publish its module (limited to the fields in the `struct` declaration).
-2. An object can become very large if it wraps several other objects. Larger objects can lead to higher gas fees in transactions. In addition, there is an upper bound on object size.
-3. There are use cases where you need to store a collection of objects of heterogeneous types. Because the Move `vector` type must be instantiated with one single type `<T>`, it is not suitable for this.
+1. **Fixed Structure:** Objects have a fixed set of fields determined by their `struct` definitions when the module is published. This limits flexibility.
+2. **Size Constraints:** Wrapping multiple objects can lead to large objects, which may increase transaction costs and hit storage limits.
+3. **Homogeneous Collections:** The `vector` type in Move only supports a single data type, which makes it unsuitable for storing collections of varying types.
 
-Fortunately, IOTA provides *dynamic fields* with arbitrary names (not just identifiers), added and removed on-the-fly (not fixed at publish), which only affect gas when they are accessed, and can store heterogeneous values. Use the libraries in this topic to interact with this kind of field.
+IOTA addresses these challenges with *dynamic fields*, which allow you to add and remove fields dynamically. 
+These fields can have arbitrary names and only affect gas fees when accessed.
+They are also capable of storing heterogeneous values.
 
-### Fields versus object fields
+### Dynamic Fields vs. Object Fields
 
-There are two flavors of dynamic field -- "fields" and "object fields" -- which differ based on how you store their values:
+Dynamic fields in IOTA come in two main types: "fields" and "object fields."
+The primary difference lies in how their values are stored and accessed:
 
-- **Fields** can store any value that has `store`, however an object stored in this kind of field is considered wrapped and is not accessible via its ID by external tools (explorers, wallets, and so on) accessing storage.
-- **Object field** values must be objects (have the `key` ability, and `id: UID` as the first field), but are still accessible at their ID to external tools.
+- **Fields:** These can store any value with the `store` ability. However, objects stored in these fields are considered "wrapped" and are not accessible by their ID through external tools like explorers or wallets.
+- **Object Fields:** These require the stored values to be objects (having the `key` ability and an `id: UID` as the first field). They remain accessible by their ID, making them easier to interact with through external tools.
 
-The modules for interacting with these fields can be found at [`dynamic_field`](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/packages/iota-framework/sources/dynamic_field.move) and [`dynamic_object_field`](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/packages/iota-framework/sources/dynamic_object_field.move) respectively.
+To work with these fields, you can use the modules provided by IOTA: [`dynamic_field`](../../../../references/framework/iota-framework/dynamic_field.mdx) and [`dynamic_object_field`](../../../../references/framework/iota-framework/dynamic_object_field.mdx).
 
-### Field names
+### Naming Dynamic Fields
 
-Unlike an object's regular fields where names must be Move identifiers, dynamic field names can be any value that has `copy`, `drop`, and `store`. This includes all Move primitives (integers, Booleans, byte strings), and structs whose contents all have `copy`, `drop`, and `store`.
+Unlike regular object fields that require Move identifiers,
+dynamic field names can be any value that supports `copy`, `drop`, and `store`.
+This includes all Move primitives, such as integers, Booleans,
+and byte strings, as well as structs whose contents have these abilities.
 
-### Adding dynamic fields
+### Adding Dynamic Fields
 
-Add dynamic fields with the following APIs:
+To add dynamic fields to an object, use the following APIs:
 
 ```move
 module iota::dynamic_field {
@@ -52,9 +59,9 @@ public fun add<Name: copy + drop + store, Value: key + store>(
 }
 ```
 
-These functions add a field with name `name` and value `value` to `object`. To see it in action, consider these code snippets:
+These functions allow you to attach a dynamic field with a specified `name` and `value` to an object. Here’s how you might use this in practice:
 
-First, define two object types for the parent and the child:
+First, define two object types:
 
 ```move
 public struct Parent has key {
@@ -67,7 +74,7 @@ public struct Child has key, store {
 }
 ```
 
-Next, define an API to add a `Child` object as a dynamic field of a `Parent` object:
+Next, create an API to add a `Child` object as a dynamic field of a `Parent` object:
 
 ```move
 use iota::dynamic_object_field as ofield;
@@ -77,16 +84,19 @@ public fun add_child(parent: &mut Parent, child: Child) {
 }
 ```
 
-This function takes the `Child` object by value and makes it a dynamic field of `parent` with name `b"child"` (a byte string of type `vector<u8>`). This call results in the following ownership relationship:
+This function makes the `Child` object a dynamic field of `Parent` using the name 
+`b"child"` (a byte string of type `vector<u8>`).
+The ownership structure is as follows:
 
-1. Sender address (still) owns the `Parent` object.
-2. The `Parent` object owns the `Child` object, and can refer to it by the name `b"child"`.
+1. The `Parent` object is still owned by the sender’s address.
+2. The `Parent` object now owns the `Child` object, which can be referenced by the name `b"child"`.
 
-It is an error to overwrite a field (attempt to add a field with the same `<Name>` type and value as one that is already defined), and a transaction that does this fails.  You can modify fields in-place by borrowing them mutably and you can overwrite them safely (such as to change its value type) by removing the old value first.
+Attempting to overwrite an existing field (with the same `<Name>` type and value) will result in a transaction failure. 
+To safely modify a field’s value or type, remove the existing field before adding the new one.
 
-### Accessing dynamic fields
+### Accessing Dynamic Fields
 
-You can reference dynamic fields by reference using the following APIs:
+You can access dynamic fields by reference using these APIs:
 
 ```move
 module iota::dynamic_field {
@@ -104,15 +114,15 @@ public fun borrow_mut<Name: copy + drop + store, Value: store>(
 }
 ```
 
-Where `object` is the UID of the object the field is defined on and `name` is the field's name.
+In this context, `object` refers to the UID of the object that has the field, and `name` is the field’s identifier.
 
 :::info
 
-`iota::dynamic_object_field` has equivalent functions for object fields, but with the added constraint `Value: key + store`.
+The `iota::dynamic_object_field` module provides similar functions for object fields but requires `Value: key + store`.
 
 :::
 
-To use these APIs with the `Parent` and `Child` types defined earlier:
+Here’s an example of how to use these APIs:
 
 ```move
 use iota::dynamic_object_field as ofield;
@@ -129,44 +139,46 @@ public fun mutate_child_via_parent(parent: &mut Parent) {
 }
 ```
 
-The first function accepts a mutable reference to the `Child` object directly, and you can call it with `Child` objects that haven't been added as fields to `Parent` objects.
-
-The second function accepts a mutable reference to the `Parent` object and accesses its dynamic field using `borrow_mut`, to pass to `mutate_child`. This can only be called on `Parent` objects that have a `b"child"` field defined. A `Child` object that has been added to a `Parent` *must* be accessed via its dynamic field, so it can only by mutated using `mutate_child_via_parent`, not `mutate_child`, even if its ID is known.
+In this example, `mutate_child` directly modifies a `Child` object, while `mutate_child_via_parent` accesses
+and modifies a `Child` object that has been added as a dynamic field in a `Parent` object
+using the [`borrow_mut`](../../../../references/framework/iota-framework/dynamic_field.mdx#function-borrow_mut) function. 
 
 :::tip
 
-A transaction fails if it attempts to borrow a field that does not exist.
+A transaction will fail if it tries to access a non-existent field or if the field’s type does not match.
 
 :::
 
-The `<Value>` type passed to `borrow` and `borrow_mut` must match the type of the stored field, or the transaction aborts.
+The `<Value>` type passed to `borrow` and `borrow_mut` must correspond with the stored field’s type,
+or the transaction will abort.
 
-You must access dynamic object field values through these APIs.  A transaction that attempts to use those objects as inputs (by value or by reference), is rejected for having invalid inputs.
+### Removing Dynamic Fields
 
-### Removing a dynamic field
-
-Similar to unwrapping an object held in a regular field, you can remove a dynamic field, exposing its value:
+Just like unwrapping a regular object, you can remove a dynamic field and retrieve its value:
 
 ```move
 module iota::dynamic_field {
 
-public fun remove<Name: copy + drop + store, Value: store>(
-    object: &mut UID,
-    name: Name,
-): Value;
+    public fun remove<Name: copy + drop + store, Value: store>(
+        object: &mut UID,
+        name: Name,
+    ): Value;
 
 }
 ```
 
-This function takes a mutable reference to the ID of the `object` the field is defined on, and the field's `name`.  If a field with a `value: Value` is defined on `object` at `name`, it is removed and `value` returned, otherwise it aborts.  Future attempts to access this field on `object` will fail.
+This function removes the field from the `object` and returns its value.
+If the field doesn’t exist or if the value’s type doesn’t match, the transaction will abort.
 
 :::tip
 
-`iota::dynamic_object_field` has an equivalent function for object fields.
+The [`iota::dynamic_object_field`](../../../../references/framework/iota-framework/dynamic_object_field.mdx) module also offers an equivalent function for object fields.
 
 :::
 
-The value that is returned can be interacted with just like any other value (because it is any other value). For example, removed dynamic object field values can then be `delete`-d or `transfer`-ed to an address (back to the sender):
+Once removed, the value can be used like any other value. 
+For instance, you can [`delete`](../../../../references/framework/iota-framework/object.mdx#function-delete)
+or [`transfer`](../../../../references/framework/iota-framework/transfer.mdx) a removed object:
 
 ```move
 use iota::dynamic_object_field as ofield;
@@ -186,10 +198,14 @@ public fun reclaim_child(parent: &mut Parent, ctx: &mut TxContext): Child {
 }
 ```
 
-Similar to borrowing a field, a transaction that attempts to remove a non-existent field, or a field with a different `Value` type, fails.
+As with accessing, trying to remove a non-existent field or a field with an incorrect type will result in a failed transaction.
 
-### Deleting an object with dynamic fields
+### Deleting Objects with Dynamic Fields
 
-It is possible to delete an object that has (potentially non-`drop`) dynamic fields still defined on it. Because field values can be accessed only via the dynamic field's associated object and field name, deleting an object that has dynamic fields still defined on it renders them all inaccessible to future transactions. This is true regardless of whether the field's value has the `drop` ability. This might not be a concern when adding a small number of statically known additional fields to an object, but is particularly undesirable for on-chain collection types that could be holding unboundedly many key-value pairs as dynamic fields.
+You can delete an object even if it has dynamic fields, but doing so renders all of those fields inaccessible.
+This is particularly important when working with on-chain collection types,
+where dynamic fields might hold a large number of key-value pairs.
 
-IOTA provides `Table` and `Bag` collections built using dynamic fields, but with additional support to count the number of entries they contain to protect against accidental deletion when non-empty. To learn more, see [Tables and Bags](tables-bags.mdx).
+IOTA offers [`Table`](../../../../references/framework/iota-framework/table.mdx) and [`Bag`](../../../../references/framework/iota-framework/bag.mdx) collections 
+built on dynamic fields, which include safeguards like entry counting to prevent accidental deletion when non-empty.
+For more information, refer to the [Tables and Bags](tables-bags.mdx) section.
