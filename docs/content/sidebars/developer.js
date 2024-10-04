@@ -26,6 +26,11 @@ const developer = [
             'developer/getting-started/publish',
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
+<<<<<<< Updated upstream
+=======
+            'developer/getting-started/coffee-example',
+            'developer/getting-started/create-review-rating-dao-with-multisig',
+>>>>>>> Stashed changes
         ],
     },
     {
