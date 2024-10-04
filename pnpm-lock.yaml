@@ -18,6 +18,7 @@ overrides:
   path-to-regexp@3.2.0: 3.3.0
   body-parser: '>=1.20.3'
   dset: 3.1.4
+  eslint: 8.57.1
 
 importers:
 
@@ -10057,6 +10058,10 @@ packages:
 
   eslint-visitor-keys@4.0.0:
     resolution: {integrity: sha512-OtIRv/2GyiF6o/d8K7MYKKbXrOUBIK6SfkIRM4Z0dY3w+LiQ0vy3F57m0Z71bjbyeiWFiHJ8brqnmE6H6/jEuw==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  eslint-visitor-keys@4.1.0:
+    resolution: {integrity: sha512-Q7lok0mqMUSf5a/AdAZkA5a/gHcO6snwQClVNNvFKCAVlxXucdU8pKydU5ZVZjBx5xr37vGbFFWtLQYreLzrZg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   eslint-webpack-plugin@4.2.0:
@@ -27800,6 +27805,9 @@ snapshots:
 
   eslint-visitor-keys@4.0.0: {}
 
+
+  eslint-visitor-keys@4.1.0: {}
+
   eslint-webpack-plugin@4.2.0(eslint@8.57.1)(webpack@5.95.0(@swc/core@1.7.28)(webpack-cli@5.1.4)):
     dependencies:
       '@types/eslint': 8.56.12
@@ -27854,6 +27862,12 @@ snapshots:
       - supports-color
 
   espree@10.0.1:
+    dependencies:
+      acorn: 8.12.1
+      acorn-jsx: 5.3.2(acorn@8.12.1)
+      eslint-visitor-keys: 4.0.0
+
+  espree@10.1.0:
     dependencies:
       acorn: 8.12.1
       acorn-jsx: 5.3.2(acorn@8.12.1)

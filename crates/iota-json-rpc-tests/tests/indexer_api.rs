@@ -17,7 +17,7 @@ use iota_types::{
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     id::UID,
-    object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     stardust::output::{Irc27Metadata, Nft},
 };
 use test_cluster::TestClusterBuilder;
