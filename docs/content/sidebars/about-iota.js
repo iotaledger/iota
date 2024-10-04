@@ -7,7 +7,6 @@ const aboutIota = [
     {
         type: 'category',
         label: 'IOTA Architecture',
-        collapsed: false,
         link: {
             type: 'doc',
             id: 'about-iota/iota-architecture/iota-architecture',
@@ -24,7 +23,6 @@ const aboutIota = [
     {
         type: 'category',
         label: 'Tokenomics',
-        collapsed: false,
         link: {
             type: 'doc',
             id: 'about-iota/tokenomics/tokenomics',
@@ -37,6 +35,25 @@ const aboutIota = [
             'about-iota/tokenomics/staking-unstaking',
             'about-iota/tokenomics/gas-in-iota',
             'about-iota/tokenomics/gas-pricing',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'IOTA Wallet',
+        items: [
+            'about-iota/iota-wallet/getting-started',
+            {
+                type:'category',
+                label:'How To',
+                items:[
+                     'about-iota/iota-wallet/how-to/basics',
+                     'about-iota/iota-wallet/how-to/stake',
+                     'about-iota/iota-wallet/how-to/multi-account',
+                    'about-iota/iota-wallet/how-to/get-test-tokens',
+                     'about-iota/iota-wallet/how-to/integrate-ledger',
+                ]
+            },
+            'about-iota/iota-wallet/FAQ',
         ],
     },
 ];
