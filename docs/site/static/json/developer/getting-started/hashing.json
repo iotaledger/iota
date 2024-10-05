@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "Which cryptographic hash functions are supported by the IOTA Move API?",
+        "answerOptions": [
+            { "answerText": "SHA2-256, SHA3-256, Keccak256, Blake2b-256", "isCorrect": true },
+            { "answerText": "SHA1, MD5, Blake3, Keccak512", "isCorrect": false },
+            { "answerText": "SHA2-512, SHA3-512, Keccak128, Blake2s", "isCorrect": false },
+            { "answerText": "SHA256, SHA3-256, MD5, Keccak256", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the IOTA Move API, how is the output of the Keccak256 hash function stored in a smart contract?",
+        "answerOptions": [
+            { "answerText": "As a vector of bytes in a struct with key and store attributes", "isCorrect": true },
+            { "answerText": "As a string in a struct with drop and key attributes", "isCorrect": false },
+            { "answerText": "As a boolean flag in a struct with key and copy attributes", "isCorrect": false },
+            { "answerText": "As a numerical value in a struct with store and freeze attributes", "isCorrect": false }
+        ]
+    }    
+]

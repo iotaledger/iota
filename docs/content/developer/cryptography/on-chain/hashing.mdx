@@ -3,6 +3,10 @@ title: Hashing
 description: IOTA supports SHA2-256, SHA3-256, Keccak256, Blake2b-256 cryptographic hash functions.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/hashing.json';
+
+
 A cryptographic hash function is a widely used cryptographic primitive that maps an arbitrary length input to a fixed length output, the hash value. The hash function is designed to be a one-way function, which means that it is infeasible to invert the function to find the input data from a given hash value, and to be collision resistant, which means that it is infeasible to find two different inputs that map to the same hash value.
 
 The IOTA Move API supports the following cryptographic hash functions:
@@ -23,3 +27,5 @@ The Keccak256 and Blake2b-256 hash functions are available through the `iota::ha
 
 ```move file=<rootDir>/docs/examples/move/cryptography/sources/hashing_iota.move
 ```
+
+<Quiz questions={questions} />
