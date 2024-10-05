@@ -4,8 +4,8 @@ title: Create Review Rating DAO with Multisig Tutorial
 
 ## Introduction
 
-The example demonstrates an implementation of a review rating platform for the food service industry using multisig on Sui.
-Unlike traditional review rating platforms that often do not disclose the algorithm used to rate reviews, this example uses an algorithm that is published on-chain for everyone to see and verify. The low gas cost of computation on Sui make it financially feasible to submit, score, and order all reviews on-chain.
+The example demonstrates an implementation of a review rating platform for the food service industry using multisig on IOTA.
+Unlike traditional review rating platforms that often do not disclose the algorithm used to rate reviews, this example uses an algorithm that is published on-chain for everyone to see and verify. The low gas cost of computation on IOTA make it financially feasible to submit, score, and order all reviews on-chain.
 
 ## Personas
 
@@ -30,7 +30,7 @@ sequenceDiagram
 
 Service owners are entities like restaurants that list their services on the platform. They want to attract more customers by receiving high-rated reviews for their services.
 
-Service owners allocate a specific amount of SUI as a reward pool. Assets from the pool are used to provide rewards for high-rated reviews. A proof of experience (PoE) NFT confirms a reviewer used the service, which the reviewer can burn later to provide a verified review. Service owners provide their customers with unique identifiers (perhaps using QR codes) to identify individual reviewers.
+Service owners allocate a specific amount of IOTA as a reward pool. Assets from the pool are used to provide rewards for high-rated reviews. A proof of experience (PoE) NFT confirms a reviewer used the service, which the reviewer can burn later to provide a verified review. Service owners provide their customers with unique identifiers (perhaps using QR codes) to identify individual reviewers.
 
 ### Reviewers
 
@@ -166,7 +166,7 @@ This module defines the `Service` struct that service owners manage.
 ### Reward Distribution
 
 The same amount is rewarded to top reviewers, and the reward is distributed to 10 participants at most.
-The pool of `SUI` tokens to be distributed to reviewers is stored in the `reward_pool` field, and the amount of `SUI` tokens awarded to each participant is configured in `reward` field.
+The pool of `IOTA` tokens to be distributed to reviewers is stored in the `reward_pool` field, and the amount of `IOTA` tokens awarded to each participant is configured in `reward` field.
 
 ### Storage for Reviews
 
@@ -260,4 +260,4 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 ## Conclusion
 
-This tutorial outlined the creation of a decentralized review rating platform using multisig on Sui. Service Owners list their services, Reviewers submit reviews, Review Readers vote on them, and Moderators ensure quality control. Reviews are scored based on content, upvotes, and proof of experience (PoE), with top reviews earning rewards. Multisig moderation adds security by requiring multiple parties to approve key actions like removing reviews or distributing rewards. The platform ensures transparency and fairness by storing the review algorithm and data on-chain, leveraging Move-based smart contracts.
+This tutorial outlined the creation of a decentralized review rating platform using multisig on IOTA. Service Owners list their services, Reviewers submit reviews, Review Readers vote on them, and Moderators ensure quality control. Reviews are scored based on content, upvotes, and proof of experience (PoE), with top reviews earning rewards. Multisig moderation adds security by requiring multiple parties to approve key actions like removing reviews or distributing rewards. The platform ensures transparency and fairness by storing the review algorithm and data on-chain, leveraging Move-based smart contracts.
