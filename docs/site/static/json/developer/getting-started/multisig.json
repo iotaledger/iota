@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is the maximum number of participating parties allowed in IOTA's multisig transactions?",
+        "answerOptions": [
+            { "answerText": "5", "isCorrect": false },
+            { "answerText": "10", "isCorrect": true },
+            { "answerText": "15", "isCorrect": false },
+            { "answerText": "20", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which of the following signing schemes are valid for multisig in IOTA?",
+        "answerOptions": [
+            { "answerText": "ECDSA secp256r1, Pure Ed25519, RSA-2048", "isCorrect": false },
+            { "answerText": "ECDSA secp256k1, Pure Ed25519, ECDSA secp256r1", "isCorrect": true },
+            { "answerText": "ECDSA secp256k1, RSA-2048, ECDSA secp256r1", "isCorrect": false },
+            { "answerText": "Pure Ed25519, RSA-2048, ECDSA secp256r1", "isCorrect": false }
+        ]
+    }
+]

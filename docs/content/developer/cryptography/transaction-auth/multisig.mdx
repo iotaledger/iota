@@ -2,6 +2,9 @@
 title: Multisig
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/multisig.json';
+
 IOTA supports multi-signature (multisig) transactions, which require multiple keys for authorization rather than a single, one-key signature. In technical terms, IOTA supports `k` out of `n` multisig transactions, where `k` is the threshold and `n` is the total weights of all participating parties. The maximum number of parties is 10. To learn more about the single key signatures that IOTA supports, see [Signatures](signatures.mdx).
 
 Valid participating keys for multisig are Pure Ed25519, ECDSA Secp256k1, and ECDSA Secp256r1. A ([u8](https://doc.rust-lang.org/std/primitive.u8.html)) weight is set for each participating keys and the threshold can be set as [u16](https://doc.rust-lang.org/std/primitive.u16.html). If the serialized multisig contains enough valid signatures of which the sum of weights passes the threshold, IOTA considers the multisig valid and the transaction executes.
@@ -173,3 +176,5 @@ Use `iota client` to execute a transaction using multisig:
 ```shell
 iota client execute-signed-tx --tx-bytes <TX_BYTES> --signatures <SERIALIZED-MULTISIG>
 ```
+
+<Quiz questions={questions} />
