@@ -2,6 +2,9 @@
 title: Groth16
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/groth16.json';
+
 A zero-knowledge proof allows a prover to validate that a statement is true without revealing any information about the inputs. For example, a prover can validate that they know the solution to a sudoku puzzle without revealing the solution.
 
 Zero-knowledge succinct non-interactive argument of knowledge (zk-SNARKs) are a family of zero-knowledge proofs that are non-interactive, have succinct proof size and efficient verification time. An important and widely used variant of them is pairing-based zk-SNARKs like the [Groth16](https://eprint.iacr.org/2016/260.pdf) proof system, which is one of the most efficient and widely used.
@@ -106,3 +109,5 @@ The following example smart contract prepares a verification key and verifies th
 
 ```move file=<rootDir>/docs/examples/move/cryptography/sources/goth16.move
 ```
+
+<Quiz questions={questions} />
