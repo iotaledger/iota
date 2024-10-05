@@ -2,6 +2,9 @@
 title: Intent Signing
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/intent-signing.json';
+
 In IOTA, an intent is a compact struct that serves as the domain separator for a message that a signature commits to. The data that the signature commits to is an intent message. All signatures in IOTA must commit to an intent message, instead of the message itself.
 
 ## Motivation
@@ -87,3 +90,5 @@ To generate a proof of possession in Rust, see implementation at `fn generate_pr
 
 1. [Struct and enum definitions](https://github.com/iotaledger/iota/blob/develop/crates/shared-crypto/src/intent.rs)
 2. [Test](https://github.com/iotaledger/iota/blob/develop/crates/iota-types/src/unit_tests/intent_tests.rs)
+
+<Quiz questions={questions} />

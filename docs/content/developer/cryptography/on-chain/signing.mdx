@@ -2,6 +2,9 @@
 title: IOTA On-Chain Signatures Verification in Move
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/on-chain-signing.json';
+
 Move contracts in IOTA support verifications for several signature schemes on-chain. Not all signatures supported in on-chain verification are supported as user signature verification. See [IOTA Signatures](../transaction-auth/signatures.mdx) for valid signature schemes for transaction authorization.
 
 This topic covers:
@@ -220,3 +223,5 @@ Public key in hex: $PK
     let verified = bls12381::bls12381_min_pk_verify(&sig, &pk, &msg);
     assert!(verified == true, 0);
 ```
+
+<Quiz questions={questions} />
