@@ -3,6 +3,9 @@ title: Checkpoint Verification
 description: On the IOTA network, checkpoints define the history of the blockchain. Checkpoint verification is how Full nodes and other clients guarantee their state is exactly the same as the IOTA network.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/offline-signing.json';
+
 On the IOTA network, checkpoints define the history of the blockchain. They are quite similar to the concept of blocks used by traditional blockchains like Bitcoin or Ethereum. The IOTA blockchain, however, forms checkpoints after transaction execution has already happened to provide a certified history of the chain, instead of being formed before execution.
 
 Checkpoints contain:
@@ -49,3 +52,5 @@ Additionally, the checkpoint contains the effects digests of each transaction. T
 This allows a Full node to verify that it has obtained the same execution results as those that the validators attested to when signing the checkpoint.
 
 By executing checkpoints, and verifying transaction outputs, a Full node can build up the entire state of the IOTA network (that is, the collection of objects in the network) and trust that every byte of every object is correct.
+
+<Quiz questions={questions} />
