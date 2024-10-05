@@ -1,6 +1,8 @@
 ---
 title: Keys and Addresses
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/key-addresses.json';
 
 IOTA adheres to widely accepted wallet specifications in the cryptocurrency industry, including BIP-32 (and its variation, SLIP-0010) and its variation SLIP-0010, BIP-44, and BIP-39, to facilitate key management for users. At present, IOTA supports pure Ed25519, ECDSA Secp256k1, ECDSA Secp256r1, and multisig for signed transactions.
 
@@ -78,3 +80,5 @@ iota client new-address ed25519 "m/44'/4218'/0'/0'/0'"
 </Tabs>
 
 See more test vectors for [pure Ed25519](https://github.com/iotaledger/iota/blob/f3b5fdd73da64a0df65fb4323471512b0f57ec4d/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts) or [ECDSA Secp256k1](https://github.com/iotaledger/iota/blob/199f06d25ce85f0270a1a5a0396156bb2b83122c/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts).
+
+<Quiz questions={questions} />
