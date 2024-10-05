@@ -3,6 +3,9 @@ title: Signatures
 description: IOTA supports multiple cryptography algorithms and primitives and can switch between them rapidly.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/signature.json';
+
 When a user submits a signed transaction, a serialized signature and a serialized transaction data is submitted. The serialized transaction data is the BCS serialized bytes of the struct `TransactionData` and the serialized signature is defined as a concatenation of bytes of `flag || sig || pk`.
 
 The `flag` is a 1-byte representation corresponding to the signature scheme that the signer chooses. The following table lists each signing scheme and its corresponding flag:
@@ -78,3 +81,5 @@ The account that the authority uses to receive payments on staking rewards is se
 The private key is used to perform the TLS handshake required by QUIC for Narwhal primary and its worker network interface. The public key is used for validator peer ID. Pure Ed25519 is used as the signing scheme.
 
 See more authority key toolings in [Validator Tool](https://github.com/iotaledger/iota/blob/f8b5ad9aaecc3c4b30a060ec5e00bdad9ba75a93/nre/validator_tool.md).
+
+<Quiz questions={questions} />
