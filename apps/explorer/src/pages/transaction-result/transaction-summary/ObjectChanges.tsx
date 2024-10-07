@@ -95,7 +95,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
             hideArrow
             render={() => (
                 <div className="flex w-full flex-row items-center justify-between px-md--rs">
-                    <div className="flex flex-row gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
+                    <div className="flex flex-row gap-xxxs text-neutral-40 dark:text-neutral-60">
                         <span className="text-body-md">Object</span>
 
                         <TriangleDown
@@ -107,7 +107,9 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                             )}
                         />
                     </div>
-                    <div className="flex flex-row items-center gap-xxs pr-xxs">{headerContent}</div>
+                    <div className="flex flex-row items-center gap-xxs truncate pr-xxs">
+                        {headerContent}
+                    </div>
                 </div>
             )}
             open={open}
