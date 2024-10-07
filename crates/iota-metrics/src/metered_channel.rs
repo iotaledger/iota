@@ -348,7 +348,7 @@ impl<T> AsMut<Receiver<T>> for ReceiverStream<T> {
 }
 
 impl<T> From<Receiver<T>> for ReceiverStream<T> {
-    /// Convert a `Receiver` into a `ReceiverStream`.
+    /// Converts a `Receiver` into a `ReceiverStream`.
     fn from(recv: Receiver<T>) -> Self {
         Self::new(recv)
     }
