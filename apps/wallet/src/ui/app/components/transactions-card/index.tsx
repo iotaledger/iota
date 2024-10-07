@@ -61,7 +61,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
             }).toString()}`}
             className="flex w-full flex-col items-center no-underline"
         >
-            <Card type={CardType.Default}>
+            <Card type={CardType.Default} hoverableForce>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TxnIcon
                         txnFailed={executionStatus !== 'success' || !!error}
