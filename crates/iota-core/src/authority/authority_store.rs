@@ -310,12 +310,7 @@ impl AuthorityStore {
                     .for_each(|(_, execution_digest)| {
                         let tx_digest = &execution_digest.transaction;
 
-                        // Validate migration content in order to avoid corrupted or malicious data
-                        if tx_digest != genesis.transaction().digest()
-                            && migration_transactions
-                                .is_valid(tx_digest, &execution_digest.effects)
-                                .expect("The migration data is corrupted")
-                        {
+                        if tx_digest != genesis.transaction().digest() {
                             {
                                 if let Some((tx, effects, events)) = txs_data.get(tx_digest) {
                                     let transaction =

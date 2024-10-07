@@ -713,6 +713,11 @@ impl Builder {
                 )
                 .expect("signature should be valid");
         }
+
+        // Validate migration content in order to avoid corrupted or malicious data
+        if let Some(migration_tx_data) = &self.migration_tx_data {
+            migration_tx_data.validate_from_unsigned_genesis(&unsigned_genesis).expect("The migration data is corrupted");
+        }
     }
 
     pub async fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self, anyhow::Error> {

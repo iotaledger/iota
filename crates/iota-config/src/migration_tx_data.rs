@@ -10,14 +10,17 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_types::{
-    digests::{TransactionDigest, TransactionEffectsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     message_envelope::Message,
+    messages_checkpoint::{CheckpointContents, CheckpointSummary},
     object::{Object, ObjectInner},
     transaction::{GenesisTransaction, Transaction, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
+
+use crate::genesis::{Genesis, UnsignedGenesis};
 
 pub type TransactionsData =
     BTreeMap<TransactionDigest, (Transaction, TransactionEffects, TransactionEvents)>;
@@ -73,32 +76,61 @@ impl MigrationTxData {
         Ok(migration_objects)
     }
 
-    pub fn is_valid(
+    fn validate_from_genesis_components(
         &self,
-        valid_tx_digests: &TransactionDigest,
-        valid_effects_digest: &TransactionEffectsDigest,
-    ) -> Result<bool, anyhow::Error> {
-        let (tx, effects, events) = self
-            .inner
-            .get(valid_tx_digests)
-            .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
+        checkpoint: &CheckpointSummary,
+        contents: &CheckpointContents,
+        genesis_tx_digest: TransactionDigest,
+    ) -> anyhow::Result<()> {
+        assert_eq!(checkpoint.content_digest, *contents.digest());
 
-        if &effects.digest() != valid_effects_digest
-            || effects.transaction_digest() != valid_tx_digests
-            || &tx.data().digest() != valid_tx_digests
-        {
-            return Ok(false);
-        }
-
-        if let Some(valid_events) = effects.events_digest() {
-            if &events.digest() != valid_events {
-                return Ok(false);
+        for (valid_tx_digest, valid_effects_digest) in contents.iter().filter_map(|exec_digest| {
+            if exec_digest.transaction != genesis_tx_digest {
+                Some((&exec_digest.transaction, &exec_digest.effects))
+            } else {
+                None
             }
-        } else if !events.data.is_empty() {
-            return Ok(false);
-        }
+        }) {
+            let (tx, effects, events) = self
+                .inner
+                .get(&valid_tx_digest)
+                .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
 
-        Ok(true)
+            if &effects.digest() != valid_effects_digest
+                || effects.transaction_digest() != valid_tx_digest
+                || &tx.data().digest() != valid_tx_digest
+            {
+                return Err(anyhow::anyhow!("Invalid transaction or effects data"));
+            }
+
+            if let Some(valid_events) = effects.events_digest() {
+                if &events.digest() != valid_events {
+                    return Err(anyhow::anyhow!("Invalid events data"));
+                }
+            } else if !events.data.is_empty() {
+                return Err(anyhow::anyhow!("Invalid events data"));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn validate_from_genesis(&self, genesis: &Genesis) -> anyhow::Result<()> {
+        self.validate_from_genesis_components(
+            &genesis.checkpoint(),
+            genesis.checkpoint_contents(),
+            *genesis.transaction().digest(),
+        )
+    }
+
+    pub fn validate_from_unsigned_genesis(
+        &self,
+        unsigned_genesis: &UnsignedGenesis,
+    ) -> anyhow::Result<()> {
+        self.validate_from_genesis_components(
+            unsigned_genesis.checkpoint(),
+            unsigned_genesis.checkpoint_contents(),
+            *unsigned_genesis.transaction().digest(),
+        )
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {

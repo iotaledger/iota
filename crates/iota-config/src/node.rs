@@ -316,8 +316,14 @@ impl NodeConfig {
         self.genesis.genesis()
     }
 
-    pub fn load_migration_tx_data(&self) -> Result<migration_tx_data::MigrationTxData> {
-        self.migration_tx_data.load()
+    pub fn load_migration_tx_data(
+        &self,
+        genesis: &genesis::Genesis,
+    ) -> Result<migration_tx_data::MigrationTxData> {
+        let migration_tx_data = self.migration_tx_data.load()?;
+        // Validate migration content in order to avoid corrupted or malicious data
+        migration_tx_data.validate_from_genesis(genesis)?;
+        Ok(migration_tx_data)
     }
 
     pub fn iota_address(&self) -> IotaAddress {
