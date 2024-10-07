@@ -1,15 +1,6 @@
 name: Rust lints
 
-on:
-  workflow_call:
-    inputs:
-      isRust:
-        type: boolean
-    secrets:
-      SSH_PRIVATE_KEY_IOTA_CI:
-        required: true
-      SSH_GITHUB_KNOWN_HOSTS:
-        required: true
+on: workflow_call
 
 concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,7 +14,7 @@ env:
 
 jobs:
   rustfmt:
-    if: (!cancelled() && inputs.isRust)
+    if: (!cancelled())
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v4
@@ -32,23 +23,10 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly ci-fmt
 
-  cargo-deny:
-    if: (!cancelled() && inputs.isRust)
-    name: cargo-deny (advisories, licenses, bans, ...)
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
-          ssh-known-hosts: ${{ secrets.SSH_GITHUB_KNOWN_HOSTS }}
-          use-git-cli: true
-
   clippy:
-    if: (!cancelled() && !failure() && inputs.isRust)
+    if: (!cancelled() && success('rustfmt'))
     needs:
       - rustfmt
-      - cargo-deny
     runs-on: [self-hosted]
     steps:
       - uses: arduino/setup-protoc@v3

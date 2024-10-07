@@ -159,7 +159,7 @@ export async function setupWithFundedAddress(
         },
     );
 
-    execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
+    execSync(`${IOTA_BIN} client --yes`, { encoding: 'utf-8' });
     return new TestToolbox(keypair, rpcURL, configPath);
 }
 
@@ -176,7 +176,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const { modules, dependencies } = JSON.parse(
         execSync(
-            `${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );
@@ -230,7 +230,7 @@ export async function upgradePackage(
 
     const { modules, dependencies, digest } = JSON.parse(
         execSync(
-            `${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );
