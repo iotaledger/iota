@@ -6,6 +6,8 @@ title: Create Review Rating DAO with Multisig Tutorial
 
 The example illustrates the creation of a review rating platform for the food service industry, utilizing multisignature functionality on IOTA. Unlike conventional review platforms, which frequently conceal the algorithms used to rate reviews, this model leverages a transparent, on-chain algorithm that anyone can access and verify. IOTA's low transaction costs make it economically viable to submit, evaluate, and rank all reviews directly on-chain.
 
+**Multisig Setup for Moderators**: The platform uses a multisig account to ensure that key actions like removing inappropriate reviews or approving reward distributions are authorized by multiple trusted moderators.
+
 ## Personas
 
 There are four actors in the typical workflow of the Reviews Rating example.
@@ -37,16 +39,77 @@ Reviewers are customers who utilize the platform to share their experiences. The
 
 Review readers use the platform to access feedback, helping them make informed decisions when choosing services. They contribute by voting on reviews, and these votes influence the algorithm that ranks the reviews. Authors of the highest-rated reviews are rewarded based on this ranking. Although not part of this guide, the system could be expanded to reward readers for participating by casting votes on reviews.
 
-:::info
-
-See how to create a [Multisig](../cryptography/transaction-auth/multisig.mdx) transactions.
-:::
-
-### Moderators
+### Moderators (Multisig)
 
 Moderators operate within a multisignature setup, ensuring that significant actions, such as removing reviews or distributing rewards, require authorization from multiple parties. This approach enhances security and transparency, as decisions are made collectively, promoting accountability in the moderation process. Moderators review the content and have the authority to remove reviews containing inappropriate material.
 
 While this guide does not include an incentive mechanism for moderators, service owners could contribute to a pool that compensates moderators on a rolling basis. Additionally, a staking system could be introduced where individuals stake tokens to influence the distribution of rewards among moderators, similar to how validators are staked on-chain. Moderator decisions would be based on a quorum determined by the weight of the staked tokens, creating incentives for moderators to carry out their duties effectively.
+
+Moderators operate within a multisig setup, ensuring key actions like removing inappropriate reviews or distributing rewards require authorization from multiple parties. This enhances platform security, promotes collective decision-making, and provides transparency.
+
+#### Creating a Multisig for Moderators
+
+To implement multisig for moderators, follow these steps:
+
+**Step 1: Create Keys for Each Moderator**
+Each moderator needs a unique key. To generate these keys, use the following commands to create an IOTA address and corresponding key for each moderator:
+
+```shell
+iota client new-address ed25519
+iota client new-address secp256k1
+iota client new-address secp256r1
+```
+**Step 2: Add Keys to IOTA Keystore**
+
+```shell
+iota keytool list
+```
+This command will list the generated keys with their corresponding addresses and public keys.
+
+**Step 3: Create a Multisig Address**
+Create the multisig address by combining the public keys of all moderators and setting their weights and a threshold:
+
+```shell
+iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3> --weights 1 1 1 --threshold 2
+```
+This command sets up a multisig address where at least two out of the three keys must sign to authorize a transaction.
+
+**Step 4: Moderator Multisig Transaction Workflow**
+To remove a review, moderators must sign a transaction using the multisig setup. The transaction will require signatures from two out of the three moderators to be executed.
+
+**Step 5: Serialize a Transaction**
+Serialize the transaction to be signed by the multisig account:
+
+```shell
+iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --gas-budget <GAS-AMOUNT> --serialize-unsigned-transaction
+```
+
+**Step 6: Sign the Transaction**
+Each moderator signs the serialized transaction:
+
+```shell
+iota keytool sign --address <IOTA-ADDRESS> --data <TX_BYTES>
+```
+
+**Step 7: Combine Signatures**
+Once two moderators have signed, combine their signatures into a single multisig signature:
+
+```shell
+iota keytool multi-sig-combine-partial-sig --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> --weights 1 1 1 --threshold 2 --sigs <SIGNATURE-1> <SIGNATURE-2>
+```
+**Step 8: Execute the Multisig Transaction**
+Finally, execute the multisig transaction using the combined signatures:
+
+```shell
+iota client execute-signed-tx --tx-bytes <TX_BYTES> --signatures <SERIALIZED-MULTISIG>
+```
+The transaction will now be processed, and the review will be removed from the platform.
+This multisig setup ensures that no single moderator can act unilaterally, thus maintaining fairness and accountability on the platform.
+
+:::info
+
+See how to create a [Multisig](../cryptography/transaction-auth/multisig.mdx) transactions.
+:::
 
 ## How reviews are scored
 
