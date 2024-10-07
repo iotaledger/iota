@@ -6,10 +6,11 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     gas_coin::GasCoin,
     object::{MoveObject, Owner},
-    parse_iota_struct_tag, IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
+    parse_iota_struct_tag,
 };
 use move_core_types::{
     annotated_value::{MoveStruct, MoveValue},

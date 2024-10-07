@@ -4,6 +4,7 @@
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { bcs } from '../../src/bcs';
 import {
     IotaClient,
     IotaObjectChangeCreated,
@@ -11,6 +12,7 @@ import {
     OwnedObjectRef,
 } from '../../src/client';
 import type { Keypair } from '../../src/cryptography';
+import { Transaction } from '../../src/transactions';
 import { normalizeIotaObjectId, IOTA_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
 import {
     DEFAULT_GAS_BUDGET,
@@ -20,11 +22,6 @@ import {
     TestToolbox,
     upgradePackage,
 } from './utils/setup';
-
-import '../../src/transactions/TransactionBlockData';
-
-import { bcs } from '../../src/bcs';
-import { TransactionBlock } from '../../src/transactions';
 
 export const IOTA_CLOCK_OBJECT_ID = normalizeIotaObjectId('0x6');
 
@@ -43,7 +40,7 @@ describe('Transaction Builders', () => {
                 'Shared' in o.owner &&
                 o.owner.Shared.initial_shared_version !== undefined,
         ) as OwnedObjectRef;
-        sharedObjectId = sharedObject.reference.objectId;
+        sharedObjectId = sharedObject!.reference.objectId;
     });
 
     beforeEach(async () => {
@@ -52,7 +49,7 @@ describe('Transaction Builders', () => {
 
     it('SplitCoins + TransferObjects', async () => {
         const coins = await toolbox.getGasObjectsOwnedByAddress();
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         const coin_0 = coins.data[0];
 
         const coin = tx.splitCoins(tx.object(coin_0.coinObjectId), [
@@ -65,7 +62,7 @@ describe('Transaction Builders', () => {
     it('MergeCoins', async () => {
         const coins = await toolbox.getGasObjectsOwnedByAddress();
         const [coin_0, coin_1] = coins.data;
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         tx.mergeCoins(coin_0.coinObjectId, [coin_1.coinObjectId]);
         await validateTransaction(toolbox.client, toolbox.keypair, tx);
     });
@@ -73,7 +70,7 @@ describe('Transaction Builders', () => {
     it('MoveCall', async () => {
         const coins = await toolbox.getGasObjectsOwnedByAddress();
         const [coin_0] = coins.data;
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         tx.moveCall({
             target: '0x2::pay::split',
             typeArguments: ['0x2::iota::IOTA'],
@@ -90,7 +87,7 @@ describe('Transaction Builders', () => {
 
             const [{ iotaAddress: validatorAddress }] = await toolbox.getActiveValidators();
 
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.moveCall({
                 target: '0x3::iota_system::request_add_stake',
                 arguments: [
@@ -109,21 +106,21 @@ describe('Transaction Builders', () => {
     );
 
     it('SplitCoins from gas object + TransferObjects', async () => {
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         const coin = tx.splitCoins(tx.gas, [1]);
         tx.transferObjects([coin], DEFAULT_RECIPIENT);
         await validateTransaction(toolbox.client, toolbox.keypair, tx);
     });
 
     it('TransferObjects gas object', async () => {
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         tx.transferObjects([tx.gas], DEFAULT_RECIPIENT);
         await validateTransaction(toolbox.client, toolbox.keypair, tx);
     });
 
     it('TransferObject', async () => {
         const coins = await toolbox.getGasObjectsOwnedByAddress();
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         const coin_0 = coins.data[2];
 
         tx.transferObjects([coin_0.coinObjectId], DEFAULT_RECIPIENT);
@@ -131,7 +128,7 @@ describe('Transaction Builders', () => {
     });
 
     it('Move Shared Object Call with mixed usage of mutable and immutable references', async () => {
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         tx.moveCall({
             target: `${packageId}::serializer_tests::value`,
             arguments: [tx.object(sharedObjectId)],
@@ -144,7 +141,7 @@ describe('Transaction Builders', () => {
     });
 
     it('Move Shared Object Call by Value', async () => {
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         tx.moveCall({
             target: `${packageId}::serializer_tests::value`,
             arguments: [tx.object(sharedObjectId)],
@@ -157,7 +154,7 @@ describe('Transaction Builders', () => {
     });
 
     it('immutable clock', async () => {
-        const tx = new TransactionBlock();
+        const tx = new Transaction();
         tx.moveCall({
             target: `${packageId}::serializer_tests::use_clock`,
             arguments: [tx.object(IOTA_CLOCK_OBJECT_ID)],
@@ -194,7 +191,7 @@ describe('Transaction Builders', () => {
 
             // Step 2. Confirm that its functions work as expected in its
             // first version
-            const callOrigTx = new TransactionBlock();
+            const callOrigTx = new Transaction();
             callOrigTx.moveCall({
                 target: `${packageId}::serializer_tests::value`,
                 arguments: [callOrigTx.object(sharedObjectId)],
@@ -219,16 +216,17 @@ describe('Transaction Builders', () => {
     );
 });
 
-async function validateTransaction(client: IotaClient, signer: Keypair, tx: TransactionBlock) {
+async function validateTransaction(client: IotaClient, signer: Keypair, tx: Transaction) {
     tx.setSenderIfNotSet(signer.getPublicKey().toIotaAddress());
     const localDigest = await tx.getDigest({ client });
-    const result = await client.signAndExecuteTransactionBlock({
+    const result = await client.signAndExecuteTransaction({
         signer,
-        transactionBlock: tx,
+        transaction: tx,
         options: {
             showEffects: true,
         },
     });
+    await client.waitForTransaction({ digest: result.digest });
     expect(localDigest).toEqual(result.digest);
     expect(result.effects?.status.status).toEqual('success');
 }

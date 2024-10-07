@@ -153,14 +153,14 @@ When creating transactions, you interact with `Receiving` transaction inputs in 
 
 ```ts
 ... // Setup Typescript SDK as normal.
-const tx = new TransactionBlock();
+const tx = new Transaction();
 tx.moveCall({
-  target: `${examplePackageId}::account::accept_payment`,
-  arguments: [tx.object("0xcafe"), tx.object("0xc0ffee")]
+    target: `${examplePackageId}::account::accept_payment`,
+    arguments: [tx.object("0xcafe"), tx.object("0xc0ffee")]
 });
-const result = await client.signAndExecuteTransactionBlock({
-      transactionBlock: tx,
-  });
+const result = await client.signAndExecuteTransaction({
+    transaction: tx,
+});
 ...
 ```
 

@@ -9,11 +9,12 @@ use std::{str::FromStr, time::Duration};
 use anyhow::bail;
 use futures::{future, stream::StreamExt};
 use iota_config::{
-    iota_config_dir, Config, PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
+    Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, PersistedConfig, iota_config_dir,
 };
 use iota_json_rpc_types::{Coin, IotaObjectDataOptions, IotaTransactionBlockResponse};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
+    IotaClient, IotaClientBuilder,
     iota_client_config::{IotaClientConfig, IotaEnv},
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
@@ -25,7 +26,6 @@ use iota_sdk::{
         transaction::{Argument, Command, Transaction, TransactionData},
     },
     wallet_context::WalletContext,
-    IotaClient, IotaClientBuilder,
 };
 use reqwest::Client;
 use serde_json::json;
@@ -42,8 +42,8 @@ struct FaucetResponse {
 
 pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.io"; // testnet faucet
 
-// if you use the iota-test-validator and use the local network; if it does not
-// work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
+// if you use the `iota start` subcommand and use the local network; if it does
+// not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
 
 /// Return a iota client to interact with the APIs,
 /// the active address of the local wallet, and another address that can be used
@@ -221,17 +221,15 @@ pub async fn split_coin_digest(
     // first, we want to split the coin, and we specify how much IOTA (in NANOS) we
     // want for the new coin
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type here
-    ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
-        vec![split_coin_amount],
-    ));
+    ptb.command(Command::SplitCoins(Argument::GasCoin, vec![
+        split_coin_amount,
+    ]));
     // now we want to merge the coins (so that we don't have many coins with very
     // small values) observe here that we pass Argument::Result(0), which
     // instructs the PTB to get the result from the previous command
-    ptb.command(Command::MergeCoins(
-        Argument::GasCoin,
-        vec![Argument::Result(0)],
-    ));
+    ptb.command(Command::MergeCoins(Argument::GasCoin, vec![
+        Argument::Result(0),
+    ]));
 
     // we finished constructing our PTB and we need to call finish
     let builder = ptb.finish();

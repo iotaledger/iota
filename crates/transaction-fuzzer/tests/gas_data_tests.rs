@@ -11,7 +11,7 @@ use iota_types::{
 };
 use proptest::{arbitrary::*, test_runner::TestCaseError};
 use tracing::debug;
-use transaction_fuzzer::{executor::Executor, run_proptest, GasDataGenConfig, GasDataWithObjects};
+use transaction_fuzzer::{GasDataGenConfig, GasDataWithObjects, executor::Executor, run_proptest};
 
 /// Send transfer iota txn with provided random gas data and gas objects to an
 /// authority.

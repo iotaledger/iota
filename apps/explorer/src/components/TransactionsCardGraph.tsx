@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatBalance, formatDate } from '@iota/core';
+import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
@@ -75,6 +75,10 @@ export function TransactionsCardGraph() {
     const lastEpochTotalTransactions =
         epochMetrics?.[epochMetrics.length - 1]?.epochTotalTransactions;
 
+    const lastEpochTotalTransactionsFormatted = lastEpochTotalTransactions
+        ? formatBalance(lastEpochTotalTransactions, 0, CoinFormat.ROUNDED)
+        : '--';
+
     return (
         <Panel>
             <Title title="Transaction Blocks" size={TitleSize.Medium} />
@@ -92,11 +96,7 @@ export function TransactionsCardGraph() {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Last epoch"
-                            text={
-                                lastEpochTotalTransactions
-                                    ? lastEpochTotalTransactions.toString()
-                                    : '--'
-                            }
+                            text={lastEpochTotalTransactionsFormatted}
                         />
                     </div>
                 </div>

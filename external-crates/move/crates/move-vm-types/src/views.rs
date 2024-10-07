@@ -70,6 +70,11 @@ pub trait ValueView {
                 true
             }
 
+            fn visit_variant(&mut self, _depth: usize, _len: usize) -> bool {
+                self.0 += LEGACY_STRUCT_SIZE;
+                true
+            }
+
             fn visit_vec(&mut self, _depth: usize, _len: usize) -> bool {
                 self.0 += LEGACY_STRUCT_SIZE;
                 true
@@ -163,6 +168,11 @@ pub trait ValueView {
                 true
             }
 
+            fn visit_variant(&mut self, _depth: usize, _len: usize) -> bool {
+                self.0 += LEGACY_STRUCT_SIZE;
+                true
+            }
+
             fn visit_vec(&mut self, _depth: usize, _len: usize) -> bool {
                 self.0 += LEGACY_STRUCT_SIZE;
                 true
@@ -234,6 +244,7 @@ pub trait ValueVisitor {
     fn visit_address(&mut self, depth: usize, val: AccountAddress);
 
     fn visit_struct(&mut self, depth: usize, len: usize) -> bool;
+    fn visit_variant(&mut self, depth: usize, len: usize) -> bool;
     fn visit_vec(&mut self, depth: usize, len: usize) -> bool;
 
     fn visit_ref(&mut self, depth: usize, is_global: bool) -> bool;

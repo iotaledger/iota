@@ -12,7 +12,9 @@ pub mod query;
 
 #[derive(Debug, Display, Deserialize, PartialEq)]
 pub enum QueryType {
+    // Checks the last instant value of the query.
     Instant,
+    // Checks the median value of the query over time.
     Range {
         // Both start & end accepts specific time formats
         //  - "%Y-%m-%d %H:%M:%S" (UTC)
@@ -24,6 +26,9 @@ pub enum QueryType {
         end: String,
         // Query resolution step width as float number of seconds
         step: f64,
+        // The result of the query is the percentile of the data points.
+        // Valid values are [1, 100].
+        percentile: u8,
     },
 }
 
@@ -130,7 +135,7 @@ pub fn fails_threshold_condition(
 }
 
 fn unix_seconds_to_timestamp_string(unix_seconds: i64) -> String {
-    DateTime::<Utc>::from_timestamp(unix_seconds, 0)
+    DateTime::from_timestamp(unix_seconds, 0)
         .unwrap()
         .to_string()
 }
@@ -187,6 +192,7 @@ mod tests {
                   start: "now-1h"
                   end: "now"
                   step: 60.0
+                  percentile: 50
                 validate_result:
                   threshold: 3.0
                   failure_condition: Greater
@@ -200,6 +206,7 @@ mod tests {
                 start: "now-1h".to_string(),
                 end: "now".to_string(),
                 step: 60.0,
+                percentile: 50,
             },
             validate_result: Some(QueryResultValidation {
                 threshold: 3.0,

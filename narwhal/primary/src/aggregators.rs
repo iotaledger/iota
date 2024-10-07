@@ -7,16 +7,15 @@ use std::{collections::HashSet, sync::Arc};
 
 use config::{AuthorityIdentifier, Committee, Stake};
 use crypto::{
-    to_intent_message, AggregateSignature, NarwhalAuthorityAggregateSignature,
-    NarwhalAuthoritySignature, Signature,
+    AggregateSignature, NarwhalAuthorityAggregateSignature, NarwhalAuthoritySignature, Signature,
+    to_intent_message,
 };
 use fastcrypto::hash::{Digest, Hash};
 use iota_protocol_config::ProtocolConfig;
 use tracing::warn;
 use types::{
-    ensure,
+    Certificate, CertificateAPI, Header, SignatureVerificationState, Vote, VoteAPI, ensure,
     error::{DagError, DagResult},
-    Certificate, CertificateAPI, Header, SignatureVerificationState, Vote, VoteAPI,
 };
 
 use crate::metrics::PrimaryMetrics;

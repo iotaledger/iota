@@ -30,6 +30,7 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                                     <CardBody
                                         title={formatAddress(item.objectId!)}
                                         subtitle={`${formatAddress(address)}::${module}::${name}`}
+                                        isTextTruncated
                                     />
                                     <CardAction
                                         type={CardActionType.Link}

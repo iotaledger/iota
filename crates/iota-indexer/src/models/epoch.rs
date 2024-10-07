@@ -6,7 +6,11 @@ use diesel::{Insertable, Queryable, Selectable};
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
 use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 
-use crate::{errors::IndexerError, schema::epochs, types::IndexedEpochInfo};
+use crate::{
+    errors::IndexerError,
+    schema::{epochs, feature_flags, protocol_configs},
+    types::IndexedEpochInfo,
+};
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
 #[diesel(table_name = epochs)]
@@ -30,6 +34,22 @@ pub struct StoredEpochInfo {
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
+}
+
+#[derive(Queryable, Insertable, Debug, Clone, Default)]
+#[diesel(table_name = protocol_configs)]
+pub struct StoredProtocolConfig {
+    pub protocol_version: i64,
+    pub config_name: String,
+    pub config_value: Option<String>,
+}
+
+#[derive(Queryable, Insertable, Debug, Clone, Default)]
+#[diesel(table_name = feature_flags)]
+pub struct StoredFeatureFlag {
+    pub protocol_version: i64,
+    pub flag_name: String,
+    pub flag_value: bool,
 }
 
 #[derive(Queryable, Selectable, Clone)]

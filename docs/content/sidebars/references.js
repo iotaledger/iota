@@ -55,6 +55,7 @@ const references = [
             'references/cli/keytool',
             'references/cli/move',
             'references/cli/validator',
+            'references/cli/cheatsheet',
         ],
     },
     {
@@ -345,6 +346,25 @@ const references = [
             },
         ],
     },
+    {
+        type: 'category',
+        label: 'Expert topics',
+        items: [
+            {
+                type: 'category',
+                label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'references/execution-architecture/execution-layer',
+                },
+                items: [
+                    'references/execution-architecture/iota-execution',
+                    'references/execution-architecture/adapter',
+                    'references/execution-architecture/natives',
+                ],
+            },
+        ],
+    },
     'references/research-papers',
     'references/iota-glossary',
     {
@@ -358,6 +378,7 @@ const references = [
             'references/contribute/contribution-process',
             'references/contribute/code-of-conduct',
             'references/contribute/style-guide',
+            'references/contribute/add-a-quiz',
             'references/contribute/import-code-docs'
         ],
     },

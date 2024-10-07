@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
 import { type DisplayFieldsResponse } from '@iota/iota-sdk/client';
+import { ArrowTopRight } from '@iota/ui-icons';
 import { useState } from 'react';
-import { Image, ObjectLink, ObjectModal } from '~/components/ui';
+import { ImageIcon, ObjectModal } from '~/components/ui';
 
 interface ObjectDisplayProps {
     objectId: string;
@@ -12,36 +14,35 @@ interface ObjectDisplayProps {
 }
 
 export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.Element | null {
-    const [open, handleOpen] = useState(false);
+    const [open, handleOpenModal] = useState(false);
     if (!display.data) return null;
     const { description, name, image_url: imageUrl } = display.data ?? {};
+
+    function handleOpen() {
+        const newWindow = window.open(`/object/${objectId}`, '_blank', 'noopener,noreferrer');
+        if (newWindow) newWindow.opener = null;
+    }
     return (
-        <div className="flex flex-row">
+        <div className="flex w-full flex-row">
             <ObjectModal
                 open={open}
-                onClose={() => handleOpen(false)}
+                onClose={() => handleOpenModal(false)}
                 title={name ?? description ?? ''}
                 subtitle={description ?? ''}
                 src={imageUrl ?? ''}
                 alt={description ?? ''}
             />
-            <div className="flex flex-row items-center gap-md">
-                <div className="cursor-pointer">
-                    <Image
-                        size="sm"
-                        rounded="2xl"
-                        src={imageUrl ?? ''}
-                        alt={description}
-                        onClick={() => handleOpen(true)}
-                    />
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                        Object ID
-                    </span>
-                    <ObjectLink objectId={objectId} />
-                </div>
-            </div>
+            <Card type={CardType.Default} onClick={() => handleOpenModal(true)}>
+                <CardImage>
+                    <ImageIcon src={imageUrl ?? ''} label={name} fallback="NFT" />
+                </CardImage>
+                <CardBody title={name} subtitle={description ?? ''} />
+                <CardAction
+                    type={CardActionType.Link}
+                    icon={<ArrowTopRight />}
+                    onClick={handleOpen}
+                />
+            </Card>
         </div>
     );
 }

@@ -1,6 +1,6 @@
 [package]
 name = "iota-rosetta"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ publish = false
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-axum-extra = { workspace = true, features = ["typed-header"] }
+axum-extra.workspace = true
 bcs.workspace = true
 clap.workspace = true
 eyre.workspace = true
@@ -31,6 +31,7 @@ serde_json.workspace = true
 shared-crypto.workspace = true
 signature.workspace = true
 strum.workspace = true
+strum_macros.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -46,6 +47,5 @@ iota-move-build.workspace = true
 iota-sdk.workspace = true
 rand.workspace = true
 reqwest.workspace = true
-signature = { workspace = true, features = ["rand_core"] }
 tempfile.workspace = true
 test-cluster.workspace = true

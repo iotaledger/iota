@@ -8,8 +8,6 @@
 #    --target-folder FOLDER                    # The path to the target folder.
 #    --target-branch BRANCH                    # The branch to create and checkout in the target folder.
 #    --patches-folder FOLDER                   # The path to the patches folder.
-#    --skip-gitignore                          # Skip the .gitignore file.
-#    --gitignore-path FILE_PATH                # The path to the .gitignore file.
 #    --commit-between-steps                    # Create a commit between each step.
 #    --panic-on-linter-errors                  # Panic on linter errors (typos, cargo fmt, dprint, pnpm lint, cargo clippy).
 #    --clone-source                            # Clone the upstream repository.
@@ -27,6 +25,7 @@
 #    --run-pnpm-lint-fix                       # Run pnpm lint:fix.
 #    --run-shell-commands                      # Run shell commands listed in the config.
 #    --run-cargo-clippy                        # Run cargo clippy.
+#    --recompile-framework-packages            # Recompile the framework system packages and bytecode snapshots.
 #    --compare-results                         # Open tool for comparison.
 #    --compare-source-folder FOLDER            # The path to the source folder for comparison.
 #    --compare-tool-binary BINARY              # The binary to use for comparison.
@@ -39,7 +38,6 @@ $PYTHON_CMD slipstream.py \
     --target-folder result \
     --target-branch slipstream \
     --patches-folder patches_slipstream \
-    --skip-gitignore \
     --commit-between-steps \
     --clone-source \
     --create-branch \

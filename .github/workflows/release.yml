@@ -142,8 +142,8 @@ jobs:
           [ -f ./target/release/iota-node ] && mv ./target/release/iota-node ./target/release/iota-node-${os_type}
           [ -f ./target/release/iota-tool ] && mv ./target/release/iota-tool ./target/release/iota-tool-${os_type}
           [ -f ./target/release/iota-faucet ] && mv ./target/release/iota-faucet ./target/release/iota-faucet-${os_type}
-          [ -f ./target/release/iota-test-validator ] && mv ./target/release/iota-test-validator ./target/release/iota-test-validator-${os_type}
           [ -f ./target/release/iota-data-ingestion ] && mv ./target/release/iota-data-ingestion ./target/release/iota-data-ingestion-${os_type}
+          [ -f ./target/release/iota-bridge ] && mv ./target/release/iota-bridge ./target/release/iota-bridge-${os_type}
           [ -f ./external-crates/move/target/release/move-analyzer ] && mv ./external-crates/move/target/release/move-analyzer ./external-crates/move/target/release/move-analyzer-${os_type}
           tar -cvzf ./target/release/iota-${{ env.iota_tag }}-${os_type}.tgz ./target/release/iota*-${os_type}* ./external-crates/move/target/release/move-analyzer-${os_type}
           [[ ${{ env.iota_tag }} == *"testnet"* ]] && aws s3 cp ./target/release/iota-${{ env.iota_tag }}-${os_type}.tgz s3://iota-releases/releases/iota-${{ env.iota_tag }}-${os_type}.tgz || true
@@ -156,7 +156,6 @@ jobs:
           [ -f ./target/release/iota-node.exe ] && mv ./target/release/iota-node.exe ./target/release/iota-node-${os_type}.exe
           [ -f ./target/release/iota-tool.exe ] && mv ./target/release/iota-tool.exe ./target/release/iota-tool-${os_type}.exe
           [ -f ./target/release/iota-faucet.exe ] && mv ./target/release/iota-faucet.exe ./target/release/iota-faucet-${os_type}.exe
-          [ -f ./target/release/iota-test-validator.exe ] && mv ./target/release/iota-test-validator.exe ./target/release/iota-test-validator-${os_type}.exe
           [ -f ./target/release/iota-indexer.exe ] && mv ./target/release/iota-indexer.exe ./target/release/iota-indexer-${os_type}.exe
           [ -f ./target/release/iota-data-ingestion.exe ] &&  mv ./target/release/iota-data-ingestion.exe ./target/release/iota-data-ingestion-${os_type}.exe
           [ -f ./external-crates/move/target/release/move-analyzer.exe ] && mv ./external-crates/move/target/release/move-analyzer.exe ./external-crates/move/target/release/move-analyzer-${os_type}.exe

@@ -9,6 +9,8 @@ publish = false
 repository = "https://github.com/diem/diem"
 description = "Types for Move IR"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
 hex.workspace = true
 once_cell.workspace = true

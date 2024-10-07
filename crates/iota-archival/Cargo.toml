@@ -1,6 +1,6 @@
 [package]
 name = "iota-archival"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ object_store.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = "1.0.95"
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 

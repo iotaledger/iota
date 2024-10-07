@@ -9,7 +9,7 @@ use iota_test_transaction_builder::{increment_counter, publish_basics_package_an
 use iota_types::object::Owner;
 use tracing::info;
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
+use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
 
 pub struct SharedCounterTest;
 

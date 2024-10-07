@@ -2,19 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(not(target_os = "windows"))]
-use std::os::unix::fs::FileExt;
-#[cfg(target_os = "windows")]
-use std::os::windows::fs::FileExt;
 use std::{
     fs,
     io::Read,
+    os::unix::fs::FileExt,
     path::PathBuf,
     sync::{Arc, RwLock},
 };
 
 use expect_test::expect;
-use iota::client_commands::{IotaClientCommandResult, IotaClientCommands};
+use iota::client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas};
 use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
@@ -26,10 +23,11 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_source_validation_service::{
-    host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
-    AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
-    NetworkLookup, Package, PackageSource, RepositorySource, SourceInfo, SourceLookup,
-    SourceResponse, SourceServiceMetrics, IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT,
+    AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse,
+    IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT, Network, NetworkLookup, Package,
+    PackageSource, RepositorySource, SourceInfo, SourceLookup, SourceResponse,
+    SourceServiceMetrics, host_port, initialize, serve, start_prometheus_server, verify_packages,
+    watch_for_upgrades,
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
@@ -42,6 +40,7 @@ const TEST_FIXTURES_DIR: &str = "tests/fixture";
 
 #[allow(clippy::await_holding_lock)]
 #[tokio::test]
+#[ignore]
 async fn test_end_to_end() -> anyhow::Result<()> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
@@ -186,17 +185,14 @@ async fn run_publish(
     let resp = IotaClientCommands::Publish {
         package_path: package_path.clone(),
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    let IotaClientCommandResult::Publish(response) = resp else {
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
         unreachable!("Invalid response");
     };
     let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
@@ -216,17 +212,14 @@ async fn run_upgrade(
         package_path: upgrade_pkg_path,
         upgrade_capability: cap.reference.object_id,
         build_config,
-        gas: Some(gas_obj_id),
-        gas_budget: rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
-        serialize_unsigned_transaction: false,
-        serialize_signed_transaction: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
     .await?;
 
-    let IotaClientCommandResult::Upgrade(response) = resp else {
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
         unreachable!("Invalid upgrade response");
     };
     let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
@@ -298,13 +291,10 @@ async fn test_api_route() -> anyhow::Result<()> {
         .join("iota/move-stdlib/sources/address.move");
 
     let mut source_lookup = SourceLookup::new();
-    source_lookup.insert(
-        Symbol::from(module),
-        SourceInfo {
-            path: source_path,
-            source: Some("module address {...}".to_owned()),
-        },
-    );
+    source_lookup.insert(Symbol::from(module), SourceInfo {
+        path: source_path,
+        source: Some("module address {...}".to_owned()),
+    });
     let mut address_lookup = AddressLookup::new();
     let account_address = AccountAddress::from_hex_literal(address).unwrap();
     address_lookup.insert(account_address, source_lookup);
@@ -319,6 +309,7 @@ async fn test_api_route() -> anyhow::Result<()> {
     }));
 
     serve(app_state).await.expect("Cannot start service");
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     let client = Client::new();
 

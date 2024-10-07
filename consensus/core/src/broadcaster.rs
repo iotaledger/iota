@@ -9,11 +9,11 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use futures::{stream::FuturesUnordered, StreamExt as _};
+use futures::{StreamExt as _, stream::FuturesUnordered};
 use tokio::{
     sync::broadcast,
     task::JoinSet,
-    time::{error::Elapsed, sleep_until, timeout, Instant},
+    time::{Instant, error::Elapsed, sleep_until, timeout},
 };
 use tracing::{trace, warn};
 
@@ -79,7 +79,7 @@ impl Broadcaster {
         mut rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
         peer: AuthorityIndex,
     ) {
-        let peer_hostname = context.committee.authority(peer).hostname.clone();
+        let peer_hostname = &context.committee.authority(peer).hostname;
 
         // Record the last block to be broadcasted, to retry in case no new block is
         // produced for awhile. Even if the peer has acknowledged the last
@@ -184,7 +184,7 @@ impl Broadcaster {
                 .metrics
                 .node_metrics
                 .broadcaster_rtt_estimate_ms
-                .with_label_values(&[&peer_hostname])
+                .with_label_values(&[peer_hostname])
                 .set(rtt_estimate.as_millis() as i64);
         }
     }
@@ -201,8 +201,11 @@ mod test {
 
     use super::*;
     use crate::{
+        Round,
         block::{BlockRef, TestBlock},
+        commit::CommitRange,
         core::CoreSignals,
+        network::BlockStream,
     };
 
     struct FakeNetworkClient {
@@ -226,6 +229,8 @@ mod test {
 
     #[async_trait]
     impl NetworkClient for FakeNetworkClient {
+        const SUPPORT_STREAMING: bool = false;
+
         async fn send_block(
             &self,
             peer: AuthorityIndex,
@@ -238,10 +243,38 @@ mod test {
             Ok(())
         }
 
+        async fn subscribe_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
         async fn fetch_blocks(
             &self,
             _peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_latest_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")

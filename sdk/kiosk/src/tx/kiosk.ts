@@ -4,8 +4,8 @@
 
 import { bcs } from '@iota/iota-sdk/bcs';
 import type {
+    Transaction,
     TransactionArgument,
-    TransactionBlock,
     TransactionObjectArgument,
 } from '@iota/iota-sdk/transactions';
 
@@ -16,7 +16,7 @@ import { KIOSK_MODULE, KIOSK_TYPE } from '../types/index.js';
  * Create a new shared Kiosk and returns the [kiosk, kioskOwnerCap] tuple.
  */
 export function createKiosk(
-    tx: TransactionBlock,
+    tx: Transaction,
 ): [TransactionObjectArgument, TransactionObjectArgument] {
     const [kiosk, kioskOwnerCap] = tx.moveCall({
         target: `${KIOSK_MODULE}::new`,
@@ -29,7 +29,7 @@ export function createKiosk(
  * Calls the `kiosk::new()` function and shares the kiosk.
  * Returns the `kioskOwnerCap` object.
  */
-export function createKioskAndShare(tx: TransactionBlock): TransactionObjectArgument {
+export function createKioskAndShare(tx: Transaction): TransactionObjectArgument {
     const [kiosk, kioskOwnerCap] = createKiosk(tx);
     shareKiosk(tx, kiosk);
     return kioskOwnerCap;
@@ -38,7 +38,7 @@ export function createKioskAndShare(tx: TransactionBlock): TransactionObjectArgu
 /**
  * Converts Transfer Policy to a shared object.
  */
-export function shareKiosk(tx: TransactionBlock, kiosk: TransactionArgument) {
+export function shareKiosk(tx: Transaction, kiosk: TransactionArgument) {
     tx.moveCall({
         target: `0x2::transfer::public_share_object`,
         typeArguments: [KIOSK_TYPE],
@@ -51,7 +51,7 @@ export function shareKiosk(tx: TransactionBlock, kiosk: TransactionArgument) {
  * Place an item to the Kiosk.
  */
 export function place(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -73,7 +73,7 @@ export function place(
  * locked without an option to take it out.
  */
 export function lock(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -92,7 +92,7 @@ export function lock(
  * Take an item from the Kiosk.
  */
 export function take(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -112,7 +112,7 @@ export function take(
  * List an item for sale.
  */
 export function list(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -131,7 +131,7 @@ export function list(
  * List an item for sale.
  */
 export function delist(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -149,7 +149,7 @@ export function delist(
  * Place an item to the Kiosk and list it for sale.
  */
 export function placeAndList(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -168,7 +168,7 @@ export function placeAndList(
  * a TransferRequest which needs to be dealt with (via a matching TransferPolicy).
  */
 export function purchase(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     itemId: string,
@@ -188,7 +188,7 @@ export function purchase(
  * If the amount is null, then the entire balance will be withdrawn.
  */
 export function withdrawFromKiosk(
-    tx: TransactionBlock,
+    tx: Transaction,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
     amount?: string | bigint | number,
@@ -210,7 +210,7 @@ export function withdrawFromKiosk(
  * Requires calling `returnValue` to return the item.
  */
 export function borrowValue(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     kioskCap: ObjectArgument,
@@ -230,7 +230,7 @@ export function borrowValue(
  * Return an item to the Kiosk after it was `borrowValue`-d.
  */
 export function returnValue(
-    tx: TransactionBlock,
+    tx: Transaction,
     itemType: string,
     kiosk: ObjectArgument,
     item: TransactionArgument,

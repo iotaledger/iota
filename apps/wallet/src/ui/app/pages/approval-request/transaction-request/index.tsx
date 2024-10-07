@@ -13,7 +13,7 @@ import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
 import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
 import { useTransactionSummary } from '@iota/core';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
@@ -36,7 +36,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const signer = useSigner(accountForTransaction);
     const dispatch = useAppDispatch();
     const transaction = useMemo(() => {
-        const tx = TransactionBlock.from(txRequest.tx.data);
+        const tx = Transaction.from(txRequest.tx.data);
         if (addressForTransaction) {
             tx.setSenderIfNotSet(addressForTransaction);
         }

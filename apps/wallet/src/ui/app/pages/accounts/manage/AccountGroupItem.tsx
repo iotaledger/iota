@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
@@ -16,15 +16,26 @@ import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
+import { Portal } from '_app/shared/Portal';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
-    isLast: boolean;
+    showDropdownOptionsBottom: boolean;
     isActive?: boolean;
+    outerRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItemProps) {
+export function AccountGroupItem({
+    account,
+    showDropdownOptionsBottom,
+    isActive,
+    outerRef,
+}: AccountGroupItemProps) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
+    const [dropdownPosition, setDropdownPosition] = useState({
+        y: 0,
+    });
+    const anchorRef = useRef<HTMLDivElement>(null);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
     const accountName = account?.nickname ?? formatAddress(account?.address || '');
@@ -71,17 +82,30 @@ export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItem
     async function handleSelectAccount() {
         if (!account) return;
 
-        if (account.isLocked) {
-            unlockAccount(account);
-        } else {
-            await backgroundClient.selectAccount(account.id);
-            navigate('/');
-            toast.success(`Account ${formatAddress(account.address)} selected`);
-        }
+        await backgroundClient.selectAccount(account.id);
+        navigate('/');
+        toast.success(`Account ${formatAddress(account.address)} selected`);
     }
 
     function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {
+        const outerTop = outerRef?.current?.getBoundingClientRect().top;
+        const innerTop = anchorRef?.current?.getBoundingClientRect().top;
+        const innerHeight = anchorRef?.current?.getBoundingClientRect().height;
         e.stopPropagation();
+
+        let y = 0;
+
+        if (innerTop && outerTop) {
+            y = innerTop - outerTop;
+        }
+
+        if (showDropdownOptionsBottom && innerHeight) {
+            y = y + innerHeight;
+        }
+
+        setDropdownPosition({
+            y: y,
+        });
         setDropdownOpen(true);
     }
 
@@ -99,7 +123,7 @@ export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItem
 
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
-            <div onClick={handleSelectAccount}>
+            <div onClick={handleSelectAccount} ref={anchorRef}>
                 <Account
                     isLocked={account.isLocked}
                     isCopyable
@@ -118,31 +142,37 @@ export function AccountGroupItem({ account, isLast, isActive }: AccountGroupItem
                     onUnlockAccountClick={handleToggleLock}
                 />
             </div>
-            <div
-                className={clsx(
-                    `absolute right-0 z-[100] bg-white`,
-                    isLast ? 'bottom-0' : 'top-0',
-                    isDropdownOpen ? '' : 'hidden',
-                )}
-            >
-                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                    <Dropdown>
-                        <ListItem hideBottomBorder onClick={handleRename}>
-                            Rename
-                        </ListItem>
-                        {account.isKeyPairExportable ? (
-                            <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
-                                Export Private Key
-                            </ListItem>
-                        ) : null}
-                        {allAccounts.isPending ? null : (
-                            <ListItem hideBottomBorder onClick={handleRemove}>
-                                Delete
-                            </ListItem>
+            <Portal containerId={'manage-account-item-portal-container'}>
+                {isDropdownOpen && (
+                    <div
+                        style={{
+                            top: dropdownPosition.y,
+                        }}
+                        className={clsx(
+                            `absolute right-0 z-[99] rounded-lg bg-white`,
+                            showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
-                    </Dropdown>
-                </OutsideClickHandler>
-            </div>
+                    >
+                        <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                            <Dropdown>
+                                <ListItem hideBottomBorder onClick={handleRename}>
+                                    Rename
+                                </ListItem>
+                                {account.isKeyPairExportable ? (
+                                    <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
+                                        Export Private Key
+                                    </ListItem>
+                                ) : null}
+                                {allAccounts.isPending ? null : (
+                                    <ListItem hideBottomBorder onClick={handleRemove}>
+                                        Delete
+                                    </ListItem>
+                                )}
+                            </Dropdown>
+                        </OutsideClickHandler>
+                    </div>
+                )}
+            </Portal>
             <NicknameDialog
                 isOpen={isDialogNicknameOpen}
                 setOpen={setDialogNicknameOpen}

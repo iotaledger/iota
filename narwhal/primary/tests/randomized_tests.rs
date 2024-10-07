@@ -11,21 +11,21 @@ use std::{
 
 use config::{Authority, AuthorityIdentifier, Committee, Stake};
 use fastcrypto::hash::{Hash, HashFunction};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_protocol_config::ProtocolConfig;
 use narwhal_primary::consensus::{
-    make_consensus_store, Bullshark, ConsensusMetrics, ConsensusState, LeaderSchedule,
-    LeaderSwapTable,
+    Bullshark, ConsensusMetrics, ConsensusState, LeaderSchedule, LeaderSwapTable,
+    make_consensus_store,
 };
 use prometheus::Registry;
 use rand::{
+    Rng, SeedableRng,
     distributions::{Bernoulli, Distribution},
     prelude::SliceRandom,
     rngs::StdRng,
-    Rng, SeedableRng,
 };
 use storage::ConsensusStore;
-use test_utils::{latest_protocol_version, mock_certificate_with_rand, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, mock_certificate_with_rand};
 #[allow(unused_imports)]
 use tokio::sync::mpsc::channel;
 use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
@@ -115,7 +115,7 @@ async fn bullshark_randomised_tests() {
     ];
 
     let mut config: ProtocolConfig = latest_protocol_version();
-    config.set_consensus_bad_nodes_stake_threshold(33);
+    config.set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
     let mut test_execution_list = FuturesUnordered::new();
     let (tx, mut rx) = channel(1000);
@@ -287,8 +287,7 @@ fn generate_randomised_dag(
 /// * nodes that don't create certificates at all for some rounds (failures)
 /// * leaders that don't get enough support (f+1) for their immediate round
 /// * slow nodes - nodes that create certificates but those might not referenced
-///   by nodes of
-/// subsequent rounds.
+///   by nodes of subsequent rounds.
 pub fn make_certificates_with_parameters(
     seed: u64,
     committee: &Committee,
@@ -449,7 +448,7 @@ pub fn make_certificates_with_parameters(
             // update the total round stake
             total_round_stake += authority.stake();
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
 
         // Sanity checks
         // Ensure total stake of the round provides strong quorum
@@ -549,7 +548,7 @@ fn generate_and_run_execution_plans(
 
         // Compare the results with the previously executed plan results
         if committed_certificates.is_empty() {
-            committed_certificates.clone_from(&plan_committed_certificates);
+            committed_certificates = plan_committed_certificates.clone();
         } else {
             assert_eq!(
                 committed_certificates,

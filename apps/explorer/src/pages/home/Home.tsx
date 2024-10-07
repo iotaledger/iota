@@ -17,7 +17,6 @@ import {
     TopValidatorsCard,
     TransactionsCardGraph,
 } from '~/components';
-import { TabHeader } from '~/components/ui';
 import { useNetwork } from '~/hooks';
 
 const TRANSACTIONS_LIMIT = 25;
@@ -69,11 +68,7 @@ function Home(): JSX.Element {
                                 data-testid="validators-table"
                                 style={{ gridArea: 'validators' }}
                             >
-                                <TabHeader title="Validators">
-                                    <ErrorBoundary>
-                                        <TopValidatorsCard limit={10} showIcon />
-                                    </ErrorBoundary>
-                                </TabHeader>
+                                <TopValidatorsCard limit={10} showIcon />
                             </div>
                         </div>
                     </div>

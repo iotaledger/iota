@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,7 +10,7 @@ use serde_with::serde_as;
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
     base_types::{AuthorityName, IotaAddress, ObjectID},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     id::ID,
@@ -46,6 +44,8 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub iota_total_supply: u64,
+    /// The `TreasuryCap<IOTA>` object ID.
+    pub iota_treasury_cap_id: ObjectID,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "BigInt<u64>")]
@@ -179,24 +179,25 @@ pub struct IotaSystemStateSummary {
 
 impl IotaSystemStateSummary {
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
-        let mut voting_rights = BTreeMap::new();
-        let mut network_metadata = BTreeMap::new();
-        for validator in &self.active_validators {
-            let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
-            voting_rights.insert(name, validator.voting_power);
-            network_metadata.insert(
-                name,
-                NetworkMetadata {
-                    network_address: Multiaddr::try_from(validator.net_address.clone()).unwrap(),
-                    narwhal_primary_address: Multiaddr::try_from(validator.primary_address.clone())
+        let validators = self
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
+                (
+                    name,
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: Multiaddr::try_from(validator.net_address.clone())
+                            .unwrap(),
+                        narwhal_primary_address: Multiaddr::try_from(
+                            validator.primary_address.clone(),
+                        )
                         .unwrap(),
-                },
-            );
-        }
-        CommitteeWithNetworkMetadata {
-            committee: Committee::new(self.epoch, voting_rights),
-            network_metadata,
-        }
+                    }),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 }
 
@@ -319,6 +320,7 @@ impl Default for IotaSystemStateSummary {
             protocol_version: 1,
             system_state_version: 1,
             iota_total_supply: 0,
+            iota_treasury_cap_id: ObjectID::ZERO,
             storage_fund_total_object_storage_rebates: 0,
             storage_fund_non_refundable_balance: 0,
             reference_gas_price: 1,

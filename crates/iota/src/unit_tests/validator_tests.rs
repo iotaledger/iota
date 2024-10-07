@@ -13,7 +13,7 @@ use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::TestClusterBuilder;
 
 use crate::validator_commands::{
-    get_validator_summary, IotaValidatorCommand, IotaValidatorCommandResponse,
+    IotaValidatorCommand, IotaValidatorCommandResponse, get_validator_summary,
 };
 
 #[tokio::test]

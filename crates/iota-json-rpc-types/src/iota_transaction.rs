@@ -2,17 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{self, Display, Formatter, Write};
+use std::{
+    fmt::{self, Display, Formatter, Write},
+    sync::Arc,
+};
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
-use iota_json::{primitive_type, IotaJsonValue};
+use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
+use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
-    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
+    digests::{CheckpointDigest, ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
@@ -21,8 +26,10 @@ use iota_types::{
     iota_serde::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
     },
+    layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{MoveObject, Owner},
+    messages_consensus::ConsensusDeterminedVersionAssignments,
+    object::Owner,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
@@ -31,12 +38,9 @@ use iota_types::{
         Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
         InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
-        VersionedProtocolMessage,
     },
-    type_resolver::LayoutResolver,
-    IOTA_FRAMEWORK_ADDRESS,
 };
-use move_binary_format::{access::ModuleAccess, binary_views::BinaryIndexedView, CompiledModule};
+use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::MoveTypeLayout,
@@ -48,12 +52,12 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
 
 use crate::{
-    balance_changes::BalanceChange, iota_transaction::GenericSignature::Signature,
-    object_changes::ObjectChange, Filter, IotaEvent, IotaObjectRef, Page,
+    Filter, IotaEvent, IotaObjectRef, Page, balance_changes::BalanceChange,
+    iota_transaction::GenericSignature::Signature, object_changes::ObjectChange,
 };
 
 // similar to EpochId of iota-types but BigInt
@@ -180,6 +184,10 @@ impl IotaTransactionBlockResponseOptions {
         }
     }
 
+    #[deprecated(
+        since = "1.33.0",
+        note = "Balance and object changes no longer require local execution"
+    )]
     pub fn require_local_execution(&self) -> bool {
         self.show_balance_changes || self.show_object_changes
     }
@@ -405,6 +413,7 @@ pub enum IotaTransactionBlockKind {
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
     ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2),
+    ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3),
     // .. more transaction types go here
 }
 
@@ -437,6 +446,18 @@ impl Display for IotaTransactionBlockKind {
                     writer,
                     "Epoch: {}, Round: {}, Timestamp: {}, ConsensusCommitDigest: {}",
                     p.epoch, p.round, p.commit_timestamp_ms, p.consensus_commit_digest
+                )?;
+            }
+            Self::ConsensusCommitPrologueV3(p) => {
+                writeln!(writer, "Transaction Kind: Consensus Commit Prologue V3")?;
+                writeln!(
+                    writer,
+                    "Epoch: {}, Round: {}, SubDagIndex: {:?}, Timestamp: {}, ConsensusCommitDigest: {}",
+                    p.epoch,
+                    p.round,
+                    p.sub_dag_index,
+                    p.commit_timestamp_ms,
+                    p.consensus_commit_digest
                 )?;
             }
             Self::ProgrammableTransaction(p) => {
@@ -489,6 +510,17 @@ impl IotaTransactionBlockKind {
                     consensus_commit_digest: p.consensus_commit_digest,
                 })
             }
+            TransactionKind::ConsensusCommitPrologueV3(p) => {
+                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+                    epoch: p.epoch,
+                    round: p.round,
+                    sub_dag_index: p.sub_dag_index,
+                    commit_timestamp_ms: p.commit_timestamp_ms,
+                    consensus_commit_digest: p.consensus_commit_digest,
+                    consensus_determined_version_assignments: p
+                        .consensus_determined_version_assignments,
+                })
+            }
             TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from(p, module_cache)?,
             ),
@@ -534,6 +566,122 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
                             }
+                            EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
+                                IotaEndOfEpochTransactionKind::BridgeStateCreate(
+                                    (*chain_id.as_bytes()).into(),
+                                )
+                            }
+                            EndOfEpochTransactionKind::BridgeCommitteeInit(
+                                bridge_shared_version,
+                            ) => IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(
+                                bridge_shared_version,
+                            ),
+                        })
+                        .collect(),
+                })
+            }
+        })
+    }
+
+    async fn try_from_with_package_resolver(
+        tx: TransactionKind,
+        package_resolver: Arc<Resolver<impl PackageStore>>,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
+        Ok(match tx {
+            TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
+            TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
+                objects: g.objects.iter().map(GenesisObject::id).collect(),
+                events: g
+                    .events
+                    .into_iter()
+                    .enumerate()
+                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
+                    .collect(),
+            }),
+            TransactionKind::ConsensusCommitPrologue(p) => {
+                Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
+                    epoch: p.epoch,
+                    round: p.round,
+                    commit_timestamp_ms: p.commit_timestamp_ms,
+                })
+            }
+            TransactionKind::ConsensusCommitPrologueV2(p) => {
+                Self::ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2 {
+                    epoch: p.epoch,
+                    round: p.round,
+                    commit_timestamp_ms: p.commit_timestamp_ms,
+                    consensus_commit_digest: p.consensus_commit_digest,
+                })
+            }
+            TransactionKind::ConsensusCommitPrologueV3(p) => {
+                Self::ConsensusCommitPrologueV3(IotaConsensusCommitPrologueV3 {
+                    epoch: p.epoch,
+                    round: p.round,
+                    sub_dag_index: p.sub_dag_index,
+                    commit_timestamp_ms: p.commit_timestamp_ms,
+                    consensus_commit_digest: p.consensus_commit_digest,
+                    consensus_determined_version_assignments: p
+                        .consensus_determined_version_assignments,
+                })
+            }
+            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
+                IotaProgrammableTransactionBlock::try_from_with_package_resolver(
+                    p,
+                    package_resolver,
+                )
+                .await?,
+            ),
+            TransactionKind::AuthenticatorStateUpdate(update) => {
+                Self::AuthenticatorStateUpdate(IotaAuthenticatorStateUpdate {
+                    epoch: update.epoch,
+                    round: update.round,
+                    new_active_jwks: update
+                        .new_active_jwks
+                        .into_iter()
+                        .map(IotaActiveJwk::from)
+                        .collect(),
+                })
+            }
+            TransactionKind::RandomnessStateUpdate(update) => {
+                Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
+                    epoch: update.epoch,
+                    randomness_round: update.randomness_round.0,
+                    random_bytes: update.random_bytes,
+                })
+            }
+            TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
+                Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
+                    transactions: end_of_epoch_tx
+                        .into_iter()
+                        .map(|tx| match tx {
+                            EndOfEpochTransactionKind::ChangeEpoch(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
+                            }
+                            EndOfEpochTransactionKind::AuthenticatorStateCreate => {
+                                IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
+                            }
+                            EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
+                                IotaEndOfEpochTransactionKind::AuthenticatorStateExpire(
+                                    IotaAuthenticatorStateExpire {
+                                        min_epoch: expire.min_epoch,
+                                    },
+                                )
+                            }
+                            EndOfEpochTransactionKind::RandomnessStateCreate => {
+                                IotaEndOfEpochTransactionKind::RandomnessStateCreate
+                            }
+                            EndOfEpochTransactionKind::DenyListStateCreate => {
+                                IotaEndOfEpochTransactionKind::CoinDenyListStateCreate
+                            }
+                            EndOfEpochTransactionKind::BridgeStateCreate(id) => {
+                                IotaEndOfEpochTransactionKind::BridgeStateCreate(
+                                    (*id.as_bytes()).into(),
+                                )
+                            }
+                            EndOfEpochTransactionKind::BridgeCommitteeInit(seq) => {
+                                IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(seq)
+                            }
                         })
                         .collect(),
                 })
@@ -554,6 +702,7 @@ impl IotaTransactionBlockKind {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologue(_) => "ConsensusCommitPrologue",
             Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
+            Self::ConsensusCommitPrologueV3(_) => "ConsensusCommitPrologueV3",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdate(_) => "AuthenticatorStateUpdate",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1027,8 +1176,7 @@ impl IotaTransactionBlockEvents {
                 .into_iter()
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout =
-                        MoveObject::get_layout_from_struct_tag(event.type_.clone(), resolver)?;
+                    let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1190,6 +1338,15 @@ pub enum IotaExecutionStatus {
     Failure { error: String },
 }
 
+impl Display for IotaExecutionStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Success => write!(f, "success"),
+            Self::Failure { error } => write!(f, "failure due to {error}"),
+        }
+    }
+}
+
 impl IotaExecutionStatus {
     pub fn is_ok(&self) -> bool {
         matches!(self, IotaExecutionStatus::Success { .. })
@@ -1334,9 +1491,7 @@ impl IotaTransactionBlockData {
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        let message_version = data
-            .message_version()
-            .expect("TransactionData defines message_version()");
+        let message_version = data.message_version();
         let sender = data.sender();
         let gas_data = IotaGasData {
             payment: data
@@ -1350,6 +1505,42 @@ impl IotaTransactionBlockData {
         };
         let transaction =
             IotaTransactionBlockKind::try_from(data.into_kind(), module_cache, tx_digest)?;
+        match message_version {
+            1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
+                transaction,
+                sender,
+                gas_data,
+            })),
+            _ => Err(anyhow::anyhow!(
+                "Support for TransactionData version {} not implemented",
+                message_version
+            )),
+        }
+    }
+
+    pub async fn try_from_with_package_resolver(
+        data: TransactionData,
+        package_resolver: Arc<Resolver<impl PackageStore>>,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
+        let message_version = data.message_version();
+        let sender = data.sender();
+        let gas_data = IotaGasData {
+            payment: data
+                .gas()
+                .iter()
+                .map(|obj_ref| IotaObjectRef::from(*obj_ref))
+                .collect(),
+            owner: data.gas_owner(),
+            price: data.gas_price(),
+            budget: data.gas_budget(),
+        };
+        let transaction = IotaTransactionBlockKind::try_from_with_package_resolver(
+            data.into_kind(),
+            package_resolver,
+            tx_digest,
+        )
+        .await?;
         match message_version {
             1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
                 transaction,
@@ -1385,6 +1576,25 @@ impl IotaTransactionBlock {
             tx_signatures: data.tx_signatures().to_vec(),
         })
     }
+
+    // TODO: the IotaTransactionBlock `try_from` can be removed after cleaning up
+    // indexer v1, so are the related `try_from` methods for nested structs like
+    // IotaTransactionBlockData etc.
+    pub async fn try_from_with_package_resolver(
+        data: SenderSignedData,
+        package_resolver: Arc<Resolver<impl PackageStore>>,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
+        Ok(Self {
+            data: IotaTransactionBlockData::try_from_with_package_resolver(
+                data.intent_message().value.clone(),
+                package_resolver,
+                tx_digest,
+            )
+            .await?,
+            tx_signatures: data.tx_signatures().to_vec(),
+        })
+    }
 }
 
 impl Display for IotaTransactionBlock {
@@ -1394,18 +1604,15 @@ impl Display for IotaTransactionBlock {
         builder.push_record(vec![format!("{}", self.data)]);
         builder.push_record(vec![format!("Signatures:")]);
         for tx_sig in &self.tx_signatures {
-            builder.push_record(vec![format!(
-                "   {}\n",
-                match tx_sig {
-                    Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
-                                                                         * multisig and zklogin
-                                                                         * are not suited to be
-                                                                         * parsed out. they
-                                                                         * should be interpreted
-                                                                         * as a whole */
-                }
-            )]);
+            builder.push_record(vec![format!("   {}\n", match tx_sig {
+                Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
+                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
+                                                                     * multisig and zklogin
+                                                                     * are not suited to be
+                                                                     * parsed out. they
+                                                                     * should be interpreted
+                                                                     * as a whole */
+            })]);
         }
 
         let mut table = builder.build();
@@ -1455,6 +1662,25 @@ pub struct IotaConsensusCommitPrologueV2 {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaConsensusCommitPrologueV3 {
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub epoch: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub round: u64,
+    #[schemars(with = "Option<BigInt<u64>>")]
+    #[serde_as(as = "Option<BigInt<u64>>")]
+    pub sub_dag_index: Option<u64>,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub commit_timestamp_ms: u64,
+    pub consensus_commit_digest: ConsensusCommitDigest,
+    pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaAuthenticatorStateUpdate {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
@@ -1493,6 +1719,8 @@ pub enum IotaEndOfEpochTransactionKind {
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
     RandomnessStateCreate,
     CoinDenyListStateCreate,
+    BridgeStateCreate(CheckpointDigest),
+    BridgeCommitteeUpdate(SequenceNumber),
 }
 
 #[serde_as]
@@ -1609,6 +1837,22 @@ impl IotaProgrammableTransactionBlock {
         })
     }
 
+    async fn try_from_with_package_resolver(
+        value: ProgrammableTransaction,
+        package_resolver: Arc<Resolver<impl PackageStore>>,
+    ) -> Result<Self, anyhow::Error> {
+        let input_types = package_resolver.pure_input_layouts(&value).await?;
+        let ProgrammableTransaction { inputs, commands } = value;
+        Ok(IotaProgrammableTransactionBlock {
+            inputs: inputs
+                .into_iter()
+                .zip(input_types)
+                .map(|(arg, layout)| IotaCallArg::try_from(arg, layout.as_ref()))
+                .collect::<Result<_, _>>()?,
+            commands: commands.into_iter().map(IotaCommand::from).collect(),
+        })
+    }
+
     fn resolve_input_type(
         inputs: &[CallArg],
         commands: &[Command],
@@ -1661,7 +1905,6 @@ fn get_signature_types(
     use std::borrow::Borrow;
     if let Ok(Some(module)) = module_cache.get_module_by_id(&id) {
         let module: &CompiledModule = module.borrow();
-        let view = BinaryIndexedView::Module(module);
         let func = module
             .function_handles
             .iter()
@@ -1671,7 +1914,7 @@ fn get_signature_types(
                 .signature_at(func.parameters)
                 .0
                 .iter()
-                .map(|s| primitive_type(&view, &[], s).1)
+                .map(|s| primitive_type(module, &[], s).1)
                 .collect(),
         )
     } else {
@@ -2132,40 +2375,6 @@ pub enum IotaObjectArg {
         version: SequenceNumber,
         digest: ObjectDigest,
     },
-}
-
-#[serde_as]
-#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename = "LoadedChildObject", rename_all = "camelCase")]
-pub struct IotaLoadedChildObject {
-    object_id: ObjectID,
-    #[schemars(with = "AsSequenceNumber")]
-    #[serde_as(as = "AsSequenceNumber")]
-    sequence_number: SequenceNumber,
-}
-
-impl IotaLoadedChildObject {
-    pub fn new(object_id: ObjectID, sequence_number: SequenceNumber) -> Self {
-        Self {
-            object_id,
-            sequence_number,
-        }
-    }
-
-    pub fn object_id(&self) -> ObjectID {
-        self.object_id
-    }
-
-    pub fn sequence_number(&self) -> SequenceNumber {
-        self.sequence_number
-    }
-}
-
-#[serde_as]
-#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, Default)]
-#[serde(rename_all = "camelCase", rename = "LoadedChildObjectsResponse")]
-pub struct IotaLoadedChildObjectsResponse {
-    pub loaded_child_objects: Vec<IotaLoadedChildObject>,
 }
 
 #[derive(Clone)]

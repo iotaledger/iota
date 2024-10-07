@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::big_int::BigInt;
+use crate::types::big_int::BigInt;
 
 /// IOTA set aside to account for objects stored on-chain.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]

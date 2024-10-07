@@ -197,7 +197,7 @@ pub enum DependencyMode {
 }
 
 /// Wrapper struct to display a package as an inline table in the lock file
-/// (matching the convention in the source manifest). This is necessary because
+/// (matching the convention in the source manifest).  This is necessary because
 /// the `toml` crate does not currently support serializing types as inline
 /// tables.
 struct PackageTOML<'a>(&'a Package);
@@ -1282,7 +1282,7 @@ impl DependencyGraph {
         let mut dev_dependencies = None;
         let mut packages = None;
         if !writer.is_empty() {
-            let toml = writer.parse::<toml_edit::DocumentMut>()?;
+            let toml = writer.parse::<toml_edit::Document>()?;
             if let Some(value) = toml.get("dependencies").and_then(|v| v.as_value()) {
                 dependencies = Some(value.clone());
             }

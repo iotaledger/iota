@@ -69,6 +69,7 @@ export function AccountDropdownMenuItem({
     active?: boolean;
 }) {
     const { mutate: switchAccount } = useSwitchAccount();
+
     return (
         <DropdownMenu.Item
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}

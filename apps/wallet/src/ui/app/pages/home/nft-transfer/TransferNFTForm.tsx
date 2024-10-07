@@ -9,7 +9,7 @@ import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { createNftSendValidationSchema, useGetKioskContents } from '@iota/core';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -46,10 +46,10 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                 return transferKioskItem.mutateAsync({ to });
             }
 
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.transferObjects([tx.object(objectId)], to);
 
-            return signer.signAndExecuteTransactionBlock({
+            return signer.signAndExecuteTransaction({
                 transactionBlock: tx,
                 options: {
                     showInput: true,
@@ -88,11 +88,11 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             initialValues={{
                 to: '',
             }}
-            validateOnMount
+            validateOnChange
             validationSchema={validationSchema}
             onSubmit={({ to }) => transferNFT.mutateAsync(to)}
         >
-            {({ isValid }) => (
+            {({ isValid, dirty }) => (
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
                         <Field
@@ -102,7 +102,11 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                             placeholder="Enter Address"
                         />
 
-                        <Button htmlType={ButtonHtmlType.Submit} disabled={!isValid} text="Send" />
+                        <Button
+                            htmlType={ButtonHtmlType.Submit}
+                            disabled={!(isValid && dirty)}
+                            text="Send"
+                        />
                     </div>
                 </Form>
             )}

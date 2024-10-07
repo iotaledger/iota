@@ -175,6 +175,7 @@
 .pagination-nav__label {
   color: white;
 }
+
 .pagination-nav__link--next {
   background-color: #0101ff;
   display: flex;
@@ -370,6 +371,9 @@ h4 {
 }
 
 /** navbar search field **/
+[data-theme='light'] .DocSearch {
+  --docsearch-searchbox-background: var(--ifm-background-color-dark);
+}
 .DocSearch-Button-Container {
   width: 100%;
   justify-content: space-between;
@@ -410,8 +414,18 @@ h4 {
 }
 
 /** Globals **/
-.button-cta {
+.button{
+  text-wrap: pretty;
   color: var(--iota-white);
+  background: var(--iota-hero-dark);
+}
+.button--success{
+  background: var(--iota-success-dark);
+}
+.button--danger{
+  background: var(--iota-issue-dark);
+}
+.button-cta {
   letter-spacing: -0.3px;
   cursor: pointer;
   border-style: none;
@@ -428,7 +442,6 @@ h4 {
   border-radius: 2px 0px 0px 0px;
   justify-content: space-between;
   opacity: 0px;
-  background: #0101ff;
   align-items: center;
   justify-content: center;
   gap: 1rem;
@@ -448,6 +461,9 @@ h4 {
   .navbar .button-cta {
     display: none;
   }
+}
+.footer {
+  background-color: black;
 }
 
 /** colors **/

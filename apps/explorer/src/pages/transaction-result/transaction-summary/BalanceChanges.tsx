@@ -22,7 +22,9 @@ import {
 import { RecognizedBadge } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useMemo } from 'react';
-import { AddressLink, Coin, CollapsibleCard, CollapsibleSection } from '~/components/ui';
+import { CoinIcon } from '~/components';
+import { AddressLink, CollapsibleCard, CollapsibleSection } from '~/components/ui';
+import { BREAK_POINT, useMediaQuery } from '~/hooks';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -30,7 +32,11 @@ interface BalanceChangesProps {
 
 function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element | null {
     const { amount, coinType, recipient, unRecognizedToken } = change;
-    const [formatted, symbol] = useFormatCoin(amount, coinType, CoinFormat.FULL);
+    const isMdScreen = useMediaQuery(
+        `(min-width: ${BREAK_POINT.md}px) and (max-width: ${BREAK_POINT.lg - 1}px)`,
+    );
+    const coinFormat = isMdScreen ? CoinFormat.ROUNDED : CoinFormat.FULL;
+    const [formatted, symbol] = useFormatCoin(amount, coinType, coinFormat);
     const { data: coinMetaData } = useCoinMetadata(coinType);
     const isPositive = BigInt(amount) > 0n;
 
@@ -42,7 +48,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
         <div className="flex flex-col gap-xs">
             <Card type={CardType.Filled}>
                 <CardImage type={ImageType.BgTransparent}>
-                    <Coin type={coinType} />
+                    <CoinIcon coinType={coinType} />
                 </CardImage>
                 <CardBody
                     title={coinMetaData?.name || symbol}

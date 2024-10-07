@@ -41,10 +41,10 @@ function generateVersion(n: number | undefined) {
     const sha = gitRevSync.short();
     const packageVersion = packageJson.version;
     const version = n !== undefined ? `${packageVersion}.${n}` : packageVersion;
-    const improved_version = n !== undefined ? `${packageVersion}-rc.${n}` : packageVersion;
+    const version_name = n !== undefined ? `${packageVersion}-rc.${n}` : packageVersion;
     return {
         version,
-        version_name: `${improved_version} (${sha})`,
+        version_name: `${version_name} (${sha})`,
     };
 }
 
@@ -201,6 +201,12 @@ const commonConfig: () => Promise<Configuration> = async () => {
                                           key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1uOw+go7YTI8xNuHzIQC7J7x6Jw0in2UPptgcR1c+7aA3XSb03TVZkMXSMslCB7KTpaJOOQK1urLN3/FFos55f3vXixsjHT3pVbX/FhUmBK0kLOx8kl5Ns9ywVgBJyCSEnMrR1IlbiiU8GoXH1Bzb4SxkDELSQIZRetd+zTnwsUx/74grPT4EmgVglHBBYO75iJMsiJ/F0zMEsEQ+0SDfmU0v5Qh8slzryZr+8p8Q/mpNADzwS51o74feeGC5nAM5IgX0LyjRzCLXsiEmdC57KOaCpI7yhzDjXpye374oTdZJulv/tVeA1ymLIKQM5rfyeoqnxSOMsgGsvoM60WoYQIDAQAB',
                                       }
                                     : undefined),
+                                icons: {
+                                    16: `manifest/icons/iota-icon-16${WALLET_RC ? '-rc' : ''}.png`,
+                                    32: `manifest/icons/iota-icon-32${WALLET_RC ? '-rc' : ''}.png`,
+                                    48: `manifest/icons/iota-icon-48${WALLET_RC ? '-rc' : ''}.png`,
+                                    128: `manifest/icons/iota-icon-128${WALLET_RC ? '-rc' : ''}.png`,
+                                },
                             };
                             return JSON.stringify(manifestJson, null, 4);
                         },

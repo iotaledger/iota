@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
-import { Text } from '@iota/ui';
 
-import { Banner, Link, PlaceholderTable, TableCard } from '~/components/ui';
+import { Banner, PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
+import { Panel, Title } from '@iota/apps-ui-kit';
+import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -37,32 +37,29 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
     }
 
     return (
-        <>
-            {isPending && (
-                <PlaceholderTable
-                    rowCount={limit || NUMBER_OF_VALIDATORS}
-                    rowHeight="13px"
-                    colHeadings={['Name', 'Address', 'Stake']}
-                />
-            )}
+        <Panel>
+            <Title title="Top Validators" />
 
-            {isSuccess && (
-                <>
-                    <TableCard data={data.activeValidators} columns={tableColumns} />
-                    <div className="mt-3 flex justify-between">
-                        <Link to="/validators">
-                            <div className="flex items-center gap-2">
-                                View all
-                                <ArrowRight12 fill="currentColor" className="h-3 w-3 -rotate-45" />
-                            </div>
-                        </Link>
-                        <Text variant="body/medium" color="steel-dark">
-                            {data ? data.activeValidators.length : '-'}
-                            {` Total`}
-                        </Text>
-                    </div>
-                </>
-            )}
-        </>
+            <div className="p-md">
+                {isPending && (
+                    <PlaceholderTable
+                        rowCount={limit || NUMBER_OF_VALIDATORS}
+                        rowHeight="13px"
+                        colHeadings={['Name', 'Address', 'Stake']}
+                    />
+                )}
+
+                {isSuccess && (
+                    <ErrorBoundary>
+                        <TableCard
+                            data={data.activeValidators}
+                            columns={tableColumns}
+                            viewAll="/validators"
+                            totalLabel={data ? data.activeValidators.length.toString() : '--'}
+                        />
+                    </ErrorBoundary>
+                )}
+            </div>
+        </Panel>
     );
 }

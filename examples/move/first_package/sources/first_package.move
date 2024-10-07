@@ -75,7 +75,7 @@ module first_package::my_module {
         };
 
         // Check if accessor functions return correct values.
-        assert!(magic(&sword) == 42 && strength(&sword) == 7, 1)
+        assert!(magic(&sword) == 42 && strength(&sword) == 7, 1);
 
         // Create a dummy address and transfer the sword.
         let dummy_address = @0xCAFE;

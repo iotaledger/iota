@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![warn(
     future_incompatible,
     nonstandard_style,
@@ -9,6 +10,7 @@
     rust_2021_compatibility
 )]
 mod benchmark_client;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -16,7 +18,7 @@ use std::{
     sync::Arc,
 };
 
-use benchmark_client::{parse_url, url_to_multiaddr, Client, OperatingMode};
+use benchmark_client::{Client, OperatingMode, parse_url, url_to_multiaddr};
 use clap::{Parser, Subcommand};
 use config::{
     Committee, CommitteeBuilder, Epoch, Export, Import, Parameters, PrometheusMetricsParameters,
@@ -34,7 +36,7 @@ use iota_metrics::start_prometheus_server;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey,
+        AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
@@ -48,7 +50,7 @@ use node::{
     metrics::{primary_metrics_registry, worker_metrics_registry},
 };
 use prometheus::Registry;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{sync::mpsc::channel, time::Duration};
@@ -565,7 +567,7 @@ async fn run(
 
     // Make the data store.
     let certificate_store_cache_metrics =
-        CertificateStoreCacheMetrics::new(&registry_service.default_registry());
+        Arc::new(CertificateStoreCacheMetrics::new(registry_service.clone()));
     let store = NodeStorage::reopen(store_path, Some(certificate_store_cache_metrics.clone()));
 
     let client = NetworkClient::new_from_keypair(&primary_network_keypair);

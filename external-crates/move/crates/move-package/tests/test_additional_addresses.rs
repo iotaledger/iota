@@ -60,6 +60,7 @@ fn test_additonal_addresses() {
                 ..Default::default()
             },
             &mut dependency_cache,
+            None,
             &mut progress_output,
         )
         .is_ok()
@@ -73,6 +74,7 @@ fn test_additonal_addresses() {
                 ..Default::default()
             },
             &mut dependency_cache,
+            None,
             &mut progress_output,
         )
         .is_err()
@@ -122,6 +124,7 @@ fn test_additonal_addresses_already_assigned_same_value() {
                 ..Default::default()
             },
             &mut dependency_cache,
+            None,
             &mut progress_output,
         )
         .is_ok()
@@ -171,6 +174,7 @@ fn test_additonal_addresses_already_assigned_different_value() {
                 ..Default::default()
             },
             &mut dependency_cache,
+            None,
             &mut progress_output,
         )
         .is_err()

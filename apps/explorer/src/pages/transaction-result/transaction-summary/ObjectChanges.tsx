@@ -94,8 +94,8 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
             onOpenChange={(isOpen) => setOpen(isOpen)}
             hideArrow
             render={() => (
-                <div className="flex w-full flex-row items-center justify-between">
-                    <div className="flex flex-row gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
+                <div className="flex w-full flex-row items-center justify-between px-md--rs">
+                    <div className="flex flex-row gap-xxxs text-neutral-40 dark:text-neutral-60">
                         <span className="text-body-md">Object</span>
 
                         <TriangleDown
@@ -107,7 +107,9 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                             )}
                         />
                     </div>
-                    <div className="flex flex-row items-center gap-xxs pr-xxs">{headerContent}</div>
+                    <div className="flex flex-row items-center gap-xxs truncate pr-xxs">
+                        {headerContent}
+                    </div>
                 </div>
             )}
             open={open}
@@ -142,7 +144,7 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
                 </div>
             }
             panelContent={
-                <div className="mt-2 flex flex-col gap-xs capitalize">
+                <div className="flex flex-col gap-xs px-md--rs py-sm--rs capitalize">
                     {objectDetailLabels.map((label) => (
                         <Item
                             key={label}
@@ -177,7 +179,7 @@ function ObjectChangeEntries({
                 <ObjectDetailPanel
                     key={packageId}
                     panelContent={
-                        <div className="mt-2 flex flex-col gap-2">
+                        <div className="px-md-rs flex flex-col gap-2 py-sm--rs">
                             <Item label={ItemLabel.Package} packageId={packageId} />
                             {modules.map((moduleName, index) => (
                                 <Item
@@ -214,28 +216,26 @@ function ObjectChangeEntries({
     }
 
     return (
-        <div className="px-md">
-            <ExpandableList
-                items={expandableItems}
-                defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
-                itemsLabel="Objects"
+        <ExpandableList
+            items={expandableItems}
+            defaultItemsToShow={DEFAULT_ITEMS_TO_SHOW}
+            itemsLabel="Objects"
+        >
+            <div
+                className={clsx('flex gap-2 overflow-y-auto', {
+                    'flex-row': isDisplay,
+                    'flex-col': !isDisplay,
+                })}
             >
-                <div
-                    className={clsx('flex gap-2 overflow-y-auto', {
-                        'flex-row': isDisplay,
-                        'flex-col': !isDisplay,
-                    })}
-                >
-                    <ExpandableListItems />
-                </div>
+                <ExpandableListItems />
+            </div>
 
-                {changeEntries.length > DEFAULT_ITEMS_TO_SHOW && (
-                    <div className="pt-4">
-                        <ExpandableListControl />
-                    </div>
-                )}
-            </ExpandableList>
-        </div>
+            {changeEntries.length > DEFAULT_ITEMS_TO_SHOW && (
+                <div className="pt-4">
+                    <ExpandableListControl />
+                </div>
+            )}
+        </ExpandableList>
     );
 }
 
@@ -289,7 +289,9 @@ export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCard
                             )
                         }
                         supportingTitleElement={
-                            <Badge label={badgeLabel} type={BadgeType.PrimarySoft} />
+                            <div className="ml-1 flex">
+                                <Badge label={badgeLabel} type={BadgeType.PrimarySoft} />
+                            </div>
                         }
                     >
                         <div className="flex flex-col gap-4">

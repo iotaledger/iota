@@ -6,8 +6,8 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use futures::stream::FuturesUnordered;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, IOTA_ADDRESS_LENGTH},
-    crypto::{get_account_key_pair, AccountKeyPair},
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, get_account_key_pair},
     object::Object,
 };
 
@@ -26,12 +26,11 @@ pub async fn batch_create_account_and_gas(
     gas_object_num_per_account: u64,
 ) -> (BTreeMap<IotaAddress, Account>, Vec<Object>) {
     let tasks: FuturesUnordered<_> = (0..num_accounts)
-        .map(|idx| {
-            let starting_id = idx * gas_object_num_per_account;
+        .map(|_| {
             tokio::spawn(async move {
                 let (sender, keypair) = get_account_key_pair();
                 let objects = (0..gas_object_num_per_account)
-                    .map(|i| new_gas_object(starting_id + i, sender))
+                    .map(|_| Object::with_owner_for_testing(sender))
                     .collect::<Vec<_>>();
                 (sender, keypair, objects)
             })
@@ -45,25 +44,12 @@ pub async fn batch_create_account_and_gas(
             .iter()
             .map(|o| o.compute_object_reference())
             .collect();
-        accounts.insert(
+        accounts.insert(sender, Account {
             sender,
-            Account {
-                sender,
-                keypair: Arc::new(keypair),
-                gas_objects: Arc::new(gas_object_refs),
-            },
-        );
+            keypair: Arc::new(keypair),
+            gas_objects: Arc::new(gas_object_refs),
+        });
         genesis_gas_objects.extend(gas_objects);
     }
     (accounts, genesis_gas_objects)
-}
-
-fn new_gas_object(idx: u64, owner: IotaAddress) -> Object {
-    // Predictable and cheaper way of generating object IDs for benchmarking.
-    let mut id_bytes = [0u8; IOTA_ADDRESS_LENGTH];
-    let idx_bytes = idx.to_le_bytes();
-    id_bytes[0] = 255;
-    id_bytes[1..idx_bytes.len() + 1].copy_from_slice(&idx_bytes);
-    let object_id = ObjectID::from_bytes(id_bytes).unwrap();
-    Object::with_id_owner_for_testing(object_id, owner)
 }

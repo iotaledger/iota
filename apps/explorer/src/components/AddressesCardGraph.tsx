@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatDate } from '@iota/core';
+import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
 import { type AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
 import { Heading, LoadingIndicator, Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
@@ -35,12 +35,23 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
     );
 }
 
+const FALLBACK = '--';
+
 export function AddressesCardGraph(): JSX.Element {
     const { data: addressMetrics } = useGetAddressMetrics();
     const { data: allEpochMetrics, isPending } = useGetAllEpochAddressMetrics({
         descendingOrder: false,
     });
     const adjEpochAddressMetrics = useMemo(() => allEpochMetrics?.slice(-30), [allEpochMetrics]);
+
+    const cumulativeAddressesFormatted = addressMetrics?.cumulativeAddresses
+        ? formatBalance(addressMetrics.cumulativeAddresses, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
+    const cumulativeActiveAddressesFormatted = addressMetrics?.cumulativeActiveAddresses
+        ? formatBalance(addressMetrics.cumulativeActiveAddresses, 0, CoinFormat.ROUNDED)
+        : FALLBACK;
+
     return (
         <Panel>
             <Title title="Addresses" size={TitleSize.Medium} />
@@ -50,11 +61,7 @@ export function AddressesCardGraph(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total"
-                            text={
-                                addressMetrics?.cumulativeAddresses
-                                    ? addressMetrics.cumulativeAddresses.toString()
-                                    : '--'
-                            }
+                            text={cumulativeAddressesFormatted}
                         />
                     </div>
 
@@ -62,11 +69,7 @@ export function AddressesCardGraph(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total Active"
-                            text={
-                                addressMetrics?.cumulativeActiveAddresses
-                                    ? addressMetrics.cumulativeActiveAddresses.toString()
-                                    : '--'
-                            }
+                            text={cumulativeActiveAddressesFormatted}
                         />
                     </div>
                 </div>
