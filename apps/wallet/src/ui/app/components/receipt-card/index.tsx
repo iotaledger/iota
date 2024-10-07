@@ -87,10 +87,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 )}
             </div>
             <div className="pt-sm">
-                <ExplorerLinkCard
-                    digest={summary?.digest}
-                    timestamp={summary?.timestamp ?? undefined}
-                />
+                <ExplorerLinkCard digest={summary?.digest} />
             </div>
         </div>
     );
