@@ -3,6 +3,9 @@ title: Asset Tokenization
 description: Learn how to tokenize assets on the IOTA blockchain. Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/advanced-topics/asset-tokenization.json';
+
 Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network. This involves converting the ownership or rights of an asset into digital tokens, which are then recorded and managed on the blockchain.
 
 ## High-level overview
@@ -548,6 +551,8 @@ To represent a new asset as a fractional asset, modify this module to `<template
     User->>unlock module: Use Burn Proof, Asset Cap as input to prove_burn
     unlock module-->>User: Returns Asset Cap
     ```
+
+    <Quiz questions={questions} />
 
     ## Variations
 
