@@ -22,7 +22,7 @@ sequenceDiagram
   Reviewer ->> Service: Send review
   Service ->> Reviewer: Send reward
   Review reader ->> Service: Vote on review
-  Moderator ->> Service: Remove abused review
+  Moderator (multisig) ->> Service: Remove abused review
 ```
 
 ### Service Owners
