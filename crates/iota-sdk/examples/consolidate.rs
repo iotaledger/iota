@@ -26,8 +26,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut chunks = client
         .coin_read_api()
         .get_coins_stream(sender, None)
-        // Max inputs without exceeding the transaction size
-        .chunks(1676)
+        // Max inputs with current params and without exceeding the transaction size is 1676
+        .chunks(1000)
         .boxed();
     while let Some(mut input_coins_one_tx) = chunks.next().await {
         println!("Merging {} coin objects...", input_coins_one_tx.len());
