@@ -58,7 +58,7 @@ export async function genFileTypeMsg(displayString: string, signal: AbortSignal)
         });
 }
 
-export function formatWithFallback<T>(value: string | undefined | null): string | T {
+export function formatWithFallback<T>(value: number | string | undefined | null): string | T {
     if (!value || value === '0') {
         return '--';
     }
