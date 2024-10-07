@@ -334,7 +334,7 @@ impl<T> Stream for ReceiverStream<T> {
 }
 
 impl<T> AsRef<Receiver<T>> for ReceiverStream<T> {
-    /// Get a reference to the inner `Receiver`.
+    /// Gets a reference to the inner `Receiver`.
     fn as_ref(&self) -> &Receiver<T> {
         &self.inner
     }
