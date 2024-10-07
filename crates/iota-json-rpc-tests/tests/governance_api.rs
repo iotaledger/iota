@@ -20,7 +20,7 @@ use iota_types::{
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     id::UID,
-    object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,

@@ -4,7 +4,6 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { type IotaClient } from '@iota/iota-sdk/client';
-import type { SerializedSignature } from '@iota/iota-sdk/cryptography';
 
 import type { BackgroundClient } from '.';
 import { WalletSigner } from '../WalletSigner';
@@ -27,7 +26,7 @@ export class BackgroundServiceSigner extends WalletSigner {
         return this.#account.address;
     }
 
-    signData(data: Uint8Array): Promise<SerializedSignature> {
+    signData(data: Uint8Array): Promise<string> {
         return this.#backgroundClient.signData(this.#account.id, data);
     }
 
