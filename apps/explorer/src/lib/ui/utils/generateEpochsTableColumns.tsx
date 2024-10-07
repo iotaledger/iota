@@ -6,7 +6,7 @@ import type { EpochMetrics } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
-import { getEpochStorageFundFlow } from '~/lib/utils';
+import { formatWithFallback, getEpochStorageFundFlow } from '~/lib/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
@@ -34,7 +34,7 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                 const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochTotalTransactions}</TableCellText>
+                        <TableCellText>{formatWithFallback(epochTotalTransactions)}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -48,7 +48,9 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
                     epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
                 return (
                     <TableCellBase>
-                        <TableCellText>{totalStakeRewardsDistributed ?? '0'}</TableCellText>
+                        <TableCellText>
+                            {formatWithFallback(totalStakeRewardsDistributed)}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

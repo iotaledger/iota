@@ -10,6 +10,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
+import { formatWithFallback } from '~/lib/utils';
 
 /**
  * Generate table columns renderers for the transactions data.
@@ -57,7 +58,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                         : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText>{txns}</TableCellText>
+                        <TableCellText>{formatWithFallback(txns)}</TableCellText>
                     </TableCellBase>
                 );
             },
