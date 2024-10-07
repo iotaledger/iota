@@ -5,7 +5,7 @@
 import { CoinItem } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type CoinBalance } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -22,7 +22,7 @@ export function TokenLink({ coinBalance, clickableAction, icon }: TokenLinkProps
             onClick={() =>
                 ampli.selectedCoin({
                     coinType: coinBalance.coinType,
-                    totalBalance: Number(BigInt(coinBalance.totalBalance) / NANO_PER_IOTA),
+                    totalBalance: Number(BigInt(coinBalance.totalBalance) / NANOS_PER_IOTA),
                 })
             }
             key={coinBalance.coinType}
