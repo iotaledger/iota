@@ -57,7 +57,7 @@ export class Secp256k1PublicKey extends PublicKey {
     }
 
     /**
-     * Return the Iota address associated with this Secp256k1 public key
+     * Return the IOTA address associated with this Secp256k1 public key
      */
     flag(): number {
         return SIGNATURE_SCHEME_TO_FLAG['Secp256k1'];

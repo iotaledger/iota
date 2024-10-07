@@ -110,7 +110,7 @@ export default function MultiSigCombineSignatureGenerator() {
             </h2>
 
             <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
-                <p>The following demo allow you to create Iota MultiSig Combined Signatures.</p>
+                <p>The following demo allow you to create IOTA MultiSig Combined Signatures.</p>
                 <p>Iota Pubkeys, weights, signatures for testing/playing with:</p>
                 <div className="flex flex-col gap-2 bg-gray-600 p-4 rounded-md">
                     <div className="flex gap-0 border-b">

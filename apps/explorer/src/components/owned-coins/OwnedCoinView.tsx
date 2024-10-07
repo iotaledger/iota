@@ -41,7 +41,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                 <div className="mr-auto flex flex-row items-center gap-md">
                     <CardBody {...CARD_BODY} />
                     {!coin.isRecognized && (
-                        <Tooltip text="This coin has not been recognized by Iota Foundation.">
+                        <Tooltip text="This coin has not been recognized by IOTA Foundation.">
                             <Warning />
                         </Tooltip>
                     )}
