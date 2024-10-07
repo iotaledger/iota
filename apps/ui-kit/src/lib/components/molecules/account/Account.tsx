@@ -5,7 +5,7 @@ import React from 'react';
 import cx from 'classnames';
 import { ButtonUnstyled } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
-import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled } from '@iota/ui-icons';
+import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled, RadioOff } from '@iota/ui-icons';
 import { Address } from '../address';
 
 interface AccountProps {
@@ -105,6 +105,9 @@ export function Account({
             className={cx(
                 'state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
                 isActive && 'state-active',
+                {
+                    'opacity-60': isLocked && showSelected,
+                },
             )}
         >
             <div className="flex items-center space-x-3">
@@ -127,7 +130,7 @@ export function Account({
                 </div>
             </div>
             <div className="z-10 ml-auto flex items-center space-x-2 [&_button]:h-5 [&_button]:w-5 [&_svg]:h-5 [&_svg]:w-5">
-                <div className="flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex [&_svg]:text-neutral-40 [&_svg]:dark:text-neutral-60">
+                <div className="flex items-center space-x-2 [&_button:not(.locked)]:hidden group-hover:[&_button:not(.locked)]:flex [&_svg]:text-neutral-40 [&_svg]:dark:text-neutral-60">
                     {onOptionsClick && (
                         <ButtonUnstyled onClick={onOptionsClick}>
                             <MoreHoriz />
@@ -136,10 +139,11 @@ export function Account({
                     {onLockAccountClick &&
                         onUnlockAccountClick &&
                         (isLocked ? (
-                            <div className="unlock">
+                            <div className="flex items-center">
                                 <ButtonUnstyled
                                     onClick={onUnlockAccountClick}
                                     testId="account-unlock"
+                                    className="locked"
                                 >
                                     <LockLocked />
                                 </ButtonUnstyled>
@@ -152,11 +156,11 @@ export function Account({
                 </div>
                 {showSelected && (
                     <ButtonUnstyled>
-                        <CheckmarkFilled
-                            className={cx({
-                                'text-primary-30': isSelected,
-                            })}
-                        />
+                        {isSelected ? (
+                            <CheckmarkFilled className="h-5 w-5 text-primary-30" />
+                        ) : (
+                            <RadioOff className="h-5 w-5 text-neutral-40 dark:text-neutral-60" />
+                        )}
                     </ButtonUnstyled>
                 )}
             </div>
