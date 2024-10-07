@@ -135,7 +135,7 @@ export function ValidatorsCard() {
                 </div>
             </div>
             <div className="pt-md">
-            <Button fullWidth type={ButtonType.Primary} text="Stake" onClick={handleNewStake} />
+                <Button fullWidth type={ButtonType.Primary} text="Stake" onClick={handleNewStake} />
             </div>
         </div>
     );
