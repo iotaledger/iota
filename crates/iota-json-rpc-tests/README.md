@@ -95,7 +95,7 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [ ] `get_protocol_config`
 - [ ] `get_chain_identifier`
 
-### `TransactionBuilder` (7/15)
+### `TransactionBuilder` (15/15)
 
 - [x] `transfer_object`
 - [x] `transfer_iota`
@@ -104,10 +104,10 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [x] `pay_all_iota`
 - [x] `move_call`
 - [x] `publish`
-- [ ] `split_coin`
-- [ ] `split_coin_equal`
-- [ ] `merge_coin`
-- [ ] `batch_transaction`
+- [x] `split_coin`
+- [x] `split_coin_equal`
+- [x] `merge_coin`
+- [x] `batch_transaction`
 - [x] `request_add_stake`
 - [x] `request_withdraw_stake`
 - [x] `request_add_timelocked_stake`

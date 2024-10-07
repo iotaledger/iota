@@ -7,22 +7,22 @@ use std::{collections::BTreeMap, path::Path};
 
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
-    CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    TransactionBlockBytes,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, MoveCallParams,
+    ObjectChange, RPCTransactionRequestParams, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -85,7 +85,7 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
     let tx = cluster
         .wallet
         .sign_transaction(&transaction_bytes.clone().to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+    let (tx_bytes, _signatures) = tx.to_tx_bytes_and_signatures();
 
     let dryrun_response = http_client.dry_run_transaction_block(tx_bytes).await?;
 
@@ -340,6 +340,296 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         .unwrap();
 
     matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
+    Ok(())
+}
+
+#[sim_test]
+async fn test_split_coin() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(2))
+        .await
+        .unwrap()
+        .data;
+    let coin_to_split = &coins[0];
+    let gas = &coins[1];
+
+    let new_coin_1_amount = 100;
+    let new_coin_2_amount = 200;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .split_coin(
+            address,
+            coin_to_split.coin_object_id,
+            vec![new_coin_1_amount.into(), new_coin_2_amount.into()],
+            Some(gas.coin_object_id),
+            10_000_000.into(),
+        )
+        .await?;
+
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
+
+    let new_coin_ids: Vec<ObjectID> = tx_response
+        .effects
+        .unwrap()
+        .created()
+        .iter()
+        .map(|coin| coin.object_id())
+        .collect();
+    let coins = http_client
+        .get_coins(address, None, None, Some(100))
+        .await
+        .unwrap()
+        .data;
+
+    let mut new_coin_balances: Vec<u64> = coins
+        .iter()
+        .filter(|coin| new_coin_ids.contains(&coin.coin_object_id))
+        .map(|coin| coin.balance)
+        .collect();
+    new_coin_balances.sort();
+    let splitted_coin_balance = coins
+        .iter()
+        .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
+        .unwrap()
+        .balance;
+
+    let expected_splitted_coin_balane =
+        coin_to_split.balance - new_coin_1_amount - new_coin_2_amount;
+
+    assert_eq!(
+        new_coin_balances,
+        vec![new_coin_1_amount, new_coin_2_amount]
+    );
+    assert_eq!(splitted_coin_balance, expected_splitted_coin_balane);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(2))
+        .await
+        .unwrap()
+        .data;
+    let coin_to_split = &coins[0];
+    let gas = &coins[1];
+
+    let split_count = 7;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .split_coin_equal(
+            address,
+            coin_to_split.coin_object_id,
+            split_count.into(),
+            Some(gas.coin_object_id),
+            10_000_000.into(),
+        )
+        .await?;
+
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
+
+    let new_coin_ids: Vec<ObjectID> = tx_response
+        .effects
+        .unwrap()
+        .created()
+        .iter()
+        .map(|coin| coin.object_id())
+        .collect();
+    let coins = http_client
+        .get_coins(address, None, None, Some(100))
+        .await
+        .unwrap()
+        .data;
+    let mut new_coin_balances: Vec<u64> = coins
+        .iter()
+        .filter(|coin| new_coin_ids.contains(&coin.coin_object_id))
+        .map(|coin| coin.balance)
+        .collect();
+    new_coin_balances.sort();
+    let splitted_coin_balance = coins
+        .iter()
+        .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
+        .unwrap()
+        .balance;
+
+    let original_coin_balance = coin_to_split.balance;
+    let expected_new_coin_balances = 4_285_714_285_714_285;
+    let expected_splitted_coin_balance =
+        original_coin_balance - (expected_new_coin_balances * (split_count - 1));
+
+    assert_eq!(original_coin_balance, 30_000_000_000_000_000);
+    assert_eq!(expected_splitted_coin_balance, 4_285_714_285_714_290);
+    assert_eq!(
+        new_coin_balances,
+        vec![
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances
+        ]
+    );
+    assert_eq!(splitted_coin_balance, expected_splitted_coin_balance);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_merge_coin() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(3))
+        .await
+        .unwrap()
+        .data;
+    let primary_coin = &coins[0];
+    let coin_to_merge = &coins[1];
+    let gas = &coins[2];
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .merge_coin(
+            address,
+            primary_coin.coin_object_id,
+            coin_to_merge.coin_object_id,
+            Some(gas.coin_object_id),
+            10_000_000.into(),
+        )
+        .await?;
+
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
+
+    let deleted_coin_ids: Vec<ObjectID> = tx_response
+        .effects
+        .unwrap()
+        .deleted()
+        .iter()
+        .map(|coin| coin.object_id)
+        .collect();
+    let coins = http_client
+        .get_coins(address, None, None, Some(100))
+        .await
+        .unwrap()
+        .data;
+    let new_primary_coin_balance = coins
+        .iter()
+        .find(|coin| coin.coin_object_id == primary_coin.coin_object_id)
+        .unwrap()
+        .balance;
+    let expected_balance_after_merge = primary_coin.balance + coin_to_merge.balance;
+
+    assert_eq!(new_primary_coin_balance, expected_balance_after_merge);
+    assert_eq!(deleted_coin_ids, vec![coin_to_merge.coin_object_id]);
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_batch_transaction() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(3))
+        .await
+        .unwrap()
+        .data;
+    let coin_to_split = &coins[0];
+    let coin_to_transfer = &coins[1];
+    let gas = &coins[2];
+    let amount_to_split = 10;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .batch_transaction(
+            address,
+            vec![
+                RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    module: "pay".to_string(),
+                    function: "split".to_string(),
+                    type_arguments: type_args![GAS::type_tag()]?,
+                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?,
+                }),
+                RPCTransactionRequestParams::TransferObjectRequestParams(TransferObjectParams {
+                    recipient: other_address,
+                    object_id: coin_to_transfer.coin_object_id,
+                }),
+            ],
+            Some(gas.coin_object_id),
+            10_000_000.into(),
+            None,
+        )
+        .await?;
+
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
+
+    // Assert results of the move call
+    {
+        let created_coin_ids: Vec<ObjectID> = tx_response
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .map(|coin| coin.object_id())
+            .collect();
+        let coins = http_client
+            .get_coins(address, None, None, Some(100))
+            .await
+            .unwrap()
+            .data;
+        let splitted_coin_balance = coins
+            .iter()
+            .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
+            .unwrap()
+            .balance;
+        let new_coin_balances: Vec<u64> = coins
+            .iter()
+            .filter(|coin| created_coin_ids.contains(&coin.coin_object_id))
+            .map(|coin| coin.balance)
+            .collect();
+        let expected_splitted_coin_balance = coin_to_split.balance - amount_to_split;
+
+        assert_eq!(splitted_coin_balance, expected_splitted_coin_balance);
+        assert_eq!(new_coin_balances, vec![amount_to_split]);
+    }
+
+    // Assert results of object transfer
+    {
+        let transferred_object = http_client
+            .get_object(
+                coin_to_transfer.coin_object_id,
+                Some(IotaObjectDataOptions::new().with_owner()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            transferred_object.owner(),
+            Some(Owner::AddressOwner(other_address))
+        );
+    }
+
     Ok(())
 }
 
