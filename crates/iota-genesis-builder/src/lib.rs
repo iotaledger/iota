@@ -719,6 +719,8 @@ impl Builder {
             migration_tx_data
                 .validate_from_unsigned_genesis(&unsigned_genesis)
                 .expect("The migration data is corrupted");
+        } else {
+            assert!(self.is_vanilla());
         }
     }
 

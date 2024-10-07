@@ -309,43 +309,36 @@ impl AuthorityStore {
                     .enumerate_transactions(&genesis.checkpoint())
                     .for_each(|(_, execution_digest)| {
                         let tx_digest = &execution_digest.transaction;
-
                         if tx_digest != genesis.transaction().digest() {
-                            {
-                                if let Some((tx, effects, events)) = txs_data.get(tx_digest) {
-                                    let transaction =
-                                        VerifiedTransaction::new_unchecked(tx.clone());
-                                    let objects = migration_transactions
-                                        .objects_by_tx_digest(*tx_digest)
-                                        .expect("The migration data is corrupted");
-                                    store
-                                        .bulk_insert_genesis_objects(&objects)
-                                        .expect("Cannot bulk insert migrated objects");
+                            if let Some((tx, effects, events)) = txs_data.get(tx_digest) {
+                                let transaction = VerifiedTransaction::new_unchecked(tx.clone());
+                                let objects = migration_transactions
+                                    .objects_by_tx_digest(*tx_digest)
+                                    .expect("The migration data is corrupted");
+                                store
+                                    .bulk_insert_genesis_objects(&objects)
+                                    .expect("Cannot bulk insert migrated objects");
 
-                                    store
-                                        .perpetual_tables
-                                        .transactions
-                                        .insert(
-                                            transaction.digest(),
-                                            transaction.serializable_ref(),
-                                        )
-                                        .expect("Cannot insert migration transaction");
+                                store
+                                    .perpetual_tables
+                                    .transactions
+                                    .insert(transaction.digest(), transaction.serializable_ref())
+                                    .expect("Cannot insert migration transaction");
 
-                                    store
-                                        .perpetual_tables
-                                        .effects
-                                        .insert(&effects.digest(), effects)
-                                        .expect("Cannot insert migration effects");
+                                store
+                                    .perpetual_tables
+                                    .effects
+                                    .insert(&effects.digest(), effects)
+                                    .expect("Cannot insert migration effects");
 
-                                    let events = events
-                                        .data
-                                        .iter()
-                                        .enumerate()
-                                        .map(|(i, e)| ((events.digest(), i), e));
-                                    store.perpetual_tables.events.multi_insert(events).unwrap();
-                                } else {
-                                    panic!("tx digest not found in migrated objects blob");
-                                }
+                                let events = events
+                                    .data
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, e)| ((events.digest(), i), e));
+                                store.perpetual_tables.events.multi_insert(events).unwrap();
+                            } else {
+                                panic!("tx digest not found in migrated objects blob");
                             }
                         }
                     })

@@ -63,7 +63,7 @@ impl MigrationTxData {
                         let object = ObjectInner {
                             data: data.to_owned(),
                             owner: owner.to_owned(),
-                            previous_transaction: tx.digest().clone(),
+                            previous_transaction: *tx.digest(),
                             storage_rebate: 0,
                         };
                         migration_objects.push(object.into());
@@ -85,15 +85,12 @@ impl MigrationTxData {
         assert_eq!(checkpoint.content_digest, *contents.digest());
 
         for (valid_tx_digest, valid_effects_digest) in contents.iter().filter_map(|exec_digest| {
-            if exec_digest.transaction != genesis_tx_digest {
-                Some((&exec_digest.transaction, &exec_digest.effects))
-            } else {
-                None
-            }
+            (exec_digest.transaction != genesis_tx_digest)
+                .then_some((&exec_digest.transaction, &exec_digest.effects))
         }) {
             let (tx, effects, events) = self
                 .inner
-                .get(&valid_tx_digest)
+                .get(valid_tx_digest)
                 .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
 
             if &effects.digest() != valid_effects_digest
