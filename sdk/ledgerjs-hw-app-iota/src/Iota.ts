@@ -37,7 +37,7 @@ enum HostToLedger {
 }
 
 /**
- * IOTA API
+ * Iota API
  *
  * @example
  * import Iota from "@iota/ledgerjs-hw-app-iota";
