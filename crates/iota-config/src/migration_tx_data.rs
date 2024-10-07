@@ -10,8 +10,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_types::{
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    digests::{TransactionDigest, TransactionEffectsDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    message_envelope::Message,
     object::{Object, ObjectInner},
     transaction::{GenesisTransaction, Transaction, TransactionDataAPI},
 };
@@ -70,6 +71,34 @@ impl MigrationTxData {
             panic!("Wrong transaction type of migration data");
         }
         Ok(migration_objects)
+    }
+
+    pub fn is_valid(
+        &self,
+        valid_tx_digests: &TransactionDigest,
+        valid_effects_digest: &TransactionEffectsDigest,
+    ) -> Result<bool, anyhow::Error> {
+        let (tx, effects, events) = self
+            .inner
+            .get(valid_tx_digests)
+            .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
+
+        if &effects.digest() != valid_effects_digest
+            || effects.transaction_digest() != valid_tx_digests
+            || &tx.data().digest() != valid_tx_digests
+        {
+            return Ok(false);
+        }
+
+        if let Some(valid_events) = effects.events_digest() {
+            if &events.digest() != valid_events {
+                return Ok(false);
+            }
+        } else if !events.data.is_empty() {
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
