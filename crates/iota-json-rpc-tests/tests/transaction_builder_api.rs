@@ -15,11 +15,11 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
     gas_coin::GAS,
     quorum_driver_types::ExecuteTransactionRequestType,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use test_cluster::TestClusterBuilder;
 
