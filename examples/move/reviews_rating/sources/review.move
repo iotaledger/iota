@@ -31,6 +31,20 @@ module reviews_rating::review {
         overall_rate: u8,
     }
 
+    /// Updates the total score of a review
+    fun update_total_score(rev: &mut Review) {
+        rev.total_score = rev.calculate_total_score();
+    }
+
+    /// Calculates the total score of a review
+    fun calculate_total_score(rev: &Review): u64 {
+        let mut intrinsic_score: u64 = rev.len;
+        intrinsic_score = intrinsic_score.min(150);
+        let extrinsic_score: u64 = 10 * rev.votes;
+        let vm: u64 = if (rev.has_poe) { 2 } else { 1 };
+        (intrinsic_score + extrinsic_score) * vm
+    }
+
     /// Creates a new review
     public(package) fun new_review(
         owner: address,
@@ -66,20 +80,6 @@ module reviews_rating::review {
             has_poe: _, total_score: _, overall_rate: _
         } = rev;
         object::delete(id);
-    }
-
-    /// Calculates the total score of a review
-    fun calculate_total_score(rev: &Review): u64 {
-        let mut intrinsic_score: u64 = rev.len;
-        intrinsic_score = intrinsic_score.min(150);
-        let extrinsic_score: u64 = 10 * rev.votes;
-        let vm: u64 = if (rev.has_poe) { 2 } else { 1 };
-        (intrinsic_score + extrinsic_score) * vm
-    }
-
-    /// Updates the total score of a review
-    fun update_total_score(rev: &mut Review) {
-        rev.total_score = rev.calculate_total_score();
     }
 
     /// Upvotes a review

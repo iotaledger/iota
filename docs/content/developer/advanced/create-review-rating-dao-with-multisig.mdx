@@ -106,11 +106,6 @@ iota client execute-signed-tx --tx-bytes <TX_BYTES> --signatures <SERIALIZED-MUL
 The transaction will now be processed, and the review will be removed from the platform.
 This multisig setup ensures that no single moderator can act unilaterally, thus maintaining fairness and accountability on the platform.
 
-:::info
-
-See how to create a [Multisig](../cryptography/transaction-auth/multisig.mdx) transactions.
-:::
-
 ## How reviews are scored
 
 The reviews are scored on chain using the following criteria:
@@ -131,13 +126,12 @@ There are several modules that create the backend logic for the example.
 
 The `dashboard.move` module defines the `Dashboard` struct that groups services.
 
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/dashboard.move#L11-L15
+```move file=<rootDir>/examples/move/reviews_rating/sources/dashboard.move#L10-L14
 ```
-
 
 The services are grouped by attributes, which can be cuisine type, geographical location, operating hours, Google Maps ID, and so on. To keep it basic, the example stores only `service_type` (for example, fast food, Chinese, Italian).
 
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/dashboard.move#L17-L27
+```move file=<rootDir>/examples/move/reviews_rating/sources/dashboard.move#L16-L26
 
 ```
 
@@ -177,11 +171,7 @@ See [Shared versus Owned Objects](../iota-101/objects/object-ownership/shared.md
 
 This module defines the `Review` struct.
 
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/review.move#L16-L33
-```
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/review.move#L81-L84
-```
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/review.move#L72-L79
+```move file=<rootDir>/examples/move/reviews_rating/sources/review.move#L15-L46
 ```
 
 In addition to the content of a review, all the elements that are required to compute total score are stored in a `Review` object.
@@ -220,7 +210,7 @@ After `total_score` is updated, the [`update_top_reviews`](#casting-votes) funct
 
 This module defines the `Service` struct that service owners manage.
 
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/service.move#L31-L39
+```move file=<rootDir>/examples/move/reviews_rating/sources/service.move#L30-L39
 ```
 
 ### Reward Distribution
@@ -241,7 +231,7 @@ The elements of `top_reviews` are sorted by the `total_score` of the reviews, wi
 
 A reader can cast a vote on a review to rate it as follows:
 
-```move file=<rootDir>/docs/examples/move/review_rating_dao_with_multisig/sources/service.move#L82-L132
+```move file=<rootDir>/examples/move/reviews_rating/sources/service.move#L82-L145
 ```
 
 #### Code Explanation
