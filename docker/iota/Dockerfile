@@ -43,7 +43,7 @@ RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";
 FROM debian:bullseye-slim AS runtime
 
 # iota-tool needs libpq at runtime
-RUN apt-get update && apt-get install -y libpq5 libpq-dev
+RUN apt-get update && apt-get install -y libpq5 libpq-dev curl
 
 COPY --from=builder /iota/iota /usr/local/bin
 

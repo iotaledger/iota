@@ -62,22 +62,38 @@ pub struct NodeConfig {
     pub network_key_pair: KeyPairWithPath,
 
     pub db_path: PathBuf,
+
+    /// The network address for gRPC communication.
+    ///
+    /// Can be overwritten with args `listen-address` parameters.
     #[serde(default = "default_grpc_address")]
     pub network_address: Multiaddr,
     #[serde(default = "default_json_rpc_address")]
     pub json_rpc_address: SocketAddr,
 
+    /// Flag to enable the experimental REST API under `/rest`
+    /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]
     pub enable_experimental_rest_api: bool,
 
+    /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
     pub metrics_address: SocketAddr,
+
+    /// The port for the admin interface that is
+    /// run in the metrics separate runtime and provides access to
+    /// admin node commands such as logging and tracing options.
     #[serde(default = "default_admin_interface_port")]
     pub admin_interface_port: u16,
 
+    /// Configuration struct for the consensus.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
 
+    /// Flag to enable index processing for a full node.
+    ///
+    /// If set to true, node creates `IndexStore` for transaction
+    /// data including ownership and balance information.
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
 
@@ -92,17 +108,26 @@ pub struct NodeConfig {
     /// - 'both' for both a websocket and http based service (deprecated)
     pub jsonrpc_server_type: Option<ServerType>,
 
+    /// Flag to enable gRPC load shedding to manage and
+    /// mitigate overload conditions by shedding excess
+    /// load with `LoadShedLayer` middleware.
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
     #[serde(default = "default_concurrency_limit")]
     pub grpc_concurrency_limit: Option<usize>,
 
+    /// Configuration struct for P2P.
     #[serde(default)]
     pub p2p_config: P2pConfig,
 
+    /// Contains genesis location that might be `InPlace`
+    /// for reading all genesis data to memory or `InFile`,
+    /// and `OnceCell` pointer to a genesis struct.
     pub genesis: Genesis,
 
+    /// Configuration for pruning of the authority store, to define when
+    /// an old data is removed from the storage space.
     #[serde(default = "default_authority_store_pruning_config")]
     pub authority_store_pruning_config: AuthorityStorePruningConfig,
 
@@ -113,6 +138,9 @@ pub struct NodeConfig {
     #[serde(default = "default_end_of_epoch_broadcast_channel_capacity")]
     pub end_of_epoch_broadcast_channel_capacity: usize,
 
+    /// Configuration for the checkpoint executor for limiting
+    /// the number of checkpoints to execute concurrently,
+    /// and to allow for checkpoint post-processing.
     #[serde(default)]
     pub checkpoint_executor_config: CheckpointExecutorConfig,
 
@@ -123,30 +151,50 @@ pub struct NodeConfig {
     #[serde(skip)]
     pub supported_protocol_versions: Option<SupportedProtocolVersions>,
 
+    /// Configuration to manage database checkpoints,
+    /// including whether to perform checkpoints at the end of an epoch,
+    /// the path for storing checkpoints, and other related settings.
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
+    /// Defines a threshold for an object size above which object
+    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
     #[serde(default)]
     pub indirect_objects_threshold: usize,
 
+    /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
 
+    /// Configuration to specify rules for denying transactions
+    /// based on `objectsIDs`, `addresses`, or enable/disable many
+    /// features such as publishing new packages or using shared objects.
     #[serde(default)]
     pub transaction_deny_config: TransactionDenyConfig,
 
+    /// Config used to deny execution for certificate digests
+    /// know for crashing or hanging validator nodes.
+    ///
+    /// Should be used for a fast temporary fixes and
+    /// removed once the issue is fixed.
     #[serde(default)]
     pub certificate_deny_config: CertificateDenyConfig,
 
+    /// Used to determine how state debug information is dumped
+    /// when a node forks.
     #[serde(default)]
     pub state_debug_dump_config: StateDebugDumpConfig,
 
+    /// Configuration for writing state archive. If `ObjectStorage`
+    /// config is provided, `ArchiveWriter` will be created
+    /// for checkpoints archival.
     #[serde(default)]
     pub state_archive_write_config: StateArchiveConfig,
 
     #[serde(default)]
     pub state_archive_read_config: Vec<StateArchiveConfig>,
 
+    /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
     pub state_snapshot_write_config: StateSnapshotConfig,
 
@@ -156,6 +204,7 @@ pub struct NodeConfig {
     #[serde(default = "default_transaction_kv_store_config")]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
+    // TODO: write config seem to be unused.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_kv_store_write_config: Option<TransactionKeyValueStoreWriteConfig>,
 
@@ -165,9 +214,14 @@ pub struct NodeConfig {
     #[serde(default = "default_zklogin_oauth_providers")]
     pub zklogin_oauth_providers: BTreeMap<Chain, BTreeSet<String>>,
 
+    /// Configuration for defining thresholds and settings
+    /// for managing system overload conditions in a node.
     #[serde(default = "default_authority_overload_config")]
     pub authority_overload_config: AuthorityOverloadConfig,
 
+    /// Specifies the ending epoch for a node for debugging purposes.
+    ///
+    ///  Ignored if set by config, can be configured only by cli arguments.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_with_range: Option<RunWithRange>,
 
@@ -421,17 +475,21 @@ pub struct ConsensusConfig {
 
     /// Maximum number of pending transactions to submit to consensus, including
     /// those in submission wait.
+    ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
     /// consensus latency.
     pub max_pending_transactions: Option<usize>,
 
     /// When defined caps the calculated submission position to the
-    /// max_submit_position. Even if the is elected to submit from a higher
+    /// max_submit_position.
+    ///
+    /// Even if the is elected to submit from a higher
     /// position than this, it will "reset" to the max_submit_position.
     pub max_submit_position: Option<usize>,
 
-    /// The submit delay step to consensus defined in milliseconds. When
-    /// provided it will override the current back off logic otherwise the
+    /// The submit delay step to consensus defined in milliseconds.
+    ///
+    /// When provided it will override the current back off logic otherwise the
     /// default backoff logic will be applied based on consensus latency
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
@@ -481,7 +539,7 @@ impl ConsensusConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct CheckpointExecutorConfig {
     /// Upper bound on the number of checkpoints that can be concurrently
-    /// executed
+    /// executed.
     ///
     /// If unspecified, this will default to `200`
     #[serde(default = "default_checkpoint_execution_max_concurrency")]
@@ -489,15 +547,16 @@ pub struct CheckpointExecutorConfig {
 
     /// Number of seconds to wait for effects of a batch of transactions
     /// before logging a warning. Note that we will continue to retry
-    /// indefinitely
+    /// indefinitely.
     ///
     /// If unspecified, this will default to `10`.
     #[serde(default = "default_local_execution_timeout_sec")]
     pub local_execution_timeout_sec: u64,
 
-    /// Optional directory used for data ingestion pipeline
+    /// Optional directory used for data ingestion pipeline.
+    ///
     /// When specified, each executed checkpoint will be saved in a local
-    /// directory for post processing
+    /// directory for post-processing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_ingestion_dir: Option<PathBuf>,
 }
@@ -514,7 +573,7 @@ pub struct ExpensiveSafetyCheckConfig {
 
     /// If enabled, we will check that the total IOTA in all input objects of a
     /// tx (both the Move part and the storage rebate) matches the total IOTA
-    /// in all output objects of the tx + gas fees
+    /// in all output objects of the tx + gas fees.
     #[serde(default)]
     enable_deep_per_tx_iota_conservation_check: bool,
 
