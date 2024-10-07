@@ -7,12 +7,12 @@ use std::path::PathBuf;
 use iota_macros::*;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::{Owner, OBJECT_START_VERSION},
+    object::{OBJECT_START_VERSION, Owner},
     transaction::{CallArg, ObjectArg},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -178,10 +178,9 @@ impl TestEnvironment {
         counter: ObjectRef,
     ) -> Result<(ObjectRef, Owner), ExecutionFailureStatus> {
         let (fx, _) = self
-            .move_call(
-                "share_counter",
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(counter))],
-            )
+            .move_call("share_counter", vec![CallArg::Object(
+                ObjectArg::ImmOrOwnedObject(counter),
+            )])
             .await
             .unwrap();
 
@@ -198,10 +197,9 @@ impl TestEnvironment {
 
     async fn increment_owned_counter(&self, counter: ObjectRef) -> (ObjectRef, Owner) {
         let (fx, _) = self
-            .move_call(
-                "increment_counter",
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(counter))],
-            )
+            .move_call("increment_counter", vec![CallArg::Object(
+                ObjectArg::ImmOrOwnedObject(counter),
+            )])
             .await
             .unwrap();
 
@@ -217,14 +215,13 @@ impl TestEnvironment {
         initial_shared_version: SequenceNumber,
     ) -> anyhow::Result<(ObjectRef, Owner)> {
         let (fx, _) = self
-            .move_call(
-                "increment_counter",
-                vec![CallArg::Object(ObjectArg::SharedObject {
+            .move_call("increment_counter", vec![CallArg::Object(
+                ObjectArg::SharedObject {
                     id: counter,
                     initial_shared_version,
                     mutable: true,
-                })],
-            )
+                },
+            )])
             .await?;
 
         Ok(*fx

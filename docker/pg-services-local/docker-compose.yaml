@@ -1,9 +1,9 @@
 services:
   local-network:
-    image: iota-test-validator
+    image: iota
     build:
       context: ../../
-      dockerfile: docker/iota-test-validator/Dockerfile
+      dockerfile: docker/iota/Dockerfile
       args:
         - GIT_REVISION
         - BUILD_DATE
@@ -16,17 +16,24 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
-      - /usr/local/bin/iota-test-validator
-      - --fullnode-rpc-host=0.0.0.0
+      - /usr/local/bin/iota
+      - start
+      - --with-faucet=0.0.0.0:9123
       - --fullnode-rpc-port=9000
-      - --faucet-port=9123
       - --epoch-duration-ms=120000
       - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
+      - --force-regenesis
     expose:
       - 9000
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9123:9123"
+    healthcheck:
+      test: "curl -f http://local-network:9000/rest/"
+      interval: 1s
+      start_period: 5s
+      timeout: 2s
+      retries: 3
 
   indexer-sync:
     image: iota-indexer
@@ -139,9 +146,13 @@ services:
       - "127.0.0.1:8000:8000/tcp"
       - "127.0.0.1:9183:9181/tcp"
     depends_on:
-      - local-network
-      - postgres
-      - indexer-sync
+      local-network:
+        condition: service_healthy
+        restart: true
+      postgres:
+        condition: service_healthy
+      indexer-sync:
+        condition: service_started
 
   postgres:
     image: postgres:15

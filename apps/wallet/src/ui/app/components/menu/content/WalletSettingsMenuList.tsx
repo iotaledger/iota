@@ -19,6 +19,7 @@ import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/ui-icons';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import {
+    ButtonType,
     Card,
     CardAction,
     CardActionType,
@@ -129,10 +130,10 @@ function MenuList() {
                     ))}
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
-                        confirmText="Logout"
-                        confirmStyle="outlineWarning"
-                        title="Are you sure you want to Logout?"
-                        hint="You will need to set up all your accounts again."
+                        confirmText="Reset"
+                        confirmStyle={ButtonType.Destructive}
+                        title="Are you sure you want to reset?"
+                        hint="This will clear all your data and you will need to set up all your accounts again."
                         onResponse={async (confirmed) => {
                             setIsLogoutDialogOpen(false);
                             if (confirmed) {

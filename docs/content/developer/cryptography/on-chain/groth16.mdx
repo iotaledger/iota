@@ -104,21 +104,5 @@ proof.c.serialize_compressed(&mut proof_points_bytes).unwrap();
 
 The following example smart contract prepares a verification key and verifies the corresponding proof. This example uses the BN254 elliptic curve construction, which is given as the first parameter to the `prepare_verifying_key` and `verify_groth16_proof` functions. You can use the `bls12381` function instead for BLS12-381 construction.
 
-```rust
-module test::groth16_test {
-    use iota::groth16;
-    use iota::event;
-
-    /// Event on whether the proof is verified
-    struct VerifiedEvent has copy, drop {
-        is_verified: bool,
-    }
-
-    public fun verify_proof(vk: vector<u8>, public_inputs_bytes: vector<u8>, proof_points_bytes: vector<u8>) {
-        let pvk = groth16::prepare_verifying_key(&groth16::bn254(), &vk);
-        let public_inputs = groth16::public_proof_inputs_from_bytes(public_inputs_bytes);
-        let proof_points = groth16::proof_points_from_bytes(proof_points_bytes);
-        event::emit(VerifiedEvent {is_verified: groth16::verify_groth16_proof(&groth16::bn254(), &pvk, &public_inputs, &proof_points)});
-    }
-}
+```move file=<rootDir>/docs/examples/move/cryptography/sources/goth16.move
 ```

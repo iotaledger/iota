@@ -56,10 +56,11 @@ async fn test_profiler() {
         executor_version: None,
         protocol_version: None,
         profile_output: Some(profile_output),
+        config_objects: None,
     };
 
     let command_result =
-        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, cmd).await;
+        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
 
     assert!(command_result.is_ok());
 

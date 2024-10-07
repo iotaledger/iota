@@ -5,3 +5,4 @@ export * from './createUnstakeTransaction';
 export * from './formatDelegatedStake';
 export * from './createStakeTransaction';
 export * from './createTimelockedUnstakeTransaction';
+export * from './createTimelockedStakeTransaction';

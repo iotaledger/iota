@@ -42,6 +42,8 @@ export interface IotaSignMessageInput {
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `iota:signPersonalMessage` feature
  */
 export interface IotaSignMessageOutput {
+    /** Base64 message bytes. */
     messageBytes: string;
+    /** Base64 encoded signature */
     signature: string;
 }

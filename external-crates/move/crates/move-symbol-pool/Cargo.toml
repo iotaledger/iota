@@ -11,7 +11,7 @@ description = "A static, global string table for Move tools"
 
 [dependencies]
 once_cell.workspace = true
-phf = { version = "0.11", features = ["macros"] }
+phf.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

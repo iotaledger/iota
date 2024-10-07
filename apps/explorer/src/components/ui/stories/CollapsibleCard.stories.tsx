@@ -29,8 +29,3 @@ export const Default: StoryObj<CollapsibleCardProps> = {
         );
     },
 };
-
-export const Small: StoryObj<CollapsibleCardProps> = {
-    ...Default,
-    args: { size: 'sm' },
-};

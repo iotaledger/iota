@@ -4,13 +4,11 @@
 
 import { ExternalLink } from '_components';
 import { ArrowUpRight16 } from '@iota/icons';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import type { ReactNode } from 'react';
 
 import { useExplorerLink, type ExplorerLinkConfig } from '../../hooks/useExplorerLink';
-import { Text } from '../../shared/text';
 import st from './ExplorerLink.module.scss';
-import { ExplorerLinkType } from './ExplorerLinkType';
+import clsx from 'clsx';
 
 export type ExplorerLinkProps = ExplorerLinkConfig & {
     track?: boolean;
@@ -34,25 +32,15 @@ export function ExplorerLink({
     }
 
     return (
-        <ExternalLink href={explorerHref} className={className} title={title}>
+        <ExternalLink
+            href={explorerHref}
+            className={clsx('text-body-md text-primary-30 dark:text-primary-80', className)}
+            title={title}
+        >
             <>
                 {children} {showIcon && <ArrowUpRight16 className={st.explorerIcon} />}
             </>
         </ExternalLink>
-    );
-}
-
-export function AddressLink({ address }: { address: string }) {
-    return (
-        <ExplorerLink
-            type={ExplorerLinkType.Address}
-            address={address}
-            className="text-hero-dark inline-block no-underline"
-        >
-            <Text variant="subtitle" weight="semibold" truncate mono>
-                {formatAddress(address)}
-            </Text>
-        </ExplorerLink>
     );
 }
 

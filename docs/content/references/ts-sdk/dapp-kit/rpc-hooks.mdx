@@ -145,25 +145,3 @@ function MyComponent() {
     );
 }
 ```
-
-## useResolveIotaNSName
-
-To get the IotaNS name for a given address, use the `useResolveIotaNSName` hook.
-
-```tsx
-import { useResolveIotaNSName } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { data, isPending } = useResolveIotaNSName('0x123');
-
-    if (isPending) {
-        return <div>Loading...</div>;
-    }
-
-    if (data) {
-        return <div>Domain name is: {data}</div>;
-    }
-
-    return <div>Domain name not found</div>;
-}
-```

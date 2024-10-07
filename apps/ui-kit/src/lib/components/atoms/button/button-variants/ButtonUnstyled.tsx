@@ -10,6 +10,7 @@ export function ButtonUnstyled({
     children,
     className,
     tabIndex = 0,
+    testId,
     ...buttonProps
 }: ButtonVariantProps): React.JSX.Element {
     return (
@@ -18,6 +19,7 @@ export function ButtonUnstyled({
             {...buttonProps}
             className={cx('appearance-none', className)}
             tabIndex={tabIndex}
+            data-testid={testId}
         >
             {children}
         </button>

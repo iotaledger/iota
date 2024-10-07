@@ -2,11 +2,12 @@
 #
 # Copy in all crates, Cargo.toml and Cargo.lock unmodified,
 # and build the application.
-FROM rust:1.74-bullseye AS builder
+FROM rust:bullseye AS builder
 ARG PROFILE=release
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "$WORKDIR/iota"
+
 RUN apt-get update && apt-get install -y cmake clang
 
 # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
@@ -33,14 +34,17 @@ COPY narwhal narwhal
 COPY external-crates external-crates
 COPY docs docs
 
+# TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin narwhal-node
 RUN --mount=type=ssh cargo build --profile ${PROFILE} --features=benchmark --bin narwhal-benchmark-client
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
+
 # Use jemalloc as memory allocator
 RUN apt-get update && apt-get install -y libjemalloc-dev
 ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libjemalloc.so
+
 ARG PROFILE=release
 WORKDIR "$WORKDIR/iota"
 

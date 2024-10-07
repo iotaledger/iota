@@ -3,23 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
-} from '_src/shared/constants';
-import {
     createStakeTransaction,
+    getGasSummary,
     parseAmount,
-    TimeUnit,
     useCoinMetadata,
     useFormatCoin,
-    useGetTimeBeforeEpochNumber,
-    useTimeAgo,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
+import { useActiveAddress, useTransactionDryRun } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { ButtonPill, Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
+import { StakeTxnInfo } from '../../components/receipt-card/StakeTxnInfo';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -43,45 +39,15 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     }, [values.amount, validatorAddress, decimals]);
 
     const activeAddress = useActiveAddress();
-    const { data: gasBudget } = useTransactionGasBudget(activeAddress, transaction);
+    const { data: txDryRunResponse } = useTransactionDryRun(
+        activeAddress ?? undefined,
+        transaction ?? new Transaction(),
+    );
 
-    // Reward will be available after 2 epochs
-    const startEarningRewardsEpoch =
-        Number(epoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS;
-
-    const redeemableRewardsEpoch =
-        Number(epoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE;
-
-    const { data: timeBeforeStakeRewardsStarts } =
-        useGetTimeBeforeEpochNumber(startEarningRewardsEpoch);
-
-    const timeBeforeStakeRewardsStartsAgo = useTimeAgo({
-        timeFrom: timeBeforeStakeRewardsStarts,
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
-    });
-    const stakedRewardsStartEpoch =
-        timeBeforeStakeRewardsStarts > 0
-            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
-            : epoch
-              ? `Epoch #${Number(startEarningRewardsEpoch)}`
-              : '--';
-
-    const { data: timeBeforeStakeRewardsRedeemable } =
-        useGetTimeBeforeEpochNumber(redeemableRewardsEpoch);
-    const timeBeforeStakeRewardsRedeemableAgo = useTimeAgo({
-        timeFrom: timeBeforeStakeRewardsRedeemable,
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
-    });
-    const timeBeforeStakeRewardsRedeemableAgoDisplay =
-        timeBeforeStakeRewardsRedeemable > 0
-            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
-            : epoch
-              ? `Epoch #${Number(redeemableRewardsEpoch)}`
-              : '--';
+    const gasSummary = useMemo(() => {
+        if (!txDryRunResponse) return null;
+        return getGasSummary(txDryRunResponse);
+    }, [txDryRunResponse]);
 
     return (
         <Form
@@ -123,23 +89,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     );
                 }}
             </Field>
-            <Panel hasBorder>
-                <div className="flex flex-col gap-y-sm p-md">
-                    <KeyValueInfo
-                        keyText="Staking Rewards Start"
-                        valueText={stakedRewardsStartEpoch}
-                    />
-                    <KeyValueInfo
-                        keyText="Redeem Rewards"
-                        valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
-                    />
-                    <KeyValueInfo
-                        keyText="Gas fee"
-                        valueText={gasBudget}
-                        supportingLabel={symbol}
-                    />
-                </div>
-            </Panel>
+            <StakeTxnInfo startEpoch={epoch} gasSummary={transaction ? gasSummary : undefined} />
         </Form>
     );
 }

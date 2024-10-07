@@ -4,6 +4,8 @@
 
 import type { IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { toB64 } from '@iota/iota-sdk/utils';
 import type {
     StandardConnectFeature,
     StandardConnectMethod,
@@ -11,8 +13,10 @@ import type {
     StandardEventsOnMethod,
     IotaFeatures,
     IotaSignAndExecuteTransactionBlockMethod,
+    IotaSignAndExecuteTransactionMethod,
     IotaSignPersonalMessageMethod,
     IotaSignTransactionBlockMethod,
+    IotaSignTransactionMethod,
     Wallet,
 } from '@iota/wallet-standard';
 import { getWallets, ReadonlyWalletAccount, SUPPORTED_CHAINS } from '@iota/wallet-standard';
@@ -54,7 +58,12 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
         address: keypair.getPublicKey().toIotaAddress(),
         publicKey: keypair.getPublicKey().toIotaBytes(),
         chains: ['iota:unknown'],
-        features: ['iota:signAndExecuteTransactionBlock', 'iota:signTransactionBlock'],
+        features: [
+            'iota:signAndExecuteTransactionBlock',
+            'iota:signTransactionBlock',
+            'iota:signTransaction',
+            'iota:signAndExecuteTransaction',
+        ],
     });
 
     class UnsafeBurnerWallet implements Wallet {
@@ -101,6 +110,14 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
                     version: '1.0.0',
                     signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
                 },
+                'iota:signTransaction': {
+                    version: '2.0.0',
+                    signTransaction: this.#signTransaction,
+                },
+                'iota:signAndExecuteTransaction': {
+                    version: '2.0.0',
+                    signAndExecuteTransaction: this.#signAndExecuteTransaction,
+                },
             };
         }
 
@@ -129,15 +146,63 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
             };
         };
 
+        #signTransaction: IotaSignTransactionMethod = async (transactionInput) => {
+            const { bytes, signature } = await Transaction.from(
+                await transactionInput.transaction.toJSON(),
+            ).sign({
+                client: iotaClient,
+                signer: keypair,
+            });
+
+            transactionInput.signal?.throwIfAborted();
+
+            return {
+                bytes,
+                signature: signature,
+            };
+        };
+
         #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = async (
             transactionInput,
         ) => {
-            return await iotaClient.signAndExecuteTransactionBlock({
+            const { bytes, signature } = await transactionInput.transactionBlock.sign({
+                client: iotaClient,
                 signer: keypair,
-                transactionBlock: transactionInput.transactionBlock,
-                options: transactionInput.options,
-                requestType: transactionInput.requestType,
             });
+
+            return iotaClient.executeTransactionBlock({
+                signature,
+                transactionBlock: bytes,
+                options: transactionInput.options,
+            });
+        };
+
+        #signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = async (
+            transactionInput,
+        ) => {
+            const { bytes, signature } = await Transaction.from(
+                await transactionInput.transaction.toJSON(),
+            ).sign({
+                client: iotaClient,
+                signer: keypair,
+            });
+
+            transactionInput.signal?.throwIfAborted();
+
+            const { rawEffects, digest } = await iotaClient.executeTransactionBlock({
+                signature,
+                transactionBlock: bytes,
+                options: {
+                    showRawEffects: true,
+                },
+            });
+
+            return {
+                bytes,
+                signature,
+                digest,
+                effects: toB64(new Uint8Array(rawEffects!)),
+            };
         };
     }
 

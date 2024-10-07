@@ -5,30 +5,26 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use serde::Deserialize;
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
-    base_types::{dbg_addr, ExecutionDigests, ObjectID},
+    IotaAddress,
+    base_types::{ObjectID, dbg_addr},
     committee::Committee,
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair, Signature, SignatureScheme, Signer,
-    },
-    gas::GasCostSummary,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair,
+        Signature, SignatureScheme, Signer, get_key_pair, get_key_pair_from_rng,
     },
     multisig::{MultiSig, MultiSigPublicKey},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        SenderSignedData, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
     },
     zk_login_authenticator::ZkLoginAuthenticator,
-    IotaAddress,
 };
 
 #[derive(Deserialize)]
@@ -131,36 +127,6 @@ pub fn to_sender_signed_transaction_with_multi_signers(
     Transaction::from_data_and_signer(data, signers)
 }
 
-pub fn mock_certified_checkpoint<'a>(
-    keys: impl Iterator<Item = &'a AuthorityKeyPair>,
-    committee: Committee,
-    seq_num: u64,
-) -> CertifiedCheckpointSummary {
-    let contents =
-        CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
-
-    let summary = CheckpointSummary::new(
-        committee.epoch,
-        seq_num,
-        0,
-        &contents,
-        None,
-        GasCostSummary::default(),
-        None,
-        0,
-    );
-
-    let sign_infos: Vec<_> = keys
-        .map(|k| {
-            let name = k.public().into();
-
-            SignedCheckpointSummary::sign(committee.epoch, &summary, k, name)
-        })
-        .collect();
-
-    CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("Cert is OK")
-}
-
 mod zk_login {
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
     use shared_crypto::intent::PersonalMessage;
@@ -188,6 +154,12 @@ mod zk_login {
             res.push((kp, pk_zklogin, inputs));
         }
         Ok(res)
+    }
+    pub fn get_one_zklogin_inputs(path: &str) -> String {
+        let file = std::fs::File::open(path).expect("Unable to open file");
+
+        let test_data: Vec<TestData> = serde_json::from_reader(file).unwrap();
+        test_data[1].zklogin_inputs.clone()
     }
 
     pub fn get_zklogin_user_address() -> IotaAddress {
@@ -266,11 +238,9 @@ mod zk_login {
         let authenticator =
             GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(proof, 10, s.clone()));
 
-        let tx = Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            Intent::iota_transaction(),
-            vec![authenticator.clone()],
-        ));
+        let tx = Transaction::new(SenderSignedData::new(tx.transaction_data().clone(), vec![
+            authenticator.clone(),
+        ]));
         (data.execution_parts().1, tx, authenticator)
     }
 
@@ -311,11 +281,9 @@ mod zk_login {
 
         // Any 2 of 3 signatures verifies ok.
         let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
-        Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            Intent::iota_transaction(),
-            vec![GenericSignature::MultiSig(multi_sig1)],
-        ))
+        Transaction::new(SenderSignedData::new(tx.transaction_data().clone(), vec![
+            GenericSignature::MultiSig(multi_sig1),
+        ]))
     }
 }
 pub use zk_login::*;

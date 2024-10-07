@@ -5,11 +5,6 @@ on:
     # At 20:58 on every day-of-week from Monday through Friday
     - cron: "58 20 * * 1-5"
   workflow_dispatch:
-    inputs:
-      iota_branch:
-        description: "IOTA repo branch to build artifacts from (default: develop)"
-        type: string
-        required: false
 
 env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
@@ -24,17 +19,13 @@ jobs:
       pull-requests: write
     runs-on: [self-hosted]
     steps:
-      - name: Clean up tag name '${{ env.TAG_NAME }}' and create artifact name
+      - name: Create artifact name
         shell: bash
         run: |
-          export iota_branch=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)
-          echo "iota_branch=${iota_branch}" >> $GITHUB_ENV
           export artifact_name="wallet-nightly-$(date -Idate)"
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
-      - name: Checking out ${{ env.iota_branch }}
+      - name: Checking out
         uses: actions/checkout@v4
-        with:
-          ref: ${{ env.iota_branch }}
       - uses: pnpm/action-setup@v4
       - name: Install Nodejs
         uses: actions/setup-node@v4

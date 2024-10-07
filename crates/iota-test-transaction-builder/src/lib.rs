@@ -8,14 +8,15 @@ use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
     rpc_types::{
-        get_new_package_obj_from_response, IotaTransactionBlockEffectsAPI,
-        IotaTransactionBlockResponse,
+        IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+        get_new_package_obj_from_response,
     },
     wallet_context::WalletContext,
 };
 use iota_types::{
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    crypto::{get_key_pair, AccountKeyPair, Signature, Signer},
+    crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
@@ -23,11 +24,10 @@ use iota_types::{
     object::Owner,
     signature::GenericSignature,
     transaction::{
-        CallArg, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-        DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, ProgrammableTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        Transaction, TransactionData,
     },
-    TypeTag, IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -37,6 +37,7 @@ pub struct TestTransactionBuilder {
     sender: IotaAddress,
     gas_object: ObjectRef,
     gas_price: u64,
+    gas_budget: Option<u64>,
 }
 
 impl TestTransactionBuilder {
@@ -46,6 +47,7 @@ impl TestTransactionBuilder {
             sender,
             gas_object,
             gas_price,
+            gas_budget: None,
         }
     }
 
@@ -86,6 +88,11 @@ impl TestTransactionBuilder {
         self
     }
 
+    pub fn with_gas_budget(mut self, gas_budget: u64) -> Self {
+        self.gas_budget = Some(gas_budget);
+        self
+    }
+
     pub fn call_counter_create(self, package_id: ObjectID) -> Self {
         self.move_call(package_id, "counter", "create", vec![])
     }
@@ -96,16 +103,13 @@ impl TestTransactionBuilder {
         counter_id: ObjectID,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(
-            package_id,
-            "counter",
-            "increment",
-            vec![CallArg::Object(ObjectArg::SharedObject {
+        self.move_call(package_id, "counter", "increment", vec![CallArg::Object(
+            ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
-            })],
-        )
+            },
+        )])
     }
 
     pub fn call_counter_read(
@@ -114,16 +118,13 @@ impl TestTransactionBuilder {
         counter_id: ObjectID,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(
-            package_id,
-            "counter",
-            "value",
-            vec![CallArg::Object(ObjectArg::SharedObject {
+        self.move_call(package_id, "counter", "value", vec![CallArg::Object(
+            ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: false,
-            })],
-        )
+            },
+        )])
     }
 
     pub fn call_counter_delete(
@@ -132,40 +133,29 @@ impl TestTransactionBuilder {
         counter_id: ObjectID,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(
-            package_id,
-            "counter",
-            "delete",
-            vec![CallArg::Object(ObjectArg::SharedObject {
+        self.move_call(package_id, "counter", "delete", vec![CallArg::Object(
+            ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
-            })],
-        )
+            },
+        )])
     }
 
     pub fn call_nft_create(self, package_id: ObjectID) -> Self {
-        self.move_call(
-            package_id,
-            "devnet_nft",
-            "mint",
-            vec![
-                CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
-                CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
-                CallArg::Pure(
-                    bcs::to_bytes("https://iota.io/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
-                ),
-            ],
-        )
+        self.move_call(package_id, "testnet_nft", "mint_to_sender", vec![
+            CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
+            CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
+            CallArg::Pure(
+                bcs::to_bytes("https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
+            ),
+        ])
     }
 
     pub fn call_nft_delete(self, package_id: ObjectID, nft_to_delete: ObjectRef) -> Self {
-        self.move_call(
-            package_id,
-            "devnet_nft",
-            "burn",
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(nft_to_delete))],
-        )
+        self.move_call(package_id, "testnet_nft", "burn", vec![CallArg::Object(
+            ObjectArg::ImmOrOwnedObject(nft_to_delete),
+        )])
     }
 
     pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
@@ -179,6 +169,20 @@ impl TestTransactionBuilder {
                 CallArg::Pure(bcs::to_bytes(&validator).unwrap()),
             ],
         )
+    }
+
+    pub fn call_emit_random(
+        self,
+        package_id: ObjectID,
+        randomness_initial_shared_version: SequenceNumber,
+    ) -> Self {
+        self.move_call(package_id, "random", "new", vec![CallArg::Object(
+            ObjectArg::SharedObject {
+                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                initial_shared_version: randomness_initial_shared_version,
+                mutable: false,
+            },
+        )])
     }
 
     pub fn call_request_add_validator(self) -> Self {
@@ -262,7 +266,7 @@ impl TestTransactionBuilder {
             path
         } else {
             let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            path.extend(["..", "..", "iota_programmability", "examples", subpath]);
+            path.extend(["..", "..", "examples", "move", subpath]);
             path
         };
         self.publish(path)
@@ -283,7 +287,8 @@ impl TestTransactionBuilder {
                 data.type_args,
                 self.gas_object,
                 data.args,
-                self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+                self.gas_budget
+                    .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE),
                 self.gas_price,
             )
             .unwrap(),
@@ -292,7 +297,8 @@ impl TestTransactionBuilder {
                 data.object,
                 self.sender,
                 self.gas_object,
-                self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                self.gas_budget
+                    .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
             TestTransactionData::TransferIota(data) => TransactionData::new_transfer_iota(
@@ -300,22 +306,23 @@ impl TestTransactionBuilder {
                 self.sender,
                 data.amount,
                 self.gas_object,
-                self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                self.gas_budget
+                    .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
             TestTransactionData::Publish(data) => {
                 let (all_module_bytes, dependencies) = match data {
                     PublishData::Source(path, with_unpublished_deps) => {
-                        let compiled_package = BuildConfig::new_for_testing().build(path).unwrap();
+                        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
                         let all_module_bytes =
                             compiled_package.get_package_bytes(with_unpublished_deps);
-                        let dependencies = compiled_package.get_dependency_original_package_ids();
+                        let dependencies = compiled_package.get_dependency_storage_package_ids();
                         (all_module_bytes, dependencies)
                     }
                     PublishData::ModuleBytes(bytecode) => (bytecode, vec![]),
                     PublishData::CompiledPackage(compiled_package) => {
                         let all_module_bytes = compiled_package.get_package_bytes(false);
-                        let dependencies = compiled_package.get_dependency_original_package_ids();
+                        let dependencies = compiled_package.get_dependency_storage_package_ids();
                         (all_module_bytes, dependencies)
                     }
                 };
@@ -325,7 +332,9 @@ impl TestTransactionBuilder {
                     self.gas_object,
                     all_module_bytes,
                     dependencies,
-                    self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+                    self.gas_budget.unwrap_or(
+                        self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+                    ),
                     self.gas_price,
                 )
             }
@@ -333,7 +342,8 @@ impl TestTransactionBuilder {
                 self.sender,
                 vec![self.gas_object],
                 pt,
-                self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+                self.gas_budget
+                    .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE),
                 self.gas_price,
             ),
             TestTransactionData::Empty => {
@@ -443,7 +453,8 @@ pub async fn batch_make_transfer_transactions(
     max_txn_num: usize,
 ) -> Vec<Transaction> {
     let recipient = get_key_pair::<AccountKeyPair>().0;
-    let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
+    let result = context.get_all_accounts_and_gas_objects().await;
+    let accounts_and_objs = result.unwrap();
     let mut res = Vec::with_capacity(max_txn_num);
 
     let gas_price = context.get_reference_gas_price().await.unwrap();
@@ -602,6 +613,50 @@ pub async fn increment_counter(
     context.execute_transaction_must_succeed(txn).await
 }
 
+/// Executes a transaction that generates a new random u128 using Random and
+/// emits it as an event.
+pub async fn emit_new_random_u128(
+    context: &WalletContext,
+    package_id: ObjectID,
+) -> IotaTransactionBlockResponse {
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let rgp = context.get_reference_gas_price().await.unwrap();
+
+    let client = context.get_client().await.unwrap();
+    let random_obj = client
+        .read_api()
+        .get_object_with_options(
+            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+            IotaObjectDataOptions::new().with_owner(),
+        )
+        .await
+        .unwrap()
+        .into_object()
+        .unwrap();
+    let random_obj_owner = random_obj
+        .owner
+        .expect("Expect Randomness object to have an owner");
+
+    let Owner::Shared {
+        initial_shared_version,
+    } = random_obj_owner
+    else {
+        panic!("Expect Randomness to be shared object")
+    };
+    let random_call_arg = CallArg::Object(ObjectArg::SharedObject {
+        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        initial_shared_version,
+        mutable: false,
+    });
+
+    let txn = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, rgp)
+            .move_call(package_id, "random", "new", vec![random_call_arg])
+            .build(),
+    );
+    context.execute_transaction_must_succeed(txn).await
+}
+
 /// Executes a transaction to publish the `nfts` package and returns the package
 /// id, id of the gas object used, and the digest of the transaction.
 pub async fn publish_nfts_package(
@@ -612,7 +667,7 @@ pub async fn publish_nfts_package(
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .publish_examples("nfts")
+            .publish_examples("nft")
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
@@ -623,7 +678,7 @@ pub async fn publish_nfts_package(
 /// Pre-requisite: `publish_nfts_package` must be called before this function.
 /// Executes a transaction to create an NFT and returns the sender address, the
 /// object id of the NFT, and the digest of the transaction.
-pub async fn create_devnet_nft(
+pub async fn create_nft(
     context: &WalletContext,
     package_id: ObjectID,
 ) -> (IotaAddress, ObjectID, TransactionDigest) {
@@ -651,7 +706,7 @@ pub async fn create_devnet_nft(
 }
 
 /// Executes a transaction to delete the given NFT.
-pub async fn delete_devnet_nft(
+pub async fn delete_nft(
     context: &WalletContext,
     sender: IotaAddress,
     package_id: ObjectID,

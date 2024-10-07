@@ -17,6 +17,7 @@ export * from './owned-objects';
 export * from './search';
 export * from './syntax-highlighter';
 export * from './table';
+export * from './toaster';
 export * from './top-packages';
 export * from './top-validators-card';
 export * from './transaction-blocks-for-address';
@@ -24,7 +25,6 @@ export * from './transactions';
 export * from './tx-time';
 export * from './ui';
 export * from './validator';
-export * from './validator-map';
 
 export * from './AddressesCardGraph';
 export * from './AreaGraph';

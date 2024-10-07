@@ -3,15 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::file_format as F;
-use move_bytecode_source_map::source_map::SourceMap;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier as MoveCoreIdentifier,
-    language_storage::ModuleId,
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-
 use crate::{
     diag,
     diagnostics::Diagnostics,
@@ -20,6 +11,14 @@ use crate::{
     parser::ast::{FunctionName, ModuleName},
     shared::{unique_map::UniqueMap, Name, NumericalAddress},
 };
+use move_binary_format::file_format as F;
+use move_bytecode_source_map::source_map::SourceMap;
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier as MoveCoreIdentifier,
+    language_storage::ModuleId,
+};
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 //**************************************************************************************************
 // Compiled Unit
@@ -42,6 +41,7 @@ pub struct NamedCompiledModule {
     // package name metadata from compiler arguments
     pub package_name: Option<Symbol>,
     pub address: NumericalAddress,
+    pub address_name: Option<Name>,
     pub name: Symbol,
     pub module: F::CompiledModule,
     pub source_map: SourceMap,
@@ -52,7 +52,6 @@ pub struct AnnotatedCompiledModule {
     pub loc: Loc,
     pub attributes: Attributes,
     pub module_name_loc: Loc,
-    pub address_name: Option<Name>,
     pub named_module: NamedCompiledModule,
     pub function_infos: UniqueMap<FunctionName, FunctionInfo>,
 }
@@ -68,7 +67,7 @@ impl AnnotatedCompiledModule {
     pub fn module_ident(&self) -> ModuleIdent {
         use crate::expansion::ast::Address;
         let address = Address::Numerical {
-            name: self.address_name,
+            name: self.named_module.address_name,
             value: sp(self.loc, self.named_module.address),
             name_conflict: false,
         };
@@ -86,7 +85,7 @@ impl AnnotatedCompiledModule {
             AccountAddress::new(self.named_module.address.into_bytes()),
             MoveCoreIdentifier::new(self.named_module.name.to_string()).unwrap(),
         );
-        (self.address_name, id)
+        (self.named_module.address_name, id)
     }
 
     pub fn verify(&self) -> Diagnostics {
@@ -122,14 +121,18 @@ impl NamedCompiledModule {
         self.package_name
     }
 
+    pub fn address_name(&self) -> Option<Name> {
+        self.address_name
+    }
+
     pub fn source_map(&self) -> &SourceMap {
         &self.source_map
     }
 
-    pub fn serialize(&self, bytecode_version: Option<u32>) -> Vec<u8> {
+    pub fn serialize(&self) -> Vec<u8> {
         let mut serialized = Vec::<u8>::new();
         self.module
-            .serialize_for_version(bytecode_version, &mut serialized)
+            .serialize_with_version(self.module.version, &mut serialized)
             .unwrap();
         serialized
     }

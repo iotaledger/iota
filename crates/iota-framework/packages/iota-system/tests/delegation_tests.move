@@ -63,19 +63,22 @@ module iota_system::stake_tests {
         scenario.next_tx(STAKER_ADDR_1);
         {
             let staked_iota_ids = scenario.ids_for_sender<StakedIota>();
-            assert!(staked_iota_ids.length() == 2, 101); // staked iota split to 2 coins
+
+            assert!(staked_iota_ids.length() == 2); // staked iota split to 2 coins
 
             let mut part1 = scenario.take_from_sender_by_id<StakedIota>(staked_iota_ids[0]);
             let part2 = scenario.take_from_sender_by_id<StakedIota>(staked_iota_ids[1]);
 
             let amount1 = part1.amount();
             let amount2 = part2.amount();
-            assert!(amount1 == 20 * NANOS_PER_IOTA || amount1 == 40 * NANOS_PER_IOTA, 102);
-            assert!(amount2 == 20 * NANOS_PER_IOTA || amount2 == 40 * NANOS_PER_IOTA, 103);
-            assert!(amount1 + amount2 == 60 * NANOS_PER_IOTA, 104);
+
+            assert!(amount1 == 20 * NANOS_PER_IOTA || amount1 == 40 * NANOS_PER_IOTA);
+            assert!(amount2 == 20 * NANOS_PER_IOTA || amount2 == 40 * NANOS_PER_IOTA);
+            assert!(amount1 + amount2 == 60 * NANOS_PER_IOTA);
 
             part1.join(part2);
-            assert!(part1.amount() == 60 * NANOS_PER_IOTA, 105);
+            assert!(part1.amount() == 60 * NANOS_PER_IOTA);
+
             scenario.return_to_sender(part1);
         };
         scenario_val.end();
@@ -165,8 +168,8 @@ module iota_system::stake_tests {
                 coin::mint_for_testing(60 * NANOS_PER_IOTA, ctx), VALIDATOR_ADDR_1, ctx
             );
 
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * NANOS_PER_IOTA, 101);
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * NANOS_PER_IOTA, 102);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * NANOS_PER_IOTA);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * NANOS_PER_IOTA);
 
             test_scenario::return_shared(system_state);
         };
@@ -177,21 +180,21 @@ module iota_system::stake_tests {
         {
 
             let staked_iota = scenario.take_from_sender<StakedIota>();
-            assert!(staked_iota.amount() == 60 * NANOS_PER_IOTA, 105);
 
+            assert!(staked_iota.amount() == 60 * NANOS_PER_IOTA);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * NANOS_PER_IOTA, 103);
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * NANOS_PER_IOTA, 104);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * NANOS_PER_IOTA);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2) == 100 * NANOS_PER_IOTA);
 
             let ctx = scenario.ctx();
 
             // Unstake from VALIDATOR_ADDR_1
             system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
 
-            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * NANOS_PER_IOTA, 107);
+            assert!(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1) == 160 * NANOS_PER_IOTA);
             test_scenario::return_shared(system_state);
         };
 
@@ -200,7 +203,7 @@ module iota_system::stake_tests {
         scenario.next_tx(STAKER_ADDR_1);
         {
             let mut system_state = scenario.take_shared<IotaSystemState>();
-            assert!(system_state.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * NANOS_PER_IOTA, 107);
+            assert!(system_state.validator_stake_amount(VALIDATOR_ADDR_1) == 100 * NANOS_PER_IOTA);
             test_scenario::return_shared(system_state);
         };
         scenario_val.end();
@@ -250,7 +253,7 @@ module iota_system::stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
 
             let staked_iota = scenario.take_from_sender<StakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -346,7 +349,7 @@ module iota_system::stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
 
             test_scenario::return_shared(system_state);
         };

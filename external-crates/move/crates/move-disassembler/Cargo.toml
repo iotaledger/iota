@@ -11,6 +11,7 @@ description = "Print a human-readable version of Move bytecode (.mv files)"
 anyhow.workspace = true
 colored.workspace = true
 
+move-abstract-interpreter.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
 move-command-line-common.workspace = true

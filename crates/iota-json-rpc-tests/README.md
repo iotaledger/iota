@@ -64,7 +64,7 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [ ] `query_transaction_blocks`
 - [ ] `query_events`
 - [ ] `subscribe_event`
-- [x] `subscribe_transaction`
+- [ ] `subscribe_transaction`
 - [ ] `get_dynamic_fields`
 - [ ] `get_dynamic_field_object`
 - [ ] `resolve_name_service_address`

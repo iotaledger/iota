@@ -6,15 +6,20 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
 async-trait.workspace = true
+axum.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 consensus-config.workspace = true
 consensus-core.workspace = true
+count-min-sketch.workspace = true
 dashmap.workspace = true
 diffy = { version = "0.3", default-features = false }
 either.workspace = true
@@ -24,6 +29,7 @@ futures.workspace = true
 im.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
+jsonrpsee.workspace = true
 lru.workspace = true
 mockall.workspace = true
 num_cpus.workspace = true
@@ -32,8 +38,9 @@ once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand.workspace = true
+rayon.workspace = true
+reqwest.workspace = true
 roaring.workspace = true
-rocksdb.workspace = true
 scopeguard.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -87,6 +94,7 @@ narwhal-network.workspace = true
 narwhal-node.workspace = true
 narwhal-types.workspace = true
 narwhal-worker.workspace = true
+nonempty.workspace = true
 shared-crypto.workspace = true
 zeroize = "1.6"
 
@@ -96,14 +104,15 @@ criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 more-asserts.workspace = true
-narwhal-test-utils.workspace = true
 num-bigint.workspace = true
 pretty_assertions.workspace = true
+rstest.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
 
 move-symbol-pool.workspace = true
 
+iota-move.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 

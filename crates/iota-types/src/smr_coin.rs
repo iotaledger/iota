@@ -11,12 +11,12 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::{MoveObjectType, ObjectID, SequenceNumber},
     coin::Coin,
     id::UID,
     object::MoveObject,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 pub const SMR_MODULE_NAME: &IdentStr = ident_str!("smr");

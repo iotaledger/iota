@@ -8,10 +8,10 @@ use async_trait::async_trait;
 use prometheus::Registry;
 
 use crate::{
+    ValidatorProxy,
     drivers::Interval,
     system_state_observer::SystemStateObserver,
     workloads::{GroupID, WorkloadInfo},
-    ValidatorProxy,
 };
 
 #[async_trait]

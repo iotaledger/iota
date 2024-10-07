@@ -2,6 +2,9 @@
 description: Learn how to use the std::debug module in Move for debugging and printing values.
 tags: [move, getting-started, testing]
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/getting-started/debug.json';
+
 # Debugging
 
 Move does not currently have a built-in debugger. However, you can leverage the `std::debug` module to print various values directly to the console. This approach helps you observe and understand the behavior and logic of your modules. Start by importing the debug module into your source file:
@@ -111,3 +114,6 @@ Operand Stack:
 [ PASS    ] 0x0::my_module::test_sword_transactions
 Test result: OK. Total tests: 1; passed: 1; failed: 0
 ```
+
+
+<Quiz questions={questions} />

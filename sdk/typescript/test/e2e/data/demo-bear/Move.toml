@@ -1,0 +1,10 @@
+[package]
+name = "demo"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+
+[addresses]
+demo = "0x0"

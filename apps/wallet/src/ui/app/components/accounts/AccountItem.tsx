@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useResolveIotaNSName } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cn from 'clsx';
 import { type ReactNode } from 'react';
@@ -31,8 +30,7 @@ export function AccountItem({
 }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
-    const { data: domainName } = useResolveIotaNSName(account?.address);
-    const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+    const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const copyAddress = useCopyToClipboard(account?.address || '', {
         copySuccessMessage: 'Address copied',
     });

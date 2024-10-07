@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import clsx from 'clsx';
-import { lazy, Suspense } from 'react';
 
 import { Network } from '@iota/iota-sdk/client';
 import {
@@ -18,10 +17,7 @@ import {
     TopValidatorsCard,
     TransactionsCardGraph,
 } from '~/components';
-import { Card, TabHeader } from '~/components/ui';
 import { useNetwork } from '~/hooks';
-
-const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 
 const TRANSACTIONS_LIMIT = 25;
 
@@ -72,21 +68,7 @@ function Home(): JSX.Element {
                                 data-testid="validators-table"
                                 style={{ gridArea: 'validators' }}
                             >
-                                <TabHeader title="Validators">
-                                    <ErrorBoundary>
-                                        <TopValidatorsCard limit={10} showIcon />
-                                    </ErrorBoundary>
-                                </TabHeader>
-                            </div>
-                            <div
-                                style={{ gridArea: 'node-map' }}
-                                className="min-h-[320px] sm:min-h-[380px] lg:min-h-[460px] xl:min-h-[520px]"
-                            >
-                                <ErrorBoundary>
-                                    <Suspense fallback={<Card height="full" />}>
-                                        <ValidatorMap minHeight="100%" />
-                                    </Suspense>
-                                </ErrorBoundary>
+                                <TopValidatorsCard limit={10} showIcon />
                             </div>
                         </div>
                     </div>

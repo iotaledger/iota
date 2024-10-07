@@ -5,7 +5,7 @@
 use std::time::{Duration, Instant};
 
 use config::Export;
-use test_utils::{temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, temp_dir};
 
 const TEST_DURATION: Duration = Duration::from_secs(3);
 

@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{
-    internal_error, validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
+    ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, internal_error, validate_limit,
 };
 use iota_json_rpc_types::{
     AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
@@ -12,22 +13,22 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::indexer_reader::IndexerReader;
 
-pub(crate) struct ExtendedApi {
-    inner: IndexerReader,
+pub(crate) struct ExtendedApi<T: R2D2Connection + 'static> {
+    inner: IndexerReader<T>,
 }
 
-impl ExtendedApi {
-    pub fn new(inner: IndexerReader) -> Self {
+impl<T: R2D2Connection> ExtendedApi<T> {
+    pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
     }
 }
 
 #[async_trait::async_trait]
-impl ExtendedApiServer for ExtendedApi {
+impl<T: R2D2Connection + 'static> ExtendedApiServer for ExtendedApi<T> {
     async fn get_epochs(
         &self,
         cursor: Option<BigInt<u64>>,
@@ -157,7 +158,7 @@ impl ExtendedApiServer for ExtendedApi {
     }
 }
 
-impl IotaRpcModule for ExtendedApi {
+impl<T: R2D2Connection> IotaRpcModule for ExtendedApi<T> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

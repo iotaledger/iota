@@ -55,6 +55,7 @@ module P0::m {
     validatorSet {
       activeValidators {
         nodes {
+          apy
           name
         }
       }
@@ -104,6 +105,7 @@ module P0::m {
     validatorSet {
       activeValidators {
         nodes {
+          apy
           name
           reportRecords {
             nodes {

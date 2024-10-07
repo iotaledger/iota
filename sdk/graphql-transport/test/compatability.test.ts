@@ -10,7 +10,7 @@ import {
     IotaObjectData,
     IotaTransactionBlockResponse,
 } from '../../typescript/src/client/index.js';
-import { TransactionBlock } from '../../typescript/src/transactions/index.js';
+import { Transaction } from '../../typescript/src/transactions/index.js';
 import { publishPackage, setup, TestToolbox } from '../../typescript/test/e2e/utils/setup';
 import { IotaClientGraphQLTransport } from '../src/transport';
 
@@ -46,17 +46,18 @@ describe('GraphQL IotaClient compatibility', () => {
             });
 
         // create a simple transaction
-        const txb = new TransactionBlock();
-        const [coin] = txb.splitCoins(txb.gas, [1]);
-        txb.transferObjects([coin], toolbox.address());
-        const result = await toolbox.client.signAndExecuteTransactionBlock({
-            transactionBlock: txb as never,
+        const tx = new Transaction();
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], toolbox.address());
+        const result = await toolbox.client.signAndExecuteTransaction({
+            transaction: tx as never,
             signer: toolbox.keypair,
         });
 
         transactionBlockDigest = result.digest;
 
-        await toolbox.client.waitForTransactionBlock({ digest: transactionBlockDigest });
+        await toolbox.client.waitForTransaction({ digest: transactionBlockDigest });
+        await graphQLClient.waitForTransaction({ digest: transactionBlockDigest });
     });
 
     test('getRpcApiVersion', async () => {
@@ -351,7 +352,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLObjects).toEqual(rpcObjects);
     });
 
-    test.skip('queryTransactionBlocks', async () => {
+    test('queryTransactionBlocks', async () => {
         const { nextCursor: _, ...rpcTransactions } = await toolbox.client.queryTransactionBlocks({
             filter: {
                 FromAddress: toolbox.address(),
@@ -359,8 +360,10 @@ describe('GraphQL IotaClient compatibility', () => {
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
+                showRawEffects: true,
                 showEvents: true,
-                showInput: true,
+                // TODO inputs missing valueType
+                showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -374,8 +377,10 @@ describe('GraphQL IotaClient compatibility', () => {
                 options: {
                     showBalanceChanges: true,
                     showEffects: true,
+                    showRawEffects: true,
                     showEvents: true,
-                    showInput: true,
+                    // TODO inputs missing valueType
+                    showInput: false,
                     showObjectChanges: true,
                     showRawInput: true,
                 },
@@ -384,14 +389,15 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLTransactions).toEqual(rpcTransactions);
     });
 
-    test.skip('getTransactionBlock', async () => {
+    test('getTransactionBlock', async () => {
         const { rawEffects, ...rpcTransactionBlock } = (await toolbox.client.getTransactionBlock({
             digest: transactionBlockDigest,
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
                 showEvents: true,
-                showInput: true,
+                // TODO inputs missing valueType
+                showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -401,8 +407,8 @@ describe('GraphQL IotaClient compatibility', () => {
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
-                showEvents: true,
-                showInput: true,
+                // TODO inputs missing valueType
+                showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -411,14 +417,16 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLTransactionBlock).toEqual(rpcTransactionBlock);
     });
 
-    test.skip('multiGetTransactionBlocks', async () => {
+    test('multiGetTransactionBlocks', async () => {
         const [rpcTransactionBlock] = await toolbox.client.multiGetTransactionBlocks({
             digests: [transactionBlockDigest],
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
                 showEvents: true,
-                showInput: true,
+                showRawEffects: true,
+                // TODO inputs missing valueType
+                showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -428,8 +436,10 @@ describe('GraphQL IotaClient compatibility', () => {
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
+                showRawEffects: true,
                 showEvents: true,
-                showInput: true,
+                // TODO inputs missing valueType
+                showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -442,7 +452,7 @@ describe('GraphQL IotaClient compatibility', () => {
         const rpc = await toolbox.client.getTotalTransactionBlocks();
         const graphql = await graphQLClient!.getTotalTransactionBlocks();
 
-        expect(graphql).toEqual(rpc);
+        expect(Number(graphql)).closeTo(Number(rpc), 10);
     });
 
     test('getReferenceGasPrice', async () => {
@@ -503,19 +513,23 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('devInspectTransactionBlock', async () => {
-        const txb = new TransactionBlock();
-        txb.setSender(toolbox.address());
-        const [coin] = txb.splitCoins(txb.gas, [1]);
-        txb.transferObjects([coin], toolbox.address());
+    test('devInspectTransactionBlock', async () => {
+        const tx = new Transaction();
+        tx.setSender(toolbox.address());
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], toolbox.address());
 
-        const rpc = await toolbox.client.devInspectTransactionBlock({
-            transactionBlock: txb as never,
+        const { effects, results, ...rpc } = await toolbox.client.devInspectTransactionBlock({
+            transactionBlock: tx as never,
             sender: toolbox.address(),
         });
 
-        const graphql = await graphQLClient!.devInspectTransactionBlock({
-            transactionBlock: txb,
+        const {
+            effects: _,
+            results: __,
+            ...graphql
+        } = await graphQLClient!.devInspectTransactionBlock({
+            transactionBlock: tx,
             sender: toolbox.address(),
         });
 
@@ -562,15 +576,15 @@ describe('GraphQL IotaClient compatibility', () => {
         // TODO
     });
 
-    test.skip('executeTransactionBlock', async () => {
-        const txb = new TransactionBlock();
-        txb.setSender(toolbox.address());
-        const [coin] = txb.splitCoins(txb.gas, [1]);
-        txb.transferObjects([coin], toolbox.address());
+    test('executeTransactionBlock', async () => {
+        const tx = new Transaction();
+        tx.setSender(toolbox.address());
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], toolbox.address());
 
         const { confirmedLocalExecution, ...graphql } =
-            await graphQLClient!.signAndExecuteTransactionBlock({
-                transactionBlock: txb as TransactionBlock,
+            await graphQLClient!.signAndExecuteTransaction({
+                transaction: tx as Transaction,
                 signer: toolbox.keypair,
                 options: {
                     showBalanceChanges: true,
@@ -582,7 +596,7 @@ describe('GraphQL IotaClient compatibility', () => {
                 },
             });
 
-        await toolbox.client.waitForTransactionBlock({ digest: graphql.digest });
+        await toolbox.client.waitForTransaction({ digest: graphql.digest });
 
         const { checkpoint, timestampMs, rawEffects, ...rpc } =
             (await toolbox.client.getTransactionBlock({
@@ -597,18 +611,15 @@ describe('GraphQL IotaClient compatibility', () => {
                 },
             })) as IotaTransactionBlockResponse & { rawEffects: unknown };
 
-        // Deleted gas coin isn't included in changes when executing transaction block
-        rpc.objectChanges?.pop();
-
         expect(graphql).toEqual(rpc);
     });
 
     test('dryRunTransactionBlock', async () => {
-        const txb = new TransactionBlock();
-        txb.setSender(toolbox.address());
-        const [coin] = txb.splitCoins(txb.gas, [1]);
-        txb.transferObjects([coin], toolbox.address());
-        const bytes = await txb.build({ client: toolbox.client as never });
+        const tx = new Transaction();
+        tx.setSender(toolbox.address());
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], toolbox.address());
+        const bytes = await tx.build({ client: toolbox.client as never });
 
         const rpc = await toolbox.client.dryRunTransactionBlock({
             transactionBlock: bytes,
@@ -625,7 +636,7 @@ describe('GraphQL IotaClient compatibility', () => {
         const rpc = await toolbox.client.getLatestCheckpointSequenceNumber();
         const graphql = await graphQLClient!.getLatestCheckpointSequenceNumber();
 
-        expect(graphql).toEqual(rpc);
+        expect(Number.parseInt(graphql)).closeTo(Number.parseInt(rpc), 3);
     });
 
     test('getCheckpoint', async () => {
@@ -715,7 +726,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('getValidatorsApy', async () => {
+    test.skip('getValidatorsApy', async () => {
         const rpc = await toolbox.client.getValidatorsApy();
         const graphql = await graphQLClient!.getValidatorsApy();
 

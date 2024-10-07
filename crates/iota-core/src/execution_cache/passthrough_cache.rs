@@ -4,22 +4,18 @@
 
 use std::sync::Arc;
 
-use either::Either;
-use futures::{
-    future::{join_all, BoxFuture},
-    FutureExt,
-};
+use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::node::AuthorityStorePruningConfig;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    bridge::{Bridge, get_bridge},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
-    iota_system_state::{get_iota_system_state, IotaSystemState},
+    iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -32,21 +28,17 @@ use tracing::instrument;
 use typed_store::Map;
 
 use super::{
-    implement_passthrough_traits, CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics,
-    ExecutionCacheRead, ExecutionCacheReconfigAPI, ExecutionCacheWrite, NotifyReadWrapper,
-    StateSyncAPI,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
+    ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
+    implement_passthrough_traits,
 };
 use crate::{
     authority::{
+        AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        AuthorityStore,
     },
-    checkpoints::CheckpointStore,
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
 };
@@ -73,33 +65,8 @@ impl PassthroughCache {
         Self::new(store, metrics)
     }
 
-    pub fn as_notify_read_wrapper(self: Arc<Self>) -> NotifyReadWrapper<Self> {
-        NotifyReadWrapper(self)
-    }
-
     pub fn store_for_testing(&self) -> &Arc<AuthorityStore> {
         &self.store
-    }
-
-    pub async fn prune_objects_and_compact_for_testing(
-        &self,
-        checkpoint_store: &Arc<CheckpointStore>,
-    ) {
-        let pruning_config = AuthorityStorePruningConfig {
-            num_epochs_to_retain: 0,
-            ..Default::default()
-        };
-        let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
-            &self.store.perpetual_tables,
-            checkpoint_store,
-            &self.store.objects_lock_table,
-            pruning_config,
-            AuthorityStorePruningMetrics::new_for_test(),
-            usize::MAX,
-            EPOCH_DURATION_MS_FOR_TESTING,
-        )
-        .await;
-        let _ = AuthorityStorePruner::compact(&self.store.perpetual_tables);
     }
 
     fn revert_state_update_impl(&self, digest: &TransactionDigest) -> IotaResult {
@@ -116,7 +83,7 @@ impl PassthroughCache {
     }
 }
 
-impl ExecutionCacheRead for PassthroughCache {
+impl ObjectCacheRead for PassthroughCache {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
@@ -184,14 +151,45 @@ impl ExecutionCacheRead for PassthroughCache {
         self.store.get_lock(obj_ref, epoch_store)
     }
 
-    fn _get_latest_lock_for_object_id(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         self.store.get_latest_live_version_for_object_id(object_id)
     }
 
-    fn check_owned_object_locks_exist(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
-        self.store.check_owned_object_locks_exist(owned_object_refs)
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+        self.store.check_owned_objects_are_live(owned_object_refs)
     }
 
+    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+        get_iota_system_state(self)
+    }
+
+    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
+        get_bridge(self)
+    }
+
+    fn get_marker_value(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<MarkerValue>> {
+        self.store.get_marker_value(object_id, &version, epoch_id)
+    }
+
+    fn get_latest_marker(
+        &self,
+        object_id: &ObjectID,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
+        self.store.get_latest_marker(object_id, epoch_id)
+    }
+
+    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+        self.store.perpetual_tables.get_highest_pruned_checkpoint()
+    }
+}
+
+impl TransactionCacheRead for PassthroughCache {
     fn multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -222,25 +220,11 @@ impl ExecutionCacheRead for PassthroughCache {
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
-        async move {
-            let registrations = self
-                .executed_effects_digests_notify_read
-                .register_all(digests);
-
-            let executed_effects_digests = self.multi_get_executed_effects_digests(digests)?;
-
-            let results = executed_effects_digests
-                .into_iter()
-                .zip(registrations)
-                .map(|(a, r)| match a {
-                    // Note that Some() clause also drops registration that is already fulfilled
-                    Some(ready) => Either::Left(futures::future::ready(ready)),
-                    None => Either::Right(r),
-                });
-
-            Ok(join_all(results).await)
-        }
-        .boxed()
+        self.executed_effects_digests_notify_read
+            .read(digests, |digests| {
+                self.multi_get_executed_effects_digests(digests)
+            })
+            .boxed()
     }
 
     fn multi_get_events(
@@ -248,27 +232,6 @@ impl ExecutionCacheRead for PassthroughCache {
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         self.store.multi_get_events(event_digests)
-    }
-
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
-        get_iota_system_state(self)
-    }
-
-    fn get_marker_value(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-        epoch_id: EpochId,
-    ) -> IotaResult<Option<MarkerValue>> {
-        self.store.get_marker_value(object_id, &version, epoch_id)
-    }
-
-    fn get_latest_marker(
-        &self,
-        object_id: &ObjectID,
-        epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        self.store.get_latest_marker(object_id, epoch_id)
     }
 }
 
@@ -282,8 +245,24 @@ impl ExecutionCacheWrite for PassthroughCache {
         async move {
             let tx_digest = *tx_outputs.transaction.digest();
             let effects_digest = tx_outputs.effects.digest();
+
+            // NOTE: We just check here that locks exist, not that they are locked to a
+            // specific TX. Why?
+            // 1. Lock existence prevents re-execution of old certs when objects have been
+            //    upgraded
+            // 2. Not all validators lock, just 2f+1, so transaction should proceed
+            //    regardless (But the lock should exist which means previous transactions
+            //    finished)
+            // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
+            //    TX its fine
+            // 4. Locks may have existed when we started processing this tx, but could have
+            //    since been deleted by a concurrent tx that finished first. In that case,
+            //    check if the tx effects exist.
             self.store
-                .write_transaction_outputs(epoch_id, tx_outputs)
+                .check_owned_objects_are_live(&tx_outputs.locks_to_delete)?;
+
+            self.store
+                .write_transaction_outputs(epoch_id, &[tx_outputs])
                 .await?;
 
             self.executed_effects_digests_notify_read
@@ -352,11 +331,17 @@ impl AccumulatorStore for PassthroughCache {
 }
 
 impl ExecutionCacheCommit for PassthroughCache {
-    fn commit_transaction_outputs(
-        &self,
+    fn commit_transaction_outputs<'a>(
+        &'a self,
         _epoch: EpochId,
-        _digest: &TransactionDigest,
-    ) -> BoxFuture<'_, IotaResult> {
+        _digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult> {
+        // Nothing needs to be done since they were already committed in
+        // write_transaction_outputs
+        async { Ok(()) }.boxed()
+    }
+
+    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, IotaResult> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
         async { Ok(()) }.boxed()

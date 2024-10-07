@@ -14,12 +14,12 @@ use super::{
     label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
 };
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     error::ExecutionError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 #[cfg(test)]

@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::error::ExecutionError;
-use move_binary_format::{
-    binary_views::BinaryIndexedView,
-    file_format::{Bytecode, CompiledModule},
-};
+use move_binary_format::file_format::{Bytecode, CompiledModule};
 
 use crate::verification_failure;
 
@@ -17,7 +14,6 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
 /// Global storage in iota is handled by iota instead of within Move.
 /// Hence we want to forbid any global storage access in Move.
 fn verify_global_storage_access(module: &CompiledModule) -> Result<(), ExecutionError> {
-    let view = BinaryIndexedView::Module(module);
     for func_def in &module.function_defs {
         if func_def.code.is_none() {
             continue;
@@ -104,13 +100,22 @@ fn verify_global_storage_access(module: &CompiledModule) -> Result<(), Execution
                 | Bytecode::VecPushBack(_)
                 | Bytecode::VecPopBack(_)
                 | Bytecode::VecUnpack(_, _)
-                | Bytecode::VecSwap(_) => {}
+                | Bytecode::VecSwap(_)
+                | Bytecode::PackVariant(_)
+                | Bytecode::PackVariantGeneric(_)
+                | Bytecode::UnpackVariant(_)
+                | Bytecode::UnpackVariantImmRef(_)
+                | Bytecode::UnpackVariantMutRef(_)
+                | Bytecode::UnpackVariantGeneric(_)
+                | Bytecode::UnpackVariantGenericImmRef(_)
+                | Bytecode::UnpackVariantGenericMutRef(_)
+                | Bytecode::VariantSwitch(_) => {}
             }
         }
         if !invalid_bytecode.is_empty() {
             return Err(verification_failure(format!(
                 "Access to Move global storage is not allowed. Found in function {}: {:?}",
-                view.identifier_at(view.function_handle_at(func_def.function).name),
+                module.identifier_at(module.function_handle_at(func_def.function).name),
                 invalid_bytecode,
             )));
         }

@@ -10,6 +10,8 @@ use anyhow::anyhow;
 use iota_sdk::types::block::{
     address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{
+        AliasId, AliasOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, NftId,
+        NftOutput as StardustNft, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
         feature::{
             Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature, TagFeature,
         },
@@ -18,33 +20,30 @@ use iota_sdk::types::block::{
             ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
             StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
         },
-        AliasId, AliasOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, NftId,
-        NftOutput as StardustNft, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
     },
 };
 use iota_types::{
+    TypeTag,
     base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
-    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
+    dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
     object::{Object, Owner},
     stardust::{
         coin_type::CoinType,
         output::{
-            FixedPoint32, Irc27Metadata, Nft, NftOutput, ALIAS_OUTPUT_MODULE_NAME,
-            NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
-            NFT_OUTPUT_MODULE_NAME,
+            ALIAS_OUTPUT_MODULE_NAME, FixedPoint32, Irc27Metadata, NFT_DYNAMIC_OBJECT_FIELD_KEY,
+            NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME, Nft, NftOutput,
         },
         stardust_to_iota_address,
     },
-    TypeTag,
 };
 use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
-        extract_native_tokens_from_bag, object_migration_with_object_owner, random_output_header,
-        run_migration, unlock_object, ExpectedAssets, UnlockObjectTestResult,
+        ExpectedAssets, UnlockObjectTestResult, extract_native_tokens_from_bag,
+        object_migration_with_object_owner, random_output_header, run_migration, unlock_object,
     },
     types::output_header::OutputHeader,
 };

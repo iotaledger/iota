@@ -5,11 +5,11 @@
 
 use indexmap::IndexMap;
 use prometheus::Registry;
-use test_utils::{fixture_payload, CommitteeFixture};
+use test_utils::{CommitteeFixture, fixture_payload};
 use types::PreSubscribedBroadcastSender;
 
 use super::*;
-use crate::{consensus::LeaderSwapTable, NUM_SHUTDOWN_RECEIVERS};
+use crate::{NUM_SHUTDOWN_RECEIVERS, consensus::LeaderSwapTable};
 
 #[tokio::test]
 async fn propose_empty() {

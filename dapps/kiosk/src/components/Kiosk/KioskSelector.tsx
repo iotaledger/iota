@@ -68,9 +68,7 @@ export function KioskSelector({
                                     {({ selected }) => (
                                         <>
                                             <span
-                                                className={`block truncate ${
-                                                    selected ? 'font-medium' : 'font-normal'
-                                                }`}
+                                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
                                             >
                                                 {formatAddress(cap.kioskId)}
                                             </span>

@@ -17,7 +17,7 @@ runs:
     - id: changes
       name: Detect changes
       shell: bash
-      run: echo "packages=$(pnpm --silent dlx turbo@1 run build --filter="...[origin/develop]" --dry=json | jq -c ".packages")" >> $GITHUB_OUTPUT
+      run: echo "packages=$(pnpm --silent dlx turbo@2 run build --filter="...[origin/develop]" --dry=json | jq -c ".packages")" >> $GITHUB_OUTPUT
     - name: Print changes for easy debugging
       shell: bash
       run: echo ${{ steps.changes.outputs.packages }}

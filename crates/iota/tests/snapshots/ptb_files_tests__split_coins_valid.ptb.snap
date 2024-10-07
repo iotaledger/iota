@@ -8,16 +8,14 @@ expression: "results.join(\"\\n\")"
 ├─────────────┬─────────────────────────────────────────────────────┤
 │ command     │ values                                              │
 ├─────────────┼─────────────────────────────────────────────────────┤
-│ split-coins │ gas [0u64, 1u64, 2u64, 3u64]                        │
+│ split-coins │ gas [0, 1, 2, 3]                                    │
 │ assign      │ coins                                               │
 │ move-call   │ iota::coin::destroy_zero<iota::iota::IOTA> coins.0  │
-│ split-coins │ coins.1 [0u64, 0u64]                                │
+│ split-coins │ coins.1 [0, 0]                                      │
 │ assign      │ zcoins                                              │
 │ move-call   │ iota::coin::destroy_zero<iota::iota::IOTA> zcoins.0 │
 │ move-call   │ iota::coin::destroy_zero<iota::iota::IOTA> zcoins.1 │
 │ merge-coins │ gas [coins.1, coins.2, coins.3]                     │
-├─────────────┼─────────────────────────────────────────────────────┤
-│ gas-budget  │ 10000000                                            │
 ╰─────────────┴─────────────────────────────────────────────────────╯
  === BUILT PTB === 
 Input 0: Pure([0, 0, 0, 0, 0, 0, 0, 0])

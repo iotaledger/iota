@@ -14,6 +14,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
+    crypto::IotaKeyPair,
     gas_coin::GasCoin,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
@@ -21,7 +22,7 @@ use shared_crypto::intent::Intent;
 use tokio::sync::RwLock;
 use tracing::warn;
 
-use crate::{iota_client_config::IotaClientConfig, IotaClient};
+use crate::{IotaClient, iota_client_config::IotaClientConfig};
 
 pub struct WalletContext {
     pub config: PersistedConfig<IotaClientConfig>,
@@ -184,7 +185,7 @@ impl WalletContext {
         budget: u64,
         forbidden_gas_objects: BTreeSet<ObjectID>,
     ) -> Result<(u64, IotaObjectData), anyhow::Error> {
-        for o in self.gas_objects(address).await.unwrap() {
+        for o in self.gas_objects(address).await? {
             if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.object_id) {
                 return Ok((o.0, o.1));
             }
@@ -280,6 +281,11 @@ impl WalletContext {
         let client = self.get_client().await?;
         let gas_price = client.governance_api().get_reference_gas_price().await?;
         Ok(gas_price)
+    }
+
+    /// Add an account
+    pub fn add_account(&mut self, alias: Option<String>, keypair: IotaKeyPair) {
+        self.config.keystore.add_key(alias, keypair).unwrap();
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext

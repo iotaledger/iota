@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use opentelemetry::trace::TraceError;
 use opentelemetry_proto::{
     tonic::collector::trace::v1::ExportTraceServiceRequest,

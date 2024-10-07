@@ -1,0 +1,11 @@
+[
+	{
+		"questionText": "Which function is executed during the publishing process of a Move package?",
+		"answerOptions": [
+			{ "answerText": "main", "isCorrect": false },
+			{ "answerText": "start", "isCorrect": false },
+			{ "answerText": "init", "isCorrect": true },
+			{ "answerText": "deploy", "isCorrect": false }
+		]
+	}
+]

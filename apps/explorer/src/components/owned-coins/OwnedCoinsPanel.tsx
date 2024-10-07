@@ -34,15 +34,15 @@ export default function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Eleme
     const multiCols = containerWidth > MIN_CONTAINER_WIDTH_SIZE;
 
     return (
-        <div className="max-h-ownCoinsPanel overflow-auto pb-3">
-            <div className="flex flex-wrap" ref={coinsSectionRef}>
+        <div className="max-h-[230px] overflow-auto">
+            <div className="flex flex-col flex-wrap gap-xs" ref={coinsSectionRef}>
                 {data &&
                     data.pages.map((page) =>
                         page.data.map((coin) => (
                             <div
                                 key={coin.coinObjectId}
                                 className={clsx(
-                                    'w-full min-w-coinItemContainer pb-3 pl-3',
+                                    'w-full',
                                     multiCols && 'basis-1/3',
                                     !multiCols && 'pr-3',
                                 )}

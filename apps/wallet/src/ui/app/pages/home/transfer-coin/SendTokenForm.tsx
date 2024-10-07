@@ -3,23 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { Loading } from '_components';
+import { AddressInput, Loading } from '_components';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import {
     useGetAllCoins,
     CoinFormat,
     createTokenTransferTransaction,
-    isIotaNSName,
     useCoinMetadata,
     useFormatCoin,
-    useIotaNSEnabled,
     parseAmount,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
-import { Form, Formik, useFormikContext } from 'formik';
+import { Field, Form, Formik, useFormikContext } from 'formik';
 import { useEffect, useMemo } from 'react';
 
 import { createValidationSchemaStepOne } from './validation';
@@ -77,7 +75,6 @@ function useGasBudgetEstimation({
 }) {
     const activeAddress = useActiveAddress();
     const { values, setFieldValue } = useFormikContext<FormValues>();
-    const iotaNSEnabled = useIotaNSEnabled();
 
     const client = useIotaClient();
     const { data: gasBudget } = useQuery({
@@ -97,16 +94,7 @@ function useGasBudgetEstimation({
                 return null;
             }
 
-            let to = values.to;
-            if (iotaNSEnabled && isIotaNSName(values.to)) {
-                const address = await client.resolveNameServiceAddress({
-                    name: values.to,
-                });
-                if (!address) {
-                    throw new Error('IotaNS name not found.');
-                }
-                to = address;
-            }
+            const to = values.to;
 
             const tx = createTokenTransferTransaction({
                 to,
@@ -127,7 +115,7 @@ function useGasBudgetEstimation({
     // gasBudgetEstimation should change when the amount above changes
 
     useEffect(() => {
-        setFieldValue('gasBudgetEst', formattedGas, true);
+        setFieldValue('gasBudgetEst', formattedGas, false);
     }, [formattedGas, setFieldValue, values.amount]);
 
     return formattedGas ? formattedGas + ' ' + GAS_SYMBOL : '--';
@@ -165,12 +153,10 @@ export function SendTokenForm({
         coinType,
         CoinFormat.FULL,
     );
-    const iotaNSEnabled = useIotaNSEnabled();
 
     const validationSchemaStepOne = useMemo(
-        () =>
-            createValidationSchemaStepOne(client, iotaNSEnabled, coinBalance, symbol, coinDecimals),
-        [client, coinBalance, symbol, coinDecimals, iotaNSEnabled],
+        () => createValidationSchemaStepOne(coinBalance, symbol, coinDecimals),
+        [client, coinBalance, symbol, coinDecimals],
     );
 
     // remove the comma from the token balance
@@ -182,16 +168,6 @@ export function SendTokenForm({
         const coinsIDs = [...coins]
             .sort((a, b) => Number(b.balance) - Number(a.balance))
             .map(({ coinObjectId }) => coinObjectId);
-
-        if (iotaNSEnabled && isIotaNSName(to)) {
-            const address = await client.resolveNameServiceAddress({
-                name: to,
-            });
-            if (!address) {
-                throw new Error('IotaNS name not found.');
-            }
-            to = address;
-        }
 
         const data = {
             to,
@@ -225,8 +201,8 @@ export function SendTokenForm({
                 }}
                 validationSchema={validationSchemaStepOne}
                 enableReinitialize
-                validateOnMount
-                validateOnChange
+                validateOnChange={false}
+                validateOnBlur={false}
                 onSubmit={handleFormSubmit}
             >
                 {({ isValid, isSubmitting, setFieldValue, values, submitForm }) => {
@@ -259,7 +235,7 @@ export function SendTokenForm({
                         <div className="flex h-full w-full flex-col">
                             <Form autoComplete="off" noValidate className="flex-1">
                                 <div className="flex h-full w-full flex-col gap-md">
-                                    {!hasEnoughBalance && isValid ? (
+                                    {!hasEnoughBalance ? (
                                         <InfoBox
                                             type={InfoBoxType.Warning}
                                             supportingText="Insufficient IOTA to cover transaction"
@@ -276,12 +252,12 @@ export function SendTokenForm({
                                         onActionClick={onMaxTokenButtonClick}
                                         isActionButtonDisabled={isMaxActionDisabled}
                                     />
-
-                                    <FormInput
+                                    <Field
+                                        component={AddressInput}
+                                        allowNegative={false}
                                         name="to"
                                         placeholder="Enter Address"
-                                        label="Address"
-                                        type={InputType.Text}
+                                        shouldValidateManually
                                     />
                                 </div>
                             </Form>

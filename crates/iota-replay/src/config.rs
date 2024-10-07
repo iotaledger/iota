@@ -7,7 +7,7 @@ use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use tracing::log::warn;
+use tracing::info;
 
 use crate::types::ReplayEngineError;
 
@@ -27,7 +27,6 @@ pub struct ReplayableNetworkConfigSet {
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct ReplayableNetworkBaseConfig {
-    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub epoch_zero_start_timestamp: u64,
@@ -38,14 +37,7 @@ pub struct ReplayableNetworkBaseConfig {
 }
 
 impl ReplayableNetworkConfigSet {
-    pub fn load_config(override_path: Option<String>) -> Result<Self, ReplayEngineError> {
-        let path = override_path.unwrap_or_else(|| {
-            warn!(
-                "No network config path specified, using default path: {}",
-                DEFAULT_CONFIG_PATH
-            );
-            DEFAULT_CONFIG_PATH.to_string()
-        });
+    pub fn load_config(path: String) -> Result<Self, ReplayEngineError> {
         let path = shellexpand::tilde(&path).to_string();
         let path = PathBuf::from_str(&path).unwrap();
         ReplayableNetworkConfigSet::from_file(path.clone()).map_err(|err| {
@@ -102,6 +94,10 @@ impl ReplayableNetworkConfigSet {
         })?;
         Ok(())
     }
+
+    pub fn get_base_config(&self, chain: &str) -> Option<&ReplayableNetworkBaseConfig> {
+        self.base_network_configs.iter().find(|c| c.name == chain)
+    }
 }
 
 impl Default for ReplayableNetworkConfigSet {
@@ -150,6 +146,37 @@ pub fn url_from_str(s: &str) -> Result<Uri, ReplayEngineError> {
     })
 }
 
+/// If rpc_url is provided, use it. Otherwise, load the network config from the
+/// config file.
+pub fn get_rpc_url(
+    rpc_url: Option<String>,
+    config_path: Option<PathBuf>,
+    chain: Option<String>,
+) -> anyhow::Result<String> {
+    if let Some(url) = rpc_url {
+        return Ok(url);
+    }
+
+    let config_path = config_path
+        .map(|p| p.to_str().unwrap().to_string())
+        .unwrap_or_else(|| DEFAULT_CONFIG_PATH.to_string());
+    let chain = chain.unwrap_or_else(|| "mainnet".to_string());
+    info!(
+        "RPC URL not provided. Loading network config for {:?} from config file {:?}. \
+                    If a different chain is desired, please provide the chain name.",
+        chain, config_path
+    );
+    let url = ReplayableNetworkConfigSet::load_config(config_path)?
+        .get_base_config(&chain)
+        .ok_or(anyhow::anyhow!(format!(
+            "Unable to find network config for {:?}",
+            chain
+        )))?
+        .public_full_node
+        .clone();
+    Ok(url)
+}
+
 #[test]
 fn test_yaml() {
     let mut set = ReplayableNetworkConfigSet::default();
@@ -160,7 +187,7 @@ fn test_yaml() {
     let final_path = set.save_config(Some(path_str.clone())).unwrap();
 
     // Read from file
-    let data = ReplayableNetworkConfigSet::load_config(Some(path_str)).unwrap();
+    let data = ReplayableNetworkConfigSet::load_config(path_str).unwrap();
     set.path = Some(final_path);
     assert!(set == data);
 }

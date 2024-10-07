@@ -60,7 +60,7 @@ function TransferCoinPage() {
             // const sentryTransaction = Sentry.startTransaction({
             // 	name: 'send-tokens',
             // });
-            return signer.signAndExecuteTransactionBlock({
+            return signer.signAndExecuteTransaction({
                 transactionBlock: transaction,
                 options: {
                     showInput: true,
@@ -222,7 +222,7 @@ function CoinSelectOption({
         <div className="flex w-full flex-row items-center justify-between">
             <div className="flex flex-row items-center gap-x-md">
                 <div className={size}>
-                    <CoinIcon size={ImageIconSize.Small} coinType={coinType} />
+                    <CoinIcon size={ImageIconSize.Small} coinType={coinType} rounded />
                 </div>
                 <span className="text-body-lg text-neutral-10">
                     {isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}

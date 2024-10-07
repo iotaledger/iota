@@ -69,8 +69,8 @@ $ docker compose up -d
 >
 > Running `docker compose build` without specifying a service, would rebuild all images affected by your
 > changes, and thus is not recommended. To understand why, consider that changes
-> in `iota-indexer`, or `iota-graphql-rpc` would cause the `iota-test-validator` image to rebuild.
-> The `local-network` service however uses `iota-test-validator` as a node cluster
+> in `iota-indexer`, or `iota-graphql-rpc` would cause the `iota` image to rebuild.
+> The `local-network` service however uses `iota` as a node cluster
 > without an indexer service or a GraphQL service. Thus rebuilding the image for every
 > change during a normal development workflow would hinder development
 > unnecessarily.

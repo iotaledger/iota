@@ -5,7 +5,7 @@
 use std::{borrow::Borrow, collections::BTreeMap, error::Error, ops::RangeBounds};
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::TypedStoreError;
 

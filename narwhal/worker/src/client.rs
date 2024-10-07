@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     net::Ipv4Addr,
     sync::{Arc, Mutex},
 };
 
 use arc_swap::{ArcSwap, ArcSwapOption};
 use iota_metrics::metered_channel::Sender;
-use iota_network_stack::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{Multiaddr, multiaddr::Protocol};
 use thiserror::Error;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{Duration, sleep, timeout};
 use tracing::info;
 use types::{Transaction, TxResponse};
 
@@ -117,11 +117,11 @@ impl LazyNarwhalClient {
 #[derive(Clone)]
 pub struct LocalNarwhalClient {
     /// TODO: maybe use tx_batch_maker for load schedding.
-    tx_batch_maker: Sender<(Transaction, TxResponse)>,
+    tx_batch_maker: Sender<(Vec<Transaction>, TxResponse)>,
 }
 
 impl LocalNarwhalClient {
-    pub fn new(tx_batch_maker: Sender<(Transaction, TxResponse)>) -> Arc<Self> {
+    pub fn new(tx_batch_maker: Sender<(Vec<Transaction>, TxResponse)>) -> Arc<Self> {
         Arc::new(Self { tx_batch_maker })
     }
 
@@ -150,17 +150,23 @@ impl LocalNarwhalClient {
     }
 
     /// Submits a transaction to the local Narwhal worker.
-    pub async fn submit_transaction(&self, transaction: Transaction) -> Result<(), NarwhalError> {
-        if transaction.len() > MAX_ALLOWED_TRANSACTION_SIZE {
-            return Err(NarwhalError::TransactionTooLarge(
-                transaction.len(),
-                MAX_ALLOWED_TRANSACTION_SIZE,
-            ));
+    pub async fn submit_transactions(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> Result<(), NarwhalError> {
+        for transaction in &transactions {
+            if transaction.len() > MAX_ALLOWED_TRANSACTION_SIZE {
+                return Err(NarwhalError::TransactionTooLarge(
+                    transaction.len(),
+                    MAX_ALLOWED_TRANSACTION_SIZE,
+                ));
+            }
         }
+
         // Send the transaction to the batch maker.
         let (notifier, when_done) = tokio::sync::oneshot::channel();
         self.tx_batch_maker
-            .send((transaction, notifier))
+            .send((transactions, notifier))
             .await
             .map_err(|_| NarwhalError::ShuttingDown)?;
 

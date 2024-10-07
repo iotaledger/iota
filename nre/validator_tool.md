@@ -6,7 +6,7 @@ This document is focused on using Validator Tool.
 
 ## Preparation
 
-1. Make sure you have completed all the [prerequisites](https://docs.iota.io/devnet/build/install).
+1. Make sure you have completed all the [prerequisites](https://wiki.iota.org/devnet/build/install).
 
 2. Build the `iota` binary, which you will need for the genesis ceremony. This step can be done on any machine you like. It does not have to be done on the machine on which you will run the validator.
 
@@ -35,7 +35,7 @@ This document is focused on using Validator Tool.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.io/devnet/build/cli-client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://wiki.iota.org/devnet/build/cli-client).
 
 ```bash
 $IOTA_BINARY client
@@ -168,6 +168,8 @@ to submit an on-chain transaction to become a validator candidate. The parameter
 At this point you are validator candidate and can start to accept self staking and delegated staking.
 
 **If you haven't, start a fullnode now to catch up with the network. When you officially join the committee but is not fully up-to-date, you cannot make meaningful contribution to the network and may be subject to peer reporting hence face the risk of reduced staking rewards for you and your delegators.**
+
+Add stake to a validator's staking pool: https://docs.iota.org/references/framework/iota-system/iota_system#function-request_add_stake
 
 Once you collect enough staking amount, run
 

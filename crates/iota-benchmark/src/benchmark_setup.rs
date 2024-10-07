@@ -4,11 +4,11 @@
 
 use std::{path::PathBuf, sync::Arc, thread::JoinHandle, time::Duration};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     base_types::{ConciseableName, IotaAddress, ObjectID},
-    crypto::{deterministic_random_account_key, AccountKeyPair},
+    crypto::{AccountKeyPair, deterministic_random_account_key},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
 };
@@ -17,14 +17,14 @@ use rand::seq::SliceRandom;
 use test_cluster::TestClusterBuilder;
 use tokio::{
     runtime::Builder,
-    sync::{oneshot, Barrier},
+    sync::{Barrier, oneshot},
     time::sleep,
 };
 use tracing::info;
 
 use crate::{
-    bank::BenchmarkBank, options::Opts, util::get_ed25519_keypair_from_keystore, FullNodeProxy,
-    LocalValidatorAggregatorProxy, ValidatorProxy,
+    FullNodeProxy, LocalValidatorAggregatorProxy, ValidatorProxy, bank::BenchmarkBank,
+    options::Opts, util::get_ed25519_keypair_from_keystore,
 };
 
 /// Balance of the primary gas owner in the local environment.

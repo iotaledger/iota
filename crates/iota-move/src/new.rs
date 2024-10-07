@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fs::create_dir_all,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fs::create_dir_all, io::Write, path::Path};
 
 use clap::Parser;
 use move_cli::base::new;
@@ -26,20 +22,12 @@ pub struct New {
 }
 
 impl New {
-    pub fn execute(self, path: Option<PathBuf>) -> anyhow::Result<()> {
+    pub fn execute(self, path: Option<&Path>) -> anyhow::Result<()> {
         let name = &self.new.name.to_lowercase();
-        let p = match &path {
-            Some(path) => path,
-            None => Path::new(&name),
-        };
 
-        self.new.execute(
-            path.clone(),
-            [(IOTA_PKG_NAME, IOTA_PKG_PATH)],
-            [(name, "0x0")],
-            "",
-        )?;
-
+        self.new
+            .execute(path, [(IOTA_PKG_NAME, IOTA_PKG_PATH)], [(name, "0x0")], "")?;
+        let p = path.unwrap_or_else(|| Path::new(&name));
         let mut w = std::fs::File::create(
             p.join(SourcePackageLayout::Sources.path())
                 .join(format!("{name}.move")),
@@ -75,7 +63,7 @@ module {name}::{name}_tests {{
         // pass
     }}
 
-    #[test, expected_failure(abort_code = {name}::{name}_tests::ENotImplemented)]
+    #[test, expected_failure(abort_code = ::{name}::{name}_tests::ENotImplemented)]
     fun test_{name}_fail() {{
         abort ENotImplemented
     }}
