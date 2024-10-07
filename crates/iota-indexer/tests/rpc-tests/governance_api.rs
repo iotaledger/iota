@@ -11,13 +11,15 @@ use iota_types::{
     gas_coin::GAS,
     id::UID,
     object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
     },
-    transaction::{CallArg, ObjectArg},
+    transaction::{Argument, CallArg, ObjectArg},
     IOTA_FRAMEWORK_ADDRESS,
 };
+use move_core_types::identifier::Identifier;
 
 use crate::common::{indexer_wait_for_checkpoint, rpc_call_error_msg_matches, ApiTestSetup};
 
@@ -95,19 +97,69 @@ fn get_timelocked_stakes_by_id() {
         runtime,
         store,
         client,
-        ..
+        cluster,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
+        let sender = cluster.get_address_0();
+        let context = &cluster.wallet;
+
+        let gas_price = context.get_reference_gas_price().await.unwrap();
+        let mut gas_objects = context.get_all_gas_objects_owned_by_address(sender).await.unwrap();
+        assert!(gas_objects.len() >= 2);
+        let iota_coin_ref = gas_objects.pop().unwrap();
+        println!("gas object id used: {:?}\n", iota_coin_ref.0);
+
+        let gas_data = context.gas_objects(sender).await.unwrap();
+        println!("gas_objects data: {:?}\n", gas_data);
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let iota_coin_argument = builder.obj(ObjectArg::ImmOrOwnedObject(iota_coin_ref)).expect("valid obj");
+
+            // Step 1: Get the IOTA balance from the coin object.
+            let iota_balance = builder.programmable_move_call(
+                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                Identifier::new("coin").unwrap(),
+                Identifier::new("into_balance").unwrap(),
+                vec![GAS::type_tag()],
+                vec![iota_coin_argument]);
+
+            /*
+            // Step 2: Timelock the IOTA balance.
+            let timelock_timestamp = builder.pure(1000).expect("valid pure");
+            let timelocked_iota_balance = builder.programmable_move_call(
+                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                Identifier::new("timelock").unwrap(),
+                Identifier::new("lock").unwrap(),
+                vec![GAS::type_tag()],
+                vec![iota_balance, timelock_timestamp]);
+             */
+
+            builder.transfer_arg(sender, iota_balance);
+
+            builder.finish()
+        };
+
+        let tx_builder = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price);
+        let txn = context.sign_transaction(
+            &tx_builder.programmable(pt).build(),
+        );
+
+        let resp = context.execute_transaction_must_succeed(txn).await;
+
+        println!("resp: {:?}", resp);
+
+        /*
         let response = client
             .get_timelocked_stakes_by_ids(vec![ObjectID::random()])
             .await
             .unwrap();
         assert_eq!(response.len(), 0);
-
-        // TODO: Test with actual timelocked stakes
+         */
     });
 }
 
