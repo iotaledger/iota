@@ -430,7 +430,7 @@ impl IotaNode {
             Some(
                 config
                     .load_migration_tx_data(genesis)
-                    .expect("The migration data is corrupted"),
+                    .expect("the migration data is corrupted"),
             )
         } else {
             None

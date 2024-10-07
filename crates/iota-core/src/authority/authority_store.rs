@@ -268,11 +268,11 @@ impl AuthorityStore {
         // Only initialize an empty database.
         if store
             .database_is_empty()
-            .expect("Database read should not fail at init.")
+            .expect("database read should not fail at init.")
         {
             store
                 .bulk_insert_genesis_objects(genesis.objects())
-                .expect("Cannot bulk insert genesis objects");
+                .expect("cannot bulk insert genesis objects");
 
             // insert txn and effects of genesis
             let transaction = VerifiedTransaction::new_unchecked(genesis.transaction().clone());
@@ -281,13 +281,13 @@ impl AuthorityStore {
                 .perpetual_tables
                 .transactions
                 .insert(transaction.digest(), transaction.serializable_ref())
-                .expect("Cannot insert genesis transaction");
+                .expect("cannot insert genesis transaction");
 
             store
                 .perpetual_tables
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
-                .expect("Cannot insert genesis effects");
+                .expect("cannot insert genesis effects");
 
             // We don't insert the effects to executed_effects yet because the genesis tx
             // hasn't but will be executed. This is important for fullnodes to
@@ -314,22 +314,22 @@ impl AuthorityStore {
                                 let transaction = VerifiedTransaction::new_unchecked(tx.clone());
                                 let objects = migration_transactions
                                     .objects_by_tx_digest(*tx_digest)
-                                    .expect("The migration data is corrupted");
+                                    .expect("the migration data is corrupted");
                                 store
                                     .bulk_insert_genesis_objects(&objects)
-                                    .expect("Cannot bulk insert migrated objects");
+                                    .expect("cannot bulk insert migrated objects");
 
                                 store
                                     .perpetual_tables
                                     .transactions
                                     .insert(transaction.digest(), transaction.serializable_ref())
-                                    .expect("Cannot insert migration transaction");
+                                    .expect("cannot insert migration transaction");
 
                                 store
                                     .perpetual_tables
                                     .effects
                                     .insert(&effects.digest(), effects)
-                                    .expect("Cannot insert migration effects");
+                                    .expect("cannot insert migration effects");
 
                                 let events = events
                                     .data

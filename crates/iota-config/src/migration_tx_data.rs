@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fs::File,
     io::{BufReader, BufWriter},
     path::Path,
@@ -15,7 +15,9 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
     object::{Object, ObjectInner},
-    transaction::{GenesisTransaction, Transaction, TransactionDataAPI},
+    transaction::{
+        GenesisObject, GenesisTransaction, Transaction, TransactionDataAPI, TransactionKind,
+    },
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -52,26 +54,22 @@ impl MigrationTxData {
             .inner
             .get(&digest)
             .with_context(|| format!("No transaction found for digest: {:?}", digest))?;
-        if let iota_types::transaction::TransactionKind::Genesis(GenesisTransaction {
-            objects,
-            ..
-        }) = tx.transaction_data().kind()
+        if let TransactionKind::Genesis(GenesisTransaction { objects, .. }) =
+            tx.transaction_data().kind()
         {
-            for object in objects {
-                match object {
-                    iota_types::transaction::GenesisObject::RawObject { data, owner } => {
-                        let object = ObjectInner {
-                            data: data.to_owned(),
-                            owner: owner.to_owned(),
-                            previous_transaction: *tx.digest(),
-                            storage_rebate: 0,
-                        };
-                        migration_objects.push(object.into());
+            for GenesisObject::RawObject { data, owner } in objects {
+                migration_objects.push(
+                    ObjectInner {
+                        data: data.to_owned(),
+                        owner: owner.to_owned(),
+                        previous_transaction: *tx.digest(),
+                        storage_rebate: 0,
                     }
-                }
+                    .into(),
+                );
             }
         } else {
-            panic!("Wrong transaction type of migration data");
+            panic!("wrong transaction type of migration data");
         }
         Ok(migration_objects)
     }
@@ -80,43 +78,46 @@ impl MigrationTxData {
         &self,
         checkpoint: &CheckpointSummary,
         contents: &CheckpointContents,
-        genesis_tx_digest: TransactionDigest,
     ) -> anyhow::Result<()> {
         assert_eq!(checkpoint.content_digest, *contents.digest());
 
-        for (valid_tx_digest, valid_effects_digest) in contents.iter().filter_map(|exec_digest| {
-            (exec_digest.transaction != genesis_tx_digest)
-                .then_some((&exec_digest.transaction, &exec_digest.effects))
-        }) {
-            let (tx, effects, events) = self
-                .inner
-                .get(valid_tx_digest)
-                .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
+        let mut validation_digests_queue: HashSet<TransactionDigest> =
+            self.inner.keys().cloned().collect();
 
-            if &effects.digest() != valid_effects_digest
-                || effects.transaction_digest() != valid_tx_digest
-                || &tx.data().digest() != valid_tx_digest
+        for (tx_digest, (tx, effects, events)) in self.inner.iter() {
+            let (valid_tx_digest, valid_effects_digest) = contents
+                .iter()
+                .find(|exec_digest| {
+                    exec_digest.transaction == *tx_digest && exec_digest.effects == effects.digest()
+                })
+                .map(|exec_digest| (exec_digest.transaction, exec_digest.effects))
+                .ok_or_else(|| anyhow::anyhow!("missing transaction digest"))?;
+
+            if effects.digest() != valid_effects_digest
+                || effects.transaction_digest() != &valid_tx_digest
+                || tx.data().digest() != valid_tx_digest
             {
-                return Err(anyhow::anyhow!("Invalid transaction or effects data"));
+                anyhow::bail!("invalid transaction or effects data");
             }
 
             if let Some(valid_events) = effects.events_digest() {
-                if &events.digest() != valid_events {
-                    return Err(anyhow::anyhow!("Invalid events data"));
+                if events.digest() != *valid_events {
+                    anyhow::bail!("invalid events data");
                 }
             } else if !events.data.is_empty() {
-                return Err(anyhow::anyhow!("Invalid events data"));
+                anyhow::bail!("invalid events data");
             }
+            validation_digests_queue.remove(tx_digest);
         }
+        assert!(
+            validation_digests_queue.is_empty(),
+            "the migration data is corrupted"
+        );
         Ok(())
     }
 
     pub fn validate_from_genesis(&self, genesis: &Genesis) -> anyhow::Result<()> {
-        self.validate_from_genesis_components(
-            &genesis.checkpoint(),
-            genesis.checkpoint_contents(),
-            *genesis.transaction().digest(),
-        )
+        self.validate_from_genesis_components(&genesis.checkpoint(), genesis.checkpoint_contents())
     }
 
     pub fn validate_from_unsigned_genesis(
@@ -126,7 +127,6 @@ impl MigrationTxData {
         self.validate_from_genesis_components(
             unsigned_genesis.checkpoint(),
             unsigned_genesis.checkpoint_contents(),
-            *unsigned_genesis.transaction().digest(),
         )
     }
 
