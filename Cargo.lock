@@ -5711,7 +5711,6 @@ dependencies = [
  "test-cluster",
  "thiserror",
  "tokio",
- "toml 0.7.8",
  "tower 0.4.13",
  "tower-http",
  "tracing",
