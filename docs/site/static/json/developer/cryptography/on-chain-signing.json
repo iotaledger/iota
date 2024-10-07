@@ -1,11 +1,11 @@
 [
     {
-        "questionText": "Which of the following signature schemes can be verified on-chain in IOTA's Move contracts?",
+        "questionText": "Which of the following signature schemes cannot be verified on-chain in IOTA's Move contracts?",
         "answerOptions": [
-            { "answerText": "Ed25519 signature (64 bytes)", "isCorrect": true },
-            { "answerText": "RSA signature", "isCorrect": false },
-            { "answerText": "Secp256k1 non-recoverable signature (64 bytes)", "isCorrect": true },
-            { "answerText": "BLS G1 signature (minSig setting)", "isCorrect": true }
+            { "answerText": "Ed25519 signature (64 bytes)", "isCorrect": false },
+            { "answerText": "RSA signature", "isCorrect": true },
+            { "answerText": "Secp256k1 non-recoverable signature (64 bytes)", "isCorrect": false },
+            { "answerText": "BLS G1 signature (minSig setting)", "isCorrect": false }
         ]
     },
     {
