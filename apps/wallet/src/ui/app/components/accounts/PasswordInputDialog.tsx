@@ -17,7 +17,6 @@ import {
     ButtonType,
     Dialog,
     DialogBody,
-    DialogTitle,
     DialogContent,
     Header,
     Input,
@@ -94,9 +93,7 @@ export function PasswordModalDialog({
     return (
         <Dialog open={open}>
             <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
-                <DialogTitle>
-                    <Header title={title} onClose={onClose} />
-                </DialogTitle>
+                <Header title={title} onClose={onClose} />
                 <DialogBody>
                     <Form form={form} id={formID} onSubmit={handleOnSubmit}>
                         <div className="flex flex-col gap-y-6">
