@@ -22,6 +22,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .transaction_builder()
         .input_refs(&vec!["0x5".parse()?, "0x8".parse()?])
         .await?;
+
     println!("Multiple object refs: {object_refs:?}");
 
     Ok(())
