@@ -341,7 +341,7 @@ impl<T> AsRef<Receiver<T>> for ReceiverStream<T> {
 }
 
 impl<T> AsMut<Receiver<T>> for ReceiverStream<T> {
-    /// Get a mutable reference to the inner `Receiver`.
+    /// Gets a mutable reference to the inner `Receiver`.
     fn as_mut(&mut self) -> &mut Receiver<T> {
         &mut self.inner
     }
