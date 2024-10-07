@@ -4,8 +4,7 @@ title: Create Review Rating DAO with Multisig Tutorial
 
 ## Introduction
 
-The example demonstrates an implementation of a review rating platform for the food service industry using multisig on IOTA.
-Unlike traditional review rating platforms that often do not disclose the algorithm used to rate reviews, this example uses an algorithm that is published on-chain for everyone to see and verify. The low gas cost of computation on IOTA make it financially feasible to submit, score, and order all reviews on-chain.
+The example illustrates the creation of a review rating platform for the food service industry, utilizing multisignature functionality on IOTA. Unlike conventional review platforms, which frequently conceal the algorithms used to rate reviews, this model leverages a transparent, on-chain algorithm that anyone can access and verify. IOTA's low transaction costs make it economically viable to submit, evaluate, and rank all reviews directly on-chain.
 
 ## Personas
 
@@ -28,17 +27,15 @@ sequenceDiagram
 
 ### Service Owners
 
-Service owners are entities like restaurants that list their services on the platform. They want to attract more customers by receiving high-rated reviews for their services.
-
-Service owners allocate a specific amount of IOTA as a reward pool. Assets from the pool are used to provide rewards for high-rated reviews. A proof of experience (PoE) NFT confirms a reviewer used the service, which the reviewer can burn later to provide a verified review. Service owners provide their customers with unique identifiers (perhaps using QR codes) to identify individual reviewers.
+Service owners, such as restaurants, list their offerings on the platform with the goal of attracting more customers through positive reviews. To incentivize this, they set aside a specific amount of IOTA in a reward pool. This pool is used to reward reviewers who provide high-rated feedback. A proof of experience (PoE) NFT serves as confirmation that a reviewer has used the service, and this NFT can later be burned to submit a verified review. Service owners issue unique identifiers, possibly through QR codes, to link reviews to individual customers.
 
 ### Reviewers
 
-Reviewers are consumers of services that use the review system. Reviewers provide feedback in the form of comments that detail specific aspects of the service as well as a star rating to inform others. The reviews are rated, with the most effective reviews getting the highest rating. Service owners award the 10 highest rated reviews for their service. How often the rewards are distributed is up to the service owner's discretion; for example, the rewards can be distributed once a week or once a month.
+Reviewers are customers who utilize the platform to share their experiences. They provide feedback through comments that highlight particular aspects of the service, along with a star rating to guide others. Reviews are evaluated, with the most helpful ones receiving the highest ratings. The top 10 highest-rated reviews for each service receive rewards from the service owner. The frequency of reward distribution is determined by the service owner, such as weekly or monthly disbursements.
 
 ### Review Readers
 
-Review readers access reviews to make informed decisions on selecting services. Readers rate reviews by casting votes. The review readers' ratings are factored into the algorithm that rates the reviews, with the authors of the highest-rated reviews getting rewarded. Although it is not implemented as part of this guide, this example could be extended to award review readers a portion of the rewards for casting votes for reviews.
+Review readers use the platform to access feedback, helping them make informed decisions when choosing services. They contribute by voting on reviews, and these votes influence the algorithm that ranks the reviews. Authors of the highest-rated reviews are rewarded based on this ranking. Although not part of this guide, the system could be expanded to reward readers for participating by casting votes on reviews.
 
 :::info
 
@@ -47,9 +44,9 @@ See how to create a [Multisig](../cryptography/transaction-auth/multisig.mdx) tr
 
 ### Moderators
 
-Moderators is a multisig setup ensures that multiple parties must authorize significant actions, such as review removal or reward distribution, adding a layer of security and transparency. Decisions require collective agreement, further ensuring accountability within the moderation process. Moderators monitor content of the reviews and can delete any reviews that contain inappropriate content.
+Moderators operate within a multisignature setup, ensuring that significant actions, such as removing reviews or distributing rewards, require authorization from multiple parties. This approach enhances security and transparency, as decisions are made collectively, promoting accountability in the moderation process. Moderators review the content and have the authority to remove reviews containing inappropriate material.
 
-The incentive mechanism for moderators is not implemented for this guide, but service owners can all pay into a pool that goes to moderators on a rolling basis. People can stake moderators to influence what portion of the reward each moderator gets, up to a limit (similar to how validators are staked on chain), and moderator decisions are decided by quorum of stake weight. This process installs incentives for moderators to perform their job well.
+While this guide does not include an incentive mechanism for moderators, service owners could contribute to a pool that compensates moderators on a rolling basis. Additionally, a staking system could be introduced where individuals stake tokens to influence the distribution of rewards among moderators, similar to how validators are staked on-chain. Moderator decisions would be based on a quorum determined by the weight of the staked tokens, creating incentives for moderators to carry out their duties effectively.
 
 ## How reviews are scored
 
@@ -260,4 +257,4 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 ## Conclusion
 
-This tutorial outlined the creation of a decentralized review rating platform using multisig on IOTA. Service Owners list their services, Reviewers submit reviews, Review Readers vote on them, and Moderators ensure quality control. Reviews are scored based on content, upvotes, and proof of experience (PoE), with top reviews earning rewards. Multisig moderation adds security by requiring multiple parties to approve key actions like removing reviews or distributing rewards. The platform ensures transparency and fairness by storing the review algorithm and data on-chain, leveraging Move-based smart contracts.
+This tutorial explains how to build a decentralized review rating platform using multisig on IOTA. Service owners can list their services, while reviewers provide feedback that is rated by readers. Moderators maintain quality control, ensuring that only appropriate reviews remain. Reviews are scored based on their content, upvotes, and proof of experience (PoE), with top reviews earning rewards. The multisig setup enhances security, as key actions like removing reviews or distributing rewards require approval from multiple parties. By storing the review algorithm and data on-chain using Move-based smart contracts, the platform guarantees transparency and fairness.
