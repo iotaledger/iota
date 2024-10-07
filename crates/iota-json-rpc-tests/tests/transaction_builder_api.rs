@@ -24,7 +24,8 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     IOTA_FRAMEWORK_ADDRESS,
 };
-use test_cluster::TestClusterBuilder;
+use jsonrpsee::http_client::HttpClient;
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 fn assert_same_object_changes_ignoring_version_and_digest(
     expected: Vec<ObjectChange>,
@@ -78,28 +79,19 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
     let gas = objects.clone().last().unwrap().object().unwrap().object_id;
 
     let transaction_bytes: TransactionBlockBytes = http_client
-        .transfer_object(address, obj, Some(gas), 1_000_000.into(), address)
+        .transfer_object(address, obj, Some(gas), 10_000_000.into(), address)
         .await?;
 
     let tx = cluster
         .wallet
-        .sign_transaction(&transaction_bytes.to_data()?);
+        .sign_transaction(&transaction_bytes.clone().to_data()?);
     let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-    let tx_bytes1 = tx_bytes.clone();
+
     let dryrun_response = http_client.dry_run_transaction_block(tx_bytes).await?;
 
-    let tx_response: IotaTransactionBlockResponse = http_client
-        .execute_transaction_block(
-            tx_bytes1,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_object_changes(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
     assert_same_object_changes_ignoring_version_and_digest(
         dryrun_response.object_changes,
@@ -131,24 +123,9 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-
-    let tx_response: IotaTransactionBlockResponse = http_client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_balance_changes(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-    assert_eq!(tx_response.status_ok(), Some(true));
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
     let gas_usage: i128 = tx_response
         .effects
@@ -191,24 +168,9 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-
-    let tx_response: IotaTransactionBlockResponse = http_client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_balance_changes(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-    assert_eq!(tx_response.status_ok(), Some(true));
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
     let gas_usage: i128 = tx_response
         .effects
@@ -256,24 +218,9 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-
-    let tx_response: IotaTransactionBlockResponse = http_client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_balance_changes(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-    assert_eq!(tx_response.status_ok(), Some(true));
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
     let gas_usage: i128 = tx_response
         .effects
@@ -327,24 +274,9 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-
-    let tx_response: IotaTransactionBlockResponse = http_client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_balance_changes(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-    assert_eq!(tx_response.status_ok(), Some(true));
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
     let gas_usage: i128 = tx_response
         .effects
@@ -399,19 +331,10 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
-    let tx_response = http_client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
     matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
     Ok(())
 }
@@ -459,20 +382,38 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
         )
         .await?;
 
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
+
+    matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 1);
+    Ok(())
+}
+
+async fn execute_tx(
+    cluster: &TestCluster,
+    http_client: &HttpClient,
+    transaction_bytes: TransactionBlockBytes,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let tx = cluster
         .wallet
         .sign_transaction(&transaction_bytes.to_data()?);
-
     let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
-    let tx_response = http_client
+    let tx_response: IotaTransactionBlockResponse = http_client
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_object_changes()
+                    .with_balance_changes(),
+            ),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
-    matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 1);
-    Ok(())
+    assert_eq!(tx_response.status_ok(), Some(true));
+
+    Ok(tx_response)
 }
