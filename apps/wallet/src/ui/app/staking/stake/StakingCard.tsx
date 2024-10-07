@@ -20,7 +20,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -142,7 +142,7 @@ function StakingCard() {
         },
         onSuccess: (_, { amount, validatorAddress }) => {
             ampli.stakedIota({
-                stakedAmount: Number(amount / NANO_PER_IOTA),
+                stakedAmount: Number(amount / NANOS_PER_IOTA),
                 validatorAddress: validatorAddress,
             });
         },
