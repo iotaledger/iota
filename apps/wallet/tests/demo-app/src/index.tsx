@@ -94,8 +94,8 @@ function App() {
             <button
                 onClick={async () => {
                     setError(null);
-                    const txb = getDemoTransaction(accounts[0]?.address || '');
                     try {
+                        const txb = getDemoTransaction(accounts[0]?.address || '');
                         await iotaWallet.features[
                             'iota:signAndExecuteTransaction'
                         ].signAndExecuteTransaction({
@@ -113,8 +113,8 @@ function App() {
             <button
                 onClick={async () => {
                     setError(null);
-                    const txb = getDemoTransaction(accounts[0]?.address || '');
                     try {
+                        const txb = getDemoTransaction(accounts[0]?.address || '');
                         await iotaWallet.features['iota:signTransaction'].signTransaction({
                             transaction: txb,
                             account: getAccount(accounts[0], useWrongAccounts),
