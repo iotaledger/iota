@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, LoadingIndicator } from '_components';
+import { LoadingIndicator } from '_components';
 import {
     calculateStakeShare,
     formatPercentageDisplay,
@@ -18,8 +18,16 @@ import { useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
-import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
+import {
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    KeyValueInfo,
+    Panel,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { Info } from '@iota/ui-icons';
 
 interface ValidatorFormDetailProps {
     validatorAddress: string;
@@ -99,7 +107,14 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     }
 
     if (isError || errorValidators) {
-        return <Alert title={error?.message ?? 'Error loading validator data'} />;
+        return (
+            <InfoBox
+                type={InfoBoxType.Default}
+                title={error?.message ?? 'Error loading validator data'}
+                icon={<Info />}
+                style={InfoBoxStyle.Elevated}
+            />
+        );
     }
 
     return (

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, Loading, Overlay } from '_components';
+import { Loading, Overlay } from '_components';
 import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -13,6 +13,8 @@ import { useNavigate } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { SelectValidatorCard } from './SelectValidatorCard';
 import { ValidatorsCard } from './ValidatorsCard';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 export function Validators() {
     const accountAddress = useActiveAddress();
@@ -42,7 +44,12 @@ export function Validators() {
                 <Loading loading={isPending}>
                     {isError ? (
                         <div className="mb-2">
-                            <Alert title={error?.message} />
+                            <InfoBox
+                                type={InfoBoxType.Default}
+                                title={error?.message}
+                                icon={<Info />}
+                                style={InfoBoxStyle.Elevated}
+                            />
                         </div>
                     ) : null}
 

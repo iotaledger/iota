@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, AlertStyle, AlertType, Loading, Overlay, ReceiptCard } from '_components';
+import { Loading, Overlay, ReceiptCard } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useIotaClient } from '@iota/dapp-kit';
@@ -11,6 +11,8 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/ui-icons';
 
 function ReceiptPage() {
     const location = useLocation();
@@ -77,11 +79,12 @@ function ReceiptPage() {
             >
                 {isError ? (
                     <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                        <Alert
+                        <InfoBox
+                            type={InfoBoxType.Warning}
                             title="Something went wrong"
                             supportingText={error?.message ?? 'An error occurred'}
-                            style={AlertStyle.Default}
-                            type={AlertType.Warning}
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Default}
                         />
                     </div>
                 ) : (

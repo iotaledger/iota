@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, AlertStyle, AlertType, LoadingIndicator } from '_components';
+import { LoadingIndicator } from '_components';
 import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
@@ -23,9 +23,20 @@ import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { CardType, Panel, KeyValueInfo, Divider, Button, ButtonType } from '@iota/apps-ui-kit';
+import {
+    CardType,
+    Panel,
+    KeyValueInfo,
+    Divider,
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Info, Warning } from '@iota/ui-icons';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -113,11 +124,12 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     if (isError || errorValidators) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <Alert
+                <InfoBox
                     title="Something went wrong"
                     supportingText={error?.message ?? 'An error occurred'}
-                    style={AlertStyle.Default}
-                    type={AlertType.Warning}
+                    style={InfoBoxStyle.Default}
+                    type={InfoBoxType.Warning}
+                    icon={<Warning />}
                 />
             </div>
         );
@@ -143,10 +155,13 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
             <div className="flex flex-col gap-y-md">
                 <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
                 {hasInactiveValidatorDelegation ? (
-                    <Alert
+                    <InfoBox
+                        type={InfoBoxType.Default}
                         title="Earn with active validators"
                         supportingText="Unstake IOTA from the inactive validators and stake on an active
-                                    validator to start earning rewards again."
+                                validator to start earning rewards again."
+                        icon={<Info />}
+                        style={InfoBoxStyle.Elevated}
                     />
                 ) : null}
                 <Panel hasBorder>

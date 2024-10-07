@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Alert, AlertStyle, AlertType, LoadingIndicator } from '_components';
+import { LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     formatDelegatedStake,
@@ -19,8 +19,17 @@ import { useMemo } from 'react';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { StakeCard } from '../home/StakedCard';
 import { StatsDetail } from '_app/staking/validators/StatsDetail';
-import { Title, TitleSize, Button, ButtonType } from '@iota/apps-ui-kit';
+import {
+    Title,
+    TitleSize,
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
+import { Info, Warning } from '@iota/ui-icons';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -85,11 +94,12 @@ export function ValidatorsCard() {
     if (isError) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <Alert
+                <InfoBox
+                    type={InfoBoxType.Warning}
                     title="Something went wrong"
                     supportingText={error?.message ?? 'An error occurred'}
-                    style={AlertStyle.Default}
-                    type={AlertType.Warning}
+                    icon={<Warning />}
+                    style={InfoBoxStyle.Default}
                 />
             </div>
         );
@@ -107,10 +117,13 @@ export function ValidatorsCard() {
                     <div>
                         {hasInactiveValidatorDelegation ? (
                             <div className="mb-3">
-                                <Alert
+                                <InfoBox
+                                    type={InfoBoxType.Default}
                                     title="Earn with active validators"
                                     supportingText="Unstake IOTA from the inactive validators and stake on an active
-                                    validator to start earning rewards again."
+validator to start earning rewards again."
+                                    icon={<Info />}
+                                    style={InfoBoxStyle.Elevated}
                                 />
                             </div>
                         ) : null}

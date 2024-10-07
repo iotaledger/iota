@@ -2,22 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ButtonSegment, SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import {
-    Alert,
-    AlertStyle,
-    AlertType,
-    Loading,
-    LoadingIndicator,
-    NoData,
-    PageTemplate,
-} from '_components';
+    ButtonSegment,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    SegmentedButton,
+    SegmentedButtonType,
+} from '@iota/apps-ui-kit';
+import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { Loading, LoadingIndicator, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
+import { Warning } from '@iota/ui-icons';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -130,11 +130,12 @@ function NftsPage() {
             <div className="flex h-full w-full flex-col items-start gap-md">
                 {isError ? (
                     <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                        <Alert
+                        <InfoBox
+                            type={InfoBoxType.Warning}
                             title="Sync error (data might be outdated)"
                             supportingText={error?.message ?? 'An error occurred'}
-                            style={AlertStyle.Default}
-                            type={AlertType.Warning}
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Default}
                         />
                     </div>
                 ) : (

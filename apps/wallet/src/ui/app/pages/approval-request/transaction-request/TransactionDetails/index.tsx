@@ -4,13 +4,15 @@
 
 import { useTransactionData } from '_src/ui/app/hooks';
 import { type Transaction } from '@iota/iota-sdk/transactions';
-
 import { Command } from './Command';
 import { Input } from './Input';
 import { Collapsible } from '_src/ui/app/shared/collapse';
 import {
     ButtonSegment,
     ButtonSegmentType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     Panel,
     SegmentedButton,
     SegmentedButtonType,
@@ -18,7 +20,8 @@ import {
     TitleSize,
 } from '@iota/apps-ui-kit';
 import { useEffect, useState } from 'react';
-import { Alert, Loading } from '_src/ui/app/components';
+import { Loading } from '_src/ui/app/components';
+import { Info } from '@iota/ui-icons';
 
 interface TransactionDetailsProps {
     sender?: string;
@@ -90,7 +93,14 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                         ))}
                     </SegmentedButton>
                     <Loading loading={isPending}>
-                        {isError ? <Alert title="Couldn't gather data" /> : null}
+                        {isError ? (
+                            <InfoBox
+                                type={InfoBoxType.Default}
+                                title="Couldn't gather data"
+                                icon={<Info />}
+                                style={InfoBoxStyle.Elevated}
+                            />
+                        ) : null}
                         <div className="flex flex-col p-md">
                             {selectedDetailsCategory === DetailsCategory.Commands &&
                                 !!transactionData?.commands.length && (

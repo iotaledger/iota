@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { LoadingIndicator, NumberInput, Alert } from '_components';
+import { LoadingIndicator, NumberInput } from '_components';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useField, useFormikContext } from 'formik';
 import type { ComponentProps, ReactNode } from 'react';
 import { forwardRef } from 'react';
-
 import { Pill, type PillProps } from './Pill';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 const styles = cva(
     [
@@ -114,7 +115,12 @@ export function InputWithAction({
 
             {(meta?.touched && meta?.error) || (meta.value !== '' && meta.error) ? (
                 <div className="mt-3">
-                    <Alert title={meta?.error} />
+                    <InfoBox
+                        type={InfoBoxType.Default}
+                        title={meta?.error}
+                        icon={<Info />}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 </div>
             ) : null}
         </>
@@ -266,7 +272,12 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
 
                 {errorString ? (
                     <div className="mt-3">
-                        <Alert title={errorString} />
+                        <InfoBox
+                            type={InfoBoxType.Default}
+                            title={errorString}
+                            icon={<Info />}
+                            style={InfoBoxStyle.Elevated}
+                        />
                     </div>
                 ) : null}
             </>
