@@ -16,7 +16,6 @@ export * from './accounts';
 export * from './active-coins-card';
 export * from './active-coins-card/CoinItem';
 export * from './address-input';
-export * from './alert';
 export * from './coin-icon';
 export * from './error-boundary';
 export * from './explorer-link';
