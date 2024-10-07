@@ -371,6 +371,9 @@ h4 {
 }
 
 /** navbar search field **/
+[data-theme='light'] .DocSearch {
+  --docsearch-searchbox-background: var(--ifm-background-color-dark);
+}
 .DocSearch-Button-Container {
   width: 100%;
   justify-content: space-between;
