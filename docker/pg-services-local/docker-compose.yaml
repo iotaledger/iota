@@ -28,6 +28,12 @@ services:
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9123:9123"
+    healthcheck:
+      test: "curl -f http://local-network:9000/rest/"
+      interval: 1s
+      start_period: 5s
+      timeout: 2s
+      retries: 3
 
   indexer-sync:
     image: iota-indexer
@@ -140,9 +146,13 @@ services:
       - "127.0.0.1:8000:8000/tcp"
       - "127.0.0.1:9183:9181/tcp"
     depends_on:
-      - local-network
-      - postgres
-      - indexer-sync
+      local-network:
+        condition: service_healthy
+        restart: true
+      postgres:
+        condition: service_healthy
+      indexer-sync:
+        condition: service_started
 
   postgres:
     image: postgres:15
