@@ -8,7 +8,7 @@ use std::{fs::File, path::Path};
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
-    test_outputs::{add_snapshot_test_outputs, to_nanos, STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO},
+    test_outputs::{STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO, add_snapshot_test_outputs, to_nanos},
 };
 use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 

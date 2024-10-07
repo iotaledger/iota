@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the purpose of the `key` ability in a struct declaration in Move?",
+        "answerOptions": [
+            { "answerText": "It allows a struct to be stored and transferred.", "isCorrect": true },
+            { "answerText": "It allows a struct to be copied.", "isCorrect": false },
+            { "answerText": "It allows a struct to be dropped or discarded.", "isCorrect": false },
+            { "answerText": "It allows a struct to be stored within structs with the `key` ability.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which ability allows a struct to be discarded in Move?",
+        "answerOptions": [
+            { "answerText": "`copy`", "isCorrect": false },
+            { "answerText": "`drop`", "isCorrect": true },
+            { "answerText": "`key`", "isCorrect": false },
+            { "answerText": "`store`", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How do you denote a comment in a `.move` file?",
+        "answerOptions": [
+            { "answerText": "Using double slashes `//`", "isCorrect": true },
+            { "answerText": "Using `/* ... */`", "isCorrect": false },
+            { "answerText": "Using `#`", "isCorrect": false },
+            { "answerText": "Using `--`", "isCorrect": false }
+        ]
+    }
+]

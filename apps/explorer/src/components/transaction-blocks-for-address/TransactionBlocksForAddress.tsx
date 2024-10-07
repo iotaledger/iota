@@ -3,17 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type TransactionFilter } from '@iota/iota-sdk/client';
-import { Heading, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
-
-import clsx from 'clsx';
 import { Pagination, PlaceholderTable, TableCard } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
 import { ObjectFilterValue } from '~/lib/enums';
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    Panel,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+} from '@iota/apps-ui-kit';
+import { generateTransactionsTableColumns } from '~/lib/ui';
 
 type TransactionBlocksForAddressProps = {
     address: string;
@@ -74,15 +79,17 @@ interface FiltersControlProps {
 
 export function FiltersControl({ filterValue, setFilterValue }: FiltersControlProps): JSX.Element {
     return (
-        <RadioGroup
-            aria-label="transaction filter"
-            value={filterValue}
-            onValueChange={(value) => setFilterValue(value as ObjectFilterValue)}
-        >
-            {FILTER_OPTIONS.map((filter) => (
-                <RadioGroupItem key={filter.value} value={filter.value} label={filter.label} />
+        <SegmentedButton type={SegmentedButtonType.Outlined}>
+            {FILTER_OPTIONS.map(({ label, value }) => (
+                <ButtonSegment
+                    key={value}
+                    onClick={() => setFilterValue(value)}
+                    label={label}
+                    selected={filterValue === value}
+                    type={ButtonSegmentType.Rounded}
+                />
             ))}
-        </RadioGroup>
+        </SegmentedButton>
     );
 }
 
@@ -103,79 +110,78 @@ export function TransactionBlocksForAddress({
         } as TransactionFilter);
 
     const currentPage = currentPageState[filterValue];
-    const cardData =
-        data && data.pages[currentPage]
-            ? genTableDataFromTxData(data.pages[currentPage].data)
-            : undefined;
+    const tableColumns = generateTransactionsTableColumns();
 
     return (
-        <div data-testid="tx">
-            <div className="flex items-center justify-between border-b border-gray-45 pb-5">
-                {header && (
-                    <Heading color="gray-90" variant="heading4/semibold">
-                        {header}
-                    </Heading>
-                )}
-
-                <FiltersControl filterValue={filterValue} setFilterValue={setFilterValue} />
-            </div>
-
-            <div className={clsx(header && 'pt-5', 'flex flex-col space-y-5 text-left xl:pr-10')}>
-                {isPending || isFetching || isFetchingNextPage || !cardData ? (
-                    <PlaceholderTable
-                        rowCount={DEFAULT_TRANSACTIONS_LIMIT}
-                        rowHeight="16px"
-                        colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                    />
-                ) : (
+        <Panel>
+            <div data-testid="tx">
+                <div className="flex w-full items-center justify-between p-md--rs">
+                    {header && <Title title={header} />}
                     <div>
-                        <TableCard data={cardData.data} columns={cardData.columns} />
+                        <FiltersControl filterValue={filterValue} setFilterValue={setFilterValue} />
                     </div>
-                )}
+                </div>
+                <div className="flex flex-col p-md--rs">
+                    {isPending ||
+                    isFetching ||
+                    isFetchingNextPage ||
+                    !data?.pages[currentPage].data ? (
+                        <PlaceholderTable
+                            rowCount={DEFAULT_TRANSACTIONS_LIMIT}
+                            rowHeight="16px"
+                            colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                        />
+                    ) : (
+                        <div>
+                            <TableCard data={data.pages[currentPage].data} columns={tableColumns} />
+                        </div>
+                    )}
 
-                {(hasNextPage || (data && data?.pages.length > 1)) && (
-                    <Pagination
-                        onNext={() => {
-                            if (isPending || isFetching) {
-                                return;
+                    {(hasNextPage || (data && data?.pages.length > 1)) && (
+                        <Pagination
+                            hasFirst={currentPageState[filterValue] !== 0}
+                            onNext={() => {
+                                if (isPending || isFetching) {
+                                    return;
+                                }
+
+                                // Make sure we are at the end before fetching another page
+                                if (
+                                    data &&
+                                    currentPageState[filterValue] === data?.pages.length - 1 &&
+                                    !isPending &&
+                                    !isFetching
+                                ) {
+                                    fetchNextPage();
+                                }
+                                dispatch({
+                                    type: PageAction.Next,
+
+                                    filterValue,
+                                });
+                            }}
+                            hasNext={
+                                (Boolean(hasNextPage) && Boolean(data?.pages[currentPage])) ||
+                                currentPage < (data?.pages.length ?? 0) - 1
                             }
+                            hasPrev={currentPageState[filterValue] !== 0}
+                            onPrev={() =>
+                                dispatch({
+                                    type: PageAction.Prev,
 
-                            // Make sure we are at the end before fetching another page
-                            if (
-                                data &&
-                                currentPageState[filterValue] === data?.pages.length - 1 &&
-                                !isPending &&
-                                !isFetching
-                            ) {
-                                fetchNextPage();
+                                    filterValue,
+                                })
                             }
-                            dispatch({
-                                type: PageAction.Next,
-
-                                filterValue,
-                            });
-                        }}
-                        hasNext={
-                            (Boolean(hasNextPage) && Boolean(data?.pages[currentPage])) ||
-                            currentPage < (data?.pages.length ?? 0) - 1
-                        }
-                        hasPrev={currentPageState[filterValue] !== 0}
-                        onPrev={() =>
-                            dispatch({
-                                type: PageAction.Prev,
-
-                                filterValue,
-                            })
-                        }
-                        onFirst={() =>
-                            dispatch({
-                                type: PageAction.First,
-                                filterValue,
-                            })
-                        }
-                    />
-                )}
+                            onFirst={() =>
+                                dispatch({
+                                    type: PageAction.First,
+                                    filterValue,
+                                })
+                            }
+                        />
+                    )}
+                </div>
             </div>
-        </div>
+        </Panel>
     );
 }

@@ -7,7 +7,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useParams } from 'react-router-dom';
 
 import { PageLayout } from '~/components';
-import { Banner, PageHeader, StatusIcon } from '~/components/ui';
+import { Banner, PageHeader } from '~/components/ui';
 import { TransactionView } from './TransactionView';
 
 interface TransactionResultPageHeaderProps {
@@ -34,7 +34,7 @@ function TransactionResultPageHeader({
             title={txnDigest}
             subtitle={!isProgrammableTransaction ? txnKindName : undefined}
             error={error}
-            before={<StatusIcon success={txnStatus === 'success'} />}
+            status={txnStatus}
         />
     );
 }
@@ -54,27 +54,23 @@ export default function TransactionResult(): JSX.Element {
     return (
         <PageLayout
             loading={isPending}
-            gradient={{
-                content: (
+            content={
+                <div className="flex flex-col gap-2xl">
                     <TransactionResultPageHeader
                         transaction={data}
                         error={txnErrorText}
                         loading={isPending}
                     />
-                ),
-                size: 'md',
-            }}
-            isError={!!txnErrorText}
-            content={
-                getTxnErrorBool || !data ? (
-                    <Banner variant="error" spacing="lg" fullWidth>
-                        {!id
-                            ? "Can't search for a transaction without a digest"
-                            : `Data could not be extracted for the following specified transaction ID: ${id}`}
-                    </Banner>
-                ) : (
-                    <TransactionView transaction={data} />
-                )
+                    {getTxnErrorBool || !data ? (
+                        <Banner variant="error" spacing="lg" fullWidth>
+                            {!id
+                                ? "Can't search for a transaction without a digest"
+                                : `Data could not be extracted for the following specified transaction ID: ${id}`}
+                        </Banner>
+                    ) : (
+                        <TransactionView transaction={data} />
+                    )}
+                </div>
             }
         />
     );

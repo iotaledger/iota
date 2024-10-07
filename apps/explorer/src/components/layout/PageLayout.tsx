@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useAppsBackend, useElementDimensions } from '@iota/core';
+import { useAppsBackend } from '@iota/core';
 import { LoadingIndicator } from '@iota/ui';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import clsx from 'clsx';
 import { type ReactNode, useRef } from 'react';
 
 import Footer from '../footer/Footer';
@@ -16,18 +15,11 @@ import { useNetworkContext } from '~/contexts';
 import { Banner } from '~/components/ui';
 
 type PageLayoutProps = {
-    gradient?: {
-        content: ReactNode;
-        size: 'lg' | 'md';
-    };
-    isError?: boolean;
     content: ReactNode;
     loading?: boolean;
 };
 
-const DEFAULT_HEADER_HEIGHT = 68;
-
-export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps): JSX.Element {
+export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn('network-outage-override');
@@ -43,11 +35,9 @@ export function PageLayout({ gradient, content, loading, isError }: PageLayoutPr
         retry: false,
         enabled: network === Network.Mainnet,
     });
-    const isGradientVisible = !!gradient;
     const renderNetworkDegradeBanner =
         outageOverride || (network === Network.Mainnet && data?.degraded);
     const headerRef = useRef<HTMLElement | null>(null);
-    const [headerHeight] = useElementDimensions(headerRef, DEFAULT_HEADER_HEIGHT);
 
     const networkDegradeBannerCopy =
         network === Network.Testnet
@@ -69,44 +59,8 @@ export function PageLayout({ gradient, content, loading, isError }: PageLayoutPr
                     <LoadingIndicator variant="lg" />
                 </div>
             )}
-            <main
-                className="relative z-10 bg-offwhite"
-                style={
-                    !isGradientVisible
-                        ? {
-                              paddingTop: `${headerHeight}px`,
-                          }
-                        : {}
-                }
-            >
-                {isGradientVisible ? (
-                    <section
-                        style={{
-                            paddingTop: `${headerHeight}px`,
-                        }}
-                        className={clsx(
-                            'group/gradientContent',
-                            loading && 'bg-gradients-graph-cards',
-                            isError && 'bg-gradients-failure',
-                            !isError && 'bg-gradients-graph-cards',
-                        )}
-                    >
-                        <div
-                            className={clsx(
-                                'mx-auto max-w-[1440px] py-8 lg:px-6 xl:px-10',
-                                gradient.size === 'lg' && 'px-4 xl:py-12',
-                                gradient.size === 'md' && 'px-4',
-                            )}
-                        >
-                            {gradient.content}
-                        </div>
-                    </section>
-                ) : null}
-                {!loading && (
-                    <section className="mx-auto max-w-[1440px] p-5 pb-20 sm:py-8 md:p-10 md:pb-20">
-                        {content}
-                    </section>
-                )}
+            <main className="relative z-10 bg-neutral-98">
+                {!loading && <section className="container pb-20 pt-28">{content}</section>}
             </main>
             <Footer />
         </div>

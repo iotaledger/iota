@@ -68,8 +68,8 @@ export const getBalanceChangeSummary = (
 };
 
 export const getRecognizedUnRecognizedTokenChanges = (changes: BalanceChange[]) => {
-    const recognizedTokenChanges = [];
-    const unRecognizedTokenChanges = [];
+    const recognizedTokenChanges: BalanceChange[] = [];
+    const unRecognizedTokenChanges: BalanceChange[] = [];
     for (const change of changes) {
         if (change.unRecognizedToken) {
             unRecognizedTokenChanges.push(change);

@@ -16,7 +16,7 @@ use thiserror::Error;
 use types::Certificate;
 
 #[cfg(test)]
-pub use crate::consensus::consensus_utils::{make_certificate_store, NUM_SUB_DAGS_PER_SCHEDULE};
+pub use crate::consensus::consensus_utils::{NUM_SUB_DAGS_PER_SCHEDULE, make_certificate_store};
 pub use crate::consensus::{
     bullshark::Bullshark,
     leader_schedule::{LeaderSchedule, LeaderSwapTable},

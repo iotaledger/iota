@@ -1,7 +1,11 @@
 processed 2 tasks
 
-task 0 'programmable'. lines 5-6:
+task 0, lines 5-6:
+//# programmable
+// > 0: SplitCoins(Gas, [Input(0)]);
 Error: Remove whitespace between // and > to start a command
 
-task 1 'programmable'. lines 8-9:
+task 1, lines 8-9:
+//# programmable
+//> 1: SplitCoins(Gas, [Input(0)]);
 Error: Actual command index of 0 does not match annotated index 1

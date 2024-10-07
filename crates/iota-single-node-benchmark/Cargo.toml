@@ -1,6 +1,6 @@
 [package]
 name = "iota-single-node-benchmark"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -17,6 +17,7 @@ move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
+move-symbol-pool.workspace = true
 
 async-trait.workspace = true
 bcs.workspace = true

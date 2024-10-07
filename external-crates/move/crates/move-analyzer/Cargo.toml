@@ -12,20 +12,30 @@ description = "A language server for Move"
 anyhow.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
-crossbeam = "0.8"
-derivative = "2.2"
+crossbeam.workspace = true
+derivative.workspace = true
 dunce.workspace = true
 im.workspace = true
 itertools.workspace = true
-lsp-server = "0.7"
-lsp-types = "0.90"
-serde_json.workspace = true
-tempfile.workspace = true
-url = "2.5"
-vfs.workspace = true
-
+lsp-server.workspace = true
+lsp-types.workspace = true
 move-command-line-common.workspace = true
 move-compiler.workspace = true
 move-ir-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+url.workspace = true
+vfs.workspace = true
+
+[dev-dependencies]
+datatest-stable.workspace = true
+json_comments.workspace = true
+
+[[test]]
+name = "ide_testsuite"
+harness = false

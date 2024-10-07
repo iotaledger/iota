@@ -8,7 +8,6 @@ export * from './AccountItemApproveConnection';
 export * from './AccountListItem';
 export * from './AccountMultiSelect';
 export * from './AccountsFormContext';
-export * from './AccountsList';
 export * from './AutoLockSelector';
 export * from './EditableAccountName';
 export * from './FooterLink';

@@ -1,10 +1,13 @@
 [package]
 name = "iota-e2e-tests"
-version = "0.1.0"
+version.workspace = true
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 
@@ -13,7 +16,6 @@ anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
-eyre.workspace = true
 fs_extra.workspace = true
 futures.workspace = true
 indexmap.workspace = true
@@ -36,6 +38,7 @@ move-package.workspace = true
 telemetry-subscribers.workspace = true
 
 iota.workspace = true
+iota-bridge.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-framework.workspace = true
@@ -46,8 +49,10 @@ iota-keys.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-move-build.workspace = true
+iota-network.workspace = true
 iota-node.workspace = true
 iota-protocol-config.workspace = true
+iota-rest-api.workspace = true
 iota-sdk.workspace = true
 iota-simulator.workspace = true
 iota-storage.workspace = true
@@ -57,3 +62,10 @@ iota-test-transaction-builder.workspace = true
 iota-tool.workspace = true
 iota-types.workspace = true
 shared-crypto.workspace = true
+
+coset.workspace = true
+p256.workspace = true
+passkey-authenticator.workspace = true
+passkey-client.workspace = true
+passkey-types.workspace = true
+url.workspace = true

@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![warn(
     future_incompatible,
     nonstandard_style,
@@ -33,5 +34,5 @@ mod rpc_tests;
 
 pub use crate::{
     metrics::PrimaryChannelMetrics,
-    primary::{Primary, CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS},
+    primary::{CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS, Primary},
 };

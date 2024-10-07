@@ -40,6 +40,7 @@ runs:
             - ".github/workflows/_mysticeti_tests.yml"
             - "Cargo.toml"
             - "Cargo.lock"
+            - ".config/nextest.toml"
           isDoc:
             - "docs/content/**"
             - "docs/site/**"

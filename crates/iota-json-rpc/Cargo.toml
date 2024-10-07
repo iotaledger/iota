@@ -31,6 +31,7 @@ serde_json.workspace = true
 signature.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
@@ -38,6 +39,7 @@ tracing.workspace = true
 tap.workspace = true
 
 cached.workspace = true
+iota-config.workspace = true
 iota-core.workspace = true
 iota-json.workspace = true
 iota-json-rpc-api.workspace = true

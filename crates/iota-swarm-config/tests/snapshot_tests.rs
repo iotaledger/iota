@@ -25,17 +25,17 @@ use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{validator_info::ValidatorInfo, Builder};
+use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        IotaKeyPair, NetworkKeyPair,
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+        generate_proof_of_possession, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 #[test]
 #[cfg_attr(msim, ignore)]
@@ -142,7 +142,6 @@ fn network_config_snapshot_matches() {
         if let Some(consensus_config) = validator_config.consensus_config.as_mut() {
             consensus_config.address = Multiaddr::empty();
             consensus_config.db_path = PathBuf::from("/tmp/foo/");
-            consensus_config.internal_worker_address = Some(Multiaddr::empty());
             consensus_config
                 .narwhal_config
                 .prometheus_metrics

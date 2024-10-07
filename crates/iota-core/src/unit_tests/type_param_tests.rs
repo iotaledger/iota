@@ -6,13 +6,13 @@ use std::str::FromStr;
 
 use iota_types::{
     base_types::ObjectID,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
 };
 use move_core_types::language_storage::TypeTag;
 
 use crate::authority::{
-    authority_tests::{call_move, init_state_with_ids, TestCallArg},
+    authority_tests::{TestCallArg, call_move, init_state_with_ids},
     move_integration_tests::build_and_publish_test_package,
 };
 

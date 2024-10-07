@@ -14,10 +14,10 @@ use prometheus::Registry;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
+    DataIngestionMetrics, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::CheckpointReader,
     worker_pool::WorkerPool,
-    DataIngestionMetrics, ReaderOptions, Worker,
 };
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;

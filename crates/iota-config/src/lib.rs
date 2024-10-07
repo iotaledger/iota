@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use tracing::trace;
 
 pub mod certificate_deny_config;
@@ -22,7 +22,7 @@ pub mod p2p;
 pub mod transaction_deny_config;
 
 use iota_types::multiaddr::Multiaddr;
-pub use node::{ConsensusConfig, NodeConfig};
+pub use node::{ConsensusConfig, ExecutionCacheConfig, NodeConfig};
 
 const IOTA_DIR: &str = ".iota";
 pub const IOTA_CONFIG_DIR: &str = "iota_config";
@@ -53,6 +53,23 @@ pub fn iota_config_dir() -> Result<PathBuf, anyhow::Error> {
         }
         Ok(dir)
     })
+}
+
+/// Check if the genesis blob exists in the given directory or the default
+/// directory.
+pub fn genesis_blob_exists(config_dir: Option<PathBuf>) -> bool {
+    if let Some(dir) = config_dir {
+        dir.join(IOTA_GENESIS_FILENAME).exists()
+    } else if let Some(config_env) = std::env::var_os("IOTA_CONFIG_DIR") {
+        Path::new(&config_env).join(IOTA_GENESIS_FILENAME).exists()
+    } else if let Some(home) = dirs::home_dir() {
+        let mut config = PathBuf::new();
+        config.push(&home);
+        config.extend([IOTA_DIR, IOTA_CONFIG_DIR, IOTA_GENESIS_FILENAME]);
+        config.exists()
+    } else {
+        false
+    }
 }
 
 pub fn validator_config_file(address: Multiaddr, i: usize) -> String {

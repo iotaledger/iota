@@ -3,9 +3,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
+    TypeTag,
     balance::Balance,
     coin::Coin,
     dynamic_field::Field,
@@ -13,9 +14,8 @@ use iota_types::{
     object::Owner,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
-        timelock::{is_timelocked_vested_reward, TimeLock},
+        timelock::{TimeLock, is_timelocked_vested_reward},
     },
-    TypeTag,
 };
 
 use crate::stardust::migration::{
