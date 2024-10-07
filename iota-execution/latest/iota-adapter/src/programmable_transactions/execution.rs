@@ -15,35 +15,37 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
+        IOTA_FRAMEWORK_ADDRESS,
         base_types::{
-            IotaAddress, MoveObjectType, ObjectID, TxContext, TxContextKind, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
+            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
+            TxContextKind,
         },
         coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::{RESOLVED_IOTA_ID, UID},
         metrics::LimitsMetrics,
         move_package::{
-            normalize_deserialized_modules, MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt,
-            UpgradeTicket,
+            MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules,
         },
-        storage::{get_package_objects, PackageObject},
+        storage::{PackageObject, get_package_objects},
         transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
-        IOTA_FRAMEWORK_ADDRESS,
     };
     use iota_verifier::{
-        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
         INIT_FN_NAME,
+        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
     };
     use move_binary_format::{
+        CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
         file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
         file_format_common::VERSION_6,
-        normalized, CompiledModule,
+        normalized,
     };
     use move_core_types::{
         account_address::AccountAddress,
@@ -56,7 +58,7 @@ mod checked {
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
-    use serde::{de::DeserializeSeed, Deserialize};
+    use serde::{Deserialize, de::DeserializeSeed};
     use tracing::instrument;
 
     use crate::{
@@ -756,10 +758,10 @@ mod checked {
         }
     }
 
-    /// ****************************************************************************
-    /// ********************* Move execution
-    /// ****************************************************************************
-    /// *******************
+    /// ************************************************************************
+    /// **** ********************* Move execution
+    /// ************************************************************************
+    /// **** *******************
 
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -906,10 +908,10 @@ mod checked {
         Ok(())
     }
 
-    /// ****************************************************************************
-    /// ********************* Move signatures
-    /// ****************************************************************************
-    /// *******************
+    /// ************************************************************************
+    /// **** ********************* Move signatures
+    /// ************************************************************************
+    /// **** *******************
 
     /// Helper marking what function we are invoking
     #[derive(PartialEq, Eq, Clone, Copy)]
@@ -1484,10 +1486,10 @@ mod checked {
         })
     }
 
-    /// ****************************************************************************
-    /// ********************* Special serialization formats
-    /// ****************************************************************************
-    /// *******************
+    /// ************************************************************************
+    /// **** ********************* Special serialization formats
+    /// ************************************************************************
+    /// **** *******************
 
     /// Special enum for values that need additional validation, in other words
     /// There is validation to do on top of the BCS layout. Currently only

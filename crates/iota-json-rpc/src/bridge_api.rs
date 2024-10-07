@@ -8,11 +8,11 @@ use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{BridgeReadApiOpenRpc, BridgeReadApiServer, JsonRpcMetrics};
 use iota_open_rpc::Module;
-use iota_types::bridge::{get_bridge_obj_initial_shared_version, BridgeSummary, BridgeTrait};
-use jsonrpsee::{core::RpcResult, RpcModule};
+use iota_types::bridge::{BridgeSummary, BridgeTrait, get_bridge_obj_initial_shared_version};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::instrument;
 
-use crate::{authority_state::StateRead, error::Error, logger::FutureWithTracing, IotaRpcModule};
+use crate::{IotaRpcModule, authority_state::StateRead, error::Error, logger::FutureWithTracing};
 
 #[derive(Clone)]
 pub struct BridgeReadApi {

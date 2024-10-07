@@ -5,18 +5,18 @@
 use std::{
     cell::RefCell,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
 
 use once_cell::sync::OnceCell;
 use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
-use rocksdb::{perf::set_perf_stats, PerfContext, PerfMetric, PerfStatsLevel};
+use rocksdb::{PerfContext, PerfMetric, PerfStatsLevel, perf::set_perf_stats};
 use tap::TapFallible;
 use tracing::warn;
 

@@ -7,8 +7,8 @@ use std::{collections::BTreeMap, net::SocketAddr};
 use async_graphql::{Response, ServerError, Value};
 use iota_graphql_rpc_headers::VERSION_HEADER;
 use reqwest::{
-    header::{HeaderMap, HeaderName},
     Response as ReqwestResponse,
+    header::{HeaderMap, HeaderName},
 };
 use serde_json::json;
 

@@ -19,11 +19,11 @@ use iota_indexer::{
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_types::{
-    object::{
-        bounded_visitor::BoundedVisitor, MoveObject as NativeMoveObject, Object as NativeObject,
-        Owner as NativeOwner,
-    },
     TypeTag,
+    object::{
+        MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
+        bounded_visitor::BoundedVisitor,
+    },
 };
 use move_core_types::{
     annotated_value::{MoveStruct, MoveTypeLayout},
@@ -33,8 +33,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connection::ScanConnection,
-    consistency::{build_objects_query, Checkpointed, View},
-    data::{package_resolver::PackageResolver, DataLoader, Db, DbConnection, QueryExecutor},
+    consistency::{Checkpointed, View, build_objects_query},
+    data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter, or_filter,
     raw_query::RawQuery,
@@ -50,7 +50,7 @@ use crate::{
         display::{Display, DisplayEntry},
         dynamic_field::{DynamicField, DynamicFieldName},
         intersect,
-        iota_address::{addr, IotaAddress},
+        iota_address::{IotaAddress, addr},
         move_object::MoveObject,
         move_package::MovePackage,
         owner::{Owner, OwnerImpl},

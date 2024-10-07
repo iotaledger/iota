@@ -24,8 +24,8 @@ use narwhal_storage::NodeStorage;
 use typed_store::rocks::MetricConf;
 
 use self::{
-    db_dump::{dump_table, duplicate_objects_summary, list_tables, table_summary, StoreName},
-    index_search::{search_index, SearchRange},
+    db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
+    index_search::{SearchRange, search_index},
 };
 use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
 pub mod db_dump;
@@ -335,12 +335,9 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
         ))?;
     println!("Checkpoint: {:?}", checkpoint);
     drop(checkpoint_store);
-    print_checkpoint_content(
-        path,
-        PrintCheckpointContentOptions {
-            digest: checkpoint.content_digest,
-        },
-    )
+    print_checkpoint_content(path, PrintCheckpointContentOptions {
+        digest: checkpoint.content_digest,
+    })
 }
 
 pub fn print_checkpoint_content(

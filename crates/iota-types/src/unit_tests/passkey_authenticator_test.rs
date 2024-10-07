@@ -14,6 +14,7 @@ use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserValidationMethod};
 use passkey_client::Client;
 use passkey_types::{
+    Bytes, Passkey,
     ctap2::Aaguid,
     rand::random_vec,
     webauthn::{
@@ -22,21 +23,20 @@ use passkey_types::{
         PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
-    Bytes, Passkey,
 };
-use shared_crypto::intent::{Intent, IntentMessage, INTENT_PREFIX_LENGTH};
+use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};
 use url::Url;
 
 use super::to_signing_message;
 use crate::{
-    base_types::{dbg_addr, IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, dbg_addr},
     crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
     error::IotaError,
     object::Object,
     passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator},
     signature::GenericSignature,
     signature_verification::VerifiedDigestCache,
-    transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
 
 /// Helper struct to initialize passkey client.
@@ -260,12 +260,9 @@ async fn test_passkey_fails_invalid_json() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid client data json".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid client data json".to_string()
+    });
     const CORRECT_LEN: usize = INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE;
     let client_data_json_too_short = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
@@ -317,12 +314,9 @@ async fn test_passkey_fails_invalid_challenge() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid encoded challenge".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid encoded challenge".to_string()
+    });
 }
 
 #[tokio::test]
@@ -338,12 +332,9 @@ async fn test_passkey_fails_wrong_client_data_type() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid client data type".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid client data type".to_string()
+    });
 }
 
 #[tokio::test]
@@ -374,12 +365,9 @@ async fn test_passkey_fails_not_normalized_signature() {
         Arc::new(VerifiedDigestCache::new_empty()),
     );
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Fails to verify".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Fails to verify".to_string()
+    });
 }
 
 #[tokio::test]

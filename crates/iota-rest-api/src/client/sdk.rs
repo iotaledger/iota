@@ -7,10 +7,11 @@ use iota_sdk2::types::{
     SignedCheckpointSummary, SignedTransaction, StructTag, TransactionDigest, ValidatorCommittee,
     Version,
 };
-use reqwest::{header::HeaderValue, StatusCode, Url};
+use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
 
 use crate::{
+    ExecuteTransactionQueryParameters,
     accounts::{AccountOwnedObjectInfo, ListAccountOwnedObjectsQueryParameters},
     checkpoints::ListCheckpointsQueryParameters,
     coins::CoinInfo,
@@ -29,7 +30,6 @@ use crate::{
         X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
         X_IOTA_TIMESTAMP_MS,
     },
-    ExecuteTransactionQueryParameters,
 };
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);

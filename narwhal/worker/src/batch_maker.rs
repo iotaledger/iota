@@ -11,21 +11,21 @@ use std::sync::Arc;
 use byteorder::{BigEndian, ReadBytesExt};
 use config::WorkerId;
 use fastcrypto::hash::Hash;
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use iota_metrics::{
     metered_channel::{Receiver, Sender},
     monitored_scope, spawn_logged_monitored_task,
 };
-use network::{client::NetworkClient, WorkerToPrimaryClient};
-use store::{rocks::DBMap, Map};
+use network::{WorkerToPrimaryClient, client::NetworkClient};
+use store::{Map, rocks::DBMap};
 use tokio::{
     task::JoinHandle,
-    time::{sleep, Duration, Instant},
+    time::{Duration, Instant, sleep},
 };
 use tracing::{error, warn};
 use types::{
-    error::DagError, now, Batch, BatchAPI, BatchDigest, ConditionalBroadcastReceiver, MetadataAPI,
-    Transaction, TxResponse, WorkerOwnBatchMessage,
+    Batch, BatchAPI, BatchDigest, ConditionalBroadcastReceiver, MetadataAPI, Transaction,
+    TxResponse, WorkerOwnBatchMessage, error::DagError, now,
 };
 
 use crate::metrics::WorkerMetrics;

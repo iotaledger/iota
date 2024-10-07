@@ -4,8 +4,8 @@
 
 use std::{future, time::Duration};
 
-use futures::{stream::FuturesUnordered, StreamExt};
-use iota_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
+use futures::{StreamExt, stream::FuturesUnordered};
+use iota_metrics::metered_channel::{Receiver, Sender, WithPermit, channel};
 use prometheus::IntGauge;
 
 use super::DagError;

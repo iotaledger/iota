@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_gauge_with_registry, IntCounterVec,
-    IntGauge, Registry,
+    IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
+    register_int_gauge_with_registry,
 };
 use tracing::trace;
 

@@ -12,17 +12,17 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
-    base_types::{is_primitive_type_tag, ObjectID, TxContext, TxContextKind},
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
+    base_types::{ObjectID, TxContext, TxContextKind, is_primitive_type_tag},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
     transaction::{self as Tx, ObjectArg},
-    Identifier, TypeTag, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use miette::Severity;
 use move_binary_format::{
-    binary_config::BinaryConfig, file_format::SignatureToken, CompiledModule,
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
 use move_command_line_common::{
     address::{NumericalAddress, ParsedAddress},
@@ -37,7 +37,7 @@ use super::ast::{ModuleAccess as PTBModuleAccess, ParsedPTBCommand, Program};
 use crate::{
     client_commands::{compile_package, upgrade_package},
     client_ptb::{
-        ast::{Argument as PTBArg, ASSIGN, GAS_BUDGET},
+        ast::{ASSIGN, Argument as PTBArg, GAS_BUDGET},
         error::{PTBError, PTBResult, Span, Spanned},
     },
     err, error, sp,
@@ -888,14 +888,11 @@ impl<'a> PTBBuilder<'a> {
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(
-                sp!(
-                    mod_access_loc,
-                    PTBModuleAccess {
-                        address,
-                        module_name,
-                        function_name,
-                    }
-                ),
+                sp!(mod_access_loc, PTBModuleAccess {
+                    address,
+                    module_name,
+                    function_name,
+                }),
                 in_ty_args,
                 args,
             ) => {

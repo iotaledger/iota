@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_metrics::monitored_mpsc::{channel, Receiver, Sender};
+use iota_metrics::monitored_mpsc::{Receiver, Sender, channel};
 use iota_protocol_config::ProtocolConfig;
 use tap::tap::TapFallible;
 use thiserror::Error;
@@ -264,7 +264,7 @@ impl TransactionVerifier for NoopTransactionVerifier {
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use futures::{stream::FuturesUnordered, StreamExt};
+    use futures::{StreamExt, stream::FuturesUnordered};
     use iota_protocol_config::ProtocolConfig;
     use tokio::time::timeout;
 

@@ -9,7 +9,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use once_cell::sync::OnceCell;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{Intent, IntentScope};
 
 use crate::{

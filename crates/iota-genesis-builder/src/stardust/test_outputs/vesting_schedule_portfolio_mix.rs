@@ -6,19 +6,19 @@
 //! One mnemonic/wallet, one account, multiple public and internal addresses.
 
 use iota_sdk::{
-    client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
+    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
     types::block::{
         address::Ed25519Address,
         output::{
-            unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output,
-            OUTPUT_INDEX_RANGE,
+            BasicOutputBuilder, OUTPUT_INDEX_RANGE, Output,
+            unlock_condition::AddressUnlockCondition,
         },
     },
 };
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
+    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 

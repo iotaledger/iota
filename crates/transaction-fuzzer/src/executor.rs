@@ -6,7 +6,7 @@
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
 use iota_core::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;

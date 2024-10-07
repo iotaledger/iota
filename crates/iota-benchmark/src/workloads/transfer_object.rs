@@ -8,24 +8,24 @@ use async_trait::async_trait;
 use iota_core::test_utils::make_transfer_object_transaction;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     transaction::Transaction,
 };
 use rand::seq::IteratorRandom;
 use tracing::error;
 
 use crate::{
+    ExecutionEffects, ValidatorProxy,
     drivers::Interval,
     system_state_observer::SystemStateObserver,
     workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
         workload::{
-            Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING,
-            STORAGE_COST_PER_COIN,
+            ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COIN, Workload,
+            WorkloadBuilder,
         },
-        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
     },
-    ExecutionEffects, ValidatorProxy,
 };
 
 /// TODO: This should be the amount that is being transferred instead of

@@ -9,10 +9,11 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
-use iota_json::{primitive_type, IotaJsonValue};
+use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
@@ -25,7 +26,7 @@ use iota_types::{
     iota_serde::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
     },
-    layout_resolver::{get_layout_from_struct_tag, LayoutResolver},
+    layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusDeterminedVersionAssignments,
     object::Owner,
@@ -38,7 +39,6 @@ use iota_types::{
         InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
     },
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -52,12 +52,12 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
 
 use crate::{
-    balance_changes::BalanceChange, iota_transaction::GenericSignature::Signature,
-    object_changes::ObjectChange, Filter, IotaEvent, IotaObjectRef, Page,
+    Filter, IotaEvent, IotaObjectRef, Page, balance_changes::BalanceChange,
+    iota_transaction::GenericSignature::Signature, object_changes::ObjectChange,
 };
 
 // similar to EpochId of iota-types but BigInt
@@ -1604,18 +1604,15 @@ impl Display for IotaTransactionBlock {
         builder.push_record(vec![format!("{}", self.data)]);
         builder.push_record(vec![format!("Signatures:")]);
         for tx_sig in &self.tx_signatures {
-            builder.push_record(vec![format!(
-                "   {}\n",
-                match tx_sig {
-                    Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
-                                                                         * multisig and zklogin
-                                                                         * are not suited to be
-                                                                         * parsed out. they
-                                                                         * should be interpreted
-                                                                         * as a whole */
-                }
-            )]);
+            builder.push_record(vec![format!("   {}\n", match tx_sig {
+                Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
+                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
+                                                                     * multisig and zklogin
+                                                                     * are not suited to be
+                                                                     * parsed out. they
+                                                                     * should be interpreted
+                                                                     * as a whole */
+            })]);
         }
 
         let mut table = builder.build();

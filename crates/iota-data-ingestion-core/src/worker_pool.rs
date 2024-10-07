@@ -15,7 +15,7 @@ use iota_types::{
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 
-use crate::{executor::MAX_CHECKPOINTS_IN_PROGRESS, Worker};
+use crate::{Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
 
 pub struct WorkerPool<W: Worker> {
     pub task_name: String,

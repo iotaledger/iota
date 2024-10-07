@@ -12,7 +12,7 @@ use iota_types::messages_checkpoint::CheckpointCommitment as EpochCommitment;
 
 use crate::{
     connection::ScanConnection,
-    context_data::db_data_provider::{convert_to_validators, PgManager},
+    context_data::db_data_provider::{PgManager, convert_to_validators},
     data::{DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::watermark_task::Watermark,

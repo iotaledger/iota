@@ -19,6 +19,7 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
+    IOTA_DENY_LIST_OBJECT_ID,
     base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
@@ -31,15 +32,14 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::{
-        get_module, get_module_by_id, BackingPackageStore, ChildObjectResolver, ObjectStore,
-        PackageObject, ParentSync,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        get_module, get_module_by_id,
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
         TransactionKind::ProgrammableTransaction, VerifiedTransaction,
     },
-    IOTA_DENY_LIST_OBJECT_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -56,11 +56,11 @@ use tracing::{error, info, trace, warn};
 use crate::{
     chain_from_chain_id,
     data_fetcher::{
-        extract_epoch_and_version, DataFetcher, Fetchers, NodeStateDumpFetcher, RemoteFetcher,
+        DataFetcher, Fetchers, NodeStateDumpFetcher, RemoteFetcher, extract_epoch_and_version,
     },
     displays::{
-        transaction_displays::{transform_command_results_to_annotated, FullPTB},
         Pretty,
+        transaction_displays::{FullPTB, transform_command_results_to_annotated},
     },
     types::*,
 };
@@ -1173,17 +1173,14 @@ impl LocalExec {
                 .await?
                 .checkpoint;
             // Insert the last range
-            range_map.insert(
-                start_protocol_version,
-                ProtocolVersionSummary {
-                    protocol_version: start_protocol_version,
-                    epoch_start: start_epoch,
-                    epoch_end: curr_epoch - 1,
-                    checkpoint_start: start_checkpoint,
-                    checkpoint_end: curr_checkpoint.map(|x| x - 1),
-                    epoch_change_tx: tx_digest,
-                },
-            );
+            range_map.insert(start_protocol_version, ProtocolVersionSummary {
+                protocol_version: start_protocol_version,
+                epoch_start: start_epoch,
+                epoch_end: curr_epoch - 1,
+                checkpoint_start: start_checkpoint,
+                checkpoint_end: curr_checkpoint.map(|x| x - 1),
+                epoch_change_tx: tx_digest,
+            });
 
             start_epoch = curr_epoch;
             start_protocol_version = curr_protocol_version;
@@ -1192,21 +1189,18 @@ impl LocalExec {
         }
 
         // Insert the last range
-        range_map.insert(
-            curr_protocol_version,
-            ProtocolVersionSummary {
-                protocol_version: curr_protocol_version,
-                epoch_start: start_epoch,
-                epoch_end: curr_epoch,
-                checkpoint_start: curr_checkpoint,
-                checkpoint_end: self
-                    .fetcher
-                    .get_transaction(&end_epoch_tx_digest)
-                    .await?
-                    .checkpoint,
-                epoch_change_tx: tx_digest,
-            },
-        );
+        range_map.insert(curr_protocol_version, ProtocolVersionSummary {
+            protocol_version: curr_protocol_version,
+            epoch_start: start_epoch,
+            epoch_end: curr_epoch,
+            checkpoint_start: curr_checkpoint,
+            checkpoint_end: self
+                .fetcher
+                .get_transaction(&end_epoch_tx_digest)
+                .await?
+                .checkpoint,
+            epoch_change_tx: tx_digest,
+        });
 
         Ok(range_map)
     }

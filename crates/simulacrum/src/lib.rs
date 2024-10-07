@@ -17,7 +17,7 @@ pub mod store;
 
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use fastcrypto::traits::Signer;
 use iota_config::{genesis, transaction_deny_config::TransactionDenyConfig};
 use iota_protocol_config::ProtocolVersion;
@@ -52,7 +52,7 @@ use iota_types::{
 use move_core_types::language_storage::StructTag;
 use rand::rngs::OsRng;
 
-pub use self::store::{in_mem_store::InMemoryStore, SimulatorStore};
+pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 
 /// A `Simulacrum` of Iota.
@@ -99,7 +99,7 @@ where
     /// a seeded rng is used.
     ///
     /// ```
-    /// use rand::{rngs::StdRng, SeedableRng};
+    /// use rand::{SeedableRng, rngs::StdRng};
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
@@ -665,7 +665,7 @@ mod tests {
         base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
         transaction::TransactionDataAPI,
     };
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::*;
 

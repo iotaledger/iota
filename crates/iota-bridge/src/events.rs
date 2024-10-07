@@ -15,6 +15,7 @@ use ethers::types::Address as EthAddress;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::IotaEvent;
 use iota_types::{
+    BRIDGE_PACKAGE_ID, TypeTag,
     base_types::IotaAddress,
     bridge::{
         BridgeChainId, MoveTypeBridgeMessageKey, MoveTypeCommitteeMember,
@@ -23,7 +24,7 @@ use iota_types::{
     collection_types::VecMap,
     crypto::ToFromBytes,
     digests::TransactionDigest,
-    parse_iota_type_tag, TypeTag, BRIDGE_PACKAGE_ID,
+    parse_iota_type_tag,
 };
 use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
@@ -440,12 +441,12 @@ pub mod tests {
     use ethers::types::Address as EthAddress;
     use iota_json_rpc_types::IotaEvent;
     use iota_types::{
+        Identifier,
         base_types::{IotaAddress, ObjectID},
         bridge::{BridgeChainId, TOKEN_ID_IOTA},
         crypto::get_key_pair,
         digests::TransactionDigest,
         event::EventID,
-        Identifier,
     };
 
     use super::*;

@@ -57,7 +57,7 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
                     />
                 </div>
                 <div className="flex flex-col gap-md md:flex-row">
-                    <div className="flex h-full w-full flex-1 md:h-full md:max-h-screen md:w-1/3">
+                    <div className="flex h-full w-full flex-1 overflow-auto md:h-full md:max-h-screen md:w-1/3">
                         <div className="w-full">
                             <Panel>
                                 <SegmentedButton type={SegmentedButtonType.Transparent}>

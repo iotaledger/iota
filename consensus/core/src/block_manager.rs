@@ -15,11 +15,11 @@ use parking_lot::RwLock;
 use tracing::{debug, trace, warn};
 
 use crate::{
+    Round,
     block::{BlockAPI, BlockRef, VerifiedBlock},
     block_verifier::BlockVerifier,
     context::Context,
     dag_state::DagState,
-    Round,
 };
 
 struct SuspendedBlock {
@@ -428,7 +428,7 @@ mod tests {
 
     use consensus_config::AuthorityIndex;
     use parking_lot::RwLock;
-    use rand::{prelude::StdRng, seq::SliceRandom, SeedableRng};
+    use rand::{SeedableRng, prelude::StdRng, seq::SliceRandom};
 
     use crate::{
         block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},

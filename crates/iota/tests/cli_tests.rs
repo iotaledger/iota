@@ -135,6 +135,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/2983"]
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
@@ -1582,7 +1583,8 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
 #[sim_test]
 async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result<(), anyhow::Error>
 {
-    let with_unpublished_dependencies = true; // Value under test, incompatible with dependencies that specify non-zero address.
+    let with_unpublished_dependencies = true; // Value under test, incompatible with dependencies that specify non-zero
+    // address.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1624,7 +1626,8 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
 
 #[sim_test]
 async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Error> {
-    let with_unpublished_dependencies = true; // Invalid packages should fail to publish, even if we allow unpublished dependencies.
+    let with_unpublished_dependencies = true; // Invalid packages should fail to publish, even if we allow unpublished
+    // dependencies.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;

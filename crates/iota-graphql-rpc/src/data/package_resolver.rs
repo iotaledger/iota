@@ -12,8 +12,8 @@ use async_trait::async_trait;
 use diesel::{ExpressionMethods, QueryDsl};
 use iota_indexer::{models::packages::StoredPackage, schema::packages};
 use iota_package_resolver::{
-    error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache,
-    Resolver, Result,
+    Package, PackageStore, PackageStoreWithLruCache, Resolver, Result,
+    error::Error as PackageResolverError,
 };
 use move_core_types::account_address::AccountAddress;
 

@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result, eyre};
 use tonic::transport::{Channel, Endpoint, Uri};
 
 use crate::{
     config::Config,
-    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
+    multiaddr::{Multiaddr, Protocol, parse_dns, parse_ip4, parse_ip6},
 };
 
 pub async fn connect(address: &Multiaddr) -> Result<Channel> {

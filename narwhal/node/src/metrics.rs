@@ -4,14 +4,14 @@
 
 use std::collections::HashMap;
 
-use axum::{routing::get, Extension, Router};
+use axum::{Extension, Router, routing::get};
 use config::{AuthorityIdentifier, WorkerId};
 use iota_metrics::{metrics, spawn_logged_monitored_task};
 use iota_network_stack::multiaddr::Multiaddr;
 use prometheus::{
-    register_counter_with_registry, register_histogram_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry, Counter, Histogram,
-    IntCounter, IntGauge, Registry,
+    Counter, Histogram, IntCounter, IntGauge, Registry, register_counter_with_registry,
+    register_histogram_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 use tokio::task::JoinHandle;
 

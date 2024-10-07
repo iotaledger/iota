@@ -13,12 +13,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    db::{new_connection_pool_with_config, ConnectionPoolConfig},
+    IndexerConfig, IndexerMetrics,
+    db::{ConnectionPoolConfig, new_connection_pool_with_config},
     errors::IndexerError,
     handlers::objects_snapshot_processor::SnapshotLagConfig,
     indexer::Indexer,
     store::PgIndexerStore,
-    IndexerConfig, IndexerMetrics,
 };
 
 pub enum ReaderWriterConfig {

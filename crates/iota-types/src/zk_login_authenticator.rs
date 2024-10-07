@@ -10,8 +10,8 @@ use std::{
 
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
-    zk_login_api::{verify_zk_login, ZkLoginEnv},
+    zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs},
+    zk_login_api::{ZkLoginEnv, verify_zk_login},
 };
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;

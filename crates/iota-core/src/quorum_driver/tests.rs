@@ -5,8 +5,8 @@
 use std::{
     net::SocketAddr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -15,9 +15,9 @@ use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
-    crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
     effects::TransactionEffectsAPI,
-    object::{generate_test_gas_objects, Object},
+    object::{Object, generate_test_gas_objects},
     quorum_driver_types::{
         ExecuteTransactionRequestV3, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
@@ -27,8 +27,8 @@ use tokio::time::timeout;
 
 use crate::{
     quorum_driver::{
-        reconfig_observer::DummyReconfigObserver, AuthorityAggregator, QuorumDriverHandlerBuilder,
-        QuorumDriverMetrics,
+        AuthorityAggregator, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
+        reconfig_observer::DummyReconfigObserver,
     },
     test_authority_clients::{LocalAuthorityClient, LocalAuthorityClientFaultConfig},
     test_utils::{init_local_authorities, make_transfer_iota_transaction},

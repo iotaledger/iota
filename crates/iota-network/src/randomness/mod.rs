@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map::BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet, btree_map::BTreeMap},
     ops::Bound,
     sync::Arc,
     time::{self, Duration},
@@ -28,7 +28,7 @@ use iota_types::{
     crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, oneshot, OnceCell};
+use tokio::sync::{OnceCell, mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn};
 
 use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
@@ -635,8 +635,8 @@ impl RandomnessEventLoop {
             sig_range,
         ) {
             Ok(sig) => sig,
-            Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, /* wait for more
-                                                                                  * input */
+            Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, // wait for more
+            // input
             Err(e) => {
                 error!("error while aggregating randomness partial signatures: {e:?}");
                 return;

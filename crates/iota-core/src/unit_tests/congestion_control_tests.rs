@@ -11,7 +11,7 @@ use iota_protocol_config::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
@@ -24,6 +24,7 @@ use move_core_types::ident_str;
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
             execute_programmable_transaction, send_and_confirm_transaction_,
@@ -31,7 +32,6 @@ use crate::{
         move_integration_tests::build_and_publish_test_package,
         shared_object_congestion_tracker::SharedObjectCongestionTracker,
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     move_call,
 };
@@ -343,24 +343,18 @@ async fn test_congestion_control_execution_cancellation() {
 
     // Transaction should be cancelled with `shared_object_1` as the congested
     // object.
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                congested_objects: CongestedObjects(vec![shared_object_1.0]),
-            },
-            command: None
-        }
-    );
+    assert_eq!(effects.status(), &ExecutionStatus::Failure {
+        error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+            congested_objects: CongestedObjects(vec![shared_object_1.0]),
+        },
+        command: None
+    });
 
     // Tests shared object versions in effects are set correctly.
-    assert_eq!(
-        effects.input_shared_objects(),
-        vec![
-            InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
-            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
-        ]
-    );
+    assert_eq!(effects.input_shared_objects(), vec![
+        InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
+        InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
+    ]);
 
     // Run the same transaction in `authority_state_2`, but using the above effects
     // for the execution.

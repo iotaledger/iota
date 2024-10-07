@@ -20,7 +20,7 @@ use tracing::{error, info};
 use crate::{
     abi::EthBridgeEvent,
     action_executor::{
-        submit_to_executor, BridgeActionExecutionWrapper, BridgeActionExecutorTrait,
+        BridgeActionExecutionWrapper, BridgeActionExecutorTrait, submit_to_executor,
     },
     error::BridgeError,
     events::IotaBridgeEvent,

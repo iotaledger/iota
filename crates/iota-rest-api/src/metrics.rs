@@ -7,8 +7,8 @@ use std::{borrow::Cow, sync::Arc, time::Instant};
 use axum::http;
 use iota_network_stack::callback::{MakeCallbackHandler, ResponseHandler};
 use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 
 #[derive(Clone)]

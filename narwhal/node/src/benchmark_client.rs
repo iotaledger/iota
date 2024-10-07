@@ -13,12 +13,12 @@ use iota_network_stack::Multiaddr;
 use narwhal_node::metrics::NarwhalBenchMetrics;
 use prometheus::Registry;
 use rand::{
-    rngs::{SmallRng, StdRng},
     Rng, RngCore, SeedableRng,
+    rngs::{SmallRng, StdRng},
 };
 use tokio::{
     net::TcpStream,
-    time::{interval, sleep, Duration, Instant},
+    time::{Duration, Instant, interval, sleep},
 };
 use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;

@@ -18,18 +18,17 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    build_json_rpc_server,
+    IndexerConfig, build_json_rpc_server,
     errors::IndexerError,
     handlers::{
         checkpoint_handler::new_handlers,
-        objects_snapshot_processor::{start_objects_snapshot_processor, SnapshotLagConfig},
+        objects_snapshot_processor::{SnapshotLagConfig, start_objects_snapshot_processor},
         pruner::Pruner,
     },
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     store::{IndexerAnalyticalStore, IndexerStore},
-    IndexerConfig,
 };
 
 pub(crate) const DOWNLOAD_QUEUE_SIZE: usize = 200;

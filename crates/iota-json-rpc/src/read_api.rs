@@ -10,8 +10,8 @@ use futures::future::join_all;
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    validate_limit, JsonRpcMetrics, ReadApiOpenRpc, ReadApiServer, QUERY_MAX_RESULT_LIMIT,
-    QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
+    JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, ReadApiOpenRpc,
+    ReadApiServer, validate_limit,
 };
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
@@ -41,7 +41,7 @@ use iota_types::{
     transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
@@ -51,11 +51,11 @@ use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
+    IotaRpcModule, ObjectProvider, ObjectProviderCache,
     authority_state::{StateRead, StateReadError, StateReadResult},
     error::{Error, IotaRpcInputError, RpcInterimResult},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing as _,
-    IotaRpcModule, ObjectProvider, ObjectProviderCache,
 };
 
 const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
@@ -703,7 +703,10 @@ impl ReadApiServer for ReadApi {
                         .map(|e| e.to_string())
                         .collect::<Vec<String>>()
                         .join("; ");
-                    Err(anyhow!("{error_string}").into()) // Collects errors not related to IotaPastObjectResponse variants
+                    Err(anyhow!("{error_string}").into()) // Collects errors not
+                // related to
+                // IotaPastObjectResponse
+                // variants
                 } else {
                     Ok(success)
                 }

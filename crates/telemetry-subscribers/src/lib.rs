@@ -4,10 +4,10 @@
 
 use std::{
     env,
-    io::{stderr, Write},
+    io::{Write, stderr},
     path::PathBuf,
     str::FromStr,
-    sync::{atomic::Ordering, Arc, Mutex},
+    sync::{Arc, Mutex, atomic::Ordering},
     time::Duration,
 };
 
@@ -15,18 +15,18 @@ use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
     Context, KeyValue,
+    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
 };
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
-    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
     Resource,
+    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
-use tracing::{error, info, metadata::LevelFilter, Level};
+use tracing::{Level, error, info, metadata::LevelFilter};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-use tracing_subscriber::{filter, fmt, layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
+use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::SubscriberExt, reload};
 
 use crate::file_exporter::{CachedOpenFile, FileExporter};
 
@@ -476,15 +476,12 @@ impl TelemetryConfig {
         // too early then no output will appear!
         let guards = TelemetryGuards::new(config_clone, worker_guard, provider);
 
-        (
-            guards,
-            TracingHandle {
-                log: log_filter_handle,
-                trace: trace_filter_handle,
-                file_output,
-                sampler,
-            },
-        )
+        (guards, TracingHandle {
+            log: log_filter_handle,
+            trace: trace_filter_handle,
+            file_output,
+            sampler,
+        })
     }
 }
 

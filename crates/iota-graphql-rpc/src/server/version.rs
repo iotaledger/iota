@@ -131,7 +131,7 @@ fn parse_version(version: &str) -> Option<(&str, &str)> {
 mod tests {
     use std::net::SocketAddr;
 
-    use axum::{body::Body, middleware, routing::get, Router};
+    use axum::{Router, body::Body, middleware, routing::get};
     use expect_test::expect;
     use http_body_util::BodyExt;
     use iota_metrics;

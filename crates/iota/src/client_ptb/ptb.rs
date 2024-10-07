@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, ensure, Error};
-use clap::{arg, Args, ValueHint};
+use anyhow::{Error, anyhow, ensure};
+use clap::{Args, ValueHint, arg};
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
     digests::TransactionDigest,
     gas::GasCostSummary,
@@ -18,12 +18,12 @@ use serde::Serialize;
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
     client_commands::{
-        dry_run_or_execute_or_serialize, IotaClientCommandResult, Opts, OptsWithGas,
+        IotaClientCommandResult, Opts, OptsWithGas, dry_run_or_execute_or_serialize,
     },
     client_ptb::{
         ast::{ParsedProgram, Program},
         builder::PTBBuilder,
-        error::{build_error_reports, PTBError},
+        error::{PTBError, build_error_reports},
         token::{Lexeme, Token},
     },
     displays::Pretty,
@@ -93,13 +93,10 @@ impl PTB {
         );
 
         if program_metadata.preview_set {
-            println!(
-                "{}",
-                PTBPreview {
-                    program: &program,
-                    program_metadata: &program_metadata
-                }
-            );
+            println!("{}", PTBPreview {
+                program: &program,
+                program_metadata: &program_metadata
+            });
             return Ok(());
         }
 

@@ -6,9 +6,9 @@ use ethers::{prelude::*, types::Address as EthAddress};
 
 use crate::{
     abi::{
-        eth_bridge_committee, eth_bridge_config, eth_bridge_limiter,
-        eth_committee_upgradeable_contract, eth_iota_bridge, EthBridgeCommittee, EthBridgeConfig,
-        EthBridgeLimiter, EthCommitteeUpgradeableContract, EthIotaBridge,
+        EthBridgeCommittee, EthBridgeConfig, EthBridgeLimiter, EthCommitteeUpgradeableContract,
+        EthIotaBridge, eth_bridge_committee, eth_bridge_config, eth_bridge_limiter,
+        eth_committee_upgradeable_contract, eth_iota_bridge,
     },
     error::{BridgeError, BridgeResult},
     types::{

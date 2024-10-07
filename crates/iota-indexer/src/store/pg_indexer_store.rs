@@ -5,7 +5,7 @@
 use core::result::Result::Ok;
 use std::{
     any::Any as StdAny,
-    collections::{hash_map::Entry, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, hash_map::Entry},
     time::{Duration, Instant},
 };
 
@@ -13,9 +13,9 @@ use async_trait::async_trait;
 #[cfg(feature = "postgres-feature")]
 use diesel::upsert::excluded;
 use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
     dsl::{max, min},
     r2d2::R2D2Connection,
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
 };
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
@@ -28,8 +28,8 @@ use tap::TapFallible;
 use tracing::info;
 
 use super::{
-    pg_partition_manager::{EpochPartitionData, PgPartitionManager},
     IndexerStore, ObjectChangeToCommit,
+    pg_partition_manager::{EpochPartitionData, PgPartitionManager},
 };
 use crate::{
     db::ConnectionPool,

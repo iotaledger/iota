@@ -5,10 +5,10 @@
 use async_trait::async_trait;
 use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{
-    coin_api::{parse_to_struct_tag, parse_to_type_tag},
     IotaRpcModule,
+    coin_api::{parse_to_struct_tag, parse_to_type_tag},
 };
-use iota_json_rpc_api::{cap_page_limit, CoinReadApiServer};
+use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata, Page};
 use iota_open_rpc::Module;
 use iota_types::{
@@ -16,7 +16,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     gas_coin::GAS,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::indexer_reader::IndexerReader;
 

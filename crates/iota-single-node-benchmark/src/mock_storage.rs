@@ -14,8 +14,8 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
-        get_module_by_id, BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore,
-        PackageObject, ParentSync,
+        BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore, PackageObject,
+        ParentSync, get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };

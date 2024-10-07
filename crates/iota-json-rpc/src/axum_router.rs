@@ -12,22 +12,22 @@ use axum::{
     extract::{ConnectInfo, Json, State},
     response::Response,
 };
-use hyper::{header::HeaderValue, HeaderMap};
+use hyper::{HeaderMap, header::HeaderValue};
 use iota_core::traffic_controller::{
-    metrics::TrafficControllerMetrics, policies::TrafficTally, TrafficController,
+    TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
 };
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
 };
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
 use jsonrpsee::{
-    core::server::{helpers::MethodSink, Methods},
+    BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
+    core::server::{Methods, helpers::MethodSink},
     server::RandomIntegerIdProvider,
     types::{
-        error::{ErrorCode, BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG},
         ErrorObject, Id, InvalidRequest, Params, Request,
+        error::{BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG, ErrorCode},
     },
-    BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
 };
 use serde_json::value::RawValue;
 use tracing::error;
@@ -407,14 +407,14 @@ pub(crate) struct CallData<'a, L: Logger> {
 pub mod ws {
     use axum::{
         extract::{
-            ws::{Message, WebSocket},
             WebSocketUpgrade,
+            ws::{Message, WebSocket},
         },
         response::Response,
     };
     use jsonrpsee::{
-        core::server::helpers::MethodSink, server::IdProvider,
-        types::error::reject_too_many_subscriptions, SubscriptionState,
+        SubscriptionState, core::server::helpers::MethodSink, server::IdProvider,
+        types::error::reject_too_many_subscriptions,
     };
     use tokio::sync::mpsc;
 

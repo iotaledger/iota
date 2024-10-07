@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
+    IOTA_DENY_LIST_OBJECT_ID,
     base_types::{IotaAddress, SequenceNumber},
     collection_types::{Bag, Table, VecSet},
     dynamic_field::get_dynamic_field_from_store,
@@ -17,7 +18,6 @@ use crate::{
     object::{Object, Owner},
     storage::ObjectStore,
     transaction::{CheckedInputObjects, ReceivingObjects},
-    IOTA_DENY_LIST_OBJECT_ID,
 };
 
 pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");

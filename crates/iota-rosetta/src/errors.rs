@@ -5,15 +5,15 @@
 use std::fmt::Debug;
 
 use axum::{
+    Json,
     extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use fastcrypto::error::FastCryptoError;
 use iota_types::error::IotaError;
 use serde::{Serialize, Serializer};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumDiscriminants, EnumIter};
 use thiserror::Error;

@@ -19,7 +19,7 @@ use arc_swap::ArcSwap;
 use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::fail_point;
 use iota_metrics::{
-    spawn_monitored_task, GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
+    GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, spawn_monitored_task,
 };
 use iota_types::{
     base_types::{AuthorityName, ObjectRef, TransactionDigest},
@@ -36,11 +36,11 @@ use iota_types::{
 use tap::TapFallible;
 use tokio::{
     sync::{
-        mpsc::{self, Receiver, Sender},
         Semaphore,
+        mpsc::{self, Receiver, Sender},
     },
     task::JoinHandle,
-    time::{sleep_until, Instant},
+    time::{Instant, sleep_until},
 };
 use tracing::{debug, error, info, instrument, trace_span, warn};
 

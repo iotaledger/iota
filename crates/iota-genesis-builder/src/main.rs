@@ -6,21 +6,21 @@
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::{collections::BTreeMap, fs::File, io::BufWriter};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
+    OBJECT_SNAPSHOT_FILE_PATH,
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         types::output_header::OutputHeader,
     },
-    OBJECT_SNAPSHOT_FILE_PATH,
 };
 use iota_sdk::types::block::{
     address::Address,
     output::{
-        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
         AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
+        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
     },
 };
 use iota_types::{stardust::coin_type::CoinType, timelock::timelock::is_vested_reward};

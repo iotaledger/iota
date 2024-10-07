@@ -7,13 +7,13 @@ use std::sync::Arc;
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
 use iota_types::{
+    IOTA_AUTHENTICATOR_STATE_ADDRESS, TypeTag,
     authenticator_state::{ActiveJwk, AuthenticatorStateInner},
     crypto::ToFromBytes,
     dynamic_field::{DynamicFieldType, Field},
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     transaction::TransactionData,
-    TypeTag, IOTA_AUTHENTICATOR_STATE_ADDRESS,
 };
 use shared_crypto::intent::{
     AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,

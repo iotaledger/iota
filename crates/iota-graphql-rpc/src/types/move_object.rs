@@ -4,8 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_types::{
-    object::{Data, MoveObject as NativeMoveObject},
     TypeTag,
+    object::{Data, MoveObject as NativeMoveObject},
 };
 
 use crate::{

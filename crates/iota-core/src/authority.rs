@@ -10,7 +10,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{atomic::Ordering, Arc},
+    sync::{Arc, atomic::Ordering},
     time::Duration,
     vec,
 };
@@ -26,12 +26,12 @@ use fastcrypto::{
 };
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
+    NodeConfig,
     genesis::Genesis,
     node::{
         AuthorityOverloadConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
         StateDebugDumpConfig,
     },
-    NodeConfig,
 };
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_json_rpc_types::{
@@ -41,21 +41,22 @@ use iota_json_rpc_types::{
 };
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
-    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
+    TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_storage::{
+    IndexStore,
     indexes::{CoinInfo, ObjectIndexChanges},
     key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
     key_value_store_metrics::KeyValueStoreMetrics,
-    IndexStore,
 };
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
+    IOTA_SYSTEM_ADDRESS, TypeTag,
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{default_hash, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
+    crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
     deny_list_v1::check_coin_deny_list_v1,
     deny_list_v2::check_coin_deny_list_v2_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
@@ -76,11 +77,11 @@ use iota_types::{
         WrittenObjects,
     },
     iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
         IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
     is_system_package,
-    layout_resolver::{into_struct_layout, LayoutResolver},
+    layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
@@ -96,33 +97,32 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, Object, ObjectRead, Owner, PastObjectRead, OBJECT_START_VERSION},
+    object::{MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead},
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
     supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
     transaction::*,
-    TypeTag, IOTA_SYSTEM_ADDRESS,
 };
 use itertools::Itertools;
-use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
+use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram,
-    HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tap::{TapFallible, TapOptional};
 use tokio::{
-    sync::{mpsc, mpsc::unbounded_channel, oneshot, RwLock},
+    sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
     task::JoinHandle,
 };
-use tracing::{debug, error, info, instrument, warn, Instrument};
+use tracing::{Instrument, debug, error, info, instrument, warn};
 use typed_store::TypedStoreError;
 
 use self::{
@@ -130,7 +130,7 @@ use self::{
 };
 #[cfg(msim)]
 pub use crate::checkpoints::checkpoint_executor::{
-    init_checkpoint_timeout_config, CheckpointTimeoutConfig,
+    CheckpointTimeoutConfig, init_checkpoint_timeout_config,
 };
 use crate::{
     authority::{
@@ -152,7 +152,7 @@ use crate::{
     execution_driver::execution_process,
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::{overload_monitor_accept_tx, AuthorityOverloadInfo},
+    overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     rest_index::RestIndexStore,
     stake_aggregator::StakeAggregator,
     state_accumulator::{AccumulatorStore, StateAccumulator, WrappedObject},
@@ -2288,17 +2288,14 @@ impl AuthorityState {
                         .map(|type_| ObjectType::Struct(type_.clone()))
                         .unwrap_or(ObjectType::Package);
 
-                    new_owners.push((
-                        (addr, *id),
-                        ObjectInfo {
-                            object_id: *id,
-                            version: oref.1,
-                            digest: oref.2,
-                            type_,
-                            owner,
-                            previous_transaction: *effects.transaction_digest(),
-                        },
-                    ));
+                    new_owners.push(((addr, *id), ObjectInfo {
+                        object_id: *id,
+                        version: oref.1,
+                        digest: oref.2,
+                        type_,
+                        owner,
+                        previous_transaction: *effects.transaction_digest(),
+                    }));
                 }
                 Owner::ObjectOwner(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
@@ -4909,10 +4906,9 @@ impl AuthorityState {
         // executing it. This is because we do not sequence end-of-epoch
         // transactions through consensus.
         epoch_store
-            .assign_shared_object_versions_idempotent(
-                self.get_object_cache_reader().as_ref(),
-                &[executable_tx.clone()],
-            )
+            .assign_shared_object_versions_idempotent(self.get_object_cache_reader().as_ref(), &[
+                executable_tx.clone(),
+            ])
             .await?;
 
         let input_objects = self.read_objects_for_execution(&executable_tx, epoch_store)?;

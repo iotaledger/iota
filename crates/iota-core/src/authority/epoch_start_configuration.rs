@@ -22,7 +22,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::execution_cache::{choose_execution_cache, ExecutionCacheConfigType};
+use crate::execution_cache::{ExecutionCacheConfigType, choose_execution_cache};
 
 #[enum_dispatch]
 pub trait EpochStartConfigTrait {

@@ -4,7 +4,7 @@
 
 use std::sync::{Mutex, MutexGuard};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use iota_config::NodeConfig;
 use iota_node::IotaNodeHandle;
 use iota_types::base_types::{AuthorityName, ConciseableName};

@@ -8,7 +8,7 @@ use fastcrypto::{
     error::FastCryptoError,
     hash::{Keccak256, Sha256},
     secp256r1::{
-        recoverable::Secp256r1RecoverableSignature, Secp256r1PublicKey, Secp256r1Signature,
+        Secp256r1PublicKey, Secp256r1Signature, recoverable::Secp256r1RecoverableSignature,
     },
     traits::{RecoverableSignature, ToFromBytes},
 };
@@ -63,10 +63,10 @@ pub struct EcdsaR1EcrecoverCostParams {
 /// `keccak256` cost constants, otherwise we use the `sha256` cost constants.
 ///   gas cost: ecdsa_r1_ecrecover_cost_base                    | covers various
 /// fixed costs in the oper
-///              + ecdsa_r1_ecrecover_msg_cost_per_byte    * size_of(msg)
-///                | covers cost of operating on each byte of `msg`
-///              + ecdsa_r1_ecrecover_msg_cost_per_block   * num_blocks(msg)
-///                | covers cost of operating on each block in `msg`
+///              + ecdsa_r1_ecrecover_msg_cost_per_byte    * size_of(msg) |
+///                covers cost of operating on each byte of `msg`
+///              + ecdsa_r1_ecrecover_msg_cost_per_block   * num_blocks(msg) |
+///                covers cost of operating on each block in `msg`
 /// Note: each block is of size `KECCAK256_BLOCK_SIZE` bytes for `keccak256` and
 /// `SHA256_BLOCK_SIZE` for `sha256`, and we round up.       `signature` is
 /// fixed size, so the cost is included in the base cost. **********************
@@ -144,10 +144,9 @@ pub fn ecrecover(
     };
 
     match pk {
-        Ok(pk) => Ok(NativeResult::ok(
-            cost,
-            smallvec![Value::vector_u8(pk.as_bytes().to_vec())],
-        )),
+        Ok(pk) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+            pk.as_bytes().to_vec()
+        )])),
         Err(_) => Ok(NativeResult::err(cost, FAIL_TO_RECOVER_PUBKEY)),
     }
 }
@@ -228,10 +227,9 @@ pub fn secp256r1_verify(
             // Charge for failure but dont fail if we run out of gas otherwise the actual
             // error is masked by OUT_OF_GAS error
             context.charge_gas(crypto_invalid_arguments_cost);
-            return Ok(NativeResult::ok(
-                context.gas_used(),
-                smallvec![Value::bool(false)],
-            ));
+            return Ok(NativeResult::ok(context.gas_used(), smallvec![
+                Value::bool(false)
+            ]));
         }
     };
 

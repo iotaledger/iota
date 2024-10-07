@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::{data_types::PgTimestamp, Identifiable, Insertable, Queryable, Selectable};
+use diesel::{Identifiable, Insertable, Queryable, Selectable, data_types::PgTimestamp};
 use iota_indexer_builder::Task;
 
 use crate::schema::{

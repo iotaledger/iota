@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use anemo::{
-    types::{PeerAffinity, PeerInfo},
     PeerId,
+    types::{PeerAffinity, PeerInfo},
 };
 use consensus_config::{
     Authority, AuthorityPublicKey, Committee as ConsensusCommittee, NetworkPublicKey,
@@ -167,13 +167,10 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .map(|validator| {
                 (
                     validator.authority_name(),
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: validator.iota_net_address.clone(),
-                            narwhal_primary_address: validator.narwhal_primary_address.clone(),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: validator.iota_net_address.clone(),
+                        narwhal_primary_address: validator.narwhal_primary_address.clone(),
+                    }),
                 )
             })
             .collect();
@@ -297,14 +294,11 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .active_validators
             .iter()
             .map(|validator| {
-                let workers = [(
-                    0,
-                    narwhal_config::WorkerInfo {
-                        name: validator.narwhal_worker_pubkey.clone(),
-                        transactions: transactions_address.clone(),
-                        worker_address: validator.narwhal_worker_address.clone(),
-                    },
-                )]
+                let workers = [(0, narwhal_config::WorkerInfo {
+                    name: validator.narwhal_worker_pubkey.clone(),
+                    transactions: transactions_address.clone(),
+                    worker_address: validator.narwhal_worker_address.clone(),
+                })]
                 .into_iter()
                 .collect();
                 let worker_index = WorkerIndex(workers);
@@ -350,7 +344,7 @@ mod test {
     use crate::{
         base_types::IotaAddress,
         committee::CommitteeTrait,
-        crypto::{get_key_pair, AuthorityKeyPair},
+        crypto::{AuthorityKeyPair, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemStateTrait, EpochStartSystemStateV1, EpochStartValidatorInfoV1,
         },

@@ -37,7 +37,7 @@ describe('move-binary-template', () => {
     });
 
     it('should update constants', () => {
-        let updatedConsts;
+        let updatedConsts: Uint8Array;
 
         // Update `6u8` to `3u8`
         updatedConsts = template.update_constants(
@@ -68,9 +68,9 @@ describe('move-binary-template', () => {
     });
 
     it('should not update constants if there is an expected_value value miss-match', () => {
-        let bytesBefore = coinTemplateBytes();
+        const bytesBefore = coinTemplateBytes();
         expect(() => {
-            let bytesAfter = template.update_constants(
+            const bytesAfter = template.update_constants(
                 bytesBefore,
                 bcs.u8().serialize(8).toBytes(), // new value
                 bcs.u8().serialize(0).toBytes(), // incorrect expected current value (it should be 6)
@@ -83,9 +83,9 @@ describe('move-binary-template', () => {
     });
 
     it('should not update constants if there is an expected_type miss-match', () => {
-        let bytesBefore = coinTemplateBytes();
+        const bytesBefore = coinTemplateBytes();
         expect(() => {
-            let bytesAfter = template.update_constants(
+            const bytesAfter = template.update_constants(
                 bytesBefore,
                 bcs.u8().serialize(8).toBytes(), // new value
                 bcs.u8().serialize(6).toBytes(), // expected current value
@@ -96,24 +96,6 @@ describe('move-binary-template', () => {
             assert(template.get_constants(bytesBefore) === template.get_constants(bytesAfter));
         });
     });
-    it('should fail on incorrect identifier', () => {
-        expect(() => {
-            template.update_identifiers(pokemonBytes(), { Stats: '123123PokeStats' });
-        }).toThrow();
-
-        expect(
-            template
-                .get_constants(updatedConsts)
-                .find((c) => c.value_bcs == bcs.string().serialize('TMPL').toBytes()),
-        ).toBeFalsy();
-
-        console.log(
-            template
-                .get_constants(updatedConsts)
-                .find((c) => c.value_bcs == bcs.string().serialize('MCN').toBytes()),
-        );
-    });
-
     it('should fail on incorrect identifier', () => {
         expect(() => {
             template.update_identifiers(pokemonBytes(), { Stats: '123123PokeStats' });

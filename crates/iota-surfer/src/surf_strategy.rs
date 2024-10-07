@@ -10,7 +10,7 @@ use iota_types::{
 };
 use move_binary_format::normalized::Type;
 use move_core_types::language_storage::StructTag;
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng, seq::SliceRandom};
 use tokio::time::Instant;
 use tracing::debug;
 

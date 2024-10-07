@@ -2,20 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod simple_faucet;
+mod write_ahead_log;
+
+use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
+
 use async_trait::async_trait;
+use clap::Parser;
 use iota_types::base_types::{IotaAddress, ObjectID, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::FaucetError;
-
-mod simple_faucet;
-mod write_ahead_log;
-use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
-
-use clap::Parser;
-
 pub use self::simple_faucet::SimpleFaucet;
+use crate::FaucetError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FaucetReceipt {

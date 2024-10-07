@@ -8,7 +8,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg, Transaction, DEFAULT_VALIDATOR_GAS_PRICE},
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, Transaction},
 };
 use move_core_types::identifier::Identifier;
 

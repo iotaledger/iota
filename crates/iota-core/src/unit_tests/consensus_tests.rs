@@ -4,24 +4,24 @@
 
 use iota_network::tonic;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::ObjectID,
     crypto::deterministic_random_account_key,
     multiaddr::Multiaddr,
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TransactionData,
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TransactionData,
     },
     utils::to_sender_signed_transaction,
-    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
 use narwhal_types::{Empty, TransactionProto, Transactions, TransactionsServer};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 
 use super::*;
 use crate::{
-    authority::{authority_tests::init_state_with_objects, AuthorityState},
+    authority::{AuthorityState, authority_tests::init_state_with_objects},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
 };

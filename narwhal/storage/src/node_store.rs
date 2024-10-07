@@ -10,7 +10,7 @@ use fastcrypto_tbls::{dkg, dkg_v0, nodes::PartyId};
 use store::{
     metrics::SamplingInterval,
     reopen,
-    rocks::{default_db_options, open_cf_opts, DBMap, MetricConf, ReadWriteOptions},
+    rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
 };
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, CommittedSubDagShell, ConsensusCommit,
@@ -18,9 +18,9 @@ use types::{
 };
 
 use crate::{
-    payload_store::PayloadStore, proposer_store::ProposerKey, vote_digest_store::VoteDigestStore,
     CertificateStore, CertificateStoreCache, CertificateStoreCacheMetrics, ConsensusStore,
-    ProposerStore,
+    ProposerStore, payload_store::PayloadStore, proposer_store::ProposerKey,
+    vote_digest_store::VoteDigestStore,
 };
 
 // A type alias marking the "payload" tokens sent by workers to their primary as

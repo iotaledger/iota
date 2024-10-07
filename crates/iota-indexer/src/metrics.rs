@@ -4,11 +4,11 @@
 
 use std::{collections::HashMap, net::SocketAddr};
 
-use axum::{extract::Extension, http::StatusCode, routing::get, Router};
+use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::RegistryService;
 use prometheus::{
-    register_histogram_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, Histogram, IntCounter, IntGauge, Registry, TextEncoder,
+    Histogram, IntCounter, IntGauge, Registry, TextEncoder, register_histogram_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use regex::Regex;
 use tracing::{info, warn};

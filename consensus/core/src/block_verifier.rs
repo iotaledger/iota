@@ -6,8 +6,8 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
     block::{
-        genesis_blocks, BlockAPI, BlockRef, BlockTimestampMs, SignedBlock, VerifiedBlock,
-        GENESIS_ROUND,
+        BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, VerifiedBlock,
+        genesis_blocks,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},

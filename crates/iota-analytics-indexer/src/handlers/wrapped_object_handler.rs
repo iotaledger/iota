@@ -8,14 +8,14 @@ use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::Resolver;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
-use iota_types::{object::Object, SYSTEM_PACKAGE_ADDRESSES};
+use iota_types::{SYSTEM_PACKAGE_ADDRESSES, object::Object};
 use tokio::sync::Mutex;
 
 use crate::{
-    handlers::{get_move_struct, parse_struct, AnalyticsHandler},
+    FileType,
+    handlers::{AnalyticsHandler, get_move_struct, parse_struct},
     package_store::{LocalDBPackageStore, PackageCache},
     tables::WrappedObjectEntry,
-    FileType,
 };
 
 pub struct WrappedObjectHandler {

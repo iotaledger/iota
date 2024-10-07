@@ -17,15 +17,15 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
+    IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-    IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
-use crate::{toolchain::CURRENT_COMPILER_VERSION, BytecodeSourceVerifier, ValidationMode};
+use crate::{BytecodeSourceVerifier, ValidationMode, toolchain::CURRENT_COMPILER_VERSION};
 
 #[tokio::test]
 async fn successful_verification() -> anyhow::Result<()> {

@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use test_utils::cluster::{setup_tracing, Cluster};
+use test_utils::cluster::{Cluster, setup_tracing};
 use tracing::info;
 use types::TransactionProto;
 

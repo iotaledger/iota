@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
-use axum::{extract::State, Extension, Json};
+
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -20,12 +21,13 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
-    signature_verification::{verify_sender_signed_data_message_signatures, VerifiedDigestCache},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
+    IotaEnv, OnlineServerContext,
     errors::Error,
     operations::Operations,
     types::{
@@ -37,7 +39,6 @@ use crate::{
         InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
         TransactionIdentifierResponse,
     },
-    IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
@@ -116,12 +117,10 @@ pub async fn combine(
         .flag(),
     ];
 
-    let signed_tx = Transaction::from_generic_sig_data(
-        intent_msg.value,
-        vec![GenericSignature::from_bytes(
+    let signed_tx =
+        Transaction::from_generic_sig_data(intent_msg.value, vec![GenericSignature::from_bytes(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
-        )?],
-    );
+        )?]);
     // TODO: this will likely fail with zklogin authenticator, since we do not know
     // the current epoch. As long as coinbase doesn't need to use zklogin for
     // custodial wallets this is okay.

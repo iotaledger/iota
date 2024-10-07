@@ -9,11 +9,11 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use futures::{stream::FuturesUnordered, StreamExt as _};
+use futures::{StreamExt as _, stream::FuturesUnordered};
 use tokio::{
     sync::broadcast,
     task::JoinSet,
-    time::{error::Elapsed, sleep_until, timeout, Instant},
+    time::{Instant, error::Elapsed, sleep_until, timeout},
 };
 use tracing::{trace, warn};
 
@@ -201,11 +201,11 @@ mod test {
 
     use super::*;
     use crate::{
+        Round,
         block::{BlockRef, TestBlock},
         commit::CommitRange,
         core::CoreSignals,
         network::BlockStream,
-        Round,
     };
 
     struct FakeNetworkClient {

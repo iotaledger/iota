@@ -12,7 +12,7 @@ use std::{
 use anemo::Request;
 use config::{AuthorityIdentifier, Committee};
 use crypto::NetworkPublicKey;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_metrics::{
     metered_channel::Receiver, monitored_future, monitored_scope, spawn_logged_monitored_task,
 };
@@ -22,14 +22,14 @@ use storage::CertificateStore;
 use tokio::{
     sync::watch,
     task::{JoinHandle, JoinSet},
-    time::{sleep, timeout, Instant},
+    time::{Instant, sleep, timeout},
 };
 use tracing::{debug, error, instrument, trace, warn};
 use types::{
+    Certificate, CertificateAPI, ConditionalBroadcastReceiver, FetchCertificatesRequest,
+    FetchCertificatesResponse, HeaderAPI, Round,
     error::{DagError, DagResult},
-    validate_received_certificate_version, Certificate, CertificateAPI,
-    ConditionalBroadcastReceiver, FetchCertificatesRequest, FetchCertificatesResponse, HeaderAPI,
-    Round,
+    validate_received_certificate_version,
 };
 
 use crate::{consensus::ConsensusRound, metrics::PrimaryMetrics, synchronizer::Synchronizer};

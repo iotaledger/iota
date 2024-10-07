@@ -13,14 +13,14 @@ mod checked {
     };
 
     use iota_move_natives::object_runtime::{
-        self, get_all_uids, max_event_error, LoadedRuntimeObject, ObjectRuntime, RuntimeResults,
+        self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
         coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV2},
         execution_status::CommandArgumentError,
@@ -31,9 +31,9 @@ mod checked {
         transaction::{Argument, CallArg, ObjectArg},
     };
     use move_binary_format::{
+        CompiledModule,
         errors::{Location, PartialVMError, PartialVMResult, VMError, VMResult},
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
-        CompiledModule,
     };
     use move_core_types::{
         account_address::AccountAddress,
@@ -640,13 +640,10 @@ mod checked {
                 else {
                     continue;
                 };
-                loaded_runtime_objects.insert(
-                    id,
-                    LoadedRuntimeObject {
-                        version,
-                        is_modified: true,
-                    },
-                );
+                loaded_runtime_objects.insert(id, LoadedRuntimeObject {
+                    version,
+                    is_modified: true,
+                });
                 if let Some(Value::Object(object_value)) = value {
                     add_additional_write(&mut additional_writes, owner, object_value)?;
                 } else if owner.is_shared() {

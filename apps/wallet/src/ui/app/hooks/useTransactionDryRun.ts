@@ -8,10 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAccountByAddress } from './useAccountByAddress';
 import { useSigner } from './useSigner';
 
-export function useTransactionDryRun(
-    sender: string | undefined,
-    transaction: Transaction,
-) {
+export function useTransactionDryRun(sender: string | undefined, transaction: Transaction) {
     const { data: account } = useAccountByAddress(sender);
     const signer = useSigner(account || null);
     const response = useQuery({

@@ -10,7 +10,7 @@ use consensus_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use consensus_core::{CommitConsumer, CommitIndex, ConsensusAuthority};
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
-use iota_metrics::{monitored_mpsc::unbounded_channel, RegistryID, RegistryService};
+use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
 use iota_protocol_config::ConsensusNetwork;
 use iota_types::{
     committee::EpochId,

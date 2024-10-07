@@ -8,17 +8,17 @@ mod tests {
 
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_graphql_rpc::{
-        client::{simple_client::GraphqlQueryVariable, ClientError},
+        client::{ClientError, simple_client::GraphqlQueryVariable},
         config::ConnectionConfig,
-        test_infra::cluster::{ExecutorCluster, DEFAULT_INTERNAL_DATA_SOURCE_PORT},
+        test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
     };
     use iota_types::{
+        DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         digests::ChainIdentifier,
         gas_coin::GAS,
         transaction::{CallArg, ObjectArg, TransactionDataAPI},
-        DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
     };
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
     use serial_test::serial;
     use simulacrum::Simulacrum;
@@ -731,15 +731,10 @@ mod tests {
             .test_transaction_builder()
             .await
             // A split coin that goes nowhere -> execution failure
-            .move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                "coin",
-                "split",
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                    CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
-                ],
-            )
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "coin", "split", vec![
+                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
+                CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
+            ])
             .with_type_args(vec![GAS::type_tag()])
             .build();
         let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());

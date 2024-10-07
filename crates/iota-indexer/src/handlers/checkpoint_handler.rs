@@ -20,8 +20,8 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     event::SystemEpochInfoEvent,
     iota_system_state::{
-        get_iota_system_state, iota_system_state_summary::IotaSystemStateSummary,
-        IotaSystemStateTrait,
+        IotaSystemStateTrait, get_iota_system_state,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
@@ -43,15 +43,15 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
+        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
         committer::start_tx_checkpoint_commit_task,
         tx_processor::{EpochEndIndexingObjectStore, IndexingPackageBuffer, TxChangesProcessor},
-        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
     },
     metrics::IndexerMetrics,
     models::display::StoredDisplay,
     store::{
-        package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
         IndexerStore, PgIndexerStore,
+        package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,

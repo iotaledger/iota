@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
+    collections::{HashMap, hash_map::DefaultHasher},
     error::Error,
     future::Future,
     hash::{Hash, Hasher},
@@ -13,7 +13,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::future::{join_all, Either};
+use futures::future::{Either, join_all};
 use parking_lot::{Mutex, MutexGuard};
 use tokio::sync::oneshot;
 

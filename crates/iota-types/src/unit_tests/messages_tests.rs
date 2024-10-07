@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
+    collections::{BTreeMap, hash_map::DefaultHasher},
     hash::Hasher,
 };
 
@@ -17,10 +17,11 @@ use crate::{
     base_types::random_object_ref,
     committee::Committee,
     crypto::{
-        bcs_signable_test::{get_obligation_input, Foo},
-        get_key_pair, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthoritySignInfoTrait, IotaAuthoritySignature, IotaKeyPair, IotaSignature,
-        IotaSignatureInner, Secp256k1IotaSignature, VerificationObligation,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, IotaSignatureInner,
+        Secp256k1IotaSignature, VerificationObligation,
+        bcs_signable_test::{Foo, get_obligation_input},
+        get_key_pair,
     },
     digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPI},
@@ -643,10 +644,10 @@ fn test_user_signature_committed_in_signed_transactions() {
         .try_into_verified_for_testing(epoch, &Default::default())
         .unwrap();
     // transaction_b intentionally invalid (sender does not match signer).
-    let transaction_b = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
-        tx_data,
-        vec![&sender_sec2],
-    ));
+    let transaction_b =
+        VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(tx_data, vec![
+            &sender_sec2,
+        ]));
 
     let signed_tx_a = SignedTransaction::new(
         0,
@@ -745,10 +746,10 @@ fn test_sponsored_transaction_message() {
         signature_from_signer(tx_data.clone(), intent.clone(), &sender_kp).into();
     let sponsor_sig: GenericSignature =
         signature_from_signer(tx_data.clone(), intent.clone(), &sponsor_kp).into();
-    let transaction = Transaction::from_generic_sig_data(
-        tx_data.clone(),
-        vec![sender_sig.clone(), sponsor_sig.clone()],
-    )
+    let transaction = Transaction::from_generic_sig_data(tx_data.clone(), vec![
+        sender_sig.clone(),
+        sponsor_sig.clone(),
+    ])
     .try_into_verified_for_testing(epoch, &Default::default())
     .unwrap();
 
@@ -761,10 +762,10 @@ fn test_sponsored_transaction_message() {
     assert_eq!(transaction.gas(), &[gas_obj_ref]);
 
     // Sig order does not matter
-    let transaction = Transaction::from_generic_sig_data(
-        tx_data.clone(),
-        vec![sponsor_sig.clone(), sender_sig.clone()],
-    )
+    let transaction = Transaction::from_generic_sig_data(tx_data.clone(), vec![
+        sponsor_sig.clone(),
+        sender_sig.clone(),
+    ])
     .try_into_verified_for_testing(epoch, &Default::default())
     .unwrap();
 
@@ -789,10 +790,11 @@ fn test_sponsored_transaction_message() {
     let third_party_sig: GenericSignature =
         signature_from_signer(tx_data.clone(), intent.clone(), &third_party_kp).into();
     assert!(matches!(
-        Transaction::from_generic_sig_data(
-            tx_data.clone(),
-            vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
-        )
+        Transaction::from_generic_sig_data(tx_data.clone(), vec![
+            sender_sig,
+            sponsor_sig.clone(),
+            third_party_sig.clone()
+        ],)
         .try_into_verified_for_testing(epoch, &Default::default())
         .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }

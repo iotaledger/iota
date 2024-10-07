@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, TransactionFilter,
 };
 use iota_sdk::IotaClient;
-use iota_types::{digests::TransactionDigest, IOTA_BRIDGE_OBJECT_ID};
+use iota_types::{IOTA_BRIDGE_OBJECT_ID, digests::TransactionDigest};
 use tracing::{error, info};
 
 use crate::types::RetrievedTransaction;

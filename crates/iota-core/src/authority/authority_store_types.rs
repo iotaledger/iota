@@ -5,14 +5,14 @@
 use iota_types::{
     base_types::{MoveObjectType, ObjectDigest, SequenceNumber, TransactionDigest},
     coin::Coin,
-    crypto::{default_hash, Signable},
+    crypto::{Signable, default_hash},
     error::IotaError,
     move_package::MovePackage,
     object::{Data, MoveObject, Object, ObjectInner, Owner},
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 
 pub type ObjectContentDigest = ObjectDigest;
 

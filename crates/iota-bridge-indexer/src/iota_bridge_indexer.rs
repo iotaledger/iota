@@ -2,27 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use async_trait::async_trait;
 use diesel::{
-    dsl::now, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
-    SelectableHelper, TextExpressionMethods,
+    Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
+    TextExpressionMethods, dsl::now,
 };
 use iota_bridge::events::{
     MoveTokenDepositedEvent, MoveTokenTransferApproved, MoveTokenTransferClaimed,
 };
 use iota_indexer_builder::{
+    Task,
     indexer_builder::{DataMapper, IndexerProgressStore, Persistent},
     iota_datasource::CheckpointTxnData,
-    Task,
 };
 use iota_types::{
-    effects::TransactionEffectsAPI, event::Event, execution_status::ExecutionStatus,
-    full_checkpoint_content::CheckpointTransaction, BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID,
+    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, effects::TransactionEffectsAPI, event::Event,
+    execution_status::ExecutionStatus, full_checkpoint_content::CheckpointTransaction,
 };
 use tracing::info;
 
 use crate::{
+    BridgeDataSource, IotaTxnError, ProcessedTxnData, TokenTransfer, TokenTransferData,
+    TokenTransferStatus,
     metrics::BridgeIndexerMetrics,
     models,
     postgres_manager::PgPool,
@@ -32,8 +34,6 @@ use crate::{
         progress_store::{columns, dsl},
         token_transfer, token_transfer_data,
     },
-    BridgeDataSource, IotaTxnError, ProcessedTxnData, TokenTransfer, TokenTransferData,
-    TokenTransferStatus,
 };
 
 /// Persistent layer impl

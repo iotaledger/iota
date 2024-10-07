@@ -4,7 +4,7 @@
 
 import { useFormatCoin } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { Transaction, TransactionData } from '@iota/iota-sdk/transactions';
+import { Transaction, type TransactionData } from '@iota/iota-sdk/transactions';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
@@ -26,10 +26,7 @@ export function useTransactionData(sender?: string | null, transaction?: Transac
     });
 }
 
-export function useTransactionGasBudget(
-    sender?: string | null,
-    transaction?: Transaction | null,
-) {
+export function useTransactionGasBudget(sender?: string | null, transaction?: Transaction | null) {
     const { data, ...rest } = useTransactionData(sender, transaction);
 
     const [formattedGas] = useFormatCoin(data?.gasData.budget, IOTA_TYPE_ARG);

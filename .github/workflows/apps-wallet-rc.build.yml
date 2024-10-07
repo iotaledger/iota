@@ -13,7 +13,6 @@ env:
   IOTA_NETWORKS: ${{ secrets.WALLET_RC_IOTA_NETWORKS }}
   APPS_BACKEND: ${{ secrets.WALLET_RC_APPS_BACKEND }}
   RC_VERSION: "${{ github.event.inputs.rc_version }}"
-  WALLET_RC: "true"
 
 jobs:
   wallet-rc-build:

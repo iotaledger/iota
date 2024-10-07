@@ -15,7 +15,7 @@ use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
-use iota_test_transaction_builder::{make_transfer_iota_transaction, TestTransactionBuilder};
+use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
     base_types::IotaAddress,
     effects::TransactionEffectsAPI,
@@ -23,8 +23,8 @@ use iota_types::{
     gas::GasCostSummary,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
-        get_validator_from_table, iota_system_state_summary::get_validator_by_pool_id,
-        IotaSystemStateTrait,
+        IotaSystemStateTrait, get_validator_from_table,
+        iota_system_state_summary::get_validator_by_pool_id,
     },
     message_envelope::Message,
     transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},

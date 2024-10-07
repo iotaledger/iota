@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use iota_indexer::{errors::IndexerError, metrics::start_prometheus_server, IndexerConfig};
+use iota_indexer::{IndexerConfig, errors::IndexerError, metrics::start_prometheus_server};
 use tracing::{info, warn};
 
 #[tokio::main]

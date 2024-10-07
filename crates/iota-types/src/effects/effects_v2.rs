@@ -9,8 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    object_change::{ObjectIn, ObjectOut},
     EffectsObjectChange, IDOperation, ObjectChange,
+    object_change::{ObjectIn, ObjectOut},
 };
 #[cfg(debug_assertions)]
 use crate::is_system_package;
@@ -24,7 +24,7 @@ use crate::{
     execution::SharedInput,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    object::{Owner, OBJECT_START_VERSION},
+    object::{OBJECT_START_VERSION, Owner},
 };
 
 /// The response from processing a transaction or a certified transaction
@@ -348,24 +348,17 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
 
     fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
         match kind {
-            InputSharedObject::Mutate(obj_ref) => self.changed_objects.push((
-                obj_ref.0,
-                EffectsObjectChange {
-                    input_state: ObjectIn::Exist((
-                        (obj_ref.1, obj_ref.2),
-                        Owner::Shared {
-                            initial_shared_version: OBJECT_START_VERSION,
-                        },
-                    )),
-                    output_state: ObjectOut::ObjectWrite((
-                        obj_ref.2,
-                        Owner::Shared {
-                            initial_shared_version: obj_ref.1,
-                        },
-                    )),
+            InputSharedObject::Mutate(obj_ref) => {
+                self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+                    input_state: ObjectIn::Exist(((obj_ref.1, obj_ref.2), Owner::Shared {
+                        initial_shared_version: OBJECT_START_VERSION,
+                    })),
+                    output_state: ObjectOut::ObjectWrite((obj_ref.2, Owner::Shared {
+                        initial_shared_version: obj_ref.1,
+                    })),
                     id_operation: IDOperation::None,
-                },
-            )),
+                }))
+            }
             InputSharedObject::ReadOnly(obj_ref) => self.unchanged_shared_objects.push((
                 obj_ref.0,
                 UnchangedSharedKind::ReadOnlyRoot((obj_ref.1, obj_ref.2)),
@@ -383,34 +376,28 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
     }
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, obj_ref: ObjectRef) {
-        self.changed_objects.push((
-            obj_ref.0,
-            EffectsObjectChange {
-                input_state: ObjectIn::Exist((
-                    (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                output_state: ObjectOut::ObjectWrite((
-                    obj_ref.2,
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                id_operation: IDOperation::None,
-            },
-        ))
+        self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+            input_state: ObjectIn::Exist((
+                (obj_ref.1, obj_ref.2),
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            output_state: ObjectOut::ObjectWrite((
+                obj_ref.2,
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            id_operation: IDOperation::None,
+        }))
     }
 
     fn unsafe_add_object_tombstone_for_testing(&mut self, obj_ref: ObjectRef) {
-        self.changed_objects.push((
-            obj_ref.0,
-            EffectsObjectChange {
-                input_state: ObjectIn::Exist((
-                    (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                output_state: ObjectOut::NotExist,
-                id_operation: IDOperation::Deleted,
-            },
-        ))
+        self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+            input_state: ObjectIn::Exist((
+                (obj_ref.1, obj_ref.2),
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            output_state: ObjectOut::NotExist,
+            id_operation: IDOperation::Deleted,
+        }))
     }
 }
 

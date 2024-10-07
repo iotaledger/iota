@@ -16,10 +16,10 @@ use iota_types::{
 };
 use parking_lot::RwLock;
 use typed_store::{
-    rocks::{default_db_options, DBMap, DBOptions, MetricConf},
+    DBMapUtils, Map,
+    rocks::{DBMap, DBOptions, MetricConf, default_db_options},
     rocksdb::Options,
     traits::{TableSummary, TypedStoreDebug},
-    DBMapUtils, Map,
 };
 
 pub struct CommitteeStore {

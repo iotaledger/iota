@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_config::{genesis, node, Config, NodeConfig};
+use iota_config::{Config, NodeConfig, genesis, node};
 use iota_types::{
     committee::CommitteeWithNetworkMetadata, crypto::AccountKeyPair, multiaddr::Multiaddr,
 };

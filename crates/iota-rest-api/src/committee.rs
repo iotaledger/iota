@@ -8,11 +8,11 @@ use iota_types::storage::ReadStore;
 use tap::Pipe;
 
 use crate::{
+    RestService, Result,
     accept::AcceptFormat,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
     response::ResponseContent,
-    RestService, Result,
 };
 
 pub struct GetLatestCommittee;

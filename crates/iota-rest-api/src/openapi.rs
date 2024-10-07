@@ -8,19 +8,19 @@ use std::{
 };
 
 use axum::{
+    Router,
     body::Bytes,
     extract::State,
     handler::Handler,
     http::Method,
     response::Html,
-    routing::{get, MethodRouter},
-    Router,
+    routing::{MethodRouter, get},
 };
 use openapiv3::v3_1::{
     Components, Header, Info, MediaType, OpenApi, Operation, Parameter, ParameterData, PathItem,
     Paths, ReferenceOr, RequestBody, Response, SchemaObject, Tag,
 };
-use schemars::{gen::SchemaGenerator, JsonSchema};
+use schemars::{JsonSchema, gen::SchemaGenerator};
 use tap::Pipe;
 
 pub trait ApiEndpoint<S> {

@@ -16,7 +16,7 @@ use iota_types::{
 use narwhal_config::{Parameters, WorkerId};
 use narwhal_network::client::NetworkClient;
 use narwhal_node::{
-    primary_node::PrimaryNode, worker_node::WorkerNodes, CertificateStoreCacheMetrics, NodeStorage,
+    CertificateStoreCacheMetrics, NodeStorage, primary_node::PrimaryNode, worker_node::WorkerNodes,
 };
 use tokio::sync::Mutex;
 

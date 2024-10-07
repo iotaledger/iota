@@ -11,24 +11,24 @@ use std::{
 
 use async_trait::async_trait;
 use iota_types::{
-    base_types::{is_primitive_type_tag, SequenceNumber},
+    Identifier,
+    base_types::{SequenceNumber, is_primitive_type_tag},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
-    Identifier,
 };
 use lru::LruCache;
 use move_binary_format::{
+    CompiledModule,
     errors::Location,
     file_format::{
         AbilitySet, DatatypeHandleIndex, DatatypeTyParameter, EnumDefinitionIndex,
         FunctionDefinitionIndex, Signature as MoveSignature, SignatureIndex, SignatureToken,
         StructDefinitionIndex, StructFieldInformation, TableIndex, Visibility,
     },
-    CompiledModule,
 };
 use move_command_line_common::{
-    display::{try_render_constant, RenderResult},
+    display::{RenderResult, try_render_constant},
     error_bitset::ErrorBitset,
 };
 use move_core_types::{
@@ -1886,15 +1886,12 @@ mod tests {
     async fn test_value_nesting_boundary() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 100,
-                max_type_nodes: 100,
-                max_move_value_depth: 3,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 100,
+            max_type_nodes: 100,
+            max_move_value_depth: 3,
+        });
 
         // The layout of this type is fine, because it is *just* at the correct depth.
         let struct_layout = resolver
@@ -1912,15 +1909,12 @@ mod tests {
     async fn test_err_value_nesting_simple() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 100,
-                max_type_nodes: 100,
-                max_move_value_depth: 2,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 100,
+            max_type_nodes: 100,
+            max_move_value_depth: 2,
+        });
 
         // The depth limit is now too low, so this will fail.
         let struct_err = resolver
@@ -1939,15 +1933,12 @@ mod tests {
     async fn test_err_value_nesting_big_type_param() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 100,
-                max_type_nodes: 100,
-                max_move_value_depth: 3,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 100,
+            max_type_nodes: 100,
+            max_move_value_depth: 3,
+        });
 
         // This layout calculation will fail early because we know that the type
         // parameter we're calculating will eventually contribute to a layout
@@ -1971,15 +1962,12 @@ mod tests {
             (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 100,
-                max_type_nodes: 100,
-                max_move_value_depth: 3,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 100,
+            max_type_nodes: 100,
+            max_move_value_depth: 3,
+        });
 
         // Check that this layout request would succeed.
         let _ = resolver
@@ -2014,15 +2002,12 @@ mod tests {
             (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 100,
-                max_type_nodes: 100,
-                max_move_value_depth: 3,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 100,
+            max_type_nodes: 100,
+            max_move_value_depth: 3,
+        });
 
         // Make sure that even if all type parameters individually meet the depth
         // requirements, that we correctly fail if they extend the layout's
@@ -2194,17 +2179,15 @@ mod tests {
         let a0 = cache.fetch(addr("0xa0")).await.unwrap();
         let m = a0.module("m").unwrap();
 
-        assert_eq!(
-            m.structs(None, None).collect::<Vec<_>>(),
-            vec!["T0", "T1", "T2"],
-        );
+        assert_eq!(m.structs(None, None).collect::<Vec<_>>(), vec![
+            "T0", "T1", "T2"
+        ],);
 
         assert_eq!(m.structs(None, Some("T1")).collect::<Vec<_>>(), vec!["T0"],);
 
-        assert_eq!(
-            m.structs(Some("T0"), Some("T2")).collect::<Vec<_>>(),
-            vec!["T1"],
-        );
+        assert_eq!(m.structs(Some("T0"), Some("T2")).collect::<Vec<_>>(), vec![
+            "T1"
+        ],);
 
         assert_eq!(m.structs(Some("T1"), None).collect::<Vec<_>>(), vec!["T2"],);
 
@@ -2228,17 +2211,15 @@ mod tests {
             .unwrap();
         let m = a0.module("m").unwrap();
 
-        assert_eq!(
-            m.enums(None, None).collect::<Vec<_>>(),
-            vec!["E0", "E1", "E2"],
-        );
+        assert_eq!(m.enums(None, None).collect::<Vec<_>>(), vec![
+            "E0", "E1", "E2"
+        ],);
 
         assert_eq!(m.enums(None, Some("E1")).collect::<Vec<_>>(), vec!["E0"],);
 
-        assert_eq!(
-            m.enums(Some("E0"), Some("E2")).collect::<Vec<_>>(),
-            vec!["E1"],
-        );
+        assert_eq!(m.enums(Some("E0"), Some("E2")).collect::<Vec<_>>(), vec![
+            "E1"
+        ],);
 
         assert_eq!(m.enums(Some("E1"), None).collect::<Vec<_>>(), vec!["E2"],);
 
@@ -2265,25 +2246,22 @@ mod tests {
         let c0 = cache.fetch(addr("0xc0")).await.unwrap();
         let m = c0.module("m").unwrap();
 
-        assert_eq!(
-            m.functions(None, None).collect::<Vec<_>>(),
-            vec!["bar", "baz", "foo"],
-        );
+        assert_eq!(m.functions(None, None).collect::<Vec<_>>(), vec![
+            "bar", "baz", "foo"
+        ],);
 
-        assert_eq!(
-            m.functions(None, Some("baz")).collect::<Vec<_>>(),
-            vec!["bar"],
-        );
+        assert_eq!(m.functions(None, Some("baz")).collect::<Vec<_>>(), vec![
+            "bar"
+        ],);
 
         assert_eq!(
             m.functions(Some("bar"), Some("foo")).collect::<Vec<_>>(),
             vec!["baz"],
         );
 
-        assert_eq!(
-            m.functions(Some("baz"), None).collect::<Vec<_>>(),
-            vec!["foo"],
-        );
+        assert_eq!(m.functions(Some("baz"), None).collect::<Vec<_>>(), vec![
+            "foo"
+        ],);
 
         let foo = m.function_def("foo").unwrap().unwrap();
         let bar = m.function_def("bar").unwrap().unwrap();
@@ -2324,16 +2302,12 @@ mod tests {
         use OpenSignatureBody as O;
         use TypeTag as T;
 
-        let sig = O::Datatype(
-            key("0x2::table::Table"),
-            vec![
-                O::TypeParameter(1),
-                O::Vector(Box::new(O::Datatype(
-                    key("0x1::option::Option"),
-                    vec![O::TypeParameter(0)],
-                ))),
-            ],
-        );
+        let sig = O::Datatype(key("0x2::table::Table"), vec![
+            O::TypeParameter(1),
+            O::Vector(Box::new(O::Datatype(key("0x1::option::Option"), vec![
+                O::TypeParameter(0),
+            ]))),
+        ]);
 
         insta::assert_debug_snapshot!(sig.instantiate(&[T::U64, T::Bool]).unwrap());
     }
@@ -2343,16 +2317,12 @@ mod tests {
         use OpenSignatureBody as O;
         use TypeTag as T;
 
-        let sig = O::Datatype(
-            key("0x2::table::Table"),
-            vec![
-                O::TypeParameter(1),
-                O::Vector(Box::new(O::Datatype(
-                    key("0x1::option::Option"),
-                    vec![O::TypeParameter(99)],
-                ))),
-            ],
-        );
+        let sig = O::Datatype(key("0x2::table::Table"), vec![
+            O::TypeParameter(1),
+            O::Vector(Box::new(O::Datatype(key("0x1::option::Option"), vec![
+                O::TypeParameter(99),
+            ]))),
+        ]);
 
         insta::assert_snapshot!(
             sig.instantiate(&[T::U64, T::Bool]).unwrap_err(),
@@ -2533,15 +2503,12 @@ mod tests {
             (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 1,
-                max_type_argument_depth: 100,
-                max_type_nodes: 100,
-                max_move_value_depth: 100,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 1,
+            max_type_argument_depth: 100,
+            max_type_nodes: 100,
+            max_move_value_depth: 100,
+        });
 
         let err = resolver
             .abilities(type_("0xd0::m::O<u32, u64>"))
@@ -2560,15 +2527,12 @@ mod tests {
             (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 100,
-                max_type_nodes: 2,
-                max_move_value_depth: 100,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 100,
+            max_type_nodes: 2,
+            max_move_value_depth: 100,
+        });
 
         // This request is OK, because one of O's type parameters is phantom, so we can
         // avoid loading its definition.
@@ -2596,15 +2560,12 @@ mod tests {
             (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
-        let resolver = Resolver::new_with_limits(
-            cache,
-            Limits {
-                max_type_argument_width: 100,
-                max_type_argument_depth: 2,
-                max_type_nodes: 100,
-                max_move_value_depth: 100,
-            },
-        );
+        let resolver = Resolver::new_with_limits(cache, Limits {
+            max_type_argument_width: 100,
+            max_type_argument_depth: 2,
+            max_type_nodes: 100,
+            max_move_value_depth: 100,
+        });
 
         // This request is OK, because one of O's type parameters is phantom, so we can
         // avoid loading its definition.

@@ -22,7 +22,7 @@ use iota_types::{
     storage::{ObjectKey, ObjectStore},
 };
 use itertools::Itertools;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use serde::Serialize;
 use tracing::debug;
 

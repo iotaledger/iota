@@ -14,6 +14,7 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
+    STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
@@ -21,7 +22,6 @@ use crate::{
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
-    TypeTag, STARDUST_PACKAGE_ID,
 };
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");

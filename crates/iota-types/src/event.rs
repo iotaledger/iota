@@ -15,14 +15,14 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{serde_as, Bytes};
+use serde_with::{Bytes, serde_as};
 
 use crate::{
+    IOTA_SYSTEM_ADDRESS,
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::{IotaError, IotaResult},
     iota_serde::{BigInt, Readable},
     object::bounded_visitor::BoundedVisitor,
-    IOTA_SYSTEM_ADDRESS,
 };
 
 /// A universal Iota event type encapsulating different types of events

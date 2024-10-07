@@ -20,7 +20,7 @@ use serde::de::DeserializeOwned;
 use crate::{
     errors::IndexerError,
     schema::{objects, objects_history, objects_snapshot},
-    types::{owner_to_owner_info, IndexedDeletedObject, IndexedObject, ObjectStatus},
+    types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
 #[derive(Queryable)]
@@ -550,11 +550,11 @@ impl TryFrom<CoinBalance> for Balance {
 #[cfg(test)]
 mod tests {
     use iota_types::{
+        Identifier, TypeTag,
         coin::Coin,
         digests::TransactionDigest,
-        gas_coin::{GasCoin, GAS},
+        gas_coin::{GAS, GasCoin},
         object::{Data, MoveObject, ObjectInner, Owner},
-        Identifier, TypeTag,
     };
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 

@@ -37,7 +37,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{IotaMoveStruct, IotaMoveValue, Page};
 

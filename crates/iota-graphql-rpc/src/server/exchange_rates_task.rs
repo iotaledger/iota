@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_indexer::apis::{governance_api::exchange_rates, GovernanceReadApi};
+use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};

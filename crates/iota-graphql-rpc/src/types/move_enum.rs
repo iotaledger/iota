@@ -11,7 +11,7 @@ use crate::{
         iota_address::IotaAddress,
         move_module::MoveModule,
         move_struct::{MoveField, MoveStructTypeParameter},
-        open_move_type::{abilities, MoveAbility},
+        open_move_type::{MoveAbility, abilities},
     },
 };
 

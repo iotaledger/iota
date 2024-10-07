@@ -13,8 +13,8 @@ use iota_types::{
     transaction::VerifiedSignedTransaction,
 };
 use prometheus::{
-    register_histogram_with_registry, register_int_counter_with_registry, Histogram, IntCounter,
-    Registry,
+    Histogram, IntCounter, Registry, register_histogram_with_registry,
+    register_int_counter_with_registry,
 };
 use tokio::{select, time::Instant};
 use tracing::{debug, error, trace};
@@ -271,8 +271,8 @@ mod tests {
         net::SocketAddr,
         num::NonZeroUsize,
         sync::{
-            atomic::{AtomicBool, Ordering::Relaxed},
             Arc,
+            atomic::{AtomicBool, Ordering::Relaxed},
         },
     };
 
@@ -284,7 +284,7 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, ObjectID, TransactionDigest},
         committee::{CommitteeTrait, StakeUnit},
-        crypto::{get_account_key_pair, AccountKeyPair},
+        crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
@@ -307,7 +307,7 @@ mod tests {
     };
 
     use crate::{
-        authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
         authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
         authority_client::AuthorityAPI,
         validator_tx_finalizer::ValidatorTxFinalizer,
@@ -640,13 +640,10 @@ mod tests {
         let clients: BTreeMap<_, _> = authority_states
             .iter()
             .map(|state| {
-                (
-                    state.name,
-                    MockAuthorityClient {
-                        authority: state.clone(),
-                        inject_fault: Arc::new(AtomicBool::new(false)),
-                    },
-                )
+                (state.name, MockAuthorityClient {
+                    authority: state.clone(),
+                    inject_fault: Arc::new(AtomicBool::new(false)),
+                })
             })
             .collect();
         let auth_agg = AuthorityAggregatorBuilder::from_network_config(&network_config)

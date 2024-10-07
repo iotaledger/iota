@@ -12,7 +12,7 @@ use iota_types::{
     transaction::{Argument, CallArg, ObjectArg},
 };
 use move_command_line_common::{
-    parser::{parse_u256, parse_u64, Parser as MoveCLParser},
+    parser::{Parser as MoveCLParser, parse_u64, parse_u256},
     values::{ParsableValue, ParsedValue, ValueToken},
 };
 use move_compiler::editions::Flavor;

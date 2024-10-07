@@ -13,17 +13,17 @@ use iota_core::{
     db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
 };
 use iota_storage::{
+    FileCompression,
     object_store::util::{
         find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
         run_manifest_update_loop,
     },
-    FileCompression,
 };
 use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
 use object_store::DynObjectStore;
 use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 use tracing::{debug, error, info};
 

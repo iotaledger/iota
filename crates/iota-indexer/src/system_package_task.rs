@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use diesel::{r2d2::R2D2Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, r2d2::R2D2Connection};
 use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio_util::sync::CancellationToken;
 

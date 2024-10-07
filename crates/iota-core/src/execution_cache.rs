@@ -4,7 +4,7 @@
 
 use std::{collections::HashSet, path::Path, sync::Arc};
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use iota_config::ExecutionCacheConfig;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
@@ -17,9 +17,9 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, Owner},
     storage::{
-        error::{Error as StorageError, Result as StorageResult},
         BackingPackageStore, BackingStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
         ObjectOrTombstone, ObjectStore, PackageObject, ParentSync,
+        error::{Error as StorageError, Result as StorageResult},
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
@@ -28,10 +28,10 @@ use tracing::instrument;
 
 use crate::{
     authority::{
+        AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        AuthorityStore,
     },
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,

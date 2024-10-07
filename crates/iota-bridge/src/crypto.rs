@@ -13,8 +13,8 @@ use fastcrypto::{
     error::FastCryptoError,
     hash::{HashFunction, Keccak256},
     secp256k1::{
-        recoverable::Secp256k1RecoverableSignature, Secp256k1KeyPair, Secp256k1PublicKey,
-        Secp256k1PublicKeyAsBytes,
+        Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes,
+        recoverable::Secp256k1RecoverableSignature,
     },
     traits::{KeyPair, RecoverableSigner, ToFromBytes, VerifyRecoverable},
 };

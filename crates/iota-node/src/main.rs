@@ -6,7 +6,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
-use iota_config::{node::RunWithRange, Config, NodeConfig};
+use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::IotaNode;
 use iota_types::{

@@ -5,10 +5,10 @@
 use anyhow::Result;
 use clap::*;
 use iota_analytics_indexer::{
-    analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError, make_analytics_processor,
-    AnalyticsIndexerConfig,
+    AnalyticsIndexerConfig, analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError,
+    make_analytics_processor,
 };
-use iota_data_ingestion_core::{setup_single_workflow, ReaderOptions};
+use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
 use prometheus::Registry;
 use tokio::signal;
 use tracing::info;

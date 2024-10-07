@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use iota_graphql_rpc_headers::LIMITS_HEADER;
-use reqwest::{header, header::HeaderValue, Response};
+use reqwest::{Response, header, header::HeaderValue};
 use serde_json::Value;
 
 use super::response::GraphqlResponse;

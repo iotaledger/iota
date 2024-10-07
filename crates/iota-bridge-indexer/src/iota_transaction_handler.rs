@@ -11,14 +11,14 @@ use iota_bridge::events::{
 };
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_metrics::metered_channel::{Receiver, ReceiverStream};
-use iota_types::{digests::TransactionDigest, BRIDGE_ADDRESS};
+use iota_types::{BRIDGE_ADDRESS, digests::TransactionDigest};
 use tracing::{error, info};
 
 use crate::{
-    metrics::BridgeIndexerMetrics,
-    postgres_manager::{update_iota_progress_store, write, PgPool},
-    types::RetrievedTransaction,
     BridgeDataSource, ProcessedTxnData, TokenTransfer, TokenTransferData, TokenTransferStatus,
+    metrics::BridgeIndexerMetrics,
+    postgres_manager::{PgPool, update_iota_progress_store, write},
+    types::RetrievedTransaction,
 };
 
 pub(crate) const COMMIT_BATCH_SIZE: usize = 10;

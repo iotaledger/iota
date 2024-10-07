@@ -16,13 +16,13 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     id::UID,
     object::{Data, MoveObject, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 /// The number of Nanos per Iota token

@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use iota_protocol_config::ProtocolConfigValue::u64;
 use iota_sdk::{
+    U256, Url,
     types::block::output::{
-        feature::Irc30Metadata, AliasId, FoundryOutput, Output, SimpleTokenScheme,
+        AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
     },
-    Url, U256,
 };
 use iota_types::{
     balance::Balance,
@@ -16,7 +16,7 @@ use iota_types::{
     coin_manager::CoinManager,
     gas_coin::GAS,
     object::Object,
-    smr_coin::{SmrCoin, SMR},
+    smr_coin::{SMR, SmrCoin},
     stardust::{coin_type::CoinType, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
 use move_core_types::language_storage::TypeTag;

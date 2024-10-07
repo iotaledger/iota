@@ -5,7 +5,7 @@
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::ObjectID,
-    transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE},
+    transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};

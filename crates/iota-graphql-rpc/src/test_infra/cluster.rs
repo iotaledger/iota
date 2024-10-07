@@ -8,8 +8,8 @@ use iota_graphql_rpc_client::simple_client::SimpleClient;
 pub use iota_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
 use iota_indexer::{
     errors::IndexerError,
-    store::{indexer_store::IndexerStore, PgIndexerStore},
-    test_utils::{force_delete_database, start_test_indexer_impl, ReaderWriterConfig},
+    store::{PgIndexerStore, indexer_store::IndexerStore},
+    test_utils::{ReaderWriterConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_types::storage::RestStateReader;

@@ -9,11 +9,11 @@ use std::{borrow::Borrow, collections::HashSet, fmt::Debug, sync::Mutex, time::D
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use typed_store::{
+    DBMapUtils, SallyDB,
     metrics::SamplingInterval,
-    rocks::{be_fix_int_ser, list_tables, DBMap, MetricConf, RocksDBAccessType},
+    rocks::{DBMap, MetricConf, RocksDBAccessType, be_fix_int_ser, list_tables},
     sally::{SallyColumn, SallyDBOptions, SallyReadOnlyDBOptions},
     traits::{Map, TableSummary, TypedStoreDebug},
-    DBMapUtils, SallyDB,
 };
 
 fn temp_dir() -> std::path::PathBuf {

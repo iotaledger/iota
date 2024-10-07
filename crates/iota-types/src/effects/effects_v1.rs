@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use super::{IDOperation, ObjectChange};
 use crate::{
     base_types::{
-        random_object_ref, EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest,
+        EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        random_object_ref,
     },
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{InputSharedObject, TransactionEffectsAPI, UnchangedSharedKind},
