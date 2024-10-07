@@ -73,6 +73,12 @@
 //! For detailed examples, please check the APIs docs and the examples folder
 //! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
+pub mod apis;
+pub mod error;
+pub mod iota_client_config;
+pub mod json_rpc_error;
+pub mod wallet_context;
+
 use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
@@ -107,12 +113,6 @@ use crate::{
     apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi},
     error::{Error, IotaRpcResult},
 };
-
-pub mod apis;
-pub mod error;
-pub mod iota_client_config;
-pub mod json_rpc_error;
-pub mod wallet_context;
 
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";

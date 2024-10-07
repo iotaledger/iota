@@ -4,7 +4,7 @@
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery};
 use iota_macros::sim_test;
-use iota_types::{base_types::ObjectID, IOTA_FRAMEWORK_ADDRESS};
+use iota_types::{IOTA_FRAMEWORK_ADDRESS, base_types::ObjectID};
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
@@ -19,13 +19,15 @@ async fn test_get_package_with_display_should_not_fail() -> Result<(), anyhow::E
         .await;
     assert!(response.is_ok());
     let response: IotaObjectResponse = response?;
-    assert!(response
-        .into_object()
-        .unwrap()
-        .display
-        .unwrap()
-        .data
-        .is_none());
+    assert!(
+        response
+            .into_object()
+            .unwrap()
+            .display
+            .unwrap()
+            .data
+            .is_none()
+    );
     Ok(())
 }
 

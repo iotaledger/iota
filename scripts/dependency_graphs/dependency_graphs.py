@@ -4,7 +4,7 @@
 # This script creates dependency graphs between the internal crates.
 # It outputs SVG files and an index.html.
 
-import re, pathlib, os, io, subprocess
+import re, pathlib, os, io, subprocess, argparse
 from bs4 import BeautifulSoup
 
 # holds all possible codeowners
@@ -323,34 +323,56 @@ def convert_dot_files(output_folder, file_type):
         os.remove(dot_file)
 
 ################################################################################
-if __name__ == '__main__':  
-    output_folder = "output"
-    skip_dev_dependencies = False            # whether or not to include the `dev-dependencies`
+if __name__ == '__main__':
+    # Argument parser setup
+    parser = argparse.ArgumentParser(description="Create dependency graphs of internal crates.")
+    parser.add_argument('--target-folder', default="output", help="The path to the target folder.")
+    parser.add_argument('--skip-dev-dependencies', action='store_true', help="Whether or not to include the `dev-dependencies`.")
+
+    args = parser.parse_args()
+    target_folder = args.target_folder
+    target_folder = os.path.abspath(os.path.expanduser(target_folder))
+
     base_path = pathlib.Path("../../").absolute().resolve()
 
+    print("Target folder: %s" % (target_folder))
+    if args.skip_dev_dependencies:
+        print("The output is generated with skipped dev-dependencies.")
+    else:
+        print("The output is generated with dev-dependencies.")
+
     # parse the code owners file
+    print("Parsing the CODEOWNERS file...")
     code_owners = CodeOwners(os.path.join(base_path, '.github', 'CODEOWNERS'))
     
     # run the cargo tree binary
-    cargo_tree_output = run_cargo_tree(skip_dev_dependencies)
+    print("Creating dependency tree via 'cargo tree'...")
+    cargo_tree_output = run_cargo_tree(args.skip_dev_dependencies)
     
     # parse the cargo tree
-    crates_dict = parse_cargo_tree(cargo_tree_output, base_path, code_owners, skip_dev_dependencies)
+    print("Parsing the cargo tree...")
+    crates_dict = parse_cargo_tree(cargo_tree_output, base_path, code_owners, args.skip_dev_dependencies)
     
     # create the output folder if it doesn't exist
-    pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(target_folder).mkdir(parents=True, exist_ok=True)
 
     # generate the DOT files
-    generate_dot_all(output_folder, crates_dict)
-    generate_dot_per_crate(output_folder, crates_dict, False)
-    generate_dot_per_crate(output_folder, crates_dict, True)
+    print("Generating DOT files...")
+    generate_dot_all(target_folder, crates_dict)
+    generate_dot_per_crate(target_folder, crates_dict, False)
+    generate_dot_per_crate(target_folder, crates_dict, True)
 
     # Convert DOT files to SVG
-    convert_dot_files(output_folder, "svg")
+    print("Converting DOT files to SVG...")
+    convert_dot_files(target_folder, "svg")
 
     # Add hyperlinks to all SVG files for easier navigation
-    for svg_file in pathlib.Path(output_folder).glob('*.svg'):
+    print("Adding hyperlinks to SVG files...")
+    for svg_file in pathlib.Path(target_folder).glob('*.svg'):
         add_hyperlinks_to_svg(svg_file, crates_dict)
 
     # Create index.html for better overview
-    create_index_html(output_folder)
+    print("Creating index.html...")
+    create_index_html(target_folder)
+
+    print(f"Generating graphs done. Open {target_folder}/index.html in your browser to view the dependency graphs.")
