@@ -113,13 +113,14 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
         .await?
         .unwrap();
 
+    let amount_to_transfer: i128 = 1234;
     let transaction_bytes: TransactionBlockBytes = http_client
         .transfer_iota(
             address,
             gas,
             10_000_000.into(),
             other_address,
-            Some(1234.into()),
+            Some(u64::try_from(amount_to_transfer).unwrap().into()),
         )
         .await?;
 
@@ -134,11 +135,13 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
         .net_gas_usage()
         .into();
 
+    // let amount_to_transfer = i128::from(amount_to_transfer);
+    let expected_sender_balance_change = -amount_to_transfer - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
     assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
-    assert_eq!(balance_changes[0].amount, -1234 - gas_usage);
+    assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
     assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
-    assert_eq!(balance_changes[1].amount, 1234);
+    assert_eq!(balance_changes[1].amount, amount_to_transfer);
 
     Ok(())
 }
@@ -157,12 +160,13 @@ async fn test_pay() -> Result<(), anyhow::Error> {
     let (gas_to_send, _, _) = gas_objs[0];
     let (gas_to_pay_for_tx, _, _) = gas_objs[1];
 
+    let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay(
             address,
             vec![gas_to_send],
             vec![other_address],
-            vec![123.into()],
+            vec![u64::try_from(amount_to_transfer).unwrap().into()],
             Some(gas_to_pay_for_tx),
             10_000_000.into(),
         )
@@ -179,11 +183,12 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .net_gas_usage()
         .into();
 
+    let expected_sender_balance_change = -amount_to_transfer - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
     assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
-    assert_eq!(balance_changes[0].amount, -123 - gas_usage);
+    assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
     assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
-    assert_eq!(balance_changes[1].amount, 123);
+    assert_eq!(balance_changes[1].amount, amount_to_transfer);
 
     Ok(())
 }
@@ -232,12 +237,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let recipient_1_amount = i128::from(recipient_1_amount);
     let recipient_2_amount = i128::from(recipient_2_amount);
 
+    let expected_sender_balance_change = -recipient_1_amount - recipient_2_amount - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
     assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
-    assert_eq!(
-        balance_changes[0].amount,
-        -recipient_1_amount - recipient_2_amount - gas_usage
-    );
+    assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
     assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient_1));
     assert_eq!(balance_changes[1].amount, recipient_1_amount);
     assert_eq!(balance_changes[2].owner, Owner::AddressOwner(recipient_2));
@@ -285,11 +288,12 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
         .net_gas_usage()
         .into();
 
+    let expected_recipient_balance_change = total_balance - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
     assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
     assert_eq!(balance_changes[0].amount, -total_balance);
     assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient));
-    assert_eq!(balance_changes[1].amount, total_balance - gas_usage);
+    assert_eq!(balance_changes[1].amount, expected_recipient_balance_change);
 
     Ok(())
 }
