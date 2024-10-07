@@ -32,7 +32,7 @@ The `pk` bytes are the bytes representation of the public key corresponding to t
 | ECDSA Secp256r1 | Compressed, 33 bytes                                      |
 | multisig        | BCS serialized all participating public keys, size varies |
 
-## Signature requirements {#signature-requirements}
+## Signature requirements
 
 The signature must commit to the hash of the intent message of the transaction data, which you can construct by appending the 3-byte intent before the BCS serialized transaction data. To learn more on what an intent is and how to construct an intent message, see [IOTA Intent Signing](intent-signing.mdx).
 

@@ -34,6 +34,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
+iota-bridge:
+  - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-config:
@@ -138,8 +140,8 @@ iota-swarm-config:
   - "crates/iota-swarm-config/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
-iota-test-validator:
-  - "crates/iota-test-validator/**"
+iota-tls:
+  - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
 iota-transaction-builder:

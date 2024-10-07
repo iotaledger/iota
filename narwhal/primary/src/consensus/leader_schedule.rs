@@ -11,7 +11,7 @@ use std::{
 use config::{Authority, AuthorityIdentifier, Committee, Stake};
 use iota_protocol_config::ProtocolConfig;
 use parking_lot::RwLock;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use storage::ConsensusStore;
 use tracing::{debug, trace};
 use types::{Certificate, ReputationScores, Round};

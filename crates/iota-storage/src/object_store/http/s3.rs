@@ -7,13 +7,13 @@ use std::{fmt, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
-use object_store::{path::Path, GetResult};
-use percent_encoding::{utf8_percent_encode, PercentEncode};
+use object_store::{GetResult, path::Path};
+use percent_encoding::{PercentEncode, utf8_percent_encode};
 use reqwest::{Client, ClientBuilder};
 
 use crate::object_store::{
-    http::{get, DEFAULT_USER_AGENT, STRICT_PATH_ENCODE_SET},
     ObjectStoreGetExt,
+    http::{DEFAULT_USER_AGENT, STRICT_PATH_ENCODE_SET, get},
 };
 
 #[derive(Debug)]

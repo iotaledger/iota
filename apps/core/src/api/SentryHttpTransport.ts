@@ -5,7 +5,7 @@
 import { IotaHTTPTransport } from '@iota/iota-sdk/client';
 import * as Sentry from '@sentry/react';
 
-const IGNORED_METHODS = ['iotax_resolveNameServiceNames', 'iotax_resolveNameServiceAddresses'];
+const IGNORED_METHODS: string[] = [];
 
 export class SentryHttpTransport extends IotaHTTPTransport {
     private url: string;

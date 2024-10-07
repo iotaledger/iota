@@ -1,3 +1,7 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /// Module which defines SHA hashes for byte vectors.
 ///
 /// The functions in this module are natively declared both in the Move runtime

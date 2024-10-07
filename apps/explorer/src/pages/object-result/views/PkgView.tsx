@@ -3,31 +3,36 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetTransaction } from '@iota/core';
-import { LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
+import { LoadingIndicator } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
-import { ErrorBoundary, PkgModulesWrapper, TransactionBlocksForAddress } from '~/components';
 import {
     AddressLink,
+    ErrorBoundary,
     ObjectLink,
-    TabHeader,
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from '~/components/ui';
+    PkgModulesWrapper,
+    TransactionBlocksForAddress,
+} from '~/components';
 import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
 import { ObjectFilterValue } from '~/lib/enums';
-import styles from './ObjectView.module.css';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    KeyValueInfo,
+    Panel,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+} from '@iota/apps-ui-kit';
 
 const GENESIS_TX_DIGEST = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
 const SPLIT_PANELS_ORIENTATION: { label: string; value: Direction }[] = [
-    { label: 'STACKED', value: 'vertical' },
-    { label: 'SIDE-BY-SIDE', value: 'horizontal' },
+    { label: 'Stacked', value: 'vertical' },
+    { label: 'Side-by-side', value: 'horizontal' },
 ];
 
 interface PkgViewProps {
@@ -72,57 +77,53 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
 
     return (
         <div>
-            <div>
-                <TabHeader title="Details">
-                    <table className={styles.description} id="descriptionResults">
-                        <tbody>
-                            <tr>
-                                <td>Object ID</td>
-                                <td id="objectID" className={styles.objectid}>
-                                    <ObjectLink objectId={viewedData.id} noTruncate />
-                                </td>
-                            </tr>
+            <div className="flex flex-col gap-2xl">
+                <Panel>
+                    <Title title="Details" />
+                    <div className="flex flex-col gap-lg p-md--rs">
+                        <KeyValueInfo
+                            keyText="Object ID"
+                            value={<ObjectLink objectId={viewedData.id} label={viewedData.id} />}
+                        />
 
-                            <tr>
-                                <td>Version</td>
-                                <td>{viewedData.version}</td>
-                            </tr>
+                        <KeyValueInfo keyText="Version" value={viewedData.version} />
+                        {viewedData?.publisherAddress && (
+                            <KeyValueInfo
+                                keyText="Publisher"
+                                value={
+                                    <AddressLink
+                                        address={viewedData.publisherAddress}
+                                        label={viewedData.publisherAddress}
+                                    />
+                                }
+                            />
+                        )}
+                    </div>
+                </Panel>
 
-                            {viewedData?.publisherAddress && (
-                                <tr>
-                                    <td>Publisher</td>
-                                    <td id="lasttxID">
-                                        <AddressLink
-                                            address={viewedData.publisherAddress}
-                                            noTruncate
-                                        />
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </TabHeader>
-
-                <Tabs defaultValue="modules">
-                    <TabsList>
-                        <div className="mt-16 flex w-full justify-between">
-                            <TabsTrigger value="modules">Modules</TabsTrigger>
-                            <div className="hidden md:block">
-                                <RadioGroup
-                                    aria-label="split-panel-bytecode-viewer"
-                                    value={selectedSplitPanelOrientation}
-                                    onValueChange={(value) =>
-                                        setSplitPanelOrientation(value as 'vertical' | 'horizontal')
-                                    }
+                <Panel>
+                    <Title
+                        title="Modules"
+                        trailingElement={
+                            <div className="hidden md:flex">
+                                <SegmentedButton
+                                    type={SegmentedButtonType.Outlined}
+                                    shape={ButtonSegmentType.Rounded}
                                 >
                                     {SPLIT_PANELS_ORIENTATION.map(({ value, label }) => (
-                                        <RadioGroupItem key={value} value={value} label={label} />
+                                        <ButtonSegment
+                                            key={value}
+                                            type={ButtonSegmentType.Rounded}
+                                            onClick={() => setSplitPanelOrientation(value)}
+                                            selected={selectedSplitPanelOrientation === value}
+                                            label={label}
+                                        />
                                     ))}
-                                </RadioGroup>
+                                </SegmentedButton>
                             </div>
-                        </div>
-                    </TabsList>
-                    <TabsContent value="modules" noGap>
+                        }
+                    />
+                    <div className="h-full p-md--rs">
                         <ErrorBoundary>
                             <PkgModulesWrapper
                                 id={data.id}
@@ -130,18 +131,16 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
                                 splitPanelOrientation={selectedSplitPanelOrientation}
                             />
                         </ErrorBoundary>
-                    </TabsContent>
-                </Tabs>
+                    </div>
+                </Panel>
 
-                <div className={styles.txsection}>
-                    <ErrorBoundary>
-                        <TransactionBlocksForAddress
-                            address={viewedData.id}
-                            filter={ObjectFilterValue.Input}
-                            header="Transaction Blocks"
-                        />
-                    </ErrorBoundary>
-                </div>
+                <ErrorBoundary>
+                    <TransactionBlocksForAddress
+                        address={viewedData.id}
+                        filter={ObjectFilterValue.Input}
+                        header="Transaction Blocks"
+                    />
+                </ErrorBoundary>
             </div>
         </div>
     );

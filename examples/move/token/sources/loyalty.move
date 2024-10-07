@@ -11,7 +11,6 @@
 module examples::loyalty {
 
     use iota::coin::{Self, TreasuryCap};
-
     use iota::token::{Self, ActionRequest, Token};
 
     /// Token amount does not match the `GIFT_PRICE`.

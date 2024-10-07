@@ -62,7 +62,7 @@ export function AccountsList() {
                 onValueChange={handleSelectAccount}
             >
                 <>
-                    <Collapsible defaultOpen title="Current" shade="darker">
+                    <Collapsible defaultOpen title="Current">
                         <ToggleGroup.Item asChild value={activeAccount.id}>
                             <div>
                                 <AccountListItem
@@ -85,7 +85,6 @@ export function AccountsList() {
                             isOpen={isSwitchToAccountOpen}
                             onOpenChange={setIsSwitchToAccountOpen}
                             title="Switch To"
-                            shade="darker"
                         >
                             <div className="flex flex-col gap-3">
                                 {otherAccounts.map((account) => {

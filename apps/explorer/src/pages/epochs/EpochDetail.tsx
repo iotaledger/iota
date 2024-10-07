@@ -2,55 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    SegmentedButton,
+    SegmentedButtonType,
+} from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
-import {
-    Banner,
-    Stats,
-    TableCard,
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-    type StatsProps,
-} from '~/components/ui';
+import { Banner, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
-import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
-import { validatorsTableData } from '../validators/Validators';
-import { EpochProgress } from './stats/EpochProgress';
-import { EpochStats } from './stats/EpochStats';
+import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
+import { generateValidatorsTableColumns } from '~/lib/ui/utils/generateValidatorsTableColumns';
+import cx from 'clsx';
+import { TokenStats } from './stats/TokenStats';
+import { EpochTopStats } from './stats/EpochTopStats';
+import { getEpochStorageFundFlow } from '~/lib/utils';
 
-function IotaStats({
-    amount,
-    showSign,
-    ...props
-}: Omit<StatsProps, 'children'> & {
-    amount: bigint | number | string | undefined | null;
-    showSign?: boolean;
-}): JSX.Element {
-    const [formattedAmount, symbol] = useFormatCoin(
-        amount,
-        IOTA_TYPE_ARG,
-        CoinFormat.ROUNDED,
-        showSign,
-    );
-
-    return (
-        <Stats postfix={formattedAmount && symbol} {...props}>
-            {formattedAmount || '--'}
-        </Stats>
-    );
+enum EpochTabs {
+    Checkpoints = 'checkpoints',
+    Validators = 'validators',
 }
 
 export default function EpochDetail() {
+    const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
@@ -70,16 +51,26 @@ export default function EpochDetail() {
         [systemState, epochData],
     );
 
-    const validatorsTable = useMemo(() => {
-        if (!epochData?.validators) return null;
+    const tableColumns = useMemo(() => {
+        if (!epochData?.validators || epochData.validators.length === 0) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData(
-            [...epochData.validators].sort(() => 0.5 - Math.random()),
-            [],
-            [],
-            null,
-        );
+        return generateValidatorsTableColumns({
+            atRiskValidators: [],
+            validatorEvents: [],
+            rollingAverageApys: null,
+            showValidatorIcon: true,
+            includeColumns: [
+                'Name',
+                'Stake',
+                'Proposed next Epoch gas price',
+                'APY',
+                'Comission',
+                'Last Epoch Rewards',
+                'Voting Power',
+                'Status',
+            ],
+        });
     }, [epochData]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
@@ -95,6 +86,8 @@ export default function EpochDetail() {
             />
         );
 
+    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
+
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
     );
@@ -107,76 +100,97 @@ export default function EpochDetail() {
     return (
         <PageLayout
             content={
-                <div className="flex flex-col space-y-16">
-                    <div className="grid grid-flow-row gap-4 sm:gap-2 md:flex md:gap-6">
-                        <div className="flex min-w-[136px] max-w-[240px]">
-                            <EpochProgress
-                                epoch={epochData.epoch}
+                <div className="flex flex-col gap-2xl">
+                    <div
+                        className={cx(
+                            'grid grid-cols-1 gap-md--rs',
+                            isCurrentEpoch ? 'md:grid-cols-2' : 'md:grid-cols-3',
+                        )}
+                    >
+                        <EpochStats
+                            title={`Epoch ${epochData.epoch}`}
+                            subtitle={isCurrentEpoch ? 'In progress' : 'Ended'}
+                        >
+                            <EpochTopStats
                                 inProgress={isCurrentEpoch}
                                 start={Number(epochData.epochStartTimestamp)}
                                 end={Number(epochData.endOfEpochInfo?.epochEndTimestamp ?? 0)}
-                            />
-                        </div>
-
-                        <EpochStats label="Rewards">
-                            <IotaStats
-                                label="Total Stake"
-                                tooltip=""
-                                amount={epochData.endOfEpochInfo?.totalStake}
-                            />
-                            <IotaStats
-                                label="Stake Rewards"
-                                amount={epochData.endOfEpochInfo?.totalStakeRewardsDistributed}
-                            />
-                            <IotaStats
-                                label="Gas Fees"
-                                amount={epochData.endOfEpochInfo?.totalGasFees}
+                                endOfEpochInfo={epochData.endOfEpochInfo}
                             />
                         </EpochStats>
+                        {!isCurrentEpoch && (
+                            <>
+                                <EpochStats title="Rewards">
+                                    <EpochStatsGrid>
+                                        <TokenStats
+                                            label="Total Stake"
+                                            amount={epochData.endOfEpochInfo?.totalStake}
+                                        />
+                                        <TokenStats
+                                            label="Stake Rewards"
+                                            amount={
+                                                epochData.endOfEpochInfo
+                                                    ?.totalStakeRewardsDistributed
+                                            }
+                                        />
+                                        <TokenStats
+                                            label="Gas Fees"
+                                            amount={epochData.endOfEpochInfo?.totalGasFees}
+                                        />
+                                    </EpochStatsGrid>
+                                </EpochStats>
 
-                        <EpochStats label="Storage Fund Balance">
-                            <IotaStats
-                                label="Fund Size"
-                                amount={epochData.endOfEpochInfo?.storageFundBalance}
-                            />
-                            <IotaStats label="Net Inflow" amount={netInflow} />
-                            <IotaStats label="Fund Inflow" amount={fundInflow} />
-                            <IotaStats label="Fund Outflow" amount={fundOutflow} />
-                        </EpochStats>
+                                <EpochStats title="Storage Fund Balance">
+                                    <EpochStatsGrid>
+                                        <TokenStats
+                                            label="Fund Size"
+                                            amount={epochData.endOfEpochInfo?.storageFundBalance}
+                                        />
+                                        <TokenStats label="Net Inflow" amount={netInflow} />
+                                        <TokenStats label="Fund Inflow" amount={fundInflow} />
+                                        <TokenStats label="Fund Outflow" amount={fundOutflow} />
+                                    </EpochStatsGrid>
+                                </EpochStats>
+                            </>
+                        )}
 
-                        <EpochStats label="Supply">
-                            <IotaStats
-                                label="Supply Change"
-                                amount={getSupplyChangeAfterEpochEnd(epochData.endOfEpochInfo)}
-                                showSign
-                            />
-                        </EpochStats>
-
-                        {isCurrentEpoch ? <ValidatorStatus /> : null}
+                        {isCurrentEpoch && <ValidatorStatus />}
                     </div>
 
-                    <Tabs size="lg" defaultValue="checkpoints">
-                        <TabsList>
-                            <TabsTrigger value="checkpoints">Checkpoints</TabsTrigger>
-                            <TabsTrigger value="validators">Participating Validators</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="checkpoints">
-                            <CheckpointsTable
-                                initialCursor={initialCursorPlusOne}
-                                maxCursor={epochData.firstCheckpointId}
-                                initialLimit={20}
-                            />
-                        </TabsContent>
-                        <TabsContent value="validators">
-                            {validatorsTable ? (
-                                <TableCard
-                                    data={validatorsTable.data}
-                                    columns={validatorsTable.columns}
-                                    sortTable
+                    <div className="rounded-xl bg-white">
+                        <div className="relative">
+                            <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-0 h-[1px] w-full border-b" />
+                            <SegmentedButton
+                                type={SegmentedButtonType.Transparent}
+                                shape={ButtonSegmentType.Underlined}
+                            >
+                                <ButtonSegment
+                                    type={ButtonSegmentType.Underlined}
+                                    label="Checkpoints"
+                                    selected={activeTabId === EpochTabs.Checkpoints}
+                                    onClick={() => setActiveTabId(EpochTabs.Checkpoints)}
+                                />
+                                <ButtonSegment
+                                    type={ButtonSegmentType.Underlined}
+                                    label="Participating Validators"
+                                    selected={activeTabId === EpochTabs.Validators}
+                                    onClick={() => setActiveTabId(EpochTabs.Validators)}
+                                />
+                            </SegmentedButton>
+                        </div>
+                        <div className="px-lg py-md">
+                            {activeTabId === EpochTabs.Checkpoints ? (
+                                <CheckpointsTable
+                                    initialCursor={initialCursorPlusOne}
+                                    maxCursor={epochData.firstCheckpointId}
+                                    initialLimit={20}
                                 />
                             ) : null}
-                        </TabsContent>
-                    </Tabs>
+                            {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
+                                <TableCard data={tableData} columns={tableColumns} />
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
             }
         />

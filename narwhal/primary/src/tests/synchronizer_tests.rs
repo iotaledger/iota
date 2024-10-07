@@ -12,27 +12,27 @@ use std::{
 use config::Committee;
 use crypto::AggregateSignatureBytes;
 use fastcrypto::{hash::Hash, traits::KeyPair};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use itertools::Itertools;
 use network::client::NetworkClient;
 use prometheus::Registry;
 use test_utils::{
-    latest_protocol_version, make_optimal_signed_certificates, mock_signed_certificate,
-    CommitteeFixture,
+    CommitteeFixture, latest_protocol_version, make_optimal_signed_certificates,
+    mock_signed_certificate,
 };
 use tokio::sync::watch;
 use types::{
-    error::DagError, Certificate, CertificateAPI, Header, HeaderAPI, Round,
-    SignatureVerificationState,
+    Certificate, CertificateAPI, Header, HeaderAPI, Round, SignatureVerificationState,
+    error::DagError,
 };
 
 use crate::{
+    PrimaryChannelMetrics,
     certificate_fetcher::CertificateFetcherCommand,
     common::create_db_stores,
-    consensus::{gc_round, ConsensusRound},
+    consensus::{ConsensusRound, gc_round},
     metrics::PrimaryMetrics,
     synchronizer::Synchronizer,
-    PrimaryChannelMetrics,
 };
 
 #[tokio::test]

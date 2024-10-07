@@ -14,8 +14,8 @@ use tracing::{debug, error_span};
 use types::{Certificate, CertificateAPI, CommittedSubDag, HeaderAPI, ReputationScores, Round};
 
 use crate::consensus::{
-    metrics::ConsensusMetrics, utils, ConsensusError, ConsensusState, Dag, LeaderSchedule,
-    LeaderSwapTable, Outcome,
+    ConsensusError, ConsensusState, Dag, LeaderSchedule, LeaderSwapTable, Outcome,
+    metrics::ConsensusMetrics, utils,
 };
 
 #[cfg(test)]

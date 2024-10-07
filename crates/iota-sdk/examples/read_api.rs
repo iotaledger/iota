@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example uses the Read API to get owned objects of an address,
-//! the dynamic fields of an object,
-//! past objects, information about the chain
-//! and the protocol configuration,
-//! the transaction data after executing a transaction,
-//! and finally, the number of transaction blocks known to the server.
+//! This example uses the Read API to get owned objects of an address, the
+//! dynamic fields of an object, past objects, information about the chain and
+//! the protocol configuration, the transaction data after executing a
+//! transaction, and finally, the number of transaction blocks known to the
+//! server.
 //!
 //! cargo run --example read_api
 

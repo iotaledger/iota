@@ -37,9 +37,9 @@ const Template: StoryFn<CustomStoryProps> = (args) => {
             </AccordionHeader>
             <AccordionContent isExpanded={isExpanded}>
                 <div className="flex flex-col gap-2">
-                    <KeyValueInfo keyText={'Label'} valueText={'Value'} />
-                    <KeyValueInfo keyText={'Label'} valueText={'Value'} />
-                    <KeyValueInfo keyText={'Label'} valueText={'Value'} />
+                    <KeyValueInfo keyText={'Label'} value="Value" />
+                    <KeyValueInfo keyText={'Label'} value="Value" />
+                    <KeyValueInfo keyText={'Label'} value="Value" />
                 </div>
             </AccordionContent>
         </Accordion>

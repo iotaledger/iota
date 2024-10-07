@@ -9,8 +9,8 @@ use std::{
 };
 
 use anemo::{
-    types::{PeerEvent, PeerInfo},
     Network, Peer, PeerId, Request, Response,
+    types::{PeerEvent, PeerInfo},
 };
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
@@ -191,6 +191,7 @@ impl DiscoveryEventLoop {
                 affinity: anemo::types::PeerAffinity::High,
                 address: anemo_address.into_iter().collect(),
             };
+            debug!(?peer_info, "Add configured preferred peer");
             self.network.known_peers().insert(peer_info);
         }
     }
@@ -283,7 +284,9 @@ impl DiscoveryEventLoop {
                 peer_id != &self.network.peer_id() &&
                 !info.addresses.is_empty() // Peer has addresses we can dial
                 && !state.connected_peers.contains_key(peer_id) // We're not already connected
-                && !self.pending_dials.contains_key(peer_id) // There is no pending dial to this node
+                && !self.pending_dials.contains_key(peer_id) // There is no
+                // pending dial to
+                // this node
             })
             .collect::<Vec<_>>();
 
@@ -328,6 +331,7 @@ impl DiscoveryEventLoop {
 }
 
 async fn try_to_connect_to_peer(network: Network, info: NodeInfo) {
+    debug!("Connecting to peer {info:?}");
     for multiaddr in &info.addresses {
         if let Ok(address) = multiaddr.to_anemo_address() {
             // Ignore the result and just log the error if there is one
@@ -354,6 +358,7 @@ async fn try_to_connect_to_seed_peers(
     config: Arc<DiscoveryConfig>,
     seed_peers: Vec<SeedPeer>,
 ) {
+    debug!(?seed_peers, "Connecting to seed peers");
     let network = &network;
 
     futures::stream::iter(seed_peers.into_iter().filter_map(|seed| {

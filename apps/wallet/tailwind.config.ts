@@ -28,9 +28,9 @@ export default {
                 7.5: '1.875rem',
                 8: '2rem',
                 15: '3.75rem',
-                'popup-height': '680px',
+                'popup-height': '710px',
                 'popup-width': '360px',
-                'nav-height': '80px',
+                'nav-height': '60px',
             },
             boxShadow: {
                 'wallet-content': '0px -5px 20px 5px rgba(160, 182, 195, 0.15)',

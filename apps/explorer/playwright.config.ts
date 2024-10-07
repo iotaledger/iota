@@ -107,7 +107,7 @@ const config: PlaywrightTestConfig = {
         {
             command:
                 process.env.E2E_RUN_LOCAL_NET_CMD ??
-                'RUST_LOG="consensus=off" cargo run --bin iota-test-validator',
+                'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
             port: 9123,
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,

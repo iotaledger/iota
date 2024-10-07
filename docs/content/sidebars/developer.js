@@ -14,7 +14,7 @@ const developer = [
         },
         items: [
             'developer/getting-started/iota-environment',
-            'developer/getting-started/iota-install',
+            'developer/getting-started/install-iota',
             'developer/getting-started/connect',
             'developer/getting-started/local-network',
             'developer/getting-started/get-address',
@@ -156,6 +156,7 @@ const developer = [
                 },
                 items: [
                     'developer/iota-101/create-coin/regulated',
+                    'developer/iota-101/create-coin/migrate-to-coin-manager',
                     'developer/iota-101/create-coin/in-game-token',
                     'developer/iota-101/create-coin/loyalty',
                 ],

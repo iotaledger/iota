@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What are the characteristics of test functions in Move?",
+        "answerOptions": [
+            { "answerText": "They are public functions with no parameters and no return values", "isCorrect": true },
+            { "answerText": "They are private functions with parameters and return values", "isCorrect": false },
+            { "answerText": "They are public functions with parameters and return values", "isCorrect": false },
+            { "answerText": "They are private functions with no parameters and no return values", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which module allows you to emulate a series of IOTA transactions in tests?",
+        "answerOptions": [
+            { "answerText": "iota::test_scenario", "isCorrect": true },
+            { "answerText": "iota::transaction_tester", "isCorrect": false },
+            { "answerText": "iota::multi_transaction_test", "isCorrect": false },
+            { "answerText": "iota::test_framework", "isCorrect": false }
+        ]
+    }
+]

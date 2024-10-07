@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use fastcrypto::encoding::Base64;
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
@@ -13,9 +13,9 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaCommittee, IotaData,
-    IotaGetPastObjectRequest, IotaLoadedChildObjectsResponse, IotaMoveNormalizedModule,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaGetPastObjectRequest, IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffects,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, ObjectsPage, ProtocolConfigResponse, TransactionBlocksPage,
     TransactionFilter,
 };
@@ -29,8 +29,8 @@ use iota_types::{
 use jsonrpsee::core::client::Subscription;
 
 use crate::{
-    error::{Error, IotaRpcResult},
     RpcClient,
+    error::{Error, IotaRpcResult},
 };
 
 /// The main read API structure with functions for retrieving data about
@@ -44,7 +44,6 @@ impl ReadApi {
     pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
-
     /// Return a paginated response with the objects owned by the given address,
     /// or an error upon failure.
     ///
@@ -193,19 +192,15 @@ impl ReadApi {
     ///     let version = object_data.version;
     ///     let past_object = iota
     ///         .read_api()
-    ///         .try_get_parsed_past_object(
-    ///             object_id,
-    ///             version,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .try_get_parsed_past_object(object_id, version, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     Ok(())
     /// }
@@ -259,19 +254,15 @@ impl ReadApi {
     ///     let version = object_data.version;
     ///     let past_object = iota
     ///         .read_api()
-    ///         .try_get_parsed_past_object(
-    ///             object_id,
-    ///             version,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .try_get_parsed_past_object(object_id, version, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     let past_object = past_object.into_object()?;
     ///     let multi_past_object = iota
@@ -345,18 +336,15 @@ impl ReadApi {
     ///     let object_id = object_data.object_id;
     ///     let object = iota
     ///         .read_api()
-    ///         .get_object_with_options(
-    ///             object_id,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .get_object_with_options(object_id, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     Ok(())
     /// }
@@ -405,18 +393,15 @@ impl ReadApi {
     ///     let object_ids = vec![object_id]; // and other object ids
     ///     let object = iota
     ///         .read_api()
-    ///         .multi_get_object_with_options(
-    ///             object_ids,
-    ///             IotaObjectDataOptions {
-    ///                 show_type: true,
-    ///                 show_owner: true,
-    ///                 show_previous_transaction: true,
-    ///                 show_display: true,
-    ///                 show_content: true,
-    ///                 show_bcs: true,
-    ///                 show_storage_rebate: true,
-    ///             },
-    ///         )
+    ///         .multi_get_object_with_options(object_ids, IotaObjectDataOptions {
+    ///             show_type: true,
+    ///             show_owner: true,
+    ///             show_previous_transaction: true,
+    ///             show_display: true,
+    ///             show_content: true,
+    ///             show_bcs: true,
+    ///             show_storage_rebate: true,
+    ///         })
     ///         .await?;
     ///     Ok(())
     /// }
@@ -724,25 +709,23 @@ impl ReadApi {
             .await?)
     }
 
-    /// Return the loaded child objects response for the provided digest, or an
-    /// error upon failure.
-    ///
-    /// Loaded child objects
-    /// ([IotaLoadedChildObject](iota_json_rpc_types::IotaLoadedChildObject))
-    /// are the non-input objects that the transaction at the digest loaded
-    /// in response to dynamic field accesses.
-    pub async fn get_loaded_child_objects(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaRpcResult<IotaLoadedChildObjectsResponse> {
-        Ok(self.api.http.get_loaded_child_objects(digest).await?)
-    }
-
     /// Return the protocol config, or an error upon failure.
     pub async fn get_protocol_config(
         &self,
         version: impl Into<Option<BigInt<u64>>>,
     ) -> IotaRpcResult<ProtocolConfigResponse> {
         Ok(self.api.http.get_protocol_config(version.into()).await?)
+    }
+
+    pub async fn try_get_object_before_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> IotaRpcResult<IotaPastObjectResponse> {
+        Ok(self
+            .api
+            .http
+            .try_get_object_before_version(object_id, version)
+            .await?)
     }
 }

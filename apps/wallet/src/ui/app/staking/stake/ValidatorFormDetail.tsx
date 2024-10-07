@@ -118,13 +118,15 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         keyText="Staking APY"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
-                        valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                        value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Stake Share"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Stake percentage managed by this validator."
-                        valueText={formatPercentageDisplay(totalStakePercentage)}
+                        value={formatPercentageDisplay(totalStakePercentage)}
+                        fullwidth
                     />
                     {!unstake && (
                         <>
@@ -132,15 +134,17 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                                 keyText="Total Staked"
                                 tooltipPosition={TooltipPosition.Right}
                                 tooltipText="Stake percentage managed by this validator."
-                                valueText={totalValidatorStakeFormatted}
+                                value={totalValidatorStakeFormatted}
                                 supportingLabel={totalValidatorStakeSymbol}
+                                fullwidth
                             />
                             <KeyValueInfo
                                 keyText="Your Staked IOTA"
                                 tooltipPosition={TooltipPosition.Right}
                                 tooltipText="Your current staked balance."
-                                valueText={totalStakeFormatted}
+                                value={totalStakeFormatted}
                                 supportingLabel={totalStakeSymbol}
+                                fullwidth
                             />
                         </>
                     )}

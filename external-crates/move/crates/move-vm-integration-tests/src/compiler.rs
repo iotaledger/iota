@@ -20,6 +20,7 @@ pub fn compile_units(s: &str) -> Result<Vec<AnnotatedCompiledUnit>> {
     }
 
     let (_, units) = MoveCompiler::from_files(
+        None,
         vec![file_path.to_str().unwrap().to_string()],
         vec![],
         move_stdlib::move_stdlib_named_addresses(),
@@ -41,6 +42,7 @@ pub fn expect_modules(
 
 pub fn compile_modules_in_file(path: &Path) -> Result<Vec<CompiledModule>> {
     let (_, units) = MoveCompiler::from_files(
+        None,
         vec![path.to_str().unwrap().to_string()],
         vec![],
         std::collections::BTreeMap::<String, _>::new(),

@@ -24,8 +24,8 @@ use narwhal_storage::NodeStorage;
 use typed_store::rocks::MetricConf;
 
 use self::{
-    db_dump::{dump_table, duplicate_objects_summary, list_tables, table_summary, StoreName},
-    index_search::{search_index, SearchRange},
+    db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
+    index_search::{SearchRange, search_index},
 };
 use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
 pub mod db_dump;
@@ -335,12 +335,9 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
         ))?;
     println!("Checkpoint: {:?}", checkpoint);
     drop(checkpoint_store);
-    print_checkpoint_content(
-        path,
-        PrintCheckpointContentOptions {
-            digest: checkpoint.content_digest,
-        },
-    )
+    print_checkpoint_content(path, PrintCheckpointContentOptions {
+        digest: checkpoint.content_digest,
+    })
 }
 
 pub fn print_checkpoint_content(
@@ -374,8 +371,9 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // /opt/iota/db/authorities_db/live Reset the downloaded db to execute from
     // genesis with: cargo run --package iota-tool -- db-tool --db-path
     // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
-    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.
-    // yaml A sample fullnode.yaml config would be: ---
+    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
+    // A sample fullnode.yaml config would be:
+    // ---
     // db-path:  /opt/iota/db/authorities_db
     // network-address: /ip4/0.0.0.0/tcp/8080/http
     // json-rpc-address: "0.0.0.0:9000"

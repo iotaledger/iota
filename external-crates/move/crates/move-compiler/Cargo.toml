@@ -9,19 +9,21 @@ description = "The definition of the Move source language, and its compiler"
 
 [dependencies]
 anyhow.workspace = true
-bcs.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 dunce.workspace = true
 hex.workspace = true
+lsp-types.workspace = true
 once_cell.workspace = true
-pathdiff = "0.2"
 petgraph.workspace = true
 regex.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 similar.workspace = true
-stacker = "0.1"
+stacker.workspace = true
 vfs.workspace = true
+
+bcs.workspace = true
 
 move-binary-format.workspace = true
 move-borrow-graph.workspace = true

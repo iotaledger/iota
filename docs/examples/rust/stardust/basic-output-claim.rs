@@ -11,8 +11,10 @@ use anyhow::anyhow;
 use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
+    IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
+        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
@@ -20,9 +22,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::BasicOutput,
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
-        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
-    IotaClientBuilder,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
@@ -128,12 +128,12 @@ async fn main() -> Result<(), anyhow::Error> {
             type_arguments,
             arguments,
         ) {
-            // If the basic output can be unlocked, the command will be succesful and will
+            // If the basic output can be unlocked, the command will be successful and will
             // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
             let mut extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
 
-            ////// Command #2: extract the netive tokens from the Bag and send them to sender.
+            ////// Command #2: extract the native tokens from the Bag and send them to sender.
             for type_key in df_type_keys {
                 // Type argument for a Native Token contained in the basic output bag
                 let type_arguments = vec![TypeTag::from_str(&format!("0x{type_key}"))?];

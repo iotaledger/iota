@@ -29,7 +29,7 @@ export function KioskCreation({ onCreate }: { onCreate: () => void }) {
                     wallet connects to Testnet and that you have at least 1 IOTA to cover gas fees.
                     You can get test IOTA tokens using{' '}
                     <a
-                        href="https://docs.iota.io/build/faucet"
+                        href="https://wiki.iota.org/build/faucet"
                         target="_blank"
                         rel="noreferrer"
                         className="underline"

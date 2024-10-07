@@ -8,7 +8,7 @@ IOTA supports offline signing, which is signing transactions using a device not 
 1. Sign the serialized data. Put the serialized data in a location to sign (such as the wallet of your choice, or tools in other programming languages) and to produce a signature with the corresponding public key.
 1. Execute the signed transaction.
 
-## Serialize data for a transfer {#serialize}
+## Serialize data for a transfer
 
 You must serialize transaction data following [Binary Canonical Serialization](https://crates.io/crates/bcs) (BCS). It is supported in other languages.
 
@@ -27,7 +27,7 @@ All other CLI commands that craft a transaction (such as `iota client publish` a
 
 :::
 
-## Sign the serialized data {#sign}
+## Sign the serialized data
 
 You can sign the data using the device and programming language you choose. IOTA accepts signatures for pure Ed25519, ECDSA secp256k1, ECDSA secp256r1 and native multisig. To learn more about the requirements of the signatures, see [IOTA Signatures](signatures.mdx).
 
@@ -49,7 +49,7 @@ To ensure the signature produced offline matches with IOTA validity rules for te
 
 To verify a signature against the cryptography library backing IOTA when debugging, see [sigs-cli](https://github.com/MystenLabs/fastcrypto/blob/4cf71bd8b3a373495beeb77ce81c27827516c218/fastcrypto-cli/src/sigs_cli.rs).
 
-## Execute the signed transaction {#execute}
+## Execute the signed transaction
 
 After you obtain the serialized signature, you can submit it using the execution transaction command. This command takes `--tx-bytes` as the raw transaction bytes to execute (see output of the previous `iota client transfer` command) and the serialized signature (Base64 encoded `flag || sig || pk`, see output of `iota keytool sign`). This executes the signed transaction and returns the certificate and transaction effects if successful.
 

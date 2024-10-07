@@ -18,7 +18,7 @@ To create more engaging content, be sure to follow these rules in particular:
 - [Present tense](./style-guide.mdx#present-tense) verbs are almost always the right choice.
 - Be [concise](./style-guide.mdx#general-considerations). Use only the words strictly necessary to convey an idea.
 
-## Set up local environment {#local-environment}
+## Set up local environment
 
 Cloning the documentation locally is recommended when you are creating larger, more significant changes to the docs. See [IOTA Environment Setup](/developer/getting-started/iota-environment.mdx) for instructions on forking the IOTA repository, if necessary. The documentation is in the `docs/content` directory.
 
@@ -26,7 +26,7 @@ Cloning the documentation locally is recommended when you are creating larger, m
 1. After you make all your changes, stage all files with changes (`git add .` to add all modified files), create a local commit (`git commit -m “message”`), and then push all your changes to your forked repository (`git push`).
 1. To view your changes via `localhost`, enter `pnpm install` into a terminal at the `docs/site` directory to install dependencies, then `pnpm start` to view the changes on `localhost:3000` to ensure that the website works as intended. You might need to [install the `pnpm` package manager](https://pnpm.io/installation) if you don't already have it.
 
-## For beginners {#for-beginners}
+## For beginners
 
 Editing the documentation via the GitHub web interface is recommended if you are not familiar with working in an IDE, or for smaller changes and fixes.
 
@@ -38,6 +38,6 @@ Navigate to the `docs/content` directory, then navigate to the appropriate subdi
 
 To change an existing page, navigate to the file you want to edit, click on the pencil icon in the top-right, and edit your changes there.
 
-## Review process {#review-process}
+## Review process
 
 When you are finished creating your changes in your own fork or using the web interface, submit a PR to the IOTA repository. When you do so, you can view the deployment on Vercel and double-check that everything behaves the way you intend. For every unique commit in a PR, Vercel generates a new preview. A reviewer then takes responsibility for providing clear and actionable feedback to your PR. As the owner of the PR, it is your responsibility to modify your PR to address the feedback that has been provided to you by the reviewer. Keep in mind that you may receive feedback from multiple reviewers. After a reviewer has approved your PR, it is merged into `main` and your contributions are made public.

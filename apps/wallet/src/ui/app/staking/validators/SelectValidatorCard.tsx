@@ -5,14 +5,14 @@
 import { Alert } from '_components';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
+import { calculateStakeShare, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
-import { Button, Card, CardAction, CardActionType, CardBody, CardImage } from '@iota/apps-ui-kit';
-import { ImageIcon } from '../../shared/image-icon';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { Button } from '@iota/apps-ui-kit';
+
 import { useNavigate } from 'react-router-dom';
+import { ValidatorLogo } from './ValidatorLogo';
 
 type Validator = {
     name: string;
@@ -46,7 +46,7 @@ export function SelectValidatorCard() {
         () => [...(data?.activeValidators || [])].sort(() => 0.5 - Math.random()),
         [data?.activeValidators],
     );
-    const validatorList = useMemo(() => {
+    const validatorList: Validator[] = useMemo(() => {
         const sortedAsc = validatorsRandomOrder.map((validator) => {
             const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
                 apy: null,
@@ -94,27 +94,13 @@ export function SelectValidatorCard() {
                             })}
                             key={validator.address}
                         >
-                            <Card onClick={() => selectValidator(validator)}>
-                                <CardImage>
-                                    <ImageIcon
-                                        src={null}
-                                        label={validator?.name || ''}
-                                        fallback={validator?.name || ''}
-                                    />
-                                </CardImage>
-                                <CardBody
-                                    title={validator.name}
-                                    subtitle={formatAddress(validator.address)}
-                                />
-                                <CardAction
-                                    type={CardActionType.SupportingText}
-                                    title={formatPercentageDisplay(
-                                        validator.apy,
-                                        '-',
-                                        validator?.isApyApproxZero,
-                                    )}
-                                />
-                            </Card>
+                            <ValidatorLogo
+                                validatorAddress={validator.address}
+                                showApy
+                                onClick={() => {
+                                    selectValidator(validator);
+                                }}
+                            />
                         </div>
                     ))}
             </div>

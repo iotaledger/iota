@@ -48,6 +48,11 @@ pub const RANDOMNESS_STATE_TYPE_NAME: Symbol = symbol!("Random");
 pub const RANDOMNESS_STATE_CREATE: Symbol = symbol!("create");
 pub const DENY_LIST_MODULE_NAME: Symbol = symbol!("deny_list");
 pub const DENY_LIST_CREATE: Symbol = symbol!("create");
+pub const BRIDGE_ADDR_NAME: Symbol = symbol!("bridge");
+pub const BRIDGE_MODULE_NAME: Symbol = symbol!("bridge");
+pub const BRIDGE_TYPE_NAME: Symbol = symbol!("Bridge");
+pub const BRIDGE_CREATE: Symbol = symbol!("create");
+
 pub const EVENT_MODULE_NAME: Symbol = symbol!("event");
 pub const EVENT_FUNCTION_NAME: Symbol = symbol!("emit");
 
@@ -78,82 +83,67 @@ pub const TYPING: u8 = 2;
 pub const ID_LEAK_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    ID_LEAK_CATEGORY,
-    // code
-    1,
+    /* category */ ID_LEAK_CATEGORY,
+    /* code */ 1,
     "invalid object construction",
 );
 
 pub const ENTRY_FUN_SIGNATURE_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    2,
+    /* category */ TYPING,
+    /* code */ 2,
     "invalid 'entry' function signature",
 );
 pub const INIT_FUN_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    3,
+    /* category */ TYPING,
+    /* code */ 3,
     "invalid 'init' function",
 );
 pub const OTW_DECL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    4,
+    /* category */ TYPING,
+    /* code */ 4,
     "invalid one-time witness declaration",
 );
 pub const OTW_USAGE_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    5,
+    /* category */ TYPING,
+    /* code */ 5,
     "invalid one-time witness usage",
 );
 pub const INIT_CALL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    6,
+    /* category */ TYPING,
+    /* code */ 6,
     "invalid 'init' call",
 );
 pub const OBJECT_DECL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    7,
+    /* category */ TYPING,
+    /* code */ 7,
     "invalid object declaration",
 );
 pub const EVENT_EMIT_CALL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    8,
+    /* category */ TYPING,
+    /* code */ 8,
     "invalid event",
 );
 pub const PRIVATE_TRANSFER_CALL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    // category
-    TYPING,
-    // code
-    9,
+    /* category */ TYPING,
+    /* code */ 9,
     "invalid private transfer call",
 );
+
+// Bridge supported asset
+pub const BRIDGE_SUPPORTED_ASSET: &[&str] = &["btc", "eth", "usdc", "usdt"];

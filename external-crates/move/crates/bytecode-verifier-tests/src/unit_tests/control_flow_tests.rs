@@ -4,11 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
-    access::ModuleAccess,
     errors::PartialVMResult,
     file_format::{Bytecode, CompiledModule, FunctionDefinitionIndex, TableIndex},
 };
-use move_bytecode_verifier::{control_flow, meter::DummyMeter};
+use move_bytecode_verifier::control_flow;
+use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
 

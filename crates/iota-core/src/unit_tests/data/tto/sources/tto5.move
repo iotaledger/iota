@@ -8,11 +8,11 @@ module tto::M5 {
     use iota::transfer::{Self, Receiving};
     use iota::dynamic_object_field as dof;
 
-    struct A has key, store {
+    public struct A has key, store {
         id: UID,
     }
 
-    struct B has key, store {
+    public struct B has key, store {
         id: UID,
     }
 

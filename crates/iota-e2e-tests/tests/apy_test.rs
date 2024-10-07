@@ -5,10 +5,10 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_json_rpc_api::{CoinReadApiClient, GovernanceReadApiClient};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig, DEFAULT_GAS_AMOUNT};
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{get_key_pair_from_rng, IotaKeyPair},
+    crypto::{IotaKeyPair, get_key_pair_from_rng},
     gas_coin::NANOS_PER_IOTA,
 };
 use test_cluster::TestClusterBuilder;
@@ -95,7 +95,7 @@ async fn test_apy() {
         .active_validators()
         .next()
         .unwrap()
-        .config
+        .config()
         .iota_address();
     let transaction = TestTransactionBuilder::new(address, gas_coin.object_ref(), ref_gas_price)
         .call_staking(stake_coin.object_ref(), validator_address)
