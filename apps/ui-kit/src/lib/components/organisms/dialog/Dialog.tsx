@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as RadixDialog from '@radix-ui/react-dialog';
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import cx from 'classnames';
 import * as React from 'react';
 import { Close } from '@iota/ui-icons';
@@ -35,7 +36,7 @@ const DialogContent = React.forwardRef<
         containerId?: string;
         showCloseOnOverlay?: boolean;
     }
->(({ className, containerId, showCloseOnOverlay, ...props }, ref) => {
+>(({ className, containerId, showCloseOnOverlay, children, ...props }, ref) => {
     const [containerElement, setContainerElement] = useState<HTMLElement | undefined>(undefined);
 
     useEffect(() => {
@@ -52,7 +53,12 @@ const DialogContent = React.forwardRef<
                 ref={ref}
                 className="absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96"
                 {...props}
-            />
+            >
+                <VisuallyHidden.Root>
+                    <RadixDialog.Title />
+                </VisuallyHidden.Root>
+                {children}
+            </RadixDialog.Content>
         </RadixDialog.Portal>
     );
 });

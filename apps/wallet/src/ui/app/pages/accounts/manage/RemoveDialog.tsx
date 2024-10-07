@@ -4,15 +4,7 @@
 import { useAccounts } from '_app/hooks/useAccounts';
 import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 import { useMutation } from '@tanstack/react-query';
-import {
-    Button,
-    ButtonType,
-    Dialog,
-    DialogBody,
-    DialogTitle,
-    DialogContent,
-    Header,
-} from '@iota/apps-ui-kit';
+import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import toast from 'react-hot-toast';
 
 interface RemoveDialogProps {
@@ -48,9 +40,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
-                <DialogTitle>
-                    <Header title="Remove account" onClose={() => setOpen(false)} />
-                </DialogTitle>
+                <Header title="Remove account" onClose={() => setOpen(false)} />
                 <DialogBody>
                     <div className="mb-md text-body-md">
                         Are you sure you want to remove this account?

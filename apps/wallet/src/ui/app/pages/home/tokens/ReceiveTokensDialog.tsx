@@ -1,15 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    Button,
-    Address,
-    Dialog,
-    DialogContent,
-    DialogTitle,
-    DialogBody,
-    Header,
-} from '@iota/apps-ui-kit';
+import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
 import { useCopyToClipboard } from '_hooks';
 import { QR } from '_src/ui/app/components';
 
@@ -28,9 +20,7 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
         <div className="relative">
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
-                    <DialogTitle>
-                        <Header title="Receive" onClose={() => setOpen(false)} />
-                    </DialogTitle>
+                    <Header title="Receive" onClose={() => setOpen(false)} />
                     <DialogBody>
                         <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
                             <div className="self-center">

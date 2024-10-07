@@ -9,7 +9,6 @@ import {
     ButtonType,
     Dialog,
     DialogBody,
-    DialogTitle,
     DialogContent,
     Header,
 } from '@iota/apps-ui-kit';
@@ -50,9 +49,7 @@ export function ConfirmationModal({
             }}
         >
             <DialogContent containerId="overlay-portal-container" aria-describedby={undefined}>
-                <DialogTitle>
-                    <Header title={title} />
-                </DialogTitle>
+                <Header title={title} />
                 <DialogBody>
                     <div className="flex flex-col gap-lg">
                         {hint ? <div className="text-body-md">{hint}</div> : null}
