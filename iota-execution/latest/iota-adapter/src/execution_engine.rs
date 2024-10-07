@@ -282,12 +282,6 @@ mod checked {
         Ok(temporary_store.into_inner())
     }
 
-    /// Executes a transaction by processing the specified `TransactionKind` and
-    /// applying the necessary gas charges, object reads, and execution
-    /// loops. The function manages gas costs through the `GasCharger`,
-    /// handles specific checks for denied certificates and deleted input
-    /// objects, and performs conservation checks. It also accounts for
-    /// unmetered storage rebates and adjusts for special cases like epoch
     /// Executes a transaction by processing the specified `TransactionKind`,
     /// applying the necessary gas charges and running the main execution logic.
     /// The function handles certain error conditions such as denied
@@ -948,9 +942,7 @@ mod checked {
 
     /// Advances the epoch by constructing a `ProgrammableTransaction` with
     /// `construct_advance_epoch_pt` and executing it.
-    /// ...
-    /// executing an epoch advancement `ProgrammableTransaction`. If the
-    /// transaction fails, it switches to safe mode and retries the
+    /// If the transaction fails, it switches to safe mode and retries the
     /// epoch advancement in a more controlled environment. The function also
     /// handles the publication and upgrade of system packages for the new
     /// epoch. If any system package is added or upgraded, it ensures the
@@ -1342,14 +1334,10 @@ mod checked {
         builder
     }
 
-    /// Prepares and executes a `ProgrammableTransaction` with a call to
-    /// the Iota framework `randomness_state_update` function passing
-    /// the randomness state object, the randomness round, and the random
-    /// bytes as arguments.
-    /// randomness state. The function constructs a transaction that invokes
+    /// The function constructs a transaction that invokes
     /// the `randomness_state_update` function from the Iota framework,
-    /// passing the randomness state object, the randomness round,
-    /// and the random bytes as arguments. It then executes the transaction
+    /// passing the randomness state object, the `randomness_round``,
+    /// and the `random_bytes`` as arguments. It then executes the transaction
     /// using the system execution mode.
     fn setup_randomness_state_update(
         update: RandomnessStateUpdate,
@@ -1394,11 +1382,11 @@ mod checked {
         )
     }
 
-    /// Adds to a `ProgrammableTransactionBuilder` a call to the Iota
-    /// framework `deny_list_create` function.
-    /// state by invoking the `deny_list_create` function from the Iota
-    /// framework. This function adds the necessary Move call and prepares
-    /// the transaction for execution.
+    /// Prepares a `ProgrammableTransactionBuilder` to create a deny list state
+    /// for coins. The function adds a `move_call` to the transaction
+    /// builder to call the `DENY_LIST_CREATE_FUNC` function
+    /// in the `DENY_LIST_MODULE` of the IOTA framework. This transaction is to
+    /// set up the initial state for the coin deny list.
     fn setup_coin_deny_list_state_create(
         mut builder: ProgrammableTransactionBuilder,
     ) -> ProgrammableTransactionBuilder {
