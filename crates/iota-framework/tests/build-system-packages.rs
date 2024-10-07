@@ -305,7 +305,8 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let link_from_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
     let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
-    let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T|u8|u64|String)>").unwrap();
+    let type_regex =
+        regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T|u8|u64|String)>").unwrap();
     let iota_system_regex = regex::Regex::new(r"((?:\.\.\/|\.\/)+)(iota_system)(\.md)").unwrap();
 
     for (file_name, file_content) in files {
