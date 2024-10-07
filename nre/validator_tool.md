@@ -202,7 +202,7 @@ Serialized payload: $PAYLOAD_TO_SIGN
 
 #### Modify faucet amount
 
-Modify the `crates/iota/src/iota_commands.rs`, so a single faucet request provides enough coins to become a validator.
+Modify the `crates/iota/src/iota_commands.rs` file, so a single faucet request provides enough coins to become a validator.
 Change the `DEFAULT_FAUCET_NANOS_AMOUNT` const from `200_000_000_000` to `2_600_000_000_000_000`:
 
 ```bash
@@ -217,7 +217,7 @@ cargo run --bin iota start --force-regenesis --with-faucet
 
 #### Request coins from the faucet
 
-First switch to the local network:
+Using the installed iota CLI from [#preparation](#preparation), switch to the local network:
 
 ```bash
 iota client switch --env localnet
