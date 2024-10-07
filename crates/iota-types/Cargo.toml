@@ -47,7 +47,7 @@ rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
 serde.workspace = true
-serde-name.workspace = true
+serde-name = "0.2.1"
 serde_json.workspace = true
 serde_with.workspace = true
 signature.workspace = true
@@ -75,7 +75,7 @@ fastcrypto-zkp.workspace = true
 passkey-types.workspace = true
 
 better_any.workspace = true
-derive_more.workspace = true
+derive_more = "0.99.17"
 lru.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }

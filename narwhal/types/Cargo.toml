@@ -10,7 +10,7 @@ publish = false
 base64.workspace = true
 bcs.workspace = true
 bytes.workspace = true
-derive_builder.workspace = true
+derive_builder = "0.12.0"
 enum_dispatch.workspace = true
 futures.workspace = true
 indexmap.workspace = true
@@ -43,7 +43,7 @@ store = { path = "../../crates/typed-store", package = "typed-store" }
 [dev-dependencies]
 criterion.workspace = true
 iota-metrics.workspace = true
-serde_test.workspace = true
+serde_test = "1.0.147"
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 
 [build-dependencies]

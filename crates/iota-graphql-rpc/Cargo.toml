@@ -9,8 +9,8 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
-async-graphql-axum.workspace = true
-async-graphql-value.workspace = true
+async-graphql-axum = "=7.0.1"
+async-graphql-value = "=7.0.1"
 async-trait.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
@@ -86,7 +86,7 @@ iota-framework.workspace = true
 iota-test-transaction-builder.workspace = true
 rand.workspace = true
 serde_json.workspace = true
-serial_test.workspace = true
+serial_test = "2.0.0"
 simulacrum.workspace = true
 tower.workspace = true
 

@@ -8,8 +8,8 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
-arrow.workspace = true
-arrow-array.workspace = true
+arrow = "52"
+arrow-array = "52"
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true
