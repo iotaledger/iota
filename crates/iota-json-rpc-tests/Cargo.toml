@@ -37,10 +37,12 @@ test-cluster.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
+futures.workspace = true
 hyper.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
