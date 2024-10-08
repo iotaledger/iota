@@ -87,7 +87,7 @@ module reviews_rating::service {
         ctx: &mut TxContext
     ) {
         let mut review = service.reviews.borrow_mut(review_id);
-        let total_score = review.upvote(upvoter, ctx);
+        let total_score = review.upvote();
         service.reorder(review_id, total_score);
     }
 
@@ -284,17 +284,5 @@ module reviews_rating::service {
             service.top_reviews.remove(i);
         };
         service.reviews.remove(review_id).delete_review();
-    }
-
-    /// Downvotes a review
-    public fun downvote(
-        service: &mut Service,
-        review_id: ID,
-        downvoter: address,
-        ctx: &mut TxContext
-    ) {
-        let mut review = service.reviews.borrow_mut(review_id);
-        let total_score = review.downvote(downvoter, ctx);
-        service.reorder(review_id, total_score);
     }
 }

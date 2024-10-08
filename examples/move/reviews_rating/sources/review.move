@@ -83,10 +83,11 @@ module reviews_rating::review {
     }
 
     /// Upvotes a review
-    public fun upvote(rev: &mut Review) {
-        rev.votes = rev.votes + 1;
-        rev.update_total_score();
-    }
+    public fun upvote(rev: &mut Review): u64 {
+    rev.votes = rev.votes + 1;
+    rev.update_total_score();
+    rev.total_score  // Return the updated total score
+}
 
     public fun get_id(rev: &Review): ID {
         rev.id.to_inner()
