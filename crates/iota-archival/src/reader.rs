@@ -511,6 +511,7 @@ impl ArchiveReader {
         self.remote_object_store.to_string()
     }
 
+    /// Syncs the Manifest from remote store.
     pub async fn sync_manifest_once(&self) -> Result<()> {
         Self::sync_manifest(self.remote_object_store.clone(), self.manifest.clone()).await?;
         Ok(())
@@ -520,6 +521,7 @@ impl ArchiveReader {
         Ok(self.manifest.lock().await.clone())
     }
 
+    /// Copies Manifest from remote store to the given Manifest.
     async fn sync_manifest(
         remote_store: Arc<dyn ObjectStoreGetExt>,
         manifest: Arc<Mutex<Manifest>>,
