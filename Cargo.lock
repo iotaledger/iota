@@ -8249,7 +8249,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-bytecode-verifier-meter",
- "move-bytecode-verifier-v0",
  "move-core-types",
  "move-vm-config",
 ]
