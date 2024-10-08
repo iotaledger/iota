@@ -79,14 +79,17 @@ mod checked {
         type_layout_resolver::TypeLayoutResolver,
     };
 
-    /// Executes a transaction and generates its resulting effects, including
-    /// gas usage, transaction effects, and execution results. The function
-    /// processes input objects, manages gas, and handles transaction
-    /// execution based on the provided `TransactionKind`. It checks for any
-    /// expensive operations, manages shared object references, and ensures
-    /// transaction dependencies are met. All the objects stay unmodified
-    /// until the resulting effects are applied by the caller. Essentially,
-    /// this is the main entry point to the adapter from the execution layer.
+    /// The main entry point to the adapter's transaction execution. It 
+    /// prepares a transaction for execution, then executes it through an 
+    /// inner execution method and finally produces an instance of 
+    /// transaction effects. It also returns the inner temporary store, which
+    /// contains the objects resulting from the transction execution, the gas
+    /// status instance, which tracks the gas usage, and the execution result.
+    /// The function handles transaction execution based on the provided 
+    /// `TransactionKind`. It checks for any expensive operations, manages 
+    /// shared object references, and ensures transaction dependencies are 
+    /// met. The returned objects are not committed to the store until the 
+    /// resulting effects are applied by the caller. 
     #[instrument(name = "tx_execute_to_effects", level = "debug", skip_all)]
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
