@@ -483,10 +483,6 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "pending_consensus_transactions_table_default_config"]
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
-    /// this table is not used
-    #[allow(dead_code)]
-    consensus_message_order: DBMap<ExecutionIndices, TransactionDigest>,
-
     /// The following table is used to store a single value (the corresponding
     /// key is a constant). The value represents the index of the latest
     /// consensus message this authority processed. This field is written by
@@ -502,20 +498,12 @@ pub struct AuthorityEpochTables {
     /// This field is written by a single process (consensus handler).
     last_consensus_stats: DBMap<u64, ExecutionIndicesWithStats>,
 
-    /// this table is not used
-    #[allow(dead_code)]
-    checkpoint_boundary: DBMap<u64, u64>,
-
     /// This table contains current reconfiguration state for validator for
     /// current epoch
     reconfig_state: DBMap<u64, ReconfigState>,
 
     /// Validators that have sent EndOfPublish message in this epoch
     end_of_publish: DBMap<AuthorityName, ()>,
-
-    // TODO: Unused. Remove when removal of DBMap tables is supported.
-    #[allow(dead_code)]
-    final_epoch_checkpoint: DBMap<u64, u64>,
 
     /// This table has information for the checkpoints for which we constructed
     /// all the data from consensus, but not yet constructed actual
@@ -552,12 +540,9 @@ pub struct AuthorityEpochTables {
     /// checkpoint later.
     user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<GenericSignature>>,
 
-    /// This table is not used
-    #[allow(dead_code)]
-    builder_checkpoint_summary: DBMap<CheckpointSequenceNumber, CheckpointSummary>,
     /// Maps sequence number to checkpoint summary, used by CheckpointBuilder to
     /// build checkpoint within epoch
-    builder_checkpoint_summary_v2: DBMap<CheckpointSequenceNumber, BuilderCheckpointSummary>,
+    builder_checkpoint_summary: DBMap<CheckpointSequenceNumber, BuilderCheckpointSummary>,
 
     // Maps checkpoint sequence number to an accumulator with accumulated state
     // only for the checkpoint that the key references. Append-only, i.e.,
@@ -583,11 +568,6 @@ pub struct AuthorityEpochTables {
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, CheckpointSequenceNumber>,
 
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    oauth_provider_jwk: DBMap<JwkId, JWK>,
-
     /// JWKs that have been voted for by one or more authorities but are not yet
     /// active.
     pending_jwks: DBMap<(AuthorityName, JwkId, JWK), ()>,
@@ -601,51 +581,31 @@ pub struct AuthorityEpochTables {
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
 
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    randomness_rounds_written: DBMap<narwhal_types::RandomnessRound, ()>,
-
     /// Tables for recording state for RandomnessManager.
 
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
-    pub(crate) dkg_processed_messages_v2: DBMap<PartyId, VersionedProcessedMessage>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) dkg_processed_messages: DBMap<PartyId, Vec<u8>>,
-
+    pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
+    
     /// Records messages used to generate a DKG confirmation. Updated when
     /// enough DKG messages are received to progress to the next phase.
-    pub(crate) dkg_used_messages_v2: DBMap<u64, VersionedUsedProcessedMessages>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) dkg_used_messages: DBMap<u64, Vec<u8>>,
-
+    pub(crate) dkg_used_messages: DBMap<u64, VersionedUsedProcessedMessages>,
+    
     /// Records confirmations received from other nodes. Updated when receiving
     /// a new dkg::Confirmation via consensus.
-    pub(crate) dkg_confirmations_v2: DBMap<PartyId, VersionedDkgConfirmation>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) dkg_confirmations: DBMap<PartyId, Vec<u8>>,
+    pub(crate) dkg_confirmations: DBMap<PartyId, VersionedDkgConfirmation>,
+    
     /// Records the final output of DKG after completion, including the public
     /// VSS key and any local private shares.
     pub(crate) dkg_output: DBMap<u64, dkg::Output<PkG, EncG>>,
-    /// This table is no longer used (can be removed when DBMap supports
-    /// removing tables)
-    #[allow(dead_code)]
-    randomness_rounds_pending: DBMap<RandomnessRound, ()>,
+    
     /// Holds the value of the next RandomnessRound to be generated.
     pub(crate) randomness_next_round: DBMap<u64, RandomnessRound>,
+    
     /// Holds the value of the highest completed RandomnessRound (as reported to
     /// RandomnessReporter).
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
+    
     /// Holds the timestamp of the most recently generated round of randomness.
     pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
 }
@@ -3861,7 +3821,7 @@ impl AuthorityPerEpochStore {
                 checkpoint_height: Some(commit_height),
                 position_in_commit,
             };
-            batch.insert_batch(&self.tables()?.builder_checkpoint_summary_v2, [(
+            batch.insert_batch(&self.tables()?.builder_checkpoint_summary, [(
                 &sequence_number,
                 summary,
             )])?;
@@ -3899,7 +3859,7 @@ impl AuthorityPerEpochStore {
             position_in_commit: 0,
         };
         self.tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .insert(summary.sequence_number(), &builder_summary)?;
         Ok(())
     }
@@ -3909,7 +3869,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Option<BuilderCheckpointSummary>> {
         Ok(self
             .tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -3921,7 +3881,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Option<(CheckpointSequenceNumber, CheckpointSummary)>> {
         Ok(self
             .tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .unbounded_iter()
             .skip_to_last()
             .next()
@@ -3934,7 +3894,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Option<CheckpointSummary>> {
         Ok(self
             .tables()?
-            .builder_checkpoint_summary_v2
+            .builder_checkpoint_summary
             .get(&sequence)?
             .map(|s| s.summary))
     }
@@ -4324,13 +4284,13 @@ impl ConsensusCommitOutput {
             )])?;
         }
 
-        batch.insert_batch(&tables.dkg_confirmations_v2, self.dkg_confirmations)?;
+        batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;
         batch.insert_batch(
-            &tables.dkg_processed_messages_v2,
+            &tables.dkg_processed_messages,
             self.dkg_processed_messages,
         )?;
         batch.insert_batch(
-            &tables.dkg_used_messages_v2,
+            &tables.dkg_used_messages,
             // using Option as iter
             self.dkg_used_message
                 .into_iter()
