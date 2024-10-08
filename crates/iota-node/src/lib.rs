@@ -618,7 +618,7 @@ impl IotaNode {
                             .flat_map(|(tx, _, _)| {
                                 migration_tx_data
                                     .objects_by_tx_digest(*tx.digest())
-                                    .expect("The migration data is corrupted")
+                                    .expect("the migration data is corrupted")
                             }),
                     )
                     .collect::<Vec<_>>()
