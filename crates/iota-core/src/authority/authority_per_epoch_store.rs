@@ -3595,6 +3595,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::CapabilityNotification(capabilities),
                 ..
             }) => {
+                // Records capabilities for the authority.
                 let authority = capabilities.authority;
                 if self
                     .get_reconfig_state_read_lock_guard()
