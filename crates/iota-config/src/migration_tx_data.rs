@@ -78,36 +78,35 @@ impl MigrationTxData {
         &self,
         checkpoint: &CheckpointSummary,
         contents: &CheckpointContents,
+        genesis_tx_digest: TransactionDigest,
     ) -> anyhow::Result<()> {
         assert_eq!(checkpoint.content_digest, *contents.digest());
-
         let mut validation_digests_queue: HashSet<TransactionDigest> =
-            self.inner.keys().cloned().collect();
+            self.inner.keys().copied().collect();
+        for (valid_tx_digest, valid_effects_digest) in contents.iter().filter_map(|exec_digest| {
+            (exec_digest.transaction != genesis_tx_digest)
+                .then_some((&exec_digest.transaction, &exec_digest.effects))
+        }) {
+            let (tx, effects, events) = self
+                .inner
+                .get(valid_tx_digest)
+                .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
 
-        for (tx_digest, (tx, effects, events)) in self.inner.iter() {
-            let (valid_tx_digest, valid_effects_digest) = contents
-                .iter()
-                .find(|exec_digest| {
-                    exec_digest.transaction == *tx_digest && exec_digest.effects == effects.digest()
-                })
-                .map(|exec_digest| (exec_digest.transaction, exec_digest.effects))
-                .ok_or_else(|| anyhow::anyhow!("missing transaction digest"))?;
-
-            if effects.digest() != valid_effects_digest
-                || effects.transaction_digest() != &valid_tx_digest
-                || tx.data().digest() != valid_tx_digest
+            if &effects.digest() != valid_effects_digest
+                || effects.transaction_digest() != valid_tx_digest
+                || &tx.data().digest() != valid_tx_digest
             {
                 anyhow::bail!("invalid transaction or effects data");
             }
 
             if let Some(valid_events) = effects.events_digest() {
-                if events.digest() != *valid_events {
+                if &events.digest() != valid_events {
                     anyhow::bail!("invalid events data");
                 }
             } else if !events.data.is_empty() {
                 anyhow::bail!("invalid events data");
             }
-            validation_digests_queue.remove(tx_digest);
+            validation_digests_queue.remove(valid_tx_digest);
         }
         assert!(
             validation_digests_queue.is_empty(),
@@ -117,7 +116,11 @@ impl MigrationTxData {
     }
 
     pub fn validate_from_genesis(&self, genesis: &Genesis) -> anyhow::Result<()> {
-        self.validate_from_genesis_components(&genesis.checkpoint(), genesis.checkpoint_contents())
+        self.validate_from_genesis_components(
+            &genesis.checkpoint(),
+            genesis.checkpoint_contents(),
+            *genesis.transaction().digest(),
+        )
     }
 
     pub fn validate_from_unsigned_genesis(
@@ -127,6 +130,7 @@ impl MigrationTxData {
         self.validate_from_genesis_components(
             unsigned_genesis.checkpoint(),
             unsigned_genesis.checkpoint_contents(),
+            *unsigned_genesis.transaction().digest(),
         )
     }
 
