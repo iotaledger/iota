@@ -54,3 +54,4 @@ ADMIN_ADDRESS=$ADMIN_ADDRESS
 API_ENV
 
 echo "Contract Deployment finished!"
+echo "Package ID: $PACKAGE_ID"
