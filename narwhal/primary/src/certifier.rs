@@ -177,7 +177,7 @@ impl Certifier {
                 }
                 Err(status) => {
                     if status.status() == anemo::types::response::StatusCode::BadRequest {
-                        return Err(DagError::NetworkError(format!(
+                        return Err(DagError::Network(format!(
                             "unrecoverable error requesting vote for {header}: {status:?}"
                         )));
                     }
@@ -338,7 +338,7 @@ impl Certifier {
     fn process_result(result: &DagResult<()>) {
         match result {
             Ok(()) => (),
-            Err(DagError::StoreError(e)) => {
+            Err(DagError::Store(e)) => {
                 error!("{e}");
                 panic!("Storage failure: killing node.");
             }
