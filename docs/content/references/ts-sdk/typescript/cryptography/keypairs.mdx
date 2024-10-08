@@ -173,9 +173,6 @@ const { schema, secretKey } = decodeIotaPrivateKey(encoded);
 const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 ```
 
-See [SIP-15](https://github.com/sui-foundation/sips/blob/main/sips/sip-15.md) for additional context
-and motivation.
-
 ## Deriving a `Keypair` from a hex encoded secret key
 
 If you have an existing secret key formatted as a hex encoded string, you can derive a `Keypair` by
