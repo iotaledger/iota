@@ -20,7 +20,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let object_refs = client
         .transaction_builder()
-        .input_refs(&vec!["0x5".parse()?, "0x8".parse()?])
+        .input_refs(&["0x5".parse()?, "0x8".parse()?])
         .await?;
 
     println!("Multiple object refs: {object_refs:?}");

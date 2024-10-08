@@ -281,7 +281,8 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLObject).toEqual(rpcObject);
     });
 
-    test('tryGetPastObject', async () => {
+    // This should work with a full node. Try to unskip it "later"
+    test.skip('tryGetPastObject', async () => {
         const {
             data: [{ coinObjectId: id, version }],
         } = await toolbox.getGasObjectsOwnedByAddress();
@@ -663,7 +664,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getCommitteeInfo', async () => {
+    test('getCommitteeInfo', async () => {
         const rpc = await toolbox.client.getCommitteeInfo({});
         const graphql = await graphQLClient!.getCommitteeInfo({});
 
@@ -719,14 +720,14 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getTotalTransactions', async () => {
+    test('getTotalTransactions', async () => {
         const rpc = await toolbox.client.getTotalTransactions();
         const graphql = await graphQLClient!.getTotalTransactions();
 
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getValidatorsApy', async () => {
+    test('getValidatorsApy', async () => {
         const rpc = await toolbox.client.getValidatorsApy();
         const graphql = await graphQLClient!.getValidatorsApy();
 
