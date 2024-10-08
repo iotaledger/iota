@@ -6,15 +6,15 @@ use std::collections::HashMap;
 use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::output as stardust;
 use iota_types::{
-    TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
-    dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
+    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
     in_memory_storage::InMemoryStorage,
     object::Owner,
     stardust::output::{
-        ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
+        Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
     },
+    TypeTag,
 };
 
 use crate::stardust::migration::{

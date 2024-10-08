@@ -81,7 +81,6 @@ export function useIotaClientInfiniteQuery<
                 ...(params ?? {}),
                 cursor: pageParam,
             } as never),
-        getNextPageParam: (lastPage) =>
-            lastPage.hasNextPage ? (lastPage.nextCursor ?? null) : null,
+        getNextPageParam: (lastPage) => (lastPage.hasNextPage ? lastPage.nextCursor ?? null : null),
     });
 }

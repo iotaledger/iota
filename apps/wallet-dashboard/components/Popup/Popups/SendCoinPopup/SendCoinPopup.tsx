@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
-import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';
 import { Dropdown } from '@/components';
 import { useGetAllCoins } from '@iota/core';
@@ -44,10 +44,10 @@ function SendCoinPopup({
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, senderAddress);
 
     const {
-        mutateAsync: signAndExecuteTransaction,
+        mutateAsync: signAndExecuteTransactionBlock,
         error,
         isPending,
-    } = useSignAndExecuteTransaction();
+    } = useSignAndExecuteTransactionBlock();
     const { data: sendCoinData } = useSendCoinTransaction(
         coinsData || [],
         selectedCoin.coinType,
@@ -62,8 +62,8 @@ function SendCoinPopup({
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
         } else {
-            signAndExecuteTransaction({
-                transaction: sendCoinData.transaction,
+            signAndExecuteTransactionBlock({
+                transactionBlock: sendCoinData.transaction,
             })
                 .then(() => {
                     onClose();

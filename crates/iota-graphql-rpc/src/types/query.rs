@@ -9,44 +9,44 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::DevInspectArgs;
 use iota_sdk::IotaClient;
 use iota_types::{
-    TypeTag,
     gas_coin::GAS,
     transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    TypeTag,
 };
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
+use super::{
+    address::Address,
+    available_range::AvailableRange,
+    chain_identifier::ChainIdentifier,
+    checkpoint::{self, Checkpoint, CheckpointId},
+    coin::Coin,
+    coin_metadata::CoinMetadata,
+    cursor::Page,
+    digest::Digest,
+    dry_run_result::DryRunResult,
+    epoch::Epoch,
+    event::{self, Event, EventFilter},
+    iota_address::IotaAddress,
+    move_type::MoveType,
+    object::{self, Object, ObjectFilter, ObjectLookupKey},
+    owner::Owner,
+    protocol_config::ProtocolConfigs,
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    transaction_metadata::TransactionMetadata,
+    type_filter::ExactTypeFilter,
+};
 use crate::{
     config::ServiceConfig,
-    connection::ScanConnection,
+    consistency::{consistent_range, CheckpointViewedAt},
+    data::{Db, QueryExecutor},
     error::Error,
     mutation::Mutation,
-    server::watermark_task::Watermark,
     types::{
-        address::Address,
-        available_range::AvailableRange,
         base64::Base64 as GraphQLBase64,
-        chain_identifier::ChainIdentifier,
-        checkpoint::{self, Checkpoint, CheckpointId},
-        coin::Coin,
-        coin_metadata::CoinMetadata,
-        cursor::Page,
-        digest::Digest,
-        dry_run_result::DryRunResult,
-        epoch::Epoch,
-        event::{self, Event, EventFilter},
-        iota_address::IotaAddress,
-        move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
-        move_type::MoveType,
-        object::{self, Object, ObjectFilter},
-        owner::Owner,
-        protocol_config::ProtocolConfigs,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-        transaction_metadata::TransactionMetadata,
-        type_filter::ExactTypeFilter,
-        uint53::UInt53,
         zklogin_verify_signature::{
-            ZkLoginIntentScope, ZkLoginVerifyResult, verify_zklogin_signature,
+            verify_zklogin_signature, ZkLoginIntentScope, ZkLoginVerifyResult,
         },
     },
 };
@@ -68,10 +68,20 @@ impl Query {
     /// Range of checkpoints that the RPC has data available for (for data
     /// that can be tied to a particular checkpoint).
     async fn available_range(&self, ctx: &Context<'_>) -> Result<AvailableRange> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        AvailableRange::query(ctx.data_unchecked(), checkpoint)
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
+        let result = ctx
+            .data_unchecked::<Db>()
+            .execute(move |conn| consistent_range(conn, Some(checkpoint_viewed_at)))
             .await
-            .extend()
+            .extend()?;
+
+        match result {
+            Some((first, last)) => Ok(AvailableRange { first, last }),
+            None => Err(Error::Internal(
+                "Checkpoint watermark outside of available range from database".to_string(),
+            )
+            .extend()),
+        }
     }
 
     /// Configuration for this RPC service
@@ -184,36 +194,12 @@ impl Query {
         DryRunResult::try_from(res).extend()
     }
 
-    /// Look up an Owner by its IotaAddress.
-    ///
-    /// `rootVersion` represents the version of the root object in some nested
-    /// chain of dynamic fields. It allows consistent historical queries for
-    /// the case of wrapped objects, which don't have a version. For
-    /// example, if querying the dynamic field of a table wrapped in a parent
-    /// object, passing the parent object's version here will ensure we get the
-    /// dynamic field's state at the moment that parent's version was
-    /// created.
-    ///
-    /// Also, if this Owner is an object itself, `rootVersion` will be used to
-    /// bound its version from above when querying `Owner.asObject`. This
-    /// can be used, for example, to get the contents of a dynamic object
-    /// field when its parent was at `rootVersion`.
-    ///
-    /// If `rootVersion` is omitted, dynamic fields will be from a consistent
-    /// snapshot of the Iota state at the latest checkpoint known to the
-    /// GraphQL RPC. Similarly, `Owner.asObject` will return the object's
-    /// version at the latest checkpoint.
-    async fn owner(
-        &self,
-        ctx: &Context<'_>,
-        address: IotaAddress,
-        root_version: Option<UInt53>,
-    ) -> Result<Option<Owner>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+    async fn owner(&self, ctx: &Context<'_>, address: IotaAddress) -> Result<Option<Owner>> {
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
+
         Ok(Some(Owner {
             address,
-            checkpoint_viewed_at: checkpoint,
-            root_version: root_version.map(|v| v.into()),
+            checkpoint_viewed_at: Some(checkpoint_viewed_at),
         }))
     }
 
@@ -223,68 +209,38 @@ impl Query {
         &self,
         ctx: &Context<'_>,
         address: IotaAddress,
-        version: Option<UInt53>,
+        version: Option<u64>,
     ) -> Result<Option<Object>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        let key = match version {
-            Some(version) => Object::at_version(version.into(), checkpoint),
-            None => Object::latest_at(checkpoint),
-        };
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
-        Object::query(ctx, address, key).await.extend()
-    }
-
-    /// The package corresponding to the given address (at the optionally given
-    /// version).
-    ///
-    /// When no version is given, the package is loaded directly from the
-    /// address given. Otherwise, the address is translated before loading
-    /// to point to the package whose original ID matches the package at
-    /// `address`, but whose version is `version`. For non-system packages, this
-    /// might result in a different address than `address` because different
-    /// versions of a package, introduced by upgrades, exist at distinct
-    /// addresses.
-    ///
-    /// Note that this interpretation of `version` is different from a
-    /// historical object read (the interpretation of `version` for the
-    /// `object` query).
-    async fn package(
-        &self,
-        ctx: &Context<'_>,
-        address: IotaAddress,
-        version: Option<UInt53>,
-    ) -> Result<Option<MovePackage>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        let key = match version {
-            Some(version) => MovePackage::by_version(version.into(), checkpoint),
-            None => MovePackage::by_id_at(checkpoint),
-        };
-
-        MovePackage::query(ctx, address, key).await.extend()
-    }
-
-    /// The latest version of the package at `address`.
-    ///
-    /// This corresponds to the package with the highest `version` that shares
-    /// its original ID with the package at `address`.
-    async fn latest_package(
-        &self,
-        ctx: &Context<'_>,
-        address: IotaAddress,
-    ) -> Result<Option<MovePackage>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        MovePackage::query(ctx, address, MovePackage::latest_at(checkpoint))
+        match version {
+            Some(version) => Object::query(
+                ctx.data_unchecked(),
+                address,
+                ObjectLookupKey::VersionAt {
+                    version,
+                    checkpoint_viewed_at: Some(checkpoint_viewed_at),
+                },
+            )
             .await
-            .extend()
+            .extend(),
+            None => Object::query(
+                ctx.data_unchecked(),
+                address,
+                ObjectLookupKey::LatestAt(checkpoint_viewed_at),
+            )
+            .await
+            .extend(),
+        }
     }
 
     /// Look-up an Account by its IotaAddress.
     async fn address(&self, ctx: &Context<'_>, address: IotaAddress) -> Result<Option<Address>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         Ok(Some(Address {
             address,
-            checkpoint_viewed_at: checkpoint,
+            checkpoint_viewed_at: Some(checkpoint_viewed_at),
         }))
     }
 
@@ -299,9 +255,10 @@ impl Query {
     }
 
     /// Fetch epoch information by ID (defaults to the latest epoch).
-    async fn epoch(&self, ctx: &Context<'_>, id: Option<UInt53>) -> Result<Option<Epoch>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        Epoch::query(ctx, id.map(|id| id.into()), checkpoint)
+    async fn epoch(&self, ctx: &Context<'_>, id: Option<u64>) -> Result<Option<Epoch>> {
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
+
+        Epoch::query(ctx, id, Some(checkpoint_viewed_at))
             .await
             .extend()
     }
@@ -313,8 +270,9 @@ impl Query {
         ctx: &Context<'_>,
         id: Option<CheckpointId>,
     ) -> Result<Option<Checkpoint>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        Checkpoint::query(ctx, id.unwrap_or_default(), checkpoint)
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
+
+        Checkpoint::query(ctx, id.unwrap_or_default(), Some(checkpoint_viewed_at))
             .await
             .extend()
     }
@@ -325,8 +283,9 @@ impl Query {
         ctx: &Context<'_>,
         digest: Digest,
     ) -> Result<Option<TransactionBlock>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        TransactionBlock::query(ctx, digest, checkpoint)
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
+
+        TransactionBlock::query(ctx.data_unchecked(), digest, Some(checkpoint_viewed_at))
             .await
             .extend()
     }
@@ -345,7 +304,7 @@ impl Query {
         before: Option<object::Cursor>,
         type_: Option<ExactTypeFilter>,
     ) -> Result<Connection<String, Coin>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let coin = type_.map_or_else(GAS::type_tag, |t| t.0);
@@ -355,7 +314,7 @@ impl Query {
             coin,
             // owner
             None,
-            checkpoint,
+            Some(checkpoint_viewed_at),
         )
         .await
         .extend()
@@ -370,7 +329,7 @@ impl Query {
         last: Option<u64>,
         before: Option<checkpoint::Cursor>,
     ) -> Result<Connection<String, Checkpoint>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         Checkpoint::paginate(
@@ -378,37 +337,13 @@ impl Query {
             page,
             // epoch
             None,
-            checkpoint,
+            Some(checkpoint_viewed_at),
         )
         .await
         .extend()
     }
 
     /// The transaction blocks that exist in the network.
-    ///
-    /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
-    ///
-    /// When the scan limit is reached the page will be returned even if it has
-    /// fewer than `first` results when paginating forward (`last` when
-    /// paginating backwards). If there are more transactions to scan,
-    /// `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
-    /// to the last transaction that was scanned as opposed to the last (or
-    /// first) transaction in the page.
-    ///
-    /// Requesting the next (or previous) page after this cursor will resume the
-    /// search, scanning the next `scanLimit` many transactions in the
-    /// direction of pagination, and so on until all transactions in the
-    /// scanning range have been visited.
-    ///
-    /// By default, the scanning range includes all transactions known to
-    /// GraphQL, but it can be restricted by the `after` and `before`
-    /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-    /// `atCheckpoint` filters.
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -417,27 +352,21 @@ impl Query {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
-        scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+    ) -> Result<Connection<String, TransactionBlock>> {
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-
         TransactionBlock::paginate(
-            ctx,
+            ctx.data_unchecked(),
             page,
             filter.unwrap_or_default(),
-            checkpoint,
-            scan_limit,
+            Some(checkpoint_viewed_at),
         )
         .await
         .extend()
     }
 
-    /// Query events that are emitted in the network.
-    /// We currently do not support filtering by emitting module and event type
-    /// at the same time so if both are provided in one filter, the query will
-    /// error.
+    /// The events that exist in the network.
     async fn events(
         &self,
         ctx: &Context<'_>,
@@ -447,14 +376,14 @@ impl Query {
         before: Option<event::Cursor>,
         filter: Option<EventFilter>,
     ) -> Result<Connection<String, Event>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         Event::paginate(
             ctx.data_unchecked(),
             page,
             filter.unwrap_or_default(),
-            checkpoint,
+            Some(checkpoint_viewed_at),
         )
         .await
         .extend()
@@ -470,62 +399,17 @@ impl Query {
         before: Option<object::Cursor>,
         filter: Option<ObjectFilter>,
     ) -> Result<Connection<String, Object>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         Object::paginate(
             ctx.data_unchecked(),
             page,
             filter.unwrap_or_default(),
-            checkpoint,
+            Some(checkpoint_viewed_at),
         )
         .await
         .extend()
-    }
-
-    /// The Move packages that exist in the network, optionally filtered to be
-    /// strictly before `beforeCheckpoint` and/or strictly after
-    /// `afterCheckpoint`.
-    ///
-    /// This query returns all versions of a given user package that appear
-    /// between the specified checkpoints, but only records the latest
-    /// versions of system packages.
-    async fn packages(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<move_package::Cursor>,
-        last: Option<u64>,
-        before: Option<move_package::Cursor>,
-        filter: Option<MovePackageCheckpointFilter>,
-    ) -> Result<Connection<String, MovePackage>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-
-        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        MovePackage::paginate_by_checkpoint(ctx.data_unchecked(), page, filter, checkpoint)
-            .await
-            .extend()
-    }
-
-    /// Fetch all versions of package at `address` (packages that share this
-    /// package's original ID), optionally bounding the versions exclusively
-    /// from below with `afterVersion`, or from above with `beforeVersion`.
-    async fn package_versions(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<move_package::Cursor>,
-        last: Option<u64>,
-        before: Option<move_package::Cursor>,
-        address: IotaAddress,
-        filter: Option<MovePackageVersionFilter>,
-    ) -> Result<Connection<String, MovePackage>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-
-        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        MovePackage::paginate_by_version(ctx.data_unchecked(), page, address, filter, checkpoint)
-            .await
-            .extend()
     }
 
     /// Fetch the protocol config by protocol version (defaults to the latest
@@ -533,9 +417,9 @@ impl Query {
     async fn protocol_config(
         &self,
         ctx: &Context<'_>,
-        protocol_version: Option<UInt53>,
+        protocol_version: Option<u64>,
     ) -> Result<ProtocolConfigs> {
-        ProtocolConfigs::query(ctx.data_unchecked(), protocol_version.map(|v| v.into()))
+        ProtocolConfigs::query(ctx.data_unchecked(), protocol_version)
             .await
             .extend()
     }
@@ -546,8 +430,7 @@ impl Query {
         ctx: &Context<'_>,
         coin_type: ExactTypeFilter,
     ) -> Result<Option<CoinMetadata>> {
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        CoinMetadata::query(ctx.data_unchecked(), coin_type.0, checkpoint)
+        CoinMetadata::query(ctx.data_unchecked(), coin_type.0)
             .await
             .extend()
     }

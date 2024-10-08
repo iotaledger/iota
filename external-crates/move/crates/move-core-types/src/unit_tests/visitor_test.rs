@@ -6,17 +6,11 @@ use std::{fmt::Write, str::FromStr};
 
 use crate::{
     account_address::AccountAddress,
-    annotated_value::{
-        MoveEnumLayout, MoveFieldLayout, MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue,
-        MoveVariant,
-    },
-    annotated_visitor::{
-        self, NullTraversal, StructDriver, Traversal, VariantDriver, VecDriver, Visitor,
-    },
+    annotated_value::{MoveFieldLayout, MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue},
+    annotated_visitor::{self, NullTraversal, StructDriver, Traversal, VecDriver, Visitor},
     identifier::Identifier,
     language_storage::StructTag,
     u256::U256,
-    VARIANT_COUNT_MAX,
 };
 
 #[test]
@@ -92,18 +86,9 @@ fn traversal() {
             while driver.next_field(self)?.is_some() {}
             Ok(())
         }
-
-        fn traverse_variant(
-            &mut self,
-            driver: &mut VariantDriver<'_, '_, '_>,
-        ) -> Result<(), Self::Error> {
-            self.0 += 1;
-            while driver.next_field(self)?.is_some() {}
-            Ok(())
-        }
     }
 
-    let type_layout = struct_layout_(
+    let type_layout = layout_(
         "0x0::foo::Bar",
         vec![
             ("a", T::U8),
@@ -116,11 +101,7 @@ fn traversal() {
             ("h", T::Address),
             ("i", T::Signer),
             ("j", T::Vector(Box::new(T::U8))),
-            ("k", struct_layout_("0x0::foo::Baz", vec![("l", T::U8)])),
-            (
-                "m",
-                enum_layout_("0x0::foo::Qux", vec![("n", vec![("o", T::U8)])]),
-            ),
+            ("k", layout_("0x0::foo::Baz", vec![("l", T::U8)])),
         ],
     );
 
@@ -128,7 +109,7 @@ fn traversal() {
         panic!("Not a struct layout");
     };
 
-    let value = struct_value_(
+    let value = value_(
         "0x0::foo::Bar",
         vec![
             ("a", V::U8(1)),
@@ -141,11 +122,7 @@ fn traversal() {
             ("h", V::Address(AccountAddress::ZERO)),
             ("i", V::Signer(AccountAddress::ZERO)),
             ("j", V::Vector(vec![V::U8(7), V::U8(8), V::U8(9)])),
-            ("k", struct_value_("0x0::foo::Baz", vec![("l", V::U8(10))])),
-            (
-                "m",
-                variant_value_("0x0::foo::Qux", "n", 0, vec![("o", V::U8(11))]),
-            ),
+            ("k", value_("0x0::foo::Baz", vec![("l", V::U8(10))])),
         ],
     );
 
@@ -157,8 +134,8 @@ fn traversal() {
     let mut struct_traversal = CountingTraversal::default();
     MoveStruct::visit_deserialize(&bytes, struct_layout, &mut struct_traversal).unwrap();
 
-    assert_eq!(18, value_traversal.0);
-    assert_eq!(18, struct_traversal.0);
+    assert_eq!(16, value_traversal.0);
+    assert_eq!(16, struct_traversal.0);
 }
 
 #[test]
@@ -166,8 +143,8 @@ fn unexpected_eof() {
     use MoveTypeLayout as T;
     use MoveValue as V;
 
-    let type_layout = struct_layout_("0x0::foo::Bar", vec![("a", T::U64)]);
-    let value = struct_value_("0x0::foo::Bar", vec![("a", V::U64(42))]);
+    let type_layout = layout_("0x0::foo::Bar", vec![("a", T::U64)]);
+    let value = value_("0x0::foo::Bar", vec![("a", V::U64(42))]);
 
     let T::Struct(struct_layout) = &type_layout else {
         panic!("Not a struct layout");
@@ -188,63 +165,6 @@ fn unexpected_eof() {
     assert_eq!(
         "unexpected end of input",
         MoveStruct::visit_deserialize(&bytes, struct_layout, &mut NullTraversal)
-            .unwrap_err()
-            .to_string(),
-    );
-}
-
-#[test]
-fn no_enum_tag() {
-    use MoveTypeLayout as T;
-    use MoveValue as V;
-    let layout = enum_layout_("0x0::foo::Bar", vec![("a", vec![("b", T::U8)])]);
-    let value = variant_value_("0x0::foo::Bar", "a", 0, vec![("b", V::U8(42))]);
-    let mut bytes = serialize(value);
-
-    // drop tag
-    bytes.remove(0);
-
-    assert_eq!(
-        "invalid variant tag: 42",
-        MoveValue::visit_deserialize(&bytes, &layout, &mut NullTraversal)
-            .unwrap_err()
-            .to_string(),
-    );
-}
-
-#[test]
-fn out_of_range_enum_tag() {
-    use MoveTypeLayout as T;
-    use MoveValue as V;
-    let layout = enum_layout_("0x0::foo::Bar", vec![("a", vec![("b", T::U8)])]);
-    let value = variant_value_("0x0::foo::Bar", "a", 0, vec![("b", V::U8(42))]);
-    let mut bytes = serialize(value);
-
-    // Invalid tag value
-    bytes[0] = VARIANT_COUNT_MAX as u8 + 1;
-
-    assert_eq!(
-        "invalid variant tag: 128",
-        MoveValue::visit_deserialize(&bytes, &layout, &mut NullTraversal)
-            .unwrap_err()
-            .to_string(),
-    );
-}
-
-#[test]
-fn invalid_variant_tag() {
-    use MoveTypeLayout as T;
-    use MoveValue as V;
-    let layout = enum_layout_("0x0::foo::Bar", vec![("a", vec![("b", T::U8)])]);
-    let value = variant_value_("0x0::foo::Bar", "a", 0, vec![("b", V::U8(42))]);
-    let mut bytes = serialize(value);
-
-    // tag for variant that doesn't exist
-    bytes[0] = 1;
-
-    assert_eq!(
-        "invalid variant tag: 1",
-        MoveValue::visit_deserialize(&bytes, &layout, &mut NullTraversal)
             .unwrap_err()
             .to_string(),
     );
@@ -294,7 +214,7 @@ fn trailing_bytes() {
 }
 
 #[test]
-fn nested_datatype_visit() {
+fn nested_typed_struct_visit() {
     use MoveTypeLayout as T;
     use MoveValue as V;
 
@@ -395,74 +315,35 @@ fn nested_datatype_visit() {
             let type_ = driver.struct_layout().type_.clone();
             Ok(V::Struct(MoveStruct { type_, fields }))
         }
-
-        fn visit_variant(
-            &mut self,
-            driver: &mut VariantDriver<'_, '_, '_>,
-        ) -> Result<Self::Value, Self::Error> {
-            let layout = driver.enum_layout();
-            write!(self.output, "\n[{}] {layout:#}", self.depth).unwrap();
-
-            let mut fields = vec![];
-            let mut field_visitor = Self {
-                depth: self.depth + 1,
-                output: std::mem::take(&mut self.output),
-            };
-
-            while let Some((field, value)) = driver.next_field(&mut field_visitor)? {
-                fields.push((field.name.clone(), value));
-            }
-
-            self.output = field_visitor.output;
-            let type_ = driver.enum_layout().type_.clone();
-            Ok(V::Variant(MoveVariant {
-                type_,
-                variant_name: driver.variant_name().to_owned(),
-                tag: driver.tag(),
-                fields,
-            }))
-        }
     }
 
-    let type_layout = struct_layout_(
+    let type_layout = layout_(
         "0x0::foo::Bar",
-        vec![
-            (
-                "inner",
-                struct_layout_(
-                    "0x0::baz::Qux",
-                    vec![("f", T::U64), ("g", T::Vector(Box::new(T::U32)))],
-                ),
+        vec![(
+            "inner",
+            layout_(
+                "0x0::baz::Qux",
+                vec![("f", T::U64), ("g", T::Vector(Box::new(T::U32)))],
             ),
-            (
-                "last",
-                enum_layout_("0x0::foo::Baz", vec![("e", vec![("h", T::U64)])]),
-            ),
-        ],
+        )],
     );
 
     let T::Struct(struct_layout) = &type_layout else {
         panic!("Not a struct layout");
     };
 
-    let value = struct_value_(
+    let value = value_(
         "0x0::foo::Bar",
-        vec![
-            (
-                "inner",
-                struct_value_(
-                    "0x0::baz::Qux",
-                    vec![
-                        ("f", V::U64(7)),
-                        ("g", V::Vector(vec![V::U32(1), V::U32(2), V::U32(3)])),
-                    ],
-                ),
+        vec![(
+            "inner",
+            value_(
+                "0x0::baz::Qux",
+                vec![
+                    ("f", V::U64(7)),
+                    ("g", V::Vector(vec![V::U32(1), V::U32(2), V::U32(3)])),
+                ],
             ),
-            (
-                "last",
-                variant_value_("0x0::foo::Baz", "e", 0, vec![("h", V::U64(4))]),
-            ),
-        ],
+        )],
     );
 
     let bytes = serialize(value.clone());
@@ -481,11 +362,6 @@ fn nested_datatype_visit() {
         f: u64,
         g: vector<u32>,
     },
-    last: enum 0x0::foo::Baz {
-        e {
-            h: u64,
-        },
-    },
 }
 [1] struct 0x0::baz::Qux {
     f: u64,
@@ -495,13 +371,7 @@ fn nested_datatype_visit() {
 [2] vector<u32>
 [3] 1: u32
 [3] 2: u32
-[3] 3: u32
-[1] enum 0x0::foo::Baz {
-    e {
-        h: u64,
-    },
-}
-[2] 4: u64"#;
+[3] 3: u32"#;
 
     // This is a little strange -- even though we are deserializing a struct, we
     // still get a value. This is because the return type comes from the
@@ -533,27 +403,6 @@ fn peek_field_test() {
         fn visit_struct(
             &mut self,
             driver: &mut StructDriver<'_, '_, '_>,
-        ) -> Result<Self::Value, Self::Error> {
-            let [field, fields @ ..] = self.fields else {
-                return Ok(None);
-            };
-
-            while let Some(layout) = driver.peek_field() {
-                if layout.name.as_str() == *field {
-                    return driver
-                        .next_field(&mut Self { fields })
-                        .map(|value| value.and_then(|(_, v)| v));
-                } else {
-                    driver.skip_field()?;
-                }
-            }
-
-            Ok(None)
-        }
-
-        fn visit_variant(
-            &mut self,
-            driver: &mut VariantDriver<'_, '_, '_>,
         ) -> Result<Self::Value, Self::Error> {
             let [field, fields @ ..] = self.fields else {
                 return Ok(None);
@@ -616,17 +465,13 @@ fn peek_field_test() {
         }
     }
 
-    let type_layout = struct_layout_(
+    let type_layout = layout_(
         "0x0::foo::Bar",
         vec![
             ("a", T::U64),
             ("b", T::U32),
             ("c", T::Vector(Box::new(T::U64))),
-            ("d", struct_layout_("0x0::foo::Baz", vec![("e", T::U64)])),
-            (
-                "f",
-                enum_layout_("0x0::foo::Qux", vec![("g", vec![("h", T::U64)])]),
-            ),
+            ("d", layout_("0x0::foo::Baz", vec![("e", T::U64)])),
         ],
     );
 
@@ -634,17 +479,13 @@ fn peek_field_test() {
         panic!("Not a struct layout");
     };
 
-    let value = struct_value_(
+    let value = value_(
         "0x0::foo::Bar",
         vec![
             ("a", V::U64(42)),
             ("b", V::U32(43)),
             ("c", V::Vector(vec![V::U64(44)])),
-            ("d", struct_value_("0x0::foo::Baz", vec![("e", V::U64(45))])),
-            (
-                "f",
-                variant_value_("0x0::foo::Qux", "g", 0, vec![("h", V::U64(46))]),
-            ),
+            ("d", value_("0x0::foo::Baz", vec![("e", V::U64(45))])),
         ],
     );
 
@@ -663,17 +504,15 @@ fn peek_field_test() {
     assert_eq!(visit_value(&["b"]), None);
     assert_eq!(visit_value(&["c"]), None);
     assert_eq!(visit_value(&["d", "e"]), Some(45));
-    assert_eq!(visit_value(&["f", "h"]), Some(46));
 
     assert_eq!(visit_struct(&["a"]), Some(42));
     assert_eq!(visit_struct(&["b"]), None);
     assert_eq!(visit_struct(&["c"]), None);
     assert_eq!(visit_struct(&["d", "e"]), Some(45));
-    assert_eq!(visit_struct(&["f", "h"]), Some(46));
 }
 
 /// Create a struct value for test purposes.
-fn struct_value_(rep: &str, fields: Vec<(&str, MoveValue)>) -> MoveValue {
+fn value_(rep: &str, fields: Vec<(&str, MoveValue)>) -> MoveValue {
     let type_ = StructTag::from_str(rep).unwrap();
     let fields = fields
         .into_iter()
@@ -684,7 +523,7 @@ fn struct_value_(rep: &str, fields: Vec<(&str, MoveValue)>) -> MoveValue {
 }
 
 /// Create a struct layout for test purposes.
-fn struct_layout_(rep: &str, fields: Vec<(&str, MoveTypeLayout)>) -> MoveTypeLayout {
+fn layout_(rep: &str, fields: Vec<(&str, MoveTypeLayout)>) -> MoveTypeLayout {
     let type_ = StructTag::from_str(rep).unwrap();
     let fields = fields
         .into_iter()
@@ -692,40 +531,6 @@ fn struct_layout_(rep: &str, fields: Vec<(&str, MoveTypeLayout)>) -> MoveTypeLay
         .collect();
 
     MoveTypeLayout::Struct(MoveStructLayout { type_, fields })
-}
-
-/// Create a variant value for test purposes.
-fn variant_value_(rep: &str, name: &str, tag: u16, fields: Vec<(&str, MoveValue)>) -> MoveValue {
-    let type_ = StructTag::from_str(rep).unwrap();
-    let fields = fields
-        .into_iter()
-        .map(|(name, value)| (Identifier::new(name).unwrap(), value))
-        .collect();
-
-    MoveValue::Variant(MoveVariant {
-        type_,
-        variant_name: Identifier::new(name).unwrap(),
-        tag,
-        fields,
-    })
-}
-
-/// Create an enum layout for test purposes.
-fn enum_layout_(rep: &str, variants: Vec<(&str, Vec<(&str, MoveTypeLayout)>)>) -> MoveTypeLayout {
-    let type_ = StructTag::from_str(rep).unwrap();
-    let variants = variants
-        .into_iter()
-        .enumerate()
-        .map(|(t, (name, fields))| {
-            let fields = fields
-                .into_iter()
-                .map(|(name, layout)| MoveFieldLayout::new(Identifier::new(name).unwrap(), layout))
-                .collect();
-            ((Identifier::new(name).unwrap(), t as u16), fields)
-        })
-        .collect();
-
-    MoveTypeLayout::Enum(MoveEnumLayout { type_, variants })
 }
 
 /// BCS encode Move value.

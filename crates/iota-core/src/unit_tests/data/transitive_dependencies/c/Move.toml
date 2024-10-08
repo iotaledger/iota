@@ -1,13 +1,3 @@
 [package]
 name = "C"
 version = "0.0.1"
-edition = "2024.beta"
-
-[dependencies]
-Iota = { local = "../../../../../../iota-framework/packages/iota-framework" }
-
-[addresses]
-c = "_"
-
-[dev-addresses]
-c = "0x0"

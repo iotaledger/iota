@@ -16,15 +16,15 @@ use iota_types::{
 };
 use json_to_table::json_to_table;
 use move_core_types::{
-    annotated_value::MoveDatatypeLayout, identifier::Identifier, language_storage::StructTag,
+    annotated_value::MoveStructLayout, identifier::Identifier, language_storage::StructTag,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use serde_with::{DisplayFromStr, serde_as};
+use serde_json::{json, Value};
+use serde_with::{serde_as, DisplayFromStr};
 use tabled::settings::Style as TableStyle;
 
-use crate::{Page, type_and_fields_from_move_event_data};
+use crate::{type_and_fields_from_move_struct, Page};
 
 pub type EventPage = Page<IotaEvent, EventID>;
 
@@ -99,20 +99,20 @@ impl IotaEvent {
         tx_digest: TransactionDigest,
         event_seq: u64,
         timestamp_ms: Option<u64>,
-        layout: MoveDatatypeLayout,
+        layout: MoveStructLayout,
     ) -> IotaResult<Self> {
         let Event {
             package_id,
             transaction_module,
             sender,
-            type_: _,
+            type_,
             contents,
         } = event;
 
         let bcs = contents.to_vec();
 
-        let move_value = Event::move_event_to_move_value(&contents, layout)?;
-        let (type_, fields) = type_and_fields_from_move_event_data(move_value)?;
+        let move_struct = Event::move_event_to_move_struct(&contents, layout)?;
+        let (type_, field) = type_and_fields_from_move_struct(&type_, move_struct);
 
         Ok(IotaEvent {
             id: EventID {
@@ -123,7 +123,7 @@ impl IotaEvent {
             transaction_module,
             sender,
             type_,
-            parsed_json: fields,
+            parsed_json: field.to_json_value(),
             bcs,
             timestamp_ms,
         })

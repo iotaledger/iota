@@ -9,13 +9,14 @@ use iota_types::{
     transaction::GasData,
 };
 
-use crate::types::{
+use super::{
     address::Address,
     big_int::BigInt,
     cursor::Page,
     iota_address::IotaAddress,
-    object::{self, Object, ObjectFilter, ObjectKey},
+    object::{self, ObjectFilter, ObjectKey, ObjectLookupKey},
 };
+use crate::types::object::Object;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GasInput {
@@ -23,8 +24,9 @@ pub(crate) struct GasInput {
     pub price: u64,
     pub budget: u64,
     pub payment_obj_keys: Vec<ObjectKey>,
-    /// The checkpoint sequence number at which this was viewed at
-    pub checkpoint_viewed_at: u64,
+    /// The checkpoint sequence number at which this was viewed at, or None if
+    /// the data was requested at the latest checkpoint.
+    pub checkpoint_viewed_at: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,9 +138,12 @@ impl GasCostSummary {
 impl GasEffects {
     async fn gas_object(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
         Object::query(
-            ctx,
+            ctx.data_unchecked(),
             self.object_id,
-            Object::at_version(self.object_version, self.checkpoint_viewed_at),
+            ObjectLookupKey::VersionAt {
+                version: self.object_version,
+                checkpoint_viewed_at: Some(self.checkpoint_viewed_at),
+            },
         )
         .await
         .extend()
@@ -151,9 +156,10 @@ impl GasEffects {
 
 impl GasEffects {
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
-    /// which this `GasEffects` was queried for. This is stored on
-    /// `GasEffects` so that when viewing that entity's state, it will be as
-    /// if it was read at the same checkpoint.
+    /// which this `GasEffects` was queried for, or `None` if the data was
+    /// requested at the latest checkpoint. This is stored on `GasEffects`
+    /// so that when viewing that entity's state, it will be as if it was
+    /// read at the same checkpoint.
     pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
         let ((id, version, _digest), _owner) = effects.gas_object();
         Self {
@@ -167,10 +173,11 @@ impl GasEffects {
 
 impl GasInput {
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
-    /// which this `GasInput` was queried for. This is stored on `GasInput`
-    /// so that when viewing that entity's state, it will be as if it was
-    /// read at the same checkpoint.
-    pub(crate) fn from(s: &GasData, checkpoint_viewed_at: u64) -> Self {
+    /// which this `GasInput` was queried for, or `None` if the data was
+    /// requested at the latest checkpoint. This is stored on `GasInput` so
+    /// that when viewing that entity's state, it will be as if it was read
+    /// at the same checkpoint.
+    pub(crate) fn from(s: &GasData, checkpoint_viewed_at: Option<u64>) -> Self {
         Self {
             owner: s.owner.into(),
             price: s.price,
@@ -180,7 +187,7 @@ impl GasInput {
                 .iter()
                 .map(|o| ObjectKey {
                     object_id: o.0.into(),
-                    version: o.1.value().into(),
+                    version: o.1.value(),
                 })
                 .collect(),
             checkpoint_viewed_at,

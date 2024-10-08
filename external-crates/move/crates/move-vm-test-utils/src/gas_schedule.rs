@@ -9,13 +9,14 @@
 //! It is important to note that the cost schedule defined in this file does not
 //! track hashing operations or other native operations; the cost of each native
 //! operation will be returned by the native function itself.
+use std::ops::{Add, Mul};
+
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
         Bytecode, ConstantPoolIndex, FieldHandleIndex, FieldInstantiationIndex,
         FunctionHandleIndex, FunctionInstantiationIndex, SignatureIndex,
-        StructDefInstantiationIndex, StructDefinitionIndex, VariantHandleIndex,
-        VariantInstantiationHandleIndex, VariantJumpTableIndex,
+        StructDefInstantiationIndex, StructDefinitionIndex,
     },
     file_format_common::{instruction_key, Opcodes},
 };
@@ -35,7 +36,6 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Mul};
 pub enum GasUnit {}
 
 pub type Gas = GasQuantity<GasUnit>;
@@ -378,10 +378,6 @@ impl<'b> GasMeter for GasStatus<'b> {
         )
     }
 
-    fn charge_variant_switch(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        self.charge_instr_with_size(Opcodes::VARIANT_SWITCH, val.legacy_abstract_memory_size())
-    }
-
     fn charge_read_ref(&mut self, ref_val: impl ValueView) -> PartialVMResult<()> {
         self.charge_instr_with_size(Opcodes::READ_REF, ref_val.legacy_abstract_memory_size())
     }
@@ -637,39 +633,6 @@ pub fn zero_cost_instruction_table() -> Vec<(Bytecode, GasCost)> {
         (CastU16, GasCost::new(0, 0)),
         (CastU32, GasCost::new(0, 0)),
         (CastU256, GasCost::new(0, 0)),
-        (PackVariant(VariantHandleIndex::new(0)), GasCost::new(0, 0)),
-        (
-            PackVariantGeneric(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            UnpackVariant(VariantHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            UnpackVariantImmRef(VariantHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            UnpackVariantMutRef(VariantHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            UnpackVariantGeneric(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            UnpackVariantGenericImmRef(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            UnpackVariantGenericMutRef(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
-        (
-            VariantSwitch(VariantJumpTableIndex::new(0)),
-            GasCost::new(0, 0),
-        ),
     ]
 }
 
@@ -818,39 +781,6 @@ pub fn bytecode_instruction_costs() -> Vec<(Bytecode, GasCost)> {
         (CastU16, GasCost::new(2, 1)),
         (CastU32, GasCost::new(2, 1)),
         (CastU256, GasCost::new(2, 1)),
-        (PackVariant(VariantHandleIndex::new(0)), GasCost::new(2, 1)),
-        (
-            PackVariantGeneric(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            UnpackVariant(VariantHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            UnpackVariantImmRef(VariantHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            UnpackVariantMutRef(VariantHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            UnpackVariantGeneric(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            UnpackVariantGenericImmRef(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            UnpackVariantGenericMutRef(VariantInstantiationHandleIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
-        (
-            VariantSwitch(VariantJumpTableIndex::new(0)),
-            GasCost::new(2, 1),
-        ),
     ]
 }
 

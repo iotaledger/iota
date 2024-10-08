@@ -6,10 +6,9 @@ use std::path::{Path, PathBuf};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::{
-    CompiledModule,
     compatibility::{Compatibility, InclusionCheck},
     file_format::AbilitySet,
-    normalized,
+    normalized, CompiledModule,
 };
 
 pub const TEST_DIR: &str = "tests";
@@ -19,13 +18,16 @@ fn run_test(path: &Path) -> datatest_stable::Result<()> {
     let mut pathbuf = path.to_path_buf();
     pathbuf.pop();
     pathbuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(pathbuf);
-    let base_path = pathbuf.join("base");
-    let upgraded_path = pathbuf.join("upgraded");
+    let mut base_path = pathbuf.clone();
+    let mut upgraded_path = pathbuf.clone();
 
-    let base = compile(&base_path)?;
+    base_path.push("base");
+    upgraded_path.push("upgraded");
+
+    let base = compile(base_path)?;
     let base_normalized = normalize(&base);
 
-    let upgraded = compile(&upgraded_path)?;
+    let upgraded = compile(upgraded_path)?;
     let upgraded_normalized = normalize(&upgraded);
 
     check_all_compatibilities(
@@ -35,7 +37,7 @@ fn run_test(path: &Path) -> datatest_stable::Result<()> {
     )
 }
 
-fn compile(path: &Path) -> anyhow::Result<Vec<CompiledModule>> {
+fn compile(path: PathBuf) -> anyhow::Result<Vec<CompiledModule>> {
     Ok(BuildConfig::new_for_testing()
         .build(path)
         .unwrap()
@@ -57,43 +59,30 @@ fn check_all_compatibilities(
         Compatibility::full_check(),
         // Full compat but allow private entry functions to change
         Compatibility {
-            check_datatype_and_pub_function_linking: true,
-            check_datatype_layout: true,
+            check_struct_and_pub_function_linking: true,
+            check_struct_layout: true,
             check_friend_linking: true,
             check_private_entry_linking: false,
             disallowed_new_abilities: AbilitySet::ALL,
-            disallow_change_datatype_type_params: true,
-            disallow_new_variants: true,
+            disallow_change_struct_type_params: true,
         },
         // Full compat but allow private entry functions and friends to change
         Compatibility {
-            check_datatype_and_pub_function_linking: true,
-            check_datatype_layout: true,
+            check_struct_and_pub_function_linking: true,
+            check_struct_layout: true,
             check_friend_linking: false,
             check_private_entry_linking: false,
             disallowed_new_abilities: AbilitySet::ALL,
-            disallow_change_datatype_type_params: true,
-            disallow_new_variants: true,
+            disallow_change_struct_type_params: true,
         },
         // Full compat but allow friends to change
         Compatibility {
-            check_datatype_and_pub_function_linking: true,
-            check_datatype_layout: true,
+            check_struct_and_pub_function_linking: true,
+            check_struct_layout: true,
             check_friend_linking: false,
             check_private_entry_linking: true,
             disallowed_new_abilities: AbilitySet::ALL,
-            disallow_change_datatype_type_params: true,
-            disallow_new_variants: true,
-        },
-        // Full compat but allow new enum variants to be added
-        Compatibility {
-            check_datatype_and_pub_function_linking: true,
-            check_datatype_layout: true,
-            check_friend_linking: true,
-            check_private_entry_linking: true,
-            disallowed_new_abilities: AbilitySet::ALL,
-            disallow_change_datatype_type_params: true,
-            disallow_new_variants: true,
+            disallow_change_struct_type_params: true,
         },
         Compatibility::no_check(),
     ];

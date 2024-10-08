@@ -3,6 +3,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_binary_format::{
+    access::ModuleAccess,
+    file_format::{
+        Bytecode, CodeOffset, CompiledModule, ConstantPoolIndex, FieldHandleIndex,
+        FieldInstantiationIndex, FunctionHandle, FunctionHandleIndex, FunctionInstantiation,
+        FunctionInstantiationIndex, LocalIndex, SignatureToken, StructDefInstantiation,
+        StructDefInstantiationIndex, StructDefinitionIndex, StructFieldInformation, TableIndex,
+    },
+};
+use move_core_types::u256::U256;
+use rand::{rngs::StdRng, Rng};
+use tracing::{debug, error, warn};
+
 use crate::{
     abstract_state::{AbstractState, BorrowState, CallGraph, InstantiableModule},
     config::{
@@ -12,15 +25,6 @@ use crate::{
     control_flow_graph::CFG,
     substitute, summaries,
 };
-use move_binary_format::file_format::{
-    Bytecode, CodeOffset, CompiledModule, ConstantPoolIndex, FieldHandleIndex,
-    FieldInstantiationIndex, FunctionHandle, FunctionHandleIndex, FunctionInstantiation,
-    FunctionInstantiationIndex, LocalIndex, SignatureToken, StructDefInstantiation,
-    StructDefInstantiationIndex, StructDefinitionIndex, StructFieldInformation, TableIndex,
-};
-use move_core_types::u256::U256;
-use rand::{rngs::StdRng, Rng};
-use tracing::{debug, error, warn};
 
 /// This type represents bytecode instructions that take a `LocalIndex`
 type LocalIndexToBytecode = fn(LocalIndex) -> Bytecode;
@@ -446,7 +450,8 @@ impl<'a> BytecodeGenerator<'a> {
                     && self.rng.gen_range(0..101) > 100 - (NEGATION_PROBABILITY * 100.0) as u8)
                     || unsatisfied_preconditions == 0
                 {
-                    // The size of matches cannot be greater than the number of bytecode instructions
+                    // The size of matches cannot be greater than the number of bytecode
+                    // instructions
                     debug_assert!(matches.len() < usize::MAX);
                     matches.push((*stack_effect, instruction));
                 }
@@ -878,7 +883,7 @@ impl<'a> BytecodeGenerator<'a> {
             SignatureToken::U32 => vec![Bytecode::LdU32(0)],
             SignatureToken::U256 => vec![Bytecode::LdU256(Box::new(U256::zero()))],
             SignatureToken::Bool => vec![Bytecode::LdFalse],
-            SignatureToken::Datatype(handle_idx) => {
+            SignatureToken::Struct(handle_idx) => {
                 let struct_def_idx = module
                     .module
                     .struct_defs()
@@ -906,8 +911,8 @@ impl<'a> BytecodeGenerator<'a> {
                 )));
                 bytecodes
             }
-            SignatureToken::DatatypeInstantiation(inst) => {
-                let (handle_idx, instantiation) = &**inst;
+            SignatureToken::StructInstantiation(struct_inst) => {
+                let (handle_idx, instantiation) = &**struct_inst;
                 let struct_def_idx = module
                     .module
                     .struct_defs()

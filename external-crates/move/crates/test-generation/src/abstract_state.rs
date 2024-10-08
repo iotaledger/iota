@@ -3,17 +3,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{borrow_graph::BorrowGraph, error::VMError};
-use move_binary_format::file_format::{
-    empty_module, Ability, AbilitySet, CompiledModule, FieldInstantiation, FieldInstantiationIndex,
-    FunctionHandleIndex, FunctionInstantiation, FunctionInstantiationIndex, Signature,
-    SignatureIndex, SignatureToken, StructDefInstantiation, StructDefInstantiationIndex,
-    StructDefinitionIndex, TableIndex,
-};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
 };
+
+use move_binary_format::{
+    access::ModuleAccess,
+    file_format::{
+        empty_module, Ability, AbilitySet, CompiledModule, FieldInstantiation,
+        FieldInstantiationIndex, FunctionHandleIndex, FunctionInstantiation,
+        FunctionInstantiationIndex, Signature, SignatureIndex, SignatureToken,
+        StructDefInstantiation, StructDefInstantiationIndex, StructDefinitionIndex, TableIndex,
+    },
+};
+
+use crate::{borrow_graph::BorrowGraph, error::VMError};
 
 /// The BorrowState denotes whether a local is `Available` or
 /// has been moved and is `Unavailable`.
@@ -53,8 +58,8 @@ impl AbstractValue {
     pub fn new_primitive(token: SignatureToken) -> AbstractValue {
         assert!(
             match token {
-                SignatureToken::Datatype(_)
-                | SignatureToken::DatatypeInstantiation(_)
+                SignatureToken::Struct(_)
+                | SignatureToken::StructInstantiation(_)
                 | SignatureToken::Reference(_)
                 | SignatureToken::MutableReference(_)
                 | SignatureToken::Signer
@@ -92,7 +97,7 @@ impl AbstractValue {
     /// Create a new struct `AbstractValue` given its type and kind
     pub fn new_struct(token: SignatureToken, abilities: AbilitySet) -> AbstractValue {
         assert!(
-            matches!(token, SignatureToken::Datatype(_)),
+            matches!(token, SignatureToken::Struct(_)),
             "AbstractValue::new_struct must be applied with a struct type"
         );
         AbstractValue { token, abilities }
@@ -111,7 +116,7 @@ impl AbstractValue {
     fn is_generic_token(token: &SignatureToken) -> bool {
         match token {
             SignatureToken::TypeParameter(_) => true,
-            SignatureToken::DatatypeInstantiation(_) => true,
+            SignatureToken::StructInstantiation(_) => true,
             SignatureToken::Reference(tok) | SignatureToken::MutableReference(tok) => {
                 Self::is_generic_token(tok)
             }

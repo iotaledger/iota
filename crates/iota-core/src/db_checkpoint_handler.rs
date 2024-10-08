@@ -18,8 +18,8 @@ use iota_storage::{
         path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
     },
 };
-use object_store::{DynObjectStore, path::Path};
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use object_store::{path::Path, DynObjectStore};
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tracing::{debug, error, info};
 use typed_store::rocks::MetricConf;
 
@@ -31,7 +31,6 @@ use crate::{
         authority_store_tables::AuthorityPerpetualTables,
     },
     checkpoints::CheckpointStore,
-    rest_index::RestIndexStore,
 };
 
 pub const SUCCESS_MARKER: &str = "_SUCCESS";
@@ -41,7 +40,6 @@ pub const STATE_SNAPSHOT_COMPLETED_MARKER: &str = "_STATE_SNAPSHOT_COMPLETED";
 
 pub struct DBCheckpointMetrics {
     pub first_missing_db_checkpoint_epoch: IntGauge,
-    pub num_local_db_checkpoints: IntGauge,
 }
 
 impl DBCheckpointMetrics {
@@ -50,12 +48,6 @@ impl DBCheckpointMetrics {
             first_missing_db_checkpoint_epoch: register_int_gauge_with_registry!(
                 "first_missing_db_checkpoint_epoch",
                 "First epoch for which we have no db checkpoint in remote store",
-                registry
-            )
-            .unwrap(),
-            num_local_db_checkpoints: register_int_gauge_with_registry!(
-                "num_local_db_checkpoints",
-                "Number of RocksDB checkpoints currently residing on local disk (i.e. not yet garbage collected)",
                 registry
             )
             .unwrap(),
@@ -71,7 +63,7 @@ pub struct DBCheckpointHandler {
     input_root_path: PathBuf,
     /// Bucket on cloud object store where db checkpoints will be copied
     output_object_store: Option<Arc<DynObjectStore>>,
-    /// Time interval to check for presence of new db checkpoint (60s)
+    /// Time interval to check for presence of new db checkpoint
     interval: Duration,
     /// File markers which signal that local db checkpoint can be garbage
     /// collected
@@ -147,12 +139,6 @@ impl DBCheckpointHandler {
             metrics: DBCheckpointMetrics::new(&Registry::default()),
         }))
     }
-
-    /// Starts the db checkpoint uploader and manifest update loops if a remote
-    /// store is specified. If no remote store is specified, it starts a
-    /// loop that adds an UPLOAD_COMPLETED_MARKER to the epoch directory.
-    /// Additionally, a db checkpoint gc loop is started regardless of the
-    /// remote store configuration.
     pub fn start(self: Arc<Self>) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
         if self.output_object_store.is_some() {
@@ -173,17 +159,12 @@ impl DBCheckpointHandler {
                 kill_sender.subscribe(),
             ));
         }
-        // Starts db checkpoint gc loop to remove epoch directories
-        // that contains success markers
         tokio::task::spawn(Self::run_db_checkpoint_gc_loop(
             self,
             kill_sender.subscribe(),
         ));
         kill_sender
     }
-
-    /// Main loop that checks for missing db checkpoints and uploads them to
-    /// remote store.
     async fn run_db_checkpoint_upload_loop(
         self: Arc<Self>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
@@ -193,9 +174,6 @@ impl DBCheckpointHandler {
         loop {
             tokio::select! {
                 _now = interval.tick() => {
-                    let local_checkpoints_by_epoch =
-                        find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
-                    self.metrics.num_local_db_checkpoints.set(local_checkpoints_by_epoch.len() as i64);
                     match find_missing_epochs_dirs(self.output_object_store.as_ref().unwrap(), SUCCESS_MARKER).await {
                         Ok(epochs) => {
                             self.metrics.first_missing_db_checkpoint_epoch.set(epochs.first().cloned().unwrap_or(0) as i64);
@@ -213,9 +191,6 @@ impl DBCheckpointHandler {
         }
         Ok(())
     }
-
-    /// Main loop that adds UPLOAD_COMPLETED_MARKER to epoch directories in
-    /// local store.
     async fn run_db_checkpoint_cleanup_loop(
         self: Arc<Self>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
@@ -224,36 +199,32 @@ impl DBCheckpointHandler {
         info!("DB checkpoint upload disabled. DB checkpoint cleanup loop started");
         loop {
             tokio::select! {
-                _now = interval.tick() => {
-                    let local_checkpoints_by_epoch =
-                        find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
-                    self.metrics.num_local_db_checkpoints.set(local_checkpoints_by_epoch.len() as i64);
-                    let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
-                    dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
-                    for (_, db_path) in dirs {
-                        // If db checkpoint marked as completed, skip
-                        let local_db_path = path_to_filesystem(self.input_root_path.clone(), db_path)?;
-                        let upload_completed_path = local_db_path.join(UPLOAD_COMPLETED_MARKER);
-                        if upload_completed_path.exists() {
-                            continue;
-                        }
-                        let bytes = Bytes::from_static(b"success");
-                        let upload_completed_marker = db_path.child(UPLOAD_COMPLETED_MARKER);
-                        put(&self.input_object_store,
-                            &upload_completed_marker,
-                            bytes.clone(),
-                        )
-                        .await?;
+            _now = interval.tick() => {
+                let local_checkpoints_by_epoch =
+                    find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
+                let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
+                dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
+                for (_, db_path) in dirs {
+                    // If db checkpoint marked as completed, skip
+                    let local_db_path = path_to_filesystem(self.input_root_path.clone(), db_path)?;
+                    let upload_completed_path = local_db_path.join(UPLOAD_COMPLETED_MARKER);
+                    if upload_completed_path.exists() {
+                        continue;
                     }
-                },
+                    let bytes = Bytes::from_static(b"success");
+                    let upload_completed_marker = db_path.child(UPLOAD_COMPLETED_MARKER);
+                    put(&self.input_object_store,
+                        &upload_completed_marker,
+                        bytes.clone(),
+                    )
+                    .await?;
+                }
+            },
                  _ = recv.recv() => break,
             }
         }
         Ok(())
     }
-
-    /// Main loop that checks for epoch directory with UPLOAD_COMPLETED_MARKER
-    /// marker and deletes them every 30 seconds.
     async fn run_db_checkpoint_gc_loop(
         self: Arc<Self>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
@@ -288,7 +259,6 @@ impl DBCheckpointHandler {
             None,
             None,
         ));
-        let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
         let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
         let lock_table = Arc::new(RwLockTable::new(1));
         info!(
@@ -298,9 +268,8 @@ impl DBCheckpointHandler {
         AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
-            Some(&rest_index),
             &lock_table,
-            self.pruning_config.clone(),
+            self.pruning_config,
             metrics,
             self.indirect_objects_threshold,
             epoch_duration_ms,
@@ -313,10 +282,6 @@ impl DBCheckpointHandler {
         AuthorityStorePruner::compact(&perpetual_db)?;
         Ok(())
     }
-
-    /// Checks for missing db checkpoints in remote store and uploads them from
-    /// the local store. And writes a MANIFEST file which contains a list of all
-    /// files that under the db checkpoint directory.
     async fn upload_db_checkpoints_to_object_store(
         &self,
         missing_epochs: Vec<u64>,
@@ -384,8 +349,6 @@ impl DBCheckpointHandler {
         Ok(())
     }
 
-    /// Deletes old db checkpoints in the local store by checking for the
-    /// presence of all success markers in the directory.
     async fn garbage_collect_old_db_checkpoints(&self) -> Result<Vec<u64>> {
         let local_checkpoints_by_epoch =
             find_all_dirs_with_epoch_prefix(&self.input_object_store, None).await?;
@@ -396,7 +359,6 @@ impl DBCheckpointHandler {
                 .iter()
                 .map(|marker| path.child(marker.clone()))
                 .collect();
-            // Check if all markers are present in the epoch directory
             let all_markers_present = try_join_all(
                 marker_paths
                     .iter()

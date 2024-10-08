@@ -9,7 +9,7 @@ module test_functions::test_module {
     use std::ascii::String as AS;
     use std::string::String as US;
 
-    public struct Shared has key, store {
+    struct Shared has key, store {
         id: UID,
     }
 

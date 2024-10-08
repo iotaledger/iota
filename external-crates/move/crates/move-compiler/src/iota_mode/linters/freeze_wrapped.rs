@@ -6,15 +6,14 @@
 //! or not) other structs with the key ability. In other words flags freezing of
 //! structs whose fields (directly or not) wrap objects.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 
 use super::{
-    base_type, LinterDiagnosticCategory, LinterDiagnosticCode, FREEZE_FUN,
-    IOTA_PKG_NAME, LINT_WARNING_PREFIX, PUBLIC_FREEZE_FUN,
-    TRANSFER_MOD_NAME,
+    base_type, LinterDiagCategory, FREEZE_FUN, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
+    LINT_WARNING_PREFIX, PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME,
 };
 use crate::{
     diag,
@@ -35,8 +34,8 @@ use crate::{
 const FREEZE_WRAPPING_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Iota as u8,
-    LinterDiagnosticCode::FreezeWrapped as u8,
+    LinterDiagCategory::FreezeWrapped as u8,
+    LINTER_DEFAULT_DIAG_CODE,
     "attempting to freeze wrapped objects",
 );
 
@@ -70,14 +69,13 @@ impl WrappingFieldInfo {
 }
 
 /// Structs (per-module) that have fields wrapping other objects.
-type WrappingFields =
-    BTreeMap<E::ModuleIdent, BTreeMap<P::DatatypeName, Option<WrappingFieldInfo>>>;
+type WrappingFields = BTreeMap<E::ModuleIdent, BTreeMap<P::StructName, Option<WrappingFieldInfo>>>;
 
 pub struct FreezeWrappedVisitor;
 
 pub struct Context<'a> {
     env: &'a mut CompilationEnv,
-    program_info: Arc<TypingProgramInfo>,
+    program_info: &'a TypingProgramInfo,
     /// Memoizes information about struct fields wrapping other objects as they
     /// are discovered
     wrapping_fields: WrappingFields,
@@ -86,10 +84,14 @@ pub struct Context<'a> {
 impl TypingVisitorConstructor for FreezeWrappedVisitor {
     type Context<'a> = Context<'a>;
 
-    fn context<'a>(env: &'a mut CompilationEnv, program: &T::Program) -> Self::Context<'a> {
+    fn context<'a>(
+        env: &'a mut CompilationEnv,
+        program_info: &'a TypingProgramInfo,
+        _program: &T::Program_,
+    ) -> Self::Context<'a> {
         Context {
             env,
-            program_info: program.info.clone(),
+            program_info,
             wrapping_fields: WrappingFields::new(),
         }
     }
@@ -202,7 +204,7 @@ impl<'a> Context<'a> {
     fn find_wrapping_field_loc(
         &mut self,
         mident: E::ModuleIdent,
-        sname: P::DatatypeName,
+        sname: P::StructName,
     ) -> Option<WrappingFieldInfo> {
         let memoized_info = self
             .wrapping_fields
@@ -225,11 +227,10 @@ impl<'a> Context<'a> {
     fn find_wrapping_field_loc_impl(
         &mut self,
         mident: E::ModuleIdent,
-        sname: P::DatatypeName,
+        sname: P::StructName,
     ) -> Option<WrappingFieldInfo> {
-        let info = self.program_info.clone();
-        let sdef = info.struct_definition(&mident, &sname);
-        let N::StructFields::Defined(_, sfields) = &sdef.fields else {
+        let sdef = self.program_info.struct_definition(&mident, &sname);
+        let N::StructFields::Defined(sfields) = &sdef.fields else {
             return None;
         };
         sfields.iter().find_map(|(_, fname, (_, ftype))| {

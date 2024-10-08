@@ -18,8 +18,8 @@ use crate::{
 };
 
 /// Commit one leader.  
-#[tokio::test]
-async fn try_direct_commit() {
+#[test]
+fn try_direct_commit() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -74,8 +74,8 @@ async fn try_direct_commit() {
 }
 
 /// Ensure idempotent replies.
-#[tokio::test]
-async fn idempotence() {
+#[test]
+fn idempotence() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -118,8 +118,8 @@ async fn idempotence() {
 }
 
 /// Commit one by one each leader as the dag progresses in ideal conditions.
-#[tokio::test]
-async fn multiple_direct_commit() {
+#[test]
+fn multiple_direct_commit() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -159,8 +159,8 @@ async fn multiple_direct_commit() {
 }
 
 /// We directly skip the leader if it has enough blame.
-#[tokio::test]
-async fn direct_skip() {
+#[test]
+fn direct_skip() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -211,8 +211,8 @@ async fn direct_skip() {
 }
 
 /// Indirect-commit the first leader.
-#[tokio::test]
-async fn indirect_commit() {
+#[test]
+fn indirect_commit() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -355,8 +355,8 @@ async fn indirect_commit() {
 }
 
 /// Commit the first leader, indirectly skip the 2nd, and commit the 3rd leader.
-#[tokio::test]
-async fn indirect_skip() {
+#[test]
+fn indirect_skip() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -485,8 +485,8 @@ async fn indirect_skip() {
 }
 
 /// If there is no leader with enough support nor blame, we commit nothing.
-#[tokio::test]
-async fn undecided() {
+#[test]
+fn undecided() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -574,8 +574,8 @@ async fn undecided() {
 // will be sending multiple different blocks to different validators for a
 // round. The commit rule should handle this and correctly commit the expected
 // blocks.
-#[tokio::test]
-async fn test_byzantine_direct_commit() {
+#[test]
+fn test_byzantine_direct_commit() {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);

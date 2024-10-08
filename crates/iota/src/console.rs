@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    io::{Write, stderr},
+    io::{stderr, Write},
     ops::Deref,
 };
 
@@ -15,7 +15,7 @@ use iota_sdk::wallet_context::WalletContext;
 use crate::{
     client_commands::{IotaClientCommandResult, IotaClientCommands, SwitchResponse},
     shell::{
-        AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell, install_shell_plugins,
+        install_shell_plugins, AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell,
     },
 };
 

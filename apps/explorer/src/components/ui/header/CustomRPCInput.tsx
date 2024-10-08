@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { useZodForm } from '@iota/core';
-import { ButtonHtmlType, ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
+import { Input, InputType } from '@iota/apps-ui-kit';
 
 const CustomRPCSchema = z.object({
     url: z.string().url(),
@@ -38,9 +38,13 @@ export function CustomRPCInput({ value, onChange }: CustomRPCInputProps): JSX.El
                 type={InputType.Text}
                 errorMessage={errors.url ? 'Invalid URL' : undefined}
                 trailingElement={
-                    <ButtonPill htmlType={ButtonHtmlType.Submit} disabled={!isDirty || !isValid}>
+                    <button
+                        disabled={!isDirty || !isValid}
+                        type="submit"
+                        className="flex items-center justify-center rounded-full bg-gray-90 px-2 py-1 text-captionSmall font-semibold uppercase text-white transition disabled:bg-gray-45 disabled:text-gray-65"
+                    >
                         Save
-                    </ButtonPill>
+                    </button>
                 }
             />
         </form>

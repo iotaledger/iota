@@ -1,41 +1,14 @@
+import { UseSignPersonalMessageExample } from '@site/src/components/sdk-examples/wallet-hooks';
+
 # useSignPersonalMessage
 
 Use the `useSignPersonalMessage` hook to prompt the user to sign a message with their wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        mainnet: { url: getFullnodeUrl('mainnet') },
-    };
+```ts
+import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from '@iota/dapp-kit';
+import { useState } from 'react';
 
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseSignPersonalMessageExample = withProviders(() => {
+function MyComponent() {
     const { mutate: signPersonalMessage } = useSignPersonalMessage();
     const [message, setMessage] = useState('hello, World!');
     const [signature, setSignature] = useState('');
@@ -63,10 +36,7 @@ const UseSignPersonalMessageExample = withProviders(() => {
                                     message: new TextEncoder().encode(message),
                                 },
                                 {
-                                    onSuccess: (result) => {
-                                        console.log('signed message', result);
-                                        setSignature(result.signature);
-                                    },
+                                    onSuccess: (result) => setSignature(result.signature),
                                 },
                             );
                         }}
@@ -78,10 +48,12 @@ const UseSignPersonalMessageExample = withProviders(() => {
             )}
         </div>
     );
-});
-
-render(<UseSignPersonalMessageExample/>)
+}
 ```
+
+## Example
+
+<UseSignPersonalMessageExample />
 
 ## Arguments
 

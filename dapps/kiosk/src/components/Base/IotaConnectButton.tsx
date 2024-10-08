@@ -5,5 +5,5 @@
 import { ConnectButton } from '@iota/dapp-kit';
 
 export function IotaConnectButton() {
-    return <ConnectButton className="flex-shrink-0" />;
+    return <ConnectButton />;
 }

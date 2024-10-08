@@ -1,7 +1,6 @@
 processed 1 task
 
-task 0, lines 1-10:
-//# run
+task 0 'run'. lines 1-10:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: NEGATIVE_STACK_SIZE_WITHIN_BLOCK,
     sub_status: None,

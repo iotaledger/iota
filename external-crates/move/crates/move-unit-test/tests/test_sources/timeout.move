@@ -1,4 +1,5 @@
-module 0x1::M {
+address 0x1 {
+module M {
     #[test]
     fun timeout_fail() {
         while (true) {}
@@ -18,9 +19,10 @@ module 0x1::M {
 
     #[test]
     fun no_timeout_while_loop() {
-        let mut i = 0;
+        let i = 0;
         while (i < 10) {
             i = i + 1;
         };
     }
+}
 }

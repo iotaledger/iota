@@ -4,11 +4,11 @@
 
 module base_addr::friend_module {
 
-    public struct X has store, drop {
+    struct X has store, drop {
         v: bool,
     }
 
-    public struct Y has store, drop {
+    struct Y has store, drop {
         v: u64,
     }
 

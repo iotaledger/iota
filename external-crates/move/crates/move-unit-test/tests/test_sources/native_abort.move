@@ -1,4 +1,5 @@
 module 0x1::A {
+    use std::vector;
 
     #[test]
     fun native_abort_unexpected_abort() {

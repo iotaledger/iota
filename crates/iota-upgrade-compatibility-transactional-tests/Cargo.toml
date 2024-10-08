@@ -11,6 +11,7 @@ description = "Transactional tests for package upgrade compatibility checking"
 anyhow.workspace = true
 datatest-stable.workspace = true
 insta.workspace = true
+
 iota-move-build.workspace = true
 move-binary-format.workspace = true
 move-command-line-common.workspace = true

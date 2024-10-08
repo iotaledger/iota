@@ -7,9 +7,9 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-futures.workspace = true
 parking_lot.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
+futures.workspace = true
 tokio = { workspace = true, features = ["test-util", "macros"] }

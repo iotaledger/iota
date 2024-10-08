@@ -7,7 +7,7 @@ module sod::sod {
     use iota::tx_context::TxContext;
     use iota::transfer;
 
-    public struct A has key, store {
+    struct A has key, store {
         id: UID,
     }
 

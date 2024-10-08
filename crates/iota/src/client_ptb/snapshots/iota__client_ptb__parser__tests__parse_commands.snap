@@ -31,16 +31,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 18,
-                        end: 32,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 18,
+                    end: 32,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -71,16 +68,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 22,
-                        end: 36,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 22,
+                    end: 36,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -120,16 +114,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 19,
-                        end: 33,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 19,
+                    end: 33,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -188,16 +179,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 28,
-                        end: 42,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 28,
+                    end: 42,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -247,16 +235,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 25,
-                        end: 39,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 25,
+                    end: 39,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -321,16 +306,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 27,
-                        end: 41,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 27,
+                    end: 41,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -389,16 +371,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 23,
-                        end: 37,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 23,
+                    end: 37,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -448,16 +427,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 20,
-                        end: 34,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 20,
+                    end: 34,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -516,16 +492,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 23,
-                        end: 37,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 23,
+                    end: 37,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -575,16 +548,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 20,
-                        end: 34,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 20,
+                    end: 34,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -622,16 +592,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 25,
-                        end: 39,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 25,
+                    end: 39,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -688,16 +655,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 32,
-                        end: 46,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 32,
+                    end: 46,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -801,16 +765,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 73,
-                        end: 87,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 73,
+                    end: 87,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -891,16 +852,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 41,
-                        end: 55,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 41,
+                    end: 55,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -981,16 +939,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 40,
-                        end: 54,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 40,
+                    end: 54,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1022,16 +977,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 11,
-                        end: 25,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 11,
+                    end: 25,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1088,16 +1040,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 15,
-                        end: 29,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 15,
+                    end: 29,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1139,16 +1088,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 15,
-                        end: 29,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 15,
+                    end: 29,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1190,16 +1136,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 16,
-                        end: 30,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 16,
+                    end: 30,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1231,10 +1174,8 @@ expression: parsed
                                                 start: 18,
                                                 end: 19,
                                             },
-                                            value: InferredNum(
-                                                U256(
-                                                    1,
-                                                ),
+                                            value: U64(
+                                                1,
                                             ),
                                         },
                                         Spanned {
@@ -1242,10 +1183,8 @@ expression: parsed
                                                 start: 21,
                                                 end: 22,
                                             },
-                                            value: InferredNum(
-                                                U256(
-                                                    2,
-                                                ),
+                                            value: U64(
+                                                2,
                                             ),
                                         },
                                         Spanned {
@@ -1253,10 +1192,8 @@ expression: parsed
                                                 start: 24,
                                                 end: 25,
                                             },
-                                            value: InferredNum(
-                                                U256(
-                                                    3,
-                                                ),
+                                            value: U64(
+                                                3,
                                             ),
                                         },
                                     ],
@@ -1275,16 +1212,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 27,
-                        end: 41,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 27,
+                    end: 41,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1332,16 +1266,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 16,
-                        end: 30,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 16,
+                    end: 30,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1373,10 +1304,8 @@ expression: parsed
                                             end: 17,
                                         },
                                         value: Some(
-                                            InferredNum(
-                                                U256(
-                                                    1,
-                                                ),
+                                            U64(
+                                                1,
                                             ),
                                         ),
                                     },
@@ -1395,16 +1324,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 19,
-                        end: 33,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 19,
+                    end: 33,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1427,16 +1353,13 @@ expression: parsed
                 },
             ),
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 16,
-                        end: 30,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 16,
+                    end: 30,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1451,16 +1374,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 10,
-                        end: 24,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 10,
+                    end: 24,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1475,16 +1395,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: true,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 7,
-                        end: 21,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 7,
+                    end: 21,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1499,16 +1416,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 10,
-                        end: 24,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 10,
+                    end: 24,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
     (
@@ -1523,16 +1437,13 @@ expression: parsed
             serialize_signed_set: false,
             gas_object_id: None,
             json_set: false,
-            dry_run_set: false,
-            gas_budget: Some(
-                Spanned {
-                    span: Span {
-                        start: 15,
-                        end: 29,
-                    },
-                    value: 1,
+            gas_budget: Spanned {
+                span: Span {
+                    start: 15,
+                    end: 29,
                 },
-            ),
+                value: 1,
+            },
         },
     ),
 ]

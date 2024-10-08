@@ -7,7 +7,7 @@ use move_binary_format::file_format::{
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
     Visibility::Public,
 };
-use move_bytecode_verifier_meter::bound::BoundMeter;
+use move_bytecode_verifier::meter::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
 
 use crate::unit_tests::production_config;
@@ -51,7 +51,6 @@ fn test_large_types() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(0)), Bytecode::Ret],
-            jump_tables: vec![],
         }),
     });
 
@@ -72,7 +71,6 @@ fn test_large_types() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(1)), Bytecode::Ret],
-            jump_tables: vec![],
         }),
     });
 
@@ -94,7 +92,6 @@ fn test_large_types() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Call(FunctionHandleIndex(1)), Bytecode::Ret],
-            jump_tables: vec![],
         }),
     });
 
@@ -115,7 +112,6 @@ fn test_large_types() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::Ret],
-            jump_tables: vec![],
         }),
     });
 
@@ -138,7 +134,6 @@ fn test_large_types() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(0),
                 code: vec![],
-                jump_tables: vec![],
             }),
         });
 
@@ -152,11 +147,11 @@ fn test_large_types() {
         code.push(Bytecode::Ret);
     }
 
-    let (verifier_config, meter_config) = production_config();
-    let mut meter = BoundMeter::new(meter_config);
+    let config = production_config();
+    let mut meter = BoundMeter::new(&config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_large_types",
-        &verifier_config,
+        &config,
         &m,
         &mut meter,
     );

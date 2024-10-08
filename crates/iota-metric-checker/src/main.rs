@@ -5,13 +5,13 @@
 use std::{fs::File, io::Read, time::Duration};
 
 use anyhow::anyhow;
-use backoff::{ExponentialBackoff, future::retry};
+use backoff::{future::retry, ExponentialBackoff};
 use chrono::{DateTime, Utc};
 use clap::*;
 use iota_metric_checker::{
-    Config, NowProvider, QueryType, fails_threshold_condition,
+    fails_threshold_condition,
     query::{instant_query, range_query},
-    timestamp_string_to_unix_seconds,
+    timestamp_string_to_unix_seconds, Config, NowProvider, QueryType,
 };
 use once_cell::sync::Lazy;
 use prometheus_http_query::Client;
@@ -80,12 +80,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 })
                 .await
             }
-            QueryType::Range {
-                start,
-                end,
-                step,
-                percentile,
-            } => {
+            QueryType::Range { start, end, step } => {
                 retry(backoff.clone(), || async {
                     range_query(
                         &auth_header,
@@ -94,7 +89,6 @@ async fn main() -> Result<(), anyhow::Error> {
                         timestamp_string_to_unix_seconds::<UtcNowOnceProvider>(&start)?,
                         timestamp_string_to_unix_seconds::<UtcNowOnceProvider>(&end)?,
                         step,
-                        percentile,
                     )
                     .await
                     .map_err(backoff::Error::transient)

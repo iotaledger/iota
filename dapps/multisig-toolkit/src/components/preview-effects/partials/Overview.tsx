@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DryRunTransactionBlockResponse, GasCostSummary } from '@iota/iota-sdk/client';
+import { useIotaClientContext } from '@iota/dapp-kit';
+import { DryRunTransactionBlockResponse, GasCostSummary } from '@iota/iota-sdk/src/client';
 import { ReactNode } from 'react';
 
-import { useDryRunContext } from '../DryRunContext';
 import { ObjectLink } from '../ObjectLink';
 import { onChainAmountToFloat } from '../utils';
 
@@ -23,8 +23,7 @@ const calculateGas = (gas: GasCostSummary): string => {
 };
 
 export function Overview({ output }: { output: DryRunTransactionBlockResponse }) {
-    const { network } = useDryRunContext();
-
+    const { network } = useIotaClientContext();
     const metadata: Record<string, ReactNode> = {
         network,
         status:

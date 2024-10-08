@@ -7,8 +7,7 @@ use async_graphql::{
     *,
 };
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::{ChainIdentifier as IotaChainIdentifier, TransactionDigest},
+    digests::TransactionDigest,
     object::Object as NativeObject,
     transaction::{
         AuthenticatorStateExpire as NativeAuthenticatorStateExpireTransaction,
@@ -16,7 +15,7 @@ use iota_types::{
         EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind,
     },
 };
-use move_binary_format::{CompiledModule, errors::PartialVMResult};
+use move_binary_format::{errors::PartialVMResult, CompiledModule};
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -29,7 +28,6 @@ use crate::{
         iota_address::IotaAddress,
         move_package::MovePackage,
         object::Object,
-        uint53::UInt53,
     },
 };
 
@@ -47,8 +45,6 @@ pub(crate) enum EndOfEpochTransactionKind {
     AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
     RandomnessStateCreate(RandomnessStateCreateTransaction),
     CoinDenyListStateCreate(CoinDenyListStateCreateTransaction),
-    BridgeStateCreate(BridgeStateCreateTransaction),
-    BridgeCommitteeInit(BridgeCommitteeInitTransaction),
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -85,20 +81,6 @@ pub(crate) struct CoinDenyListStateCreateTransaction {
     /// A workaround to define an empty variant of a GraphQL union.
     #[graphql(name = "_")]
     dummy: Option<bool>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct BridgeStateCreateTransaction {
-    pub native: IotaChainIdentifier,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct BridgeCommitteeInitTransaction {
-    pub native: SequenceNumber,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
 }
 
 pub(crate) type CTxn = JsonCursor<ConsistentIndexCursor>;
@@ -151,14 +133,18 @@ impl EndOfEpochTransaction {
 impl ChangeEpochTransaction {
     /// The next (to become) epoch.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(ctx, Some(self.native.epoch), self.checkpoint_viewed_at)
-            .await
-            .extend()
+        Epoch::query(
+            ctx,
+            Some(self.native.epoch),
+            Some(self.checkpoint_viewed_at),
+        )
+        .await
+        .extend()
     }
 
     /// The protocol version in effect in the new epoch.
-    async fn protocol_version(&self) -> UInt53 {
-        self.native.protocol_version.as_u64().into()
+    async fn protocol_version(&self) -> u64 {
+        self.native.protocol_version.as_u64()
     }
 
     /// The total amount of gas charged for storage during the previous epoch
@@ -232,8 +218,8 @@ impl ChangeEpochTransaction {
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, c.c, None);
-            let package = MovePackage::try_from(&object)
+            let object = Object::from_native(IotaAddress::from(runtime_id), native, Some(c.c));
+            let package = MovePackage::try_from(&object, self.checkpoint_viewed_at)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;
 
@@ -248,31 +234,18 @@ impl ChangeEpochTransaction {
 impl AuthenticatorStateExpireTransaction {
     /// Expire JWKs that have a lower epoch than this.
     async fn min_epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(ctx, Some(self.native.min_epoch), self.checkpoint_viewed_at)
-            .await
-            .extend()
+        Epoch::query(
+            ctx,
+            Some(self.native.min_epoch),
+            Some(self.checkpoint_viewed_at),
+        )
+        .await
+        .extend()
     }
 
     /// The initial version that the AuthenticatorStateUpdate was shared at.
-    async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
-        self.native
-            .authenticator_obj_initial_shared_version
-            .value()
-            .into()
-    }
-}
-
-#[Object]
-impl BridgeStateCreateTransaction {
-    async fn chain_id(&self) -> String {
-        self.native.to_string()
-    }
-}
-
-#[Object]
-impl BridgeCommitteeInitTransaction {
-    async fn bridge_obj_initial_shared_version(&self) -> UInt53 {
-        self.native.value().into()
+    async fn authenticator_obj_initial_shared_version(&self) -> u64 {
+        self.native.authenticator_obj_initial_shared_version.value()
     }
 }
 
@@ -300,16 +273,6 @@ impl EndOfEpochTransactionKind {
             }
             N::DenyListStateCreate => {
                 K::CoinDenyListStateCreate(CoinDenyListStateCreateTransaction { dummy: None })
-            }
-            N::BridgeStateCreate(chain_id) => K::BridgeStateCreate(BridgeStateCreateTransaction {
-                native: chain_id,
-                checkpoint_viewed_at,
-            }),
-            N::BridgeCommitteeInit(bridge_shared_version) => {
-                K::BridgeCommitteeInit(BridgeCommitteeInitTransaction {
-                    native: bridge_shared_version,
-                    checkpoint_viewed_at,
-                })
             }
         }
     }

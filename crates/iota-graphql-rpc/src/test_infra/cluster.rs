@@ -2,21 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
+pub use iota_indexer::processors::objects_snapshot_processor::SnapshotLagConfig;
 use iota_indexer::{
     errors::IndexerError,
-    store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{ReaderWriterConfig, force_delete_database, start_test_indexer_impl},
+    store::{indexer_store::IndexerStore, PgIndexerStore},
+    test_utils::{
+        force_delete_database, start_test_indexer, start_test_indexer_impl, ReaderWriterConfig,
+    },
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::storage::RestStateReader;
+use iota_types::storage::ReadStore;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::{join, task::JoinHandle};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
 
 use crate::{
     config::{ConnectionConfig, ServerConfig, ServiceConfig, Version},
@@ -33,7 +34,7 @@ pub const DEFAULT_INTERNAL_DATA_SOURCE_PORT: u16 = 3000;
 
 pub struct ExecutorCluster {
     pub executor_server_handle: JoinHandle<()>,
-    pub indexer_store: PgIndexerStore<diesel::PgConnection>,
+    pub indexer_store: PgIndexerStore,
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
     pub graphql_client: SimpleClient,
@@ -44,11 +45,10 @@ pub struct ExecutorCluster {
 
 pub struct Cluster {
     pub validator_fullnode_handle: TestCluster,
-    pub indexer_store: PgIndexerStore<diesel::PgConnection>,
+    pub indexer_store: PgIndexerStore,
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
     pub graphql_client: SimpleClient,
-    pub cancellation_token: CancellationToken,
 }
 
 /// Starts a validator, fullnode, indexer, and graphql service for testing.
@@ -56,23 +56,15 @@ pub async fn start_cluster(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: Option<u16>,
 ) -> Cluster {
-    let data_ingestion_path = tempfile::tempdir().unwrap().into_path();
     let db_url = graphql_connection_config.db_url.clone();
-    let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
-    let val_fn =
-        start_validator_with_fullnode(internal_data_source_rpc_port, data_ingestion_path.clone())
-            .await;
+    let val_fn = start_validator_with_fullnode(internal_data_source_rpc_port).await;
 
     // Starts indexer
-    let (pg_store, pg_handle) = start_test_indexer_impl(
+    let (pg_store, pg_handle) = start_test_indexer(
         Some(db_url),
         val_fn.rpc_url().to_string(),
         ReaderWriterConfig::writer_mode(None),
-        // reset_database
-        true,
-        Some(data_ingestion_path),
-        cancellation_token.clone(),
     )
     .await;
 
@@ -81,7 +73,8 @@ pub async fn start_cluster(
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
         Some(fn_rpc_url),
-        Some(cancellation_token.clone()),
+        // cancellation_token
+        None,
     )
     .await;
 
@@ -100,7 +93,6 @@ pub async fn start_cluster(
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
         graphql_client: client,
-        cancellation_token,
     }
 }
 
@@ -110,13 +102,10 @@ pub async fn start_cluster(
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
-    executor: Arc<dyn RestStateReader + Send + Sync>,
+    executor: Arc<dyn ReadStore + Send + Sync>,
     snapshot_config: Option<SnapshotLagConfig>,
-    data_ingestion_path: PathBuf,
 ) -> ExecutorCluster {
     let db_url = graphql_connection_config.db_url.clone();
-    // Creates a cancellation token and adds this to the ExecutorCluster, so that we
-    // can send a cancellation token on cleanup
     let cancellation_token = CancellationToken::new();
 
     let executor_server_url: SocketAddr = format!("127.0.0.1:{}", internal_data_source_rpc_port)
@@ -124,8 +113,15 @@ pub async fn serve_executor(
         .unwrap();
 
     let executor_server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(executor)
-            .start_service(executor_server_url)
+        let chain_id = (*executor
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap()
+            .digest())
+        .into();
+
+        iota_rest_api::RestService::new_without_version(executor, chain_id)
+            .start_service(executor_server_url, Some("/rest".to_owned()))
             .await;
     });
 
@@ -133,10 +129,7 @@ pub async fn serve_executor(
         Some(db_url),
         format!("http://{}", executor_server_url),
         ReaderWriterConfig::writer_mode(snapshot_config.clone()),
-        // reset_database
-        true,
-        Some(data_ingestion_path),
-        cancellation_token.clone(),
+        Some(graphql_connection_config.db_name()),
     )
     .await;
 
@@ -199,14 +192,10 @@ pub async fn start_graphql_server_with_fn_rpc(
     })
 }
 
-async fn start_validator_with_fullnode(
-    internal_data_source_rpc_port: Option<u16>,
-    data_ingestion_dir: PathBuf,
-) -> TestCluster {
+async fn start_validator_with_fullnode(internal_data_source_rpc_port: Option<u16>) -> TestCluster {
     let mut test_cluster_builder = TestClusterBuilder::new()
         .with_num_validators(VALIDATOR_COUNT)
         .with_epoch_duration_ms(EPOCH_DURATION_MS)
-        .with_data_ingestion_dir(data_ingestion_dir)
         .with_accounts(vec![
             AccountConfig {
                 address: None,
@@ -240,11 +229,6 @@ async fn wait_for_graphql_checkpoint_catchup(
     checkpoint: u64,
     base_timeout: Duration,
 ) {
-    info!(
-        "Waiting for graphql to catchup to checkpoint {}, base time out is {}",
-        checkpoint,
-        base_timeout.as_secs()
-    );
     let query = r#"
     {
         availableRange {
@@ -265,7 +249,7 @@ async fn wait_for_graphql_checkpoint_catchup(
                 .response_body_json();
 
             let current_checkpoint = resp["data"]["availableRange"]["last"].get("sequenceNumber");
-            info!("Current checkpoint: {:?}", current_checkpoint);
+
             // Indexer has not picked up any checkpoints yet
             let Some(current_checkpoint) = current_checkpoint else {
                 tokio::time::sleep(Duration::from_secs(1)).await;
@@ -292,13 +276,6 @@ impl Cluster {
     pub async fn wait_for_checkpoint_catchup(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_catchup(&self.graphql_client, checkpoint, base_timeout).await
     }
-
-    /// Sends a cancellation signal to the graphql and indexer services and
-    /// waits for them to shutdown.
-    pub async fn cleanup_resources(self) {
-        self.cancellation_token.cancel();
-        let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
-    }
 }
 
 impl ExecutorCluster {
@@ -318,7 +295,7 @@ impl ExecutorCluster {
 
         let latest_cp = self
             .indexer_store
-            .get_latest_checkpoint_sequence_number()
+            .get_latest_tx_checkpoint_sequence_number()
             .await
             .unwrap()
             .unwrap();
@@ -339,19 +316,19 @@ impl ExecutorCluster {
         latest_cp, latest_snapshot_cp));
     }
 
-    /// Sends a cancellation signal to the graphql and indexer services, waits
-    /// for them to complete, and then deletes the database created for the
-    /// test.
+    /// Deletes the database created for the test and sends a cancellation
+    /// signal to the graphql service. When this function is awaited on, the
+    /// callsite will wait for the graphql service to terminate its
+    /// background task and then itself.
     pub async fn cleanup_resources(self) {
         self.cancellation_token.cancel();
-        let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
         let db_url = self.graphql_connection_config.db_url.clone();
-        force_delete_database::<diesel::PgConnection>(db_url).await;
+        force_delete_database(db_url).await;
     }
 
     pub async fn force_objects_snapshot_catchup(&self, start_cp: u64, end_cp: u64) {
         self.indexer_store
-            .update_objects_snapshot(start_cp, end_cp)
+            .persist_object_snapshot(start_cp, end_cp)
             .await
             .unwrap();
 

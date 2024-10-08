@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proptest::{
-    collection::{SizeRange, vec},
+    collection::{vec, SizeRange},
     prelude::*,
 };
 use proptest_derive::Arbitrary;
@@ -13,7 +13,7 @@ use crate::{
     account_universe::{
         account::{AccountCurrent, AccountData},
         default_num_accounts, default_num_transactions,
-        helpers::{Index, pick_slice_idxs},
+        helpers::{pick_slice_idxs, Index},
     },
     executor::Executor,
 };

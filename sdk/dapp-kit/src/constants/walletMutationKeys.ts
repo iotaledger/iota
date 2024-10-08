@@ -10,10 +10,9 @@ export const walletMutationKeys = {
     autoconnectWallet: formMutationKeyFn('autoconnect-wallet'),
     disconnectWallet: formMutationKeyFn('disconnect-wallet'),
     signPersonalMessage: formMutationKeyFn('sign-personal-message'),
-    signTransaction: formMutationKeyFn('sign-transaction'),
-    signAndExecuteTransaction: formMutationKeyFn('sign-and-execute-transaction'),
+    signTransactionBlock: formMutationKeyFn('sign-transaction-block'),
+    signAndExecuteTransactionBlock: formMutationKeyFn('sign-and-execute-transaction-block'),
     switchAccount: formMutationKeyFn('switch-account'),
-    reportTransactionEffects: formMutationKeyFn('report-transaction-effects'),
 };
 
 function formMutationKeyFn(baseEntity: string) {

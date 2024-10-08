@@ -90,7 +90,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                         .entry(object.owner.to_string())
                         .or_default();
                     entry.insert(object_id_str, (STR_STAKED_IOTA, staked_iota.principal()));
-                    // Assert pool id is associated with a known validator.
+                    // Assert pool id is associated with a knonw validator.
                     let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
 
@@ -105,7 +105,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
         }
     }
     println!(
-        "Total Number of Objects/Packages: {}",
+        "Total Number of Objects/Pacakges: {}",
         genesis.objects().len()
     );
 
@@ -329,7 +329,7 @@ fn display_validator(validator: &IotaValidatorGenesis) {
         validator.staking_pool.pending_total_iota_withdraw
     );
     println!(
-        "Pending Pool Token Withdraw: {}",
+        "Pendign Pool Token Withdraw: {}",
         validator.staking_pool.pending_pool_token_withdraw
     );
     println!(

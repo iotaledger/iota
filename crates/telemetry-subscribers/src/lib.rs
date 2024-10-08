@@ -4,10 +4,10 @@
 
 use std::{
     env,
-    io::{Write, stderr},
+    io::{stderr, Write},
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{atomic::Ordering, Arc, Mutex},
     time::Duration,
 };
 
@@ -15,18 +15,18 @@ use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    Context, KeyValue,
     trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
+    Context, KeyValue,
 };
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
-    Resource,
     trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
+    Resource,
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
-use tracing::{Level, error, info, metadata::LevelFilter};
+use tracing::{error, info, metadata::LevelFilter, Level};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::SubscriberExt, reload};
+use tracing_subscriber::{filter, fmt, layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
 
 use crate::file_exporter::{CachedOpenFile, FileExporter};
 
@@ -380,7 +380,6 @@ impl TelemetryConfig {
         let mut file_output = CachedOpenFile::new::<&str>(None).unwrap();
         let mut provider = None;
         let sampler = SamplingFilter::new(config.sample_rate);
-        let service_name = env::var("OTEL_SERVICE_NAME").unwrap_or("iota-node".to_owned());
 
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
@@ -388,7 +387,7 @@ impl TelemetryConfig {
             let config = opentelemetry_sdk::trace::Config::default()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
-                    service_name.clone(),
+                    "iota-node",
                 )]))
                 .with_sampler(Sampler::ParentBased(Box::new(sampler.clone())));
 
@@ -407,7 +406,7 @@ impl TelemetryConfig {
                     .with_span_processor(processor)
                     .build();
 
-                let tracer = p.tracer(service_name);
+                let tracer = p.tracer("iota-node");
                 provider = Some(p);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
@@ -476,12 +475,15 @@ impl TelemetryConfig {
         // too early then no output will appear!
         let guards = TelemetryGuards::new(config_clone, worker_guard, provider);
 
-        (guards, TracingHandle {
-            log: log_filter_handle,
-            trace: trace_filter_handle,
-            file_output,
-            sampler,
-        })
+        (
+            guards,
+            TracingHandle {
+                log: log_filter_handle,
+                trace: trace_filter_handle,
+                file_output,
+                sampler,
+            },
+        )
     }
 }
 

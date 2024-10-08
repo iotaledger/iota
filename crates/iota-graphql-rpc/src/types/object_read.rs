@@ -5,7 +5,10 @@
 use async_graphql::*;
 use iota_types::base_types::ObjectRef as NativeObjectRef;
 
-use crate::types::{iota_address::IotaAddress, object::Object, uint53::UInt53};
+use super::{
+    iota_address::IotaAddress,
+    object::{Object, ObjectLookupKey},
+};
 
 // A helper type representing the read of a specific version of an object.
 // Intended to be "flattened" into other GraphQL types.
@@ -24,8 +27,8 @@ impl ObjectRead {
     }
 
     /// Version of the object being read.
-    async fn version(&self) -> UInt53 {
-        self.version_impl().into()
+    async fn version(&self) -> u64 {
+        self.version_impl()
     }
 
     /// 32-byte hash that identifies the object's contents at this version,
@@ -37,9 +40,12 @@ impl ObjectRead {
     /// The object at this version.  May not be available due to pruning.
     async fn object(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
         Object::query(
-            ctx,
+            ctx.data_unchecked(),
             self.address_impl(),
-            Object::at_version(self.version_impl(), self.checkpoint_viewed_at),
+            ObjectLookupKey::VersionAt {
+                version: self.version_impl(),
+                checkpoint_viewed_at: Some(self.checkpoint_viewed_at),
+            },
         )
         .await
         .extend()

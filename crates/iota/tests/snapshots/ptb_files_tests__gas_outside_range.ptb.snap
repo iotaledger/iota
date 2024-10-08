@@ -7,6 +7,14 @@ expression: "results.join(\"\\n\")"
    ╭────
  1 │ --gas-budget 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 
    ·              ─────────────────────────────────────┬────────────────────────────────────
-   ·                                                   ╰── Invalid integer literal
+   ·                                                   ╰── number too large to fit in target type
    ╰────
+
+  × Error when processing PTB
+   ╭────
+ 1 │ --gas-budget 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 
+   ·                                                                                        ▲
+   ·                                                                                        ╰── Gas budget not set.
+   ╰────
+  help: Use --gas-budget <u64> to set a gas budget
 

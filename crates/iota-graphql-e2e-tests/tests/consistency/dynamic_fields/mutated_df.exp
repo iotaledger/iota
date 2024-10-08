@@ -3,74 +3,44 @@ processed 17 tasks
 init:
 A: object(0,0)
 
-task 1, lines 14-45:
-//# publish
+task 1 'publish'. lines 15-46:
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, storage_cost: 7828000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 47:
-//# run Test::M1::parent --sender A --args @A
+task 2 'run'. lines 48-48:
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 49:
-//# view-object 2,0
+task 3 'view-object'. lines 50-50:
 Owner: Account Address ( A )
 Version: 2
-Contents: Test::M1::Parent {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    count: 0u64,
-}
+Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 0u64}
 
-task 4, line 51:
-//# run Test::M1::add_df --sender A --args object(2,0)
+task 4 'run'. lines 52-52:
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 5, line 53:
-//# view-object 2,0
+task 5 'view-object'. lines 54-54:
 Owner: Account Address ( A )
 Version: 3
-Contents: Test::M1::Parent {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    count: 0u64,
-}
+Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 0u64}
 
-task 6, line 55:
-//# run Test::M1::mutate_parent --sender A --args object(2,0)
+task 6 'run'. lines 56-56:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 7, line 57:
-//# view-object 2,0
+task 7 'view-object'. lines 58-58:
 Owner: Account Address ( A )
 Version: 4
-Contents: Test::M1::Parent {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    count: 42u64,
-}
+Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
 
-task 8, line 59:
-//# create-checkpoint
+task 8 'create-checkpoint'. lines 60-60:
 Checkpoint created: 1
 
-task 9, lines 61-109:
-//# run-graphql
+task 9 'run-graphql'. lines 62-110:
 Response: {
   "data": {
     "latest": {
@@ -78,18 +48,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IC2fT4MkuNdi3Nvnb8m8dqkwj9EcXifzn/uWeklDnbOTAQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMQ=="
-              },
-              "value": {
-                "json": "df1"
-              }
-            }
-          },
-          {
-            "cursor": "IHHoOU78QBVu3gJtqZMHtZhLsebo3AyFYSgZ+Mfmh2fPAQAAAAAAAAA=",
+            "cursor": "IBBnOALXni3wmZGioU+56Cf5hUAXE9QKWZJF/T0p7XfKAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -100,13 +59,24 @@ Response: {
             }
           },
           {
-            "cursor": "IOgTnWXmEwqr+XesX5bghNK0s1TBQJ0/GNLACjJ9LOytAQAAAAAAAAA=",
+            "cursor": "IFFSCjSjvml+qUV5/Oexb5HazA/ABpvcITcLy7vpRYuiAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
               },
               "value": {
                 "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IKVP7M2Yu0Z4m5+oge2nBItMiJ8ZocGX6stEp0xdCx7GAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ=="
+              },
+              "value": {
+                "json": "df1"
               }
             }
           }
@@ -139,61 +109,33 @@ Response: {
   }
 }
 
-task 10, line 111:
-//# view-object 2,0
+task 10 'view-object'. lines 112-112:
 Owner: Account Address ( A )
 Version: 4
-Contents: Test::M1::Parent {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    count: 42u64,
-}
+Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
 
-task 11, line 113:
-//# run Test::M1::mutate_df1 --sender A --args object(2,0)
-mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4378968, non_refundable_storage_fee: 44232
+task 11 'run'. lines 114-114:
+mutated: object(0,0), object(2,0), object(4,2)
+gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4423200, non_refundable_storage_fee: 0
 
-task 12, line 115:
-//# view-object 2,0
+task 12 'view-object'. lines 116-116:
 Owner: Account Address ( A )
 Version: 5
-Contents: Test::M1::Parent {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    count: 42u64,
-}
+Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
 
-task 13, line 117:
-//# run Test::M1::mutate_parent --sender A --args object(2,0)
+task 13 'run'. lines 118-118:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
-task 14, line 119:
-//# view-object 2,0
+task 14 'view-object'. lines 120-120:
 Owner: Account Address ( A )
 Version: 6
-Contents: Test::M1::Parent {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    count: 84u64,
-}
+Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 84u64}
 
-task 15, line 121:
-//# create-checkpoint
+task 15 'create-checkpoint'. lines 122-122:
 Checkpoint created: 2
 
-task 16, lines 123-171:
-//# run-graphql
+task 16 'run-graphql'. lines 124-172:
 Response: {
   "data": {
     "latest": {
@@ -201,18 +143,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IC2fT4MkuNdi3Nvnb8m8dqkwj9EcXifzn/uWeklDnbOTAgAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMQ=="
-              },
-              "value": {
-                "json": "df1_mutated"
-              }
-            }
-          },
-          {
-            "cursor": "IHHoOU78QBVu3gJtqZMHtZhLsebo3AyFYSgZ+Mfmh2fPAgAAAAAAAAA=",
+            "cursor": "IBBnOALXni3wmZGioU+56Cf5hUAXE9QKWZJF/T0p7XfKAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -223,13 +154,24 @@ Response: {
             }
           },
           {
-            "cursor": "IOgTnWXmEwqr+XesX5bghNK0s1TBQJ0/GNLACjJ9LOytAgAAAAAAAAA=",
+            "cursor": "IFFSCjSjvml+qUV5/Oexb5HazA/ABpvcITcLy7vpRYuiAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMg=="
               },
               "value": {
                 "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IKVP7M2Yu0Z4m5+oge2nBItMiJ8ZocGX6stEp0xdCx7GAgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ=="
+              },
+              "value": {
+                "json": "df1_mutated"
               }
             }
           }

@@ -6,13 +6,13 @@
 //! One mnemonic, one account, one address.
 
 use iota_sdk::{
-    client::secret::{SecretManage, mnemonic::MnemonicSecretManager},
+    client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::output::Output,
 };
-use rand::{Rng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_TIMESTAMP_SECS, new_vested_output},
+    test_outputs::{new_vested_output, MERGE_TIMESTAMP_SECS},
     types::output_header::OutputHeader,
 };
 

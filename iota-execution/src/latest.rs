@@ -7,7 +7,6 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
-    execution_mode,
     type_layout_resolver::TypeLayoutResolver,
 };
 use iota_move_natives_latest::all_natives;
@@ -18,27 +17,32 @@ use iota_types::{
     digests::TransactionDigest,
     effects::TransactionEffects,
     error::{ExecutionError, IotaError, IotaResult},
-    execution::{ExecutionResult, TypeLayoutStore},
+    execution::TypeLayoutStore,
+    execution_mode::{self, ExecutionResult},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
-    layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
+    type_resolver::LayoutResolver,
 };
-use iota_verifier_latest::meter::IotaVerifierMeter;
+use iota_verifier_latest::{default_verifier_config, meter::IotaVerifierMeter};
 use move_binary_format::CompiledModule;
-use move_bytecode_verifier_meter::Meter;
-use move_vm_config::verifier::{MeterConfig, VerifierConfig};
+use move_bytecode_verifier_latest::meter::Scope;
+use move_vm_config::verifier::VerifierConfig;
 use move_vm_runtime_latest::move_vm::MoveVM;
 
-use crate::{executor, verifier};
+use crate::{
+    executor, verifier,
+    verifier::{VerifierMeteredValues, VerifierOverrides},
+};
 
 pub(crate) struct Executor(Arc<MoveVM>);
 
 pub(crate) struct Verifier<'m> {
     config: VerifierConfig,
     metrics: &'m Arc<BytecodeVerifierMetrics>,
+    meter: IotaVerifierMeter,
 }
 
 impl Executor {
@@ -48,7 +52,7 @@ impl Executor {
         enable_profiler: Option<PathBuf>,
     ) -> Result<Self, IotaError> {
         Ok(Executor(Arc::new(new_move_vm(
-            all_natives(silent, protocol_config),
+            all_natives(silent),
             protocol_config,
             enable_profiler,
         )?)))
@@ -56,8 +60,18 @@ impl Executor {
 }
 
 impl<'m> Verifier<'m> {
-    pub(crate) fn new(config: VerifierConfig, metrics: &'m Arc<BytecodeVerifierMetrics>) -> Self {
-        Verifier { config, metrics }
+    pub(crate) fn new(
+        protocol_config: &ProtocolConfig,
+        is_metered: bool,
+        metrics: &'m Arc<BytecodeVerifierMetrics>,
+    ) -> Self {
+        let config = default_verifier_config(protocol_config, is_metered);
+        let meter = IotaVerifierMeter::new(&config);
+        Verifier {
+            config,
+            metrics,
+            meter,
+        }
     }
 }
 
@@ -189,16 +203,28 @@ impl executor::Executor for Executor {
 }
 
 impl<'m> verifier::Verifier for Verifier<'m> {
-    fn meter(&self, config: MeterConfig) -> Box<dyn Meter> {
-        Box::new(IotaVerifierMeter::new(config))
+    fn meter_compiled_modules(&mut self, modules: &[CompiledModule]) -> IotaResult<()> {
+        run_metered_move_bytecode_verifier(modules, &self.config, &mut self.meter, self.metrics)
     }
 
-    fn meter_compiled_modules(
+    fn meter_compiled_modules_with_overrides(
         &mut self,
-        _protocol_config: &ProtocolConfig,
         modules: &[CompiledModule],
-        meter: &mut dyn Meter,
-    ) -> IotaResult<()> {
-        run_metered_move_bytecode_verifier(modules, &self.config, meter, self.metrics)
+        config_overrides: &VerifierOverrides,
+    ) -> IotaResult<VerifierMeteredValues> {
+        let mut config = self.config.clone();
+        let max_per_fun_meter_current = config.max_per_fun_meter_units;
+        let max_per_mod_meter_current = config.max_per_mod_meter_units;
+        config.max_per_fun_meter_units = config_overrides.max_per_fun_meter_units;
+        config.max_per_mod_meter_units = config_overrides.max_per_mod_meter_units;
+        run_metered_move_bytecode_verifier(modules, &config, &mut self.meter, self.metrics)?;
+        let fun_meter_units_result = self.meter.get_usage(Scope::Function);
+        let mod_meter_units_result = self.meter.get_usage(Scope::Module);
+        Ok(VerifierMeteredValues::new(
+            max_per_fun_meter_current,
+            max_per_mod_meter_current,
+            fun_meter_units_result,
+            mod_meter_units_result,
+        ))
     }
 }

@@ -13,8 +13,7 @@ use iota_types::{
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
 };
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -104,8 +103,7 @@ impl CommitteeFixture {
             epoch_rolling_gas_cost_summary: Default::default(),
             end_of_epoch_data: None,
             timestamp_ms: 0,
-            version_specific_data: bcs::to_bytes(&CheckpointVersionSpecificData::empty_for_tests())
-                .unwrap(),
+            version_specific_data: Vec::new(),
             checkpoint_commitments: Default::default(),
         };
 
@@ -135,7 +133,7 @@ impl CommitteeFixture {
 
         let checkpoint = CertifiedCheckpointSummary::new(checkpoint, signatures, self.committee())
             .unwrap()
-            .try_into_verified(self.committee())
+            .verify(self.committee())
             .unwrap();
 
         checkpoint
@@ -187,10 +185,7 @@ impl CommitteeFixture {
                     epoch_rolling_gas_cost_summary: Default::default(),
                     end_of_epoch_data: None,
                     timestamp_ms: 0,
-                    version_specific_data: bcs::to_bytes(
-                        &CheckpointVersionSpecificData::empty_for_tests(),
-                    )
-                    .unwrap(),
+                    version_specific_data: Vec::new(),
                     checkpoint_commitments: Default::default(),
                 };
 
@@ -240,8 +235,7 @@ impl CommitteeFixture {
             epoch_rolling_gas_cost_summary: Default::default(),
             end_of_epoch_data,
             timestamp_ms: 0,
-            version_specific_data: bcs::to_bytes(&CheckpointVersionSpecificData::empty_for_tests())
-                .unwrap(),
+            version_specific_data: Vec::new(),
             checkpoint_commitments: Default::default(),
         };
 

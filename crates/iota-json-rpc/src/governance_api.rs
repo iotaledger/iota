@@ -5,10 +5,10 @@
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{SizedCache, proc_macro::cached};
+use cached::{proc_macro::cached, SizedCache};
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
+    error_object_from_rpc, GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics,
 };
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
@@ -25,21 +25,21 @@ use iota_types::{
     id::ID,
     iota_serde::BigInt,
     iota_system_state::{
-        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
-        iota_system_state_summary::IotaSystemStateSummary,
+        get_validator_from_table, iota_system_state_summary::IotaSystemStateSummary,
+        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use itertools::Itertools;
-use jsonrpsee::{RpcModule, core::RpcResult};
+use jsonrpsee::{core::RpcResult, RpcModule};
 use tracing::{info, instrument};
 
 use crate::{
-    IotaRpcModule, ObjectProvider,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
     logger::FutureWithTracing as _,
+    IotaRpcModule, ObjectProvider,
 };
 
 #[derive(Clone)]
@@ -540,7 +540,7 @@ fn stake_status(
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
 #[cached(
-    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
+    ty = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
     convert = "{ _current_epoch }",
     result = true

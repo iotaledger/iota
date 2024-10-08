@@ -7,20 +7,19 @@ import {
     ErrorBoundary,
     ExplorerLink,
     ExplorerLinkType,
+    LabelValueItem,
+    LabelValuesContainer,
     Loading,
     NFTDisplayCard,
-    PageTemplate,
 } from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Collapsible } from '_src/ui/app/shared/collapse';
+import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useGetKioskContents } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import cl from 'clsx';
-import { KeyValueInfo } from '@iota/apps-ui-kit';
+import { Link, useSearchParams } from 'react-router-dom';
 
 function KioskDetailsPage() {
-    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const kioskId = searchParams.get('kioskId');
     const accountAddress = useActiveAddress();
@@ -33,18 +32,15 @@ function KioskDetailsPage() {
     }
 
     return (
-        <PageTemplate title="Kiosk" isTitleCentered onClose={() => navigate(-1)}>
-            <div
-                className={cl('flex h-full flex-1 flex-col flex-nowrap gap-5', {
-                    'items-center': isPending,
-                })}
-            >
-                <Loading loading={isPending}>
-                    {!items?.length ? (
-                        <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
-                            Kiosk is empty
-                        </div>
-                    ) : (
+        <div className="flex flex-1 flex-col flex-nowrap gap-3.75">
+            <PageTitle title="Kiosk" back />
+            <Loading loading={isPending}>
+                {!items?.length ? (
+                    <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
+                        Kiosk is empty
+                    </div>
+                ) : (
+                    <>
                         <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
                             {items.map((item) =>
                                 item.data?.objectId ? (
@@ -65,32 +61,27 @@ function KioskDetailsPage() {
                                 ) : null,
                             )}
                         </div>
-                    )}
-                    <Collapsible defaultOpen title="Details">
-                        <div className="flex flex-col gap-y-sm px-md py-xs">
-                            <KeyValueInfo
-                                keyText="Number of Items"
-                                value={items?.length || '0'}
-                                fullwidth
-                            />
-                            <KeyValueInfo
-                                keyText="Kiosk ID"
-                                value={
-                                    <ExplorerLink
-                                        className="text-hero-dark font-mono no-underline"
-                                        objectID={kioskId!}
-                                        type={ExplorerLinkType.Object}
-                                    >
-                                        {formatAddress(kioskId!)}
-                                    </ExplorerLink>
-                                }
-                                fullwidth
-                            />
-                        </div>
-                    </Collapsible>
-                </Loading>
-            </div>
-        </PageTemplate>
+                    </>
+                )}
+                <Collapsible defaultOpen title="Details">
+                    <LabelValuesContainer>
+                        <LabelValueItem label="Number of Items" value={items?.length || '0'} />
+                        <LabelValueItem
+                            label="Kiosk ID"
+                            value={
+                                <ExplorerLink
+                                    className="text-hero-dark font-mono no-underline"
+                                    objectID={kioskId!}
+                                    type={ExplorerLinkType.Object}
+                                >
+                                    {formatAddress(kioskId!)}
+                                </ExplorerLink>
+                            }
+                        />
+                    </LabelValuesContainer>
+                </Collapsible>
+            </Loading>
+        </div>
     );
 }
 

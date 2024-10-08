@@ -372,7 +372,7 @@ impl BorrowState {
 
     fn release(&mut self, ref_id: RefID) {
         self.id_to_exp.remove(&ref_id);
-        self.borrows.release(ref_id);
+        self.borrows.release(ref_id)
     }
 
     fn divergent_control_flow(&mut self) {
@@ -407,14 +407,12 @@ impl BorrowState {
             full_borrows,
             &BTreeMap::new(),
             code,
-            move || match display_var(local.value()) {
-                DisplayVar::Tmp => panic!(
-                    "ICE invalid use of tmp local {} with borrows {:#?}",
-                    local.value(),
-                    borrows
-                ),
-                DisplayVar::MatchTmp(_s) => format!("Invalid {} of temporary match variable", verb),
-                DisplayVar::Orig(s) => format!("Invalid {} of variable '{}'", verb, s),
+            move || {
+                let local_str = match display_var(local.value()) {
+                    DisplayVar::Tmp => panic!("ICE invalid use of tmp local {}", local.value()),
+                    DisplayVar::Orig(s) => s,
+                };
+                format!("Invalid {} of variable '{}'", verb, local_str)
             },
         )
     }
@@ -515,7 +513,6 @@ impl BorrowState {
                     || {
                         let case = match display_var(local.value()) {
                             DisplayVar::Orig(v) => format!("Local variable '{v}'"),
-                            DisplayVar::MatchTmp(_) => "Local value".to_string(),
                             DisplayVar::Tmp => "Local value".to_string(),
                         };
                         format!("Invalid return. {case} is still being borrowed.")
@@ -586,9 +583,6 @@ impl BorrowState {
                             DisplayVar::Tmp => {
                                 panic!("ICE invalid use tmp local {}", local.value())
                             }
-                            DisplayVar::MatchTmp(s) => {
-                                panic!("ICE invalid use match tmp {}: {}", s, local.value())
-                            }
                             DisplayVar::Orig(s) => s,
                         };
                         format!("Ambiguous usage of variable '{}'", vstr)
@@ -598,9 +592,6 @@ impl BorrowState {
                     let vstr = match display_var(local.value()) {
                         DisplayVar::Tmp => {
                             panic!("ICE invalid use tmp local {}", local.value())
-                        }
-                        DisplayVar::MatchTmp(s) => {
-                            panic!("ICE invalid use match tmp {}: {}", s, local.value())
                         }
                         DisplayVar::Orig(s) => s,
                     };
@@ -665,8 +656,7 @@ impl BorrowState {
     pub fn borrow_local(&mut self, loc: Loc, mut_: bool, local: &Var) -> (Diagnostics, Value) {
         assert!(
             !self.locals.get(local).unwrap().is_ref(),
-            "ICE borrow ref of {:?} at {:#?}. Should have been caught in typing",
-            local,
+            "ICE borrow ref {:#?}. Should have been caught in typing",
             loc
         );
         let new_id = self.declare_new_ref(loc, mut_);
@@ -796,77 +786,6 @@ impl BorrowState {
         (diags, Value::Ref(field_borrow_id))
     }
 
-    pub fn borrow_variant_fields(
-        &mut self,
-        loc: Loc,
-        mut_: bool,
-        rvalue: Value,
-        fields: &[(Field, LValue)],
-    ) -> (Diagnostics, Vec<Value>) {
-        let mut diags = Diagnostics::new();
-        let id = match rvalue {
-            Value::NonRef => {
-                assert!(
-                    self.prev_had_errors,
-                    "ICE borrow checking failed {:#?}",
-                    loc
-                );
-                return (
-                    Diagnostics::new(),
-                    fields.iter().map(|_| Value::NonRef).collect::<Vec<_>>(),
-                );
-            }
-            Value::Ref(id) => id,
-        };
-        let copy_parent = Some(id);
-        let fvs = fields
-            .iter()
-            .map(|(field, _)| {
-                let new_diags = if mut_ {
-                    let msg = || format!("Invalid mutable borrow at field '{}'.", field);
-                    let (full_borrows, _field_borrows) = self.borrows.borrowed_by(id);
-                    // Any field borrows will be factored out
-                    Self::borrow_error(
-                        &self.borrows,
-                        loc,
-                        &full_borrows,
-                        &BTreeMap::new(),
-                        ReferenceSafety::MutOwns,
-                        msg,
-                    )
-                    .into()
-                } else {
-                    let msg = || format!("Invalid immutable borrow at field '{}'.", field);
-                    self.readable(loc, ReferenceSafety::RefTrans, msg, id, Some(field))
-                };
-                diags.extend(new_diags);
-                let field_borrow_id = self.declare_new_ref_impl(loc, mut_, copy_parent);
-                self.add_field_borrow(loc, id, *field, field_borrow_id);
-                Value::Ref(field_borrow_id)
-            })
-            .collect::<Vec<_>>();
-        self.release(id);
-        (diags, fvs)
-    }
-
-    pub fn variant_switch(&mut self, loc: Loc, subject: Value) -> Diagnostics {
-        let id = match subject {
-            Value::NonRef => {
-                assert!(
-                    self.prev_had_errors,
-                    "ICE borrow checking failed {:#?}",
-                    loc
-                );
-                return Diagnostics::new();
-            }
-            Value::Ref(id) => id,
-        };
-        let msg = || "Invalid immutable borrow of match subject".to_string();
-        let diags = self.readable(loc, ReferenceSafety::RefTrans, msg, id, None);
-        self.release(id);
-        diags
-    }
-
     pub fn call(&mut self, loc: Loc, args: Values, return_ty: &Type) -> (Diagnostics, Values) {
         let mut diags = Diagnostics::new();
 
@@ -938,22 +857,8 @@ impl BorrowState {
             }
         }
         all_refs.remove(&Self::LOCAL_ROOT);
-        if !all_refs.is_empty() {
-            for ref_ in all_refs {
-                println!("had ref: {:?}", ref_);
-            }
-            println!("borrow graph:");
-            self.borrows.display();
-            println!("locals:");
-            for (_, local_, value) in &self.locals {
-                println!("{} -> {:?}", local_, value);
-            }
-            println!("id map:");
-            for (key, value) in &id_map {
-                println!("{:?} -> {:?}", key, value);
-            }
-            panic!("Had some refs left over");
-        }
+        assert!(all_refs.is_empty());
+
         self.locals
             .iter_mut()
             .for_each(|(_, _, v)| v.remap_refs(&id_map));

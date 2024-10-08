@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 
 use crate::NodeConfig;
 

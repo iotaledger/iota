@@ -5,11 +5,9 @@ extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
 # accepted plurals
 froms = "froms"
 alls = "alls"
-somes = "somes"
 # ordinal numbers (2nd, ...)
 nd = "nd"
 # random identifiers, variables, functions, ...
-bttr = "bttr"
 dbe = "dbe"
 thr = "thr"
 fo = "fo"
@@ -32,4 +30,3 @@ AAS = "AAS"
 # actual typos purposedly used in tests
 assing = "assing"
 tring = "tring"
-Thi = "Thi"

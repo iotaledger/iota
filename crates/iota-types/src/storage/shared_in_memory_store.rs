@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use tap::Pipe;
 use tracing::error;
 
-use super::{ObjectStore, error::Result};
+use super::{error::Result, ObjectStore};
 use crate::{
     base_types::{EpochId, TransactionDigest},
     committee::Committee,

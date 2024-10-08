@@ -179,7 +179,7 @@
 }
 
 //# run-graphql
-# Primitive types are invalid type filters for objects
+# Should run successfully but return an empty result
 {
   objects(filter: {type: "u64"}) {
     edges {

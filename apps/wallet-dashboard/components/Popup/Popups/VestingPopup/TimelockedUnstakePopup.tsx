@@ -4,7 +4,7 @@
 import React from 'react';
 import { Button } from '@/components';
 import { useNotifications, useTimelockedUnstakeTransaction } from '@/hooks';
-import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { NotificationType } from '@/stores/notificationStore';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
@@ -26,14 +26,15 @@ function TimelockedUnstakePopup({
 }: UnstakePopupProps): JSX.Element {
     const objectIds = delegatedStake.stakes.map((stake) => stake.timelockedStakedIotaId);
     const { data: timelockedUnstake } = useTimelockedUnstakeTransaction(objectIds, accountAddress);
-    const { mutateAsync: signAndExecuteTransaction, isPending } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
+        useSignAndExecuteTransactionBlock();
     const { addNotification } = useNotifications();
 
     async function handleTimelockedUnstake(): Promise<void> {
         if (!timelockedUnstake) return;
-        signAndExecuteTransaction(
+        signAndExecuteTransactionBlock(
             {
-                transaction: timelockedUnstake.transaction,
+                transactionBlock: timelockedUnstake.transaction,
             },
             {
                 onSuccess: (tx) => {

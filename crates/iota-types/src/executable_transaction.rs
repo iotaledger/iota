@@ -9,7 +9,7 @@ use crate::{
     crypto::AuthorityStrongQuorumSignInfo,
     message_envelope::{Envelope, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::SenderSignedData,
 };
 
 /// CertificateProof is a proof that a transaction certs existed at a given
@@ -69,9 +69,5 @@ impl VerifiedExecutableTransaction {
             CertificateProof::Certified(sig) => Some(sig),
             _ => None,
         }
-    }
-
-    pub fn gas_budget(&self) -> u64 {
-        self.data().transaction_data().gas_budget()
     }
 }

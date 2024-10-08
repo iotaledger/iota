@@ -12,6 +12,7 @@ module iota::authenticator_state {
     use std::string;
     use iota::dynamic_field;
     use std::string::{String, utf8};
+    use iota::math;
 
     /// Sender is not @0x0 the system address.
     const ENotSystemAddress: u64 = 0;
@@ -95,8 +96,8 @@ module iota::authenticator_state {
     // ordering is not necessarily the same as the string ordering, but we just need some
     // canonical that is cheap to compute.
     fun string_bytes_lt(a: &String, b: &String): bool {
-        let a_bytes = a.as_bytes();
-        let b_bytes = b.as_bytes();
+        let a_bytes = a.bytes();
+        let b_bytes = b.bytes();
 
         if (a_bytes.length() < b_bytes.length()) {
             true
@@ -231,7 +232,7 @@ module iota::authenticator_state {
             // when they are equal, push only one, but use the max epoch of the two
             if (active_jwk_equal(old_jwk, new_jwk)) {
                 let mut jwk = *old_jwk;
-                jwk.epoch = old_jwk.epoch.max(new_jwk.epoch);
+                jwk.epoch = math::max(old_jwk.epoch, new_jwk.epoch);
                 res.push_back(jwk);
                 i = i + 1;
                 j = j + 1;
@@ -314,7 +315,7 @@ module iota::authenticator_state {
                 if (cur_iss == prev_issuer.borrow()) {
                     let back = issuer_max_epochs.length() - 1;
                     let prev_max_epoch = &mut issuer_max_epochs[back];
-                    *prev_max_epoch = (*prev_max_epoch).max(cur.epoch);
+                    *prev_max_epoch = math::max(*prev_max_epoch, cur.epoch);
                 } else {
                     *prev_issuer.borrow_mut() = *cur_iss;
                     issuer_max_epochs.push_back(cur.epoch);

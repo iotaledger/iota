@@ -9,9 +9,9 @@ use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
 
 use crate::{
-    LocalExec,
     config::ReplayableNetworkConfigSet,
-    types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
+    types::{ReplayEngineError, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD},
+    LocalExec,
 };
 
 /// Keep searching for non-system TXs in the checkppints for this long
@@ -151,7 +151,6 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
             None,
             None,
             None,
-            None,
         )
         .await?
         .check_effects()?;
@@ -164,7 +163,6 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
             tx,
             ExpensiveSafetyCheckConfig::default(),
             false,
-            None,
             None,
             None,
             None,

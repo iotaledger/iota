@@ -4,7 +4,7 @@
 
 module base_addr::base {
 
-    public struct A<T> {
+    struct A<T> {
         f1: bool,
         f2: T
     }

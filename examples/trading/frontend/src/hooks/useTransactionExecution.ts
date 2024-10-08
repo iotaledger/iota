@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useSignTransaction, useIotaClient } from "@iota/dapp-kit";
+import { useSignTransactionBlock, useIotaClient } from "@iota/dapp-kit";
 import { IotaTransactionBlockResponse } from "@iota/iota-sdk/client";
-import { Transaction } from "@iota/iota-sdk/transactions";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import toast from "react-hot-toast";
 
 /**
@@ -14,10 +14,10 @@ import toast from "react-hot-toast";
  */
 export function useTransactionExecution() {
   const client = useIotaClient();
-  const { mutateAsync: signTransactionBlock } = useSignTransaction();
+  const { mutateAsync: signTransactionBlock } = useSignTransactionBlock();
 
   const executeTransaction = async (
-    txb: Transaction,
+    txb: TransactionBlock,
   ): Promise<IotaTransactionBlockResponse | void> => {
     try {
       const signature = await signTransactionBlock({
@@ -25,7 +25,7 @@ export function useTransactionExecution() {
       });
 
       const res = await client.executeTransactionBlock({
-        transactionBlock: signature.bytes,
+        transactionBlock: signature.transactionBlockBytes,
         signature: signature.signature,
         options: {
           showEffects: true,

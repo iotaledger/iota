@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
@@ -14,34 +18,31 @@ use iota_types::{
     storage::ObjectKey,
 };
 
-use crate::{
-    checkpoints::CheckpointStore,
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
-};
+use crate::{checkpoints::CheckpointStore, execution_cache::ExecutionCacheRead};
 
-pub(crate) fn load_checkpoint_data(
+pub(crate) fn store_checkpoint_locally(
+    path: PathBuf,
     checkpoint: VerifiedCheckpoint,
-    object_cache_reader: &dyn ObjectCacheRead,
-    transaction_cache_reader: &dyn TransactionCacheRead,
+    cache_reader: &dyn ExecutionCacheRead,
     checkpoint_store: Arc<CheckpointStore>,
-    transaction_digests: &[TransactionDigest],
-) -> IotaResult<CheckpointData> {
+    transaction_digests: Vec<TransactionDigest>,
+) -> IotaResult {
     let checkpoint_contents = checkpoint_store
         .get_checkpoint_contents(&checkpoint.content_digest)?
         .expect("checkpoint content has to be stored");
 
-    let transactions = transaction_cache_reader
-        .multi_get_transaction_blocks(transaction_digests)?
+    let transactions = cache_reader
+        .multi_get_transaction_blocks(&transaction_digests)?
         .into_iter()
-        .zip(transaction_digests)
+        .zip(&transaction_digests)
         .map(|(tx, digest)| tx.ok_or(IotaError::TransactionNotFound { digest: *digest }))
         .collect::<IotaResult<Vec<_>>>()?;
 
-    let effects = transaction_cache_reader
-        .multi_get_executed_effects(transaction_digests)?
+    let effects = cache_reader
+        .multi_get_executed_effects(&transaction_digests)?
         .into_iter()
         .zip(transaction_digests)
-        .map(|(effects, &digest)| effects.ok_or(IotaError::TransactionNotFound { digest }))
+        .map(|(effects, digest)| effects.ok_or(IotaError::TransactionNotFound { digest }))
         .collect::<IotaResult<Vec<_>>>()?;
 
     let event_digests = effects
@@ -49,7 +50,7 @@ pub(crate) fn load_checkpoint_data(
         .flat_map(|fx| fx.events_digest().copied())
         .collect::<Vec<_>>();
 
-    let events = transaction_cache_reader
+    let events = cache_reader
         .multi_get_events(&event_digests)?
         .into_iter()
         .zip(&event_digests)
@@ -67,14 +68,33 @@ pub(crate) fn load_checkpoint_data(
                 .cloned()
                 .expect("event was already checked to be present")
         });
+        // Note unwrapped_then_deleted contains **updated** versions.
+        let unwrapped_then_deleted_obj_ids = fx
+            .unwrapped_then_deleted()
+            .into_iter()
+            .map(|k| k.0)
+            .collect::<HashSet<_>>();
 
         let input_object_keys = fx
-            .modified_at_versions()
+            .input_shared_objects()
             .into_iter()
-            .map(|(object_id, version)| ObjectKey(object_id, version))
+            .map(|kind| {
+                let (id, version) = kind.id_and_version();
+                ObjectKey(id, version)
+            })
+            .chain(
+                fx.modified_at_versions()
+                    .into_iter()
+                    .map(|(object_id, version)| ObjectKey(object_id, version)),
+            )
+            .collect::<HashSet<_>>()
+            .into_iter()
+            // Unwrapped-then-deleted objects are not stored in state before the tx, so we have
+            // nothing to fetch.
+            .filter(|key| !unwrapped_then_deleted_obj_ids.contains(&key.0))
             .collect::<Vec<_>>();
 
-        let input_objects = object_cache_reader
+        let input_objects = cache_reader
             .multi_get_objects_by_key(&input_object_keys)?
             .into_iter()
             .zip(&input_object_keys)
@@ -94,7 +114,7 @@ pub(crate) fn load_checkpoint_data(
             .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
             .collect::<Vec<_>>();
 
-        let output_objects = object_cache_reader
+        let output_objects = cache_reader
             .multi_get_objects_by_key(&output_object_keys)?
             .into_iter()
             .zip(&output_object_keys)
@@ -117,19 +137,12 @@ pub(crate) fn load_checkpoint_data(
         };
         full_transactions.push(full_transaction);
     }
+    let file_name = format!("{}.chk", checkpoint.sequence_number);
     let checkpoint_data = CheckpointData {
         checkpoint_summary: checkpoint.into(),
         checkpoint_contents,
         transactions: full_transactions,
     };
-    Ok(checkpoint_data)
-}
-
-pub(crate) fn store_checkpoint_locally(
-    path: PathBuf,
-    checkpoint_data: &CheckpointData,
-) -> IotaResult {
-    let file_name = format!("{}.chk", checkpoint_data.checkpoint_summary.sequence_number);
 
     std::fs::create_dir_all(&path).map_err(|err| {
         IotaError::FileIO(format!(

@@ -5,12 +5,12 @@
 use std::time::Instant;
 
 use anemo::{
-    Network, PeerId, Request, Response,
     codegen::{BoxError, BoxFuture, Service},
     types::PeerEvent,
+    Network, PeerId, Request, Response,
 };
 use bytes::Bytes;
-use futures::{FutureExt, future::OptionFuture};
+use futures::{future::OptionFuture, FutureExt};
 
 pub trait NetworkExt {
     fn waiting_peer(&self, peer_id: PeerId) -> WaitingPeer;

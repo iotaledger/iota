@@ -2,7 +2,6 @@
 name = "E"
 version = "0.0.1"
 published-at = "0xe0"
-edition = "2024.beta"
 
 [dependencies]
 Iota = { local = "../iota" }

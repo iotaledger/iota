@@ -3,16 +3,12 @@ description: Guide to creating and understanding a Move module in an IOTA packag
 tags: [move,  getting-started]
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/getting-started/create-a-module.json';
-
-
 # Create a Move Module
 
 A [package](create-a-package.mdx)'s utility is defined by its modules. A module contains the logic for your package. You can create any number of modules per package. To add a module, create a `.move` file in the `sources` directory. For this guide, create a file called `first_package.move` and add the following content:
 
 ```move
-module first_package::first_package {
+module first_package::my_module {
 }
 ```
 
@@ -29,7 +25,7 @@ In `.move` files, use double slashes (`//`) to denote a comment.
 ```
 ## Module Name
 
-The first line of the module defines the module's name and the package it belongs to. In this case, `first_package` belongs to [`first_package`](create-a-package.mdx).
+The first line of the module defines the module's name and the package it belongs to. In this case, `my_module` belongs to [`first_package`](create-a-package.mdx).
 
 ## Imports
 
@@ -83,6 +79,3 @@ Add the `entry` modifier to functions you want to call from a [programmable tran
 #### Accessor Functions
 
 Accessor functions are `public` functions that allow the fields of the module's structs to be read from other modules.
-
-
-<Quiz questions={questions} />

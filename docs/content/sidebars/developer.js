@@ -14,7 +14,7 @@ const developer = [
         },
         items: [
             'developer/getting-started/iota-environment',
-            'developer/getting-started/install-iota',
+            'developer/getting-started/iota-install',
             'developer/getting-started/connect',
             'developer/getting-started/local-network',
             'developer/getting-started/get-address',
@@ -52,7 +52,6 @@ const developer = [
                         items: [
                             'developer/iota-101/move-overview/package-upgrades/introduction',
                             'developer/iota-101/move-overview/package-upgrades/upgrade',
-                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
                             'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
@@ -162,14 +161,7 @@ const developer = [
                     'developer/iota-101/create-coin/loyalty',
                 ],
             },
-            {
-                type:'category',
-                label: 'NFT',
-                items: [
-                    'developer/iota-101/nft/create-nft',
-                    'developer/iota-101/nft/rent-nft',
-                ]
-            },
+            'developer/iota-101/create-nft',
             'developer/iota-101/using-events',
             'developer/iota-101/access-time',
         ],
@@ -269,9 +261,6 @@ const developer = [
             id: 'developer/advanced',
         },
         items: [
-            'developer/advanced/iota-repository',
-            'developer/advanced/custom-indexer',
-            'developer/advanced/onchain-randomness',
             'developer/advanced/asset-tokenization',
         ],
     },

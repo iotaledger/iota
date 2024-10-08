@@ -8,41 +8,41 @@ module base_addr::base {
     use iota::transfer;
     use base_addr::friend_module::{Self, X, Y, Z};
 
-    public struct A has store, drop {
+    struct A has store, drop {
         v: u16,
     }
 
-    public struct B has key {
+    struct B has key {
         id: UID,
         field1: u32,
         field2: A,
     }
 
-    public struct C has key {
+    struct C has key {
         id: UID,
         field1: u64,
         field2: X,
     }
 
-    public struct D has key {
+    struct D has key {
         id: UID,
         field1: u64,
         field2: A,
     }
 
-    public struct E has key {
+    struct E has key {
         id: UID,
         field1: u64,
         field2: X,
     }
 
-    public struct F has key {
+    struct F has key {
         id: UID,
         field1: u64,
         field2: Z,
     }
 
-    public struct G has key {
+    struct G has key {
         id: UID,
         field1: bool,
         field2: Y,

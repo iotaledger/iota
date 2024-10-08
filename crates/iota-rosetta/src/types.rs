@@ -5,13 +5,12 @@
 use std::{fmt::Debug, str::FromStr};
 
 use axum::{
-    Json,
     response::{IntoResponse, Response},
+    Json,
 };
 use fastcrypto::encoding::Hex;
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockKind};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{PublicKey as IotaPublicKey, SignatureScheme},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
@@ -19,15 +18,16 @@ use iota_types::{
     messages_checkpoint::CheckpointDigest,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ObjectArg, TransactionData},
+    IOTA_SYSTEM_PACKAGE_ID,
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use strum_macros::{EnumIter, EnumString};
+use strum::{EnumIter, EnumString};
 
 use crate::{
-    IOTA,
     errors::{Error, ErrorType},
     operations::Operations,
+    IOTA,
 };
 
 pub type BlockHeight = u64;
@@ -174,7 +174,7 @@ impl Amount {
 mod str_format {
     use std::str::FromStr;
 
-    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
+    use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn serialize<S>(value: &i128, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -341,10 +341,6 @@ impl From<IotaPublicKey> for PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::ZkLogin, // inaccurate but added for completeness.
             },
-            IotaPublicKey::Passkey(k) => PublicKey {
-                hex_bytes: Hex::from_bytes(&k.0),
-                curve_type: CurveType::Secp256r1,
-            },
         }
     }
 }
@@ -427,8 +423,7 @@ impl From<&IotaTransactionBlockKind> for OperationType {
             IotaTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
             IotaTransactionBlockKind::ConsensusCommitPrologue(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
+            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {

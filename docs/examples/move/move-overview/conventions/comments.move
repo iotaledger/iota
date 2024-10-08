@@ -1,21 +1,23 @@
 module conventions::comments {
-    // === Errors ===
+  // === Imports ===
 
-    // === Constants ===
+  // === Friends ===
 
-    // === Structs ===
+  // === Errors ===
 
-    // === Method Aliases ===
+  // === Constants ===
 
-    // === Public-Mutative Functions ===
+  // === Structs ===
 
-    // === Public-View Functions ===
+  // === Public-Mutative Functions ===
 
-    // === Admin Functions ===
+  // === Public-View Functions ===
 
-    // === Public-Package Functions ===
+  // === Admin Functions ===
 
-    // === Private Functions ===
+  // === Public-Friend Functions ===
 
-    // === Test Functions ===
+  // === Private Functions ===
+
+  // === Test Functions ===
 }

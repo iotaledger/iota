@@ -3,16 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_package_resolver::{DataDef, MoveData};
+use iota_package_resolver::StructDef;
 
-use crate::{
-    error::Error,
-    types::{
-        iota_address::IotaAddress,
-        move_module::MoveModule,
-        open_move_type::{MoveAbility, OpenMoveType, abilities},
-    },
+use super::{
+    iota_address::IotaAddress,
+    move_module::MoveModule,
+    open_move_type::{abilities, MoveAbility, OpenMoveType},
 };
+use crate::error::Error;
 
 pub(crate) struct MoveStruct {
     defining_id: IotaAddress,
@@ -26,26 +24,26 @@ pub(crate) struct MoveStruct {
 
 #[derive(SimpleObject)]
 pub(crate) struct MoveStructTypeParameter {
-    pub(crate) constraints: Vec<MoveAbility>,
-    pub(crate) is_phantom: bool,
+    constraints: Vec<MoveAbility>,
+    is_phantom: bool,
 }
 
 /// Information for a particular field on a Move struct.
 #[derive(SimpleObject)]
 #[graphql(complex)]
 pub(crate) struct MoveField {
-    pub(crate) name: String,
+    name: String,
     #[graphql(skip)]
-    pub(crate) type_: OpenMoveType,
+    type_: OpenMoveType,
 }
 
-/// Description of a struct type, defined in a Move module.
+/// Description of a type, defined in a Move module.
 #[Object]
 impl MoveStruct {
     /// The module this struct was originally defined in.
-    pub(crate) async fn module(&self, ctx: &Context<'_>) -> Result<MoveModule> {
+    async fn module(&self, ctx: &Context<'_>) -> Result<MoveModule> {
         let Some(module) = MoveModule::query(
-            ctx,
+            ctx.data_unchecked(),
             self.defining_id,
             &self.module,
             self.checkpoint_viewed_at,
@@ -64,26 +62,26 @@ impl MoveStruct {
     }
 
     /// The struct's (unqualified) type name.
-    pub(crate) async fn name(&self) -> &str {
+    async fn name(&self) -> &str {
         &self.name
     }
 
     /// Abilities this struct has.
-    pub(crate) async fn abilities(&self) -> Option<&Vec<MoveAbility>> {
+    async fn abilities(&self) -> Option<&Vec<MoveAbility>> {
         Some(&self.abilities)
     }
 
     /// Constraints on the struct's formal type parameters.  Move bytecode does
     /// not name type parameters, so when they are referenced (e.g. in field
     /// types) they are identified by their index in this list.
-    pub(crate) async fn type_parameters(&self) -> Option<&Vec<MoveStructTypeParameter>> {
+    async fn type_parameters(&self) -> Option<&Vec<MoveStructTypeParameter>> {
         Some(&self.type_parameters)
     }
 
     /// The names and types of the struct's fields.  Field types reference type
     /// parameters, by their index in the defining struct's `typeParameters`
     /// list.
-    pub(crate) async fn fields(&self) -> Option<&Vec<MoveField>> {
+    async fn fields(&self) -> Option<&Vec<MoveField>> {
         Some(&self.fields)
     }
 }
@@ -100,9 +98,9 @@ impl MoveStruct {
     pub(crate) fn new(
         module: String,
         name: String,
-        def: DataDef,
+        def: StructDef,
         checkpoint_viewed_at: u64,
-    ) -> Result<Self, Error> {
+    ) -> Self {
         let type_parameters = def
             .type_params
             .into_iter()
@@ -112,15 +110,8 @@ impl MoveStruct {
             })
             .collect();
 
-        let MoveData::Struct(fields) = def.data else {
-            // This should never happen, as the data should always be a struct if we're
-            // calling this function. Signal an internal error if it does.
-            return Err(Error::Internal(format!(
-                "Expected struct data, but got: {:?}",
-                def.data
-            )));
-        };
-        let fields = fields
+        let fields = def
+            .fields
             .into_iter()
             .map(|(name, signature)| MoveField {
                 name,
@@ -128,7 +119,7 @@ impl MoveStruct {
             })
             .collect();
 
-        Ok(MoveStruct {
+        MoveStruct {
             defining_id: IotaAddress::from(def.defining_id),
             module,
             name,
@@ -136,6 +127,6 @@ impl MoveStruct {
             type_parameters,
             fields,
             checkpoint_viewed_at,
-        })
+        }
     }
 }

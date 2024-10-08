@@ -8,7 +8,7 @@ import { encodeStr } from './utils.js';
 
 export interface BcsWriterOptions {
     /** The initial size (in bytes) of the buffer that will be allocated */
-    initialSize?: number;
+    size?: number;
     /** The maximum size (in bytes) that the buffer is allowed to grow to */
     maxSize?: number;
     /** The amount of bytes that will be allocated whenever additional memory is required */
@@ -40,15 +40,11 @@ export class BcsWriter {
     private maxSize: number;
     private allocateSize: number;
 
-    constructor({
-        initialSize = 1024,
-        maxSize = Infinity,
-        allocateSize = 1024,
-    }: BcsWriterOptions = {}) {
-        this.size = initialSize;
-        this.maxSize = maxSize;
+    constructor({ size = 1024, maxSize, allocateSize = 1024 }: BcsWriterOptions = {}) {
+        this.size = size;
+        this.maxSize = maxSize || size;
         this.allocateSize = allocateSize;
-        this.dataView = new DataView(new ArrayBuffer(initialSize));
+        this.dataView = new DataView(new ArrayBuffer(size));
     }
 
     private ensureSizeOrGrow(bytes: number) {

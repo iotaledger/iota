@@ -130,8 +130,7 @@ mod count {
             C::Return { exp: e, .. }
             | C::Abort(e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. }
-            | C::VariantSwitch { subject: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -148,7 +147,7 @@ mod count {
     fn lvalue(context: &mut Context, sp!(_, l_): &LValue, substitutable: bool) {
         use LValue_ as L;
         match l_ {
-            L::Ignore | L::Unpack(_, _, _) | L::UnpackVariant(..) => (),
+            L::Ignore | L::Unpack(_, _, _) => (),
             L::Var { var, .. } => context.assign(var, substitutable),
         }
     }
@@ -161,7 +160,7 @@ mod count {
             | E::Value(_)
             | E::Constant(_)
             | E::UnresolvedError
-            | E::ErrorConstant { .. } => (),
+            | E::ErrorConstant(_) => (),
 
             E::BorrowLocal(_, var) => context.used(var, false),
 
@@ -191,8 +190,6 @@ mod count {
 
             E::Pack(_, _, fields) => fields.iter().for_each(|(_, _, e)| exp(context, e)),
 
-            E::PackVariant(_, _, _, fields) => fields.iter().for_each(|(_, _, e)| exp(context, e)),
-
             E::Multiple(es) => es.iter().for_each(|e| exp(context, e)),
 
             E::Unreachable => panic!("ICE should not analyze dead code"),
@@ -213,7 +210,7 @@ mod count {
         use UnannotatedExp_ as E;
         match &parent_e.exp.value {
             E::UnresolvedError
-            | E::ErrorConstant { .. }
+            | E::ErrorConstant(_)
             | E::BorrowLocal(_, _)
             | E::Copy { .. }
             | E::Freeze(_)
@@ -231,9 +228,6 @@ mod count {
             }
             E::Multiple(es) => es.iter().all(can_subst_exp_single),
             E::Pack(_, _, fields) => fields.iter().all(|(_, _, e)| can_subst_exp_single(e)),
-            E::PackVariant(_, _, _, fields) => {
-                fields.iter().all(|(_, _, e)| can_subst_exp_single(e))
-            }
             E::Vector(_, _, _, eargs) => eargs.iter().all(can_subst_exp_single),
 
             E::Unreachable => panic!("ICE should not analyze dead code"),
@@ -309,8 +303,7 @@ mod eliminate {
             C::Return { exp: e, .. }
             | C::Abort(e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. }
-            | C::VariantSwitch { subject: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -338,7 +331,7 @@ mod eliminate {
     fn lvalue(context: &mut Context, sp!(loc, l_): LValue) -> LRes {
         use LValue_ as L;
         match l_ {
-            l_ @ (L::Ignore | L::Unpack(_, _, _) | L::UnpackVariant(..)) => LRes::Same(sp(loc, l_)),
+            l_ @ L::Ignore | l_ @ L::Unpack(_, _, _) => LRes::Same(sp(loc, l_)),
             L::Var {
                 var,
                 ty,
@@ -375,7 +368,7 @@ mod eliminate {
             | E::Value(_)
             | E::Constant(_)
             | E::UnresolvedError
-            | E::ErrorConstant { .. }
+            | E::ErrorConstant(_)
             | E::BorrowLocal(_, _) => (),
 
             E::ModuleCall(mcall) => {
@@ -400,10 +393,6 @@ mod eliminate {
             }
 
             E::Pack(_, _, fields) => fields.iter_mut().for_each(|(_, _, e)| exp(context, e)),
-
-            E::PackVariant(_, _, _, fields) => {
-                fields.iter_mut().for_each(|(_, _, e)| exp(context, e))
-            }
 
             E::Multiple(es) => es.iter_mut().for_each(|e| exp(context, e)),
 

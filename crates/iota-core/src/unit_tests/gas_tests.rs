@@ -5,7 +5,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{get_key_pair, AccountKeyPair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,

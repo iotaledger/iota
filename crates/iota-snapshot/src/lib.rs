@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 #![allow(dead_code)]
 
 #[cfg(test)]
@@ -11,44 +10,31 @@ pub mod reader;
 pub mod uploader;
 mod writer;
 
-use std::{
-    path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::Duration,
-};
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use fastcrypto::hash::MultisetHash;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use iota_core::{
     authority::{
-        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
-        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        authority_store_tables::AuthorityPerpetualTables,
+        epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    state_accumulator::WrappedObject,
 };
-use iota_protocol_config::Chain;
 use iota_storage::{
-    FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
+    compute_sha3_checksum, object_store::util::path_to_filesystem, FileCompression, SHA3_BYTES,
 };
 use iota_types::{
     accumulator::Accumulator,
     base_types::ObjectID,
     iota_system_state::{
-        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
-        get_iota_system_state,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
+        IotaSystemStateTrait,
     },
-    messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
-use tokio::time::Instant;
 
 /// The following describes the format of an object file (*.obj) used for
 /// persisting live iota objects. The maximum size per .obj file is 128MB. State
@@ -59,14 +45,16 @@ use tokio::time::Instant;
 /// partitions. A partition is a smallest storage unit which holds a subset of
 /// objects in one bucket. Each partition is a single *.obj file where
 /// objects are appended to in an append-only fashion. A new partition is
-/// created when the current one reaches its maximum size. i.e. 128MB.
+/// created once the size of current one reaches the max size i.e. 128MB.
 /// Partitions allow a single hash bucket to be consumed in parallel. Partition
 /// files are optionally compressed with the zstd compression format. Partition
 /// filenames follows the format <bucket_number>_<partition_number>.obj. Object
-/// references for hash. There is one single ref file per hash bucket. Object
+/// references for hash There is one single ref file per hash bucket. Object
 /// references are written in an append-only manner as well. Finally, the
 /// MANIFEST file contains per file metadata of every file in the snapshot
-/// directory. State Snapshot Directory Layout
+/// directory. current one reaches the max size i.e. 64MB. Partitions allow a
+/// single hash bucket to be consumed in parallel. Partition files are
+/// compressed with the zstd compression format. State Snapshot Directory Layout
 ///  - snapshot/
 ///     - epoch_0/
 ///        - 1_1.obj
@@ -83,7 +71,6 @@ use tokio::time::Instant;
 ///     - epoch_1/
 ///       - 1_1.obj
 ///       - ...
-///
 /// Object File Disk Format
 /// ┌──────────────────────────────┐
 /// │  magic(0x00B7EC75) <4 byte>  │
@@ -157,7 +144,6 @@ pub enum FileType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-/// FileMetadata holds either an object or a reference file metadata.
 pub struct FileMetadata {
     pub file_type: FileType,
     pub bucket_num: u32,
@@ -218,8 +204,6 @@ impl Manifest {
     }
 }
 
-/// Creates a FileMetadata of the provided file path, which is overwritten with
-/// compressed data of the original file.
 pub fn create_file_metadata(
     file_path: &std::path::Path,
     file_compression: FileCompression,
@@ -227,9 +211,7 @@ pub fn create_file_metadata(
     bucket_num: u32,
     part_num: u32,
 ) -> Result<FileMetadata> {
-    // Overwrites the file with compressed data of the original file.
     file_compression.compress(file_path)?;
-    // Computes the sha3 checksum of the compressed file.
     let sha3_digest = compute_sha3_checksum(file_path)?;
     let file_metadata = FileMetadata {
         file_type,
@@ -247,27 +229,21 @@ pub async fn setup_db_state(
     perpetual_db: Arc<AuthorityPerpetualTables>,
     checkpoint_store: Arc<CheckpointStore>,
     committee_store: Arc<CommitteeStore>,
-    chain: Chain,
-    verify: bool,
-    num_live_objects: u64,
-    m: MultiProgress,
 ) -> Result<()> {
     // This function should be called once state accumulator based hash verification
     // is complete and live object set state is downloaded to local store
     let system_state_object = get_iota_system_state(&perpetual_db)?;
     let new_epoch_start_state = system_state_object.into_epoch_start_state();
     let next_epoch_committee = new_epoch_start_state.get_iota_committee();
-    let root_digest: ECMHLiveObjectSetDigest = accumulator.digest().into();
     let last_checkpoint = checkpoint_store
         .get_epoch_last_checkpoint(epoch)
         .expect("Error loading last checkpoint for current epoch")
         .expect("Could not load last checkpoint for current epoch");
-    let flags = EpochFlag::default_for_no_config();
     let epoch_start_configuration = EpochStartConfiguration::new(
         new_epoch_start_state,
         *last_checkpoint.digest(),
         &perpetual_db,
-        flags,
+        None,
     )
     .unwrap();
     perpetual_db.set_epoch_start_configuration(&epoch_start_configuration)?;
@@ -276,85 +252,5 @@ pub async fn setup_db_state(
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 
-    if verify {
-        let simplified_unwrap_then_delete = match (chain, epoch) {
-            (Chain::Mainnet, ep) if ep >= 87 => true,
-            (Chain::Mainnet, ep) if ep < 87 => false,
-            (Chain::Testnet, ep) if ep >= 50 => true,
-            (Chain::Testnet, ep) if ep < 50 => false,
-            _ => panic!("Unsupported chain"),
-        };
-        let include_tombstones = !simplified_unwrap_then_delete;
-        let iter = perpetual_db.iter_live_object_set(include_tombstones);
-        let local_digest = ECMHLiveObjectSetDigest::from(
-            accumulate_live_object_iter(Box::new(iter), m.clone(), num_live_objects)
-                .await
-                .digest(),
-        );
-        assert_eq!(
-            root_digest, local_digest,
-            "End of epoch {} root state digest {} does not match \
-                local root state hash {} after restoring db from formal snapshot",
-            epoch, root_digest.digest, local_digest.digest,
-        );
-        println!("DB live object state verification completed successfully!");
-    }
-
     Ok(())
-}
-
-pub async fn accumulate_live_object_iter(
-    iter: Box<dyn Iterator<Item = LiveObject> + '_>,
-    m: MultiProgress,
-    num_live_objects: u64,
-) -> Accumulator {
-    // Monitor progress of live object accumulation
-    let accum_progress_bar = m.add(ProgressBar::new(num_live_objects).with_style(
-        ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
-    ));
-    let accum_counter = Arc::new(AtomicU64::new(0));
-    let cloned_accum_counter = accum_counter.clone();
-    let cloned_progress_bar = accum_progress_bar.clone();
-    let handle = tokio::spawn(async move {
-        let a_instant = Instant::now();
-        loop {
-            if cloned_progress_bar.is_finished() {
-                break;
-            }
-            let num_accumulated = cloned_accum_counter.load(Ordering::Relaxed);
-            assert!(
-                num_accumulated <= num_live_objects,
-                "Accumulated more objects (at least {num_accumulated}) than expected ({num_live_objects})"
-            );
-            let accumulations_per_sec = num_accumulated as f64 / a_instant.elapsed().as_secs_f64();
-            cloned_progress_bar.set_position(num_accumulated);
-            cloned_progress_bar.set_message(format!(
-                "DB live obj accumulations per sec: {}",
-                accumulations_per_sec
-            ));
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-    });
-
-    // Accumulate live objects
-    let mut acc = Accumulator::default();
-    for live_object in iter {
-        match live_object {
-            LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().2);
-            }
-            LiveObject::Wrapped(key) => {
-                acc.insert(
-                    bcs::to_bytes(&WrappedObject::new(key.0, key.1))
-                        .expect("Failed to serialize WrappedObject"),
-                );
-            }
-        }
-        accum_counter.fetch_add(1, Ordering::Relaxed);
-    }
-    accum_progress_bar.finish_with_message("DB live object accumulation completed");
-    handle
-        .await
-        .expect("Failed to join live object accumulation progress monitor");
-    acc
 }

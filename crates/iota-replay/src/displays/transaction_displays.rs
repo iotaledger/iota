@@ -9,11 +9,11 @@ use std::{
 
 use iota_execution::Executor;
 use iota_types::{
-    execution::ExecutionResult,
+    execution_mode::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{
-        Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
-        ProgrammableTransaction, write_sep,
+        write_sep, Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
+        ProgrammableTransaction,
     },
 };
 use move_core_types::{
@@ -22,7 +22,7 @@ use move_core_types::{
 };
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
+    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
 
 use crate::{displays::Pretty, replay::LocalExec};
@@ -311,10 +311,7 @@ fn resolve_to_layout(
         }
         TypeTag::Struct(inner) => {
             let mut layout_resolver = executor.type_layout_resolver(Box::new(store_factory));
-            layout_resolver
-                .get_annotated_layout(inner)
-                .unwrap()
-                .into_layout()
+            MoveTypeLayout::Struct(layout_resolver.get_annotated_layout(inner).unwrap())
         }
         TypeTag::Bool => MoveTypeLayout::Bool,
         TypeTag::U8 => MoveTypeLayout::U8,

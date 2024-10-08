@@ -1,17 +1,13 @@
-// dep: ../move-stdlib/sources/macros.move
-// dep: ../move-stdlib/sources/u64.move
-// dep: ../move-stdlib/sources/option.move
-// dep: ../move-stdlib/sources/ascii.move
-// dep: ../move-stdlib/sources/string.move
 // dep: ../move-stdlib/sources/vector.move
 
 module 0x2::MultiLayerCalling {
+    use std::vector;
 
-    public struct HasVector {
+    struct HasVector {
         v: vector<HasAnotherVector>,
     }
 
-    public struct HasAnotherVector {
+    struct HasAnotherVector {
         v: vector<u8>,
     }
 

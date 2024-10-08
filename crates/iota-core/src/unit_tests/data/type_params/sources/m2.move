@@ -7,7 +7,7 @@ module type_params::m2 {
     use iota::tx_context::TxContext;
     use iota::transfer;
 
-    public struct AnotherObject has key, store {
+    struct AnotherObject has key, store {
         id: UID,
         value: u64,
     }

@@ -1,3 +1,5 @@
-module 0x2::M {
+address 0x2 {
+module M {
     public entry fun f() {}
+}
 }

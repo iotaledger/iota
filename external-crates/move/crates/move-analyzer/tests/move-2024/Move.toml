@@ -1,9 +1,12 @@
 [package]
 name = "Move2024"
+version = "0.0.1"
 edition = "2024.beta"
 
+# include Iota as dependency to test that importing it does not crash the symbolicator
 [dependencies]
-MoveStdlib = { local = "../../../move-stdlib/", addr_subst = { "std" = "0x1" } }
+Iota = { local = "../../../../../../crates/iota-framework/packages/iota-framework/" }
 
 [addresses]
 Move2024 = "0xCAFE"
+Iota = "0x2"

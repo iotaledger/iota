@@ -4,15 +4,15 @@
 
 use std::{
     collections::{
-        HashMap,
         hash_map::{DefaultHasher, RandomState},
+        HashMap,
     },
     error::Error,
     fmt,
     hash::{BuildHasher, Hash, Hasher},
     sync::{
-        Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
     },
     time::Duration,
 };

@@ -1,7 +1,6 @@
 processed 1 task
 
-task 0, lines 1-8:
-//# run
+task 0 'run'. lines 1-8:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: EMPTY_CODE_UNIT,
     sub_status: None,

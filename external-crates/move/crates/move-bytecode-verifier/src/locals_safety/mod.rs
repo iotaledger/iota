@@ -9,32 +9,34 @@
 
 mod abstract_state;
 
-use crate::ability_cache::AbilityCache;
-use abstract_state::{AbstractState, LocalState, RET_COST, STEP_BASE_COST};
-use move_abstract_interpreter::absint::{AbstractInterpreter, FunctionContext, TransferFunctions};
+use abstract_state::{AbstractState, LocalState};
 use move_binary_format::{
+    binary_views::{BinaryIndexedView, FunctionView},
     errors::{PartialVMError, PartialVMResult},
     file_format::{Bytecode, CodeOffset},
-    CompiledModule,
 };
-use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 
+use crate::{
+    absint::{AbstractInterpreter, TransferFunctions},
+    locals_safety::abstract_state::{RET_PER_LOCAL_COST, STEP_BASE_COST},
+    meter::{Meter, Scope},
+};
+
 pub(crate) fn verify<'a>(
-    module: &CompiledModule,
-    function_context: &'a FunctionContext<'a>,
-    ability_cache: &mut AbilityCache,
-    meter: &mut (impl Meter + ?Sized),
+    resolver: &BinaryIndexedView,
+    function_view: &'a FunctionView<'a>,
+    meter: &mut impl Meter,
 ) -> PartialVMResult<()> {
-    let initial_state = AbstractState::new(module, function_context, ability_cache, meter)?;
-    LocalsSafetyAnalysis().analyze_function(initial_state, function_context, meter)
+    let initial_state = AbstractState::new(resolver, function_view)?;
+    LocalsSafetyAnalysis().analyze_function(initial_state, function_view, meter)
 }
 
 fn execute_inner(
     state: &mut AbstractState,
     bytecode: &Bytecode,
     offset: CodeOffset,
-    meter: &mut (impl Meter + ?Sized),
+    meter: &mut impl Meter,
 ) -> PartialVMResult<()> {
     meter.add(Scope::Function, STEP_BASE_COST)?;
     match bytecode {
@@ -72,7 +74,7 @@ fn execute_inner(
 
         Bytecode::Ret => {
             let local_states = state.local_states();
-            meter.add_items(Scope::Function, RET_COST, local_states.len())?;
+            meter.add_items(Scope::Function, RET_PER_LOCAL_COST, local_states.len())?;
             let all_local_abilities = state.all_local_abilities();
             assert!(local_states.len() == all_local_abilities.len());
             for (local_state, local_abilities) in local_states.iter().zip(all_local_abilities) {
@@ -159,16 +161,7 @@ fn execute_inner(
         | Bytecode::VecPushBack(_)
         | Bytecode::VecPopBack(_)
         | Bytecode::VecUnpack(..)
-        | Bytecode::VecSwap(_)
-        | Bytecode::PackVariant(_)
-        | Bytecode::PackVariantGeneric(_)
-        | Bytecode::UnpackVariant(_)
-        | Bytecode::UnpackVariantImmRef(_)
-        | Bytecode::UnpackVariantMutRef(_)
-        | Bytecode::UnpackVariantGeneric(_)
-        | Bytecode::UnpackVariantGenericImmRef(_)
-        | Bytecode::UnpackVariantGenericMutRef(_)
-        | Bytecode::VariantSwitch(_) => (),
+        | Bytecode::VecSwap(_) => (),
     };
     Ok(())
 }
@@ -185,7 +178,7 @@ impl TransferFunctions for LocalsSafetyAnalysis {
         bytecode: &Bytecode,
         index: CodeOffset,
         _last_index: CodeOffset,
-        meter: &mut (impl Meter + ?Sized),
+        meter: &mut impl Meter,
     ) -> PartialVMResult<()> {
         execute_inner(state, bytecode, index, meter)
     }

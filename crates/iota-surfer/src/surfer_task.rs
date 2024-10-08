@@ -4,14 +4,16 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_core::authority::authority_store_tables::LiveObject;
+use iota_core::{
+    authority::authority_store_tables::LiveObject, state_accumulator::AccumulatorStore,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     object::Owner,
 };
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use test_cluster::TestCluster;
-use tokio::sync::{RwLock, watch};
+use tokio::sync::{watch, RwLock};
 
 use crate::{
     surf_strategy::SurfStrategy,
@@ -20,17 +22,15 @@ use crate::{
 
 pub struct SurferTask {
     pub state: SurferState,
-    pub surf_strategy: SurfStrategy,
+    pub surf_strategy: Box<dyn SurfStrategy>,
     pub exit_rcv: watch::Receiver<()>,
 }
 
 impl SurferTask {
-    pub async fn create_surfer_tasks(
+    pub async fn create_surfer_tasks<S: Default + SurfStrategy>(
         cluster: Arc<TestCluster>,
         seed: u64,
         exit_rcv: watch::Receiver<()>,
-        skip_accounts: usize,
-        surf_strategy: SurfStrategy,
     ) -> Vec<SurferTask> {
         let mut rng = StdRng::seed_from_u64(seed);
         let immutable_objects: ImmObjects = Arc::new(RwLock::new(HashMap::new()));
@@ -39,19 +39,19 @@ impl SurferTask {
         let mut accounts: HashMap<IotaAddress, (Option<ObjectRef>, OwnedObjects)> = cluster
             .get_addresses()
             .iter()
-            .skip(skip_accounts)
             .map(|address| (*address, (None, HashMap::new())))
             .collect();
-        let node = cluster
+        let validator = cluster
             .swarm
-            .all_nodes()
-            .flat_map(|node| node.get_node_handle())
+            .validator_nodes()
             .next()
+            .unwrap()
+            .get_node_handle()
             .unwrap();
-        let all_live_objects: Vec<_> = node.with(|node| {
+        let all_live_objects: Vec<_> = validator.with(|node| {
             node.state()
-                .get_accumulator_store()
-                .iter_cached_live_object_set_for_testing(false)
+                .get_execution_cache()
+                .iter_live_object_set(false)
                 .collect()
         });
         for obj in all_live_objects {
@@ -102,12 +102,10 @@ impl SurferTask {
         let entry_functions = Arc::new(RwLock::new(vec![]));
         accounts
             .into_iter()
-            .enumerate()
-            .map(|(id, (address, (gas_object, owned_objects)))| {
+            .map(|(address, (gas_object, owned_objects))| {
                 let seed = rng.gen::<u64>();
                 let state_rng = StdRng::seed_from_u64(seed);
                 let state = SurferState::new(
-                    id,
                     cluster.clone(),
                     state_rng,
                     address,
@@ -119,7 +117,7 @@ impl SurferTask {
                 );
                 SurferTask {
                     state,
-                    surf_strategy: surf_strategy.clone(),
+                    surf_strategy: Box::<S>::default(),
                     exit_rcv: exit_rcv.clone(),
                 }
             })
@@ -129,16 +127,11 @@ impl SurferTask {
     pub async fn surf(mut self) -> SurfStatistics {
         loop {
             let entry_functions = self.state.entry_functions.read().await.clone();
-
-            tokio::select! {
-                _ = self.surf_strategy
-                .surf_for_a_while(&mut self.state, entry_functions) => {
-                    continue;
-                }
-
-                _ = self.exit_rcv.changed() => {
-                    return self.state.stats;
-                }
+            self.surf_strategy
+                .surf_for_a_while(&mut self.state, entry_functions, &self.exit_rcv)
+                .await;
+            if self.exit_rcv.has_changed().unwrap() {
+                return self.state.stats;
             }
         }
     }

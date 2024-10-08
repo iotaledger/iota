@@ -6,7 +6,7 @@ use iota_types::utils::to_sender_signed_transaction;
 use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
-    executor::{Executor, assert_is_acceptable_result},
+    executor::{assert_is_acceptable_result, Executor},
     transaction_data_gen::transaction_data_gen,
 };
 

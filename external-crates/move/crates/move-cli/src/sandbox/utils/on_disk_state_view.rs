@@ -9,7 +9,11 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Result};
-use move_binary_format::file_format::{CompiledModule, FunctionDefinitionIndex};
+use move_binary_format::{
+    access::ModuleAccess,
+    binary_views::BinaryIndexedView,
+    file_format::{CompiledModule, CompiledScript, FunctionDefinitionIndex},
+};
 use move_bytecode_utils::module_cache::GetModule;
 use move_command_line_common::files::MOVE_COMPILED_EXTENSION;
 use move_core_types::{
@@ -145,18 +149,27 @@ impl OnDiskStateView {
         })
     }
 
-    fn view_bytecode(path: &Path) -> Result<Option<String>> {
+    fn view_bytecode(path: &Path, is_module: bool) -> Result<Option<String>> {
         if path.is_dir() {
             bail!("Bad bytecode path {:?}. Needed file, found directory", path)
         }
 
         Ok(match Self::get_bytes(path)? {
             Some(bytes) => {
-                let module = CompiledModule::deserialize_with_defaults(&bytes)
-                    .map_err(|e| anyhow!("Failure deserializing module: {:?}", e))?;
+                let module: CompiledModule;
+                let script: CompiledScript;
+                let view = if is_module {
+                    module = CompiledModule::deserialize_with_defaults(&bytes)
+                        .map_err(|e| anyhow!("Failure deserializing module: {:?}", e))?;
+                    BinaryIndexedView::Module(&module)
+                } else {
+                    script = CompiledScript::deserialize(&bytes)
+                        .map_err(|e| anyhow!("Failure deserializing script: {:?}", e))?;
+                    BinaryIndexedView::Script(&script)
+                };
                 // TODO: find or create source map and pass it to disassembler
                 let d: Disassembler =
-                    Disassembler::from_module(&module, Spanned::unsafe_no_loc(()).loc)?;
+                    Disassembler::from_view(view, Spanned::unsafe_no_loc(()).loc)?;
                 Some(d.disassemble()?)
             }
             None => None,
@@ -164,7 +177,11 @@ impl OnDiskStateView {
     }
 
     pub fn view_module(module_path: &Path) -> Result<Option<String>> {
-        Self::view_bytecode(module_path)
+        Self::view_bytecode(module_path, true)
+    }
+
+    pub fn view_script(script_path: &Path) -> Result<Option<String>> {
+        Self::view_bytecode(script_path, false)
     }
 
     /// Save `module` on disk under the path `module.address()`/`module.name()`

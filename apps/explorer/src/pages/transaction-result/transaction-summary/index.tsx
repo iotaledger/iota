@@ -28,7 +28,7 @@ export function TransactionSummary({ transaction }: TransactionSummaryProps): JS
     const upgradedSystemPackages = summary?.upgradedSystemPackages;
 
     return (
-        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-sm">
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
             {balanceChanges && transactionKindName === 'ProgrammableTransaction' && (
                 <BalanceChanges changes={balanceChanges} />
             )}

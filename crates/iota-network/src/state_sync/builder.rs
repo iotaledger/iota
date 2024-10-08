@@ -5,6 +5,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use anemo::codegen::InboundRequestLayer;
@@ -19,9 +20,9 @@ use tokio::{
 };
 
 use super::{
-    Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
     metrics::Metrics,
     server::{CheckpointContentsDownloadLimitLayer, Server},
+    Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
 };
 
 pub struct Builder<S> {
@@ -145,8 +146,7 @@ where
             peers: HashMap::new(),
             unprocessed_checkpoints: HashMap::new(),
             sequence_number_to_digest: HashMap::new(),
-            wait_interval_when_no_peer_to_sync_content: config
-                .wait_interval_when_no_peer_to_sync_content(),
+            wait_interval_when_no_peer_to_sync_content: Duration::from_secs(10),
         }
         .pipe(RwLock::new)
         .pipe(Arc::new);

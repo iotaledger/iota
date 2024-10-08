@@ -4,7 +4,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    net::SocketAddr,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -14,23 +13,21 @@ use iota_config::genesis::Genesis;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     crypto::AuthorityKeyPair,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse,
+        HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
     },
     transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
 };
 
 use crate::{
-    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
     authority_client::AuthorityAPI,
 };
 
@@ -40,7 +37,7 @@ pub struct LocalAuthorityClientFaultConfig {
     pub fail_after_handle_transaction: bool,
     pub fail_before_handle_confirmation: bool,
     pub fail_after_handle_confirmation: bool,
-    pub overload_retry_after_handle_transaction: Option<Duration>,
+    pub overload_retry_after_handle_transaction: bool,
 }
 
 impl LocalAuthorityClientFaultConfig {
@@ -60,7 +57,6 @@ impl AuthorityAPI for LocalAuthorityClient {
     async fn handle_transaction(
         &self,
         transaction: Transaction,
-        _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         if self.fault_config.fail_before_handle_transaction {
             return Err(IotaError::from("Mock error before handle_transaction"));
@@ -77,9 +73,9 @@ impl AuthorityAPI for LocalAuthorityClient {
                 error: "Mock error after handle_transaction".to_owned(),
             });
         }
-        if let Some(duration) = self.fault_config.overload_retry_after_handle_transaction {
+        if self.fault_config.overload_retry_after_handle_transaction {
             return Err(IotaError::ValidatorOverloadedRetryAfter {
-                retry_after_secs: duration.as_secs(),
+                retry_after_secs: 0,
             });
         }
         result
@@ -88,45 +84,12 @@ impl AuthorityAPI for LocalAuthorityClient {
     async fn handle_certificate_v2(
         &self,
         certificate: CertifiedTransaction,
-        _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponseV2, IotaError> {
         let state = self.state.clone();
         let fault_config = self.fault_config;
-        let request = HandleCertificateRequestV3 {
-            certificate,
-            include_events: true,
-            include_input_objects: false,
-            include_output_objects: false,
-            include_auxiliary_data: false,
-        };
-        spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
+        spawn_monitored_task!(Self::handle_certificate(state, certificate, fault_config))
             .await
             .unwrap()
-            .map(|resp| HandleCertificateResponseV2 {
-                signed_effects: resp.effects,
-                events: resp.events.unwrap_or_default(),
-                fastpath_input_objects: vec![],
-            })
-    }
-
-    async fn handle_certificate_v3(
-        &self,
-        request: HandleCertificateRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
-        let state = self.state.clone();
-        let fault_config = self.fault_config;
-        spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
-            .await
-            .unwrap()
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
-        unimplemented!()
     }
 
     async fn handle_object_info_request(
@@ -197,9 +160,9 @@ impl LocalAuthorityClient {
     // transactions.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
-        request: HandleCertificateRequestV3,
+        certificate: CertifiedTransaction,
         fault_config: LocalAuthorityClientFaultConfig,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponseV2, IotaError> {
         if fault_config.fail_before_handle_confirmation {
             return Err(IotaError::GenericAuthority {
                 error: "Mock error before handle_confirmation_transaction".to_owned(),
@@ -207,7 +170,7 @@ impl LocalAuthorityClient {
         }
         // Check existing effects before verifying the cert to allow querying certs
         // finalized from previous epochs.
-        let tx_digest = *request.certificate.digest();
+        let tx_digest = *certificate.digest();
         let epoch_store = state.epoch_store_for_testing();
         let signed_effects = match state
             .get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)
@@ -216,7 +179,7 @@ impl LocalAuthorityClient {
             _ => {
                 let certificate = epoch_store
                     .signature_verifier
-                    .verify_cert(request.certificate)
+                    .verify_cert(certificate)
                     .await?;
                 // let certificate = certificate.verify(epoch_store.committee())?;
                 state.enqueue_certificates_for_execution(vec![certificate.clone()], &epoch_store);
@@ -226,14 +189,10 @@ impl LocalAuthorityClient {
         }
         .into_inner();
 
-        let events = if request.include_events {
-            if let Some(digest) = signed_effects.events_digest() {
-                Some(state.get_transaction_events(digest)?)
-            } else {
-                None
-            }
+        let events = if let Some(digest) = signed_effects.events_digest() {
+            state.get_transaction_events(digest)?
         } else {
-            None
+            TransactionEvents::default()
         };
 
         if fault_config.fail_after_handle_confirmation {
@@ -242,22 +201,10 @@ impl LocalAuthorityClient {
             });
         }
 
-        let input_objects = request
-            .include_input_objects
-            .then(|| state.get_transaction_input_objects(&signed_effects))
-            .and_then(Result::ok);
-
-        let output_objects = request
-            .include_output_objects
-            .then(|| state.get_transaction_output_objects(&signed_effects))
-            .and_then(Result::ok);
-
-        Ok(HandleCertificateResponseV3 {
-            effects: signed_effects,
+        Ok(HandleCertificateResponseV2 {
+            signed_effects,
             events,
-            input_objects,
-            output_objects,
-            auxiliary_data: None, // We don't have any aux data generated presently
+            fastpath_input_objects: vec![], // unused field
         })
     }
 }
@@ -289,7 +236,6 @@ impl AuthorityAPI for MockAuthorityApi {
     async fn handle_transaction(
         &self,
         _transaction: Transaction,
-        _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         unimplemented!();
     }
@@ -298,24 +244,7 @@ impl AuthorityAPI for MockAuthorityApi {
     async fn handle_certificate_v2(
         &self,
         _certificate: CertifiedTransaction,
-        _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponseV2, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_certificate_v3(
-        &self,
-        _request: HandleCertificateRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
         unimplemented!()
     }
 
@@ -384,7 +313,6 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
     async fn handle_transaction(
         &self,
         _transaction: Transaction,
-        _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {
             tokio::time::sleep(duration).await;
@@ -395,28 +323,11 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
     async fn handle_certificate_v2(
         &self,
         _certificate: CertifiedTransaction,
-        _client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponseV2, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {
             tokio::time::sleep(duration).await;
         }
         self.cert_resp_to_return.clone()
-    }
-
-    async fn handle_certificate_v3(
-        &self,
-        _request: HandleCertificateRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
-        unimplemented!()
     }
 
     async fn handle_object_info_request(

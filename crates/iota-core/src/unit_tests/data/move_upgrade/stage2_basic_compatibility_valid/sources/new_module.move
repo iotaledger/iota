@@ -4,7 +4,7 @@
 
 module base_addr::new_module {
 
-    public struct MyObject has key, store {
+    struct MyObject has key, store {
         id: iota::object::UID,
         data: u64
     }

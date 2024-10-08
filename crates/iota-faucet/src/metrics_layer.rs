@@ -11,7 +11,7 @@ use std::{
 use futures::Future;
 use http::StatusCode;
 use prometheus::{HistogramTimer, Registry};
-use tower::{BoxError, Layer, Service, ServiceExt, load_shed::error::Overloaded};
+use tower::{load_shed::error::Overloaded, BoxError, Layer, Service, ServiceExt};
 use tracing::{error, info, warn};
 
 use crate::metrics::RequestMetrics;

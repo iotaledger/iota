@@ -20,7 +20,7 @@ use iota_package_resolver::{Package, PackageStore, Resolver, Result as ResolverR
 use iota_rest_api::{CheckpointData, Client};
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, SequenceNumber},
     committee::Committee,
     crypto::AuthorityQuorumSignInfo,
     digests::TransactionDigest,
@@ -44,22 +44,27 @@ struct Args {
 }
 
 struct RemotePackageStore {
+    client: Client,
     config: Config,
 }
 
 impl RemotePackageStore {
-    pub fn new(config: Config) -> Self {
-        Self { config }
+    pub fn new(client: Client, config: Config) -> Self {
+        Self { client, config }
     }
 }
 
 #[async_trait]
 impl PackageStore for RemotePackageStore {
+    /// Latest version of the object at `id`.
+    async fn version(&self, id: AccountAddress) -> ResolverResult<SequenceNumber> {
+        Ok(self.client.get_object(id.into()).await.unwrap().version())
+    }
     /// Read package contents. Fails if `id` is not an object, not a package, or
     /// is malformed in some way.
     async fn fetch(&self, id: AccountAddress) -> ResolverResult<Arc<Package>> {
         let object = get_verified_object(&self.config, id.into()).await.unwrap();
-        let package = Package::read_from_object(&object).unwrap();
+        let package = Package::read(&object).unwrap();
         Ok(Arc::new(package))
     }
 }
@@ -99,8 +104,8 @@ struct Config {
 }
 
 impl Config {
-    pub fn rest_url(&self) -> &str {
-        &self.full_node_url
+    pub fn rest_url(&self) -> String {
+        format!("{}/rest", self.full_node_url)
     }
 }
 
@@ -190,7 +195,7 @@ async fn download_checkpoint_summary(
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
     // Download the checkpoint from the server
     let client = Client::new(config.rest_url());
-    client.get_checkpoint_summary(seq).await.map_err(Into::into)
+    client.get_checkpoint_summary(seq).await
 }
 
 /// Run binary search to for each end of epoch checkpoint that is missing
@@ -290,7 +295,7 @@ async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
         } else {
             // Download the checkpoint from the server
             let summary = download_checkpoint_summary(config, *ckp_id).await?;
-            summary.clone().try_into_verified(&prev_committee)?;
+            summary.clone().verify(&prev_committee)?;
             // Write the checkpoint summary to a file
             write_checkpoint(config, &summary)?;
             summary
@@ -466,7 +471,8 @@ pub async fn main() {
         config.checkpoint_summary_dir.display()
     );
 
-    let remote_package_store = RemotePackageStore::new(config.clone());
+    let client: Client = Client::new(config.rest_url());
+    let remote_package_store = RemotePackageStore::new(client, config.clone());
     let resolver = Resolver::new(remote_package_store);
 
     match args.command {

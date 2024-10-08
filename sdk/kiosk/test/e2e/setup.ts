@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
-import { mkdtemp } from 'fs/promises';
-import { tmpdir } from 'os';
-import path from 'path';
 import type {
     DevInspectResults,
     IotaObjectChangePublished,
@@ -18,7 +15,7 @@ import {
     requestIotaFromFaucetV0,
 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import tmp from 'tmp';
 import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
@@ -36,12 +33,10 @@ const IOTA_BIN = import.meta.env.VITE_IOTA_BIN ?? 'cargo run --bin iota';
 export class TestToolbox {
     keypair: Ed25519Keypair;
     client: IotaClient;
-    configPath: string;
 
-    constructor(keypair: Ed25519Keypair, client: IotaClient, configPath: string) {
+    constructor(keypair: Ed25519Keypair, client: IotaClient) {
         this.keypair = keypair;
         this.client = client;
-        this.configPath = configPath;
     }
 
     address() {
@@ -72,12 +67,7 @@ export async function setupIotaClient() {
         retryIf: (error: any) => !(error instanceof FaucetRateLimitError),
         logger: (msg) => console.warn('Retrying requesting from faucet: ' + msg),
     });
-
-    const tmpDirPath = path.join(tmpdir(), 'config-');
-    const tmpDir = await mkdtemp(tmpDirPath);
-    const configPath = path.join(tmpDir, 'client.yaml');
-    execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
-    return new TestToolbox(keypair, client, configPath);
+    return new TestToolbox(keypair, client);
 }
 
 // TODO: expose these testing utils from @iota/iota-sdk
@@ -94,34 +84,32 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const { modules, dependencies } = JSON.parse(
         execSync(
-            `${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );
-    const tx = new Transaction();
+    const tx = new TransactionBlock();
     const cap = tx.publish({
         modules,
         dependencies,
     });
 
     // Transfer the upgrade capability to the sender so they can upgrade the package later if they want.
-    tx.transferObjects([cap], await toolbox.address());
+    tx.transferObjects([cap], tx.pure(await toolbox.address()));
 
-    const { digest } = await toolbox.client.signAndExecuteTransaction({
-        transaction: tx,
+    const publishTxn = await toolbox.client.signAndExecuteTransactionBlock({
+        transactionBlock: tx,
         signer: toolbox.keypair,
+        options: {
+            showEffects: true,
+            showObjectChanges: true,
+        },
     });
-
-    const publishTxn = await toolbox.client.waitForTransaction({
-        digest: digest,
-        options: { showObjectChanges: true, showEffects: true },
-    });
-
     expect(publishTxn.effects?.status.status).toEqual('success');
 
     const packageId = ((publishTxn.objectChanges?.filter(
         (a) => a.type === 'published',
-    ) as IotaObjectChangePublished[]) ?? [])[0]?.packageId.replace(/^(0x)(0+)/, '0x') as string;
+    ) as IotaObjectChangePublished[]) ?? [])[0].packageId.replace(/^(0x)(0+)/, '0x') as string;
 
     expect(packageId).toBeTypeOf('string');
 
@@ -133,6 +121,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 export async function publishExtensionsPackage(toolbox: TestToolbox): Promise<string> {
     const packagePath = __dirname + '/../../../../kiosk';
     const { packageId } = await publishPackage(packagePath, toolbox);
+
     return packageId;
 }
 
@@ -148,44 +137,44 @@ export function print(item: any) {
 }
 
 export async function mintHero(toolbox: TestToolbox, packageId: string): Promise<string> {
-    const tx = new Transaction();
-    const hero = tx.moveCall({
+    const txb = new TransactionBlock();
+    const hero = txb.moveCall({
         target: `${packageId}::hero::mint_hero`,
     });
-    tx.transferObjects([hero], await toolbox.address());
+    txb.transferObjects([hero], txb.pure(await toolbox.address(), 'address'));
 
-    const res = await executeTransaction(toolbox, tx);
+    const res = await executeTransactionBlock(toolbox, txb);
 
     return getCreatedObjectIdByType(res, 'hero::Hero');
 }
 
 export async function mintVillain(toolbox: TestToolbox, packageId: string): Promise<string> {
-    const tx = new Transaction();
-    const hero = tx.moveCall({
+    const txb = new TransactionBlock();
+    const hero = txb.moveCall({
         target: `${packageId}::hero::mint_villain`,
     });
-    tx.transferObjects([hero], await toolbox.address());
+    txb.transferObjects([hero], txb.pure(await toolbox.address(), 'address'));
 
-    const res = await executeTransaction(toolbox, tx);
+    const res = await executeTransactionBlock(toolbox, txb);
 
     return getCreatedObjectIdByType(res, 'hero::Villain');
 }
 
 // create a non-personal kiosk.
 export async function createKiosk(toolbox: TestToolbox, kioskClient: KioskClient) {
-    const tx = new Transaction();
+    const txb = new TransactionBlock();
 
-    new KioskTransaction({ transaction: tx, kioskClient }).createAndShare(toolbox.address());
+    new KioskTransaction({ transactionBlock: txb, kioskClient }).createAndShare(toolbox.address());
 
-    await executeTransaction(toolbox, tx);
+    await executeTransactionBlock(toolbox, txb);
 }
 
 // Create a personal Kiosk.
 export async function createPersonalKiosk(toolbox: TestToolbox, kioskClient: KioskClient) {
-    const tx = new Transaction();
-    new KioskTransaction({ transaction: tx, kioskClient }).createPersonal().finalize();
+    const txb = new TransactionBlock();
+    new KioskTransaction({ transactionBlock: txb, kioskClient }).createPersonal().finalize();
 
-    await executeTransaction(toolbox, tx);
+    await executeTransactionBlock(toolbox, txb);
 }
 
 function getCreatedObjectIdByType(res: IotaTransactionBlockResponse, type: string): string {
@@ -209,13 +198,13 @@ export async function getPublisherObject(toolbox: TestToolbox): Promise<string> 
     return publisherObj ?? '';
 }
 
-export async function executeTransaction(
+export async function executeTransactionBlock(
     toolbox: TestToolbox,
-    tx: Transaction,
+    txb: TransactionBlock,
 ): Promise<IotaTransactionBlockResponse> {
-    const resp = await toolbox.client.signAndExecuteTransaction({
+    const resp = await toolbox.client.signAndExecuteTransactionBlock({
         signer: toolbox.keypair,
-        transaction: tx,
+        transactionBlock: txb,
         options: {
             showEffects: true,
             showEvents: true,
@@ -226,12 +215,12 @@ export async function executeTransaction(
     return resp;
 }
 
-export async function devInspectTransaction(
+export async function devInspectTransactionBlock(
     toolbox: TestToolbox,
-    tx: Transaction,
+    txb: TransactionBlock,
 ): Promise<DevInspectResults> {
     return await toolbox.client.devInspectTransactionBlock({
-        transactionBlock: tx,
+        transactionBlock: txb,
         sender: toolbox.address(),
     });
 }

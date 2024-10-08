@@ -1,7 +1,6 @@
 processed 8 tasks
 
-task 0, lines 1-11:
-//# run
+task 0 'run'. lines 1-11:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: STLOC_TYPE_MISMATCH_ERROR,
     sub_status: None,
@@ -10,8 +9,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 1)],
 }
 
-task 1, lines 12-25:
-//# run
+task 1 'run'. lines 12-25:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: STLOC_TYPE_MISMATCH_ERROR,
     sub_status: None,
@@ -20,8 +18,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 3)],
 }
 
-task 2, lines 26-41:
-//# run
+task 2 'run'. lines 26-41:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: STLOC_TYPE_MISMATCH_ERROR,
     sub_status: None,
@@ -30,8 +27,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 6)],
 }
 
-task 3, lines 42-58:
-//# run
+task 3 'run'. lines 42-58:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,
@@ -40,8 +36,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 8)],
 }
 
-task 4, lines 59-75:
-//# run
+task 4 'run'. lines 59-75:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,
@@ -50,8 +45,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 6)],
 }
 
-task 5, lines 76-95:
-//# run
+task 5 'run'. lines 76-95:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: STLOC_TYPE_MISMATCH_ERROR,
     sub_status: None,
@@ -60,8 +54,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 1)],
 }
 
-task 6, lines 96-107:
-//# run
+task 6 'run'. lines 96-107:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,
@@ -70,8 +63,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 1)],
 }
 
-task 7, lines 108-121:
-//# run
+task 7 'run'. lines 108-121:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,

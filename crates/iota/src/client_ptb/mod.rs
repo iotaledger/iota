@@ -4,6 +4,7 @@
 
 pub mod ast;
 pub mod builder;
+pub mod displays;
 pub mod error;
 pub mod lexer;
 pub mod parser;

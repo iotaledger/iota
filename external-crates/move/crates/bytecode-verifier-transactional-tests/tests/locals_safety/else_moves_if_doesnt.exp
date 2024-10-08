@@ -1,7 +1,6 @@
 processed 1 task
 
-task 0, lines 1-21:
-//# run
+task 0 'run'. lines 1-21:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: COPYLOC_UNAVAILABLE_ERROR,
     sub_status: None,

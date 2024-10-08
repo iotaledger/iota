@@ -8,17 +8,17 @@ use std::{
     io::Write,
     num::NonZeroUsize,
     path::PathBuf,
-    sync::{Arc, atomic::AtomicU64},
+    sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
-use iota_storage::{FileCompression, StorageFormat, object_store::util::path_to_filesystem};
-use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
+use iota_storage::{object_store::util::path_to_filesystem, FileCompression, StorageFormat};
+use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
 use iota_types::{
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore},
@@ -29,10 +29,11 @@ use prometheus::Registry;
 use tempfile::tempdir;
 
 use crate::{
-    Manifest, read_manifest,
+    read_manifest,
     reader::{ArchiveReader, ArchiveReaderMetrics},
     verify_archive_with_local_store, write_manifest,
     writer::ArchiveWriter,
+    Manifest,
 };
 
 struct TestState {

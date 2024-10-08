@@ -1,4 +1,5 @@
-module 0x2::TestViz {
+address 0x2 {
+module TestViz {
     /// This is a public function
     public fun this_is_a_public_fun() { }
 
@@ -11,4 +12,5 @@ module 0x2::TestViz {
     #[allow(unused_function)]
     /// This is a private function
     fun this_is_a_private_fun() {}
+}
 }

@@ -6,7 +6,6 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_protocol_config::ProtocolConfig;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     crypto::KeypairTraits,
@@ -19,13 +18,13 @@ use iota_types::{
     utils::make_committee_key,
 };
 use prometheus::Registry;
-use rand::{SeedableRng, prelude::StdRng};
+use rand::{prelude::StdRng, SeedableRng};
 use tempfile::NamedTempFile;
 use tokio::sync::oneshot;
 
 use crate::{
-    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
-    progress_store::ExecutorProgress,
+    progress_store::ExecutorProgress, DataIngestionMetrics, FileProgressStore, IndexerExecutor,
+    ReaderOptions, Worker, WorkerPool,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -141,7 +140,6 @@ fn mock_checkpoint_data_bytes(seq_number: CheckpointSequenceNumber) -> Vec<u8> {
     let (keys, committee) = make_committee_key(&mut rng);
     let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
     let summary = CheckpointSummary::new(
-        &ProtocolConfig::get_for_max_version_UNSAFE(),
         0,
         seq_number,
         0,
@@ -150,7 +148,6 @@ fn mock_checkpoint_data_bytes(seq_number: CheckpointSequenceNumber) -> Vec<u8> {
         GasCostSummary::default(),
         None,
         0,
-        Vec::new(),
     );
 
     let sign_infos: Vec<_> = keys

@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@iota/bcs';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { Transaction } from '../../src/transactions';
+import { TransactionBlock } from '../../src/transactions';
 import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 describe('Test Move call with strings', () => {
@@ -13,22 +12,18 @@ describe('Test Move call with strings', () => {
     let packageId: string;
 
     async function callWithString(str: string | string[], len: number, funcName: string) {
-        const tx = new Transaction();
+        const tx = new TransactionBlock();
         tx.moveCall({
             target: `${packageId}::entry_point_types::${funcName}`,
-            arguments: [
-                Array.isArray(str) ? bcs.vector(bcs.string()).serialize(str) : tx.pure.string(str),
-                tx.pure.u64(len),
-            ],
+            arguments: [tx.pure(str), tx.pure(len)],
         });
-        const result = await toolbox.client.signAndExecuteTransaction({
-            transaction: tx,
+        const result = await toolbox.client.signAndExecuteTransactionBlock({
+            transactionBlock: tx,
             signer: toolbox.keypair,
             options: {
                 showEffects: true,
             },
         });
-        await toolbox.client.waitForTransaction({ digest: result.digest });
         expect(result.effects?.status.status).toEqual('success');
     }
 

@@ -37,7 +37,7 @@ module iota::transfer_policy {
     /// A completed rule is not set in the `TransferPolicy`.
     const EIllegalRule: u64 = 1;
     /// A Rule is not set.
-    const EUnknownRequirement: u64 = 2;
+    const EUnknownRequrement: u64 = 2;
     /// Attempting to create a Rule that is already set.
     const ERuleAlreadySet: u64 = 3;
     /// Trying to `withdraw` or `close_and_withdraw` with a wrong Cap.
@@ -231,7 +231,7 @@ module iota::transfer_policy {
     public fun add_to_balance<T, Rule: drop>(
         _: Rule, policy: &mut TransferPolicy<T>, coin: Coin<IOTA>
     ) {
-        assert!(has_rule<T, Rule>(policy), EUnknownRequirement);
+        assert!(has_rule<T, Rule>(policy), EUnknownRequrement);
         coin::put(&mut policy.balance, coin)
     }
 

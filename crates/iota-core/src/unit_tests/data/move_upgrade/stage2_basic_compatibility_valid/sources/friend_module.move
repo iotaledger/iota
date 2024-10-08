@@ -4,7 +4,7 @@
 
 module base_addr::friend_module {
 
-    public struct A<T> {
+    struct A<T> {
         field1: u64,
         field2: T
     }

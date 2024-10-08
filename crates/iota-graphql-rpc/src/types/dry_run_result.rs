@@ -9,15 +9,13 @@ use iota_types::{
     transaction::TransactionData as NativeTransactionData,
 };
 
-use crate::{
-    error::Error,
-    types::{
-        base64::Base64,
-        move_type::MoveType,
-        transaction_block::{TransactionBlock, TransactionBlockInner},
-        transaction_block_kind::programmable::TransactionArgument,
-    },
+use super::{
+    base64::Base64,
+    move_type::MoveType,
+    transaction_block::{TransactionBlock, TransactionBlockInner},
+    transaction_block_kind::programmable::TransactionArgument,
 };
+use crate::error::Error;
 
 #[derive(Clone, Debug, SimpleObject)]
 pub(crate) struct DryRunResult {

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
+    IotaClient, IotaClientBuilder, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL,
 };
 
 #[serde_as]
@@ -67,9 +67,6 @@ pub struct IotaEnv {
     pub alias: String,
     pub rpc: String,
     pub ws: Option<String>,
-    /// Basic HTTP access authentication in the format of username:password, if
-    /// needed.
-    pub basic_auth: Option<String>,
 }
 
 impl IotaEnv {
@@ -88,15 +85,6 @@ impl IotaEnv {
         if let Some(ws_url) = &self.ws {
             builder = builder.ws_url(ws_url);
         }
-        if let Some(basic_auth) = &self.basic_auth {
-            let fields: Vec<_> = basic_auth.split(':').collect();
-            if fields.len() != 2 {
-                return Err(anyhow!(
-                    "Basic auth should be in the format `username:password`"
-                ));
-            }
-            builder = builder.basic_auth(fields[0], fields[1]);
-        }
 
         if let Some(max_concurrent_requests) = max_concurrent_requests {
             builder = builder.max_concurrent_requests(max_concurrent_requests as usize);
@@ -109,7 +97,6 @@ impl IotaEnv {
             alias: "devnet".to_string(),
             rpc: IOTA_DEVNET_URL.into(),
             ws: None,
-            basic_auth: None,
         }
     }
     pub fn testnet() -> Self {
@@ -117,7 +104,6 @@ impl IotaEnv {
             alias: "testnet".to_string(),
             rpc: IOTA_TESTNET_URL.into(),
             ws: None,
-            basic_auth: None,
         }
     }
 
@@ -126,7 +112,6 @@ impl IotaEnv {
             alias: "local".to_string(),
             rpc: IOTA_LOCAL_NETWORK_URL.into(),
             ws: None,
-            basic_auth: None,
         }
     }
 }
@@ -139,10 +124,6 @@ impl Display for IotaEnv {
         if let Some(ws) = &self.ws {
             writeln!(writer)?;
             write!(writer, "Websocket URL: {ws}")?;
-        }
-        if let Some(basic_auth) = &self.basic_auth {
-            writeln!(writer)?;
-            write!(writer, "Basic Auth: {}", basic_auth)?;
         }
         write!(f, "{}", writer)
     }

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use diesel::QueryDsl;
-use iota_indexer::schema::chain_identifier;
+use diesel::{ExpressionMethods, QueryDsl};
+use iota_indexer::schema::checkpoints;
 use iota_types::{
     digests::ChainIdentifier as NativeChainIdentifier, messages_checkpoint::CheckpointDigest,
 };
@@ -19,11 +19,15 @@ pub(crate) struct ChainIdentifier;
 impl ChainIdentifier {
     /// Query the Chain Identifier from the DB.
     pub(crate) async fn query(db: &Db) -> Result<NativeChainIdentifier, Error> {
-        use chain_identifier::dsl;
+        use checkpoints::dsl;
 
         let digest_bytes = db
             .execute(move |conn| {
-                conn.first(move || dsl::chain_identifier.select(dsl::checkpoint_digest))
+                conn.first(move || {
+                    dsl::checkpoints
+                        .select(dsl::checkpoint_digest)
+                        .order_by(dsl::sequence_number.asc())
+                })
             })
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch genesis digest: {e}")))?;

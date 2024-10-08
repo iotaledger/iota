@@ -9,7 +9,7 @@ use std::{
 };
 
 use clap::Parser;
-use move_binary_format::CompiledModule;
+use move_binary_format::{binary_views::BinaryIndexedView, CompiledModule};
 use move_cli::base;
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Spanned;
@@ -26,18 +26,15 @@ pub struct Disassemble {
     /// Whether to display the disassembly in raw Debug format
     #[clap(long = "Xdebug")]
     debug: bool,
-
-    #[clap(short = 'i', long = "interactive")]
-    interactive: bool,
 }
 
 impl Disassemble {
     pub fn execute(
         self,
-        package_path: Option<&Path>,
+        package_path: Option<PathBuf>,
         build_config: BuildConfig,
     ) -> anyhow::Result<()> {
-        if base::reroot_path(Some(&self.module_path)).is_ok() {
+        if base::reroot_path(Some(self.module_path.clone())).is_ok() {
             // disassembling bytecode inside the source package that produced it--use the
             // source info
             let module_name = self
@@ -48,7 +45,7 @@ impl Disassemble {
                 .expect("Cannot convert module name to string")
                 .to_owned();
             move_cli::base::disassemble::Disassemble {
-                interactive: self.interactive,
+                interactive: false,
                 package_name: None,
                 module_or_script_name: module_name,
                 debug: self.debug,
@@ -74,7 +71,8 @@ impl Disassemble {
         if self.debug {
             println!("{module:#?}");
         } else {
-            let d = Disassembler::from_module(&module, Spanned::unsafe_no_loc(()).loc)?;
+            let view = BinaryIndexedView::Module(&module);
+            let d = Disassembler::from_view(view, Spanned::unsafe_no_loc(()).loc)?;
             println!("{}", d.disassemble()?);
         }
 

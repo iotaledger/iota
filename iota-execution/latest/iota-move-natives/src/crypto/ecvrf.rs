@@ -5,8 +5,8 @@
 use std::collections::VecDeque;
 
 use fastcrypto::vrf::{
-    VRFProof,
     ecvrf::{ECVRFProof, ECVRFPublicKey},
+    VRFProof,
 };
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
@@ -106,7 +106,8 @@ pub fn ecvrf_verify(
     };
 
     let result = proof.verify_output(alpha_string.as_bytes_ref().as_slice(), &public_key, &hash);
-    Ok(NativeResult::ok(cost, smallvec![Value::bool(
-        result.is_ok()
-    )]))
+    Ok(NativeResult::ok(
+        cost,
+        smallvec![Value::bool(result.is_ok())],
+    ))
 }

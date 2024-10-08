@@ -1,4 +1,5 @@
-module 0x1::M {
+address 0x1 {
+module M {
     #[test]
     public fun unexpected_abort() {
         abort 0
@@ -41,4 +42,5 @@ module 0x1::M {
     fun abort_in_native() {
         std::string::internal_sub_string_for_testing(&vector[0], 1, 0);
     }
+}
 }

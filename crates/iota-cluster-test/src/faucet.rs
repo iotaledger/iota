@@ -11,10 +11,10 @@ use iota_faucet::{
     SimpleFaucet,
 };
 use iota_types::{base_types::IotaAddress, crypto::KeypairTraits};
-use tracing::{Instrument, debug, info, info_span};
+use tracing::{debug, info, info_span, Instrument};
 use uuid::Uuid;
 
-use super::cluster::{Cluster, new_wallet_context_from_cluster};
+use super::cluster::{new_wallet_context_from_cluster, Cluster};
 
 pub struct FaucetClientFactory;
 

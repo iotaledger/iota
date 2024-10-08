@@ -8,7 +8,7 @@ import { homedir } from 'os';
 import path from 'path';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { fromB64 } from '@iota/iota-sdk/utils';
 
 export type Network = 'mainnet' | 'testnet' | 'devnet' | 'localnet';
@@ -50,12 +50,12 @@ export const getClient = (network: Network) => {
 };
 
 /** A helper to sign & execute a transaction. */
-export const signAndExecute = async (txb: Transaction, network: Network) => {
+export const signAndExecute = async (txb: TransactionBlock, network: Network) => {
 	const client = getClient(network);
 	const signer = getSigner();
 
-	return client.signAndExecuteTransaction({
-		transaction: txb,
+	return client.signAndExecuteTransactionBlock({
+		transactionBlock: txb,
 		signer,
 		options: {
 			showEffects: true,
@@ -74,7 +74,7 @@ export const publishPackage = async ({
 	network: Network;
 	exportFileName: string;
 }) => {
-	const txb = new Transaction();
+	const txb = new TransactionBlock();
 
 	const { modules, dependencies } = JSON.parse(
 		execSync(`${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath}`, {
@@ -88,7 +88,7 @@ export const publishPackage = async ({
 	});
 
 	// Transfer the upgrade capability to the sender so they can upgrade the package later if they want.
-	txb.transferObjects([cap], getActiveAddress());
+	txb.transferObjects([cap], txb.pure(getActiveAddress()));
 
 	const results = await signAndExecute(txb, network);
 

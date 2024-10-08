@@ -1,7 +1,6 @@
 processed 3 tasks
 
-task 1, lines 72-81:
-//# run
+task 1 'run'. lines 72-81:
 Error: Function execution failed with VMError: {
     major_status: TOO_MANY_TYPE_NODES,
     sub_status: None,
@@ -10,8 +9,7 @@ Error: Function execution failed with VMError: {
     offsets: [(FunctionDefinitionIndex(48), 0)],
 }
 
-task 2, lines 83-93:
-//# run
+task 2 'run'. lines 83-93:
 Error: Function execution failed with VMError: {
     major_status: TOO_MANY_TYPE_NODES,
     sub_status: None,

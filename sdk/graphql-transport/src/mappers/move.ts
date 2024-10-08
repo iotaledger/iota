@@ -115,7 +115,9 @@ export function mapNormalizedMoveFunction(
                 abilities:
                     param.constraints?.map(
                         (constraint) =>
-                            `${constraint[0]}${constraint.slice(1).toLowerCase()}` as IotaMoveAbility,
+                            `${constraint[0]}${constraint
+                                .slice(1)
+                                .toLowerCase()}` as IotaMoveAbility,
                     ) ?? [],
             })) ?? [],
         return: fn.return?.map((param) => mapOpenMoveType(param.signature)) ?? [],
@@ -145,7 +147,9 @@ export function mapNormalizedMoveStruct(
                 constraints: {
                     abilities: param.constraints?.map(
                         (constraint) =>
-                            `${constraint[0]}${constraint.slice(1).toLowerCase()}` as IotaMoveAbility,
+                            `${constraint[0]}${constraint
+                                .slice(1)
+                                .toLowerCase()}` as IotaMoveAbility,
                     ),
                 },
             })) ?? [],

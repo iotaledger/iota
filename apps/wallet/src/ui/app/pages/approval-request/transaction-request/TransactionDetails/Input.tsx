@@ -3,31 +3,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLink, ExplorerLinkType } from '_components';
-import { type TransactionInput } from '@iota/iota-sdk/transactions';
+import { type TransactionBlockInput } from '@iota/iota-sdk/transactions';
 import { formatAddress, toB64 } from '@iota/iota-sdk/utils';
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 
 interface InputProps {
-    input: TransactionInput;
+    input: TransactionBlockInput;
 }
 
 export function Input({ input }: InputProps) {
-    const { objectId } = input?.Object?.ImmOrOwnedObject || input?.Object?.SharedObject || {};
+    const { objectId } = input.value?.Object?.ImmOrOwned || input.value?.Object?.Shared || {};
 
     return (
         <div className="flex flex-col gap-y-sm px-md">
-            {'Pure' in input ? (
+            {'Pure' in input.value ? (
                 <KeyValueInfo
                     keyText="Pure"
-                    value={toB64(new Uint8Array(Buffer.from(input.Pure?.bytes || [])))}
+                    value={toB64(new Uint8Array(input.value.Pure))}
                     fullwidth
                 />
-            ) : 'Object' in input ? (
+            ) : 'Object' in input.value ? (
                 <KeyValueInfo
                     keyText="Object"
                     value={
-                        <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId || ''}>
-                            {formatAddress(objectId || '')}
+                        <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
+                            {formatAddress(objectId)}
                         </ExplorerLink>
                     }
                     fullwidth

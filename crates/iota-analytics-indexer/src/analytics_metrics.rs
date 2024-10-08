@@ -1,11 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 #![allow(dead_code)]
 use prometheus::{
-    IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
+    IntGaugeVec, Registry,
 };
 
 #[derive(Clone)]

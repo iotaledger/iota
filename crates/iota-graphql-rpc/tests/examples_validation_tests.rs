@@ -4,160 +4,133 @@
 
 #[cfg(feature = "pg_integration")]
 mod tests {
-    use std::{cmp::max, collections::BTreeMap, fs, path::PathBuf, sync::Arc};
+    use std::{cmp::max, path::PathBuf, sync::Arc};
 
-    use anyhow::{Context, Result, anyhow};
     use iota_graphql_rpc::{
         config::{ConnectionConfig, Limits},
-        test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
+        examples::{load_examples, ExampleQuery, ExampleQueryGroup},
+        test_infra::cluster::{ExecutorCluster, DEFAULT_INTERNAL_DATA_SOURCE_PORT},
     };
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{rngs::StdRng, SeedableRng};
     use serial_test::serial;
     use simulacrum::Simulacrum;
-    use tempfile::tempdir;
 
-    struct Example {
-        contents: String,
-        path: Option<PathBuf>,
-    }
-
-    fn good_examples() -> Result<BTreeMap<String, Example>> {
-        let examples = PathBuf::from(&env!("CARGO_MANIFEST_DIR")).join("examples");
-
-        let mut dirs = vec![examples.clone()];
-        let mut queries = BTreeMap::new();
-        while let Some(dir) = dirs.pop() {
-            let entries =
-                fs::read_dir(&dir).with_context(|| format!("Looking in {}", dir.display()))?;
-
-            for entry in entries {
-                let entry = entry.with_context(|| format!("Entry in {}", dir.display()))?;
-                let path = entry.path();
-                let typ_ = entry
-                    .file_type()
-                    .with_context(|| format!("Metadata for {}", path.display()))?;
-
-                if typ_.is_dir() {
-                    dirs.push(entry.path());
-                    continue;
-                }
-
-                if path.ends_with(".graphql") {
-                    let contents = fs::read_to_string(&path)
-                        .with_context(|| format!("Reading {}", path.display()))?;
-
-                    let rel_path = path
-                        .strip_prefix(&examples)
-                        .with_context(|| format!("Generating name from {}", path.display()))?
-                        .with_extension("");
-
-                    let name = rel_path
-                        .to_str()
-                        .ok_or_else(|| anyhow!("Generating name from {}", path.display()))?;
-
-                    queries.insert(name.to_string(), Example {
-                        contents,
-                        path: Some(path),
-                    });
-                }
-            }
+    fn bad_examples() -> ExampleQueryGroup {
+        ExampleQueryGroup {
+            name: "bad_examples".to_string(),
+            queries: vec![
+                ExampleQuery {
+                    name: "multiple_queries".to_string(),
+                    contents: "{ chainIdentifier } { chainIdentifier }".to_string(),
+                    path: PathBuf::from("multiple_queries.graphql"),
+                },
+                ExampleQuery {
+                    name: "malformed".to_string(),
+                    contents: "query { }}".to_string(),
+                    path: PathBuf::from("malformed.graphql"),
+                },
+                ExampleQuery {
+                    name: "invalid".to_string(),
+                    contents: "djewfbfo".to_string(),
+                    path: PathBuf::from("invalid.graphql"),
+                },
+                ExampleQuery {
+                    name: "empty".to_string(),
+                    contents: "     ".to_string(),
+                    path: PathBuf::from("empty.graphql"),
+                },
+            ],
+            _path: PathBuf::from("bad_examples"),
         }
-
-        Ok(queries)
     }
 
-    fn bad_examples() -> BTreeMap<String, Example> {
-        BTreeMap::from_iter([
-            ("multiple_queries".to_string(), Example {
-                contents: "{ chainIdentifier } { chainIdentifier }".to_string(),
-                path: None,
-            }),
-            ("malformed".to_string(), Example {
-                contents: "query { }}".to_string(),
-                path: None,
-            }),
-            ("invalid".to_string(), Example {
-                contents: "djewfbfo".to_string(),
-                path: None,
-            }),
-            ("empty".to_string(), Example {
-                contents: "     ".to_string(),
-                path: None,
-            }),
-        ])
-    }
-
-    async fn test_query(
+    async fn validate_example_query_group(
         cluster: &ExecutorCluster,
-        name: &str,
-        query: &Example,
+        group: &ExampleQueryGroup,
         max_nodes: &mut u64,
         max_output_nodes: &mut u64,
         max_depth: &mut u64,
         max_payload: &mut u64,
     ) -> Vec<String> {
-        let resp = cluster
-            .graphql_client
-            .execute_to_graphql(query.contents.clone(), true, vec![], vec![])
-            .await
-            .unwrap();
+        let mut errors = vec![];
+        for query in &group.queries {
+            let resp = cluster
+                .graphql_client
+                .execute_to_graphql(query.contents.clone(), true, vec![], vec![])
+                .await
+                .unwrap();
+            resp.errors().iter().for_each(|err| {
+                errors.push(format!(
+                    "Query failed: {}: {} at: {}\nError: {}",
+                    group.name,
+                    query.name,
+                    query.path.display(),
+                    err
+                ))
+            });
+            if resp.errors().is_empty() {
+                let usage = resp
+                    .usage()
+                    .expect("Usage fetch should succeed")
+                    .unwrap_or_else(|| panic!("Usage should be present for query: {}", query.name));
 
-        let errors = resp.errors();
-        if errors.is_empty() {
-            let usage = resp
-                .usage()
-                .expect("Usage not found")
-                .expect("Usage not found");
-            *max_nodes = max(*max_nodes, usage["inputNodes"]);
-            *max_output_nodes = max(*max_output_nodes, usage["outputNodes"]);
-            *max_depth = max(*max_depth, usage["depth"]);
-            *max_payload = max(*max_payload, usage["queryPayload"]);
-            return vec![];
+                let nodes = *usage.get("inputNodes").unwrap_or_else(|| {
+                    panic!("Node usage should be present for query: {}", query.name)
+                });
+                let output_nodes = *usage.get("outputNodes").unwrap_or_else(|| {
+                    panic!(
+                        "Output node usage should be present for query: {}",
+                        query.name
+                    )
+                });
+                let depth = *usage.get("depth").unwrap_or_else(|| {
+                    panic!("Depth usage should be present for query: {}", query.name)
+                });
+                let payload = *usage.get("queryPayload").unwrap_or_else(|| {
+                    panic!("Payload usage should be present for query: {}", query.name)
+                });
+                *max_nodes = max(*max_nodes, nodes);
+                *max_output_nodes = max(*max_output_nodes, output_nodes);
+                *max_depth = max(*max_depth, depth);
+                *max_payload = max(*max_payload, payload);
+            }
         }
-
         errors
-            .into_iter()
-            .map(|e| match &query.path {
-                Some(p) => format!("Query {name:?} at {} failed: {e}", p.display()),
-                None => format!("Query {name:?} failed: {e}"),
-            })
-            .collect()
     }
 
     #[tokio::test]
     #[serial]
-    async fn good_examples_within_limits() {
+    async fn test_single_all_examples_structure_valid() {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().into_path();
         let mut sim = Simulacrum::new_with_rng(rng);
         let (mut max_nodes, mut max_output_nodes, mut max_depth, mut max_payload) = (0, 0, 0, 0);
 
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
         sim.create_checkpoint();
 
+        let connection_config = ConnectionConfig::ci_integration_test_cfg();
+
         let cluster = iota_graphql_rpc::test_infra::cluster::serve_executor(
-            ConnectionConfig::default(),
+            connection_config,
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
             None,
-            data_ingestion_path,
         )
         .await;
 
+        let groups = load_examples().expect("Could not load examples");
+
         let mut errors = vec![];
-        for (name, example) in good_examples().expect("Could not load examples") {
-            errors.extend(
-                test_query(
-                    &cluster,
-                    &name,
-                    &example,
-                    &mut max_nodes,
-                    &mut max_output_nodes,
-                    &mut max_depth,
-                    &mut max_payload,
-                )
-                .await,
-            );
+        for group in groups {
+            let group_errors = validate_example_query_group(
+                &cluster,
+                &group,
+                &mut max_nodes,
+                &mut max_output_nodes,
+                &mut max_depth,
+                &mut max_payload,
+            )
+            .await;
+            errors.extend(group_errors);
         }
 
         // Check that our examples can run with our usage limits
@@ -169,7 +142,7 @@ mod tests {
             default_config.max_query_nodes
         );
         assert!(
-            max_output_nodes <= default_config.max_output_nodes as u64,
+            max_output_nodes <= default_config.max_output_nodes,
             "Max output nodes {} exceeds default limit {}",
             max_output_nodes,
             default_config.max_output_nodes
@@ -192,37 +165,38 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn bad_examples_fail() {
+    async fn test_bad_examples_fail() {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().into_path();
         let mut sim = Simulacrum::new_with_rng(rng);
         let (mut max_nodes, mut max_output_nodes, mut max_depth, mut max_payload) = (0, 0, 0, 0);
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
 
+        let connection_config = ConnectionConfig::ci_integration_test_cfg();
+
         let cluster = iota_graphql_rpc::test_infra::cluster::serve_executor(
-            ConnectionConfig::default(),
+            connection_config,
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
             None,
-            data_ingestion_path,
         )
         .await;
 
-        for (name, example) in bad_examples() {
-            let errors = test_query(
-                &cluster,
-                &name,
-                &example,
-                &mut max_nodes,
-                &mut max_output_nodes,
-                &mut max_depth,
-                &mut max_payload,
-            )
-            .await;
+        let bad_examples = bad_examples();
+        let errors = validate_example_query_group(
+            &cluster,
+            &bad_examples,
+            &mut max_nodes,
+            &mut max_output_nodes,
+            &mut max_depth,
+            &mut max_payload,
+        )
+        .await;
 
-            assert!(!errors.is_empty(), "Query {name:?} should have failed");
-        }
+        assert_eq!(
+            errors.len(),
+            bad_examples.queries.len(),
+            "all examples should fail"
+        );
     }
 }

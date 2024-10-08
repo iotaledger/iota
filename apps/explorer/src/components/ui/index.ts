@@ -9,6 +9,7 @@ export * from './modal';
 export * from './Banner';
 export * from './ButtonOrLink';
 export * from './Card';
+export * from './CoinsStack';
 export * from './CopyToClipboard';
 export * from './Divider';
 export * from './DropdownMenu';

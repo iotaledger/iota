@@ -10,7 +10,7 @@ use std::{
 };
 
 use reqwest::Url;
-use serde::{Deserialize, Deserializer, de::Error};
+use serde::{de::Error, Deserialize, Deserializer};
 
 use crate::{
     client::Instance,

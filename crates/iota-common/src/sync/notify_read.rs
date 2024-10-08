@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, hash_map::DefaultHasher},
-    error::Error,
+    collections::{hash_map::DefaultHasher, HashMap},
     future::Future,
     hash::{Hash, Hasher},
     mem,
@@ -13,7 +12,6 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::future::{Either, join_all};
 use parking_lot::{Mutex, MutexGuard};
 use tokio::sync::oneshot;
 
@@ -116,29 +114,6 @@ impl<K: Eq + Hash + Clone, V: Clone> NotifyRead<K, V> {
         if registrations.is_empty() {
             pending.remove(key);
         }
-    }
-}
-
-impl<K: Eq + Hash + Clone + Unpin, V: Clone + Unpin> NotifyRead<K, V> {
-    pub async fn read<E: Error>(
-        &self,
-        keys: &[K],
-        fetch: impl FnOnce(&[K]) -> Result<Vec<Option<V>>, E>,
-    ) -> Result<Vec<V>, E> {
-        let registrations = self.register_all(keys);
-
-        let results = fetch(keys)?;
-
-        let results = results
-            .into_iter()
-            .zip(registrations)
-            .map(|(a, r)| match a {
-                // Note that Some() clause also drops registration that is already fulfilled
-                Some(ready) => Either::Left(futures::future::ready(ready)),
-                None => Either::Right(r),
-            });
-
-        Ok(join_all(results).await)
     }
 }
 

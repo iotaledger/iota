@@ -34,8 +34,6 @@ export interface IotaSignPersonalMessageInput {
 export interface IotaSignPersonalMessageOutput extends SignedPersonalMessage {}
 
 export interface SignedPersonalMessage {
-    /** Base64 encoded message bytes */
     bytes: string;
-    /** Base64 encoded signature */
     signature: string;
 }

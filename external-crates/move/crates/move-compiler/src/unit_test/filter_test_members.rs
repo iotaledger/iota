@@ -3,16 +3,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use move_ir_types::location::{sp, Loc};
 use move_symbol_pool::Symbol;
 
 use crate::{
-    command_line::compiler::FullyCompiledProgram,
     diag,
     parser::{
-        ast::{self as P, NamePath, PathEntry},
+        ast as P,
         filter::{filter_program, FilterContext},
     },
     shared::{known_attributes, CompilationEnv},
@@ -62,23 +59,20 @@ impl FilterContext for Context<'_> {
     }
 
     // A module member should be removed if:
-    // * It is annotated as a test function (test_only, test, random_test, abort)
-    //   and test mode is not set; or
+    // * It is annotated as a test function (test_only, test, abort) and test mode
+    //   is not set; or
     // * If it is a library and is annotated as #[test]
     fn should_remove_by_attributes(&mut self, attrs: &[P::Attributes]) -> bool {
         use known_attributes::TestingAttribute;
         let flattened_attrs: Vec<_> = attrs.iter().flat_map(test_attributes).collect();
-        let is_test_only = flattened_attrs.iter().any(|attr| {
-            matches!(
-                attr.1,
-                TestingAttribute::Test | TestingAttribute::TestOnly | TestingAttribute::RandTest
-            )
-        });
+        let is_test_only = flattened_attrs
+            .iter()
+            .any(|attr| matches!(attr.1, TestingAttribute::Test | TestingAttribute::TestOnly));
         is_test_only && !self.env.flags().keep_testing_functions()
             || (!self.is_source_def
-                && flattened_attrs.iter().any(|attr| {
-                    matches!(attr.1, TestingAttribute::Test | TestingAttribute::RandTest)
-                }))
+                && flattened_attrs
+                    .iter()
+                    .any(|attr| attr.1 == TestingAttribute::Test))
     }
 }
 
@@ -88,18 +82,13 @@ impl FilterContext for Context<'_> {
 
 const UNIT_TEST_MODULE_NAME: Symbol = symbol!("unit_test");
 const STDLIB_ADDRESS_NAME: Symbol = symbol!("std");
-pub const UNIT_TEST_POISON_FUN_NAME: Symbol = symbol!("unit_test_poison");
 
 // This filters out all test, and test-only annotated module member from `prog`
 // if the `test` flag in `compilation_env` is not set. If the test flag is set,
 // no filtering is performed, and instead a test plan is created for use by the
 // testing framework.
-pub fn program(
-    compilation_env: &mut CompilationEnv,
-    pre_compiled_lib: Option<Arc<FullyCompiledProgram>>,
-    prog: P::Program,
-) -> P::Program {
-    if !check_has_unit_test_module(compilation_env, pre_compiled_lib, &prog) {
+pub fn program(compilation_env: &mut CompilationEnv, prog: P::Program) -> P::Program {
+    if !check_has_unit_test_module(compilation_env, &prog) {
         return prog;
     }
 
@@ -108,8 +97,9 @@ pub fn program(
     filter_program(&mut context, prog)
 }
 
-fn has_unit_test_module(prog: &P::Program) -> bool {
-    prog.lib_definitions
+fn check_has_unit_test_module(compilation_env: &mut CompilationEnv, prog: &P::Program) -> bool {
+    let has_unit_test_module = prog
+        .lib_definitions
         .iter()
         .chain(prog.source_definitions.iter())
         .any(|pkg| match &pkg.def {
@@ -126,16 +116,7 @@ fn has_unit_test_module(prog: &P::Program) -> bool {
                     }
             }
             _ => false,
-        })
-}
-
-fn check_has_unit_test_module(
-    compilation_env: &mut CompilationEnv,
-    pre_compiled_lib: Option<Arc<FullyCompiledProgram>>,
-    prog: &P::Program,
-) -> bool {
-    let has_unit_test_module = has_unit_test_module(prog)
-        || pre_compiled_lib.is_some_and(|p| has_unit_test_module(&p.parser));
+        });
 
     if !has_unit_test_module && compilation_env.flags().is_testing() {
         if let Some(P::PackageDefinition { def, .. }) = prog
@@ -182,33 +163,16 @@ fn create_test_poison(mloc: Loc) -> P::ModuleMember {
     );
 
     let mod_name = sp(mloc, UNIT_TEST_MODULE_NAME);
+    let mod_addr_name = sp(mloc, (leading_name_access, mod_name));
     let fn_name = sp(mloc, "create_signers_for_testing".into());
-    let name_path = NamePath {
-        root: P::RootPathEntry {
-            name: leading_name_access,
-            tyargs: None,
-            is_macro: None,
-        },
-        entries: vec![
-            PathEntry {
-                name: mod_name,
-                tyargs: None,
-                is_macro: None,
-            },
-            PathEntry {
-                name: fn_name,
-                tyargs: None,
-                is_macro: None,
-            },
-        ],
-        is_incomplete: false,
-    };
     let args_ = vec![sp(
         mloc,
         P::Exp_::Value(sp(mloc, P::Value_::Num("0".into()))),
     )];
     let nop_call = P::Exp_::Call(
-        sp(mloc, P::NameAccessChain_::Path(name_path)),
+        sp(mloc, P::NameAccessChain_::Three(mod_addr_name, fn_name)),
+        None,
+        None,
         sp(mloc, args_),
     );
 
@@ -220,7 +184,7 @@ fn create_test_poison(mloc: Loc) -> P::ModuleMember {
         entry: Some(mloc), // it's a bit of a hack to avoid treating this function as unused
         macro_: None,
         signature,
-        name: P::FunctionName(sp(mloc, UNIT_TEST_POISON_FUN_NAME)),
+        name: P::FunctionName(sp(mloc, "unit_test_poison".into())),
         body: sp(
             mloc,
             P::FunctionBody_::Defined((
@@ -250,8 +214,7 @@ fn test_attributes(attrs: &P::Attributes) -> Vec<(Loc, known_attributes::Testing
                 | KnownAttribute::DefinesPrimitive(_)
                 | KnownAttribute::External(_)
                 | KnownAttribute::Syntax(_)
-                | KnownAttribute::Error(_)
-                | KnownAttribute::Deprecation(_) => None,
+                | KnownAttribute::Error(_) => None,
             },
         )
         .collect()

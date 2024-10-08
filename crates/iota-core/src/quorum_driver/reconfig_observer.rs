@@ -5,19 +5,16 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use iota_types::iota_system_state::{
-    IotaSystemState, IotaSystemStateTrait,
-    epoch_start_iota_system_state::EpochStartSystemStateTrait,
-};
+use iota_types::iota_system_state::{IotaSystemState, IotaSystemStateTrait};
 use tokio::sync::broadcast::error::RecvError;
 use tracing::{info, warn};
 
 use super::QuorumDriver;
 use crate::{
-    authority_aggregator::AuthAggMetrics,
+    authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     epoch::committee_store::CommitteeStore,
-    execution_cache::ObjectCacheRead,
+    execution_cache::ExecutionCacheRead,
     safe_client::SafeClientMetricsBase,
 };
 
@@ -31,9 +28,8 @@ pub trait ReconfigObserver<A: Clone> {
 /// This is used in TransactionOrchestrator.
 pub struct OnsiteReconfigObserver {
     reconfig_rx: tokio::sync::broadcast::Receiver<IotaSystemState>,
-    execution_cache: Arc<dyn ObjectCacheRead>,
+    execution_cache: Arc<dyn ExecutionCacheRead>,
     committee_store: Arc<CommitteeStore>,
-    // TODO: Use Arc for both metrics.
     safe_client_metrics_base: SafeClientMetricsBase,
     auth_agg_metrics: AuthAggMetrics,
 }
@@ -41,7 +37,7 @@ pub struct OnsiteReconfigObserver {
 impl OnsiteReconfigObserver {
     pub fn new(
         reconfig_rx: tokio::sync::broadcast::Receiver<IotaSystemState>,
-        execution_cache: Arc<dyn ObjectCacheRead>,
+        execution_cache: Arc<dyn ExecutionCacheRead>,
         committee_store: Arc<CommitteeStore>,
         safe_client_metrics_base: SafeClientMetricsBase,
         auth_agg_metrics: AuthAggMetrics,
@@ -53,6 +49,23 @@ impl OnsiteReconfigObserver {
             safe_client_metrics_base,
             auth_agg_metrics,
         }
+    }
+
+    async fn create_authority_aggregator_from_system_state(
+        &self,
+    ) -> AuthorityAggregator<NetworkAuthorityClient> {
+        AuthorityAggregator::new_from_local_system_state(
+            &self.execution_cache,
+            &self.committee_store,
+            self.safe_client_metrics_base.clone(),
+            self.auth_agg_metrics.clone(),
+        )
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to create AuthorityAggregator from System State: {:?}",
+                e
+            )
+        })
     }
 }
 
@@ -69,19 +82,28 @@ impl ReconfigObserver<NetworkAuthorityClient> for OnsiteReconfigObserver {
     }
 
     async fn run(&mut self, quorum_driver: Arc<QuorumDriver<NetworkAuthorityClient>>) {
+        // A tiny optimization: when a very stale node just starts, the
+        // channel may fill up committees quickly. Here we skip directly to
+        // the last known committee by looking at IotaSystemState.
+        let authority_agg = self.create_authority_aggregator_from_system_state().await;
+        if authority_agg.committee.epoch > quorum_driver.current_epoch() {
+            quorum_driver
+                .update_validators(Arc::new(authority_agg))
+                .await;
+        }
         loop {
             match self.reconfig_rx.recv().await {
                 Ok(system_state) => {
-                    let epoch_start_state = system_state.into_epoch_start_state();
-                    let committee = epoch_start_state.get_iota_committee();
-                    info!("Got reconfig message. New committee: {}", committee);
+                    let committee = system_state.get_current_epoch_committee();
+                    info!(
+                        "Got reconfig message. New committee: {}",
+                        committee.committee
+                    );
                     if committee.epoch() > quorum_driver.current_epoch() {
-                        let new_auth_agg = quorum_driver
-                            .authority_aggregator()
-                            .load()
-                            .recreate_with_new_epoch_start_state(&epoch_start_state);
+                        let authority_agg =
+                            self.create_authority_aggregator_from_system_state().await;
                         quorum_driver
-                            .update_validators(Arc::new(new_auth_agg))
+                            .update_validators(Arc::new(authority_agg))
                             .await;
                     } else {
                         // This should only happen when the node just starts

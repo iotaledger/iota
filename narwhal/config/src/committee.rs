@@ -13,7 +13,7 @@ use crypto::{NetworkPublicKey, PublicKey, PublicKeyBytes};
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_network_stack::Multiaddr;
 use iota_util_mem::MallocSizeOf;
-use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::{Epoch, Stake};

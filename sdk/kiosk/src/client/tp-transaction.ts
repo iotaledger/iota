@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
+import type { TransactionBlock, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import {
     attachFloorPriceRuleTx,
@@ -28,27 +28,20 @@ export type TransferPolicyBaseParams = {
 
 export type TransferPolicyTransactionParams = {
     kioskClient: KioskClient;
-    transaction: Transaction;
-    /** @deprecated use transaction instead */
-    transactionBlock?: Transaction;
+    transactionBlock: TransactionBlock;
     cap?: TransferPolicyCap;
 };
 
 export class TransferPolicyTransaction {
-    transaction: Transaction;
+    transactionBlock: TransactionBlock;
     kioskClient: KioskClient;
     policy?: ObjectArgument;
     policyCap?: ObjectArgument;
     type?: string;
 
-    constructor({
-        kioskClient,
-        transactionBlock,
-        transaction = transactionBlock!,
-        cap,
-    }: TransferPolicyTransactionParams) {
+    constructor({ kioskClient, transactionBlock, cap }: TransferPolicyTransactionParams) {
         this.kioskClient = kioskClient;
-        this.transaction = transaction;
+        this.transactionBlock = transactionBlock;
         if (cap) this.setCap(cap);
     }
 
@@ -77,8 +70,8 @@ export class TransferPolicyTransaction {
             if (policies.length > 0)
                 throw new Error("There's already transfer policy for this Type.");
         }
-        const cap = createTransferPolicy(this.transaction, type, publisher);
-        this.transaction.transferObjects([cap], this.transaction.pure.address(address));
+        const cap = createTransferPolicy(this.transactionBlock, type, publisher);
+        this.transactionBlock.transferObjects([cap], this.transactionBlock.pure.address(address));
     }
 
     /**
@@ -100,7 +93,7 @@ export class TransferPolicyTransaction {
                 throw new Error("There's already transfer policy for this Type.");
         }
         const [policy, policyCap] = createTransferPolicyWithoutSharing(
-            this.transaction,
+            this.transactionBlock,
             type,
             publisher,
         );
@@ -121,10 +114,14 @@ export class TransferPolicyTransaction {
                 'This function can only be called after `transferPolicyManager.create`',
             );
 
-        shareTransferPolicy(this.transaction, this.type, this.policy as TransactionObjectArgument);
-        this.transaction.transferObjects(
+        shareTransferPolicy(
+            this.transactionBlock,
+            this.type,
+            this.policy as TransactionObjectArgument,
+        );
+        this.transactionBlock.transferObjects(
             [this.policyCap as TransactionObjectArgument],
-            this.transaction.pure.address(address),
+            this.transactionBlock.pure.address(address),
         );
     }
 
@@ -146,14 +143,14 @@ export class TransferPolicyTransaction {
         this.#validateInputs();
         // Withdraw coin for specified amount (or none)
         const coin = withdrawFromPolicy(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             this.policy!,
             this.policyCap!,
             amount,
         );
 
-        this.transaction.transferObjects([coin], this.transaction.pure.address(address));
+        this.transactionBlock.transferObjects([coin], this.transactionBlock.pure.address(address));
 
         return this;
     }
@@ -166,7 +163,7 @@ export class TransferPolicyTransaction {
      * 	(but you should define at least one of them for the rule to make sense).
      *
      * 	@param percentageBps The royalty percentage in basis points. Use `percentageToBasisPoints` helper to convert from percentage [0,100].
-     * 	@param minAmount The minimum royalty amount per request in NANOS.
+     * 	@param minAmount The minimum royalty amount per request in nano.
      */
     addRoyaltyRule(
         percentageBps: number | string, // this is in basis points.
@@ -178,7 +175,7 @@ export class TransferPolicyTransaction {
         // Also, it's hard to keep versioning as with network wipes, mainnet
         // and testnet will conflict.
         attachRoyaltyRuleTx(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             this.policy!,
             this.policyCap!,
@@ -197,7 +194,7 @@ export class TransferPolicyTransaction {
         this.#validateInputs();
 
         attachKioskLockRuleTx(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             this.policy!,
             this.policyCap!,
@@ -213,7 +210,7 @@ export class TransferPolicyTransaction {
         this.#validateInputs();
 
         attachPersonalKioskRuleTx(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             this.policy!,
             this.policyCap!,
@@ -224,13 +221,13 @@ export class TransferPolicyTransaction {
 
     /**
      * A function to add the floor price rule to a transfer policy.
-     * @param minPrice The minimum price in NANOS.
+     * @param minPrice The minimum price in nano.
      */
     addFloorPriceRule(minPrice: string | bigint) {
         this.#validateInputs();
 
         attachFloorPriceRuleTx(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             this.policy!,
             this.policyCap!,
@@ -249,7 +246,7 @@ export class TransferPolicyTransaction {
         this.#validateInputs();
 
         removeTransferPolicyRule(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             ruleType,
             configType,
@@ -267,7 +264,7 @@ export class TransferPolicyTransaction {
         const packageId = this.kioskClient.getRulePackageId('kioskLockRulePackageId');
 
         removeTransferPolicyRule(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             `${packageId}::kiosk_lock_rule::Rule`,
             `${packageId}::kiosk_lock_rule::Config`,
@@ -286,7 +283,7 @@ export class TransferPolicyTransaction {
         const packageId = this.kioskClient.getRulePackageId('royaltyRulePackageId');
 
         removeTransferPolicyRule(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             `${packageId}::royalty_rule::Rule`,
             `${packageId}::royalty_rule::Config`,
@@ -302,7 +299,7 @@ export class TransferPolicyTransaction {
         const packageId = this.kioskClient.getRulePackageId('personalKioskRulePackageId');
 
         removeTransferPolicyRule(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             `${packageId}::personal_kiosk_rule::Rule`,
             `bool`,
@@ -318,7 +315,7 @@ export class TransferPolicyTransaction {
         const packageId = this.kioskClient.getRulePackageId('floorPriceRulePackageId');
 
         removeTransferPolicyRule(
-            this.transaction,
+            this.transactionBlock,
             this.type!,
             `${packageId}::floor_price_rule::Rule`,
             `${packageId}::floor_price_rule::Config`,

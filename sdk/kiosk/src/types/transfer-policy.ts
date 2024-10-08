@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ObjectOwner } from '@iota/iota-sdk/client';
-import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
+import type { TransactionBlock, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import type { ObjectArgument } from './index.js';
 
@@ -53,9 +53,7 @@ export type TransferPolicyCreated = {
 // Each rule resolving function should check that the key it's seeking is in the object
 // e.g. `if(!'my_key' in ruleParams!) throw new Error("Can't resolve that rule!")`
 export type RuleResolvingParams = {
-    transaction: Transaction;
-    /** @deprecated use transaction instead */
-    transactionBlock: Transaction;
+    transactionBlock: TransactionBlock;
     itemType: string;
     itemId: string;
     price: string;

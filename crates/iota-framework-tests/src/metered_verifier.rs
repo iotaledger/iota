@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Instant,
-};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
 use iota_adapter::adapter::run_metered_move_bytecode_verifier;
 use iota_framework::BuiltInFramework;
@@ -16,11 +12,11 @@ use iota_types::{
     error::{IotaError, IotaResult},
     metrics::BytecodeVerifierMetrics,
 };
-use iota_verifier::meter::IotaVerifierMeter;
-use move_bytecode_verifier_meter::Scope;
+use iota_verifier::{default_verifier_config, meter::IotaVerifierMeter};
+use move_bytecode_verifier::meter::Scope;
 use prometheus::Registry;
 
-fn build(path: &Path) -> IotaResult<CompiledPackage> {
+fn build(path: PathBuf) -> IotaResult<CompiledPackage> {
     let mut config = iota_move_build::BuildConfig::new_for_testing();
     config.config.warnings_are_errors = true;
     config.build(path)
@@ -32,20 +28,21 @@ fn test_metered_move_bytecode_verifier() {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let path =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../iota-framework/packages/iota-framework");
-    let compiled_package = build(&path).unwrap();
+    let compiled_package = build(path).unwrap();
     let compiled_modules: Vec<_> = compiled_package.get_modules().cloned().collect();
 
-    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let mut verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-    let mut meter_config = protocol_config.meter_config_for_signing();
+    let mut metered_verifier_config = default_verifier_config(
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        true, // enable metering
+    );
     let registry = &Registry::new();
     let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
-    let mut meter = IotaVerifierMeter::new(meter_config.clone());
+    let mut meter = IotaVerifierMeter::new(&metered_verifier_config);
     let timer_start = Instant::now();
     // Default case should pass
     let r = run_metered_move_bytecode_verifier(
         &compiled_modules,
-        &verifier_config,
+        &metered_verifier_config,
         &mut meter,
         &bytecode_verifier_metrics,
     );
@@ -96,7 +93,18 @@ fn test_metered_move_bytecode_verifier() {
         bytecode_verifier_metrics
             .verifier_timeout_metrics
             .with_label_values(&[
-                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::MOVE_VERIFIER_TAG,
+                BytecodeVerifierMetrics::TIMEOUT_TAG,
+            ])
+            .get(),
+    );
+
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::IOTA_VERIFIER_TAG,
                 BytecodeVerifierMetrics::TIMEOUT_TAG,
             ])
             .get(),
@@ -115,16 +123,16 @@ fn test_metered_move_bytecode_verifier() {
     );
 
     // Use low limits. Should fail
-    verifier_config.max_back_edges_per_function = Some(100);
-    verifier_config.max_back_edges_per_module = Some(1_000);
-    meter_config.max_per_mod_meter_units = Some(10_000);
-    meter_config.max_per_fun_meter_units = Some(10_000);
+    metered_verifier_config.max_back_edges_per_function = Some(100);
+    metered_verifier_config.max_back_edges_per_module = Some(1_000);
+    metered_verifier_config.max_per_mod_meter_units = Some(10_000);
+    metered_verifier_config.max_per_fun_meter_units = Some(10_000);
 
-    let mut meter = IotaVerifierMeter::new(meter_config);
+    let mut meter = IotaVerifierMeter::new(&metered_verifier_config);
     let timer_start = Instant::now();
     let r = run_metered_move_bytecode_verifier(
         &compiled_modules,
-        &verifier_config,
+        &metered_verifier_config,
         &mut meter,
         &bytecode_verifier_metrics,
     );
@@ -172,7 +180,18 @@ fn test_metered_move_bytecode_verifier() {
         bytecode_verifier_metrics
             .verifier_timeout_metrics
             .with_label_values(&[
-                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::MOVE_VERIFIER_TAG,
+                BytecodeVerifierMetrics::TIMEOUT_TAG,
+            ])
+            .get(),
+    );
+    // Iota verifier did not fail
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::IOTA_VERIFIER_TAG,
                 BytecodeVerifierMetrics::TIMEOUT_TAG,
             ])
             .get(),
@@ -193,33 +212,35 @@ fn test_metered_move_bytecode_verifier() {
     // Check shared meter logic works across all publish in PT
     let mut packages = vec![];
     let with_unpublished_deps = false;
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
-    let package = build(&path).unwrap();
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../iota_programmability/examples/basics");
+    let package = build(path).unwrap();
     packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
     packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
 
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/coin");
-    let package = build(&path).unwrap();
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../iota_programmability/examples/fungible_tokens");
+    let package = build(path).unwrap();
     packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
 
+    let is_metered = true;
     let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-    let meter_config = protocol_config.meter_config_for_signing();
+    let metered_verifier_config = default_verifier_config(&protocol_config, is_metered);
 
     // Check if the same meter is indeed used multiple invocations of the verifier
-    let mut meter = IotaVerifierMeter::new(meter_config);
+    let mut meter = IotaVerifierMeter::new(&metered_verifier_config);
     for modules in &packages {
-        let prev_meter = meter.get_usage(Scope::Package);
+        let prev_meter = meter.get_usage(Scope::Module) + meter.get_usage(Scope::Function);
 
         run_metered_move_bytecode_verifier(
             modules,
-            &verifier_config,
+            &metered_verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
         )
         .expect("Verification should not timeout");
 
-        let curr_meter = meter.get_usage(Scope::Package);
+        let curr_meter = meter.get_usage(Scope::Module) + meter.get_usage(Scope::Function);
         assert!(curr_meter > prev_meter);
     }
 }
@@ -229,16 +250,16 @@ fn test_metered_move_bytecode_verifier() {
 fn test_meter_system_packages() {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
-    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-    let meter_config = protocol_config.meter_config_for_signing();
+    let is_metered = true;
+    let metered_verifier_config =
+        default_verifier_config(&ProtocolConfig::get_for_max_version_UNSAFE(), is_metered);
     let registry = &Registry::new();
     let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
-    let mut meter = IotaVerifierMeter::new(meter_config);
+    let mut meter = IotaVerifierMeter::new(&metered_verifier_config);
     for system_package in BuiltInFramework::iter_system_packages() {
         run_metered_move_bytecode_verifier(
             &system_package.modules(),
-            &verifier_config,
+            &metered_verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
         )
@@ -257,7 +278,17 @@ fn test_meter_system_packages() {
         bytecode_verifier_metrics
             .verifier_timeout_metrics
             .with_label_values(&[
-                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::MOVE_VERIFIER_TAG,
+                BytecodeVerifierMetrics::TIMEOUT_TAG,
+            ])
+            .get(),
+    );
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::IOTA_VERIFIER_TAG,
                 BytecodeVerifierMetrics::TIMEOUT_TAG,
             ])
             .get(),
@@ -283,12 +314,13 @@ fn test_meter_system_packages() {
 fn test_build_and_verify_programmability_examples() {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
-    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-    let meter_config = protocol_config.meter_config_for_signing();
+    let is_metered = true;
+    let metered_verifier_config =
+        default_verifier_config(&ProtocolConfig::get_for_max_version_UNSAFE(), is_metered);
     let registry = &Registry::new();
     let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
-    let examples = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let examples =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../iota_programmability/examples");
 
     for example in std::fs::read_dir(examples).unwrap() {
         let Ok(example) = example else { continue };
@@ -303,12 +335,12 @@ fn test_build_and_verify_programmability_examples() {
             continue;
         };
 
-        let modules = build(&path).unwrap().into_modules();
+        let modules = build(path).unwrap().into_modules();
 
-        let mut meter = IotaVerifierMeter::new(meter_config.clone());
+        let mut meter = IotaVerifierMeter::new(&metered_verifier_config);
         run_metered_move_bytecode_verifier(
             &modules,
-            &verifier_config,
+            &metered_verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
         )

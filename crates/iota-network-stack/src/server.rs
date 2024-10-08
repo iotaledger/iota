@@ -8,25 +8,25 @@ use std::{
     task::{Context, Poll},
 };
 
-use eyre::{Result, eyre};
+use eyre::{eyre, Result};
 use futures::FutureExt;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{
     body::BoxBody,
     codegen::{
-        BoxFuture,
         http::{HeaderValue, Request, Response},
+        BoxFuture,
     },
     server::NamedService,
-    transport::server::Router,
+    transport::{server::Router, Body},
 };
 use tower::{
-    Layer, Service, ServiceBuilder,
     layer::util::{Identity, Stack},
     limit::GlobalConcurrencyLimitLayer,
     load_shed::LoadShedLayer,
     util::Either,
+    Layer, Service, ServiceBuilder,
 };
 use tower_http::{
     classify::{GrpcErrorsAsFailures, SharedClassifier},
@@ -38,10 +38,10 @@ use tower_http::{
 use crate::{
     config::Config,
     metrics::{
-        DefaultMetricsCallbackProvider, GRPC_ENDPOINT_PATH_HEADER, MetricsCallbackProvider,
-        MetricsHandler,
+        DefaultMetricsCallbackProvider, MetricsCallbackProvider, MetricsHandler,
+        GRPC_ENDPOINT_PATH_HEADER,
     },
-    multiaddr::{Multiaddr, Protocol, parse_dns, parse_ip4, parse_ip6},
+    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
 };
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
@@ -111,7 +111,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             .global_concurrency_limit
             .map(tower::limit::GlobalConcurrencyLimitLayer::new);
 
-        fn add_path_to_request_header(request: &Request<BoxBody>) -> Option<HeaderValue> {
+        fn add_path_to_request_header<B: Body>(request: &Request<B>) -> Option<HeaderValue> {
             let path = request.uri().path();
             Some(HeaderValue::from_str(path).unwrap())
         }
@@ -201,6 +201,19 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
                     );
                     (local_addr, server)
                 }
+                // Protocol::Memory(_) => todo!(),
+                #[cfg(unix)]
+                Protocol::Unix(_) => {
+                    let (path, _http_or_https) = crate::multiaddr::parse_unix(addr)?;
+                    let uds = tokio::net::UnixListener::bind(path.as_ref())?;
+                    let uds_stream = tokio_stream::wrappers::UnixListenerStream::new(uds);
+                    let local_addr = addr.to_owned();
+                    let server = Box::pin(
+                        self.router
+                            .serve_with_incoming_shutdown(uds_stream, rx_cancellation),
+                    );
+                    (local_addr, server)
+                }
                 unsupported => return Err(eyre!("unsupported protocol {unsupported}")),
             };
 
@@ -274,9 +287,9 @@ mod test {
     };
 
     use tonic::Code;
-    use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
+    use tonic_health::pb::{health_client::HealthClient, HealthCheckRequest};
 
-    use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
+    use crate::{config::Config, metrics::MetricsCallbackProvider, Multiaddr};
 
     #[test]
     fn document_multiaddr_limitation_for_unix_protocol() {
@@ -450,6 +463,24 @@ mod test {
     #[tokio::test]
     async fn ip6() {
         let address: Multiaddr = "/ip6/::1/tcp/0/http".parse().unwrap();
+        test_multiaddr(address).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix() {
+        // Note that this only works when constructing a multiaddr by hand and not via
+        // the human-readable format
+        let path = "unix-domain-socket";
+        let address = Multiaddr::new_internal(multiaddr::multiaddr!(Unix(path), Http));
+        test_multiaddr(address).await;
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[should_panic]
+    #[tokio::test]
+    async fn missing_http_protocol() {
+        let address: Multiaddr = "/dns/localhost/tcp/0".parse().unwrap();
         test_multiaddr(address).await;
     }
 }

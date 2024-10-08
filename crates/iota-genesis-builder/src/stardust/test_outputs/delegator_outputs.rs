@@ -4,12 +4,12 @@
 use iota_sdk::types::block::{
     address::Ed25519Address,
     output::{
-        BasicOutputBuilder, Output,
         unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
+        BasicOutputBuilder, Output,
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{Rng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng};
 
 use super::to_nanos;
 use crate::stardust::{

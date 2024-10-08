@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{get_key_pair, AccountKeyPair},
     object::Object,
 };
 use proptest::prelude::*;

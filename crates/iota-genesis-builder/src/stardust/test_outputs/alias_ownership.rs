@@ -4,22 +4,22 @@
 use std::collections::VecDeque;
 
 use iota_sdk::{
-    client::secret::{SecretManage, mnemonic::MnemonicSecretManager},
+    client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::{
         address::{Address, AliasAddress},
         output::{
-            AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
-            FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder,
-            OUTPUT_INDEX_RANGE, Output, SimpleTokenScheme, UnlockCondition,
             feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
             unlock_condition::{
                 AddressUnlockCondition, GovernorAddressUnlockCondition,
                 ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
             },
+            AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
+            FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder, Output,
+            SimpleTokenScheme, UnlockCondition, OUTPUT_INDEX_RANGE,
         },
     },
 };
-use rand::{Rng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
     test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},

@@ -1,7 +1,6 @@
 [package]
 name = "deepbook_client"
 version = "0.0.1"
-edition = "2024.beta"
 
 [dependencies]
 DeepBook = { local = "../../../../iota-framework/packages/deepbook" }

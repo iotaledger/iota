@@ -10,13 +10,13 @@ use std::collections::BTreeMap;
 use move_ir_types::location::*;
 
 use super::{
-    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode,
-    INVALID_LOC, IOTA_PKG_NAME, LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN,
-    TRANSFER_FUN, TRANSFER_MOD_NAME,
+    type_abilities, LinterDiagCategory, INVALID_LOC, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
+    LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 use crate::{
     cfgir::{
         absint::JoinResult,
+        ast::Program,
         visitor::{
             LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain, SimpleExecutionContext,
         },
@@ -40,8 +40,8 @@ const TRANSFER_FUNCTIONS: &[(&str, &str, &str)] = &[
 const SELF_TRANSFER_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Iota as u8,
-    LinterDiagnosticCode::SelfTransfer as u8,
+    LinterDiagCategory::SelfTransfer as u8,
+    LINTER_DEFAULT_DIAG_CODE,
     "non-composable transfer to sender",
 );
 
@@ -81,6 +81,7 @@ impl SimpleAbsIntConstructor for SelfTransferVerifier {
 
     fn new<'a>(
         _env: &CompilationEnv,
+        program: &'a Program,
         context: &'a CFGContext<'a>,
         _init_state: &mut <Self::AI<'a> as SimpleAbsInt>::State,
     ) -> Option<Self::AI<'a>> {
@@ -90,9 +91,10 @@ impl SimpleAbsIntConstructor for SelfTransferVerifier {
 
         if context.entry.is_some()
             || context.attributes.is_test_or_test_only()
-            || context
-                .info
-                .module(&context.module)
+            || program
+                .modules
+                .get(&context.module)
+                .unwrap()
                 .attributes
                 .is_test_or_test_only()
         {

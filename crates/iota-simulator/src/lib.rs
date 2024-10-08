@@ -150,7 +150,7 @@ pub fn current_simnode_id() -> msim::task::NodeId {
 pub mod random {
     use std::{cell::RefCell, collections::HashSet, hash::Hash};
 
-    use rand_crate::{Rng, SeedableRng, rngs::SmallRng, thread_rng};
+    use rand_crate::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
     use serde::Serialize;
 
     use super::*;

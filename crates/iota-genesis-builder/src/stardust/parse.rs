@@ -10,8 +10,8 @@ use iota_sdk::types::block::{
 };
 use iota_types::stardust::error::StardustError;
 use packable::{
-    Packable,
     unpacker::{IoUnpacker, Unpacker},
+    Packable,
 };
 
 use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};

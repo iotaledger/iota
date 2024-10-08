@@ -57,7 +57,6 @@ const options: {
                 {
                     alias?: string;
                     typeAlias?: string;
-                    deprecated?: string;
                 }
             >;
         }
@@ -176,9 +175,6 @@ const options: {
                     alias: 'signature',
                     typeAlias: 'string | string[]',
                 },
-                requestType: {
-                    deprecated: 'requestType will be ignored by JSON RPC in the future',
-                },
             },
         },
         iotax_queryEvents: {
@@ -196,7 +192,7 @@ const options: {
                 },
                 tx_bytes: {
                     alias: 'transactionBlock',
-                    typeAlias: 'Transaction | Uint8Array | string',
+                    typeAlias: 'TransactionBlock | Uint8Array | string',
                 },
                 gas_price: {
                     typeAlias: 'bigint | number',
@@ -347,7 +343,7 @@ methodGenerator.imports.push(
                 ts.factory.createImportSpecifier(
                     false,
                     undefined,
-                    ts.factory.createIdentifier('Transaction'),
+                    ts.factory.createIdentifier('TransactionBlock'),
                 ),
             ]),
         ),
@@ -372,12 +368,8 @@ async function createMethodParams(method: OpenRpcMethod) {
                 return !methodOptions.flattenParams?.includes(param.name);
             })
             .map(async (param) => {
-                const paramOptions =
-                    methodOptions.params?.[normalizeParamName(method.name, param.name)] ?? {};
                 return withDescription(
-                    paramOptions.deprecated
-                        ? { description: `@deprecated ${paramOptions.deprecated}` }
-                        : param,
+                    param,
                     ts.factory.createPropertySignature(
                         undefined,
                         normalizeParamName(method.name, param.name),

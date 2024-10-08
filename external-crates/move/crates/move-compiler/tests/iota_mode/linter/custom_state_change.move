@@ -12,7 +12,7 @@ module a::test {
         id: UID
     }
 
-    #[allow(lint(self_transfer, prefer_mut_tx_context))]
+    #[allow(lint(self_transfer))]
     public fun custom_transfer_bad(o: S1, ctx: &TxContext) {
         transfer::transfer(o, tx_context::sender(ctx))
     }

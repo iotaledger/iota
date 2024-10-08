@@ -6,10 +6,8 @@ use async_graphql::*;
 use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
 use iota_types::object::Owner as NativeOwner;
 
-use crate::{
-    error::Error,
-    types::{big_int::BigInt, iota_address::IotaAddress, move_type::MoveType, owner::Owner},
-};
+use super::{big_int::BigInt, iota_address::IotaAddress, move_type::MoveType, owner::Owner};
+use crate::error::Error;
 
 pub(crate) struct BalanceChange {
     stored: StoredBalanceChange,
@@ -28,8 +26,7 @@ impl BalanceChange {
         match self.stored.owner {
             O::AddressOwner(addr) | O::ObjectOwner(addr) => Some(Owner {
                 address: IotaAddress::from(addr),
-                checkpoint_viewed_at: self.checkpoint_viewed_at,
-                root_version: None,
+                checkpoint_viewed_at: Some(self.checkpoint_viewed_at),
             }),
 
             O::Shared { .. } | O::Immutable => None,
@@ -50,7 +47,8 @@ impl BalanceChange {
 
 impl BalanceChange {
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
-    /// which this `BalanceChange` was queried for. This is stored on
+    /// which this `BalanceChange` was queried for, or `None` if the data
+    /// was requested at the latest checkpoint. This is stored on
     /// `BalanceChange` so that when viewing that entity's state, it will be
     /// as if it was read at the same checkpoint.
     pub(crate) fn read(bytes: &[u8], checkpoint_viewed_at: u64) -> Result<Self, Error> {

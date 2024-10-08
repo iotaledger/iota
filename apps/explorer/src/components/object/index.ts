@@ -3,6 +3,7 @@
 
 export * from './DynamicFieldsCard';
 export * from './FieldItem';
+export * from './FieldCollapsible';
 export * from './ObjectFieldsCard';
 export * from './ScrollToViewCard';
 export * from './UnderlyingObjectCard';

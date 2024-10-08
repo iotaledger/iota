@@ -22,7 +22,7 @@ export function ExplorerLink({
   const [copied, setCopied] = useState(false);
   const { network } = useIotaClientContext();
 
-  const link = `https://explorer.iota.org/${
+  const link = `https://iotaexplorer.com/${
     isAddress ? "address" : "object"
   }/${id}?network=${network}`;
 

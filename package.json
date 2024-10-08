@@ -41,8 +41,7 @@
 			"path-to-regexp@2.2.1": "3.3.0",
 			"path-to-regexp@3.2.0": "3.3.0",
 			"body-parser": ">=1.20.3",
-			"dset": "3.1.4",
-			"eslint": "8.57.1"
+			"dset": "3.1.4"
 		}
 	},
 	"engines": {
@@ -79,7 +78,7 @@
 		"prettier-plugin-tailwindcss": "^0.4.1",
 		"tsx": "^3.12.7",
 		"turbo": "^2.1.2",
-		"typescript": "^5.5.3",
+		"typescript": "^5.3.3",
 		"typescript-eslint": "^7.12.0"
 	},
 	"dependencies": {

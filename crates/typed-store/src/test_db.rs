@@ -1,12 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 #![allow(clippy::await_holding_lock)]
 
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, HashMap, VecDeque, btree_map::Iter},
+    collections::{btree_map::Iter, BTreeMap, HashMap, VecDeque},
     marker::PhantomData,
     ops::RangeBounds,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
@@ -17,11 +16,11 @@ use collectable::TryExtend;
 use ouroboros::self_referencing;
 use rand::distributions::{Alphanumeric, DistString};
 use rocksdb::Direction;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    Map, TypedStoreError,
     rocks::{be_fix_int_ser, errors::typed_store_err_from_bcs_err},
+    Map, TypedStoreError,
 };
 
 /// An interface to a btree map backed sally database. This is mainly intended
@@ -520,7 +519,7 @@ impl TestDBWriteBatch {
 
 #[cfg(test)]
 mod test {
-    use crate::{Map, test_db::TestDB};
+    use crate::{test_db::TestDB, Map};
 
     #[test]
     fn test_contains_key() {

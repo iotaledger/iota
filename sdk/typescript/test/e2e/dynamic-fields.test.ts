@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { resolve } from 'path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { IotaObjectData } from '../../src/client';
-import { setup, TestToolbox } from './utils/setup';
+import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 describe('Dynamic Fields Reading API', () => {
     let toolbox: TestToolbox;
@@ -15,7 +14,8 @@ describe('Dynamic Fields Reading API', () => {
 
     beforeAll(async () => {
         toolbox = await setup();
-        packageId = await toolbox.getPackage(resolve(__dirname, './data/dynamic_fields'));
+        const packagePath = __dirname + '/./data/dynamic_fields';
+        ({ packageId } = await publishPackage(packagePath, toolbox));
 
         await toolbox.client
             .getOwnedObjects({

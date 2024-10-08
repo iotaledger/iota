@@ -1,3 +1,5 @@
+--gas-budget 1000000
+
 # Invalid number of arguments
 --merge-coins @0x1
 

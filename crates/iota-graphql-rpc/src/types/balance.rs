@@ -9,27 +9,25 @@ use async_graphql::{
     *,
 };
 use diesel::{
-    OptionalExtension, QueryableByName,
     sql_types::{BigInt as SqlBigInt, Nullable, Text},
+    OptionalExtension, QueryableByName,
 };
 use iota_indexer::types::OwnerType;
-use iota_types::{TypeTag, parse_iota_type_tag};
+use iota_types::{parse_iota_type_tag, TypeTag};
 use serde::{Deserialize, Serialize};
 
+use super::{
+    big_int::BigInt,
+    cursor::{self, Page, RawPaginated, Target},
+    iota_address::IotaAddress,
+    move_type::MoveType,
+};
 use crate::{
-    consistency::Checkpointed,
+    consistency::{consistent_range, Checkpointed},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
     filter, query,
     raw_query::RawQuery,
-    types::{
-        available_range::AvailableRange,
-        big_int::BigInt,
-        cursor::{self, Page, RawPaginated, ScanLimited, Target},
-        iota_address::IotaAddress,
-        move_type::MoveType,
-        uint53::UInt53,
-    },
 };
 
 /// The total balance for a particular coin type.
@@ -38,7 +36,7 @@ pub(crate) struct Balance {
     /// Coin type for the balance, such as 0x2::iota::IOTA
     pub(crate) coin_type: MoveType,
     /// How many coins of this type constitute the balance
-    pub(crate) coin_object_count: Option<UInt53>,
+    pub(crate) coin_object_count: Option<u64>,
     /// Total balance across all coin objects of the coin type
     pub(crate) total_balance: Option<BigInt>,
 }
@@ -79,16 +77,17 @@ impl Balance {
         db: &Db,
         address: IotaAddress,
         coin_type: TypeTag,
-        checkpoint_viewed_at: u64,
+        checkpoint_viewed_at: Option<u64>,
     ) -> Result<Option<Balance>, Error> {
         let stored: Option<StoredBalance> = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                let Some((lhs, rhs)) = consistent_range(conn, checkpoint_viewed_at)? else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 conn.result(move || {
-                    balance_query(address, Some(coin_type.clone()), range).into_boxed()
+                    balance_query(address, Some(coin_type.clone()), lhs as i64, rhs as i64)
+                        .into_boxed()
                 })
                 .optional()
             })
@@ -104,37 +103,39 @@ impl Balance {
         db: &Db,
         page: Page<Cursor>,
         address: IotaAddress,
-        checkpoint_viewed_at: u64,
+        checkpoint_viewed_at: Option<u64>,
     ) -> Result<Connection<String, Balance>, Error> {
         // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if
         // they are consistent. Otherwise, use the value from the parameter, or
         // set to None. This is so that paginated queries are consistent with
         // the previous query that created the cursor.
         let cursor_viewed_at = page.validate_cursor_consistency()?;
-        let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
+        let checkpoint_viewed_at: Option<u64> = cursor_viewed_at.or(checkpoint_viewed_at);
 
-        let Some((prev, next, results)) = db
+        let response = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                let Some((lhs, rhs)) = consistent_range(conn, checkpoint_viewed_at)? else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 let result = page.paginate_raw_query::<StoredBalance>(
                     conn,
-                    checkpoint_viewed_at,
-                    balance_query(address, None, range),
+                    rhs,
+                    balance_query(address, None, lhs as i64, rhs as i64),
                 )?;
 
-                Ok(Some(result))
+                Ok(Some((result, rhs)))
             })
-            .await?
-        else {
+            .await?;
+
+        let Some(((prev, next, results), checkpoint_viewed_at)) = response else {
             return Err(Error::Client(
                 "Requested data is outside the available range".to_string(),
             ));
         };
 
         let mut conn = Connection::new(prev, next);
+
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let balance = Balance::try_from(stored)?;
@@ -177,8 +178,6 @@ impl Checkpointed for Cursor {
     }
 }
 
-impl ScanLimited for Cursor {}
-
 impl TryFrom<StoredBalance> for Balance {
     type Error = Error;
 
@@ -193,7 +192,7 @@ impl TryFrom<StoredBalance> for Balance {
             .transpose()
             .map_err(|_| Error::Internal("Failed to read balance.".to_string()))?;
 
-        let coin_object_count = count.map(|c| UInt53::from(c as u64));
+        let coin_object_count = count.map(|c| c as u64);
 
         let coin_type = MoveType::new(
             parse_iota_type_tag(&coin_type)
@@ -212,11 +211,7 @@ impl TryFrom<StoredBalance> for Balance {
 /// the total balance for a particular coin type, owned by `address`. This
 /// function is meant to be called within a thunk and returns a RawQuery that
 /// can be converted into a BoxedSqlQuery with `.into_boxed()`.
-fn balance_query(
-    address: IotaAddress,
-    coin_type: Option<TypeTag>,
-    range: AvailableRange,
-) -> RawQuery {
+fn balance_query(address: IotaAddress, coin_type: Option<TypeTag>, lhs: i64, rhs: i64) -> RawQuery {
     // Construct the filtered inner query - apply the same filtering criteria to
     // both objects_snapshot and objects_history tables.
     let mut snapshot_objs = query!("SELECT * FROM objects_snapshot");
@@ -228,10 +223,7 @@ fn balance_query(
     history_objs = filter(history_objs, address, coin_type.clone());
     history_objs = filter!(
         history_objs,
-        format!(
-            r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
-            range.first, range.last
-        )
+        format!(r#"checkpoint_sequence_number BETWEEN {} AND {}"#, lhs, rhs)
     );
 
     // Combine the two queries, and select the most recent version of each object.
@@ -249,10 +241,7 @@ fn balance_query(
     let mut newer = query!("SELECT object_id, object_version FROM objects_history");
     newer = filter!(
         newer,
-        format!(
-            r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
-            range.first, range.last
-        )
+        format!(r#"checkpoint_sequence_number BETWEEN {} AND {}"#, lhs, rhs)
     );
     let final_ = query!(
         r#"SELECT

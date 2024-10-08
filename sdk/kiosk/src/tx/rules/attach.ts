@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Transaction } from '@iota/iota-sdk/transactions';
+import type { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 import type { ObjectArgument } from '../../types/index.js';
 
 export function attachKioskLockRuleTx(
-    tx: Transaction,
+    tx: TransactionBlock,
     type: string,
     policy: ObjectArgument,
     policyCap: ObjectArgument,
@@ -21,7 +21,7 @@ export function attachKioskLockRuleTx(
 }
 
 export function attachRoyaltyRuleTx(
-    tx: Transaction,
+    tx: TransactionBlock,
     type: string,
     policy: ObjectArgument,
     policyCap: ObjectArgument,
@@ -45,7 +45,7 @@ export function attachRoyaltyRuleTx(
 }
 
 export function attachPersonalKioskRuleTx(
-    tx: Transaction,
+    tx: TransactionBlock,
     type: string,
     policy: ObjectArgument,
     policyCap: ObjectArgument,
@@ -59,7 +59,7 @@ export function attachPersonalKioskRuleTx(
 }
 
 export function attachFloorPriceRuleTx(
-    tx: Transaction,
+    tx: TransactionBlock,
     type: string,
     policy: ObjectArgument,
     policyCap: ObjectArgument,

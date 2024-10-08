@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 
-use better_any::{Tid, TidAble};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
@@ -16,17 +15,14 @@ use crate::{
     inner_temporary_store::WrittenObjects,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
-        get_module, get_module_by_id, load_package_object_from_object_store,
-    },
-    transaction::{
-        InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
+        get_module, get_module_by_id, load_package_object_from_object_store, BackingPackageStore,
+        ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
     },
 };
 
 // TODO: We should use AuthorityTemporaryStore instead.
 // Keeping this functionally identical to AuthorityTemporaryStore is a pain.
-#[derive(Debug, Default, Tid)]
+#[derive(Debug, Default)]
 pub struct InMemoryStorage {
     persistent: BTreeMap<ObjectID, Object>,
 }
@@ -178,22 +174,6 @@ impl InMemoryStorage {
         Self { persistent }
     }
 
-    pub fn read_input_objects_for_transaction(&self, transaction: &Transaction) -> InputObjects {
-        let mut input_objects = Vec::new();
-        for kind in transaction.transaction_data().input_objects().unwrap() {
-            let obj: Object = match kind {
-                InputObjectKind::MovePackage(id)
-                | InputObjectKind::ImmOrOwnedMoveObject((id, _, _))
-                | InputObjectKind::SharedMoveObject { id, .. } => {
-                    self.get_object(&id).unwrap().clone()
-                }
-            };
-
-            input_objects.push(ObjectReadResult::new(kind, obj.into()));
-        }
-        input_objects.into()
-    }
-
     pub fn get_object(&self, id: &ObjectID) -> Option<&Object> {
         self.persistent.get(id)
     }
@@ -209,10 +189,6 @@ impl InMemoryStorage {
     pub fn insert_object(&mut self, object: Object) {
         let id = object.id();
         self.persistent.insert(id, object);
-    }
-
-    pub fn remove_object(&mut self, object_id: ObjectID) -> Option<Object> {
-        self.persistent.remove(&object_id)
     }
 
     pub fn objects(&self) -> &BTreeMap<ObjectID, Object> {

@@ -13,7 +13,6 @@ module A0::m {
 
     public struct A {}
 
-    public enum EA { V }
 }
 
 //# upgrade --package A0 --upgrade-capability 1,0 --sender A
@@ -25,9 +24,6 @@ module A1::m {
 
     public struct A {}
     public struct B {}
-
-    public enum EA { V }
-    public enum EB { V }
 }
 
 //# upgrade --package A1 --upgrade-capability 1,0 --sender A
@@ -42,9 +38,6 @@ module A2::m {
 
     public struct A {}
     public struct B {}
-
-    public enum EA { V }
-    public enum EB { V }
 
     entry fun canary<T>(use_original: bool, ctx: &mut TxContext) {
         let type_ = if (use_original) {
@@ -70,14 +63,6 @@ module A2::m {
 
 //# run A2::m::canary --type-args A1::m::B --args false --sender A
 
-//# run A2::m::canary --type-args A0::m::EA --args true --sender A
-
-//# run A2::m::canary --type-args A1::m::EB --args true --sender A
-
-//# run A2::m::canary --type-args A0::m::EA --args false --sender A
-
-//# run A2::m::canary --type-args A1::m::EB --args false --sender A
-
 //# view-object 4,0
 
 //# view-object 5,0
@@ -85,11 +70,3 @@ module A2::m {
 //# view-object 6,0
 
 //# view-object 7,0
-
-//# view-object 8,0
-
-//# view-object 9,0
-
-//# view-object 10,0
-
-//# view-object 11,0

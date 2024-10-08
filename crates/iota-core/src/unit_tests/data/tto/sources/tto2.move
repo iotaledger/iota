@@ -8,15 +8,15 @@ module tto::M2 {
     use iota::transfer::{Self, Receiving};
     use iota::dynamic_field as df;
 
-    public struct A has key, store {
+    struct A has key, store {
         id: UID,
     }
 
-    public struct B has key, store {
+    struct B has key, store {
         id: UID,
     }
 
-    public struct C has key {
+    struct C has key {
         id: UID, 
         wrapped: B,
     }

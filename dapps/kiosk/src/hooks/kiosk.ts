@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable @tanstack/query/exhaustive-deps */
 
-import { useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
+import { useIotaClient } from '@iota/dapp-kit';
 import {
     getKioskObject,
     Kiosk,
@@ -32,10 +32,9 @@ export type KioskFnType = (item: OwnedObjectType, price?: string) => Promise<voi
  */
 export function useOwnedKiosk(address: string | undefined) {
     const kioskClient = useKioskClient();
-    const { network } = useIotaClientContext();
 
     return useQuery({
-        queryKey: [TANSTACK_OWNED_KIOSK_KEY, address, network],
+        queryKey: [TANSTACK_OWNED_KIOSK_KEY, address],
         refetchOnMount: false,
         retry: false,
         queryFn: async (): Promise<{
@@ -61,10 +60,9 @@ export function useOwnedKiosk(address: string | undefined) {
  */
 export function useKiosk(kioskId: string | undefined | null) {
     const kioskClient = useKioskClient();
-    const { network } = useIotaClientContext();
 
     return useQuery({
-        queryKey: [TANSTACK_KIOSK_KEY, kioskId, network],
+        queryKey: [TANSTACK_KIOSK_KEY, kioskId],
         queryFn: async (): Promise<{
             kioskData: KioskData | null;
             items: IotaObjectResponse[];
@@ -120,10 +118,9 @@ export function useKiosk(kioskId: string | undefined | null) {
  */
 export function useKioskDetails(kioskId: string | undefined | null) {
     const client = useIotaClient();
-    const { network } = useIotaClientContext();
 
     return useQuery({
-        queryKey: [TANSTACK_KIOSK_DATA_KEY, kioskId, network],
+        queryKey: [TANSTACK_KIOSK_DATA_KEY, kioskId],
         queryFn: async (): Promise<Kiosk | null> => {
             if (!kioskId) return null;
             return await getKioskObject(client, kioskId);

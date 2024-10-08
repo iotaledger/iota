@@ -1,11 +1,8 @@
 processed 1 task
 
-task 0, lines 1-13:
-//# print-bytecode
+task 0 'print-bytecode'. lines 1-13:
 // Move bytecode v6
 module e.Expressions {
-
-
 
 
 binary_add() {
@@ -22,6 +19,5 @@ B0:
 	6: Add
 	7: StLoc[2](loc2: u64)
 	8: Ret
-
 }
 }

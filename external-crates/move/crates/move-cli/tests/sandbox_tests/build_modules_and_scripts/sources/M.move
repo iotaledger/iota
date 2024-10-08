@@ -1,2 +1,4 @@
-module 0x42::M {
+address 0x42 {
+module M {
+}
 }

@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use prettytable::{Table, row};
+use prettytable::{row, Table};
 use prometheus_parse::Scrape;
 use serde::{Deserialize, Serialize};
 

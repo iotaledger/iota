@@ -21,8 +21,8 @@ use tracing::info;
 use crate::{
     load_test::{LoadTest, LoadTestConfig},
     payload::{
-        Command, RpcCommandProcessor, SignerInfo, load_addresses_from_file, load_digests_from_file,
-        load_objects_from_file,
+        load_addresses_from_file, load_digests_from_file, load_objects_from_file, Command,
+        RpcCommandProcessor, SignerInfo,
     },
 };
 

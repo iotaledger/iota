@@ -1,3 +1,2 @@
 [package]
 name = "Test"
-edition = "2024.beta"

@@ -134,8 +134,7 @@ impl Test<'_> {
         };
 
         let mut progress = Vec::new();
-        let resolved_package =
-            config.resolution_graph_for_package(self.toml_path, None, &mut progress);
+        let resolved_package = config.resolution_graph_for_package(self.toml_path, &mut progress);
 
         Ok(match ext {
             "progress" => String::from_utf8(progress)?,

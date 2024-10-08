@@ -66,10 +66,9 @@ fn optimize_cmd(
             let c2 = optimize_exp(consts, el);
             c1 || c2
         }
-        C::Return { exp: e, .. }
-        | C::Abort(e)
-        | C::JumpIf { cond: e, .. }
-        | C::VariantSwitch { subject: e, .. } => optimize_exp(consts, e),
+        C::Return { exp: e, .. } | C::Abort(e) | C::JumpIf { cond: e, .. } => {
+            optimize_exp(consts, e)
+        }
         C::IgnoreAndPop { exp: e, .. } => {
             let c = optimize_exp(consts, e);
             if ignorable_exp(e) {
@@ -99,7 +98,7 @@ fn optimize_exp(consts: &UniqueMap<ConstantName, Value>, e: &mut Exp) -> bool {
         | E::BorrowLocal(_, _)
         | E::Move { .. }
         | E::Copy { .. }
-        | E::ErrorConstant { .. }
+        | E::ErrorConstant(_)
         | E::Unreachable => false,
 
         e_ @ E::Constant(_) => {
@@ -119,11 +118,6 @@ fn optimize_exp(consts: &UniqueMap<ConstantName, Value>, e: &mut Exp) -> bool {
         E::Freeze(e) | E::Dereference(e) | E::Borrow(_, e, _, _) => optimize_exp(e),
 
         E::Pack(_, _, fields) => fields
-            .iter_mut()
-            .map(|(_, _, e)| optimize_exp(e))
-            .any(|changed| changed),
-
-        E::PackVariant(_, _, _, fields) => fields
             .iter_mut()
             .map(|(_, _, e)| optimize_exp(e))
             .any(|changed| changed),

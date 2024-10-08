@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use tokio::sync::{Notify, futures::Notified};
+use tokio::sync::{futures::Notified, Notify};
 
 /// Notify once allows waiter to register for certain conditions and unblocks
 /// waiter when condition is signalled with `notify` method.

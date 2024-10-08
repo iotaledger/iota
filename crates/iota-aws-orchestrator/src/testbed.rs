@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use futures::future::try_join_all;
-use prettytable::{Table, row};
+use prettytable::{row, Table};
 use tokio::time::{self, Instant};
 
 use super::client::Instance;

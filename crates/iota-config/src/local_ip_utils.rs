@@ -4,7 +4,7 @@
 
 use std::net::SocketAddr;
 #[cfg(msim)]
-use std::sync::{Arc, atomic::AtomicI16};
+use std::sync::{atomic::AtomicI16, Arc};
 
 use iota_types::multiaddr::Multiaddr;
 

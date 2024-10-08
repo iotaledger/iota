@@ -13,7 +13,7 @@ export default defineConfig({
     plugins: [vanillaExtractPlugin()],
     test: {
         exclude: [...configDefaults.exclude, 'tests/**'],
-        environment: 'happy-dom',
+        environment: 'jsdom',
         restoreMocks: true,
         globals: true,
         setupFiles: ['./test/setup.ts'],

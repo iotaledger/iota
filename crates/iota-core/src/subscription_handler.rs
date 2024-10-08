@@ -10,8 +10,8 @@ use iota_json_rpc_types::{
 };
 use iota_types::{error::IotaResult, transaction::TransactionData};
 use prometheus::{
-    IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
+    IntGaugeVec, Registry,
 };
 use tokio_stream::Stream;
 use tracing::{error, instrument, trace};

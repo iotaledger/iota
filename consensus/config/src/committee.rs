@@ -160,11 +160,7 @@ pub struct AuthorityIndex(u32);
 
 impl AuthorityIndex {
     // Minimum committee size is 1, so 0 index is always valid.
-    pub const ZERO: Self = Self(0);
-
-    // Only for scanning rows in the database. Invalid elsewhere.
-    pub const MIN: Self = Self::ZERO;
-    pub const MAX: Self = Self(u32::MAX);
+    pub const ZERO: AuthorityIndex = AuthorityIndex(0);
 
     pub fn value(&self) -> usize {
         self.0 as usize
@@ -219,8 +215,7 @@ impl<T> IndexMut<AuthorityIndex> for Vec<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::local_committee_and_keys;
+    use crate::{local_committee_and_keys, Stake};
 
     #[test]
     fn committee_basic() {

@@ -7,11 +7,18 @@
 //! to an abort. A typical patterns is to create a fresh object and share it
 //! within the same function
 
+use std::collections::BTreeMap;
+
 use move_ir_types::location::*;
 
+use super::{
+    type_abilities, LinterDiagCategory, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
+    LINT_WARNING_PREFIX, PUBLIC_SHARE_FUN, SHARE_FUN, TRANSFER_MOD_NAME,
+};
 use crate::{
     cfgir::{
         absint::JoinResult,
+        ast::Program,
         visitor::{
             LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain, SimpleExecutionContext,
         },
@@ -28,12 +35,6 @@ use crate::{
     parser::ast::Ability_,
     shared::{CompilationEnv, Identifier},
 };
-use std::collections::BTreeMap;
-
-use super::{
-    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX,
-    PUBLIC_SHARE_FUN, SHARE_FUN, IOTA_PKG_NAME, TRANSFER_MOD_NAME,
-};
 
 const SHARE_FUNCTIONS: &[(&str, &str, &str)] = &[
     (IOTA_PKG_NAME, TRANSFER_MOD_NAME, PUBLIC_SHARE_FUN),
@@ -43,8 +44,8 @@ const SHARE_FUNCTIONS: &[(&str, &str, &str)] = &[
 const SHARE_OWNED_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Iota as u8,
-    LinterDiagnosticCode::ShareOwned as u8,
+    LinterDiagCategory::ShareOwned as u8,
+    LINTER_DEFAULT_DIAG_CODE,
     "possible owned object share",
 );
 
@@ -84,13 +85,15 @@ impl SimpleAbsIntConstructor for ShareOwnedVerifier {
 
     fn new<'a>(
         _env: &CompilationEnv,
+        program: &'a Program,
         context: &'a CFGContext<'a>,
         _init_state: &mut <Self::AI<'a> as SimpleAbsInt>::State,
     ) -> Option<Self::AI<'a>> {
         if context.attributes.is_test_or_test_only()
-            || context
-                .info
-                .module(&context.module)
+            || program
+                .modules
+                .get(&context.module)
+                .unwrap()
                 .attributes
                 .is_test_or_test_only()
         {

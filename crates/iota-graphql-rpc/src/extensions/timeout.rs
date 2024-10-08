@@ -4,17 +4,14 @@
 
 use std::{
     net::SocketAddr,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 use async_graphql::{
-    Response, ServerError, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery},
-    parser::types::{ExecutableDocument, OperationType},
+    parser::types::ExecutableDocument,
+    Response, ServerError, ServerResult,
 };
 use async_graphql_value::Variables;
 use tokio::time::timeout;
@@ -29,14 +26,12 @@ pub(crate) struct Timeout;
 #[derive(Debug, Default)]
 struct TimeoutExt {
     pub query: Mutex<Option<String>>,
-    pub is_mutation: AtomicBool,
 }
 
 impl ExtensionFactory for Timeout {
     fn create(&self) -> Arc<dyn Extension> {
         Arc::new(TimeoutExt {
             query: Mutex::new(None),
-            is_mutation: AtomicBool::new(false),
         })
     }
 }
@@ -52,13 +47,6 @@ impl Extension for TimeoutExt {
     ) -> ServerResult<ExecutableDocument> {
         let document = next.run(ctx, query, variables).await?;
         *self.query.lock().unwrap() = Some(ctx.stringify_execute_doc(&document, variables));
-
-        let is_mutation = document
-            .operations
-            .iter()
-            .any(|(_, operation)| operation.node.ty == OperationType::Mutation);
-        self.is_mutation.store(is_mutation, Ordering::Relaxed);
-
         Ok(document)
     }
 
@@ -68,18 +56,10 @@ impl Extension for TimeoutExt {
         operation_name: Option<&str>,
         next: NextExecute<'_>,
     ) -> Response {
-        let cfg: &ServiceConfig = ctx
-            .data()
+        let cfg = ctx
+            .data::<ServiceConfig>()
             .expect("No service config provided in schema data");
-
-        // increase the timeout if the request is a mutation
-        let is_mutation = self.is_mutation.load(Ordering::Relaxed);
-        let request_timeout = if is_mutation {
-            Duration::from_millis(cfg.limits.mutation_timeout_ms.into())
-        } else {
-            Duration::from_millis(cfg.limits.request_timeout_ms.into())
-        };
-
+        let request_timeout = Duration::from_millis(cfg.limits.request_timeout_ms);
         timeout(request_timeout, next.run(ctx, operation_name))
             .await
             .unwrap_or_else(|_| {
@@ -98,18 +78,13 @@ impl Extension for TimeoutExt {
                     %error_code,
                     %query
                 );
-                let error_msg = if is_mutation {
+                Response::from_errors(vec![ServerError::new(
                     format!(
-                        "Mutation request timed out. Limit: {}s",
+                        "Request timed out. Limit: {}s",
                         request_timeout.as_secs_f32()
-                    )
-                } else {
-                    format!(
-                        "Query request timed out. Limit: {}s",
-                        request_timeout.as_secs_f32()
-                    )
-                };
-                Response::from_errors(vec![ServerError::new(error_msg, None)])
+                    ),
+                    None,
+                )])
             })
     }
 }

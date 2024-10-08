@@ -10,7 +10,6 @@
 //!   `0x7`
 //! * `Formal(0)/[2]` (i.e., the value stored at index 2 of the array bound the
 //!   0th formal of the current procedure)
-//!
 //! An abstract path is similar; it consists of the following components:
 //! * A *root*, which is either an abstract address or a local
 //! * Zero or more *offsets*, where an offset is a field, an unknown vector
@@ -36,7 +35,7 @@ use std::{
 use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 use move_model::{
     ast::TempIndex,
-    model::{DatatypeId, FunctionEnv, GlobalEnv, ModuleId, QualifiedId},
+    model::{FunctionEnv, GlobalEnv, ModuleId, QualifiedId, StructId},
     ty::{PrimitiveType, Type, TypeDisplayContext},
 };
 use num::BigUint;
@@ -52,7 +51,7 @@ type Address = BigUint;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AbsStructType {
     /// Module ID and struct ID
-    base: QualifiedId<DatatypeId>,
+    base: QualifiedId<StructId>,
     /// Instantiation of generic type parameters
     types: Vec<Type>,
 }
@@ -158,12 +157,7 @@ impl Addr {
 
     /// Convert this address-typed abstract value A into an access path
     /// A/mid::sid::types
-    pub fn add_struct_offset(
-        self,
-        mid: &ModuleId,
-        sid: DatatypeId,
-        types: Vec<Type>,
-    ) -> AccessPath {
+    pub fn add_struct_offset(self, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> AccessPath {
         match self {
             Self::Footprint(mut ap) => {
                 // TODO: assert type address?
@@ -249,7 +243,7 @@ impl AbsAddr {
 
     /// Return a new abstract address by adding the offset `mid::sid<types>` to
     /// each element of `self`
-    pub fn add_struct_offset(self, mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
+    pub fn add_struct_offset(self, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
         let mut acc = Self::default();
         for v in self.into_iter() {
             acc.insert(Addr::Footprint(v.add_struct_offset(
@@ -338,7 +332,7 @@ impl From<&AccountAddress> for AbsAddr {
 }
 
 impl GlobalKey {
-    pub fn new(addr: AbsAddr, mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
+    pub fn new(addr: AbsAddr, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
         Self {
             addr,
             ty: AbsStructType::new(mid, sid, types),
@@ -471,7 +465,7 @@ impl Root {
 }
 
 impl Offset {
-    pub fn global(mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
+    pub fn global(mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
         Offset::Global(AbsStructType::new(mid, sid, types))
     }
 
@@ -482,7 +476,7 @@ impl Offset {
     /// Get the type of offset `base`/`self` in function `fun`
     pub fn get_type(&self, base: &Type, env: &GlobalEnv) -> Type {
         match (base.skip_reference(), self) {
-            (Type::Datatype(mid, sid, types), Offset::Field(f)) => {
+            (Type::Struct(mid, sid, types), Offset::Field(f)) => {
                 let field_type = env
                     .get_module(*mid)
                     .get_struct(*sid)
@@ -508,8 +502,8 @@ impl Offset {
             | (Type::Tuple(_), Offset::Global(_))
             | (Type::Vector(_), Offset::Field(_))
             | (Type::Vector(_), Offset::Global(_))
-            | (Type::Datatype(_, _, _), Offset::VectorIndex)
-            | (Type::Datatype(_, _, _), Offset::Global(_))
+            | (Type::Struct(_, _, _), Offset::VectorIndex)
+            | (Type::Struct(_, _, _), Offset::Global(_))
             | (Type::TypeParameter(_), Offset::Field(_))
             | (Type::TypeParameter(_), Offset::VectorIndex)
             | (Type::TypeParameter(_), Offset::Global(_))
@@ -583,14 +577,14 @@ impl AccessPath {
         }
     }
 
-    pub fn new_global(addr: AbsAddr, mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
+    pub fn new_global(addr: AbsAddr, mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
         Self::new_root(Root::Global(GlobalKey::new(addr, mid, sid, types)))
     }
 
     pub fn new_address_constant(
         addr: BigUint,
         mid: &ModuleId,
-        sid: DatatypeId,
+        sid: StructId,
         types: Vec<Type>,
     ) -> Self {
         Self::new_global(AbsAddr::constant(addr), mid, sid, types)
@@ -775,7 +769,7 @@ impl AccessPath {
 }
 
 impl AbsStructType {
-    pub fn new(mid: &ModuleId, sid: DatatypeId, types: Vec<Type>) -> Self {
+    pub fn new(mid: &ModuleId, sid: StructId, types: Vec<Type>) -> Self {
         AbsStructType {
             base: mid.qualified(sid),
             types,
@@ -784,7 +778,7 @@ impl AbsStructType {
 
     /// Return the concrete type of `self`
     pub fn get_type(&self) -> Type {
-        Type::Datatype(self.base.module_id, self.base.id, self.types.clone())
+        Type::Struct(self.base.module_id, self.base.id, self.types.clone())
     }
 
     /// If this `self` is closed, convert it to a `StructTag`. Return
@@ -843,7 +837,7 @@ impl<'a> fmt::Display for AbsStructTypeDisplay<'a> {
                     type_param_names: None,
                 };
                 let dummy_type =
-                    Type::Datatype(self.s.base.module_id, self.s.base.id, self.s.types.clone());
+                    Type::Struct(self.s.base.module_id, self.s.base.id, self.s.types.clone());
                 write!(f, "{}", dummy_type.display(&tctx))
             }
         }
@@ -928,7 +922,7 @@ impl<'a> fmt::Display for OffsetDisplay<'a> {
         use Offset::*;
         match self.offset {
             Field(fld) => match self.base_type.skip_reference() {
-                Type::Datatype(mid, sid, _types) => f.write_str(
+                Type::Struct(mid, sid, _types) => f.write_str(
                     self.env
                         .get_module(*mid)
                         .get_struct(*sid)

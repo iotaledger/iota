@@ -1,7 +1,6 @@
 [package]
 name = "serializer"
 version = "0.0.2"
-edition = "2024.beta"
 
 [dependencies]
 Iota = { local = "../../../../../../crates/iota-framework/packages/iota-framework" }

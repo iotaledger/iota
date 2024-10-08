@@ -5,7 +5,7 @@
 use authority_tests::send_and_confirm_transaction;
 use bcs;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{get_key_pair, AccountKeyPair},
     execution_status::ExecutionStatus,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

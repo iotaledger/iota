@@ -10,3 +10,4 @@
 --assign bar "']'"
 --assign bar "\"]\""
 
+--gas-budget 11

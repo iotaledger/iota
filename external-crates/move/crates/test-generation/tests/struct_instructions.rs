@@ -4,14 +4,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 extern crate test_generation;
-use move_binary_format::file_format::{
-    empty_module, Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle,
-    DatatypeHandleIndex, FieldDefinition, FieldHandle, FieldHandleIndex, IdentifierIndex,
-    ModuleHandleIndex, SignatureToken, StructDefinition, StructDefinitionIndex,
-    StructFieldInformation, TableIndex, TypeSignature,
+use std::collections::HashMap;
+
+use move_binary_format::{
+    access::ModuleAccess,
+    file_format::{
+        empty_module, Ability, AbilitySet, Bytecode, CompiledModule, FieldDefinition, FieldHandle,
+        FieldHandleIndex, IdentifierIndex, ModuleHandleIndex, SignatureToken, StructDefinition,
+        StructDefinitionIndex, StructFieldInformation, StructHandle, StructHandleIndex, TableIndex,
+        TypeSignature,
+    },
+    views::{StructDefinitionView, ViewInternals},
 };
 use move_core_types::identifier::Identifier;
-use std::collections::HashMap;
 use test_generation::{
     abilities,
     abstract_state::{AbstractState, AbstractValue, CallGraph},
@@ -39,11 +44,11 @@ fn generate_module_with_struct(resource: bool) -> CompiledModule {
         });
     }
     let struct_def = StructDefinition {
-        struct_handle: DatatypeHandleIndex(struct_index),
+        struct_handle: StructHandleIndex(struct_index),
         field_information: StructFieldInformation::Declared(fields),
     };
     module.struct_defs.push(struct_def);
-    module.datatype_handles = vec![DatatypeHandle {
+    module.struct_handles = vec![StructHandle {
         module: ModuleHandleIndex::new(0),
         name: IdentifierIndex::new((struct_index + offset) as TableIndex),
         abilities: if resource {
@@ -58,14 +63,14 @@ fn generate_module_with_struct(resource: bool) -> CompiledModule {
 
 fn create_struct_value(module: &CompiledModule) -> (AbstractValue, Vec<SignatureToken>) {
     let struct_def = module.struct_def_at(StructDefinitionIndex::new(0));
-    let tokens: Vec<SignatureToken> = struct_def
+    let struct_def_view = StructDefinitionView::new(module, struct_def);
+    let tokens: Vec<SignatureToken> = struct_def_view
         .fields()
         .into_iter()
         .flatten()
-        .map(|field| field.signature.0.clone())
+        .map(|field| field.type_signature().token().as_inner().clone())
         .collect();
-    let shandle = module.datatype_handle_at(struct_def.struct_handle);
-    let struct_abilities = shandle.abilities;
+    let struct_abilities = struct_def_view.abilities();
 
     let type_argument_abilities = tokens.iter().map(|arg| abilities(module, arg, &[]));
     let declared_phantom_parameters = [false].repeat(type_argument_abilities.len());
@@ -76,10 +81,7 @@ fn create_struct_value(module: &CompiledModule) -> (AbstractValue, Vec<Signature
     )
     .unwrap();
     (
-        AbstractValue::new_struct(
-            SignatureToken::Datatype(struct_def.struct_handle),
-            abilities,
-        ),
+        AbstractValue::new_struct(SignatureToken::Struct(struct_def.struct_handle), abilities),
         tokens,
     )
 }

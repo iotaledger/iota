@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use iota_types::gas_coin::NANOS_PER_IOTA;
 
 use crate::{
-    ValidatorProxy,
     system_state_observer::SystemStateObserver,
-    workloads::{Gas, GasCoinConfig, payload::Payload},
+    workloads::{payload::Payload, Gas, GasCoinConfig},
+    ValidatorProxy,
 };
 
 // This is the maximum gas we will transfer from primary coin into any gas coin

@@ -6,61 +6,51 @@ use std::path::Path;
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_data_ingestion_core::Worker;
+use iota_indexer::framework::Handler;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
-use iota_types::{SYSTEM_PACKAGE_ADDRESSES, effects::TransactionEffects, object::Object};
-use tokio::sync::Mutex;
+use iota_types::{effects::TransactionEffects, object::Object};
 
 use crate::{
-    FileType,
     handlers::{
-        AnalyticsHandler, ObjectStatusTracker, get_move_struct, get_owner_address, get_owner_type,
-        initial_shared_version,
+        get_move_struct, get_owner_address, get_owner_type, initial_shared_version,
+        AnalyticsHandler, ObjectStatusTracker,
     },
     package_store::{LocalDBPackageStore, PackageCache},
     tables::{ObjectEntry, ObjectStatus},
+    FileType,
 };
 
 pub struct ObjectHandler {
-    state: Mutex<State>,
-}
-
-struct State {
     objects: Vec<ObjectEntry>,
     package_store: LocalDBPackageStore,
     resolver: Resolver<PackageCache>,
 }
 
 #[async_trait::async_trait]
-impl Worker for ObjectHandler {
-    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<()> {
+impl Handler for ObjectHandler {
+    fn name(&self) -> &str {
+        "object"
+    }
+    async fn process_checkpoint(&mut self, checkpoint_data: &CheckpointData) -> Result<()> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
         } = checkpoint_data;
-        let mut state = self.state.lock().await;
         for checkpoint_transaction in checkpoint_transactions {
             for object in checkpoint_transaction.output_objects.iter() {
-                state.package_store.update(object)?;
+                self.package_store.update(object)?;
             }
             self.process_transaction(
                 checkpoint_summary.epoch,
                 checkpoint_summary.sequence_number,
                 checkpoint_summary.timestamp_ms,
-                &checkpoint_transaction,
+                checkpoint_transaction,
                 &checkpoint_transaction.effects,
-                &mut state,
             )
             .await?;
-            if checkpoint_summary.end_of_epoch_data.is_some() {
-                state
-                    .resolver
-                    .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
-            }
         }
         Ok(())
     }
@@ -68,42 +58,33 @@ impl Worker for ObjectHandler {
 
 #[async_trait::async_trait]
 impl AnalyticsHandler<ObjectEntry> for ObjectHandler {
-    async fn read(&self) -> Result<Vec<ObjectEntry>> {
-        let mut state = self.state.lock().await;
-        let cloned = state.objects.clone();
-        state.objects.clear();
+    fn read(&mut self) -> Result<Vec<ObjectEntry>> {
+        let cloned = self.objects.clone();
+        self.objects.clear();
         Ok(cloned)
     }
 
     fn file_type(&self) -> Result<FileType> {
         Ok(FileType::Object)
     }
-
-    fn name(&self) -> &str {
-        "object"
-    }
 }
 
 impl ObjectHandler {
     pub fn new(store_path: &Path, rest_uri: &str) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("object"), rest_uri);
-        let state = State {
+        ObjectHandler {
             objects: vec![],
             package_store: package_store.clone(),
             resolver: Resolver::new(PackageCache::new(package_store)),
-        };
-        Self {
-            state: Mutex::new(state),
         }
     }
     async fn process_transaction(
-        &self,
+        &mut self,
         epoch: u64,
         checkpoint: u64,
         timestamp_ms: u64,
         checkpoint_transaction: &CheckpointTransaction,
         effects: &TransactionEffects,
-        state: &mut State,
     ) -> Result<()> {
         let object_status_tracker = ObjectStatusTracker::new(effects);
         for object in checkpoint_transaction.output_objects.iter() {
@@ -113,7 +94,6 @@ impl ObjectHandler {
                 timestamp_ms,
                 object,
                 &object_status_tracker,
-                state,
             )
             .await?;
         }
@@ -139,20 +119,19 @@ impl ObjectHandler {
                 struct_tag: None,
                 object_json: None,
             };
-            state.objects.push(entry);
+            self.objects.push(entry);
         }
         Ok(())
     }
     // Object data. Only called if there are objects in the transaction.
     // Responsible to build the live object table.
     async fn process_object(
-        &self,
+        &mut self,
         epoch: u64,
         checkpoint: u64,
         timestamp_ms: u64,
         object: &Object,
         object_status_tracker: &ObjectStatusTracker,
-        state: &mut State,
     ) -> Result<()> {
         let move_obj_opt = object.data.try_as_move();
         let has_public_transfer = move_obj_opt
@@ -162,7 +141,7 @@ impl ObjectHandler {
             .struct_tag()
             .and_then(|tag| object.data.try_as_move().map(|mo| (tag, mo.contents())))
         {
-            let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
+            let move_struct = get_move_struct(&tag, contents, &self.resolver).await?;
             Some(move_struct)
         } else {
             None
@@ -206,7 +185,7 @@ impl ObjectHandler {
             struct_tag: struct_tag.map(|x| x.to_string()),
             object_json: iota_move_struct.map(|x| x.to_json_value().to_string()),
         };
-        state.objects.push(entry);
+        self.objects.push(entry);
         Ok(())
     }
 }

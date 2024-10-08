@@ -83,9 +83,13 @@ export function AccountGroupItem({
     async function handleSelectAccount() {
         if (!account) return;
 
-        await backgroundClient.selectAccount(account.id);
-        navigate('/');
-        toast.success(`Account ${formatAddress(account.address)} selected`);
+        if (account.isLocked) {
+            unlockAccount(account);
+        } else {
+            await backgroundClient.selectAccount(account.id);
+            navigate('/');
+            toast.success(`Account ${formatAddress(account.address)} selected`);
+        }
     }
 
     function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {

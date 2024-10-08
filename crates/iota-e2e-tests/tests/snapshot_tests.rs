@@ -42,9 +42,11 @@ async fn run_one(
                     }
                 }
             }
-            IotaCommand::Move { .. } => {
-                unimplemented!("Supporting Move publish and upgrade commands")
-            }
+            IotaCommand::Move {
+                package_path: _,
+                build_config: _,
+                cmd: _,
+            } => unimplemented!("Supporting Move publish and upgrade commands"),
             _ => panic!("Command {:?} not supported by RPC snapshot tests", cli_cmd),
         }
     }

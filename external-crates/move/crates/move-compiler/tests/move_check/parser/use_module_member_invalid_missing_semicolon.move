@@ -1,11 +1,5 @@
 
 module 0x42::M {
 
-    use 0x42::M::{S as XS,}
-
-    fun foo() {}
-
-    struct S has drop {}
-
-    fun bar(_p: XS) {}
+    use 0x1::X::{S as XS,}
 }

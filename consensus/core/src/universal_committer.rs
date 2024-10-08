@@ -9,8 +9,8 @@ use parking_lot::RwLock;
 
 use crate::{
     base_committer::BaseCommitter,
-    block::{GENESIS_ROUND, Round, Slot},
-    commit::{DecidedLeader, Decision},
+    block::{Round, Slot},
+    commit::{Decision, LeaderStatus},
     context::Context,
     dag_state::DagState,
 };
@@ -36,78 +36,63 @@ pub(crate) struct UniversalCommitter {
 }
 
 impl UniversalCommitter {
-    /// Try to decide part of the dag. This function is idempotent and returns
-    /// an ordered list of decided leaders.
+    /// Try to commit part of the dag. This function is idempotent and returns a
+    /// list of ordered decided leaders.
     #[tracing::instrument(skip_all, fields(last_decided = %last_decided))]
-    pub(crate) fn try_decide(&self, last_decided: Slot) -> Vec<DecidedLeader> {
+    pub(crate) fn try_commit(&self, last_decided: Slot) -> Vec<LeaderStatus> {
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
         // Try to decide as many leaders as possible, starting with the highest round.
         let mut leaders = VecDeque::new();
-
-        let last_round = match self
-            .context
-            .protocol_config
-            .mysticeti_num_leaders_per_round()
-        {
-            Some(1) => {
-                // Ensure that we don't commit any leaders from the same round as last_decided
-                // until we have full support for multi-leader per round.
-                // This can happen when we are on a leader schedule boundary and the leader
-                // elected for the round changes with the new schedule.
-                last_decided.round + 1
-            }
-            _ => last_decided.round,
-        };
-
         // try to commit a leader up to the highest_accepted_round - 2. There is no
         // reason to try and iterate on higher rounds as in order to make a direct
         // decision for a leader at round R we need blocks from round R+2 to figure
         // out that enough certificates and support exist to commit a leader.
-        'outer: for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
+        'outer: for round in (last_decided.round..=highest_accepted_round.saturating_sub(2)).rev() {
             for committer in self.committers.iter().rev() {
                 // Skip committers that don't have a leader for this round.
-                let Some(slot) = committer.elect_leader(round) else {
+                let Some(leader) = committer.elect_leader(round) else {
                     continue;
                 };
 
                 // now that we reached the last committed leader we can stop the commit rule
-                if slot == last_decided {
-                    tracing::debug!("Reached last committed {slot}, now exit");
+                if leader == last_decided {
+                    tracing::debug!("Reached last committed {leader}, now exit");
                     break 'outer;
                 }
 
-                tracing::debug!("Trying to decide {slot} with {committer}",);
+                tracing::debug!("Trying to decide {leader} with {committer}",);
 
                 // Try to directly decide the leader.
-                let mut status = committer.try_direct_decide(slot);
+                let mut status = committer.try_direct_decide(leader);
                 tracing::debug!("Outcome of direct rule: {status}");
 
                 // If we can't directly decide the leader, try to indirectly decide it.
                 if status.is_decided() {
-                    leaders.push_front((status, Decision::Direct));
+                    leaders.push_front((status.clone(), Decision::Direct));
                 } else {
-                    status = committer.try_indirect_decide(slot, leaders.iter().map(|(x, _)| x));
+                    status = committer.try_indirect_decide(leader, leaders.iter().map(|(x, _)| x));
+                    leaders.push_front((status.clone(), Decision::Indirect));
                     tracing::debug!("Outcome of indirect rule: {status}");
-                    leaders.push_front((status, Decision::Indirect));
                 }
             }
         }
 
         // The decided sequence is the longest prefix of decided leaders.
-        let mut decided_leaders = Vec::new();
-        for (leader, decision) in leaders {
-            if leader.round() == GENESIS_ROUND {
-                continue;
-            }
-            let Some(decided_leader) = leader.into_decided_leader() else {
-                break;
-            };
-            self.update_metrics(&decided_leader, decision);
-            decided_leaders.push(decided_leader);
-        }
-        tracing::debug!("Decided {decided_leaders:?}");
-        decided_leaders
+        leaders
+            .into_iter()
+            // Filter out all the genesis.
+            .filter(|(x, _)| x.round() > 0)
+            // Stop the sequence upon encountering an undecided leader.
+            .take_while(|(x, _)| x.is_decided())
+            // We want to report metrics at this point to ensure that the decisions
+            // are reported only once hence we increase our accuracy
+            .inspect(|(x, direct_decided)| {
+                self.update_metrics(x, *direct_decided);
+                tracing::debug!("Decided {x}");
+            })
+            .map(|(x, _)| x)
+            .collect()
     }
 
     /// Return list of leaders for the round.
@@ -121,26 +106,23 @@ impl UniversalCommitter {
     }
 
     /// Update metrics.
-    fn update_metrics(&self, decided_leader: &DecidedLeader, decision: Decision) {
+    fn update_metrics(&self, leader: &LeaderStatus, decision: Decision) {
+        let authority = leader.authority().to_string();
         let decision_str = if decision == Decision::Direct {
             "direct"
         } else {
             "indirect"
         };
-        let status = match decided_leader {
-            DecidedLeader::Commit(..) => format!("{decision_str}-commit"),
-            DecidedLeader::Skip(..) => format!("{decision_str}-skip"),
+        let status = match leader {
+            LeaderStatus::Commit(..) => format!("{decision_str}-commit"),
+            LeaderStatus::Skip(..) => format!("{decision_str}-skip"),
+            LeaderStatus::Undecided(..) => return,
         };
-        let leader_host = &self
-            .context
-            .committee
-            .authority(decided_leader.slot().authority)
-            .hostname;
         self.context
             .metrics
             .node_metrics
             .committed_leaders_total
-            .with_label_values(&[leader_host, &status])
+            .with_label_values(&[&authority, &status])
             .inc();
     }
 }
@@ -156,7 +138,7 @@ pub(crate) mod universal_committer_builder {
 
     pub(crate) struct UniversalCommitterBuilder {
         context: Arc<Context>,
-        leader_schedule: Arc<LeaderSchedule>,
+        leader_schedule: LeaderSchedule,
         dag_state: Arc<RwLock<DagState>>,
         wave_length: Round,
         number_of_leaders: usize,
@@ -164,11 +146,8 @@ pub(crate) mod universal_committer_builder {
     }
 
     impl UniversalCommitterBuilder {
-        pub(crate) fn new(
-            context: Arc<Context>,
-            leader_schedule: Arc<LeaderSchedule>,
-            dag_state: Arc<RwLock<DagState>>,
-        ) -> Self {
+        pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
+            let leader_schedule = LeaderSchedule::new(context.clone());
             Self {
                 context,
                 leader_schedule,

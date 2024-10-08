@@ -15,7 +15,7 @@ use iota_types::{
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 
-use crate::{Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
+use crate::{executor::MAX_CHECKPOINTS_IN_PROGRESS, Worker};
 
 pub struct WorkerPool<W: Worker> {
     pub task_name: String,
@@ -132,7 +132,6 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     if sequence_number < current_checkpoint_number {
                         continue;
                     }
-                    self.worker.preprocess_hook(checkpoint.clone()).expect("failed to preprocess task");
                     if idle.is_empty() {
                         checkpoints.push_back(checkpoint);
                     } else {

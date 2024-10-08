@@ -7,31 +7,46 @@ use std::{
     future::Future,
     path::PathBuf,
     sync::{
-        Arc,
         atomic::{AtomicU32, Ordering},
+        Arc,
     },
-    time::{Duration, Instant},
 };
 
 use iota_framework::BuiltInFramework;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
-    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
-    effects::{TestEffectsBuilder, TransactionEffectsAPI},
-    event::Event,
-    object::{MoveObject, OBJECT_START_VERSION, Owner},
+    base_types::{random_object_ref, IotaAddress},
+    crypto::{deterministic_random_account_key, get_key_pair_from_rng, AccountKeyPair},
+    effects::TestEffectsBuilder,
+    object::{MoveObject, Owner, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
 use prometheus::default_registry;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, SeedableRng};
+use tempfile::tempdir;
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
+    authority::{authority_store_tables::AuthorityPerpetualTables, AuthorityStore},
     execution_cache::ExecutionCacheAPI,
+    test_utils::init_state_parameters_from_rng,
 };
+
+async fn init_authority_store() -> Arc<AuthorityStore> {
+    let seed = [1u8; 32];
+    let (genesis, _) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
+    let committee = genesis.committee().unwrap();
+
+    // Create a random directory to store the DB
+    let dir = tempdir().unwrap();
+    let db_path = dir.path();
+
+    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(db_path, None));
+    AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        .await
+        .unwrap()
+}
 
 trait AssertInserted {
     fn assert_inserted(&self);
@@ -51,11 +66,9 @@ impl AssertInserted for bool {
 
 type ActionCb = Box<dyn Fn(&mut Scenario) + Send>;
 
-pub(crate) struct Scenario {
-    pub authority: Arc<AuthorityState>,
-    pub store: Arc<AuthorityStore>,
-    pub epoch_store: Arc<AuthorityPerEpochStore>,
-    pub cache: Arc<WritebackCache>,
+struct Scenario {
+    store: Arc<AuthorityStore>,
+    cache: Arc<WritebackCache>,
 
     id_map: BTreeMap<u32, ObjectID>,
     objects: BTreeMap<ObjectID, Object>,
@@ -68,19 +81,13 @@ pub(crate) struct Scenario {
 
 impl Scenario {
     async fn new(do_after: Option<(u32, ActionCb)>, action_count: Arc<AtomicU32>) -> Self {
-        let authority = TestAuthorityBuilder::new().build().await;
-
-        let store = authority.database_for_testing().clone();
-        let epoch_store = authority.epoch_store_for_testing().clone();
-
+        let store = init_authority_store().await;
         static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
             once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
         let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
         Self {
-            authority,
             store,
-            epoch_store,
             cache,
             id_map: BTreeMap::new(),
             objects: BTreeMap::new(),
@@ -89,6 +96,20 @@ impl Scenario {
 
             action_count,
             do_after,
+        }
+    }
+
+    fn new_with_store_and_cache(store: Arc<AuthorityStore>, cache: Arc<WritebackCache>) -> Self {
+        Self {
+            store,
+            cache,
+            id_map: BTreeMap::new(),
+            objects: BTreeMap::new(),
+            outputs: Self::new_outputs(),
+            transactions: BTreeSet::new(),
+
+            action_count: Arc::new(AtomicU32::new(0)),
+            do_after: None,
         }
     }
 
@@ -108,7 +129,7 @@ impl Scenario {
 
     // This method runs a test scenario multiple times, and each time it clears the
     // evictable caches after a different step.
-    pub async fn iterate<F, Fut>(f: F)
+    async fn iterate<F, Fut>(f: F)
     where
         F: Fn(Scenario) -> Fut,
         Fut: Future<Output = ()>,
@@ -126,7 +147,6 @@ impl Scenario {
             println!("running with cache eviction after step {}", i);
             let count = Arc::new(AtomicU32::new(0));
             let action = Box::new(|s: &mut Scenario| {
-                println!("evict_caches()");
                 s.evict_caches();
             });
             let fut = f(Scenario::new(Some((i, action)), count.clone()).await);
@@ -146,16 +166,12 @@ impl Scenario {
             .build_and_sign(&keypair);
 
         let tx = VerifiedTransaction::new_unchecked(tx);
-        let events: TransactionEvents = Default::default();
-
-        let effects = TestEffectsBuilder::new(tx.inner())
-            .with_events_digest(events.digest())
-            .build();
+        let effects = TestEffectsBuilder::new(tx.inner()).build();
 
         TransactionOutputs {
             transaction: Arc::new(tx),
             effects,
-            events,
+            events: Default::default(),
             markers: Default::default(),
             wrapped: Default::default(),
             deleted: Default::default(),
@@ -182,7 +198,7 @@ impl Scenario {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("src/unit_tests/data/object_basics");
         let modules: Vec<_> = BuildConfig::new_for_testing()
-            .build(&path)
+            .build(path)
             .unwrap()
             .get_modules()
             .cloned()
@@ -201,18 +217,18 @@ impl Scenario {
         )
     }
 
-    fn inc_version_by(object: Object, delta: u64) -> Object {
+    fn bump_version(object: Object) -> Object {
         let version = object.version();
         let mut inner = object.into_inner();
         inner
             .data
             .try_as_move_mut()
             .unwrap()
-            .increment_version_to(SequenceNumber::from_u64(version.value() + delta));
+            .increment_version_to(version.next());
         inner.into()
     }
 
-    pub fn with_child(&mut self, short_id: u32, owner: u32) {
+    fn with_child(&mut self, short_id: u32, owner: u32) {
         let owner_id = self.id_map.get(&owner).expect("no such object");
         let object = Self::new_child(*owner_id);
         self.outputs
@@ -224,7 +240,7 @@ impl Scenario {
         self.objects.insert(id, object).assert_inserted();
     }
 
-    pub fn with_created(&mut self, short_ids: &[u32]) {
+    fn with_created(&mut self, short_ids: &[u32]) {
         // for every id in short_ids, create an object with that id if it doesn't exist
         for short_id in short_ids {
             let object = Self::new_object();
@@ -238,18 +254,7 @@ impl Scenario {
         }
     }
 
-    pub fn with_events(&mut self) {
-        let mut events: TransactionEvents = Default::default();
-        events.data.push(Event::random_for_testing());
-
-        let effects = TestEffectsBuilder::new(self.outputs.transaction.inner())
-            .with_events_digest(events.digest())
-            .build();
-        self.outputs.events = events;
-        self.outputs.effects = effects;
-    }
-
-    pub fn with_packages(&mut self, short_ids: &[u32]) {
+    fn with_packages(&mut self, short_ids: &[u32]) {
         for short_id in short_ids {
             let object = Self::new_package();
             let id = object.id();
@@ -259,11 +264,7 @@ impl Scenario {
         }
     }
 
-    pub fn with_mutated(&mut self, short_ids: &[u32]) {
-        self.with_mutated_version_delta(short_ids, 1);
-    }
-
-    pub fn with_mutated_version_delta(&mut self, short_ids: &[u32], delta: u64) {
+    fn with_mutated(&mut self, short_ids: &[u32]) {
         // for every id in short_ids, assert than an object with that id exists, and
         // mutate it
         for short_id in short_ids {
@@ -272,7 +273,7 @@ impl Scenario {
             self.outputs
                 .locks_to_delete
                 .push(object.compute_object_reference());
-            let object = Self::inc_version_by(object, delta);
+            let object = Self::bump_version(object);
             self.objects.insert(*id, object.clone());
             self.outputs
                 .new_locks_to_init
@@ -281,7 +282,7 @@ impl Scenario {
         }
     }
 
-    pub fn with_deleted(&mut self, short_ids: &[u32]) {
+    fn with_deleted(&mut self, short_ids: &[u32]) {
         // for every id in short_ids, assert than an object with that id exists, and
         // delete it
         for short_id in short_ids {
@@ -295,7 +296,7 @@ impl Scenario {
         }
     }
 
-    pub fn with_wrapped(&mut self, short_ids: &[u32]) {
+    fn with_wrapped(&mut self, short_ids: &[u32]) {
         // for every id in short_ids, assert than an object with that id exists, and
         // wrap it
         for short_id in short_ids {
@@ -309,7 +310,7 @@ impl Scenario {
         }
     }
 
-    pub fn with_received(&mut self, short_ids: &[u32]) {
+    fn with_received(&mut self, short_ids: &[u32]) {
         // for every id in short_ids, assert than an object with that id exists, that
         // it has a new lock (which proves it was mutated) and then write a received
         // marker for it
@@ -328,7 +329,7 @@ impl Scenario {
         }
     }
 
-    pub fn take_outputs(&mut self) -> Arc<TransactionOutputs> {
+    fn take_outputs(&mut self) -> Arc<TransactionOutputs> {
         let mut outputs = Self::new_outputs();
         std::mem::swap(&mut self.outputs, &mut outputs);
         Arc::new(outputs)
@@ -336,7 +337,7 @@ impl Scenario {
 
     // Commit the current tx to the cache, return its digest, and reset the
     // transaction outputs to a new empty one.
-    pub async fn do_tx(&mut self) -> TransactionDigest {
+    async fn do_tx(&mut self) -> TransactionDigest {
         // Resets outputs, but not objects, so that subsequent runs must respect
         // the state so far.
         let outputs = self.take_outputs();
@@ -354,23 +355,23 @@ impl Scenario {
     }
 
     // commit a transaction to the database
-    pub async fn commit(&mut self, tx: TransactionDigest) -> IotaResult {
-        let res = self.cache().commit_transaction_outputs(1, &[tx]).await;
+    async fn commit(&mut self, tx: TransactionDigest) -> IotaResult {
+        let res = self.cache().commit_transaction_outputs(1, &tx).await;
         self.count_action();
         res
     }
 
-    pub async fn clear_state_end_of_epoch(&self) {
+    async fn clear_state_end_of_epoch(&self) {
         let execution_guard = tokio::sync::RwLock::new(1u64);
         let lock = execution_guard.write().await;
         self.cache().clear_state_end_of_epoch(&lock);
     }
 
-    pub fn evict_caches(&self) {
-        self.cache.clear_caches_and_assert_empty();
+    fn evict_caches(&self) {
+        self.cache.clear_caches();
     }
 
-    pub fn reset_cache(&mut self) {
+    fn reset_cache(&mut self) {
         self.cache = Arc::new(WritebackCache::new(
             self.store.clone(),
             self.cache.metrics.clone(),
@@ -392,7 +393,7 @@ impl Scenario {
         });
     }
 
-    pub fn assert_live(&self, short_ids: &[u32]) {
+    fn assert_live(&self, short_ids: &[u32]) {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
             let expected = self.objects.get(id).expect("no such object");
@@ -417,7 +418,7 @@ impl Scenario {
         }
     }
 
-    pub fn assert_packages(&self, short_ids: &[u32]) {
+    fn assert_packages(&self, short_ids: &[u32]) {
         self.assert_live(short_ids);
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
@@ -427,7 +428,7 @@ impl Scenario {
         }
     }
 
-    pub fn get_from_dirty_cache(&self, short_id: u32) -> Option<Object> {
+    fn get_from_dirty_cache(&self, short_id: u32) -> Option<Object> {
         let id = self.id_map.get(&short_id).expect("no such object");
         let object = self.objects.get(id).expect("no such object");
         self.cache
@@ -438,7 +439,7 @@ impl Scenario {
             .map(|e| e.unwrap_object().clone())
     }
 
-    pub fn assert_dirty(&self, short_ids: &[u32]) {
+    fn assert_dirty(&self, short_ids: &[u32]) {
         // assert that all ids are in the dirty cache
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
@@ -451,7 +452,7 @@ impl Scenario {
         }
     }
 
-    pub fn assert_not_dirty(&self, short_ids: &[u32]) {
+    fn assert_not_dirty(&self, short_ids: &[u32]) {
         for short_id in short_ids {
             assert!(
                 self.get_from_dirty_cache(*short_id).is_none(),
@@ -460,7 +461,7 @@ impl Scenario {
         }
     }
 
-    pub fn assert_cached(&self, short_ids: &[u32]) {
+    fn assert_cached(&self, short_ids: &[u32]) {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
             let object = self.objects.get(id).expect("no such object");
@@ -480,7 +481,7 @@ impl Scenario {
         }
     }
 
-    pub fn assert_received(&self, short_ids: &[u32]) {
+    fn assert_received(&self, short_ids: &[u32]) {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such object");
             let object = self.objects.get(id).expect("no such object");
@@ -499,7 +500,7 @@ impl Scenario {
         }
     }
 
-    pub fn assert_not_exists(&self, short_ids: &[u32]) {
+    fn assert_not_exists(&self, short_ids: &[u32]) {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("no such id");
 
@@ -510,28 +511,15 @@ impl Scenario {
         }
     }
 
-    pub fn obj_id(&self, short_id: u32) -> ObjectID {
+    fn obj_id(&self, short_id: u32) -> ObjectID {
         *self.id_map.get(&short_id).expect("no such id")
     }
 
-    pub fn object(&self, short_id: u32) -> Object {
+    fn object(&self, short_id: u32) -> Object {
         self.objects
             .get(&self.obj_id(short_id))
             .expect("no such object")
             .clone()
-    }
-
-    pub fn obj_ref(&self, short_id: u32) -> ObjectRef {
-        self.object(short_id).compute_object_reference()
-    }
-
-    pub fn make_signed_transaction(&self, tx: &VerifiedTransaction) -> VerifiedSignedTransaction {
-        VerifiedSignedTransaction::new(
-            self.epoch_store.epoch(),
-            tx.clone(),
-            self.authority.name,
-            &*self.authority.secret,
-        )
     }
 }
 
@@ -559,7 +547,7 @@ async fn test_committed() {
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
         s.cache()
-            .commit_transaction_outputs(1, &[tx])
+            .commit_transaction_outputs(1, &tx)
             .await
             .expect("commit failed");
         s.assert_not_dirty(&[1, 2]);
@@ -636,62 +624,6 @@ async fn test_received() {
 }
 
 #[tokio::test]
-async fn test_extra_outputs() {
-    telemetry_subscribers::init_for_testing();
-    Scenario::iterate(|mut s| async move {
-        // make sure that events, effects, transactions are all
-        // returned correctly no matter the cache state.
-        s.with_created(&[1, 2]);
-        s.with_events();
-
-        let tx = s.do_tx().await;
-
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        let fx = s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        let events_digest = fx.events_digest().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
-
-        s.commit(tx).await.unwrap();
-
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
-
-        // clear cache
-        s.reset_cache();
-
-        s.cache.get_transaction_block(&tx).unwrap().unwrap();
-        s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        s.cache.get_events(events_digest).unwrap().unwrap();
-
-        s.with_created(&[3]);
-        let tx = s.do_tx().await;
-
-        // when Events is empty, it should be treated as None
-        let fx = s.cache.get_executed_effects(&tx).unwrap().unwrap();
-        let events_digest = fx.events_digest().unwrap();
-        assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
-            "empty events should be none"
-        );
-
-        s.commit(tx).await.unwrap();
-        assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
-            "empty events should be none"
-        );
-
-        s.reset_cache();
-        assert!(
-            s.cache.get_events(events_digest).unwrap().is_none(),
-            "empty events should be none"
-        );
-    })
-    .await;
-}
-
-#[tokio::test]
-#[should_panic(expected = "version must be the oldest in the map")]
 async fn test_out_of_order_commit() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
@@ -747,113 +679,6 @@ async fn test_lt_or_eq() {
 }
 
 #[tokio::test]
-async fn test_lt_or_eq_caching() {
-    telemetry_subscribers::init_for_testing();
-    Scenario::iterate(|mut s| async move {
-        // make 3 versions of the object
-        s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
-        s.with_mutated_version_delta(&[1], 2);
-        let tx2 = s.do_tx().await;
-        s.with_mutated_version_delta(&[1], 2);
-        let tx3 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.commit(tx2).await.unwrap();
-        s.commit(tx3).await.unwrap();
-
-        s.reset_cache();
-
-        let check_version = |lookup_version: u64, expected_version: u64| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
-            let expected_version = SequenceNumber::from_u64(expected_version);
-            assert_eq!(
-                s.cache()
-                    .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
-                    .unwrap()
-                    .unwrap()
-                    .version(),
-                expected_version
-            );
-        };
-
-        // latest object not yet cached
-        assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
-
-        // version <= 0 does not exist
-        assert!(
-            s.cache()
-                .find_object_lt_or_eq_version(s.obj_id(1), 0.into())
-                .unwrap()
-                .is_none()
-        );
-
-        // query above populates cache
-        assert_eq!(
-            s.cache
-                .cached
-                .object_by_id_cache
-                .get(&s.obj_id(1))
-                .unwrap()
-                .lock()
-                .version()
-                .unwrap()
-                .value(),
-            5
-        );
-
-        // all queries get correct answer with a populated cache
-        check_version(1, 1);
-        check_version(2, 1);
-        check_version(3, 3);
-        check_version(4, 3);
-        check_version(5, 5);
-        check_version(6, 5);
-        check_version(7, 5);
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn test_lt_or_eq_with_cached_tombstone() {
-    telemetry_subscribers::init_for_testing();
-    Scenario::iterate(|mut s| async move {
-        // make an object, and a tombstone
-        s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
-        s.with_deleted(&[1]);
-        let tx2 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        s.commit(tx2).await.unwrap();
-
-        s.reset_cache();
-
-        let check_version = |lookup_version: u64, expected_version: Option<u64>| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
-            assert_eq!(
-                s.cache()
-                    .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
-                    .unwrap()
-                    .map(|v| v.version()),
-                expected_version.map(SequenceNumber::from_u64)
-            );
-        };
-
-        // latest object not yet cached
-        assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
-
-        // version 2 is deleted
-        check_version(2, None);
-
-        // checking the version pulled the tombstone into the cache
-        assert!(s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
-
-        // version 1 is still found, tombstone in cache is ignored
-        check_version(1, Some(1));
-    })
-    .await;
-}
-
-#[tokio::test]
 async fn test_write_transaction_outputs_is_sync() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
@@ -883,7 +708,7 @@ async fn test_missing_reverts_panic() {
 }
 
 #[tokio::test]
-#[should_panic(expected = "attempt to revert committed transaction")]
+#[should_panic(expected = "transaction must exist")]
 async fn test_revert_committed_tx_panics() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
@@ -891,21 +716,6 @@ async fn test_revert_committed_tx_panics() {
         let tx1 = s.do_tx().await;
         s.commit(tx1).await.unwrap();
         s.cache().revert_state_update(&tx1).unwrap();
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn test_revert_unexecuted_tx() {
-    telemetry_subscribers::init_for_testing();
-    Scenario::iterate(|mut s| async move {
-        s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
-        s.commit(tx1).await.unwrap();
-        let random_digest = TransactionDigest::random();
-        // must not panic - pending_consensus_transactions is a super set of
-        // executed but un-checkpointed transactions
-        s.cache().revert_state_update(&random_digest).unwrap();
     })
     .await;
 }
@@ -994,8 +804,11 @@ async fn test_concurrent_readers() {
         tokio::task::yield_now().await;
     });
 
-    let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
-    let cache = s.cache.clone();
+    let store = init_authority_store().await;
+    let registry = prometheus::Registry::new(); // One time registry for testing.
+    let cache = Arc::new(WritebackCache::new_for_tests(store.clone(), &registry));
+
+    let mut s = Scenario::new_with_store_and_cache(store.clone(), cache.clone());
     let mut txns = Vec::new();
 
     for i in 0..100 {
@@ -1066,178 +879,4 @@ async fn test_concurrent_readers() {
 
     t1.await.unwrap();
     t2.await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-async fn test_concurrent_lockers() {
-    telemetry_subscribers::init_for_testing();
-
-    let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
-    let cache = s.cache.clone();
-    let mut txns = Vec::new();
-
-    for i in 0..1000 {
-        let a = i * 4;
-        let b = i * 4 + 1;
-        let c = i * 4 + 2;
-        let d = i * 4 + 3;
-        s.with_created(&[a, b]);
-        s.do_tx().await;
-
-        let a_ref = s.obj_ref(a);
-        let b_ref = s.obj_ref(b);
-
-        // these contents of these txns are never used, they are just unique
-        // transactions to use for attempted equivocation
-        s.with_created(&[c]);
-        let tx1 = s.take_outputs();
-
-        s.with_created(&[d]);
-        let tx2 = s.take_outputs();
-
-        let tx1 = s.make_signed_transaction(&tx1.transaction);
-        let tx2 = s.make_signed_transaction(&tx2.transaction);
-
-        txns.push((tx1, tx2, a_ref, b_ref));
-    }
-
-    let barrier = Arc::new(tokio::sync::Barrier::new(2));
-
-    let t1 = {
-        let txns = txns.clone();
-        let cache = cache.clone();
-        let barrier = barrier.clone();
-        let epoch_store = s.epoch_store.clone();
-        tokio::task::spawn(async move {
-            let mut results = Vec::new();
-            for (tx1, _, a_ref, b_ref) in txns {
-                results.push(
-                    cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx1)
-                        .await,
-                );
-                barrier.wait().await;
-            }
-            results
-        })
-    };
-
-    let t2 = {
-        let txns = txns.clone();
-        let cache = cache.clone();
-        let barrier = barrier.clone();
-        let epoch_store = s.epoch_store.clone();
-        tokio::task::spawn(async move {
-            let mut results = Vec::new();
-            for (_, tx2, a_ref, b_ref) in txns {
-                results.push(
-                    cache
-                        .acquire_transaction_locks(&epoch_store, &[a_ref, b_ref], tx2)
-                        .await,
-                );
-                barrier.wait().await;
-            }
-            results
-        })
-    };
-
-    let results1 = t1.await.unwrap();
-    let results2 = t2.await.unwrap();
-
-    for (r1, r2) in results1.into_iter().zip(results2) {
-        // exactly one should succeed in each case
-        assert_eq!(r1.is_ok(), r2.is_err());
-    }
-}
-
-#[tokio::test]
-async fn latest_object_cache_race_test() {
-    let authority = TestAuthorityBuilder::new().build().await;
-
-    let store = authority.database_for_testing().clone();
-
-    static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
-        once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
-
-    let cache = Arc::new(WritebackCache::new(store.clone(), (*METRICS).clone()));
-
-    let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
-
-    // a writer thread that keeps writing new versions
-    let writer = {
-        let cache = cache.clone();
-        let start = Instant::now();
-        std::thread::spawn(move || {
-            let mut version = OBJECT_START_VERSION;
-            while start.elapsed() < Duration::from_secs(2) {
-                let object = Object::with_id_owner_version_for_testing(object_id, version, owner);
-
-                cache
-                    .write_object_entry(&object_id, version, object.into())
-                    .now_or_never()
-                    .unwrap();
-
-                version = version.next();
-            }
-        })
-    };
-
-    // a reader thread that pretends it saw some previous version on the db
-    let reader = {
-        let cache = cache.clone();
-        let start = Instant::now();
-        std::thread::spawn(move || {
-            while start.elapsed() < Duration::from_secs(2) {
-                let Some(latest_version) = cache
-                    .cached
-                    .object_by_id_cache
-                    .get(&object_id)
-                    .and_then(|e| e.lock().version())
-                else {
-                    continue;
-                };
-
-                // with probability 0.1, sleep for 1µs, so that we are further out of date.
-                if rand::thread_rng().gen_bool(0.1) {
-                    std::thread::sleep(Duration::from_micros(1));
-                }
-
-                let object =
-                    Object::with_id_owner_version_for_testing(object_id, latest_version, owner);
-
-                cache.cache_latest_object_by_id(
-                    &object_id,
-                    LatestObjectCacheEntry::Object(latest_version, object.into()),
-                );
-            }
-        })
-    };
-
-    // a thread that does nothing but watch to see if the cache goes back in time
-    let checker = {
-        let cache = cache.clone();
-        let start = Instant::now();
-        std::thread::spawn(move || {
-            let mut latest = OBJECT_START_VERSION;
-
-            while start.elapsed() < Duration::from_secs(2) {
-                let Some(cur) = cache
-                    .cached
-                    .object_by_id_cache
-                    .get(&object_id)
-                    .and_then(|e| e.lock().version())
-                else {
-                    continue;
-                };
-
-                assert!(cur >= latest);
-                latest = cur;
-            }
-        })
-    };
-
-    writer.join().unwrap();
-    reader.join().unwrap();
-    checker.join().unwrap();
 }

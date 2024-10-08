@@ -7,8 +7,8 @@ use std::collections::VecDeque;
 use fastcrypto::{
     error::{FastCryptoError, FastCryptoResult},
     groups::{
-        FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
-        bls12381 as bls,
+        bls12381 as bls, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
+        Pairing,
     },
     serde_helpers::ToFromByteArray,
 };
@@ -23,7 +23,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{NativesCostTable, object_runtime::ObjectRuntime};
+use crate::{object_runtime::ObjectRuntime, NativesCostTable};
 
 pub const NOT_SUPPORTED_ERROR: u64 = 0;
 pub const INVALID_INPUT_ERROR: u64 = 1;
@@ -487,11 +487,13 @@ pub fn internal_div(
     }
 }
 
-#[rustfmt::skip]
-// native fun internal_hash_to
-// Implementation of the Move native function `internal_hash_to(type: u8, m: &vector<u8>): vector<u8>`
-//   gas cost: group_ops_bls12381_X_hash_to_base_cost + group_ops_bls12381_X_hash_to_cost_per_byte * |input|
-//             where X is the requested type
+/// ****************************************************************************
+/// ********************* native fun internal_hash_to
+/// Implementation of the Move native function `internal_hash_to(type: u8, m:
+/// &vector<u8>): vector<u8>`   gas cost: group_ops_bls12381_X_hash_to_base_cost
+/// + group_ops_bls12381_X_hash_to_cost_per_byte * |input|             where X
+/// is the requested type ******************************************************
+/// *****************************************
 pub fn internal_hash_to(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -639,9 +641,10 @@ where
 
         let r = G::multi_scalar_mul(&scalars, &points)
             .expect("Already checked the lengths of the vectors");
-        Ok(NativeResult::ok(context.gas_used(), smallvec![
-            Value::vector_u8(r.to_byte_array().to_vec())
-        ]))
+        Ok(NativeResult::ok(
+            context.gas_used(),
+            smallvec![Value::vector_u8(r.to_byte_array().to_vec())],
+        ))
     } else {
         Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR))
     }

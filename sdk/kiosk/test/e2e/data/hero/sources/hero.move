@@ -7,16 +7,16 @@ module hero::hero {
     use iota::object::{Self, UID};
     use iota::package;
 
-    public struct Hero has key, store {
+    struct Hero has key, store {
         id: UID,
         level: u8,
     }
 
-    public struct Villain has key, store {
+    struct Villain has key, store {
         id: UID,
     }
 
-    public struct HERO has drop {}
+    struct HERO has drop {}
 
     fun init(witness: HERO, ctx: &mut TxContext) {
         package::claim_and_keep(witness, ctx);

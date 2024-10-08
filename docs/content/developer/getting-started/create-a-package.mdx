@@ -3,12 +3,9 @@ description: How to create a Move package in IOTA
 tags: [ move, getting-started ]
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/getting-started/create-a-package.json';
-
 # Create a Move Package
 
-Once you have [installed IOTA](install-iota.mdx), you are ready to create your first IOTA
+Once you have [installed IOTA](iota-install.mdx), you are ready to create your first IOTA
 Move [package](../iota-101/move-overview/package-upgrades/introduction.mdx). In IOTA, packages are the way to organize
 the [modules](create-a-module.mdx) that make up your smart contract program. When you publish a package to any IOTA
 network, it will be assigned an address you can use to interact with the package by
@@ -33,12 +30,6 @@ In `.toml` files, use the hash mark (`#`) to denote a comment.
 
 ```toml file=<rootDir>/examples/move/first_package/Move.toml
 ```
-
-:::tip Using a local version of IOTA
-
-For local testnet development and testing it is recommended to use the local dependency of the `Iota` framework for faster and more reliable builds. See the commented line in the example above as an example pointing towards your local checkout of the `iota` repository.
-
-:::
 
 :::tip Using a local version of IOTA
 
@@ -85,9 +76,7 @@ specification to the `[dev-dependencies]` section.
 
 The `[addresses]` section is used to add aliases for the addresses you use in your package. You can add any address in
 this section, and then use its alias in the code instead of the actual address. For example, if you
-add `alice = "0xA11CE"` to this section, you can use `alice` as `0xA11CE` in the code. 
-
-If you created your package with the `iota client new` commenda, this section includes a `0x0` address for your package. You do not need to update this as [package addresses are automatically managed](../iota-101/move-overview/package-upgrades/automated-address-management.mdx).
+add `alice = "0xA11CE"` to this section, you can use `alice` as `0xA11CE` in the code.
 
 ### Dev-addresses
 
@@ -128,6 +117,3 @@ local = "../my-package"
 ```
 </TabItem>
 </Tabs>
-
-
-<Quiz questions={questions} />

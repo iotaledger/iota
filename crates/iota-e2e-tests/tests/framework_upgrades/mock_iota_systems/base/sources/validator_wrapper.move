@@ -8,16 +8,18 @@ module iota_system::validator_wrapper {
     use iota::tx_context::TxContext;
     use iota_system::validator::Validator;
 
+    friend iota_system::iota_system_state_inner;
+
     const VALIDATOR_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
 
     const EInvalidVersion: u64 = 0;
 
-    public struct ValidatorWrapper has store {
+    struct ValidatorWrapper has store {
         inner: Versioned
     }
 
     // Validator corresponds to version 1.
-    public(package) fun create_v1(validator: Validator, ctx: &mut TxContext): ValidatorWrapper {
+    public(friend) fun create_v1(validator: Validator, ctx: &mut TxContext): ValidatorWrapper {
         ValidatorWrapper {
             inner: versioned::create(VALIDATOR_VERSION_V1, validator, ctx)
         }
@@ -25,13 +27,13 @@ module iota_system::validator_wrapper {
 
     /// This function should always return the latest supported version.
     /// If the inner version is old, we upgrade it lazily in-place.
-    public(package) fun load_validator_maybe_upgrade(self: &mut ValidatorWrapper): &mut Validator {
+    public(friend) fun load_validator_maybe_upgrade(self: &mut ValidatorWrapper): &mut Validator {
         upgrade_to_latest(self);
         versioned::load_value_mut<Validator>(&mut self.inner)
     }
 
     /// Destroy the wrapper and retrieve the inner validator object.
-    public(package) fun destroy(mut self: ValidatorWrapper): Validator {
+    public(friend) fun destroy(self: ValidatorWrapper): Validator {
         upgrade_to_latest(&mut self);
         let ValidatorWrapper { inner } = self;
         versioned::destroy(inner)

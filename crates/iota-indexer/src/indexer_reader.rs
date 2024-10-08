@@ -3,17 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
+    collections::{BTreeMap, HashMap},
+    sync::{Arc, RwLock},
 };
 
-use anyhow::{Result, anyhow};
-use cached::{Cached, SizedCache};
+use anyhow::{anyhow, Result};
+use cached::{proc_macro::cached, SizedCache};
 use diesel::{
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods,
-    dsl::sql,
-    r2d2::{ConnectionManager, R2D2Connection},
-    sql_types::Bool,
+    dsl::sql, r2d2::ConnectionManager, sql_types::Bool, ExpressionMethods, OptionalExtension,
+    PgConnection, QueryDsl, RunQueryDsl, TextExpressionMethods,
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
@@ -22,7 +20,6 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, MoveCallMetrics,
     MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
-use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
@@ -30,18 +27,17 @@ use iota_types::{
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
-    effects::TransactionEvents,
     event::EventID,
-    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
     is_system_package,
-    object::{Object, ObjectRead},
+    move_package::MovePackage,
+    object::{MoveObject, Object, ObjectRead},
 };
-use itertools::{Itertools, any};
+use itertools::{any, Itertools};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
-use tap::TapFallible;
 
 use crate::{
-    db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
+    db::{PgConnectionConfig, PgConnectionPoolConfig, PgPoolConnection},
     errors::IndexerError,
     models::{
         address_metrics::StoredAddressMetrics,
@@ -52,17 +48,14 @@ use crate::{
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
         objects::{CoinBalance, ObjectRefColumn, StoredObject},
-        transactions::{
-            StoredTransaction, StoredTransactionEvents, stored_events_to_events,
-            tx_events_to_iota_tx_events,
-        },
+        packages::StoredPackage,
+        transactions::StoredTransaction,
         tx_indices::TxSequenceNumber,
     },
     schema::{
         address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, transactions,
+        objects_snapshot, packages, transactions,
     },
-    store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
 };
 
@@ -70,45 +63,26 @@ pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
 pub const TRANSACTION_DIGEST_STR: &str = "transaction_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
-pub struct IndexerReader<T>
-where
-    T: R2D2Connection + 'static,
-{
-    pool: ConnectionPool<T>,
-    package_resolver: PackageResolver<T>,
-    package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
+#[derive(Clone)]
+pub struct IndexerReader {
+    pool: crate::db::PgConnectionPool,
+    package_cache: PackageCache,
 }
-
-impl<T> Clone for IndexerReader<T>
-where
-    T: R2D2Connection,
-{
-    fn clone(&self) -> IndexerReader<T> {
-        IndexerReader {
-            pool: self.pool.clone(),
-            package_resolver: self.package_resolver.clone(),
-            package_obj_type_cache: self.package_obj_type_cache.clone(),
-        }
-    }
-}
-
-pub type PackageResolver<T> =
-    Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver<T>>>>;
 
 // Impl for common initialization and utilities
-impl<U: R2D2Connection + 'static> IndexerReader<U> {
+impl IndexerReader {
     pub fn new<T: Into<String>>(db_url: T) -> Result<Self> {
-        let config = ConnectionPoolConfig::default();
+        let config = PgConnectionPoolConfig::default();
         Self::new_with_config(db_url, config)
     }
 
     pub fn new_with_config<T: Into<String>>(
         db_url: T,
-        config: ConnectionPoolConfig,
+        config: PgConnectionPoolConfig,
     ) -> Result<Self> {
-        let manager = ConnectionManager::<U>::new(db_url);
+        let manager = ConnectionManager::<PgConnection>::new(db_url);
 
-        let connection_config = ConnectionConfig {
+        let connection_config = PgConnectionConfig {
             statement_timeout: config.statement_timeout,
             read_only: true,
         };
@@ -120,15 +94,54 @@ impl<U: R2D2Connection + 'static> IndexerReader<U> {
             .build(manager)
             .map_err(|e| anyhow!("Failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
 
-        let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
-        let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
-        let package_resolver = Arc::new(Resolver::new(package_cache));
-        let package_obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
         Ok(Self {
             pool,
-            package_resolver,
-            package_obj_type_cache,
+            package_cache: Default::default(),
         })
+    }
+
+    pub fn get_pool(&self) -> &crate::db::PgConnectionPool {
+        &self.pool
+    }
+
+    fn get_connection(&self) -> Result<PgPoolConnection, IndexerError> {
+        self.pool.get().map_err(|e| {
+            IndexerError::PgPoolConnectionError(format!(
+                "Failed to get connection from PG connection pool with error: {:?}",
+                e
+            ))
+        })
+    }
+
+    pub fn run_query<T, E, F>(&self, query: F) -> Result<T, IndexerError>
+    where
+        F: FnOnce(&mut PgConnection) -> Result<T, E>,
+        E: From<diesel::result::Error> + std::error::Error,
+    {
+        blocking_call_is_ok_or_panic();
+
+        let mut connection = self.get_connection()?;
+        connection
+            .build_transaction()
+            .read_only()
+            .run(query)
+            .map_err(|e| IndexerError::PostgresReadError(e.to_string()))
+    }
+
+    pub fn run_query_repeatable<T, E, F>(&self, query: F) -> Result<T, IndexerError>
+    where
+        F: FnOnce(&mut PgConnection) -> Result<T, E>,
+        E: From<diesel::result::Error> + std::error::Error,
+    {
+        blocking_call_is_ok_or_panic();
+
+        let mut connection = self.get_connection()?;
+        connection
+            .build_transaction()
+            .read_only()
+            .repeatable_read()
+            .run(query)
+            .map_err(|e| IndexerError::PostgresReadError(e.to_string()))
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -149,13 +162,52 @@ impl<U: R2D2Connection + 'static> IndexerReader<U> {
         .expect("propagate any panics")
     }
 
-    pub fn get_pool(&self) -> ConnectionPool<U> {
-        self.pool.clone()
+    pub async fn run_query_async<T, E, F>(&self, query: F) -> Result<T, IndexerError>
+    where
+        F: FnOnce(&mut PgConnection) -> Result<T, E> + Send + 'static,
+        E: From<diesel::result::Error> + std::error::Error + Send + 'static,
+        T: Send + 'static,
+    {
+        self.spawn_blocking(move |this| this.run_query(query)).await
+    }
+
+    pub async fn run_query_repeatable_async<T, E, F>(&self, query: F) -> Result<T, IndexerError>
+    where
+        F: FnOnce(&mut PgConnection) -> Result<T, E> + Send + 'static,
+        E: From<diesel::result::Error> + std::error::Error + Send + 'static,
+        T: Send + 'static,
+    {
+        self.spawn_blocking(move |this| this.run_query_repeatable(query))
+            .await
+    }
+}
+
+thread_local! {
+    static CALLED_FROM_BLOCKING_POOL: std::cell::RefCell<bool> = const { std::cell::RefCell::new(false) };
+}
+
+/// Check that we are in a context conducive to making blocking calls.
+/// This is done by either:
+/// - Checking that we are not inside a tokio runtime context
+/// Or:
+/// - If we are inside a tokio runtime context, ensure that the call went
+///   through
+/// `IndexerReader::spawn_blocking` which properly moves the blocking call to a
+/// blocking thread pool.
+fn blocking_call_is_ok_or_panic() {
+    if tokio::runtime::Handle::try_current().is_ok()
+        && !CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow())
+    {
+        panic!(
+            "You are calling a blocking DB operation directly on an async thread. \
+                Please use IndexerReader::spawn_blocking instead to move the \
+                operation to a blocking thread"
+        );
     }
 }
 
 // Impl for reading data from the DB
-impl<U: R2D2Connection> IndexerReader<U> {
+impl IndexerReader {
     fn get_object_from_db(
         &self,
         object_id: &ObjectID,
@@ -163,7 +215,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     ) -> Result<Option<StoredObject>, IndexerError> {
         let object_id = object_id.to_vec();
 
-        let stored_object = run_query!(&self.pool, |conn| {
+        let stored_object = self.run_query(|conn| {
             if let Some(version) = version {
                 objects::dsl::objects
                     .filter(objects::dsl::object_id.eq(object_id))
@@ -177,6 +229,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                     .optional()
             }
         })?;
+
         Ok(stored_object)
     }
 
@@ -205,51 +258,83 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         object_id: ObjectID,
     ) -> Result<ObjectRead, IndexerError> {
-        let stored_object = self
-            .spawn_blocking(move |this| this.get_object_raw(object_id))
-            .await?;
-
-        if let Some(object) = stored_object {
-            object
-                .try_into_object_read(self.package_resolver.clone())
-                .await
-        } else {
-            Ok(ObjectRead::NotExists(object_id))
-        }
+        self.spawn_blocking(move |this| this.get_object_read(&object_id))
+            .await
     }
 
-    fn get_object_raw(&self, object_id: ObjectID) -> Result<Option<StoredObject>, IndexerError> {
+    fn get_object_read(&self, object_id: &ObjectID) -> Result<ObjectRead, IndexerError> {
         let id = object_id.to_vec();
-        let stored_object = run_query!(&self.pool, |conn| {
+
+        let stored_object = self.run_query(|conn| {
             objects::dsl::objects
                 .filter(objects::dsl::object_id.eq(id))
                 .first::<StoredObject>(conn)
                 .optional()
         })?;
-        Ok(stored_object)
+
+        if let Some(object) = stored_object {
+            object.try_into_object_read(self)
+        } else {
+            Ok(ObjectRead::NotExists(*object_id))
+        }
     }
 
-    pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
-        let store = self.package_resolver.package_store();
-        let pkg = store
-            .fetch(package_id.into())
-            .await
-            .map_err(|e| {
-                IndexerError::PostgresReadError(format!(
-                    "Fail to fetch package from package store with error {:?}",
+    fn get_package_from_db(
+        &self,
+        package_id: &ObjectID,
+    ) -> Result<Option<MovePackage>, IndexerError> {
+        let package_id = package_id.to_vec();
+        let stored_package = self.run_query(|conn| {
+            packages::dsl::packages
+                .filter(packages::dsl::package_id.eq(package_id))
+                .first::<StoredPackage>(conn)
+                .optional()
+        })?;
+
+        let stored_package = match stored_package {
+            Some(pkg) => pkg,
+            None => return Ok(None),
+        };
+
+        let move_package =
+            bcs::from_bytes::<MovePackage>(&stored_package.move_package).map_err(|e| {
+                IndexerError::PersistentStorageDataCorruptionError(format!(
+                    "Error deserializing move package. Error: {}",
                     e
                 ))
-            })?
-            .as_ref()
-            .clone();
-        Ok(pkg)
+            })?;
+        Ok(Some(move_package))
+    }
+
+    pub fn get_package(&self, package_id: &ObjectID) -> Result<Option<MovePackage>, IndexerError> {
+        if let Some(package) = self.package_cache.get(package_id) {
+            return Ok(Some(package));
+        }
+
+        match self.get_package_from_db(package_id) {
+            Ok(Some(package)) => {
+                self.package_cache.insert(*package_id, package.clone());
+
+                Ok(Some(package))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn get_package_in_blocking_task(
+        &self,
+        package_id: ObjectID,
+    ) -> Result<Option<MovePackage>, IndexerError> {
+        self.spawn_blocking(move |this| this.get_package(&package_id))
+            .await
     }
 
     pub fn get_epoch_info_from_db(
         &self,
         epoch: Option<EpochId>,
     ) -> Result<Option<StoredEpochInfo>, IndexerError> {
-        let stored_epoch = run_query!(&self.pool, |conn| {
+        let stored_epoch = self.run_query(|conn| {
             if let Some(epoch) = epoch {
                 epochs::dsl::epochs
                     .filter(epochs::epoch.eq(epoch as i64))
@@ -267,7 +352,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_epoch_info_from_db(&self) -> Result<StoredEpochInfo, IndexerError> {
-        let stored_epoch = run_query!(&self.pool, |conn| {
+        let stored_epoch = self.run_query(|conn| {
             epochs::dsl::epochs
                 .order_by(epochs::epoch.desc())
                 .first::<StoredEpochInfo>(conn)
@@ -297,7 +382,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         limit: usize,
         descending_order: bool,
     ) -> Result<Vec<StoredEpochInfo>, IndexerError> {
-        run_query!(&self.pool, |conn| {
+        self.run_query(|conn| {
             let mut boxed_query = epochs::table.into_boxed();
             if let Some(cursor) = cursor {
                 if descending_order {
@@ -366,24 +451,22 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         checkpoint_id: CheckpointId,
     ) -> Result<Option<StoredCheckpoint>, IndexerError> {
-        let stored_checkpoint = run_query!(&self.pool, |conn| {
-            match checkpoint_id {
-                CheckpointId::SequenceNumber(seq) => checkpoints::dsl::checkpoints
-                    .filter(checkpoints::sequence_number.eq(seq as i64))
-                    .first::<StoredCheckpoint>(conn)
-                    .optional(),
-                CheckpointId::Digest(digest) => checkpoints::dsl::checkpoints
-                    .filter(checkpoints::checkpoint_digest.eq(digest.into_inner().to_vec()))
-                    .first::<StoredCheckpoint>(conn)
-                    .optional(),
-            }
+        let stored_checkpoint = self.run_query(|conn| match checkpoint_id {
+            CheckpointId::SequenceNumber(seq) => checkpoints::dsl::checkpoints
+                .filter(checkpoints::sequence_number.eq(seq as i64))
+                .first::<StoredCheckpoint>(conn)
+                .optional(),
+            CheckpointId::Digest(digest) => checkpoints::dsl::checkpoints
+                .filter(checkpoints::checkpoint_digest.eq(digest.into_inner().to_vec()))
+                .first::<StoredCheckpoint>(conn)
+                .optional(),
         })?;
 
         Ok(stored_checkpoint)
     }
 
     pub fn get_latest_checkpoint_from_db(&self) -> Result<StoredCheckpoint, IndexerError> {
-        let stored_checkpoint = run_query!(&self.pool, |conn| {
+        let stored_checkpoint = self.run_query(|conn| {
             checkpoints::dsl::checkpoints
                 .order_by(checkpoints::sequence_number.desc())
                 .first::<StoredCheckpoint>(conn)
@@ -417,7 +500,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         limit: usize,
         descending_order: bool,
     ) -> Result<Vec<StoredCheckpoint>, IndexerError> {
-        run_query!(&self.pool, |conn| {
+        self.run_query(|conn| {
             let mut boxed_query = checkpoints::table.into_boxed();
             if let Some(cursor) = cursor {
                 if descending_order {
@@ -456,32 +539,30 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         digest: TransactionDigest,
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
+        let stored_txn: StoredTransaction = self.run_query(|conn| {
             transactions::table
-                .filter(transactions::transaction_digest.eq(digest.into_inner().to_vec()))
+                .filter(transactions::transaction_digest.eq(digest.inner().to_vec()))
                 .first::<StoredTransaction>(conn)
         })?;
 
-        if cfg!(feature = "postgres-feature") {
-            stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
-        }
-        stored_txn.try_into_iota_transaction_effects()
+        stored_txn
+            .set_genesis_large_object_as_inner_data(&self.pool)?
+            .try_into_iota_transaction_effects()
     }
 
     fn get_transaction_effects_with_sequence_number(
         &self,
         sequence_number: i64,
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
+        let stored_txn: StoredTransaction = self.run_query(|conn| {
             transactions::table
                 .filter(transactions::tx_sequence_number.eq(sequence_number))
                 .first::<StoredTransaction>(conn)
         })?;
 
-        if cfg!(feature = "postgres-feature") {
-            stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
-        }
-        stored_txn.try_into_iota_transaction_effects()
+        stored_txn
+            .set_genesis_large_object_as_inner_data(&self.pool)?
+            .try_into_iota_transaction_effects()
     }
 
     fn multi_get_transactions(
@@ -492,57 +573,31 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .iter()
             .map(|digest| digest.inner().to_vec())
             .collect::<Vec<_>>();
-        let transactions = run_query!(&self.pool, |conn| {
+
+        self.run_query(|conn| {
             transactions::table
                 .filter(transactions::transaction_digest.eq_any(digests))
                 .load::<StoredTransaction>(conn)
-        })?;
-        if cfg!(feature = "postgres-feature") {
+        })
+        .and_then(|transactions| {
             transactions
                 .into_iter()
                 .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
                 .collect()
-        } else {
-            Ok(transactions)
-        }
+        })
     }
 
-    async fn multi_get_transactions_in_blocking_task(
-        &self,
-        digests: Vec<TransactionDigest>,
-    ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        self.spawn_blocking(move |this| this.multi_get_transactions(&digests))
-            .await
-    }
-
-    /// This method tries to transform [`StoredTransaction`] values
+    /// This method tries to transfroms [`StoredTransaction`] values
     /// into transaction blocks, without any other modification.
-    async fn stored_transaction_to_transaction_block(
+    fn stored_transaction_to_transaction_block(
         &self,
         stored_txes: Vec<StoredTransaction>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        let mut tx_block_responses_futures = vec![];
-        for stored_tx in stored_txes {
-            let package_resolver_clone = self.package_resolver();
-            let options_clone = options.clone();
-            tx_block_responses_futures.push(tokio::task::spawn(
-                stored_tx.try_into_iota_transaction_block_response(
-                    options_clone,
-                    package_resolver_clone,
-                ),
-            ));
-        }
-
-        let tx_blocks = futures::future::join_all(tx_block_responses_futures)
-            .await
+        stored_txes
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join all tx block futures: {}", e))?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect tx block futures: {}", e))?;
-        Ok(tx_blocks)
+            .map(|stored_tx| stored_tx.try_into_iota_transaction_block_response(&options, self))
+            .collect()
     }
 
     fn multi_get_transactions_with_sequence_numbers(
@@ -563,15 +618,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
             }
             None => (),
         }
-        let transactions = run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))?;
-        if cfg!(feature = "postgres-feature") {
-            transactions
-                .into_iter()
-                .map(|stored| stored.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect()
-        } else {
-            Ok(transactions)
-        }
+        self.run_query(|conn| query.load::<StoredTransaction>(conn))
+            .and_then(|transactions| {
+                transactions
+                    .into_iter()
+                    .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                    .collect()
+            })
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -592,7 +645,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        run_query!(&self.pool, |conn| {
+        self.run_query(|conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
                 .filter(objects::dsl::owner_id.eq(address.to_vec()))
@@ -601,26 +654,19 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 .into_boxed();
             if let Some(filter) = filter {
                 match filter {
-                    IotaObjectDataFilter::StructType(struct_tag) => {
-                        let object_type =
-                            struct_tag.to_canonical_string(/* with_prefix */ true);
-                        query =
-                            query.filter(objects::object_type.like(format!("{}%", object_type)));
-                    }
+                    IotaObjectDataFilter::StructType (struct_tag ) => {
+                        let object_type = struct_tag.to_canonical_string(/* with_prefix */ true);
+                        query = query.filter(objects::dsl::object_type.like(format!("{}%",object_type)));
+                    },
                     IotaObjectDataFilter::MatchAny(filters) => {
                         let mut condition = "(".to_string();
                         for (i, filter) in filters.iter().enumerate() {
-                            if let IotaObjectDataFilter::StructType(struct_tag) = filter {
-                                let object_type =
-                                    struct_tag.to_canonical_string(/* with_prefix */ true);
+                            if let IotaObjectDataFilter::StructType (struct_tag) = filter {
+                                let object_type = struct_tag.to_canonical_string(/* with_prefix */ true);
                                 if i == 0 {
-                                    condition +=
-                                        format!("objects.object_type LIKE '{}%'", object_type)
-                                            .as_str();
+                                    condition += format!("objects.object_type LIKE '{}%'",object_type).as_str();
                                 } else {
-                                    condition +=
-                                        format!(" OR objects.object_type LIKE '{}%'", object_type)
-                                            .as_str();
+                                    condition += format!(" OR objects.object_type LIKE '{}%'",object_type).as_str();
                                 }
                             } else {
                                 return Err(IndexerError::InvalidArgumentError(
@@ -630,15 +676,12 @@ impl<U: R2D2Connection> IndexerReader<U> {
                         }
                         condition += ")";
                         query = query.filter(sql::<Bool>(&condition));
-                    }
+                    },
                     IotaObjectDataFilter::MatchNone(filters) => {
                         for filter in filters {
-                            if let IotaObjectDataFilter::StructType(struct_tag) = filter {
-                                let object_type =
-                                    struct_tag.to_canonical_string(/* with_prefix */ true);
-                                query = query.filter(
-                                    objects::object_type.not_like(format!("{}%", object_type)),
-                                );
+                            if let IotaObjectDataFilter::StructType (struct_tag) = filter {
+                                let object_type = struct_tag.to_canonical_string(/* with_prefix */ true);
+                                query = query.filter(objects::dsl::object_type.not_like(format!("{}%", object_type)));
                             } else {
                                 return Err(IndexerError::InvalidArgumentError(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
@@ -658,10 +701,21 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
             }
 
-            query
-                .load::<StoredObject>(conn)
-                .map_err(|e| IndexerError::PostgresReadError(e.to_string()))
+            query.load::<StoredObject>(conn).map_err(|e| IndexerError::PostgresReadError(e.to_string()))
         })
+    }
+
+    pub async fn query_events_in_blocking_task(
+        &self,
+        filter: EventFilter,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        self.spawn_blocking(move |this| {
+            this.query_events_impl(filter, cursor, limit, descending_order)
+        })
+        .await
     }
 
     fn filter_object_id_with_type(
@@ -670,14 +724,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
         object_type: String,
     ) -> Result<Vec<ObjectID>, IndexerError> {
         let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
-        let filtered_ids = run_query!(&self.pool, |conn| {
+        let filtered_ids = self.run_query(|conn| {
             objects::dsl::objects
                 .filter(objects::object_id.eq_any(object_ids))
                 .filter(objects::object_type.eq(object_type))
                 .select(objects::object_id)
                 .load::<Vec<u8>>(conn)
         })?;
-
         filtered_ids
             .into_iter()
             .map(|id| {
@@ -704,14 +757,15 @@ impl<U: R2D2Connection> IndexerReader<U> {
         object_ids: Vec<ObjectID>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
-        run_query!(&self.pool, |conn| {
+
+        self.run_query(|conn| {
             objects::dsl::objects
                 .filter(objects::object_id.eq_any(object_ids))
                 .load::<StoredObject>(conn)
         })
     }
 
-    async fn query_transaction_blocks_by_checkpoint_impl(
+    fn query_transaction_blocks_by_checkpoint_impl(
         &self,
         checkpoint_seq: u64,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -736,20 +790,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
         } else {
             query = query.order(transactions::dsl::tx_sequence_number.asc());
         }
-        let pool = self.get_pool();
-        let mut stored_txes =
-            run_query_async!(&pool, move |conn| query
-                .limit(limit as i64)
-                .load::<StoredTransaction>(conn))?;
-        if cfg!(feature = "postgres-feature") {
-            stored_txes = stored_txes
-                .into_iter()
-                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+
+        let stored_txes = self
+            .run_query(|conn| query.limit((limit) as i64).load::<StoredTransaction>(conn))
+            .and_then(|transactions| {
+                transactions
+                    .into_iter()
+                    .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                    .collect()
+            })?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
-            .await
     }
 
     pub async fn query_transaction_blocks_in_blocking_task(
@@ -760,11 +811,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(filter, options, cursor, limit, is_descending)
-            .await
+        self.spawn_blocking(move |this| {
+            this.query_transaction_blocks_impl(filter, options, cursor, limit, is_descending)
+        })
+        .await
     }
 
-    async fn query_transaction_blocks_impl(
+    fn query_transaction_blocks_impl(
         &self,
         filter: Option<TransactionFilter>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -773,14 +826,12 @@ impl<U: R2D2Connection> IndexerReader<U> {
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
         let cursor_tx_seq = if let Some(cursor) = cursor {
-            let pool = self.get_pool();
-            let tx_seq = run_query_async!(&pool, move |conn| {
+            Some(self.run_query(|conn| {
                 transactions::dsl::transactions
                     .select(transactions::tx_sequence_number)
                     .filter(transactions::dsl::transaction_digest.eq(cursor.into_inner().to_vec()))
                     .first::<i64>(conn)
-            })?;
-            Some(tx_seq)
+            })?)
         } else {
             None
         };
@@ -797,15 +848,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let (table_name, main_where_clause) = match filter {
             // Processed above
             Some(TransactionFilter::Checkpoint(seq)) => {
-                return self
-                    .query_transaction_blocks_by_checkpoint_impl(
-                        seq,
-                        options,
-                        cursor_tx_seq,
-                        limit,
-                        is_descending,
-                    )
-                    .await;
+                return self.query_transaction_blocks_by_checkpoint_impl(
+                    seq,
+                    options,
+                    cursor_tx_seq,
+                    limit,
+                    is_descending,
+                );
             }
             // FIXME: sanitize module & function
             Some(TransactionFilter::MoveFunction {
@@ -816,14 +865,14 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 let package = Hex::encode(package.to_vec());
                 match (module, function) {
                     (Some(module), Some(function)) => (
-                        "tx_calls_fun".into(),
+                        "tx_calls".into(),
                         format!(
                             "package = '\\x{}'::bytea AND module = '{}' AND func = '{}'",
                             package, module, function
                         ),
                     ),
                     (Some(module), None) => (
-                        "tx_calls_mod".into(),
+                        "tx_calls".into(),
                         format!(
                             "package = '\\x{}'::bytea AND module = '{}'",
                             package, module
@@ -835,7 +884,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                         ));
                     }
                     (None, None) => (
-                        "tx_calls_pkg".into(),
+                        "tx_calls".into(),
                         format!("package = '\\x{}'::bytea", package),
                     ),
                 }
@@ -954,50 +1003,39 @@ impl<U: R2D2Connection> IndexerReader<U> {
         );
 
         tracing::debug!("query transaction blocks: {}", query);
-        let pool = self.get_pool();
-        let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
-            diesel::sql_query(query.clone()).load::<TxSequenceNumber>(conn)
-        })?
-        .into_iter()
-        .map(|tsn| tsn.tx_sequence_number)
-        .collect::<Vec<i64>>();
-        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+
+        let tx_sequence_numbers = self
+            .run_query(|conn| diesel::sql_query(query.clone()).load::<TxSequenceNumber>(conn))?
+            .into_iter()
+            .map(|tsn| tsn.tx_sequence_number)
+            .collect::<Vec<_>>();
+
+        self.multi_get_transaction_block_response_by_sequence_numbers(
             tx_sequence_numbers,
             options,
             Some(is_descending),
         )
-        .await
     }
 
-    async fn multi_get_transaction_block_response_in_blocking_task_impl(
+    fn multi_get_transaction_block_response_impl(
         &self,
         digests: &[TransactionDigest],
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        let stored_txes = self
-            .multi_get_transactions_in_blocking_task(digests.to_vec())
-            .await?;
+        let stored_txes = self.multi_get_transactions(digests)?;
         self.stored_transaction_to_transaction_block(stored_txes, options)
-            .await
     }
 
-    async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+    fn multi_get_transaction_block_response_by_sequence_numbers(
         &self,
         tx_sequence_numbers: Vec<i64>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         // Some(true) for desc, Some(false) for asc, None for undefined order
         is_descending: Option<bool>,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        let stored_txes: Vec<StoredTransaction> = self
-            .spawn_blocking(move |this| {
-                this.multi_get_transactions_with_sequence_numbers(
-                    tx_sequence_numbers,
-                    is_descending,
-                )
-            })
-            .await?;
+        let stored_txes: Vec<StoredTransaction> =
+            self.multi_get_transactions_with_sequence_numbers(tx_sequence_numbers, is_descending)?;
         self.stored_transaction_to_transaction_block(stored_txes, options)
-            .await
     }
 
     pub async fn multi_get_transaction_block_response_in_blocking_task(
@@ -1005,33 +1043,44 @@ impl<U: R2D2Connection> IndexerReader<U> {
         digests: Vec<TransactionDigest>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        self.multi_get_transaction_block_response_in_blocking_task_impl(&digests, options)
-            .await
+        self.spawn_blocking(move |this| {
+            this.multi_get_transaction_block_response_impl(&digests, options)
+        })
+        .await
     }
 
-    pub async fn get_transaction_events_in_blocking_task(
+    fn get_transaction_events_impl(
         &self,
         digest: TransactionDigest,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
-        let pool = self.get_pool();
-        let (timestamp_ms, serialized_events) = run_query_async!(&pool, move |conn| {
+        let (timestamp_ms, serialized_events) = self.run_query(|conn| {
             transactions::table
                 .filter(transactions::transaction_digest.eq(digest.into_inner().to_vec()))
                 .select((transactions::timestamp_ms, transactions::events))
-                .first::<(i64, StoredTransactionEvents)>(conn)
+                .first::<(i64, Vec<Option<Vec<u8>>>)>(conn)
         })?;
 
-        let events = stored_events_to_events(serialized_events)?;
-        let tx_events = TransactionEvents { data: events };
+        let events = serialized_events
+            .into_iter()
+            .flatten()
+            .map(|event| bcs::from_bytes::<iota_types::event::Event>(&event))
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let iota_tx_events = tx_events_to_iota_tx_events(
-            tx_events,
-            self.package_resolver(),
-            digest,
-            timestamp_ms as u64,
-        )
-        .await?;
-        Ok(iota_tx_events.map_or(vec![], |ste| ste.data))
+        events
+            .into_iter()
+            .enumerate()
+            .map(|(i, event)| {
+                let layout = MoveObject::get_layout_from_struct_tag(event.type_.clone(), self)?;
+                iota_json_rpc_types::IotaEvent::try_from(
+                    event,
+                    digest,
+                    i as u64,
+                    Some(timestamp_ms as u64),
+                    layout,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Into::into)
     }
 
     fn query_events_by_tx_digest_query(
@@ -1073,36 +1122,40 @@ impl<U: R2D2Connection> IndexerReader<U> {
         ))
     }
 
-    pub async fn query_events_in_blocking_task(
+    fn query_events_impl(
         &self,
         filter: EventFilter,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<IotaEvent>> {
-        let pool = self.get_pool();
         let (tx_seq, event_seq) = if let Some(cursor) = cursor {
             let EventID {
                 tx_digest,
                 event_seq,
             } = cursor;
-            let tx_seq = run_query_async!(&pool, move |conn| {
-                transactions::dsl::transactions
-                    .select(transactions::tx_sequence_number)
-                    .filter(
-                        transactions::dsl::transaction_digest.eq(tx_digest.into_inner().to_vec()),
-                    )
-                    .first::<i64>(conn)
-            })?;
-            (tx_seq, event_seq)
+            (
+                self.run_query(|conn| {
+                    transactions::dsl::transactions
+                        .select(transactions::tx_sequence_number)
+                        .filter(
+                            transactions::dsl::transaction_digest
+                                .eq(tx_digest.into_inner().to_vec()),
+                        )
+                        .first::<i64>(conn)
+                })?,
+                event_seq,
+            )
         } else if descending_order {
-            let max_tx_seq: i64 = run_query_async!(&pool, move |conn| {
-                events::dsl::events
-                    .select(events::tx_sequence_number)
-                    .order(events::dsl::tx_sequence_number.desc())
-                    .first::<i64>(conn)
-            })
-            .map_or(-1, |max_tx_seq| max_tx_seq + 1);
+            let max_tx_seq = self
+                .run_query(|conn| {
+                    events::dsl::events
+                        .select(events::tx_sequence_number)
+                        .order(events::dsl::tx_sequence_number.desc())
+                        .first::<i64>(conn)
+                        .optional()
+                })?
+                .map_or(-1, |max_tx_seq| max_tx_seq + 1);
 
             (max_tx_seq, 0)
         } else {
@@ -1212,26 +1265,20 @@ impl<U: R2D2Connection> IndexerReader<U> {
             )
         };
         tracing::debug!("query events: {}", query);
-        let pool = self.get_pool();
-        let stored_events = run_query_async!(&pool, move |conn| diesel::sql_query(query)
-            .load::<StoredEvent>(conn))?;
+        let stored_events =
+            self.run_query(|conn| diesel::sql_query(query).load::<StoredEvent>(conn))?;
+        stored_events
+            .into_iter()
+            .map(|se| se.try_into_iota_event(self))
+            .collect()
+    }
 
-        let mut iota_event_futures = vec![];
-        for stored_event in stored_events {
-            iota_event_futures.push(tokio::task::spawn(
-                stored_event.try_into_iota_event(self.package_resolver.clone()),
-            ));
-        }
-
-        let iota_events = futures::future::join_all(iota_event_futures)
+    pub async fn get_transaction_events_in_blocking_task(
+        &self,
+        digest: TransactionDigest,
+    ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
+        self.spawn_blocking(move |this| this.get_transaction_events_impl(digest))
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
-        Ok(iota_events)
     }
 
     pub async fn get_dynamic_fields_in_blocking_task(
@@ -1240,11 +1287,19 @@ impl<U: R2D2Connection> IndexerReader<U> {
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> Result<Vec<DynamicFieldInfo>, IndexerError> {
-        let objects = self
-            .spawn_blocking(move |this| {
-                this.get_dynamic_fields_raw(parent_object_id, cursor, limit)
-            })
-            .await?;
+        self.spawn_blocking(move |this| {
+            this.get_dynamic_fields_impl(parent_object_id, cursor, limit)
+        })
+        .await
+    }
+
+    fn get_dynamic_fields_impl(
+        &self,
+        parent_object_id: ObjectID,
+        cursor: Option<ObjectID>,
+        limit: usize,
+    ) -> Result<Vec<DynamicFieldInfo>, IndexerError> {
+        let objects = self.get_dynamic_fields_raw(parent_object_id, cursor, limit)?;
 
         if any(objects.iter(), |o| o.df_object_id.is_none()) {
             return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
@@ -1268,24 +1323,11 @@ impl<U: R2D2Connection> IndexerReader<U> {
             })
             .collect::<Vec<_>>();
 
-        let object_refs = self
-            .spawn_blocking(move |this| this.get_object_refs(dfo_ids))
-            .await?;
-        let mut df_futures = vec![];
-        for object in objects {
-            let package_resolver_clone = self.package_resolver.clone();
-            df_futures.push(tokio::task::spawn(
-                object.try_into_expectant_dynamic_field_info(package_resolver_clone),
-            ));
-        }
-        let mut dynamic_fields = futures::future::join_all(df_futures)
-            .await
+        let object_refs = self.get_object_refs(dfo_ids)?;
+        let mut dynamic_fields = objects
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error joining DF futures: {:?}", e))?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error calling DF try_into function: {:?}", e))?;
+            .map(|object| object.try_into_expectant_dynamic_field_info(self))
+            .collect::<Result<Vec<_>, _>>()?;
 
         for df in dynamic_fields.iter_mut() {
             if let Some(obj_ref) = object_refs.get(&df.object_id) {
@@ -1315,7 +1357,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        let objects: Vec<StoredObject> = run_query!(&self.pool, |conn| {
+        let objects: Vec<StoredObject> = self.run_query(|conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Object as i16))
                 .filter(objects::dsl::owner_id.eq(parent_object_id.to_vec()))
@@ -1331,30 +1373,31 @@ impl<U: R2D2Connection> IndexerReader<U> {
         Ok(objects)
     }
 
-    pub async fn bcs_name_from_dynamic_field_name(
+    fn bcs_name_from_dynamic_field_name(
         &self,
         name: &DynamicFieldName,
     ) -> Result<Vec<u8>, IndexerError> {
-        let move_type_layout = self
-            .package_resolver()
-            .type_layout(name.type_.clone())
-            .await
-            .map_err(|e| {
-                IndexerError::ResolveMoveStructError(format!(
-                    "Failed to get type layout for type {}: {}",
-                    name.type_, e
-                ))
-            })?;
+        let layout =
+            move_bytecode_utils::layout::TypeLayoutBuilder::build_with_types(&name.type_, self)?;
         let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;
-        let name_bcs_value = iota_json_value.to_bcs_bytes(&move_type_layout)?;
+        let name_bcs_value = iota_json_value.to_bcs_bytes(&layout)?;
         Ok(name_bcs_value)
+    }
+
+    pub async fn bcs_name_from_dynamic_field_name_in_blocking_task(
+        &self,
+        name: &DynamicFieldName,
+    ) -> Result<Vec<u8>, IndexerError> {
+        let name = name.clone();
+        self.spawn_blocking(move |this| this.bcs_name_from_dynamic_field_name(&name))
+            .await
     }
 
     fn get_object_refs(
         &self,
         object_ids: Vec<Vec<u8>>,
     ) -> IndexerResult<HashMap<ObjectID, ObjectRef>> {
-        run_query!(&self.pool, |conn| {
+        self.run_query(|conn| {
             let query = objects::dsl::objects
                 .select((
                     objects::dsl::object_id,
@@ -1399,7 +1442,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         object_type: String,
     ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
-        let stored_display = run_query!(&self.pool, |conn| {
+        let stored_display = self.run_query(|conn| {
             display::table
                 .filter(display::object_type.eq(object_type))
                 .first::<StoredDisplay>(conn)
@@ -1449,7 +1492,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .order((objects::dsl::coin_type.asc(), objects::dsl::object_id.asc()))
             .limit(limit as i64);
 
-        let stored_objects = run_query!(&self.pool, |conn| query.load::<StoredObject>(conn))?;
+        let stored_objects = self.run_query(|conn| query.load::<StoredObject>(conn))?;
 
         stored_objects
             .into_iter()
@@ -1497,8 +1540,8 @@ impl<U: R2D2Connection> IndexerReader<U> {
         );
 
         tracing::debug!("get coin balances query: {query}");
-        let coin_balances = run_query!(&self.pool, |conn| diesel::sql_query(query)
-            .load::<CoinBalance>(conn))?;
+        let coin_balances =
+            self.run_query(|conn| diesel::sql_query(query).load::<CoinBalance>(conn))?;
         coin_balances
             .into_iter()
             .map(|cb| cb.try_into())
@@ -1506,7 +1549,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let metrics = run_query!(&self.pool, |conn| {
+        let metrics = self.run_query(|conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
@@ -1514,21 +1557,21 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_move_call_metrics(&self) -> IndexerResult<MoveCallMetrics> {
-        let latest_3d_move_call_metrics = run_query!(&self.pool, |conn| {
+        let latest_3d_move_call_metrics = self.run_query(|conn| {
             move_call_metrics::table
                 .filter(move_call_metrics::dsl::day.eq(3))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
                 .load::<QueriedMoveCallMetrics>(conn)
         })?;
-        let latest_7d_move_call_metrics = run_query!(&self.pool, |conn| {
+        let latest_7d_move_call_metrics = self.run_query(|conn| {
             move_call_metrics::table
                 .filter(move_call_metrics::dsl::day.eq(7))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
                 .load::<QueriedMoveCallMetrics>(conn)
         })?;
-        let latest_30d_move_call_metrics = run_query!(&self.pool, |conn| {
+        let latest_30d_move_call_metrics = self.run_query(|conn| {
             move_call_metrics::table
                 .filter(move_call_metrics::dsl::day.eq(30))
                 .order(move_call_metrics::dsl::id.desc())
@@ -1569,7 +1612,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_address_metrics(&self) -> IndexerResult<AddressMetrics> {
-        let stored_address_metrics = run_query!(&self.pool, |conn| {
+        let stored_address_metrics = self.run_query(|conn| {
             address_metrics::table
                 .order(address_metrics::dsl::checkpoint.desc())
                 .first::<StoredAddressMetrics>(conn)
@@ -1581,7 +1624,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         checkpoint_seq: u64,
     ) -> IndexerResult<AddressMetrics> {
-        let stored_address_metrics = run_query!(&self.pool, |conn| {
+        let stored_address_metrics = self.run_query(|conn| {
             address_metrics::table
                 .filter(address_metrics::dsl::checkpoint.eq(checkpoint_seq as i64))
                 .first::<StoredAddressMetrics>(conn)
@@ -1608,7 +1651,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
               WHERE row_num = 1 ORDER BY epoch {}",
             if is_descending { "DESC" } else { "ASC" },
         );
-        let epoch_address_metrics = run_query!(&self.pool, |conn| {
+        let epoch_address_metrics = self.run_query(|conn| {
             diesel::sql_query(epoch_address_metrics_query).load::<StoredAddressMetrics>(conn)
         })?;
 
@@ -1660,14 +1703,8 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let package_id = coin_struct.address.into();
         let coin_metadata_type =
             CoinMetadata::type_(coin_struct).to_canonical_string(/* with_prefix */ true);
-        let coin_metadata_obj_id = *self
-            .package_obj_type_cache
-            .lock()
-            .unwrap()
-            .cache_get_or_set_with(format!("{}{}", package_id, coin_metadata_type), || {
-                get_single_obj_id_from_package_publish(self, package_id, coin_metadata_type.clone())
-                    .unwrap()
-            });
+        let coin_metadata_obj_id =
+            get_single_obj_id_from_package_publish(self, package_id, coin_metadata_type)?;
         if let Some(id) = coin_metadata_obj_id {
             let metadata_object = self.get_object(&id, None)?;
             Ok(metadata_object.and_then(|v| IotaCoinMetadata::try_from(v).ok()))
@@ -1688,18 +1725,12 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let package_id = coin_struct.address.into();
         let treasury_cap_type =
             TreasuryCap::type_(coin_struct).to_canonical_string(/* with_prefix */ true);
-        let treasury_cap_obj_id = self
-            .package_obj_type_cache
-            .lock()
-            .unwrap()
-            .cache_get_or_set_with(format!("{}{}", package_id, treasury_cap_type), || {
-                get_single_obj_id_from_package_publish(self, package_id, treasury_cap_type.clone())
-                    .unwrap()
-            })
-            .ok_or(IndexerError::GenericError(format!(
-                "Cannot find treasury cap for type {}",
-                treasury_cap_type
-            )))?;
+        let treasury_cap_obj_id =
+            get_single_obj_id_from_package_publish(self, package_id, treasury_cap_type.clone())?
+                .ok_or(IndexerError::GenericError(format!(
+                    "Cannot find treasury cap for type {}",
+                    treasury_cap_type
+                )))?;
         let treasury_cap_obj_object =
             self.get_object(&treasury_cap_obj_id, None)?
                 .ok_or(IndexerError::GenericError(format!(
@@ -1710,34 +1741,62 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
-        let latest_checkpoint_sequence = run_query!(&self.pool, |conn| {
-            checkpoints::table
-                .select(checkpoints::sequence_number)
-                .order(checkpoints::sequence_number.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .unwrap_or_default();
-        let latest_object_snapshot_checkpoint_sequence = run_query!(&self.pool, |conn| {
-            objects_snapshot::table
-                .select(objects_snapshot::checkpoint_sequence_number)
-                .order(objects_snapshot::checkpoint_sequence_number.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .unwrap_or_default();
+        let latest_checkpoint_sequence = self
+            .run_query(|conn| {
+                checkpoints::table
+                    .select(checkpoints::sequence_number)
+                    .order(checkpoints::sequence_number.desc())
+                    .first::<i64>(conn)
+                    .optional()
+            })?
+            .unwrap_or_default();
+        let latest_object_snapshot_checkpoint_sequence = self
+            .run_query(|conn| {
+                objects_snapshot::table
+                    .select(objects_snapshot::checkpoint_sequence_number)
+                    .order(objects_snapshot::checkpoint_sequence_number.desc())
+                    .first::<i64>(conn)
+                    .optional()
+            })?
+            .unwrap_or_default();
         Ok((
             latest_object_snapshot_checkpoint_sequence,
             latest_checkpoint_sequence,
         ))
     }
+}
 
-    pub fn package_resolver(&self) -> PackageResolver<U> {
-        self.package_resolver.clone()
+#[derive(Clone, Default)]
+struct PackageCache {
+    inner: Arc<RwLock<BTreeMap<ObjectID, MovePackage>>>,
+}
+
+impl PackageCache {
+    fn insert(&self, object_id: ObjectID, package: MovePackage) {
+        self.inner.write().unwrap().insert(object_id, package);
+    }
+
+    fn get(&self, object_id: &ObjectID) -> Option<MovePackage> {
+        self.inner.read().unwrap().get(object_id).cloned()
     }
 }
 
-impl<U: R2D2Connection> iota_types::storage::ObjectStore for IndexerReader<U> {
+impl move_core_types::resolver::ModuleResolver for IndexerReader {
+    type Error = IndexerError;
+
+    fn get_module(
+        &self,
+        id: &move_core_types::language_storage::ModuleId,
+    ) -> Result<Option<Vec<u8>>, Self::Error> {
+        let package_id = ObjectID::from(*id.address());
+        let module_name = id.name().to_string();
+        Ok(self
+            .get_package(&package_id)?
+            .and_then(|package| package.serialized_module_map().get(&module_name).cloned()))
+    }
+}
+
+impl iota_types::storage::ObjectStore for IndexerReader {
     fn get_object(
         &self,
         object_id: &ObjectID,
@@ -1756,8 +1815,39 @@ impl<U: R2D2Connection> iota_types::storage::ObjectStore for IndexerReader<U> {
     }
 }
 
-fn get_single_obj_id_from_package_publish<U: R2D2Connection>(
-    reader: &IndexerReader<U>,
+impl move_bytecode_utils::module_cache::GetModule for IndexerReader {
+    type Error = IndexerError;
+    type Item = move_binary_format::CompiledModule;
+
+    fn get_module_by_id(
+        &self,
+        id: &move_core_types::language_storage::ModuleId,
+    ) -> Result<Option<Self::Item>, Self::Error> {
+        let package_id = ObjectID::from(*id.address());
+        let module_name = id.name().to_string();
+        // TODO: we need a cache here for deserialized module and take care of package
+        // upgrades
+        self.get_package(&package_id)?
+            .and_then(|package| package.serialized_module_map().get(&module_name).cloned())
+            .map(|bytes| move_binary_format::CompiledModule::deserialize_with_defaults(&bytes))
+            .transpose()
+            .map_err(|e| {
+                IndexerError::ModuleResolutionError(format!(
+                    "Error deserializing module {}: {}",
+                    id, e
+                ))
+            })
+    }
+}
+
+#[cached(
+    ty = "SizedCache<String, Option<ObjectID>>",
+    create = "{ SizedCache::with_size(10000) }",
+    convert = r#"{ format!("{}{}", package_id, obj_type) }"#,
+    result = true
+)]
+fn get_single_obj_id_from_package_publish(
+    reader: &IndexerReader,
     package_id: ObjectID,
     obj_type: String,
 ) -> Result<Option<ObjectID>, IndexerError> {

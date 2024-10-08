@@ -9,13 +9,15 @@ use std::{
 };
 
 use futures::future::join_all;
-use iota_core::consensus_adapter::position_submit_certificate;
+use iota_core::{
+    authority::epoch_start_configuration::EpochFlag, consensus_adapter::position_submit_certificate,
+};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-use iota_macros::sim_test;
+use iota_macros::{register_fail_point_arg, sim_test};
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
-use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
+use iota_test_transaction_builder::{make_transfer_iota_transaction, TestTransactionBuilder};
 use iota_types::{
     base_types::IotaAddress,
     effects::TransactionEffectsAPI,
@@ -23,11 +25,11 @@ use iota_types::{
     gas::GasCostSummary,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
-        IotaSystemStateTrait, get_validator_from_table,
-        iota_system_state_summary::get_validator_by_pool_id,
+        get_validator_from_table, iota_system_state_summary::get_validator_by_pool_id,
+        IotaSystemStateTrait,
     },
     message_envelope::Message,
-    transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
+    transaction::{TransactionDataAPI, TransactionExpiration},
 };
 use rand::rngs::OsRng;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -103,23 +105,29 @@ async fn test_transaction_expiration() {
     let mut expired_data = data.clone();
     *expired_data.expiration_mut_for_testing() = TransactionExpiration::Epoch(0);
     let expired_transaction = test_cluster.wallet.sign_transaction(&expired_data);
-    let result = test_cluster
-        .wallet
-        .execute_transaction_may_fail(expired_transaction)
+    let authority = test_cluster.swarm.validator_node_handles().pop().unwrap();
+    let result = authority
+        .with_async(|node| async {
+            let epoch_store = node.state().epoch_store_for_testing();
+            let state = node.state();
+            let expired_transaction = epoch_store.verify_transaction(expired_transaction).unwrap();
+            state
+                .handle_transaction(&epoch_store, expired_transaction)
+                .await
+        })
         .await;
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains(&IotaError::TransactionExpired.to_string())
-    );
+    assert!(matches!(result.unwrap_err(), IotaError::TransactionExpired));
 
     // Non expired transaction signed without issue
     *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(10);
     let transaction = test_cluster.wallet.sign_transaction(&data);
-    test_cluster
-        .wallet
-        .execute_transaction_may_fail(transaction)
+    authority
+        .with_async(|node| async {
+            let epoch_store = node.state().epoch_store_for_testing();
+            let state = node.state();
+            let transaction = epoch_store.verify_transaction(transaction).unwrap();
+            state.handle_transaction(&epoch_store, transaction).await
+        })
         .await
         .unwrap();
 }
@@ -155,7 +163,7 @@ async fn reconfig_with_revert_end_to_end_test() {
         .iota_node
         .with(|node| node.clone_authority_aggregator().unwrap());
     let cert = net
-        .process_transaction(tx.clone(), None)
+        .process_transaction(tx.clone())
         .await
         .unwrap()
         .into_cert_for_testing();
@@ -181,10 +189,7 @@ async fn reconfig_with_revert_end_to_end_test() {
     let client = net
         .get_client(&authorities[reverting_authority_idx].with(|node| node.state().name))
         .unwrap();
-    client
-        .handle_certificate_v2(cert.clone(), None)
-        .await
-        .unwrap();
+    client.handle_certificate_v2(cert.clone()).await.unwrap();
 
     authorities[reverting_authority_idx]
         .with_async(|node| async {
@@ -273,7 +278,7 @@ async fn test_passive_reconfig_determinism() {
 async fn do_test_passive_reconfig() {
     telemetry_subscribers::init_for_testing();
     let _commit_root_state_digest = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_commit_root_state_digest_supported_for_testing(true);
+        config.set_commit_root_state_digest_supported(true);
         config
     });
     ProtocolConfig::poison_get_for_min_version();
@@ -307,9 +312,24 @@ async fn do_test_passive_reconfig() {
         });
 }
 
-// Test that transaction locks from previously epochs could be overridden.
+// Test for syncing a node to an authority that already has many txes.
 #[sim_test]
 async fn test_expired_locks() {
+    do_test_lock_table_upgrade().await
+}
+
+#[sim_test]
+async fn test_expired_locks_with_lock_table_upgrade() {
+    register_fail_point_arg("initial_epoch_flags", || {
+        Some(vec![
+            EpochFlag::InMemoryCheckpointRoots,
+            EpochFlag::PerEpochFinalizedTransactions,
+        ])
+    });
+    do_test_lock_table_upgrade().await
+}
+
+async fn do_test_lock_table_upgrade() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
         .build()
@@ -334,40 +354,23 @@ async fn test_expired_locks() {
     };
 
     let t1 = transfer_iota(1);
+    test_cluster.create_certificate(t1.clone()).await.unwrap();
+
     // attempt to equivocate
     let t2 = transfer_iota(2);
-
-    for (idx, validator) in test_cluster.all_validator_handles().into_iter().enumerate() {
-        let state = validator.state();
-        let epoch_store = state.epoch_store_for_testing();
-        let t = if idx % 2 == 0 { t1.clone() } else { t2.clone() };
-        validator
-            .state()
-            .handle_transaction(&epoch_store, VerifiedTransaction::new_unchecked(t))
-            .await
-            .unwrap();
-    }
     test_cluster
-        .create_certificate(t1.clone(), None)
-        .await
-        .unwrap_err();
-
-    test_cluster
-        .create_certificate(t2.clone(), None)
+        .create_certificate(t2.clone())
         .await
         .unwrap_err();
 
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
     // old locks can be overridden in new epoch
-    test_cluster
-        .create_certificate(t2.clone(), None)
-        .await
-        .unwrap();
+    test_cluster.create_certificate(t2.clone()).await.unwrap();
 
     // attempt to equivocate
     test_cluster
-        .create_certificate(t1.clone(), None)
+        .create_certificate(t1.clone())
         .await
         .unwrap_err();
 }
@@ -498,7 +501,7 @@ async fn test_validator_resign_effects() {
         .iota_node
         .with(|node| node.clone_authority_aggregator().unwrap());
     let effects1 = net
-        .process_transaction(tx, None)
+        .process_transaction(tx)
         .await
         .unwrap()
         .into_effects_for_testing();
@@ -599,7 +602,7 @@ async fn test_inactive_validator_pool_read() {
         assert_eq!(
             system_state
                 .get_current_epoch_committee()
-                .committee()
+                .committee
                 .num_members(),
             4
         );
@@ -690,8 +693,6 @@ async fn do_test_reconfig_with_committee_change_stress() {
         .build()
         .await;
 
-    let mut cur_epoch = 0;
-
     while let Some(v1) = candidates.pop() {
         let v2 = candidates.pop().unwrap();
         execute_add_validator_transactions(&test_cluster, &v1).await;
@@ -705,7 +706,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
             // otherwise new validators to the committee will not be able to catch up to the network
             // TODO: remove and replace with usage of archival solution
             .filter(|node| {
-                node.config()
+                node.config
                     .authority_store_pruning_config
                     .num_epochs_to_retain_for_checkpoints()
                     .is_some()
@@ -718,18 +719,11 @@ async fn do_test_reconfig_with_committee_change_stress() {
         }
         let handle1 = test_cluster.spawn_new_validator(v1).await;
         let handle2 = test_cluster.spawn_new_validator(v2).await;
-
-        tokio::join!(
-            test_cluster.wait_for_epoch_on_node(&handle1, Some(cur_epoch), Duration::from_secs(60)),
-            test_cluster.wait_for_epoch_on_node(&handle2, Some(cur_epoch), Duration::from_secs(60))
-        );
-
         test_cluster.trigger_reconfiguration().await;
         let committee = test_cluster
             .fullnode_handle
             .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
-        cur_epoch = committee.epoch();
         assert_eq!(committee.num_members(), 9);
         assert!(committee.authority_exists(&handle1.state().name));
         assert!(committee.authority_exists(&handle2.state().name));
@@ -737,70 +731,6 @@ async fn do_test_reconfig_with_committee_change_stress() {
             .iter()
             .all(|v| !committee.authority_exists(v));
     }
-}
-
-#[cfg(msim)]
-#[sim_test]
-async fn test_epoch_flag_upgrade() {
-    use std::sync::Mutex;
-
-    use iota_core::authority::epoch_start_configuration::{EpochFlag, EpochStartConfigTrait};
-    use iota_macros::register_fail_point_arg;
-
-    let initial_flags_nodes = Arc::new(Mutex::new(HashSet::new()));
-    register_fail_point_arg("initial_epoch_flags", move || {
-        // only alter flags on each node once
-        let current_node = iota_simulator::current_simnode_id();
-
-        // override flags on up to 2 nodes.
-        let mut initial_flags_nodes = initial_flags_nodes.lock().unwrap();
-        if initial_flags_nodes.len() >= 2 || !initial_flags_nodes.insert(current_node) {
-            return None;
-        }
-
-        // start with no flags set
-        Some(Vec::<EpochFlag>::new())
-    });
-
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(30000)
-        .build()
-        .await;
-
-    let mut any_empty = false;
-    for node in test_cluster.all_node_handles() {
-        any_empty = any_empty
-            || node.with(|node| {
-                node.state()
-                    .epoch_store_for_testing()
-                    .epoch_start_config()
-                    .flags()
-                    .is_empty()
-            });
-    }
-    assert!(any_empty);
-
-    test_cluster.wait_for_epoch_all_nodes(1).await;
-
-    let mut any_empty = false;
-    for node in test_cluster.all_node_handles() {
-        any_empty = any_empty
-            || node.with(|node| {
-                node.state()
-                    .epoch_store_for_testing()
-                    .epoch_start_config()
-                    .flags()
-                    .is_empty()
-            });
-    }
-    assert!(!any_empty);
-
-    sleep(Duration::from_secs(15)).await;
-
-    test_cluster.stop_all_validators().await;
-    test_cluster.start_all_validators().await;
-
-    test_cluster.wait_for_epoch_all_nodes(2).await;
 }
 
 #[cfg(msim)]

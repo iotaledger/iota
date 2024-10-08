@@ -8,6 +8,7 @@ import type {
 } from '_src/background/account-sources/AccountSource';
 import type { AccountType, SerializedUIAccount } from '_src/background/accounts/Account';
 import { type Status } from '_src/background/storage-migration';
+import { type SerializedSignature } from '@iota/iota-sdk/cryptography';
 
 import { isBasePayload } from './BasePayload';
 import type { Payload } from './Payload';
@@ -53,7 +54,7 @@ type MethodPayloads = {
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };
-    signDataResponse: { signature: string };
+    signDataResponse: { signature: SerializedSignature };
     entitiesUpdated: { type: UIAccessibleEntityType };
     getStorageMigrationStatus: null;
     storageMigrationStatus: { status: Status };

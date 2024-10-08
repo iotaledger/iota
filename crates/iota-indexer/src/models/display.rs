@@ -7,7 +7,7 @@ use iota_types::display::DisplayVersionUpdatedEvent;
 
 use crate::schema::display;
 
-#[derive(Queryable, Insertable, Selectable, Debug, Clone)]
+#[derive(Queryable, Insertable, Debug, Clone)]
 #[diesel(table_name = display)]
 pub struct StoredDisplay {
     pub object_type: String,

@@ -7,21 +7,23 @@ import { createWallet } from './utils/auth';
 
 test('Assets tab', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
-    await page.getByTestId('nav-assets').click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Assets' }).click();
 
-    await expect(page.getByRole('main')).toHaveText(/Assets/);
+    await expect(page.getByRole('main').getByRole('heading')).toHaveText(/Assets/);
 });
 
 test('Apps tab', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
-    await page.getByTestId('nav-apps').click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Apps' }).click();
 
-    await expect(page.getByRole('main')).toHaveText(/Apps/i);
+    await expect(page.getByRole('main')).toHaveText(
+        /Apps below are actively curated but do not indicate any endorsement or relationship with Iota Wallet. Please DYOR./i,
+    );
 });
 
 test('Activity tab', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
-    await page.getByTestId('nav-activity').click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Activity' }).click();
 
-    await expect(page.getByRole('main')).toHaveText(/Your Activity/);
+    await expect(page.getByRole('main').getByRole('heading')).toHaveText(/Your Activity/);
 });

@@ -11,14 +11,14 @@ module move_building_blocks::limits {
     use iota::tx_context;
     use iota::dynamic_field;
 
-    public struct ObjectWithVector has key, store {
+    struct ObjectWithVector has key, store {
         id: UID,
         array: vector<u64>,
     }
 
     public fun create_object_with_size(size: u64, ctx: &mut TxContext) {
-        let mut v = vector[];
-        let mut i = 0;
+        let v = vector[];
+        let i = 0;
         while (i < size) {
             vector::push_back(&mut v, i);
             i = i + 1;
@@ -36,7 +36,7 @@ module move_building_blocks::limits {
     }
 
     fun create_object_recursive(depth: u64, ctx: &mut TxContext): ObjectWithVector {
-        let mut object = ObjectWithVector {
+        let object = ObjectWithVector {
             id: object::new(ctx),
             array: vector[],
         };

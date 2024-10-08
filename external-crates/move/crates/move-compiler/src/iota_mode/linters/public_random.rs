@@ -6,7 +6,7 @@
 //! public functions.
 
 use super::{
-    LinterDiagnosticCategory, LinterDiagnosticCode, IOTA_PKG_NAME, LINT_WARNING_PREFIX,
+    LinterDiagCategory, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
     RANDOM_GENERATOR_STRUCT_NAME, RANDOM_MOD_NAME, RANDOM_STRUCT_NAME,
 };
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
     iota_mode::IOTA_ADDR_NAME,
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::CompilationEnv,
+    shared::{program_info::TypingProgramInfo, CompilationEnv},
     typing::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
@@ -29,8 +29,8 @@ use crate::{
 const PUBLIC_RANDOM_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Iota as u8,
-    LinterDiagnosticCode::PublicRandom as u8,
+    LinterDiagCategory::PublicRandom as u8,
+    LINTER_DEFAULT_DIAG_CODE,
     "Risky use of 'iota::random'",
 );
 
@@ -42,7 +42,11 @@ pub struct Context<'a> {
 impl TypingVisitorConstructor for PublicRandomVisitor {
     type Context<'a> = Context<'a>;
 
-    fn context<'a>(env: &'a mut CompilationEnv, _program: &T::Program) -> Self::Context<'a> {
+    fn context<'a>(
+        env: &'a mut CompilationEnv,
+        _program_info: &'a TypingProgramInfo,
+        _program: &T::Program_,
+    ) -> Self::Context<'a> {
         Context { env }
     }
 }

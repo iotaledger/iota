@@ -6,7 +6,7 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::Result;
 use object_store::{
-    ClientOptions, ObjectStore, RetryConfig, aws::AmazonS3ConfigKey, gcp::GoogleConfigKey,
+    aws::AmazonS3ConfigKey, gcp::GoogleConfigKey, ClientOptions, ObjectStore, RetryConfig,
 };
 use url::Url;
 
@@ -20,9 +20,7 @@ pub fn create_remote_store_client(
         retry_timeout: Duration::from_secs(timeout_secs + 1),
         ..Default::default()
     };
-    let client_options = ClientOptions::new()
-        .with_timeout(Duration::from_secs(timeout_secs))
-        .with_allow_http(true);
+    let client_options = ClientOptions::new().with_timeout(Duration::from_secs(timeout_secs));
     if remote_store_options.is_empty() {
         let http_store = object_store::http::HttpBuilder::new()
             .with_url(url)

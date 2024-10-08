@@ -5,7 +5,6 @@
 use std::{
     hash::{Hash, Hasher},
     str::FromStr,
-    sync::Arc,
 };
 
 pub use enum_dispatch::enum_dispatch;
@@ -27,10 +26,8 @@ use shared_crypto::intent::IntentMessage;
 use crate::{
     base_types::{EpochId, IotaAddress},
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
-    digests::ZKLoginInputsDigest,
     error::IotaError,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    signature_verification::VerifiedDigestCache,
     zk_login_authenticator::ZkLoginAuthenticator,
 };
 
@@ -82,16 +79,23 @@ impl Hash for MultiSig {
 }
 
 impl AuthenticatorTrait for MultiSig {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch_id: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> Result<(), IotaError> {
+    fn verify_user_authenticator_epoch(&self, epoch_id: EpochId) -> Result<(), IotaError> {
         // If there is any zkLogin signatures, filter and check epoch for each.
-        // TODO: call this on all sigs to avoid future lapses
-        self.get_zklogin_sigs()?.iter().try_for_each(|s| {
-            s.verify_user_authenticator_epoch(epoch_id, max_epoch_upper_bound_delta)
-        })
+        self.get_zklogin_sigs()?
+            .iter()
+            .try_for_each(|s| s.verify_user_authenticator_epoch(epoch_id))
+    }
+
+    fn verify_uncached_checks<T>(
+        &self,
+        _value: &IntentMessage<T>,
+        _author: IotaAddress,
+        _verify_params: &VerifyParams,
+    ) -> Result<(), IotaError>
+    where
+        T: Serialize,
+    {
+        Ok(())
     }
 
     fn verify_claims<T>(
@@ -99,7 +103,6 @@ impl AuthenticatorTrait for MultiSig {
         value: &IntentMessage<T>,
         multisig_address: IotaAddress,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> Result<(), IotaError>
     where
         T: Serialize,
@@ -188,12 +191,7 @@ impl AuthenticatorTrait for MultiSig {
                         }
                     })?;
                     authenticator
-                        .verify_claims(
-                            value,
-                            IotaAddress::from(subsig_pubkey),
-                            verify_params,
-                            zklogin_inputs_cache.clone(),
-                        )
+                        .verify_claims(value, IotaAddress::from(subsig_pubkey), verify_params)
                         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
                 }
             };

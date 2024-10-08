@@ -14,7 +14,6 @@ pub enum AttributePosition {
     Friend,
     Constant,
     Struct,
-    Enum,
     Function,
     Spec,
 }
@@ -29,7 +28,6 @@ pub enum KnownAttribute {
     External(ExternalAttribute),
     Syntax(SyntaxAttribute),
     Error(ErrorAttribute),
-    Deprecation(DeprecationAttribute),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,8 +38,6 @@ pub enum TestingAttribute {
     Test,
     // This test is expected to fail
     ExpectedFailure,
-    // This is a test that uses randomly-generated arguments
-    RandTest,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -77,9 +73,6 @@ pub struct ExternalAttribute;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ErrorAttribute;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DeprecationAttribute;
-
 impl AttributePosition {
     const ALL: &'static [Self] = &[
         Self::AddressBlock,
@@ -99,7 +92,6 @@ impl KnownAttribute {
             TestingAttribute::TEST => TestingAttribute::Test.into(),
             TestingAttribute::TEST_ONLY => TestingAttribute::TestOnly.into(),
             TestingAttribute::EXPECTED_FAILURE => TestingAttribute::ExpectedFailure.into(),
-            TestingAttribute::RAND_TEST => TestingAttribute::RandTest.into(),
             VerificationAttribute::VERIFY_ONLY => VerificationAttribute::VerifyOnly.into(),
             NativeAttribute::BYTECODE_INSTRUCTION => NativeAttribute::BytecodeInstruction.into(),
             DiagnosticAttribute::ALLOW => DiagnosticAttribute::Allow.into(),
@@ -108,7 +100,6 @@ impl KnownAttribute {
             ExternalAttribute::EXTERNAL => ExternalAttribute.into(),
             SyntaxAttribute::SYNTAX => SyntaxAttribute::Syntax.into(),
             ErrorAttribute::ERROR => ErrorAttribute.into(),
-            DeprecationAttribute::DEPRECATED => DeprecationAttribute.into(),
             _ => return None,
         })
     }
@@ -123,7 +114,6 @@ impl KnownAttribute {
             Self::External(a) => a.name(),
             Self::Syntax(a) => a.name(),
             Self::Error(a) => a.name(),
-            Self::Deprecation(a) => a.name(),
         }
     }
 
@@ -137,14 +127,12 @@ impl KnownAttribute {
             Self::External(a) => a.expected_positions(),
             Self::Syntax(a) => a.expected_positions(),
             Self::Error(a) => a.expected_positions(),
-            Self::Deprecation(a) => a.expected_positions(),
         }
     }
 }
 
 impl TestingAttribute {
     pub const TEST: &'static str = "test";
-    pub const RAND_TEST: &'static str = "random_test";
     pub const EXPECTED_FAILURE: &'static str = "expected_failure";
     pub const TEST_ONLY: &'static str = "test_only";
     pub const ABORT_CODE_NAME: &'static str = "abort_code";
@@ -160,7 +148,6 @@ impl TestingAttribute {
             Self::Test => Self::TEST,
             Self::TestOnly => Self::TEST_ONLY,
             Self::ExpectedFailure => Self::EXPECTED_FAILURE,
-            Self::RandTest => Self::RAND_TEST,
         }
     }
 
@@ -173,7 +160,6 @@ impl TestingAttribute {
                 AttributePosition::Friend,
                 AttributePosition::Constant,
                 AttributePosition::Struct,
-                AttributePosition::Enum,
                 AttributePosition::Function,
             ])
         });
@@ -183,7 +169,7 @@ impl TestingAttribute {
             Lazy::new(|| BTreeSet::from([AttributePosition::Function]));
         match self {
             TestingAttribute::TestOnly => &TEST_ONLY_POSITIONS,
-            TestingAttribute::Test | TestingAttribute::RandTest => &TEST_POSITIONS,
+            TestingAttribute::Test => &TEST_POSITIONS,
             TestingAttribute::ExpectedFailure => &EXPECTED_FAILURE_POSITIONS,
         }
     }
@@ -217,7 +203,6 @@ impl VerificationAttribute {
                 AttributePosition::Friend,
                 AttributePosition::Constant,
                 AttributePosition::Struct,
-                AttributePosition::Enum,
                 AttributePosition::Function,
             ])
         });
@@ -262,7 +247,6 @@ impl DiagnosticAttribute {
                 AttributePosition::Module,
                 AttributePosition::Constant,
                 AttributePosition::Struct,
-                AttributePosition::Enum,
                 AttributePosition::Function,
             ])
         });
@@ -335,27 +319,6 @@ impl ErrorAttribute {
     }
 }
 
-impl DeprecationAttribute {
-    pub const DEPRECATED: &'static str = "deprecated";
-
-    pub const fn name(&self) -> &str {
-        Self::DEPRECATED
-    }
-
-    pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
-        static DEPRECATION_POSITIONS: Lazy<BTreeSet<AttributePosition>> = Lazy::new(|| {
-            BTreeSet::from([
-                AttributePosition::Constant,
-                AttributePosition::Module,
-                AttributePosition::Struct,
-                AttributePosition::Enum,
-                AttributePosition::Function,
-            ])
-        });
-        &DEPRECATION_POSITIONS
-    }
-}
-
 //**************************************************************************************************
 // Display
 //**************************************************************************************************
@@ -369,7 +332,6 @@ impl fmt::Display for AttributePosition {
             Self::Friend => write!(f, "friend"),
             Self::Constant => write!(f, "constant"),
             Self::Struct => write!(f, "struct"),
-            Self::Enum => write!(f, "enum"),
             Self::Function => write!(f, "function"),
             Self::Spec => write!(f, "spec"),
         }
@@ -387,7 +349,6 @@ impl fmt::Display for KnownAttribute {
             Self::External(a) => a.fmt(f),
             Self::Syntax(a) => a.fmt(f),
             Self::Error(a) => a.fmt(f),
-            Self::Deprecation(a) => a.fmt(f),
         }
     }
 }
@@ -440,12 +401,6 @@ impl fmt::Display for ErrorAttribute {
     }
 }
 
-impl fmt::Display for DeprecationAttribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
 //**************************************************************************************************
 // From
 //**************************************************************************************************
@@ -488,10 +443,5 @@ impl From<SyntaxAttribute> for KnownAttribute {
 impl From<ErrorAttribute> for KnownAttribute {
     fn from(a: ErrorAttribute) -> Self {
         Self::Error(a)
-    }
-}
-impl From<DeprecationAttribute> for KnownAttribute {
-    fn from(a: DeprecationAttribute) -> Self {
-        Self::Deprecation(a)
     }
 }

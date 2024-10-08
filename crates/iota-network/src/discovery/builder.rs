@@ -17,7 +17,7 @@ use tokio::{
 };
 
 use super::{
-    Discovery, DiscoveryEventLoop, DiscoveryServer, State, metrics::Metrics, server::Server,
+    metrics::Metrics, server::Server, Discovery, DiscoveryEventLoop, DiscoveryServer, State,
 };
 use crate::discovery::TrustedPeerChangeEvent;
 
@@ -131,7 +131,6 @@ impl UnstartedDiscovery {
         } = self;
 
         let discovery_config = config.discovery.clone().unwrap_or_default();
-        // Builds the set of allowlisted peers from allowlisted_peers and seed_peers.
         let allowlisted_peers = Arc::new(
             discovery_config
                 .allowlisted_peers

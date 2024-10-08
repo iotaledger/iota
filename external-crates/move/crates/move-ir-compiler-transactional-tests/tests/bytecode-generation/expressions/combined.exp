@@ -1,11 +1,8 @@
 processed 1 task
 
-task 0, lines 1-13:
-//# print-bytecode
+task 0 'print-bytecode'. lines 1-13:
 // Move bytecode v6
 module 1.m {
-
-
 
 
 entry foo() {
@@ -26,6 +23,5 @@ B0:
 	10: Sub
 	11: StLoc[2](loc2: u64)
 	12: Ret
-
 }
 }

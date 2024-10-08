@@ -5,7 +5,10 @@
 use async_graphql::*;
 use iota_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
 
-use crate::types::{iota_address::IotaAddress, object::Object};
+use super::{
+    iota_address::IotaAddress,
+    object::{Object, ObjectLookupKey},
+};
 
 pub(crate) struct ObjectChange {
     pub native: NativeObjectChange,
@@ -28,9 +31,12 @@ impl ObjectChange {
         };
 
         Object::query(
-            ctx,
+            ctx.data_unchecked(),
             self.native.id.into(),
-            Object::at_version(version.value(), self.checkpoint_viewed_at),
+            ObjectLookupKey::VersionAt {
+                version: version.value(),
+                checkpoint_viewed_at: Some(self.checkpoint_viewed_at),
+            },
         )
         .await
         .extend()
@@ -43,9 +49,12 @@ impl ObjectChange {
         };
 
         Object::query(
-            ctx,
+            ctx.data_unchecked(),
             self.native.id.into(),
-            Object::at_version(version.value(), self.checkpoint_viewed_at),
+            ObjectLookupKey::VersionAt {
+                version: version.value(),
+                checkpoint_viewed_at: Some(self.checkpoint_viewed_at),
+            },
         )
         .await
         .extend()

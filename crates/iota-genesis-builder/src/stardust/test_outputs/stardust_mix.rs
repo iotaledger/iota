@@ -5,13 +5,10 @@
 //! Multi mnemonics, multi accounts, multi addresses.
 
 use iota_sdk::{
-    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
+    client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
     types::block::{
         address::{AliasAddress, Ed25519Address},
         output::{
-            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
-            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
-            UnlockCondition,
             feature::{
                 Feature, Irc27Metadata, Irc30Metadata, IssuerFeature, MetadataFeature,
                 SenderFeature, TagFeature,
@@ -21,13 +18,16 @@ use iota_sdk::{
                 ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
                 StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
             },
+            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
+            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
+            UnlockCondition,
         },
     },
 };
-use rand::{Rng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
+    test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
     types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
 };
 

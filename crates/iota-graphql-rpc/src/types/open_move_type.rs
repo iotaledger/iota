@@ -292,10 +292,10 @@ pub(crate) fn abilities(set: AbilitySet) -> Vec<MoveAbility> {
 mod tests {
     use std::str::FromStr;
 
-    use OpenSignatureBody as S;
     use expect_test::expect;
     use iota_package_resolver::{DatatypeKey, DatatypeRef};
     use move_core_types::language_storage::StructTag;
+    use OpenSignatureBody as S;
 
     use super::*;
 
@@ -305,11 +305,10 @@ mod tests {
 
     #[test]
     fn generic_signature() {
-        let signature =
-            OpenMoveTypeSignature::from(S::Datatype(struct_key("0x2::table::Table"), vec![
-                S::TypeParameter(0),
-                S::TypeParameter(1),
-            ]));
+        let signature = OpenMoveTypeSignature::from(S::Datatype(
+            struct_key("0x2::table::Table"),
+            vec![S::TypeParameter(0), S::TypeParameter(1)],
+        ));
 
         let expect = expect![[r#"
             OpenMoveTypeSignature {
@@ -333,10 +332,10 @@ mod tests {
 
     #[test]
     fn instance_signature() {
-        let signature =
-            OpenMoveTypeSignature::from(S::Datatype(struct_key("0x2::coin::Coin"), vec![
-                S::Datatype(struct_key("0x2::iota::IOTA"), vec![]),
-            ]));
+        let signature = OpenMoveTypeSignature::from(S::Datatype(
+            struct_key("0x2::coin::Coin"),
+            vec![S::Datatype(struct_key("0x2::iota::IOTA"), vec![])],
+        ));
 
         let expect = expect![[r#"
             OpenMoveTypeSignature {
@@ -360,11 +359,10 @@ mod tests {
 
     #[test]
     fn generic_signature_repr() {
-        let signature =
-            OpenMoveTypeSignature::from(S::Datatype(struct_key("0x2::table::Table"), vec![
-                S::TypeParameter(0),
-                S::TypeParameter(1),
-            ]));
+        let signature = OpenMoveTypeSignature::from(S::Datatype(
+            struct_key("0x2::table::Table"),
+            vec![S::TypeParameter(0), S::TypeParameter(1)],
+        ));
 
         let expect = expect![
             "0x0000000000000000000000000000000000000000000000000000000000000002::table::Table<$0, $1>"
@@ -374,10 +372,10 @@ mod tests {
 
     #[test]
     fn instance_signature_repr() {
-        let signature =
-            OpenMoveTypeSignature::from(S::Datatype(struct_key("0x2::coin::Coin"), vec![
-                S::Datatype(struct_key("0x2::iota::IOTA"), vec![]),
-            ]));
+        let signature = OpenMoveTypeSignature::from(S::Datatype(
+            struct_key("0x2::coin::Coin"),
+            vec![S::Datatype(struct_key("0x2::iota::IOTA"), vec![])],
+        ));
 
         let expect = expect![
             "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"

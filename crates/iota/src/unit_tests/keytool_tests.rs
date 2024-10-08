@@ -14,21 +14,21 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Key
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
-        AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
-        SignatureScheme, get_key_pair, get_key_pair_from_rng,
+        get_key_pair, get_key_pair_from_rng, AuthorityKeyPair, Ed25519IotaSignature,
+        EncodeDecodeBase64, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
+        Secp256r1IotaSignature, Signature, SignatureScheme,
     },
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
 };
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, SeedableRng};
 use shared_crypto::intent::{Intent, IntentScope};
 use tempfile::TempDir;
 use tokio::test;
 
-use super::{KeyToolCommand, write_keypair_to_file};
+use super::{write_keypair_to_file, KeyToolCommand};
 use crate::{
     key_identity::KeyIdentity,
-    keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
+    keytool::{read_authority_keypair_from_file, read_keypair_from_file, CommandOutput},
 };
 
 const TEST_MNEMONIC: &str = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";

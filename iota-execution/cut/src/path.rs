@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

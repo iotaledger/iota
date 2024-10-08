@@ -6,7 +6,7 @@ module base::base_module {
 
     const A: u64 = 0;
 
-    public struct X {
+    struct X {
         field0: u64,
         field1: u64,
     }

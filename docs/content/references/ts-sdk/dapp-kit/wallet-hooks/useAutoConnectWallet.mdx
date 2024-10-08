@@ -1,56 +1,27 @@
+import { UseAutoConnectionStatusExample } from '@site/src/components/sdk-examples/wallet-hooks';
+
 # useAutoConnectWallet
 
 The `useAutoConnectWallet` hook retrieves the status for the initial wallet auto-connection process.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        mainnet: { url: getFullnodeUrl('mainnet') },
-    };
+```ts
+import { ConnectButton, useAutoConnectWallet } from '@iota/dapp-kit';
 
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
+function MyComponent() {
+    const autoConnectionStatus = useAutoConnectWallet();
 
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
+    return (
+        <div>
+            <ConnectButton />
+            <div>Auto-connection status: {autoConnectionStatus}</div>
+        </div>
+    );
 }
-
-const UseAutoConnectionStatusExample = withProviders(
-    () => {
-        const autoConnectionStatus = useAutoConnectWallet();
-
-        return (
-            <div style={{ padding: 20 }}>
-                <ConnectButton />
-                <div>Auto-connection status: {autoConnectionStatus}</div>
-            </div>
-        );
-    },
-    { autoConnect: true },
-);
-
-render(<UseAutoConnectionStatusExample/>)
 ```
+
+## Example
+
+<UseAutoConnectionStatusExample />
 
 ## Auto-connection status properties
 

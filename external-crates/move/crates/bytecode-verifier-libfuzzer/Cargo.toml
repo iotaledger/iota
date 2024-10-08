@@ -11,14 +11,11 @@ cargo-fuzz = true
 
 [dependencies]
 arbitrary.workspace = true
-libfuzzer-sys.workspace = true
+libfuzzer-sys = "0.4"
+
 move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true
 move-core-types = { workspace = true, features = ["fuzzing"] }
-
-# Prevent this from interfering with workspaces
-# [workspace]
-# members = ["."]
 
 [[bin]]
 name = "code_unit"

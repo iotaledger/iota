@@ -12,50 +12,20 @@ use axum::{
 use iota_types::storage::ReadStore;
 use tap::Pipe;
 
-use crate::{
-    RestService, Result,
-    openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
-    reader::StateReader,
-};
+use crate::Result;
 
-pub struct HealthCheck;
+pub const HEALTH_PATH: &str = "/health";
 
-impl ApiEndpoint<RestService> for HealthCheck {
-    fn method(&self) -> axum::http::Method {
-        axum::http::Method::GET
-    }
-
-    fn path(&self) -> &'static str {
-        "/health"
-    }
-
-    fn operation(
-        &self,
-        generator: &mut schemars::gen::SchemaGenerator,
-    ) -> openapiv3::v3_1::Operation {
-        OperationBuilder::new()
-            .tag("General")
-            .operation_id("HealthCheck")
-            .query_parameters::<Threshold>(generator)
-            .response(200, ResponseBuilder::new().text_content().build())
-            .build()
-    }
-
-    fn handler(&self) -> crate::openapi::RouteHandler<RestService> {
-        RouteHandler::new(self.method(), health)
-    }
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(serde::Deserialize)]
 pub struct Threshold {
-    pub threshold_seconds: Option<u32>,
+    threshold_seconds: Option<u32>,
 }
 
-async fn health(
+pub async fn health<S: ReadStore>(
     Query(Threshold { threshold_seconds }): Query<Threshold>,
-    State(state): State<StateReader>,
+    State(state): State<S>,
 ) -> Result<impl IntoResponse> {
-    let summary = state.inner().get_latest_checkpoint()?;
+    let summary = state.get_latest_checkpoint()?;
 
     // If we have a provided threshold, check that it's close to the current time
     if let Some(threshold_seconds) = threshold_seconds {

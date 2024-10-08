@@ -4,8 +4,8 @@
 import { fromB58, toB64, toHEX } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
-import type { Transaction } from '../transactions/index.js';
-import { isTransaction } from '../transactions/index.js';
+import type { TransactionBlock } from '../transactions/index.js';
+import { isTransactionBlock } from '../transactions/index.js';
 import {
     isValidIotaAddress,
     isValidIotaObjectId,
@@ -108,7 +108,7 @@ export interface OrderArguments {
  */
 export type IotaClientOptions = NetworkOrTransport;
 
-type NetworkOrTransport =
+export type NetworkOrTransport =
     | {
           url: string;
           transport?: never;
@@ -118,11 +118,13 @@ type NetworkOrTransport =
           url?: never;
       };
 
-const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient') as never;
+export const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient');
 
 export function isIotaClient(client: unknown): client is IotaClient {
     return (
-        typeof client === 'object' && client !== null && (client as any)[IOTA_CLIENT_BRAND] === true
+        typeof client === 'object' &&
+        client !== null &&
+        (client as { [IOTA_CLIENT_BRAND]: unknown })[IOTA_CLIENT_BRAND] === true
     );
 }
 
@@ -409,40 +411,28 @@ export class IotaClient {
         });
     }
 
-    async executeTransactionBlock({
-        transactionBlock,
-        signature,
-        options,
-        requestType,
-    }: ExecuteTransactionBlockParams): Promise<IotaTransactionBlockResponse> {
-        const result: IotaTransactionBlockResponse = await this.transport.request({
+    async executeTransactionBlock(
+        input: ExecuteTransactionBlockParams,
+    ): Promise<IotaTransactionBlockResponse> {
+        return await this.transport.request({
             method: 'iota_executeTransactionBlock',
             params: [
-                typeof transactionBlock === 'string' ? transactionBlock : toB64(transactionBlock),
-                Array.isArray(signature) ? signature : [signature],
-                options,
+                typeof input.transactionBlock === 'string'
+                    ? input.transactionBlock
+                    : toB64(input.transactionBlock),
+                Array.isArray(input.signature) ? input.signature : [input.signature],
+                input.options,
+                input.requestType,
             ],
         });
-
-        if (requestType === 'WaitForLocalExecution') {
-            try {
-                await this.waitForTransaction({
-                    digest: result.digest,
-                });
-            } catch (_) {
-                // Ignore error while waiting for transaction
-            }
-        }
-
-        return result;
     }
 
-    async signAndExecuteTransaction({
-        transaction,
+    async signAndExecuteTransactionBlock({
+        transactionBlock,
         signer,
         ...input
     }: {
-        transaction: Uint8Array | Transaction;
+        transactionBlock: Uint8Array | TransactionBlock;
         signer: Signer;
     } & Omit<
         ExecuteTransactionBlockParams,
@@ -450,14 +440,14 @@ export class IotaClient {
     >): Promise<IotaTransactionBlockResponse> {
         let transactionBytes;
 
-        if (transaction instanceof Uint8Array) {
-            transactionBytes = transaction;
+        if (transactionBlock instanceof Uint8Array) {
+            transactionBytes = transactionBlock;
         } else {
-            transaction.setSenderIfNotSet(signer.toIotaAddress());
-            transactionBytes = await transaction.build({ client: this });
+            transactionBlock.setSenderIfNotSet(signer.toIotaAddress());
+            transactionBytes = await transactionBlock.build({ client: this });
         }
 
-        const { signature, bytes } = await signer.signTransaction(transactionBytes);
+        const { signature, bytes } = await signer.signTransactionBlock(transactionBytes);
 
         return this.executeTransactionBlock({
             transactionBlock: bytes,
@@ -573,8 +563,6 @@ export class IotaClient {
 
     /**
      * Subscribe to get notifications whenever an event matching the filter occurs
-     *
-     * @deprecated
      */
     async subscribeEvent(
         input: SubscribeEventParams & {
@@ -590,9 +578,6 @@ export class IotaClient {
         });
     }
 
-    /**
-     * @deprecated
-     */
     async subscribeTransaction(
         input: SubscribeTransactionParams & {
             /** function to run when we receive a notification of a new event matching the filter */
@@ -616,7 +601,7 @@ export class IotaClient {
         input: DevInspectTransactionBlockParams,
     ): Promise<DevInspectResults> {
         let devInspectTxBytes;
-        if (isTransaction(input.transactionBlock)) {
+        if (isTransactionBlock(input.transactionBlock)) {
             input.transactionBlock.setSenderIfNotSet(input.sender);
             devInspectTxBytes = toB64(
                 await input.transactionBlock.build({
@@ -816,7 +801,7 @@ export class IotaClient {
      * be available via the API.
      * This currently polls the `getTransactionBlock` API to check for the transaction.
      */
-    async waitForTransaction({
+    async waitForTransactionBlock({
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,

@@ -19,7 +19,7 @@ module obo::object_bound {
     /// being returned to the original owner.
     public struct ObjectBound<T: key + store> has key {
         id: UID,
-        `for`: address,
+        for_address: address,
         inner: Option<T>,
     }
 
@@ -28,12 +28,12 @@ module obo::object_bound {
     public struct Borrow<T: key + store> { object: ObjectBound<T>, inner_id: ID }
 
     /// Create and send an ObjectBound.
-    public fun new<T: key + store>(inner: T, `for`: address, ctx: &mut TxContext) {
+    public fun new<T: key + store>(inner: T, for_address: address, ctx: &mut TxContext) {
         transfer::transfer(ObjectBound {
-            `for`,
+            for_address,
             id: object::new(ctx),
             inner: option::some(inner),
-        }, `for`);
+        }, for_address);
     }
 
     /// Receive and use an ObjectBound.
@@ -51,9 +51,9 @@ module obo::object_bound {
     public fun store<T: key + store>(inner: T, borrow: Borrow<T>) {
         assert!(object::id(&inner) == borrow.inner_id, EDontMessWithMe);
         let Borrow { mut object, inner_id: _ } = borrow;
-        let `for` = object.`for`;
+        let for_address = object.for_address;
         option::fill(&mut object.inner, inner);
-        transfer::transfer(object, `for`);
+        transfer::transfer(object, for_address);
     }
 }
 

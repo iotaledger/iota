@@ -6,8 +6,8 @@ use std::{io::Read, marker::PhantomData};
 
 use bytes::{Buf, BufMut};
 use tonic::{
-    Status,
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
+    Status,
 };
 
 #[derive(Debug)]

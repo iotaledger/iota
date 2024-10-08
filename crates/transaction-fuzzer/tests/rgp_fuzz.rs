@@ -5,8 +5,8 @@
 use proptest::{collection::vec, prelude::*, proptest};
 use transaction_fuzzer::{
     account_universe::{
-        AccountUniverseGen, P2PTransferGenGasPriceInRange, default_num_accounts,
-        default_num_transactions,
+        default_num_accounts, default_num_transactions, AccountUniverseGen,
+        P2PTransferGenGasPriceInRange,
     },
     config_fuzzer::run_rgp,
 };

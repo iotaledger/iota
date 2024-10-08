@@ -11,11 +11,11 @@ use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits},
     object::Owner,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
+    transaction::{Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
     utils::to_sender_signed_transaction,
 };
 
-use crate::{ValidatorProxy, workloads::Gas};
+use crate::{workloads::Gas, ValidatorProxy};
 
 // This is the maximum gas we will transfer from primary coin into any gas coin
 // for running the benchmark

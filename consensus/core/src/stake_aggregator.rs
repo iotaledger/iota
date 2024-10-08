@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, marker::PhantomData};
+use std::{collections::HashSet, marker::PhantomData};
 
 use consensus_config::{AuthorityIndex, Committee, Stake};
 
@@ -12,7 +12,6 @@ pub(crate) trait CommitteeThreshold {
 
 pub(crate) struct QuorumThreshold;
 
-#[allow(unused)]
 pub(crate) struct ValidityThreshold;
 
 impl CommitteeThreshold for QuorumThreshold {
@@ -28,7 +27,7 @@ impl CommitteeThreshold for ValidityThreshold {
 }
 
 pub(crate) struct StakeAggregator<T> {
-    votes: BTreeSet<AuthorityIndex>,
+    votes: HashSet<AuthorityIndex>,
     stake: Stake,
     _phantom: PhantomData<T>,
 }
@@ -52,10 +51,6 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
         T::is_threshold(committee, self.stake)
     }
 
-    pub(crate) fn stake(&self) -> Stake {
-        self.stake
-    }
-
     pub(crate) fn reached_threshold(&self, committee: &Committee) -> bool {
         T::is_threshold(committee, self.stake)
     }
@@ -68,7 +63,7 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
 
 #[cfg(test)]
 mod tests {
-    use consensus_config::{AuthorityIndex, local_committee_and_keys};
+    use consensus_config::{local_committee_and_keys, AuthorityIndex};
 
     use super::*;
 

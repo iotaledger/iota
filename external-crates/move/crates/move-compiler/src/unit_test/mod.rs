@@ -3,25 +3,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compiled_unit::NamedCompiledModule, shared::files::MappedFiles, shared::NumericalAddress,
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, TypeTag},
-    runtime_value::MoveValue,
-    vm_status::StatusCode,
-};
 use std::{collections::BTreeMap, fmt};
+
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+    runtime_value::MoveValue, vm_status::StatusCode,
+};
+
+use crate::{
+    compiled_unit::NamedCompiledModule, diagnostics::FilesSourceText, shared::NumericalAddress,
+};
 
 pub mod filter_test_members;
 pub mod plan_builder;
 
 pub type TestName = String;
 
+#[derive(Debug, Clone)]
 pub struct TestPlan {
-    pub mapped_files: MappedFiles,
+    pub files: FilesSourceText,
     pub module_tests: BTreeMap<ModuleId, ModuleTestPlan>,
     pub module_info: BTreeMap<ModuleId, NamedCompiledModule>,
 }
@@ -35,14 +35,8 @@ pub struct ModuleTestPlan {
 #[derive(Debug, Clone)]
 pub struct TestCase {
     pub test_name: TestName,
-    pub arguments: Vec<TestArgument>,
+    pub arguments: Vec<MoveValue>,
     pub expected_failure: Option<ExpectedFailure>,
-}
-
-#[derive(Debug, Clone)]
-pub enum TestArgument {
-    Value(MoveValue),
-    Generate { generated_type: TypeTag },
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +64,6 @@ pub struct ExpectedMoveError(
 
 pub struct ExpectedMoveErrorDisplay<'a> {
     error: &'a ExpectedMoveError,
-    context: &'a BTreeMap<ModuleId, NamedCompiledModule>,
     is_past_tense: bool,
 }
 
@@ -90,7 +83,7 @@ impl ModuleTestPlan {
 impl TestPlan {
     pub fn new(
         tests: Vec<ModuleTestPlan>,
-        mapped_files: MappedFiles,
+        files: FilesSourceText,
         units: Vec<NamedCompiledModule>,
     ) -> Self {
         let module_tests: BTreeMap<_, _> = tests
@@ -104,35 +97,19 @@ impl TestPlan {
             .collect();
 
         Self {
-            mapped_files,
+            files,
             module_tests,
             module_info,
         }
     }
 }
 
-impl<'a> ExpectedMoveError {
-    pub fn with_context(
-        &'a self,
-        context: &'a BTreeMap<ModuleId, NamedCompiledModule>,
-    ) -> ExpectedMoveErrorDisplay<'a> {
+impl ExpectedMoveError {
+    pub fn verbiage(&self, is_past_tense: bool) -> ExpectedMoveErrorDisplay {
         ExpectedMoveErrorDisplay {
             error: self,
-            context,
-            is_past_tense: false,
+            is_past_tense,
         }
-    }
-}
-
-impl<'a> ExpectedMoveErrorDisplay<'a> {
-    pub fn past_tense(mut self) -> Self {
-        self.is_past_tense = true;
-        self
-    }
-
-    pub fn present_tense(mut self) -> Self {
-        self.is_past_tense = false;
-        self
     }
 }
 
@@ -150,7 +127,6 @@ impl<'a> fmt::Display for ExpectedMoveErrorDisplay<'a> {
         use move_binary_format::errors::Location;
         let Self {
             error: ExpectedMoveError(status, sub_status, location),
-            context,
             is_past_tense,
         } = self;
         let status_val: u64 = (*status).into();
@@ -189,15 +165,8 @@ impl<'a> fmt::Display for ExpectedMoveErrorDisplay<'a> {
         }
         match location {
             Location::Undefined => write!(f, " in an unknown location"),
-            Location::Module(id) => {
-                let module_id =
-                    if let Some(address_name) = context.get(id).and_then(|m| m.address_name()) {
-                        format!("{}::{}", address_name, id.name())
-                    } else {
-                        id.short_str_lossless()
-                    };
-                write!(f, " in the module {}", module_id)
-            }
+            Location::Script => unreachable!(),
+            Location::Module(id) => write!(f, " in the module {id}"),
         }
     }
 }

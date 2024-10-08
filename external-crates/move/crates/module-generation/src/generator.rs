@@ -137,9 +137,9 @@ impl<'a> ModuleGenerator<'a> {
                 let struct_ident = {
                     let struct_name = struct_def.name;
                     let module_name = ModuleName::module_self();
-                    QualifiedDatatypeIdent::new(module_name, struct_name)
+                    QualifiedStructIdent::new(module_name, struct_name)
                 };
-                Type::Datatype(struct_ident, ty_instants)
+                Type::Struct(struct_ident, ty_instants)
             }
             6 => Type::U16,
             7 => Type::U32,
@@ -184,7 +184,7 @@ impl<'a> ModuleGenerator<'a> {
         }
     }
 
-    fn struct_type_parameters(&mut self) -> Vec<DatatypeTypeParameter> {
+    fn struct_type_parameters(&mut self) -> Vec<StructTypeParameter> {
         // Don't generate type parameters if we're generating simple types only
         if self.options.simple_types_only {
             vec![]
@@ -227,7 +227,7 @@ impl<'a> ModuleGenerator<'a> {
         FunctionSignature::new(formals, vec![], ty_params)
     }
 
-    fn struct_fields(&mut self, ty_params: &[DatatypeTypeParameter]) -> StructDefinitionFields {
+    fn struct_fields(&mut self, ty_params: &[StructTypeParameter]) -> StructDefinitionFields {
         let num_fields = self
             .gen
             .gen_range(self.options.min_fields..self.options.max_fields);
@@ -271,7 +271,7 @@ impl<'a> ModuleGenerator<'a> {
     }
 
     fn struct_def(&mut self, abilities: BTreeSet<Ability>) {
-        let name = DatatypeName(self.identifier().into());
+        let name = StructName(self.identifier().into());
         let type_parameters = self.struct_type_parameters();
         let fields = self.struct_fields(&type_parameters);
         let strct = StructDefinition_ {
@@ -336,7 +336,6 @@ impl<'a> ModuleGenerator<'a> {
             random_string(gen, len)
         };
         let current_module = ModuleDefinition {
-            specified_version: None,
             loc: Spanned::unsafe_no_loc(0).loc,
             identifier: ModuleIdent {
                 name: ModuleName(module_name.into()),
@@ -346,7 +345,6 @@ impl<'a> ModuleGenerator<'a> {
             imports: Self::imports(callable_modules),
             explicit_dependency_declarations: Vec::new(),
             structs: Vec::new(),
-            enums: Vec::new(),
             functions: Vec::new(),
             constants: Vec::new(),
         };

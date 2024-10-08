@@ -15,10 +15,12 @@ module test::m1 {
         100
     }
 
-    public fun transfer_(v: vector<coin::Coin<iota::iota::IOTA>>, r: address) {
-        v.do!(|c| {
+    public fun transfer_(mut v: vector<coin::Coin<iota::iota::IOTA>>, r: address) {
+        while (!vector::is_empty(&v)) {
+            let c = vector::pop_back(&mut v);
             transfer::public_transfer(c, r);
-        });
+        };
+        vector::destroy_empty(v);
     }
 }
 

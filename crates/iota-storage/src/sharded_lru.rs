@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, hash_map::RandomState},
+    collections::{hash_map::RandomState, HashMap},
     fmt::Debug,
     future::Future,
     hash::{BuildHasher, Hash},

@@ -18,7 +18,6 @@ export type WalletActions = {
         wallet: WalletWithRequiredFeatures,
         connectedAccounts: readonly WalletAccount[],
         selectedAccount: WalletAccount | null,
-        supportedIntents?: string[],
     ) => void;
     updateWalletAccounts: (accounts: readonly WalletAccount[]) => void;
     setWalletDisconnected: () => void;
@@ -40,7 +39,6 @@ export type StoreState = {
     lastConnectedAccountAddress: string | null;
     lastConnectedWalletName: string | null;
     connectionStatus: WalletConnectionStatus;
-    supportedIntents: string[];
 } & WalletActions;
 
 type WalletConfiguration = {
@@ -67,18 +65,12 @@ export function createWalletStore({
                 lastConnectedAccountAddress: null,
                 lastConnectedWalletName: null,
                 connectionStatus: 'disconnected',
-                supportedIntents: [],
                 setConnectionStatus(connectionStatus) {
                     set(() => ({
                         connectionStatus,
                     }));
                 },
-                setWalletConnected(
-                    wallet,
-                    connectedAccounts,
-                    selectedAccount,
-                    supportedIntents = [],
-                ) {
+                setWalletConnected(wallet, connectedAccounts, selectedAccount) {
                     set(() => ({
                         accounts: connectedAccounts,
                         currentWallet: wallet,
@@ -86,7 +78,6 @@ export function createWalletStore({
                         lastConnectedWalletName: getWalletUniqueIdentifier(wallet),
                         lastConnectedAccountAddress: selectedAccount?.address,
                         connectionStatus: 'connected',
-                        supportedIntents,
                     }));
                 },
                 setWalletDisconnected() {
@@ -97,7 +88,6 @@ export function createWalletStore({
                         lastConnectedWalletName: null,
                         lastConnectedAccountAddress: null,
                         connectionStatus: 'disconnected',
-                        supportedIntents: [],
                     }));
                 },
                 setAccountSwitched(selectedAccount) {
@@ -119,7 +109,6 @@ export function createWalletStore({
                             lastConnectedWalletName: null,
                             lastConnectedAccountAddress: null,
                             connectionStatus: 'disconnected',
-                            supportedIntents: [],
                         }));
                     } else {
                         set(() => ({ wallets: updatedWallets }));

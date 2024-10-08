@@ -5,21 +5,21 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
-        AliasId, FoundryOutputBuilder, NativeToken, NativeTokens, SimpleTokenScheme,
-        UnlockCondition, unlock_condition::ImmutableAliasAddressUnlockCondition,
+        unlock_condition::ImmutableAliasAddressUnlockCondition, AliasId, FoundryOutputBuilder,
+        NativeToken, NativeTokens, SimpleTokenScheme, UnlockCondition,
     },
 };
 use iota_types::{
     balance::Balance,
-    dynamic_field::{Field, derive_dynamic_field_id},
+    dynamic_field::{derive_dynamic_field_id, Field},
     object::Owner,
     stardust::coin_type::CoinType,
 };
 
 use crate::stardust::{
     migration::{
-        MigrationTargetNetwork, executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE,
-        tests::random_output_header,
+        executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
+        MigrationTargetNetwork,
     },
     native_token::{
         package_builder,

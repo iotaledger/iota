@@ -1,5 +1,4 @@
 processed 3 tasks
 
-task 2, line 20:
-//# run 0x42::y::foo
+task 2 'run'. lines 20-20:
 return values: { false }

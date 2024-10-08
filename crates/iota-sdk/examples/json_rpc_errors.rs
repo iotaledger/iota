@@ -8,7 +8,6 @@
 //! cargo run --example json_rpc_errors
 
 mod utils;
-
 use anyhow::bail;
 use iota_sdk::error::{Error, JsonRpcError};
 use utils::setup_for_read;

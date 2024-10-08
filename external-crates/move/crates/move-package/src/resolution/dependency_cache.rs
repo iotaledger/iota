@@ -167,7 +167,6 @@ impl DependencyCache {
                             OsStr::new("fetch"),
                             OsStr::new("origin"),
                         ])
-                        .stdin(Stdio::null())
                         .stdout(Stdio::null())
                         .stderr(Stdio::null())
                         .status()
@@ -196,7 +195,6 @@ impl DependencyCache {
                             OsStr::new("--hard"),
                             OsStr::new(&format!("origin/{}", git_rev)),
                         ])
-                        .stdin(Stdio::null())
                         .stdout(Stdio::null())
                         .stderr(Stdio::null())
                         .status()

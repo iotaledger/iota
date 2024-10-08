@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf};
 
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::*;
@@ -10,7 +10,7 @@ use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{IotaError, UserInputError},
+    error::IotaError,
     object::Owner,
     transaction::{CallArg, ObjectArg, Transaction},
 };
@@ -40,14 +40,12 @@ async fn receive_object_feature_deny() {
         .next()
         .unwrap()
         .authority_client()
-        .handle_transaction(txn, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+        .handle_transaction(txn)
         .await
         .map(|_| ())
         .unwrap_err();
 
-    assert!(matches!(err, IotaError::UserInput {
-        error: UserInputError::Unsupported(..)
-    }));
+    assert!(matches!(err, IotaError::UnsupportedFeature { .. }));
 }
 
 #[sim_test]

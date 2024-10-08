@@ -51,9 +51,6 @@ pub struct ModuleIdent {
 /// A Move module
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModuleDefinition {
-    /// The specified binary version of this module if a specific version is
-    /// required.
-    pub specified_version: Option<u32>,
     /// The location of this module
     pub loc: Loc,
     /// name and address of the module
@@ -67,8 +64,6 @@ pub struct ModuleDefinition {
     pub explicit_dependency_declarations: Vec<ModuleDependency>,
     /// the structs (including resources) that the module defines
     pub structs: Vec<StructDefinition>,
-    /// The enums that the module defines
-    pub enums: Vec<EnumDefinition>,
     /// the constants that the script defines. Only a utility, the identifiers
     /// are not carried into the Move bytecode
     pub constants: Vec<Constant>,
@@ -81,8 +76,8 @@ pub struct ModuleDefinition {
 pub struct ModuleDependency {
     /// Qualified identifier of the dependency
     pub name: ModuleName,
-    /// The data types (including resources) that the dependency defines
-    pub datatypes: Vec<DatatypeDependency>,
+    /// The structs (including resources) that the dependency defines
+    pub structs: Vec<StructDependency>,
     /// The signatures of functions that the dependency defines
     pub functions: Vec<FunctionDependency>,
 }
@@ -168,7 +163,7 @@ pub enum Type {
     /// `vector`
     Vector(Box<Type>),
     /// A module defined struct
-    Datatype(QualifiedDatatypeIdent, Vec<Type>),
+    Struct(QualifiedStructIdent, Vec<Type>),
     /// A reference type, the bool flag indicates whether the reference is
     /// mutable
     Reference(bool, Box<Type>),
@@ -177,18 +172,18 @@ pub enum Type {
 }
 
 //**************************************************************************************************
-// Data Types
+// Structs
 //**************************************************************************************************
 
 /// Identifier for a struct definition. Tells us where to look in the storage
 /// layer to find the code associated with the interface
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct QualifiedDatatypeIdent {
+pub struct QualifiedStructIdent {
     /// Module name and address in which the struct is contained
     pub module: ModuleName,
     /// Name for the struct class. Should be unique among structs published
     /// under the same module+address
-    pub name: DatatypeName,
+    pub name: StructName,
 }
 
 /// The field newtype
@@ -207,7 +202,7 @@ pub type Field = Spanned<Field_>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldIdent_ {
     /// The name of the struct type on which the field is declared.
-    pub struct_name: DatatypeName,
+    pub struct_name: StructName,
     /// For generic struct types, the type parameters used to instantiate the
     /// struct type (this is an empty vector for non-generic struct types).
     pub type_actuals: Vec<Type>,
@@ -220,17 +215,13 @@ pub type FieldIdent = Spanned<FieldIdent_>;
 /// A field map
 pub type Fields<T> = Vec<(Field, T)>;
 
-/// Newtype for the name of a data type
+/// Newtype for the name of a struct
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct DatatypeName(pub Symbol);
-
-/// Newtype for the name of a variant
-#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct VariantName(pub Symbol);
+pub struct StructName(pub Symbol);
 
 /// A struct type parameter with its constraints and whether it's declared as
 /// phantom.
-pub type DatatypeTypeParameter = (bool, TypeVar, BTreeSet<Ability>);
+pub type StructTypeParameter = (bool, TypeVar, BTreeSet<Ability>);
 
 /// A Move struct
 #[derive(Clone, Debug, PartialEq)]
@@ -238,9 +229,9 @@ pub struct StructDefinition_ {
     /// The declared abilities for the struct
     pub abilities: BTreeSet<Ability>,
     /// Human-readable name for the struct that also serves as a nominal type
-    pub name: DatatypeName,
+    pub name: StructName,
     /// The list of formal type arguments
-    pub type_formals: Vec<DatatypeTypeParameter>,
+    pub type_formals: Vec<StructTypeParameter>,
     /// the fields each instance has
     pub fields: StructDefinitionFields,
 }
@@ -249,13 +240,13 @@ pub type StructDefinition = Spanned<StructDefinition_>;
 
 /// An explicit struct dependency
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DatatypeDependency {
+pub struct StructDependency {
     /// The declared abilities for the struct
     pub abilities: BTreeSet<Ability>,
     /// Human-readable name for the struct that also serves as a nominal type
-    pub name: DatatypeName,
+    pub name: StructName,
     /// The list of formal type arguments
-    pub type_formals: Vec<DatatypeTypeParameter>,
+    pub type_formals: Vec<StructTypeParameter>,
 }
 
 /// The fields of a Move struct definition
@@ -267,34 +258,8 @@ pub enum StructDefinitionFields {
     Native,
 }
 
-/// A Move enum
-#[derive(Clone, Debug, PartialEq)]
-pub struct EnumDefinition_ {
-    /// The declared abilities for the struct
-    pub abilities: BTreeSet<Ability>,
-    /// Human-readable name for the struct that also serves as a nominal type
-    pub name: DatatypeName,
-    /// The list of formal type arguments
-    pub type_formals: Vec<DatatypeTypeParameter>,
-    /// the fields each instance has
-    pub variants: VariantDefinitions,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct VariantDefinition_ {
-    pub name: VariantName,
-    pub fields: Fields<Type>,
-}
-
-pub type VariantDefinition = Spanned<VariantDefinition_>;
-
-pub type VariantDefinitions = Vec<VariantDefinition>;
-
-/// The type of a EnumDefinition along with its source location information
-pub type EnumDefinition = Spanned<EnumDefinition_>;
-
 //**************************************************************************************************
-// Constants
+// Structs
 //**************************************************************************************************
 
 /// Newtype for the name of a constant
@@ -465,13 +430,6 @@ pub enum LValue_ {
 }
 pub type LValue = Spanned<LValue_>;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum UnpackType {
-    ByValue,
-    ByImmRef,
-    ByMutRef,
-}
-
 /// A [`Block_`] is composed of zero or more "statements," which can be
 /// translated into one or more bytecode instructions.
 #[derive(Debug, Clone, PartialEq)]
@@ -493,18 +451,7 @@ pub enum Statement_ {
     /// `jump_if_false (e) lbl`
     JumpIfFalse(Box<Exp>, BlockLabel),
     /// `n { f_1: x_1, ... , f_j: x_j  } = e`
-    Unpack(DatatypeName, Vec<Type>, Fields<Var>, Box<Exp>),
-    /// `e::v { f_1: x_1, ... , f_j: x_j  } = e`
-    UnpackVariant(
-        DatatypeName,
-        VariantName,
-        Vec<Type>,
-        Fields<Var>,
-        Box<Exp>,
-        UnpackType,
-    ),
-    /// `variant_switch (e) [(v1, lbl_1), ..., (v_n, lbl_n)]`
-    VariantSwitch(DatatypeName, Vec<(VariantName, BlockLabel)>, Box<Exp>),
+    Unpack(StructName, Vec<Type>, Fields<Var>, Box<Exp>),
 }
 /// A [`Statement_`] with a location.
 pub type Statement = Spanned<Statement_>;
@@ -626,7 +573,7 @@ pub enum Exp_ {
     /// Returns a fresh `StructInstance` whose type and kind (resource or
     /// otherwise) as the current struct class (i.e., the class of the
     /// method we're currently executing). `n { f_1: e_1, ... , f_j: e_j }`
-    Pack(DatatypeName, Vec<Type>, ExpFields),
+    Pack(StructName, Vec<Type>, ExpFields),
     /// `&e.f`, `&mut e.f`
     Borrow {
         /// mutable or not
@@ -646,9 +593,6 @@ pub enum Exp_ {
     FunctionCall(FunctionCall, Box<Exp>),
     /// (e_1, e_2, e_3, ..., e_j)
     ExprList(Vec<Exp>),
-    /// Takes the given field values and instantiates the variant of the enum.
-    /// `e::v { f_1: e_1, ... , f_j: e_j }`
-    PackVariant(DatatypeName, VariantName, Vec<Type>, ExpFields),
 }
 
 /// The type for a `Exp_` and its location
@@ -696,15 +640,15 @@ pub enum Bytecode_ {
     MoveLoc(Var),
     StLoc(Var),
     Call(ModuleName, FunctionName, Vec<Type>),
-    Pack(DatatypeName, Vec<Type>),
-    Unpack(DatatypeName, Vec<Type>),
+    Pack(StructName, Vec<Type>),
+    Unpack(StructName, Vec<Type>),
     ReadRef,
     WriteRef,
     FreezeRef,
     MutBorrowLoc(Var),
     ImmBorrowLoc(Var),
-    MutBorrowField(DatatypeName, Vec<Type>, Field),
-    ImmBorrowField(DatatypeName, Vec<Type>, Field),
+    MutBorrowField(StructName, Vec<Type>, Field),
+    ImmBorrowField(StructName, Vec<Type>, Field),
     Add,
     Sub,
     Mul,
@@ -737,9 +681,6 @@ pub enum Bytecode_ {
         line_number: u16,
         constant: Option<ConstantName>,
     },
-    PackVariant(DatatypeName, VariantName, Vec<Type>),
-    UnpackVariant(DatatypeName, VariantName, Vec<Type>, UnpackType),
-    VariantSwitch(DatatypeName, Vec<(VariantName, BlockLabel)>),
 }
 pub type Bytecode = Spanned<Bytecode_>;
 
@@ -801,26 +742,22 @@ impl ModuleDefinition {
     /// Does not verify the correctness of any internal properties of its
     /// elements
     pub fn new(
-        specified_version: Option<u32>,
         loc: Loc,
         identifier: ModuleIdent,
         friends: Vec<ModuleIdent>,
         imports: Vec<ImportDefinition>,
         explicit_dependency_declarations: Vec<ModuleDependency>,
         structs: Vec<StructDefinition>,
-        enums: Vec<EnumDefinition>,
         constants: Vec<Constant>,
         functions: Vec<(FunctionName, Function)>,
     ) -> Self {
         ModuleDefinition {
-            specified_version,
             loc,
             identifier,
             friends,
             imports,
             explicit_dependency_declarations,
             structs,
-            enums,
             constants,
             functions,
         }
@@ -841,8 +778,8 @@ impl Ability {
 
 impl Type {
     /// Creates a new struct type
-    pub fn r#struct(ident: QualifiedDatatypeIdent, type_actuals: Vec<Type>) -> Type {
-        Type::Datatype(ident, type_actuals)
+    pub fn r#struct(ident: QualifiedStructIdent, type_actuals: Vec<Type>) -> Type {
+        Type::Struct(ident, type_actuals)
     }
 
     /// Creates a new reference type from its mutability and underlying type
@@ -866,11 +803,11 @@ impl Type {
     }
 }
 
-impl QualifiedDatatypeIdent {
+impl QualifiedStructIdent {
     /// Creates a new StructType handle from the name of the module alias and
     /// the name of the struct
-    pub fn new(module: ModuleName, name: DatatypeName) -> Self {
-        QualifiedDatatypeIdent { module, name }
+    pub fn new(module: ModuleName, name: StructName) -> Self {
+        QualifiedStructIdent { module, name }
     }
 
     /// Accessor for the module alias
@@ -879,7 +816,7 @@ impl QualifiedDatatypeIdent {
     }
 
     /// Accessor for the struct name
-    pub fn name(&self) -> &DatatypeName {
+    pub fn name(&self) -> &StructName {
         &self.name
     }
 }
@@ -906,12 +843,12 @@ impl StructDefinition_ {
     pub fn move_declared(
         abilities: BTreeSet<Ability>,
         name: Symbol,
-        type_formals: Vec<DatatypeTypeParameter>,
+        type_formals: Vec<StructTypeParameter>,
         fields: Fields<Type>,
     ) -> Self {
         StructDefinition_ {
             abilities,
-            name: DatatypeName(name),
+            name: StructName(name),
             type_formals,
             fields: StructDefinitionFields::Move { fields },
         }
@@ -923,38 +860,13 @@ impl StructDefinition_ {
     pub fn native(
         abilities: BTreeSet<Ability>,
         name: Symbol,
-        type_formals: Vec<DatatypeTypeParameter>,
+        type_formals: Vec<StructTypeParameter>,
     ) -> Self {
         StructDefinition_ {
             abilities,
-            name: DatatypeName(name),
+            name: StructName(name),
             type_formals,
             fields: StructDefinitionFields::Native,
-        }
-    }
-}
-
-impl EnumDefinition_ {
-    pub fn new(
-        abilities: BTreeSet<Ability>,
-        name: Symbol,
-        type_formals: Vec<DatatypeTypeParameter>,
-        variants: VariantDefinitions,
-    ) -> Self {
-        Self {
-            abilities,
-            name: DatatypeName(name),
-            type_formals,
-            variants,
-        }
-    }
-}
-
-impl VariantDefinition_ {
-    pub fn new(name: Symbol, fields: Fields<Type>) -> Self {
-        Self {
-            name: VariantName(name),
-            fields,
         }
     }
 }
@@ -1064,7 +976,7 @@ impl Exp_ {
 
     /// Creates a new pack/struct-instantiation `Exp` with no location
     /// information
-    pub fn instantiate(n: DatatypeName, tys: Vec<Type>, s: ExpFields) -> Exp {
+    pub fn instantiate(n: StructName, tys: Vec<Type>, s: ExpFields) -> Exp {
         Spanned::unsafe_no_loc(Exp_::Pack(n, tys, s))
     }
 
@@ -1195,12 +1107,6 @@ impl fmt::Display for ModuleDefinition {
         }
         writeln!(f, ")")?;
 
-        writeln!(f, "Enums(")?;
-        for enum_def in &self.enums {
-            writeln!(f, "{}, ", enum_def)?;
-        }
-        writeln!(f, ")")?;
-
         writeln!(f, "Constants(")?;
         for constant in &self.constants {
             writeln!(f, "{};", constant)?;
@@ -1226,7 +1132,7 @@ impl fmt::Display for ImportDefinition {
 impl fmt::Display for ModuleDependency {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Dependency({}, ", &self.name)?;
-        for sdep in &self.datatypes {
+        for sdep in &self.structs {
             writeln!(f, "{}, ", sdep)?
         }
         for fdep in &self.functions {
@@ -1236,7 +1142,7 @@ impl fmt::Display for ModuleDependency {
     }
 }
 
-impl fmt::Display for DatatypeDependency {
+impl fmt::Display for StructDependency {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -1274,31 +1180,6 @@ impl fmt::Display for StructDefinition_ {
     }
 }
 
-impl fmt::Display for EnumDefinition_ {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
-            f,
-            "Enum({}{}, ",
-            self.name,
-            format_struct_type_formals(&self.type_formals)
-        )?;
-        for variant in &self.variants {
-            writeln!(f, "{}", variant)?;
-        }
-        write!(f, ")")
-    }
-}
-
-impl fmt::Display for VariantDefinition_ {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Variant({}", self.name)?;
-        if !self.fields.is_empty() {
-            write!(f, "{}", format_fields(&self.fields))?;
-        }
-        writeln!(f, ")")
-    }
-}
-
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -1329,13 +1210,7 @@ impl fmt::Display for FieldIdent_ {
     }
 }
 
-impl fmt::Display for DatatypeName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl fmt::Display for VariantName {
+impl fmt::Display for StructName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -1419,7 +1294,7 @@ impl fmt::Display for FunctionSignature {
     }
 }
 
-impl fmt::Display for QualifiedDatatypeIdent {
+impl fmt::Display for QualifiedStructIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}", self.module, self.name)
     }
@@ -1445,7 +1320,7 @@ fn format_fun_type_formals(formals: &[(TypeVar, BTreeSet<Ability>)]) -> String {
     }
 }
 
-fn format_struct_type_formals(formals: &[DatatypeTypeParameter]) -> String {
+fn format_struct_type_formals(formals: &[StructTypeParameter]) -> String {
     if formals.is_empty() {
         "".to_string()
     } else {
@@ -1477,7 +1352,7 @@ impl fmt::Display for Type {
             Type::Address => write!(f, "address"),
             Type::Signer => write!(f, "signer"),
             Type::Vector(ty) => write!(f, "vector<{}>", ty),
-            Type::Datatype(ident, tys) => write!(f, "{}{}", ident, format_type_actuals(tys)),
+            Type::Struct(ident, tys) => write!(f, "{}{}", ident, format_type_actuals(tys)),
             Type::Reference(is_mutable, t) => {
                 write!(f, "&{}{}", if *is_mutable { "mut " } else { "" }, t)
             }
@@ -1545,17 +1420,6 @@ impl fmt::Display for LValue_ {
     }
 }
 
-impl fmt::Display for UnpackType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            UnpackType::ByValue => "",
-            UnpackType::ByImmRef => "&",
-            UnpackType::ByMutRef => "&mut",
-        };
-        write!(f, "{}", s)
-    }
-}
-
 impl fmt::Display for Statement_ {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1587,37 +1451,6 @@ impl fmt::Display for Statement_ {
                     )),
                 e
             ),
-            Statement_::UnpackVariant(name, variant_name, tys, bindings, e, unpack_type) => {
-                write!(
-                    f,
-                    "{}{}::{}{} {{ {} }} = {}",
-                    unpack_type,
-                    name,
-                    variant_name,
-                    format_type_actuals(tys),
-                    bindings
-                        .iter()
-                        .fold(String::new(), |acc, (field, var)| format!(
-                            "{} {} : {},",
-                            acc, field, var
-                        )),
-                    e
-                )
-            }
-            Statement_::VariantSwitch(name, lbls, e) => {
-                write!(
-                    f,
-                    "variant_switch ({}: {}) {{ {} }}",
-                    e,
-                    name,
-                    lbls.iter()
-                        .enumerate()
-                        .fold(String::new(), |acc, (tag, (name, lbl))| format!(
-                            "{} {}:{} => {},",
-                            acc, name, tag, lbl
-                        ))
-                )
-            }
         }
     }
 }
@@ -1735,19 +1568,6 @@ impl fmt::Display for Exp_ {
                     write!(f, "({})", intersperse(exps, ", "))
                 }
             }
-            Exp_::PackVariant(name, variant_name, tys, exps) => {
-                write!(
-                    f,
-                    "{}::{}{}{{{}}}",
-                    name,
-                    variant_name,
-                    format_type_actuals(tys),
-                    exps.iter().fold(String::new(), |acc, (field, op)| format!(
-                        "{} {} : {},",
-                        acc, field, op,
-                    ))
-                )
-            }
         }
     }
 }
@@ -1845,38 +1665,6 @@ impl fmt::Display for Bytecode_ {
                         .unwrap_or("<NONE>".to_owned())
                 )
             }
-            Bytecode_::PackVariant(name, variant_name, tys) => {
-                write!(
-                    f,
-                    "PackVariant {}::{}{}",
-                    name,
-                    variant_name,
-                    format_type_actuals(tys)
-                )
-            }
-            Bytecode_::UnpackVariant(name, variant_name, tys, unpack_type) => {
-                write!(
-                    f,
-                    "UnpackVariant {}{}::{}{}",
-                    unpack_type,
-                    name,
-                    variant_name,
-                    format_type_actuals(tys)
-                )
-            }
-            Bytecode_::VariantSwitch(name, lbls) => {
-                write!(
-                    f,
-                    "VariantSwitch {}{}",
-                    name,
-                    lbls.iter()
-                        .enumerate()
-                        .fold(String::new(), |acc, (tag, (name, lbl))| format!(
-                            "{} {}:{} => {},",
-                            acc, name, tag, lbl
-                        ))
-                )
-            }
         }
     }
 }
@@ -1897,7 +1685,7 @@ fn format_move_value(v: &MoveValue) -> String {
                 .join(", ");
             format!("vector[{}]", items)
         }
-        MoveValue::Struct(_) | MoveValue::Signer(_) | MoveValue::Variant(_) => {
+        MoveValue::Struct(_) | MoveValue::Signer(_) => {
             panic!("Should be inexpressible as a constant")
         }
         MoveValue::U16(u) => format!("{}u16", u),

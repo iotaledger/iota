@@ -5,22 +5,24 @@
 module dynamic_fields::dynamic_fields_test {
     use iota::dynamic_field as dfield;
     use iota::dynamic_object_field as dof;
+    use iota::object::{Self, UID};
+    use iota::tx_context::{Self, TxContext};
     use iota::transfer;
 
-    public struct Test has key {
+    struct Test has key {
         id: UID,
     }
 
-    public struct Test1 has key, store {
+    struct Test1 has key, store {
         id: UID,
     }
 
-    public struct Test2 has key, store {
+    struct Test2 has key, store {
         id: UID,
     }
 
     fun init(ctx: &mut TxContext) {
-        let mut test = Test{
+        let test = Test{
             id: object::new(ctx),
         };
 

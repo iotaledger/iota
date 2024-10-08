@@ -2,7 +2,8 @@
 # see https://diesel.rs/guides/configuring-diesel-cli
 
 [print_schema]
-file = "src/schema/pg.rs"
+file = "src/schema.rs"
+patch_file = "src/schema.patch"
 
 [migrations_directory]
-dir = "migrations/pg"
+dir = "migrations"

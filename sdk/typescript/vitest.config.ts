@@ -7,8 +7,8 @@ import { config } from 'dotenv';
 
 export default defineConfig({
     test: {
-        minWorkers: 1,
-        maxWorkers: 4,
+        minThreads: 1,
+        maxThreads: 8,
         hookTimeout: 1000000,
         testTimeout: 1000000,
         env: {
@@ -18,7 +18,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@iota/bcs': new URL('../bcs/src', import.meta.url).pathname,
+            '@iota/bcs': new URL('../bcs/src', import.meta.url).toString(),
         },
     },
 });

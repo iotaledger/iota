@@ -4,24 +4,24 @@
 
 use iota_network::tonic;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::ObjectID,
     crypto::deterministic_random_account_key,
     multiaddr::Multiaddr,
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData,
+        CallArg, CertifiedTransaction, ObjectArg, TransactionData,
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
     },
     utils::to_sender_signed_transaction,
+    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
 use narwhal_types::{Empty, TransactionProto, Transactions, TransactionsServer};
-use tokio::sync::mpsc::{Receiver, Sender, channel};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, authority_tests::init_state_with_objects},
+    authority::{authority_tests::init_state_with_objects, AuthorityState},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
 };
@@ -42,15 +42,13 @@ pub fn test_gas_objects() -> Vec<Object> {
 }
 
 /// Fixture: a few test certificates containing a shared object.
-pub async fn test_certificates(
-    authority: &AuthorityState,
-    shared_object: Object,
-) -> Vec<CertifiedTransaction> {
+pub async fn test_certificates(authority: &AuthorityState) -> Vec<CertifiedTransaction> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     let (sender, keypair) = deterministic_random_account_key();
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
+    let shared_object = Object::shared_for_testing();
     let shared_object_arg = ObjectArg::SharedObject {
         id: shared_object.id(),
         initial_shared_version: shared_object.version(),
@@ -107,47 +105,44 @@ pub async fn test_certificates(
     certificates
 }
 
-pub fn make_consensus_adapter_for_test(
-    state: Arc<AuthorityState>,
-    execute: bool,
-) -> Arc<ConsensusAdapter> {
+#[tokio::test]
+async fn submit_transaction_to_consensus_adapter() {
+    telemetry_subscribers::init_for_testing();
+
+    // Initialize an authority with a (owned) gas object and a shared object; then
+    // make a test certificate.
+    let mut objects = test_gas_objects();
+    objects.push(Object::shared_for_testing());
+    let state = init_state_with_objects(objects).await;
+    let certificate = test_certificates(&state).await.pop().unwrap();
+    let epoch_store = state.epoch_store_for_testing();
+
     let metrics = ConsensusAdapterMetrics::new_test();
 
     #[derive(Clone)]
-    struct SubmitDirectly(Arc<AuthorityState>, bool);
+    struct SubmitDirectly(Arc<AuthorityState>);
 
     #[async_trait::async_trait]
     impl SubmitToConsensus for SubmitDirectly {
         async fn submit_to_consensus(
             &self,
-            transactions: &[ConsensusTransaction],
+            transaction: &ConsensusTransaction,
             epoch_store: &Arc<AuthorityPerEpochStore>,
         ) -> IotaResult {
-            let sequenced_transactions = transactions
-                .iter()
-                .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))
-                .collect();
-            let transactions = epoch_store
+            epoch_store
                 .process_consensus_transactions_for_tests(
-                    sequenced_transactions,
+                    vec![SequencedConsensusTransaction::new_test(transaction.clone())],
                     &Arc::new(CheckpointServiceNoop {}),
-                    self.0.get_object_cache_reader().as_ref(),
-                    &self.0.metrics,
-                    true,
+                    self.0.get_cache_reader().as_ref(),
+                    &self.0.metrics.skipped_consensus_txns,
                 )
                 .await?;
-            if self.1 {
-                self.0
-                    .transaction_manager()
-                    .enqueue(transactions, epoch_store);
-            }
             Ok(())
         }
     }
-    let epoch_store = state.epoch_store_for_testing();
     // Make a new consensus adapter instance.
-    Arc::new(ConsensusAdapter::new(
-        Arc::new(SubmitDirectly(state.clone(), execute)),
+    let adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(SubmitDirectly(state.clone())),
         state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,
@@ -156,27 +151,7 @@ pub fn make_consensus_adapter_for_test(
         None,
         metrics,
         epoch_store.protocol_config().clone(),
-    ))
-}
-
-#[tokio::test]
-async fn submit_transaction_to_consensus_adapter() {
-    telemetry_subscribers::init_for_testing();
-
-    // Initialize an authority with a (owned) gas object and a shared object; then
-    // make a test certificate.
-    let mut objects = test_gas_objects();
-    let shared_object = Object::shared_for_testing();
-    objects.push(shared_object.clone());
-    let state = init_state_with_objects(objects).await;
-    let certificate = test_certificates(&state, shared_object)
-        .await
-        .pop()
-        .unwrap();
-    let epoch_store = state.epoch_store_for_testing();
-
-    // Make a new consensus adapter instance.
-    let adapter = make_consensus_adapter_for_test(state.clone(), false);
+    ));
 
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to

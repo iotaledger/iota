@@ -29,6 +29,7 @@ import {
 import { type SignedMessage, type SignedTransaction } from '_src/ui/app/WalletSigner';
 import type { AppDispatch } from '_store';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { type SerializedSignature } from '@iota/iota-sdk/cryptography';
 import { toB64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
@@ -156,7 +157,7 @@ export class BackgroundClient {
         );
     }
 
-    public signData(addressOrID: string, data: Uint8Array): Promise<string> {
+    public signData(addressOrID: string, data: Uint8Array): Promise<SerializedSignature> {
         return lastValueFrom(
             this.sendMessage(
                 createMessage<MethodPayload<'signData'>>({

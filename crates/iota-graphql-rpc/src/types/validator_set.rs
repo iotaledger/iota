@@ -7,13 +7,12 @@ use async_graphql::{
     *,
 };
 
+use super::{big_int::BigInt, validator::Validator};
 use crate::{
     consistency::ConsistentIndexCursor,
     types::{
-        big_int::BigInt,
         cursor::{JsonCursor, Page},
         iota_address::IotaAddress,
-        validator::Validator,
     },
 };
 

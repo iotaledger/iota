@@ -4,7 +4,6 @@
 
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { recipe } from '@vanilla-extract/recipes';
-
 import { themeVars } from '../../themes/themeContract.js';
 
 export const textVariants = recipe({
@@ -20,6 +19,7 @@ export const textVariants = recipe({
             bold: { fontWeight: themeVars.fontWeights.bold },
         },
         color: {
+            body: { color: themeVars.colors.body },
             muted: { color: themeVars.colors.bodyMuted },
             danger: { color: themeVars.colors.bodyDanger },
         },

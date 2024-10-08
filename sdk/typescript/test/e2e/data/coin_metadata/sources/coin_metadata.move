@@ -7,11 +7,12 @@ module coin_metadata::test {
     use iota::coin;
     use iota::transfer;
     use iota::url;
+    use iota::tx_context::{Self, TxContext};
 
-    public struct TEST has drop {}
+    struct TEST has drop {}
 
     fun init(witness: TEST, ctx: &mut TxContext) {
-        let (mut treasury_cap, metadata) = coin::create_currency<TEST>(
+        let (treasury_cap, metadata) = coin::create_currency<TEST>(
             witness,
             2,
             b"TEST",

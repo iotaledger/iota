@@ -6,21 +6,20 @@ pub mod build;
 pub mod coverage;
 pub mod disassemble;
 pub mod docgen;
+pub mod errmap;
 pub mod info;
 pub mod migrate;
 pub mod new;
 pub mod test;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use move_package::source_package::layout::SourcePackageLayout;
 
-pub fn reroot_path(path: Option<&Path>) -> anyhow::Result<PathBuf> {
-    let path = path
-        .map(Path::canonicalize)
-        .unwrap_or_else(|| PathBuf::from(".").canonicalize())?;
+pub fn reroot_path(path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    let path = path.unwrap_or_else(|| PathBuf::from("."));
     // Always root ourselves to the package root, and then compile relative to that.
-    let rooted_path = SourcePackageLayout::try_find_root(&path)?;
+    let rooted_path = SourcePackageLayout::try_find_root(&path.canonicalize()?)?;
     std::env::set_current_dir(rooted_path).unwrap();
 
     Ok(PathBuf::from("."))

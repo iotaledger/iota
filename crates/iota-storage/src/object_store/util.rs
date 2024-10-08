@@ -6,13 +6,13 @@ use std::{
     collections::BTreeMap, num::NonZeroUsize, ops::Range, path::PathBuf, sync::Arc, time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use backoff::future::retry;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use indicatif::ProgressBar;
 use itertools::Itertools;
-use object_store::{DynObjectStore, Error, ObjectStore, path::Path};
+use object_store::{path::Path, DynObjectStore, Error, ObjectStore};
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{error, warn};
@@ -90,7 +90,6 @@ pub async fn exists<S: ObjectStoreGetExt>(store: &S, src: &Path) -> bool {
     store.get_bytes(src).await.is_ok()
 }
 
-/// Writes bytes in the store with specified path.
 pub async fn put<S: ObjectStorePutExt>(store: &S, src: &Path, bytes: Bytes) -> Result<()> {
     retry(backoff::ExponentialBackoff::default(), || async {
         if !bytes.is_empty() {
@@ -132,8 +131,6 @@ pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
 ) -> Result<Vec<()>> {
     let mut instant = Instant::now();
     let progress_bar_clone = progress_bar.clone();
-    // Copies files from dest to src in parallel, and updates the progress bar if
-    // it's provided
     let results = futures::stream::iter(src.iter().zip(dest.iter()))
         .map(|(path_in, path_out)| async move {
             let ret = copy_file(path_in, path_out, src_store, dest_store).await;
@@ -153,8 +150,6 @@ pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
     Ok(results.into_iter().collect())
 }
 
-/// Copies all files in the directory from the source store to the destination
-/// store.
 pub async fn copy_recursively<S: ObjectStoreGetExt + ObjectStoreListExt, D: ObjectStorePutExt>(
     dir: &Path,
     src_store: &S,
@@ -163,7 +158,7 @@ pub async fn copy_recursively<S: ObjectStoreGetExt + ObjectStoreListExt, D: Obje
 ) -> Result<Vec<()>> {
     let mut input_paths = vec![];
     let mut output_paths = vec![];
-    let mut paths = src_store.list_objects(Some(dir)).await;
+    let mut paths = src_store.list_objects(Some(dir)).await?;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             input_paths.push(object_metadata.location.clone());
@@ -210,7 +205,7 @@ pub async fn delete_recursively<S: ObjectStoreDeleteExt + ObjectStoreListExt>(
     concurrency: NonZeroUsize,
 ) -> Result<Vec<()>> {
     let mut paths_to_delete = vec![];
-    let mut paths = store.list_objects(Some(path)).await;
+    let mut paths = store.list_objects(Some(path)).await?;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             paths_to_delete.push(object_metadata.location);
@@ -247,7 +242,7 @@ pub async fn find_all_dirs_with_epoch_prefix(
     let entries = store.list_with_delimiter(prefix).await?;
     for entry in entries.common_prefixes {
         if let Some(filename) = entry.filename() {
-            if !filename.starts_with("epoch_") || filename.ends_with(".tmp") {
+            if !filename.starts_with("epoch_") {
                 continue;
             }
             let epoch = filename
@@ -260,7 +255,6 @@ pub async fn find_all_dirs_with_epoch_prefix(
     Ok(dirs)
 }
 
-/// Finds all epochs in the store and returns them as a sorted list.
 pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<u64>> {
     let remote_epoch_dirs = find_all_dirs_with_epoch_prefix(&object_store, None).await?;
     let mut out = vec![];
@@ -283,10 +277,6 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<u6
     Ok(out)
 }
 
-/// Writes the epochs existed in the store to the root MANIFEST (contains only a
-/// list of epochs in the store) every 300 seconds.
-// TODO: Is 300 seconds too frequent? Or should this be triggered by other
-// events?
 pub async fn run_manifest_update_loop(
     store: Arc<DynObjectStore>,
     mut recv: tokio::sync::broadcast::Receiver<()>,
@@ -342,8 +332,7 @@ pub async fn find_all_files_with_epoch_prefix(
 /// store is `epoch_N` then it is expected that the store will have all epoch
 /// directories from `epoch_0` to `epoch_N`. Additionally, any epoch directory
 /// should have the passed in marker file present or else that epoch number is
-/// already considered as missing.
-/// The returned list will contain epoch_N+1.
+/// already considered as missing
 pub async fn find_missing_epochs_dirs(
     store: &Arc<DynObjectStore>,
     success_marker: &str,
@@ -388,7 +377,7 @@ pub fn get_path(prefix: &str) -> Path {
 }
 
 // Snapshot MANIFEST file is very simple. Just a newline delimited list of all
-// paths in the snapshot directory this simplicty enables easy parsing for
+// paths in the snapshot directory this simplicity enables easy parsing for
 // scripts to download snapshots
 pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
     dir: &Path,
@@ -396,7 +385,7 @@ pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
     epoch_prefix: String,
 ) -> Result<()> {
     let mut file_names = vec![];
-    let mut paths = store.list_objects(Some(dir)).await;
+    let mut paths = store.list_objects(Some(dir)).await?;
     while let Some(res) = paths.next().await {
         if let Ok(object_metadata) = res {
             // trim the "epoch_XX/" dir prefix here
@@ -433,7 +422,7 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::object_store::util::{
-        MANIFEST_FILENAME, copy_recursively, delete_recursively, write_snapshot_manifest,
+        copy_recursively, delete_recursively, write_snapshot_manifest, MANIFEST_FILENAME,
     };
 
     #[tokio::test]

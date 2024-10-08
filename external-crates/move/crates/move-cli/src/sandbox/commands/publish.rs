@@ -3,6 +3,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use anyhow::{bail, Result};
+use move_binary_format::errors::Location;
+use move_command_line_common::env::get_bytecode_version_from_env;
+use move_package::compilation::compiled_package::CompiledPackage;
+use move_vm_runtime::move_vm::MoveVM;
+use move_vm_test_utils::gas_schedule::CostTable;
+
 use crate::{
     sandbox::utils::{
         explain_publish_changeset, explain_publish_error, get_gas_status,
@@ -10,12 +19,6 @@ use crate::{
     },
     NativeFunctionRecord,
 };
-use anyhow::{bail, Result};
-use move_binary_format::errors::Location;
-use move_package::compilation::compiled_package::CompiledPackage;
-use move_vm_runtime::move_vm::MoveVM;
-use move_vm_test_utils::gas_schedule::CostTable;
-use std::collections::BTreeMap;
 
 pub fn publish(
     natives: impl IntoIterator<Item = NativeFunctionRecord>,
@@ -80,7 +83,10 @@ pub fn publish(
         return Ok(());
     }
 
-    // use the publish_module API from the VM if we do not allow breaking changes
+    let bytecode_version = get_bytecode_version_from_env();
+
+    // use the the publish_module API from the VM if we do not allow breaking
+    // changes
     if !ignore_breaking_changes {
         let vm = MoveVM::new(natives).unwrap();
         let mut gas_status = get_gas_status(cost_table, None)?;
@@ -92,7 +98,7 @@ pub fn publish(
             let mut sender_opt = None;
             let mut module_bytes_vec = vec![];
             for unit in &modules_to_publish {
-                let module_bytes = unit.unit.serialize();
+                let module_bytes = unit.unit.serialize(bytecode_version);
                 module_bytes_vec.push(module_bytes);
 
                 let module_address = *unit.unit.module.self_id().address();
@@ -115,7 +121,7 @@ pub fn publish(
                     if let Err(err) = res {
                         println!("Invalid multi-module publishing: {}", err);
                         if let Location::Module(module_id) = err.location() {
-                            // find the module where error occurs and explain
+                            // find the module where error occurres and explain
                             if let Some(unit) = modules_to_publish
                                 .into_iter()
                                 .find(|&x| x.unit.name().as_str() == module_id.name().as_str())
@@ -134,7 +140,7 @@ pub fn publish(
         } else {
             // publish modules sequentially, one module at a time
             for unit in &modules_to_publish {
-                let module_bytes = unit.unit.serialize();
+                let module_bytes = unit.unit.serialize(bytecode_version);
                 let id = unit.unit.module.self_id();
                 let sender = *id.address();
 
@@ -148,7 +154,8 @@ pub fn publish(
         }
 
         if !has_error {
-            let changeset = session.finish().0?;
+            let (changeset, events) = session.finish().0?;
+            assert!(events.is_empty());
             if verbose {
                 explain_publish_changeset(&changeset);
             }
@@ -168,7 +175,7 @@ pub fn publish(
         let mut serialized_modules = vec![];
         for unit in modules_to_publish {
             let id = unit.unit.module.self_id();
-            let module_bytes = unit.unit.serialize();
+            let module_bytes = unit.unit.serialize(bytecode_version);
             serialized_modules.push((id, module_bytes));
         }
         state.save_modules(&serialized_modules)?;

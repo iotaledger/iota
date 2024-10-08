@@ -8,17 +8,17 @@ module base_addr::base {
     use iota::transfer;
     use base_addr::friend_module::{Self, X};
 
-    public struct A has store, drop {
+    struct A has store, drop {
         v: u16,
     }
 
-    public struct B has key {
+    struct B has key {
         id: UID,
         field1: u32,
         field2: A,
     }
 
-    public struct C has key {
+    struct C has key {
         id: UID,
         field1: u64,
         field2: X,

@@ -3,7 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Serializable } from '_src/shared/cryptography/keystore';
-import { toSerializedSignature, type Keypair } from '@iota/iota-sdk/cryptography';
+import {
+    toSerializedSignature,
+    type Keypair,
+    type SerializedSignature,
+} from '@iota/iota-sdk/cryptography';
 import { blake2b } from '@noble/hashes/blake2b';
 
 import { setupAutoLockAlarm } from '../auto-lock-accounts';
@@ -73,10 +77,10 @@ export abstract class Account<
         return data as T;
     }
 
-    protected async generateSignature(data: Uint8Array, keyPair: Keypair) {
+    protected generateSignature(data: Uint8Array, keyPair: Keypair) {
         const digest = blake2b(data, { dkLen: 32 });
         const pubkey = keyPair.getPublicKey();
-        const signature = await keyPair.sign(digest);
+        const signature = keyPair.signData(digest);
         const signatureScheme = keyPair.getKeyScheme();
         return toSerializedSignature({
             signature,
@@ -178,7 +182,7 @@ export function isPasswordUnLockable(account: unknown): account is PasswordUnloc
 
 export interface SigningAccount {
     readonly canSign: true;
-    signData(data: Uint8Array): Promise<string>;
+    signData(data: Uint8Array): Promise<SerializedSignature>;
 }
 
 export function isSigningAccount(account: unknown): account is SigningAccount {

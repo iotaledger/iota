@@ -82,7 +82,7 @@ module iota::clock {
 
     #[test_only]
     public fun set_for_testing(clock: &mut Clock, timestamp_ms: u64) {
-        assert!(timestamp_ms >= clock.timestamp_ms);
+        assert!(timestamp_ms >= clock.timestamp_ms, 0);
         clock.timestamp_ms = timestamp_ms;
     }
 

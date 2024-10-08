@@ -6,24 +6,21 @@ use core::result::Result::Ok;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::{
-    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, dsl::count,
-};
-use downcast::Any;
+use diesel::{dsl::count, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_types::base_types::ObjectID;
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
 use super::IndexerAnalyticalStore;
 use crate::{
-    db::ConnectionPool,
+    db::PgConnectionPool,
     errors::{Context, IndexerError},
     models::{
         address_metrics::StoredAddressMetrics,
         checkpoints::StoredCheckpoint,
         move_call_metrics::{
-            QueriedMoveCallMetrics, QueriedMoveMetrics, StoredMoveCallMetrics,
-            build_move_call_metric_query,
+            build_move_call_metric_query, QueriedMoveCallMetrics, QueriedMoveMetrics,
+            StoredMoveCallMetrics,
         },
         network_metrics::{StoredEpochPeakTps, Tps},
         transactions::{
@@ -44,11 +41,11 @@ use crate::{
 /// implementation of the `IndexerAnalyticalStore` trait.
 #[derive(Clone)]
 pub struct PgIndexerAnalyticalStore {
-    blocking_cp: ConnectionPool<PgConnection>,
+    blocking_cp: PgConnectionPool,
 }
 
 impl PgIndexerAnalyticalStore {
-    pub fn new(blocking_cp: ConnectionPool<PgConnection>) -> Self {
+    pub fn new(blocking_cp: PgConnectionPool) -> Self {
         Self { blocking_cp }
     }
 }

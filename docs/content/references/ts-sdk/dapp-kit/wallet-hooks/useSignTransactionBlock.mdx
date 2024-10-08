@@ -1,42 +1,15 @@
+import { UseSignTransactionBlockExample } from '@site/src/components/sdk-examples/wallet-hooks';
+
 # useSignTransactionBlock
 
 Use the `useSignTransactionBlock` hook to prompt the user to sign a transaction block with their
 wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        mainnet: { url: getFullnodeUrl('mainnet') },
-    };
+```ts
+import { ConnectButton, useCurrentAccount, useSignTransactionBlock } from '@iota/dapp-kit';
+import { useState } from 'react';
 
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseSignTransactionBlockExample = withProviders(() => {
+function MyComponent() {
     const { mutate: signTransactionBlock } = useSignTransactionBlock();
     const [signature, setSignature] = useState('');
     const currentAccount = useCurrentAccount();
@@ -56,7 +29,7 @@ const UseSignTransactionBlockExample = withProviders(() => {
                                     },
                                     {
                                         onSuccess: (result) => {
-                                            console.log('signed message', result);
+                                            console.log('signed transaction block', result);
                                             setSignature(result.signature);
                                         },
                                     },
@@ -71,10 +44,12 @@ const UseSignTransactionBlockExample = withProviders(() => {
             )}
         </div>
     );
-});
-
-render(<UseSignTransactionBlockExample/>)
+}
 ```
+
+## Example
+
+<UseSignTransactionBlockExample />
 
 ## Arguments
 

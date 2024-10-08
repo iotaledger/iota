@@ -7,7 +7,7 @@ use move_binary_format::file_format::{
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
     Visibility::Public,
 };
-use move_bytecode_verifier_meter::bound::BoundMeter;
+use move_bytecode_verifier::meter::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
 
 use crate::unit_tests::production_config;
@@ -48,7 +48,6 @@ fn many_backedges() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![Bytecode::LdTrue, Bytecode::LdU8(0), Bytecode::Ret],
-            jump_tables: vec![],
         }),
     });
 
@@ -71,7 +70,6 @@ fn many_backedges() {
             code: Some(CodeUnit {
                 locals: SignatureIndex(1),
                 code: vec![],
-                jump_tables: vec![],
             }),
         });
 
@@ -89,11 +87,11 @@ fn many_backedges() {
         code.push(Bytecode::Ret);
     }
 
-    let (verifier_config, meter_config) = production_config();
-    let mut meter = BoundMeter::new(meter_config);
+    let config = production_config();
+    let mut meter = BoundMeter::new(&config);
     let result = move_bytecode_verifier::verify_module_with_config_for_test(
         "many_backedges",
-        &verifier_config,
+        &config,
         &m,
         &mut meter,
     );

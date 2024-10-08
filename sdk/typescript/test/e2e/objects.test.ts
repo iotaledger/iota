@@ -4,7 +4,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { Transaction } from '../../src/transactions';
+import { TransactionBlock } from '../../src/transactions';
 import { normalizeIotaAddress, IOTA_TYPE_ARG } from '../../src/utils';
 import { setup, TestToolbox } from './utils/setup';
 
@@ -116,15 +116,14 @@ describe('Object Reading API', () => {
             coinType: IOTA_TYPE_ARG,
         });
 
-        const tx = new Transaction();
+        const tx = new TransactionBlock();
         // Transfer the entire gas object:
-        tx.transferObjects([tx.gas], normalizeIotaAddress('0x2'));
+        tx.transferObjects([tx.gas], tx.pure(normalizeIotaAddress('0x2')));
 
-        const { digest } = await toolbox.client.signAndExecuteTransaction({
+        await toolbox.client.signAndExecuteTransactionBlock({
             signer: toolbox.keypair,
-            transaction: tx,
+            transactionBlock: tx,
         });
-        await toolbox.client.waitForTransaction({ digest });
 
         const res = await toolbox.client.tryGetPastObject({
             id: data[0].coinObjectId,

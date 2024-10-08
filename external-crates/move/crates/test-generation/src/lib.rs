@@ -21,9 +21,10 @@ use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use getrandom::getrandom;
 use module_generation::generate_module;
 use move_binary_format::{
+    access::ModuleAccess,
     errors::VMError,
     file_format::{
-        AbilitySet, CompiledModule, DatatypeHandleIndex, FunctionDefinitionIndex, SignatureToken,
+        AbilitySet, CompiledModule, FunctionDefinitionIndex, SignatureToken, StructHandleIndex,
     },
 };
 use move_bytecode_verifier::verify_module_unmetered;
@@ -56,7 +57,6 @@ fn run_verifier(module: CompiledModule) -> Result<CompiledModule, String> {
 static STORAGE_WITH_MOVE_STDLIB: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::new();
     let (_, compiled_units) = Compiler::from_files(
-        None,
         move_stdlib::move_stdlib_files(),
         vec![],
         move_stdlib::move_stdlib_named_addresses(),
@@ -100,8 +100,8 @@ fn run_vm(module: CompiledModule) -> Result<(), VMError> {
             | SignatureToken::U8
             | SignatureToken::U128
             | SignatureToken::Signer
-            | SignatureToken::Datatype(_)
-            | SignatureToken::DatatypeInstantiation(_)
+            | SignatureToken::Struct(_)
+            | SignatureToken::StructInstantiation(_)
             | SignatureToken::Reference(_)
             | SignatureToken::MutableReference(_)
             | SignatureToken::TypeParameter(_)
@@ -135,10 +135,9 @@ fn execute_function_in_module(
         module.identifier_at(entry_name_idx)
     };
     {
-        let vm = MoveVM::new(move_stdlib_natives::all_natives(
+        let vm = MoveVM::new(move_stdlib::natives::all_natives(
             AccountAddress::from_hex_literal("0x1").unwrap(),
-            move_stdlib_natives::GasParameters::zeros(),
-            /* silent debug */ true,
+            move_stdlib::natives::GasParameters::zeros(),
         ))
         .unwrap();
 
@@ -237,8 +236,8 @@ pub fn module_frame_generation(
     let generation_options = config::module_generation_settings();
     let mut rng = StdRng::from_seed(seed);
     let mut module = generate_module(&mut rng, generation_options.clone());
-    // Either get the number of iterations provided by the user, or iterate "infinitely"--up to
-    // u128::MAX number of times.
+    // Either get the number of iterations provided by the user, or iterate
+    // "infinitely"--up to u128::MAX number of times.
     let iters = num_iters.map(|x| x as u128).unwrap_or_else(|| u128::MAX);
 
     while generated < iters && sender.send(module).is_ok() {
@@ -398,10 +397,10 @@ pub(crate) fn substitute(token: &SignatureToken, tys: &[SignatureToken]) -> Sign
         Address => Address,
         Signer => Signer,
         Vector(ty) => Vector(Box::new(substitute(ty, tys))),
-        Datatype(idx) => Datatype(*idx),
-        DatatypeInstantiation(inst) => {
-            let (idx, type_params) = &**inst;
-            DatatypeInstantiation(Box::new((
+        Struct(idx) => Struct(*idx),
+        StructInstantiation(struct_inst) => {
+            let (idx, type_params) = &**struct_inst;
+            StructInstantiation(Box::new((
                 *idx,
                 type_params.iter().map(|ty| substitute(ty, tys)).collect(),
             )))
@@ -419,7 +418,7 @@ pub(crate) fn substitute(token: &SignatureToken, tys: &[SignatureToken]) -> Sign
 }
 
 pub fn abilities(
-    module: &CompiledModule,
+    module: &impl ModuleAccess,
     ty: &SignatureToken,
     constraints: &[AbilitySet],
 ) -> AbilitySet {
@@ -437,13 +436,13 @@ pub fn abilities(
             vec![abilities(module, ty, constraints)],
         )
         .unwrap(),
-        Datatype(idx) => {
-            let sh = module.datatype_handle_at(*idx);
+        Struct(idx) => {
+            let sh = module.struct_handle_at(*idx);
             sh.abilities
         }
-        DatatypeInstantiation(inst) => {
-            let (idx, type_args) = &**inst;
-            let sh = module.datatype_handle_at(*idx);
+        StructInstantiation(struct_inst) => {
+            let (idx, type_args) = &**struct_inst;
+            let sh = module.struct_handle_at(*idx);
             let declared_abilities = sh.abilities;
             let declared_phantom_parameters =
                 sh.type_parameters.iter().map(|param| param.is_phantom);
@@ -462,22 +461,22 @@ pub fn abilities(
 
 pub(crate) fn get_struct_handle_from_reference(
     reference_signature: &SignatureToken,
-) -> Option<DatatypeHandleIndex> {
+) -> Option<StructHandleIndex> {
     match reference_signature {
         SignatureToken::Reference(signature) => match &**signature {
-            SignatureToken::Datatype(idx) => Some(*idx),
-            SignatureToken::DatatypeInstantiation(inst) => {
-                let (idx, _) = &**inst;
+            SignatureToken::StructInstantiation(struct_inst) => {
+                let (idx, _) = &**struct_inst;
                 Some(*idx)
             }
+            SignatureToken::Struct(idx) => Some(*idx),
             _ => None,
         },
         SignatureToken::MutableReference(signature) => match &**signature {
-            SignatureToken::Datatype(idx) => Some(*idx),
-            SignatureToken::DatatypeInstantiation(inst) => {
-                let (idx, _) = &**inst;
+            SignatureToken::StructInstantiation(struct_inst) => {
+                let (idx, _) = &**struct_inst;
                 Some(*idx)
             }
+            SignatureToken::Struct(idx) => Some(*idx),
             _ => None,
         },
         _ => None,
@@ -491,11 +490,11 @@ pub(crate) fn get_type_actuals_from_reference(
 
     match token {
         Reference(box_) | MutableReference(box_) => match &**box_ {
-            DatatypeInstantiation(inst) => {
-                let (_, tys) = &**inst;
+            StructInstantiation(struct_inst) => {
+                let (_, tys) = &**struct_inst;
                 Some(tys.clone())
             }
-            Datatype(_) => Some(vec![]),
+            Struct(_) => Some(vec![]),
             _ => None,
         },
         Bool
@@ -505,8 +504,8 @@ pub(crate) fn get_type_actuals_from_reference(
         | Address
         | Signer
         | Vector(_)
-        | Datatype(_)
-        | DatatypeInstantiation(_)
+        | Struct(_)
+        | StructInstantiation(_)
         | TypeParameter(_)
         | U16
         | U32

@@ -6,7 +6,7 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
-    io::{BufWriter, prelude::Write},
+    io::{prelude::Write, BufWriter},
 };
 
 use anyhow::Result;
@@ -14,22 +14,21 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
-    timelock::timelock::{self, TimeLock, is_timelocked_balance},
+    timelock::timelock::{self, is_timelocked_balance, TimeLock},
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
-use move_binary_format::file_format_common::VERSION_MAX;
 use tracing::info;
 
 use crate::stardust::{
     migration::{
-        MigrationTargetNetwork,
         executor::Executor,
         verification::{created_objects::CreatedObjects, verify_outputs},
+        MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
     types::output_header::OutputHeader,
@@ -407,7 +406,7 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
     pkg.get_modules()
         .map(|module| {
             let mut buf = Vec::new();
-            module.serialize_with_version(VERSION_MAX, &mut buf)?;
+            module.serialize(&mut buf)?;
             Ok(buf)
         })
         .collect::<Result<_>>()
@@ -434,7 +433,7 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::{TimeLock, to_genesis_object},
+        timelock::timelock::{to_genesis_object, TimeLock},
     };
 
     use super::*;

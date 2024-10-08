@@ -18,28 +18,30 @@ module iota_system::iota_system_state_inner {
     use iota::object;
     use iota_system::validator;
 
+    friend iota_system::iota_system;
+
     const SYSTEM_STATE_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
     // Not using MAX - 9 since it's already used in the shallow upgrade test.
     const SYSTEM_STATE_VERSION_V2: u64 = 18446744073709551607;  // u64::MAX - 8
 
-    public struct SystemParameters has store {
+    struct SystemParameters has store {
         epoch_duration_ms: u64,
         extra_fields: Bag,
     }
 
-    public struct ValidatorSet has store {
+    struct ValidatorSet has store {
         active_validators: vector<Validator>,
         inactive_validators: Table<ID, ValidatorWrapper>,
         extra_fields: Bag,
     }
 
-    public struct ValidatorSetV2 has store {
+    struct ValidatorSetV2 has store {
         active_validators: vector<ValidatorV2>,
         inactive_validators: Table<ID, ValidatorWrapper>,
         extra_fields: Bag,
     }
 
-    public struct IotaSystemStateInner has store {
+    struct IotaSystemStateInner has store {
         epoch: u64,
         protocol_version: u64,
         system_state_version: u64,
@@ -52,7 +54,7 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
-    public struct IotaSystemStateInnerV2 has store {
+    struct IotaSystemStateInnerV2 has store {
         new_dummy_field: u64,
         epoch: u64,
         protocol_version: u64,
@@ -66,7 +68,7 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
-    public(package) fun create(
+    public(friend) fun create(
         validators: vector<Validator>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
@@ -93,7 +95,7 @@ module iota_system::iota_system_state_inner {
         system_state
     }
 
-    public(package) fun advance_epoch(
+    public(friend) fun advance_epoch(
         self: &mut IotaSystemStateInnerV2,
         new_epoch: u64,
         next_protocol_version: u64,
@@ -116,9 +118,9 @@ module iota_system::iota_system_state_inner {
         storage_rebate
     }
 
-    public(package) fun protocol_version(self: &IotaSystemStateInnerV2): u64 { self.protocol_version }
-    public(package) fun system_state_version(self: &IotaSystemStateInnerV2): u64 { self.system_state_version }
-    public(package) fun genesis_system_state_version(): u64 {
+    public(friend) fun protocol_version(self: &IotaSystemStateInnerV2): u64 { self.protocol_version }
+    public(friend) fun system_state_version(self: &IotaSystemStateInnerV2): u64 { self.system_state_version }
+    public(friend) fun genesis_system_state_version(): u64 {
         SYSTEM_STATE_VERSION_V1
     }
 
@@ -130,7 +132,7 @@ module iota_system::iota_system_state_inner {
         }
     }
 
-    public(package) fun v1_to_v2(v1: IotaSystemStateInner): IotaSystemStateInnerV2 {
+    public(friend) fun v1_to_v2(v1: IotaSystemStateInner): IotaSystemStateInnerV2 {
         let IotaSystemStateInner {
             epoch,
             protocol_version,
@@ -168,11 +170,11 @@ module iota_system::iota_system_state_inner {
 
     fun validator_set_v1_to_v2(v1: ValidatorSet): ValidatorSetV2 {
         let ValidatorSet {
-            mut active_validators,
+            active_validators,
             inactive_validators,
             extra_fields,
         } = v1;
-        let mut new_active_validators = vector[];
+        let new_active_validators = vector[];
         while (!vector::is_empty(&active_validators)) {
             let validator = vector::pop_back(&mut active_validators);
             let validator = validator::v1_to_v2(validator);

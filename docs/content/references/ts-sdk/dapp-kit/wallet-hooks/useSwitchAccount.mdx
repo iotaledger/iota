@@ -1,41 +1,13 @@
+import { UseSwitchAccountExample } from '@site/src/components/sdk-examples/wallet-hooks';
+
 # useSwitchAccount
 
 The `useSwitchAccount` hook is a mutation hook for establishing a connection to a specific wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        mainnet: { url: getFullnodeUrl('mainnet') },
-    };
+```ts
+import { ConnectButton, useAccounts, useSwitchAccount } from '@iota/dapp-kit';
 
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseSwitchAccountExample = withProviders(() => {
+function MyComponent() {
     const { mutate: switchAccount } = useSwitchAccount();
     const accounts = useAccounts();
 
@@ -63,10 +35,12 @@ const UseSwitchAccountExample = withProviders(() => {
             </ul>
         </div>
     );
-});
-
-render(<UseSwitchAccountExample/>)
+}
 ```
+
+## Example
+
+<UseSwitchAccountExample />
 
 ## Arguments
 

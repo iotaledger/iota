@@ -9,17 +9,17 @@ module examples::object_basics {
     use iota::tx_context::{Self, TxContext};
     use iota::transfer;
 
-    public struct Object has key, store {
+    struct Object has key, store {
         id: UID,
         value: u64,
     }
 
-    public struct Wrapper has key {
+    struct Wrapper has key {
         id: UID,
         o: Object
     }
 
-    public struct NewValueEvent has copy, drop {
+    struct NewValueEvent has copy, drop {
         new_value: u64
     }
 

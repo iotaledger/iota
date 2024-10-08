@@ -3,44 +3,40 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use iota_data_ingestion_core::Worker;
+use iota_indexer::framework::Handler;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     base_types::ObjectID, effects::TransactionEffects, transaction::TransactionDataAPI,
 };
-use tokio::sync::Mutex;
 
 use crate::{
-    FileType,
     handlers::{AnalyticsHandler, InputObjectTracker, ObjectStatusTracker},
     tables::TransactionObjectEntry,
+    FileType,
 };
 
 pub struct TransactionObjectsHandler {
-    state: Mutex<State>,
-}
-
-struct State {
     transaction_objects: Vec<TransactionObjectEntry>,
 }
 
 #[async_trait::async_trait]
-impl Worker for TransactionObjectsHandler {
-    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<()> {
+impl Handler for TransactionObjectsHandler {
+    fn name(&self) -> &str {
+        "transaction_objects"
+    }
+    async fn process_checkpoint(&mut self, checkpoint_data: &CheckpointData) -> Result<()> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
         } = checkpoint_data;
-        let mut state = self.state.lock().await;
         for checkpoint_transaction in checkpoint_transactions {
             self.process_transaction(
                 checkpoint_summary.epoch,
                 checkpoint_summary.sequence_number,
                 checkpoint_summary.timestamp_ms,
-                &checkpoint_transaction,
+                checkpoint_transaction,
                 &checkpoint_transaction.effects,
-                &mut state,
             );
         }
         Ok(())
@@ -49,38 +45,30 @@ impl Worker for TransactionObjectsHandler {
 
 #[async_trait::async_trait]
 impl AnalyticsHandler<TransactionObjectEntry> for TransactionObjectsHandler {
-    async fn read(&self) -> Result<Vec<TransactionObjectEntry>> {
-        let mut state = self.state.lock().await;
-        let cloned = state.transaction_objects.clone();
-        state.transaction_objects.clear();
+    fn read(&mut self) -> Result<Vec<TransactionObjectEntry>> {
+        let cloned = self.transaction_objects.clone();
+        self.transaction_objects.clear();
         Ok(cloned)
     }
 
     fn file_type(&self) -> Result<FileType> {
         Ok(FileType::TransactionObjects)
     }
-
-    fn name(&self) -> &str {
-        "transaction_objects"
-    }
 }
 
 impl TransactionObjectsHandler {
     pub fn new() -> Self {
         TransactionObjectsHandler {
-            state: Mutex::new(State {
-                transaction_objects: vec![],
-            }),
+            transaction_objects: vec![],
         }
     }
     fn process_transaction(
-        &self,
+        &mut self,
         epoch: u64,
         checkpoint: u64,
         timestamp_ms: u64,
         checkpoint_transaction: &CheckpointTransaction,
         effects: &TransactionEffects,
-        state: &mut State,
     ) {
         let transaction = &checkpoint_transaction.transaction;
         let transaction_digest = transaction.digest().base58_encode();
@@ -103,7 +91,6 @@ impl TransactionObjectsHandler {
                     version,
                     &input_object_tracker,
                     &object_status_tracker,
-                    state,
                 )
             });
         // output
@@ -121,14 +108,13 @@ impl TransactionObjectsHandler {
                     version,
                     &input_object_tracker,
                     &object_status_tracker,
-                    state,
                 )
             });
     }
     // Transaction object data.
     // Builds a view of the object in input and output of a transaction.
     fn process_transaction_object(
-        &self,
+        &mut self,
         epoch: u64,
         checkpoint: u64,
         timestamp_ms: u64,
@@ -137,7 +123,6 @@ impl TransactionObjectsHandler {
         version: Option<u64>,
         input_object_tracker: &InputObjectTracker,
         object_status_tracker: &ObjectStatusTracker,
-        state: &mut State,
     ) {
         let entry = TransactionObjectEntry {
             object_id: object_id.to_string(),
@@ -149,6 +134,6 @@ impl TransactionObjectsHandler {
             input_kind: input_object_tracker.get_input_object_kind(object_id),
             object_status: object_status_tracker.get_object_status(object_id),
         };
-        state.transaction_objects.push(entry);
+        self.transaction_objects.push(entry);
     }
 }

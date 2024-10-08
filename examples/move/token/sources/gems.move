@@ -38,6 +38,7 @@ module examples::gem {
     use std::string::{Self, String};
     use iota::iota::IOTA;
     use iota::balance::{Self, Balance};
+    use iota::tx_context::sender;
     use iota::coin::{Self, Coin, TreasuryCap};
 
     use iota::token::{Self, Token, ActionRequest};
@@ -95,7 +96,7 @@ module examples::gem {
 
         // deal with `TokenPolicy`, `CoinMetadata` and `TokenPolicyCap`
         transfer::public_freeze_object(coin_metadata);
-        transfer::public_transfer(cap, ctx.sender());
+        transfer::public_transfer(cap, sender(ctx));
         token::share_policy(policy);
     }
 

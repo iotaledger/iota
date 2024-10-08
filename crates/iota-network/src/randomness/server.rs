@@ -28,15 +28,14 @@ impl Randomness for Server {
             epoch,
             round,
             partial_sigs,
-            sig,
+            sig: _,
         } = request.into_inner();
         let _ = sender // throw away error, caller will retry
-            .send(RandomnessMessage::ReceiveSignatures(
+            .send(RandomnessMessage::ReceivePartialSignatures(
                 peer_id,
                 epoch,
                 round,
                 partial_sigs,
-                sig,
             ))
             .await;
         Ok(anemo::Response::new(()))

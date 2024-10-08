@@ -21,19 +21,22 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
     base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
-    bridge::BRIDGE_SUPPORTED_ASSET,
     error::ExecutionError,
-    move_package::{FnInfoMap, is_test_fun},
+    move_package::{is_test_fun, FnInfoMap},
+    IOTA_FRAMEWORK_ADDRESS,
 };
-use move_binary_format::file_format::{
-    Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle, FunctionDefinition,
-    FunctionHandle, SignatureToken, StructDefinition,
+use move_binary_format::{
+    access::ModuleAccess,
+    binary_views::BinaryIndexedView,
+    file_format::{
+        Ability, AbilitySet, Bytecode, CompiledModule, FunctionDefinition, FunctionHandle,
+        SignatureToken, StructDefinition, StructHandle,
+    },
 };
 use move_core_types::{ident_str, language_storage::ModuleId};
 
-use crate::{INIT_FN_NAME, verification_failure};
+use crate::{verification_failure, INIT_FN_NAME};
 
 pub fn verify_module(
     module: &CompiledModule,
@@ -54,21 +57,15 @@ pub fn verify_module(
         return Ok(());
     }
 
-    if BRIDGE_SUPPORTED_ASSET
-        .iter()
-        .any(|token| ModuleId::new(BRIDGE_ADDRESS, ident_str!(token).to_owned()) == self_id)
-    {
-        return Ok(());
-    }
-
-    let mod_handle = module.module_handle_at(module.self_module_handle_idx);
-    let mod_name = module.identifier_at(mod_handle.name).as_str();
+    let view = BinaryIndexedView::Module(module);
+    let mod_handle = view.module_handle_at(module.self_module_handle_idx);
+    let mod_name = view.identifier_at(mod_handle.name).as_str();
     let struct_defs = &module.struct_defs;
     let mut one_time_witness_candidate = None;
     // find structs that can potentially represent a one-time witness type
     for def in struct_defs {
-        let struct_handle = module.datatype_handle_at(def.struct_handle);
-        let struct_name = module.identifier_at(struct_handle.name).as_str();
+        let struct_handle = module.struct_handle_at(def.struct_handle);
+        let struct_name = view.identifier_at(struct_handle.name).as_str();
         if mod_name.to_ascii_uppercase() == struct_name {
             // one-time witness candidate's type name must be the same as capitalized module
             // name
@@ -125,7 +122,7 @@ pub fn verify_module(
 fn verify_one_time_witness(
     module: &CompiledModule,
     candidate_name: &str,
-    candidate_handle: &DatatypeHandle,
+    candidate_handle: &StructHandle,
 ) -> Result<(), String> {
     // must have only one ability: drop
     let drop_set = AbilitySet::EMPTY | Ability::Drop;
@@ -154,10 +151,11 @@ fn verify_init_one_time_witness(
     module: &CompiledModule,
     fn_handle: &FunctionHandle,
     candidate_name: &str,
-    candidate_handle: &DatatypeHandle,
+    candidate_handle: &StructHandle,
 ) -> Result<(), String> {
-    let fn_sig = module.signature_at(fn_handle.parameters);
-    if fn_sig.len() != 2 || !is_one_time_witness(module, &fn_sig.0[0], candidate_handle) {
+    let view = &BinaryIndexedView::Module(module);
+    let fn_sig = view.signature_at(fn_handle.parameters);
+    if fn_sig.len() != 2 || !is_one_time_witness(view, &fn_sig.0[0], candidate_handle) {
         // check only the first parameter - the other one is checked in entry_points
         // verification pass
         return Err(format!(
@@ -174,11 +172,11 @@ fn verify_init_one_time_witness(
 
 // Checks if a given SignatureToken represents a one-time witness type struct
 fn is_one_time_witness(
-    view: &CompiledModule,
+    view: &BinaryIndexedView,
     tok: &SignatureToken,
-    candidate_handle: &DatatypeHandle,
+    candidate_handle: &StructHandle,
 ) -> bool {
-    matches!(tok, SignatureToken::Datatype(idx) if view.datatype_handle_at(*idx) == candidate_handle)
+    matches!(tok, SignatureToken::Struct(idx) if view.struct_handle_at(*idx) == candidate_handle)
 }
 
 /// Checks if this module's `init` function has a single parameter of TxContext
@@ -187,7 +185,8 @@ fn verify_init_single_param(
     module: &CompiledModule,
     fn_handle: &FunctionHandle,
 ) -> Result<(), String> {
-    let fn_sig = module.signature_at(fn_handle.parameters);
+    let view = &BinaryIndexedView::Module(module);
+    let fn_sig = view.signature_at(fn_handle.parameters);
     if fn_sig.len() != 1 {
         return Err(format!(
             "Expected last (and at most second) parameter for {0}::{1} to be &mut {2}::{3}::{4} or \
@@ -215,6 +214,7 @@ fn verify_no_instantiations(
     struct_name: &str,
     struct_def: &StructDefinition,
 ) -> Result<(), String> {
+    let view = &BinaryIndexedView::Module(module);
     if fn_def.code.is_none() {
         return Ok(());
     }
@@ -225,7 +225,7 @@ fn verify_no_instantiations(
         };
         // unwrap is safe below since we know we are getting a struct out of a module
         // (see definition of struct_def_at)
-        if module.struct_def_at(*struct_def_idx) == struct_def {
+        if view.struct_def_at(*struct_def_idx).unwrap() == struct_def {
             let fn_handle = module.function_handle_at(fn_def.function);
             let fn_name = module.identifier_at(fn_handle.name);
             return Err(format!(

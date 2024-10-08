@@ -11,14 +11,16 @@
 //! reality, it is basically just a mapping from file identifier (this could be
 //! the file's path were it to be saved) to its textual contents.
 
-use crate::symbols;
+use std::{io::Write, path::PathBuf};
+
 use lsp_server::Notification;
 use lsp_types::{
     notification::Notification as _, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams,
 };
-use std::{io::Write, path::PathBuf};
-use vfs::VfsPath;
+use vfs::{SeekAndWrite, VfsPath};
+
+use crate::symbols;
 
 /// A mapping from identifiers (file names, potentially, but not necessarily) to
 /// their contents.
@@ -62,7 +64,7 @@ pub fn on_text_document_sync_notification(
         ide_files: &VfsPath,
         file_path: PathBuf,
         first_access: bool,
-    ) -> Option<Box<dyn Write + Send>> {
+    ) -> Option<Box<dyn SeekAndWrite + Send>> {
         let Some(vfs_path) = ide_files.join(file_path.to_string_lossy()).ok() else {
             eprintln!(
                 "Could not construct file path for file creation at {:?}",

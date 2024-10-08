@@ -200,7 +200,6 @@ function NFTDetailsPage() {
                                                             formatMetaValue(metaValues[idx]);
                                                         return (
                                                             <KeyValueInfo
-                                                                key={idx}
                                                                 keyText={aKey}
                                                                 value={
                                                                     <Link

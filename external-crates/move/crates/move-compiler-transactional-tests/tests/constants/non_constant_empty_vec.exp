@@ -1,29 +1,22 @@
 processed 8 tasks
 
-task 1, line 33:
-//# run 0x42::M::empty_struct_vec
+task 1 'run'. lines 33-33:
 return values: []
 
-task 2, line 35:
-//# run 0x42::M::empty_struct_vec
+task 2 'run'. lines 35-35:
 return values: []
 
-task 3, line 37:
-//# run 0x42::M::empty_signer_vec
+task 3 'run'. lines 37-37:
 return values: []
 
-task 4, line 39:
-//# run 0x42::M::empty_generic_vec --type-args 0x42::M::S
+task 4 'run'. lines 39-39:
 return values: []
 
-task 5, line 41:
-//# run 0x42::M::empty_struct_vec_vec
+task 5 'run'. lines 41-41:
 return values: []
 
-task 6, line 43:
-//# run 0x42::M::empty_signer_vec_vec
+task 6 'run'. lines 43-43:
 return values: []
 
-task 7, line 45:
-//# run 0x42::M::empty_generic_vec_vec --type-args 0x42::M::S
+task 7 'run'. lines 45-45:
 return values: []

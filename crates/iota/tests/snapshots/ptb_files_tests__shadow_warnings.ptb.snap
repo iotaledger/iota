@@ -8,11 +8,13 @@ expression: "results.join(\"\\n\")"
 ├──────────────┬────────┤
 │ command      │ values │
 ├──────────────┼────────┤
-│ assign       │ a 1    │
-│ assign       │ a 2    │
-│ assign       │ b 4    │
+│ assign       │ a 1u64 │
+│ assign       │ a 2u64 │
+│ assign       │ b 4u64 │
 │ assign       │ a a    │
-│ assign       │ a 4    │
+│ assign       │ a 4u64 │
+├──────────────┼────────┤
+│ gas-budget   │ 1      │
 │ warn-shadows │ true   │
 ╰──────────────┴────────╯
  === WARNINGS === 
@@ -52,7 +54,7 @@ expression: "results.join(\"\\n\")"
  5 │ --assign a 4
    ·          ┬
    ·          ╰── Variable 'a' used again here (shadowed) for the 4th time.
- 6 │ --warn-shadows 
+ 6 │ --gas-budget 1
    ╰────
   help: You can either rename this variable, or do not pass the `warn-
         shadows` flag to ignore these types of errors.

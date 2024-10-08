@@ -6,7 +6,7 @@ use move_binary_format::file_format::{
     empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken, Visibility,
 };
-use move_bytecode_verifier_meter::dummy::DummyMeter;
+use move_bytecode_verifier::meter::DummyMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
 
 use crate::unit_tests::production_config;
@@ -34,7 +34,6 @@ fn test_vec_pack() {
         code: Some(CodeUnit {
             locals: SignatureIndex(0),
             code: vec![],
-            jump_tables: vec![],
         }),
     });
 
@@ -65,7 +64,7 @@ fn test_vec_pack() {
 
     let res = move_bytecode_verifier::verify_module_with_config_for_test(
         "test_vec_pack",
-        &production_config().0,
+        &production_config(),
         &m,
         &mut DummyMeter,
     )

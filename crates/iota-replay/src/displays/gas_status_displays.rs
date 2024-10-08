@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 use iota_types::{gas::IotaGasStatus, gas_model::gas_v2::IotaGasStatus as GasStatusV2};
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{Style as TableStyle, style::HorizontalLine},
+    settings::{style::HorizontalLine, Style as TableStyle},
 };
 
 use crate::displays::Pretty;

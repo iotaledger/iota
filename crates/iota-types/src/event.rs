@@ -7,7 +7,7 @@ use std::str::FromStr;
 use anyhow::ensure;
 use move_core_types::{
     account_address::AccountAddress,
-    annotated_value::{MoveDatatypeLayout, MoveValue},
+    annotated_value::{MoveStruct, MoveStructLayout},
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::StructTag,
@@ -15,14 +15,14 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{Bytes, serde_as};
+use serde_with::{serde_as, Bytes};
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::{IotaError, IotaResult},
     iota_serde::{BigInt, Readable},
     object::bounded_visitor::BoundedVisitor,
+    IOTA_SYSTEM_ADDRESS,
 };
 
 /// A universal Iota event type encapsulating different types of events
@@ -127,11 +127,11 @@ impl Event {
             contents,
         }
     }
-    pub fn move_event_to_move_value(
+    pub fn move_event_to_move_struct(
         contents: &[u8],
-        layout: MoveDatatypeLayout,
-    ) -> IotaResult<MoveValue> {
-        BoundedVisitor::deserialize_value(contents, &layout.into_layout()).map_err(|e| {
+        layout: MoveStructLayout,
+    ) -> IotaResult<MoveStruct> {
+        BoundedVisitor::deserialize_struct(contents, &layout).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
             }

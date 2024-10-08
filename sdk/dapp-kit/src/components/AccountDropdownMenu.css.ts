@@ -3,15 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { style } from '@vanilla-extract/css';
-
 import { themeVars } from '../themes/themeContract.js';
 
 export const connectedAccount = style({
-    gap: 8,
+    gap: themeVars.spacing.xsmall,
 });
 
 export const menuContainer = style({
     zIndex: 999999999,
+});
+
+export const icon = style({
+    color: themeVars.colors.body,
 });
 
 export const menuContent = style({
@@ -19,24 +22,27 @@ export const menuContent = style({
     flexDirection: 'column',
     width: 180,
     maxHeight: 200,
-    marginTop: 4,
-    padding: 8,
-    gap: 8,
+    marginTop: themeVars.spacing.xsmall,
+    gap: themeVars.spacing.xxsmall,
     borderRadius: themeVars.radii.large,
     backgroundColor: themeVars.backgroundColors.dropdownMenu,
+    padding: themeVars.spacing.xxsmall,
 });
 
 export const menuItem = style({
-    padding: 8,
     userSelect: 'none',
     outline: 'none',
     display: 'flex',
     alignItems: 'center',
-    borderRadius: themeVars.radii.large,
-    selectors: {
-        '&[data-highlighted]': {
-            backgroundColor: themeVars.backgroundColors.primaryButton,
-        },
+    borderRadius: themeVars.radii.medium,
+    fontSize: themeVars.fontSizes.medium,
+    fontWeight: themeVars.fontWeights.normal,
+    letterSpacing: themeVars.typography.letterSpacing,
+    lineHeight: themeVars.typography.lineHeight,
+    padding: themeVars.spacing.small,
+    ':hover': {
+        backgroundColor: themeVars.backgroundColors.primaryButtonHover,
+        cursor: 'pointer',
     },
 });
 

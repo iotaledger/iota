@@ -5,6 +5,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use clap::Parser;
+use iota_surfer::default_surf_strategy::DefaultSurfStrategy;
 use tracing::info;
 
 #[derive(Parser)]
@@ -36,7 +37,7 @@ async fn main() {
         .with_env()
         .init();
 
-    let results = iota_surfer::run(
+    let results = iota_surfer::run::<DefaultSurfStrategy>(
         Duration::from_secs(args.run_duration.unwrap_or(DEFAULT_RUN_DURATION)),
         Duration::from_secs(args.run_duration.unwrap_or(DEFAULT_EPOCH_DURATION)),
         args.packages,

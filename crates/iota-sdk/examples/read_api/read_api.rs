@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example uses the Read API to get owned objects of an address, the
-//! dynamic fields of an object, past objects, information about the chain and
-//! the protocol configuration, the transaction data after executing a
-//! transaction, and finally, the number of transaction blocks known to the
-//! server.
+//! This example uses the Read API to get owned objects of an address,
+//! the dynamic fields of an object,
+//! past objects, information about the chain
+//! and the protocol configuration,
+//! the transaction data after executing a transaction,
+//! and finally, the number of transaction blocks known to the server.
 //!
 //! cargo run --example read_api
 
@@ -75,14 +76,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let past_object = client
         .read_api()
         .try_get_parsed_past_object(object_id, version, iota_data_options.clone())
-        .await?;
-    println!(" *** Past Object *** ");
-    println!("{past_object:?}");
-    println!(" *** Past Object ***\n");
-
-    let past_object = client
-        .read_api()
-        .try_get_object_before_version(object_id, version)
         .await?;
     println!(" *** Past Object *** ");
     println!("{past_object:?}");

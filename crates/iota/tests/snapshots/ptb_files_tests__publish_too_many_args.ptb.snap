@@ -4,8 +4,9 @@ expression: "results.join(\"\\n\")"
 ---
  === ERRORS AFTER PARSING INPUT COMMANDS === 
   × Error when processing PTB
-   ╭────
- 1 │ --publish too many args 
+   ╭─[2:15]
+ 1 │ --gas-budget 1000
+ 2 │ --publish too many args 
    ·               ──┬─
    ·                 ╰── Unexpected identifier 'many'
    ╰────

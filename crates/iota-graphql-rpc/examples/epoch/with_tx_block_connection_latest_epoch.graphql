@@ -1,6 +1,6 @@
 {
   epoch {
-    transactionBlocks(first: 20, after: "eyJjIjoyNjkzMzMyNCwidCI6MTEwMTYxMDQ4MywiaSI6ZmFsc2V9") {
+    transactionBlocks(first: 20, after: "eyJjIjoyNjkzMzMyNCwidCI6MTEwMTYxMDQ4MywidGMiOjI2ODUxMjQ4fQ") {
       pageInfo {
         hasNextPage
         endCursor

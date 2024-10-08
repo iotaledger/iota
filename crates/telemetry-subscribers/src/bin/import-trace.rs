@@ -8,8 +8,8 @@ use bytes::Buf;
 use bytes_varint::VarIntSupport;
 use clap::*;
 use opentelemetry_proto::tonic::{
-    collector::trace::v1::{ExportTraceServiceRequest, trace_service_client::TraceServiceClient},
-    common::v1::{AnyValue, any_value},
+    collector::trace::v1::{trace_service_client::TraceServiceClient, ExportTraceServiceRequest},
+    common::v1::{any_value, AnyValue},
 };
 use prost::Message;
 use tonic::Request;

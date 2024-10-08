@@ -7,12 +7,12 @@ use std::fmt::{Display, Formatter};
 use iota_types::transaction::write_sep;
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
+    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
 
 use crate::{
-    IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg, IotaProgrammableMoveCall,
-    IotaProgrammableTransactionBlock, displays::Pretty,
+    displays::Pretty, IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg,
+    IotaProgrammableMoveCall, IotaProgrammableTransactionBlock,
 };
 
 impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {

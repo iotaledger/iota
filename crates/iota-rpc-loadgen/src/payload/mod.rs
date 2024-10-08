@@ -13,7 +13,6 @@ mod pay_iota;
 mod query_transactions;
 mod rpc_command_processor;
 mod validation;
-
 use core::default::Default;
 use std::time::Duration;
 
@@ -25,7 +24,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
 };
 pub use rpc_command_processor::{
-    RpcCommandProcessor, load_addresses_from_file, load_digests_from_file, load_objects_from_file,
+    load_addresses_from_file, load_digests_from_file, load_objects_from_file, RpcCommandProcessor,
 };
 use strum::EnumString;
 

@@ -1,31 +1,23 @@
 processed 2 tasks
 
-task 0, lines 1-7:
-//# print-bytecode --syntax=mvir
+task 0 'print-bytecode'. lines 1-7:
 // Move bytecode v6
 module 42.M {
-
-
 
 
 entry foo<Ty0, Ty1>() {
 B0:
 	0: Ret
-
 }
 }
 
-task 1, lines 9-13:
-//# print-bytecode
+task 1 'print-bytecode'. lines 9-13:
 // Move bytecode v6
 module 42.M {
-
-
 
 
 entry foo<X, Y>() {
 B0:
 	0: Ret
-
 }
 }

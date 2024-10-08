@@ -1,6 +1,5 @@
 [package]
 name = "test_pkg"
-edition = "2024.beta"
 
 [dependencies]
 

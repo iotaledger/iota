@@ -11,10 +11,11 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{
-    DBMapUtils, Map, TypedStoreError,
     rocks::DBMap,
     traits::{TableSummary, TypedStoreDebug},
+    Map, TypedStoreError,
 };
+use typed_store_derive::DBMapUtils;
 use uuid::Uuid;
 
 /// Persistent log of transactions paying out iota from the faucet, keyed by the
@@ -68,13 +69,16 @@ impl WriteAheadLog {
         }
 
         let uuid = *uuid.as_bytes();
-        self.log.insert(&coin, &Entry {
-            uuid,
-            recipient,
-            tx,
-            retry_count: 0,
-            in_flight: true,
-        })
+        self.log.insert(
+            &coin,
+            &Entry {
+                uuid,
+                recipient,
+                tx,
+                retry_count: 0,
+                in_flight: true,
+            },
+        )
     }
 
     /// Check whether `coin` has a pending transaction in the WAL.  Returns
@@ -135,7 +139,7 @@ impl WriteAheadLog {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        base_types::{ObjectRef, random_object_ref},
+        base_types::{random_object_ref, ObjectRef},
         transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
 

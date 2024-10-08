@@ -12,8 +12,7 @@ test('can be reached through URL', async ({ page }) => {
 
     const { objectId } = tx.effects!.created![0].reference;
     await page.goto(`/object/${objectId}`);
-    await expect(page.getByTestId('heading-object-id')).toBeVisible({ timeout: 3000 });
-    await expect(page.getByTestId('heading-object-id')).toHaveText(objectId, { timeout: 3000 });
+    await expect(page.getByRole('heading', { name: objectId })).toBeVisible();
 });
 
 test.describe('Owned Objects', () => {

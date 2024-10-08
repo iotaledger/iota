@@ -8,12 +8,12 @@ module type_params::m1 {
     use iota::transfer;
     use type_params::m2;
 
-    public struct Object has key, store {
+    struct Object has key, store {
         id: UID,
         value: u64,
     }
 
-    public struct GenObject<T: key + store> has key, store {
+    struct GenObject<T: key + store> has key, store {
         id: UID,
         o: T,
     }

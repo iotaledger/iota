@@ -4,18 +4,18 @@
 
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use clap::*;
 use iota_benchmark::{
     benchmark_setup::Env,
-    drivers::{BenchmarkCmp, BenchmarkStats, bench_driver::BenchDriver, driver::Driver},
+    drivers::{bench_driver::BenchDriver, driver::Driver, BenchmarkCmp, BenchmarkStats},
     options::Opts,
     system_state_observer::SystemStateObserver,
     workloads::workload_configuration::WorkloadConfiguration,
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use prometheus::Registry;
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 use tokio::{runtime::Builder, sync::Barrier, time::sleep};
 
 /// To spin up a local cluster and direct some load

@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
+use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
@@ -127,35 +127,29 @@ where
     }
 }
 
-impl BackingPackageStore for InnerTemporaryStore {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        Ok(self
-            .written
-            .get(package_id)
-            .cloned()
-            .map(PackageObject::new))
+pub struct TemporaryPackageStore<'a, R> {
+    temp_store: &'a InnerTemporaryStore,
+    fallback: R,
+}
+
+impl<'a, R> TemporaryPackageStore<'a, R> {
+    pub fn new(temp_store: &'a InnerTemporaryStore, fallback: R) -> Self {
+        Self {
+            temp_store,
+            fallback,
+        }
     }
 }
 
-pub struct PackageStoreWithFallback<P, F> {
-    primary: P,
-    fallback: F,
-}
-
-impl<P, F> PackageStoreWithFallback<P, F> {
-    pub fn new(primary: P, fallback: F) -> Self {
-        Self { primary, fallback }
-    }
-}
-
-impl<P, F> BackingPackageStore for PackageStoreWithFallback<P, F>
+impl<R> BackingPackageStore for TemporaryPackageStore<'_, R>
 where
-    P: BackingPackageStore,
-    F: BackingPackageStore,
+    R: BackingPackageStore,
 {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        if let Some(package) = self.primary.get_package_object(package_id)? {
-            Ok(Some(package))
+        // We first check the objects in the temporary store it is possible to read
+        // packages that are just written in the same transaction.
+        if let Some(obj) = self.temp_store.written.get(package_id) {
+            Ok(Some(PackageObject::new(obj.clone())))
         } else {
             self.fallback.get_package_object(package_id)
         }

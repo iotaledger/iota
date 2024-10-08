@@ -6,22 +6,58 @@ use std::{collections::BTreeSet, fmt::Display, time::Duration};
 
 use async_graphql::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-use iota_graphql_config::GraphQLConfig;
 use serde::{Deserialize, Serialize};
 
-use crate::functional_group::FunctionalGroup;
+use crate::{functional_group::FunctionalGroup, types::big_int::BigInt};
+
+// TODO: calculate proper cost limits
+
+/// These values are set to support TS SDK shim layer queries for json-rpc
+/// compatibility.
+const MAX_QUERY_NODES: u32 = 300;
+const MAX_QUERY_PAYLOAD_SIZE: u32 = 5_000;
+
+const MAX_QUERY_DEPTH: u32 = 20;
+const MAX_OUTPUT_NODES: u64 = 100_000; // Maximum number of output nodes allowed in the response
+const MAX_DB_QUERY_COST: u64 = 20_000; // Max DB query cost (normally f64) truncated
+const DEFAULT_PAGE_SIZE: u64 = 20; // Default number of elements allowed on a page of a connection
+const MAX_PAGE_SIZE: u64 = 50; // Maximum number of elements allowed on a page of a connection
+
+/// The following limits reflect the max values set in the ProtocolConfig.
+const MAX_TYPE_ARGUMENT_DEPTH: u32 = 16;
+const MAX_TYPE_ARGUMENT_WIDTH: u32 = 32;
+const MAX_TYPE_NODES: u32 = 256;
+const MAX_MOVE_VALUE_DEPTH: u32 = 128;
+
+pub(crate) const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 40_000;
+
+const DEFAULT_IDE_TITLE: &str = "Iota GraphQL IDE";
 
 pub(crate) const RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD: Duration = Duration::from_millis(10_000);
 pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 
+// Default values for the server connection configuration.
+pub(crate) const DEFAULT_SERVER_CONNECTION_PORT: u16 = 8000;
+pub(crate) const DEFAULT_SERVER_CONNECTION_HOST: &str = "127.0.0.1";
+pub(crate) const DEFAULT_SERVER_DB_URL: &str =
+    "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
+pub(crate) const DEFAULT_SERVER_DB_POOL_SIZE: u32 = 3;
+pub(crate) const DEFAULT_SERVER_PROM_HOST: &str = "0.0.0.0";
+pub(crate) const DEFAULT_SERVER_PROM_PORT: u16 = 9184;
+pub(crate) const DEFAULT_WATERMARK_UPDATE_MS: u64 = 500;
+
 /// The combination of all configurations for the GraphQL service.
-#[GraphQLConfig]
-#[derive(Default)]
+#[derive(Serialize, Clone, Deserialize, Debug, Default)]
 pub struct ServerConfig {
+    #[serde(default)]
     pub service: ServiceConfig,
+    #[serde(default)]
     pub connection: ConnectionConfig,
+    #[serde(default)]
     pub internal_features: InternalFeatureConfig,
+    #[serde(default)]
     pub tx_exec_full_node: TxExecFullNodeConfig,
+    #[serde(default)]
     pub ide: Ide,
 }
 
@@ -29,8 +65,7 @@ pub struct ServerConfig {
 /// arguments. This configures specific connections between this service and
 /// other services, and might differ from instance to instance of the GraphQL
 /// service.
-#[GraphQLConfig]
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
 pub struct ConnectionConfig {
     /// Port to bind the server to
     pub(crate) port: u16,
@@ -45,71 +80,58 @@ pub struct ConnectionConfig {
 /// Configuration on features supported by the GraphQL service, passed in a
 /// TOML-based file. These configurations are shared across fleets of the
 /// service, i.e. all testnet services will have the same `ServiceConfig`.
-#[GraphQLConfig]
-#[derive(Default)]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct ServiceConfig {
-    pub(crate) versions: Versions,
+    #[serde(default)]
     pub(crate) limits: Limits,
+
+    #[serde(default)]
     pub(crate) disabled_features: BTreeSet<FunctionalGroup>,
+
+    #[serde(default)]
     pub(crate) experiments: Experiments,
+
+    #[serde(default)]
     pub(crate) background_tasks: BackgroundTasksConfig,
+
+    #[serde(default)]
     pub(crate) zklogin: ZkLoginConfig,
 }
 
-#[GraphQLConfig]
-pub struct Versions {
-    versions: Vec<String>,
-}
-
-#[GraphQLConfig]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Copy)]
+#[serde(rename_all = "kebab-case")]
 pub struct Limits {
-    /// Maximum depth of nodes in the requests.
+    #[serde(default)]
     pub max_query_depth: u32,
-    /// Maximum number of nodes in the requests.
+    #[serde(default)]
     pub max_query_nodes: u32,
-    /// Maximum number of output nodes allowed in the response.
-    pub max_output_nodes: u32,
-    /// Maximum size (in bytes) of a GraphQL request.
+    #[serde(default)]
+    pub max_output_nodes: u64,
+    #[serde(default)]
     pub max_query_payload_size: u32,
-    /// Queries whose EXPLAIN cost are more than this will be logged. Given in
-    /// the units used by the database (where 1.0 is roughly the cost of a
-    /// sequential page access).
-    pub max_db_query_cost: u32,
-    /// Paginated queries will return this many elements if a page size is not
-    /// provided.
-    pub default_page_size: u32,
-    /// Paginated queries can return at most this many elements.
-    pub max_page_size: u32,
-    /// Time (in milliseconds) to wait for a transaction to be executed and the
-    /// results returned from GraphQL. If the transaction takes longer than
-    /// this time to execute, the request will return a timeout error, but
-    /// the transaction may continue executing.
-    pub mutation_timeout_ms: u32,
-    /// Time (in milliseconds) to wait for a read request from the GraphQL
-    /// service. Requests that take longer than this time to return a result
-    /// will return a timeout error.
-    pub request_timeout_ms: u32,
-    /// Maximum amount of nesting among type arguments (type arguments nest when
-    /// a type argument is itself generic and has arguments).
+    #[serde(default)]
+    pub max_db_query_cost: u64,
+    #[serde(default)]
+    pub default_page_size: u64,
+    #[serde(default)]
+    pub max_page_size: u64,
+    #[serde(default)]
+    pub request_timeout_ms: u64,
+    #[serde(default)]
     pub max_type_argument_depth: u32,
-    /// Maximum number of type parameters a type can have.
+    #[serde(default)]
     pub max_type_argument_width: u32,
-    /// Maximum size of a fully qualified type.
+    #[serde(default)]
     pub max_type_nodes: u32,
-    /// Maximum deph of a move value.
+    #[serde(default)]
     pub max_move_value_depth: u32,
-    /// Maximum number of transaction ids that can be passed to a
-    /// `TransactionBlockFilter`.
-    pub max_transaction_ids: u32,
-    /// Maximum number of candidates to scan when gathering a page of results.
-    pub max_scan_limit: u32,
 }
 
-#[GraphQLConfig]
-#[derive(Copy)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Copy)]
+#[serde(rename_all = "kebab-case")]
 pub struct BackgroundTasksConfig {
-    /// How often the watermark task checks the indexer database to update the
-    /// checkpoint and epoch watermarks.
+    #[serde(default)]
     pub watermark_update_ms: u64,
 }
 
@@ -154,13 +176,21 @@ impl Version {
     }
 }
 
-#[GraphQLConfig]
+impl Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.full)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
 pub struct Ide {
+    #[serde(default)]
     pub(crate) ide_title: String,
 }
 
-#[GraphQLConfig]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct Experiments {
     // Add experimental flags here, to provide access to them through-out the GraphQL
     // implementation.
@@ -168,27 +198,34 @@ pub struct Experiments {
     test_flag: bool,
 }
 
-#[GraphQLConfig]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
 pub struct InternalFeatureConfig {
+    #[serde(default)]
     pub(crate) query_limits_checker: bool,
-    pub(crate) directive_checker: bool,
+    #[serde(default)]
     pub(crate) feature_gate: bool,
+    #[serde(default)]
     pub(crate) logger: bool,
+    #[serde(default)]
     pub(crate) query_timeout: bool,
+    #[serde(default)]
     pub(crate) metrics: bool,
+    #[serde(default)]
     pub(crate) tracing: bool,
+    #[serde(default)]
     pub(crate) apollo_tracing: bool,
+    #[serde(default)]
     pub(crate) open_telemetry: bool,
 }
 
-#[GraphQLConfig]
-#[derive(Default)]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Default)]
 pub struct TxExecFullNodeConfig {
+    #[serde(default)]
     pub(crate) node_rpc_url: Option<String>,
 }
 
-#[GraphQLConfig]
-#[derive(Default)]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct ZkLoginConfig {
     pub env: ZkLoginEnv,
 }
@@ -199,11 +236,6 @@ impl ServiceConfig {
     /// Check whether `feature` is enabled on this GraphQL service.
     async fn is_enabled(&self, feature: FunctionalGroup) -> bool {
         !self.disabled_features.contains(&feature)
-    }
-
-    /// List the available versions for this GraphQL service.
-    async fn available_versions(&self) -> Vec<String> {
-        self.versions.versions.clone()
     }
 
     /// List of all features that are enabled on this GraphQL service.
@@ -238,40 +270,29 @@ impl ServiceConfig {
     /// connection with last: 20, the count at the second level would be 200
     /// nodes. This is then summed to the count of 10 nodes at the first
     /// level, for a total of 210 nodes.
-    pub async fn max_output_nodes(&self) -> u32 {
+    pub async fn max_output_nodes(&self) -> u64 {
         self.limits.max_output_nodes
     }
 
     /// Maximum estimated cost of a database query used to serve a GraphQL
     /// request.  This is measured in the same units that the database uses
     /// in EXPLAIN queries.
-    async fn max_db_query_cost(&self) -> u32 {
-        self.limits.max_db_query_cost
+    async fn max_db_query_cost(&self) -> BigInt {
+        BigInt::from(self.limits.max_db_query_cost)
     }
 
     /// Default number of elements allowed on a single page of a connection.
-    async fn default_page_size(&self) -> u32 {
+    async fn default_page_size(&self) -> u64 {
         self.limits.default_page_size
     }
 
     /// Maximum number of elements allowed on a single page of a connection.
-    async fn max_page_size(&self) -> u32 {
+    async fn max_page_size(&self) -> u64 {
         self.limits.max_page_size
     }
 
-    /// Maximum time in milliseconds spent waiting for a response from fullnode
-    /// after issuing a a transaction to execute. Note that the transaction
-    /// may still succeed even in the case of a timeout. Transactions are
-    /// idempotent, so a transaction that times out should be resubmitted
-    /// until the network returns a definite response (success or failure, not
-    /// timeout).
-    async fn mutation_timeout_ms(&self) -> u32 {
-        self.limits.mutation_timeout_ms
-    }
-
-    /// Maximum time in milliseconds that will be spent to serve one query
-    /// request.
-    async fn request_timeout_ms(&self) -> u32 {
+    /// Maximum time in milliseconds that will be spent to serve one request.
+    async fn request_timeout_ms(&self) -> u64 {
         self.limits.request_timeout_ms
     }
 
@@ -303,17 +324,6 @@ impl ServiceConfig {
     async fn max_move_value_depth(&self) -> u32 {
         self.limits.max_move_value_depth
     }
-
-    /// Maximum number of transaction ids that can be passed to a
-    /// `TransactionBlockFilter`.
-    async fn max_transaction_ids(&self) -> u32 {
-        self.limits.max_transaction_ids
-    }
-
-    /// Maximum number of candidates to scan when gathering a page of results.
-    async fn max_scan_limit(&self) -> u32 {
-        self.limits.max_scan_limit
-    }
 }
 
 impl TxExecFullNodeConfig {
@@ -344,8 +354,7 @@ impl ConnectionConfig {
 
     pub fn ci_integration_test_cfg() -> Self {
         Self {
-            db_url: "postgres://postgres:postgrespw@localhost:5432/iota_graphql_rpc_e2e_tests"
-                .to_string(),
+            db_url: DEFAULT_SERVER_DB_URL.to_string(),
             ..Default::default()
         }
     }
@@ -410,9 +419,9 @@ impl Limits {
 
 impl Ide {
     pub fn new(ide_title: Option<String>) -> Self {
-        ide_title
-            .map(|ide_title| Ide { ide_title })
-            .unwrap_or_default()
+        Self {
+            ide_title: ide_title.unwrap_or_else(|| DEFAULT_IDE_TITLE.to_string()),
+        }
     }
 }
 
@@ -424,22 +433,10 @@ impl BackgroundTasksConfig {
     }
 }
 
-impl Default for Versions {
-    fn default() -> Self {
-        Self {
-            versions: vec![format!(
-                "{}.{}",
-                env!("CARGO_PKG_VERSION_MAJOR"),
-                env!("CARGO_PKG_VERSION_MINOR")
-            )],
-        }
-    }
-}
-
 impl Default for Ide {
     fn default() -> Self {
         Self {
-            ide_title: "Iota GraphQL IDE".to_string(),
+            ide_title: DEFAULT_IDE_TITLE.to_string(),
         }
     }
 }
@@ -447,47 +444,31 @@ impl Default for Ide {
 impl Default for ConnectionConfig {
     fn default() -> Self {
         Self {
-            port: 8000,
-            host: "127.0.0.1".to_string(),
-            db_url: "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
-            db_pool_size: 10,
-            prom_url: "0.0.0.0".to_string(),
-            prom_port: 9184,
+            port: DEFAULT_SERVER_CONNECTION_PORT,
+            host: DEFAULT_SERVER_CONNECTION_HOST.to_string(),
+            db_url: DEFAULT_SERVER_DB_URL.to_string(),
+            db_pool_size: DEFAULT_SERVER_DB_POOL_SIZE,
+            prom_url: DEFAULT_SERVER_PROM_HOST.to_string(),
+            prom_port: DEFAULT_SERVER_PROM_PORT,
         }
     }
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        // Picked so that TS SDK shim layer queries all pass limit.
-        // TODO: calculate proper cost limits
         Self {
-            max_query_depth: 20,
-            max_query_nodes: 300,
-            max_output_nodes: 100_000,
-            max_query_payload_size: 5_000,
-            max_db_query_cost: 20_000,
-            default_page_size: 20,
-            max_page_size: 50,
-            // This default was picked as the sum of pre- and post- quorum timeouts from
-            // [`iota_core::authority_aggregator::TimeoutConfig`], with a 10% buffer.
-            //
-            // <https://github.com/iotaledger/iota/blob/eaf05fe5d293c06e3a2dfc22c87ba2aef419d8ea/crates/iota-core/src/authority_aggregator.rs#L84-L85>
-            mutation_timeout_ms: 74_000,
-            request_timeout_ms: 40_000,
-            // The following limits reflect the max values set in ProtocolConfig, at time of
-            // writing. <https://github.com/iotaledger/iota/blob/333f87061f0656607b1928aba423fa14ca16899e/crates/iota-protocol-config/src/lib.rs#L1580>
-            max_type_argument_depth: 16,
-            // <https://github.com/iotaledger/iota/blob/4b934f87acae862cecbcbefb3da34cabb79805aa/crates/iota-protocol-config/src/lib.rs#L1618>
-            max_type_argument_width: 32,
-            // <https://github.com/iotaledger/iota/blob/4b934f87acae862cecbcbefb3da34cabb79805aa/crates/iota-protocol-config/src/lib.rs#L1622>
-            max_type_nodes: 256,
-            // <https://github.com/iotaledger/iota/blob/4b934f87acae862cecbcbefb3da34cabb79805aa/crates/iota-protocol-config/src/lib.rs#L1988>
-            max_move_value_depth: 128,
-            // Filter-specific limits, such as the number of transaction ids that can be specified
-            // for the `TransactionBlockFilter`.
-            max_transaction_ids: 1000,
-            max_scan_limit: 100_000_000,
+            max_query_depth: MAX_QUERY_DEPTH,
+            max_query_nodes: MAX_QUERY_NODES,
+            max_output_nodes: MAX_OUTPUT_NODES,
+            max_query_payload_size: MAX_QUERY_PAYLOAD_SIZE,
+            max_db_query_cost: MAX_DB_QUERY_COST,
+            default_page_size: DEFAULT_PAGE_SIZE,
+            max_page_size: MAX_PAGE_SIZE,
+            request_timeout_ms: DEFAULT_REQUEST_TIMEOUT_MS,
+            max_type_argument_depth: MAX_TYPE_ARGUMENT_DEPTH,
+            max_type_argument_width: MAX_TYPE_ARGUMENT_WIDTH,
+            max_type_nodes: MAX_TYPE_NODES,
+            max_move_value_depth: MAX_MOVE_VALUE_DEPTH,
         }
     }
 }
@@ -496,7 +477,6 @@ impl Default for InternalFeatureConfig {
     fn default() -> Self {
         Self {
             query_limits_checker: true,
-            directive_checker: true,
             feature_gate: true,
             logger: true,
             query_timeout: true,
@@ -511,14 +491,8 @@ impl Default for InternalFeatureConfig {
 impl Default for BackgroundTasksConfig {
     fn default() -> Self {
         Self {
-            watermark_update_ms: 500,
+            watermark_update_ms: DEFAULT_WATERMARK_UPDATE_MS,
         }
-    }
-}
-
-impl Display for Version {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.full)
     }
 }
 
@@ -544,14 +518,11 @@ mod tests {
                 max-db-query-cost = 50
                 default-page-size = 20
                 max-page-size = 50
-                mutation-timeout-ms = 74000
                 request-timeout-ms = 27000
                 max-type-argument-depth = 32
                 max-type-argument-width = 64
                 max-type-nodes = 128
                 max-move-value-depth = 256
-                max-transaction-ids = 11
-                max-scan-limit = 50
             "#,
         )
         .unwrap();
@@ -565,14 +536,11 @@ mod tests {
                 max_db_query_cost: 50,
                 default_page_size: 20,
                 max_page_size: 50,
-                mutation_timeout_ms: 74_000,
                 request_timeout_ms: 27_000,
                 max_type_argument_depth: 32,
                 max_type_argument_width: 64,
                 max_type_nodes: 128,
                 max_move_value_depth: 256,
-                max_transaction_ids: 11,
-                max_scan_limit: 50,
             },
             ..Default::default()
         };
@@ -629,14 +597,11 @@ mod tests {
                 max-db-query-cost = 20
                 default-page-size = 10
                 max-page-size = 20
-                mutation-timeout-ms = 74000
                 request-timeout-ms = 30000
                 max-type-argument-depth = 32
                 max-type-argument-width = 64
                 max-type-nodes = 128
                 max-move-value-depth = 256
-                max-transaction-ids = 42
-                max-scan-limit = 420
 
                 [experiments]
                 test-flag = true
@@ -653,44 +618,14 @@ mod tests {
                 max_db_query_cost: 20,
                 default_page_size: 10,
                 max_page_size: 20,
-                mutation_timeout_ms: 74_000,
                 request_timeout_ms: 30_000,
                 max_type_argument_depth: 32,
                 max_type_argument_width: 64,
                 max_type_nodes: 128,
                 max_move_value_depth: 256,
-                max_transaction_ids: 42,
-                max_scan_limit: 420,
             },
             disabled_features: BTreeSet::from([FunctionalGroup::Analytics]),
             experiments: Experiments { test_flag: true },
-            ..Default::default()
-        };
-
-        assert_eq!(actual, expect);
-    }
-
-    #[test]
-    fn test_read_partial_in_service_config() {
-        let actual = ServiceConfig::read(
-            r#" disabled-features = ["analytics"]
-
-                [limits]
-                max-query-depth = 42
-                max-query-nodes = 320
-            "#,
-        )
-        .unwrap();
-
-        // When reading partially, the other parts will come from the default
-        // implementation.
-        let expect = ServiceConfig {
-            limits: Limits {
-                max_query_depth: 42,
-                max_query_nodes: 320,
-                ..Default::default()
-            },
-            disabled_features: BTreeSet::from([FunctionalGroup::Analytics]),
             ..Default::default()
         };
 

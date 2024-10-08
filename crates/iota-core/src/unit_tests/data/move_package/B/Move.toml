@@ -1,7 +1,6 @@
 [package]
 name = "B"
 version = "0.0.1"
-edition = "2024.beta"
 
 [addresses]
 b = "0xb1"

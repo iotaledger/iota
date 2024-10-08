@@ -21,8 +21,8 @@ use smallvec::smallvec;
 
 use super::object_runtime::{ObjectRuntime, TransferResult};
 use crate::{
-    NativesCostTable, get_receiver_object_id, get_tag_and_layouts,
-    object_runtime::object_store::ObjectResult,
+    get_receiver_object_id, get_tag_and_layouts, object_runtime::object_store::ObjectResult,
+    NativesCostTable,
 };
 
 const E_SHARED_NON_NEW_OBJECT: u64 = 0;

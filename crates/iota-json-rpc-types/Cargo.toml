@@ -30,11 +30,10 @@ move-core-types.workspace = true
 
 iota-json.workspace = true
 iota-metrics.workspace = true
-iota-package-resolver.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }
 
 [features]
-test-utils = ["iota-types/test-utils"]
+test-utils = []

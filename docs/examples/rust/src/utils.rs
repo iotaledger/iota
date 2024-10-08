@@ -8,11 +8,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_move_build::BuildConfig;
 use iota_sdk::{
-    IotaClient,
     rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions},
     types::{
         base_types::{IotaAddress, ObjectID},
@@ -21,6 +20,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData},
     },
+    IotaClient,
 };
 use shared_crypto::intent::Intent;
 
@@ -131,7 +131,7 @@ pub async fn publish_custom_nft_package(
 
     // Build custom nft package
     let package_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(CUSTOM_NFT_PACKAGE_PATH);
-    let compiled_package = BuildConfig::default().build(&package_path)?;
+    let compiled_package = BuildConfig::default().build(package_path)?;
     let modules = compiled_package
         .get_modules()
         .map(|module| {
@@ -140,7 +140,7 @@ pub async fn publish_custom_nft_package(
             Ok(buf)
         })
         .collect::<Result<Vec<Vec<u8>>>>()?;
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
+    let dependencies = compiled_package.get_dependency_original_package_ids();
 
     // Publish package
     let pt = {

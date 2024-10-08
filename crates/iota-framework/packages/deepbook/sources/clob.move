@@ -1342,6 +1342,8 @@ module deepbook::clob {
 
     #[test_only] use iota::test_scenario::{Self, Scenario};
 
+    #[test_only] const E_NULL: u64 = 0;
+
     #[test_only] public struct USD {}
 
     #[test_only]
@@ -1420,17 +1422,17 @@ module deepbook::clob {
         open_orders: &vector<Order>,
     ) {
         let (tick_exists, tick_index) = find_leaf(tree, price);
-        assert!(tick_exists);
+        assert!(tick_exists, E_NULL);
         let tick_level = borrow_leaf_by_index(tree, tick_index);
-        assert!(tick_level.price == price);
+        assert!(tick_level.price == price, E_NULL);
         let mut total_quote_amount: u64 = 0;
-        assert!(linked_table::length(&tick_level.open_orders) == vector::length(open_orders));
+        assert!(linked_table::length(&tick_level.open_orders) == vector::length(open_orders), E_NULL);
         let mut i_order = 0;
         while (i_order < vector::length(open_orders)) {
             let order = vector::borrow(open_orders, i_order);
             total_quote_amount = total_quote_amount + order.quantity;
-            assert!(order.price == price);
-            assert!(contains_order(&tick_level.open_orders, order));
+            assert!(order.price == price, E_NULL);
+            assert!(contains_order(&tick_level.open_orders, order), E_NULL);
             i_order = i_order + 1;
         };
     }
@@ -1441,7 +1443,7 @@ module deepbook::clob {
         price: u64,
     ) {
         let (tick_exists, _) = find_leaf(tree, price);
-        assert!(!tick_exists);
+        assert!(!tick_exists, E_NULL);
     }
 
 
@@ -1621,12 +1623,12 @@ module deepbook::clob {
         usr_open_orders: &LinkedTable<u64, u64>,
         usr_open_orders_cmp: &vector<u64>,
     ) {
-        assert!(2 * linked_table::length(usr_open_orders) == vector::length(usr_open_orders_cmp));
+        assert!(2 * linked_table::length(usr_open_orders) == vector::length(usr_open_orders_cmp), 0);
         let mut i_order = 0;
         while (i_order < vector::length(usr_open_orders_cmp)) {
             let order_id = *vector::borrow(usr_open_orders_cmp, i_order);
             i_order = i_order + 1;
-            assert!(linked_table::contains(usr_open_orders, order_id));
+            assert!(linked_table::contains(usr_open_orders, order_id), 0);
             let price_cmp = *vector::borrow(usr_open_orders_cmp, i_order);
             let price = *linked_table::borrow(usr_open_orders, order_id);
             assert!(price_cmp == price, ENotEqual);

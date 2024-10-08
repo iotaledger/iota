@@ -6,14 +6,13 @@ use std::{
     cmp::{max, min},
     hash::Hasher,
     sync::{
-        Weak,
         atomic::{AtomicBool, AtomicU32, Ordering},
+        Weak,
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_metrics::monitored_scope;
 use iota_types::{
     digests::TransactionDigest,
     error::{IotaError, IotaResult},
@@ -24,6 +23,10 @@ use tracing::{debug, info};
 use twox_hash::XxHash64;
 
 use crate::authority::AuthorityState;
+
+#[cfg(test)]
+#[path = "unit_tests/overload_monitor_tests.rs"]
+pub mod overload_monitor_tests;
 
 #[derive(Default)]
 pub struct AuthorityOverloadInfo {
@@ -81,7 +84,6 @@ fn check_authority_overload(
     authority_state: &Weak<AuthorityState>,
     config: &AuthorityOverloadConfig,
 ) -> bool {
-    let _scope = monitored_scope("OverloadMonitor::check_authority_overload");
     let authority_arc = authority_state.upgrade();
     if authority_arc.is_none() {
         // `authority_state` doesn't exist anymore.
@@ -271,23 +273,22 @@ pub fn overload_monitor_accept_tx(
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution
-// driver interaction.
+#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution driver interaction.
 mod tests {
     use std::sync::Arc;
 
     use iota_macros::sim_test;
     use rand::{
-        Rng, SeedableRng,
         rngs::{OsRng, StdRng},
+        Rng, SeedableRng,
     };
     use tokio::{
         sync::{
-            mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+            mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
             oneshot,
         },
         task::JoinHandle,
-        time::{Instant, MissedTickBehavior, interval},
+        time::{interval, Instant, MissedTickBehavior},
     };
 
     use super::*;
@@ -432,8 +433,6 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     pub async fn test_check_authority_overload() {
-        telemetry_subscribers::init_for_testing();
-
         let config = AuthorityOverloadConfig {
             safe_transaction_ready_rate: 0,
             ..Default::default()
@@ -443,16 +442,12 @@ mod tests {
             .build()
             .await;
 
-        // Initialize latency reporter.
-        for _ in 0..1000 {
-            state
-                .metrics
-                .execution_queueing_latency
-                .report(Duration::from_secs(20));
-        }
-
         // Creates a simple case to see if authority state overload_info can be updated
         // correctly by check_authority_overload.
+        state
+            .metrics
+            .execution_queueing_latency
+            .report(Duration::from_secs(20));
         let authority = Arc::downgrade(&state);
         assert!(check_authority_overload(&authority, &config));
         assert!(state.overload_info.is_overload.load(Ordering::Relaxed));

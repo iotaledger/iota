@@ -3,18 +3,15 @@ processed 9 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-14:
-//# publish --upgradeable --sender A
+task 1 'publish'. lines 7-15:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 7379600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 16:
-//# create-checkpoint
+task 2 'create-checkpoint'. lines 17-17:
 Checkpoint created: 1
 
-task 3, lines 18-76:
-//# run-graphql --cursors {"i":0,"c":1} {"i":2,"c":1}
+task 3 'run-graphql'. lines 19-77:
 Response: {
   "data": {
     "transactionBlocks": {
@@ -23,11 +20,6 @@ Response: {
           "effects": {
             "objectChanges": {
               "nodes": [
-                {
-                  "outputState": {
-                    "asMovePackage": null
-                  }
-                },
                 {
                   "outputState": {
                     "asMovePackage": null
@@ -106,6 +98,11 @@ Response: {
                       }
                     }
                   }
+                },
+                {
+                  "outputState": {
+                    "asMovePackage": null
+                  }
                 }
               ]
             }
@@ -116,8 +113,7 @@ Response: {
   }
 }
 
-task 4, lines 79-108:
-//# run-graphql
+task 4 'run-graphql'. lines 80-109:
 Response: {
   "data": {
     "transactionBlocks": {
@@ -133,14 +129,14 @@ Response: {
                 },
                 {
                   "outputState": {
-                    "asMovePackage": null
+                    "asMovePackage": {
+                      "module": null
+                    }
                   }
                 },
                 {
                   "outputState": {
-                    "asMovePackage": {
-                      "module": null
-                    }
+                    "asMovePackage": null
                   }
                 }
               ]
@@ -166,7 +162,7 @@ Response: {
         "effects",
         "objectChanges",
         "nodes",
-        2,
+        1,
         "outputState",
         "asMovePackage",
         "module",
@@ -179,8 +175,7 @@ Response: {
   ]
 }
 
-task 5, lines 110-172:
-//# run-graphql --cursors {"i":0,"c":1} {"i":2,"c":1}
+task 5 'run-graphql'. lines 111-173:
 Response: {
   "data": {
     "transactionBlocks": {
@@ -189,11 +184,6 @@ Response: {
           "effects": {
             "objectChanges": {
               "nodes": [
-                {
-                  "outputState": {
-                    "asMovePackage": null
-                  }
-                },
                 {
                   "outputState": {
                     "asMovePackage": null
@@ -274,6 +264,11 @@ Response: {
                       }
                     }
                   }
+                },
+                {
+                  "outputState": {
+                    "asMovePackage": null
+                  }
                 }
               ]
             }
@@ -284,18 +279,15 @@ Response: {
   }
 }
 
-task 6, lines 174-183:
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+task 6 'upgrade'. lines 175-184:
 created: object(6,0)
-mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 8139600,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+mutated: object(0,0), object(1,0)
+gas summary: computation_cost: 1000000, storage_cost: 8139600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
-task 7, line 185:
-//# create-checkpoint
+task 7 'create-checkpoint'. lines 186-186:
 Checkpoint created: 2
 
-task 8, lines 187-220:
-//# run-graphql
+task 8 'run-graphql'. lines 188-221:
 Response: {
   "data": {
     "transactionBlocks": {
@@ -304,11 +296,6 @@ Response: {
           "effects": {
             "objectChanges": {
               "nodes": [
-                {
-                  "outputState": {
-                    "asMovePackage": null
-                  }
-                },
                 {
                   "outputState": {
                     "asMovePackage": null
@@ -348,6 +335,11 @@ Response: {
                         }
                       }
                     }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMovePackage": null
                   }
                 }
               ]

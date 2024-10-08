@@ -22,10 +22,9 @@ extern crate alloc;
 
 // default allocator used
 mod memory_stats_noop;
+use memory_stats_noop as memory_stats;
 
 pub mod allocators;
-
-use memory_stats_noop as memory_stats;
 
 #[cfg(any(
     any(target_os = "macos", target_os = "ios"),
@@ -46,7 +45,10 @@ pub mod external_impls;
 
 pub use allocators::MallocSizeOfExt;
 pub use iota_util_mem_derive::*;
-pub use malloc_size::{MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps};
+pub use malloc_size::{
+    MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps, MallocUnconditionalShallowSizeOf,
+    MallocUnconditionalSizeOf,
+};
 
 /// Heap size of structure.
 ///
@@ -102,7 +104,7 @@ impl MemoryAllocationTracker {
 mod test {
     use std::sync::Arc;
 
-    use super::{MallocSizeOf, MallocSizeOfExt, malloc_size};
+    use super::{malloc_size, MallocSizeOf, MallocSizeOfExt};
 
     #[test]
     fn test_arc() {

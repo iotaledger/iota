@@ -1,24 +1,18 @@
-// Copyright (c) The Diem Core Contributors
-// Copyright (c) The Move Contributors
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 #[test_only]
 module std::bit_vector_tests {
     use std::bit_vector;
 
     #[test_only]
     fun test_bitvector_set_unset_of_size(k: u64) {
-        let mut bitvector = bit_vector::new(k);
-        let mut index = 0;
+        let bitvector = bit_vector::new(k);
+        let index = 0;
         while (index < k) {
-            bitvector.set(index);
-            assert!(bitvector.is_index_set(index));
+            bit_vector::set(&mut bitvector, index);
+            assert!(bit_vector::is_index_set(&bitvector, index), 0);
             index = index + 1;
-            let mut index_to_right = index;
+            let index_to_right = index;
             while (index_to_right < k) {
-                assert!(!bitvector.is_index_set(index_to_right));
+                assert!(!bit_vector::is_index_set(&bitvector, index_to_right), 1);
                 index_to_right = index_to_right + 1;
             };
         };
@@ -26,12 +20,12 @@ module std::bit_vector_tests {
         index = 0;
 
         while (index < k) {
-            bitvector.unset(index);
-            assert!(!bitvector.is_index_set(index));
+            bit_vector::unset(&mut bitvector, index);
+            assert!(!bit_vector::is_index_set(&bitvector, index), 0);
             index = index + 1;
-            let mut index_to_right = index;
+            let index_to_right = index;
             while (index_to_right < k) {
-                assert!(bitvector.is_index_set(index_to_right));
+                assert!(bit_vector::is_index_set(&bitvector, index_to_right), 1);
                 index_to_right = index_to_right + 1;
             };
         };
@@ -40,22 +34,22 @@ module std::bit_vector_tests {
     #[test]
     #[expected_failure(abort_code = bit_vector::EINDEX)]
     fun set_bit_out_of_bounds() {
-        let mut bitvector = bit_vector::new(bit_vector::word_size());
-        bitvector.set(bit_vector::word_size());
+        let bitvector = bit_vector::new(bit_vector::word_size());
+        bit_vector::set(&mut bitvector, bit_vector::word_size());
     }
 
     #[test]
     #[expected_failure(abort_code = bit_vector::EINDEX)]
     fun unset_bit_out_of_bounds() {
-        let mut bitvector = bit_vector::new(bit_vector::word_size());
-        bitvector.unset(bit_vector::word_size());
+        let bitvector = bit_vector::new(bit_vector::word_size());
+        bit_vector::unset(&mut bitvector, bit_vector::word_size());
     }
 
     #[test]
     #[expected_failure(abort_code = bit_vector::EINDEX)]
     fun index_bit_out_of_bounds() {
         let bitvector = bit_vector::new(bit_vector::word_size());
-        bitvector.is_index_set(bit_vector::word_size());
+        bit_vector::is_index_set(&bitvector, bit_vector::word_size());
     }
 
     #[test]
@@ -65,71 +59,71 @@ module std::bit_vector_tests {
 
     #[test]
     fun test_set_bit_and_index_odd_size() {
-        test_bitvector_set_unset_of_size(140)
+        test_bitvector_set_unset_of_size(300)
     }
 
     #[test]
     fun longest_sequence_no_set_zero_index() {
         let bitvector = bit_vector::new(100);
-        assert!(bitvector.longest_set_sequence_starting_at(0) == 0);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 0) == 0, 0);
     }
 
     #[test]
     fun longest_sequence_one_set_zero_index() {
-        let mut bitvector = bit_vector::new(100);
-        bitvector.set(1);
-        assert!(bitvector.longest_set_sequence_starting_at(0) == 0);
+        let bitvector = bit_vector::new(100);
+        bit_vector::set(&mut bitvector, 1);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 0) == 0, 0);
     }
 
     #[test]
     fun longest_sequence_no_set_nonzero_index() {
         let bitvector = bit_vector::new(100);
-        assert!(bitvector.longest_set_sequence_starting_at(51) == 0);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 51) == 0, 0);
     }
 
     #[test]
     fun longest_sequence_two_set_nonzero_index() {
-        let mut bitvector = bit_vector::new(100);
-        bitvector.set(50);
-        bitvector.set(52);
-        assert!(bitvector.longest_set_sequence_starting_at(51) == 0);
+        let bitvector = bit_vector::new(100);
+        bit_vector::set(&mut bitvector, 50);
+        bit_vector::set(&mut bitvector, 52);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 51) == 0, 0);
     }
 
     #[test]
     fun longest_sequence_with_break() {
-        let mut bitvector = bit_vector::new(100);
-        let mut i = 0;
+        let bitvector = bit_vector::new(100);
+        let i = 0;
         while (i < 20) {
-            bitvector.set(i);
+            bit_vector::set(&mut bitvector, i);
             i = i + 1;
         };
         // create a break in the run
         i = i + 1;
         while (i < 100) {
-            bitvector.set(i);
+            bit_vector::set(&mut bitvector, i);
             i = i + 1;
         };
-        assert!(bitvector.longest_set_sequence_starting_at(0) == 20);
-        assert!(bitvector.longest_set_sequence_starting_at(20) == 0);
-        assert!(bitvector.longest_set_sequence_starting_at(21) == 100 - 21);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 0) == 20, 0);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 20) == 0, 0);
+        assert!(bit_vector::longest_set_sequence_starting_at(&bitvector, 21) == 100 - 21, 0);
     }
 
     #[test]
     fun test_shift_left() {
-        let bitlen = 97;
-        let mut bitvector = bit_vector::new(bitlen);
+        let bitlen = 133;
+        let bitvector = bit_vector::new(bitlen);
 
-        let mut i = 0;
+        let i = 0;
         while (i < bitlen) {
-            bitvector.set(i);
+            bit_vector::set(&mut bitvector, i);
             i = i + 1;
         };
 
         i = bitlen - 1;
         while (i > 0) {
-            assert!(bitvector.is_index_set(i));
-            bitvector.shift_left(1);
-            assert!(!bitvector.is_index_set( i));
+            assert!(bit_vector::is_index_set(&bitvector, i), 0);
+            bit_vector::shift_left(&mut bitvector, 1);
+            assert!(!bit_vector::is_index_set(&bitvector,  i), 1);
             i = i - 1;
         };
     }
@@ -138,21 +132,21 @@ module std::bit_vector_tests {
     fun test_shift_left_specific_amount() {
         let bitlen = 300;
         let shift_amount = 133;
-        let mut bitvector = bit_vector::new(bitlen);
+        let bitvector = bit_vector::new(bitlen);
 
-        bitvector.set(201);
-        assert!(bitvector.is_index_set(201));
+        bit_vector::set(&mut bitvector, 201);
+        assert!(bit_vector::is_index_set(&bitvector, 201), 0);
 
-        bitvector.shift_left(shift_amount);
-        assert!(bitvector.is_index_set(201 - shift_amount));
-        assert!(!bitvector.is_index_set(201));
+        bit_vector::shift_left(&mut bitvector, shift_amount);
+        assert!(bit_vector::is_index_set(&bitvector, 201 - shift_amount), 1);
+        assert!(!bit_vector::is_index_set(&bitvector, 201), 2);
 
         // Make sure this shift clears all the bits
-        bitvector.shift_left(bitlen  - 1);
+        bit_vector::shift_left(&mut bitvector, bitlen  - 1);
 
-        let mut i = 0;
+        let i = 0;
         while (i < bitlen) {
-            assert!(!bitvector.is_index_set(i));
+            assert!(!bit_vector::is_index_set(&bitvector, i), 3);
             i = i + 1;
         }
     }
@@ -162,28 +156,28 @@ module std::bit_vector_tests {
         let bitlen = 50;
         let chosen_index = 24;
         let shift_amount = 3;
-        let mut bitvector = bit_vector::new(bitlen);
+        let bitvector = bit_vector::new(bitlen);
 
-        let mut i = 0;
+        let i = 0;
 
         while (i < bitlen) {
-            bitvector.set(i);
+            bit_vector::set(&mut bitvector, i);
             i = i + 1;
         };
 
-        bitvector.unset(chosen_index);
-        assert!(!bitvector.is_index_set(chosen_index));
+        bit_vector::unset(&mut bitvector, chosen_index);
+        assert!(!bit_vector::is_index_set(&bitvector, chosen_index), 0);
 
-        bitvector.shift_left(shift_amount);
+        bit_vector::shift_left(&mut bitvector, shift_amount);
 
         i = 0;
 
         while (i < bitlen) {
             // only chosen_index - shift_amount and the remaining bits should be BitVector::unset
             if ((i == chosen_index - shift_amount) || (i >= bitlen - shift_amount)) {
-                assert!(!bitvector.is_index_set(i));
+                assert!(!bit_vector::is_index_set(&bitvector, i), 1);
             } else {
-                assert!(bitvector.is_index_set(i));
+                assert!(bit_vector::is_index_set(&bitvector, i), 2);
             };
             i = i + 1;
         }
@@ -192,18 +186,18 @@ module std::bit_vector_tests {
     #[test]
     fun shift_left_at_size() {
         let bitlen = 133;
-        let mut bitvector = bit_vector::new(bitlen);
+        let bitvector = bit_vector::new(bitlen);
 
-        let mut i = 0;
+        let i = 0;
         while (i < bitlen) {
-            bitvector.set(i);
+            bit_vector::set(&mut bitvector, i);
             i = i + 1;
         };
 
-        bitvector.shift_left(bitlen - 1);
+        bit_vector::shift_left(&mut bitvector, bitlen - 1);
         i = bitlen - 1;
         while (i > 0) {
-            assert!(!bitvector.is_index_set( i));
+            assert!(!bit_vector::is_index_set(&bitvector,  i), 1);
             i = i - 1;
         };
     }
@@ -211,8 +205,8 @@ module std::bit_vector_tests {
     #[test]
     fun shift_left_more_than_size() {
         let bitlen = 133;
-        let mut bitvector = bit_vector::new(bitlen);
-        bitvector.shift_left(bitlen);
+        let bitvector = bit_vector::new(bitlen);
+        bit_vector::shift_left(&mut bitvector, bitlen);
     }
 
     #[test]
@@ -224,6 +218,6 @@ module std::bit_vector_tests {
     #[test]
     fun single_bit_bitvector() {
         let bitvector = bit_vector::new(1);
-        assert!(bitvector.length() == 1);
+        assert!(bit_vector::length(&bitvector) == 1, 0);
     }
 }

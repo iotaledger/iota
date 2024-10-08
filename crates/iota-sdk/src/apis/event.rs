@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use futures::{StreamExt, stream};
+use futures::{stream, StreamExt};
 use futures_core::Stream;
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
 use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent};
@@ -12,8 +12,8 @@ use iota_types::{base_types::TransactionDigest, event::EventID};
 use jsonrpsee::core::client::Subscription;
 
 use crate::{
-    RpcClient,
     error::{Error, IotaRpcResult},
+    RpcClient,
 };
 
 /// Event API provides the functionality to fetch, query, or subscribe to events

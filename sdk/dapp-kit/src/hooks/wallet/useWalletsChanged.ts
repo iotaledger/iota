@@ -14,22 +14,21 @@ import { useWalletStore } from './useWalletStore.js';
  */
 export function useWalletsChanged(
     preferredWallets: string[],
-    walletFilter?: (wallet: WalletWithRequiredFeatures) => boolean,
+    requiredFeatures: (keyof WalletWithRequiredFeatures['features'])[],
 ) {
     const setWalletRegistered = useWalletStore((state) => state.setWalletRegistered);
     const setWalletUnregistered = useWalletStore((state) => state.setWalletUnregistered);
 
     useEffect(() => {
         const walletsApi = getWallets();
-        setWalletRegistered(getRegisteredWallets(preferredWallets, walletFilter));
 
         const unsubscribeFromRegister = walletsApi.on('register', () => {
-            setWalletRegistered(getRegisteredWallets(preferredWallets, walletFilter));
+            setWalletRegistered(getRegisteredWallets(preferredWallets, requiredFeatures));
         });
 
         const unsubscribeFromUnregister = walletsApi.on('unregister', (unregisteredWallet) => {
             setWalletUnregistered(
-                getRegisteredWallets(preferredWallets, walletFilter),
+                getRegisteredWallets(preferredWallets, requiredFeatures),
                 unregisteredWallet,
             );
         });
@@ -38,5 +37,5 @@ export function useWalletsChanged(
             unsubscribeFromRegister();
             unsubscribeFromUnregister();
         };
-    }, [preferredWallets, walletFilter, setWalletRegistered, setWalletUnregistered]);
+    }, [preferredWallets, requiredFeatures, setWalletRegistered, setWalletUnregistered]);
 }

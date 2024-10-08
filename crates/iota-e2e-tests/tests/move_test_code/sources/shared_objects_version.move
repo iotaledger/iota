@@ -7,7 +7,7 @@ module move_test_code::shared_objects_version {
     use iota::transfer;
     use iota::tx_context::{Self, TxContext};
 
-    public struct Counter has key {
+    struct Counter has key {
         id: UID,
         value: u64,
     }

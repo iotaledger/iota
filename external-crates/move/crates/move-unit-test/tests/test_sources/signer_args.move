@@ -1,4 +1,5 @@
-module 0x1::M {
+address 0x1 {
+module M {
 
     #[test(_a=@0x1)]
     fun single_signer_pass(_a: signer) { }
@@ -19,8 +20,13 @@ module 0x1::M {
             abort 0
     }
 
+    #[test_only]
+    use std::signer;
+
     #[test(a=@0x1, b=@0x2)]
     fun test_correct_signer_arg_addrs(a: signer, b: signer) {
-        assert!(a != b)
+        assert!(signer::address_of(&a) == @0x1, 0);
+        assert!(signer::address_of(&b) == @0x2, 1);
     }
+}
 }

@@ -3,27 +3,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    expansion::ast::{Address, ModuleIdent, ModuleIdent_},
-    parser::ast::{ConstantName, DatatypeName, FunctionName, VariantName},
-    shared::{CompilationEnv, NumericalAddress},
-};
-use move_core_types::account_address::AccountAddress as MoveAddress;
-use move_ir_types::ast as IR;
-use move_symbol_pool::Symbol;
 use std::{
     clone::Clone,
     collections::{BTreeMap, BTreeSet, HashMap},
 };
 
-#[derive(Debug)]
-pub struct FunctionDeclaration {
-    pub seen_datatypes: BTreeSet<(ModuleIdent, DatatypeName)>,
-    pub signature: IR::FunctionSignature,
-}
+use move_core_types::account_address::AccountAddress as MoveAddress;
+use move_ir_types::ast as IR;
+use move_symbol_pool::Symbol;
+use IR::Ability;
 
-pub type DatatypeDeclarations =
-    HashMap<(ModuleIdent, DatatypeName), (BTreeSet<IR::Ability>, Vec<IR::DatatypeTypeParameter>)>;
+use crate::{
+    expansion::ast::{Address, ModuleIdent, ModuleIdent_},
+    parser::ast::{ConstantName, FunctionName, StructName},
+    shared::{CompilationEnv, NumericalAddress},
+};
 
 /// Compilation context for a single compilation unit (module).
 /// Contains all of the dependencies actually used in the module
@@ -31,7 +25,7 @@ pub struct Context<'a> {
     pub env: &'a mut CompilationEnv,
     current_package: Option<Symbol>,
     current_module: Option<&'a ModuleIdent>,
-    seen_datatypes: BTreeSet<(ModuleIdent, DatatypeName)>,
+    seen_structs: BTreeSet<(ModuleIdent, StructName)>,
     seen_functions: BTreeSet<(ModuleIdent, FunctionName)>,
 }
 
@@ -45,7 +39,7 @@ impl<'a> Context<'a> {
             env,
             current_package,
             current_module,
-            seen_datatypes: BTreeSet::new(),
+            seen_structs: BTreeSet::new(),
             seen_functions: BTreeSet::new(),
         }
     }
@@ -70,12 +64,18 @@ impl<'a> Context<'a> {
     pub fn materialize(
         self,
         dependency_orderings: &HashMap<ModuleIdent, usize>,
-        datatype_declarations: &DatatypeDeclarations,
-        function_declarations: &HashMap<(ModuleIdent, FunctionName), FunctionDeclaration>,
+        struct_declarations: &HashMap<
+            (ModuleIdent, StructName),
+            (BTreeSet<IR::Ability>, Vec<IR::StructTypeParameter>),
+        >,
+        function_declarations: &HashMap<
+            (ModuleIdent, FunctionName),
+            (BTreeSet<(ModuleIdent, StructName)>, IR::FunctionSignature),
+        >,
     ) -> (Vec<IR::ImportDefinition>, Vec<IR::ModuleDependency>) {
         let Context {
             current_module: _current_module,
-            mut seen_datatypes,
+            mut seen_structs,
             seen_functions,
             ..
         } = self;
@@ -83,16 +83,10 @@ impl<'a> Context<'a> {
         Self::function_dependencies(
             function_declarations,
             &mut module_dependencies,
-            &mut seen_datatypes,
+            &mut seen_structs,
             seen_functions,
         );
-
-        Self::datatype_dependencies(
-            datatype_declarations,
-            &mut module_dependencies,
-            seen_datatypes,
-        );
-
+        Self::struct_dependencies(struct_declarations, &mut module_dependencies, seen_structs);
         let mut imports = vec![];
         let mut ordered_dependencies = vec![];
         for (module, (structs, functions)) in module_dependencies {
@@ -104,7 +98,7 @@ impl<'a> Context<'a> {
                 dependency_order,
                 IR::ModuleDependency {
                     name: ir_name,
-                    datatypes: structs,
+                    structs,
                     functions,
                 },
             ));
@@ -114,25 +108,25 @@ impl<'a> Context<'a> {
         (imports, dependencies)
     }
 
-    fn insert_datatype_dependency(
+    fn insert_struct_dependency(
         module_dependencies: &mut BTreeMap<
             ModuleIdent,
-            (Vec<IR::DatatypeDependency>, Vec<IR::FunctionDependency>),
+            (Vec<IR::StructDependency>, Vec<IR::FunctionDependency>),
         >,
         module: ModuleIdent,
-        datatype_dep: IR::DatatypeDependency,
+        struct_dep: IR::StructDependency,
     ) {
         module_dependencies
             .entry(module)
             .or_insert_with(|| (vec![], vec![]))
             .0
-            .push(datatype_dep);
+            .push(struct_dep);
     }
 
     fn insert_function_dependency(
         module_dependencies: &mut BTreeMap<
             ModuleIdent,
-            (Vec<IR::DatatypeDependency>, Vec<IR::FunctionDependency>),
+            (Vec<IR::StructDependency>, Vec<IR::FunctionDependency>),
         >,
         module: ModuleIdent,
         function_dep: IR::FunctionDependency,
@@ -144,29 +138,35 @@ impl<'a> Context<'a> {
             .push(function_dep);
     }
 
-    fn datatype_dependencies(
-        datatype_declarations: &DatatypeDeclarations,
+    fn struct_dependencies(
+        struct_declarations: &HashMap<
+            (ModuleIdent, StructName),
+            (BTreeSet<Ability>, Vec<IR::StructTypeParameter>),
+        >,
         module_dependencies: &mut BTreeMap<
             ModuleIdent,
-            (Vec<IR::DatatypeDependency>, Vec<IR::FunctionDependency>),
+            (Vec<IR::StructDependency>, Vec<IR::FunctionDependency>),
         >,
-        seen_datatypes: BTreeSet<(ModuleIdent, DatatypeName)>,
+        seen_structs: BTreeSet<(ModuleIdent, StructName)>,
     ) {
-        for (module, sname) in seen_datatypes {
-            let datatype_dep = Self::datatype_dependency(datatype_declarations, &module, sname);
-            Self::insert_datatype_dependency(module_dependencies, module, datatype_dep);
+        for (module, sname) in seen_structs {
+            let struct_dep = Self::struct_dependency(struct_declarations, &module, sname);
+            Self::insert_struct_dependency(module_dependencies, module, struct_dep);
         }
     }
 
-    fn datatype_dependency(
-        datatype_declarations: &DatatypeDeclarations,
+    fn struct_dependency(
+        struct_declarations: &HashMap<
+            (ModuleIdent, StructName),
+            (BTreeSet<Ability>, Vec<IR::StructTypeParameter>),
+        >,
         module: &ModuleIdent,
-        sname: DatatypeName,
-    ) -> IR::DatatypeDependency {
+        sname: StructName,
+    ) -> IR::StructDependency {
         let key = (*module, sname);
-        let (abilities, type_formals) = datatype_declarations.get(&key).unwrap().clone();
-        let name = Self::translate_datatype_name(sname);
-        IR::DatatypeDependency {
+        let (abilities, type_formals) = struct_declarations.get(&key).unwrap().clone();
+        let name = Self::translate_struct_name(sname);
+        IR::StructDependency {
             abilities,
             name,
             type_formals,
@@ -174,43 +174,37 @@ impl<'a> Context<'a> {
     }
 
     fn function_dependencies(
-        function_declarations: &HashMap<(ModuleIdent, FunctionName), FunctionDeclaration>,
+        function_declarations: &HashMap<
+            (ModuleIdent, FunctionName),
+            (BTreeSet<(ModuleIdent, StructName)>, IR::FunctionSignature),
+        >,
         module_dependencies: &mut BTreeMap<
             ModuleIdent,
-            (Vec<IR::DatatypeDependency>, Vec<IR::FunctionDependency>),
+            (Vec<IR::StructDependency>, Vec<IR::FunctionDependency>),
         >,
-        seen_datatypes: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
+        seen_structs: &mut BTreeSet<(ModuleIdent, StructName)>,
         seen_functions: BTreeSet<(ModuleIdent, FunctionName)>,
     ) {
         for (module, fname) in seen_functions {
-            let (function_seen_datatypes, function_dep) =
+            let (functions_seen_structs, function_dep) =
                 Self::function_dependency(function_declarations, &module, fname);
             Self::insert_function_dependency(module_dependencies, module, function_dep);
-            seen_datatypes.extend(function_seen_datatypes);
+            seen_structs.extend(functions_seen_structs)
         }
     }
 
     fn function_dependency(
-        function_declarations: &HashMap<(ModuleIdent, FunctionName), FunctionDeclaration>,
+        function_declarations: &HashMap<
+            (ModuleIdent, FunctionName),
+            (BTreeSet<(ModuleIdent, StructName)>, IR::FunctionSignature),
+        >,
         module: &ModuleIdent,
         fname: FunctionName,
-    ) -> (
-        BTreeSet<(ModuleIdent, DatatypeName)>,
-        IR::FunctionDependency,
-    ) {
+    ) -> (BTreeSet<(ModuleIdent, StructName)>, IR::FunctionDependency) {
         let key = (*module, fname);
-        let FunctionDeclaration {
-            seen_datatypes,
-            signature,
-        } = function_declarations.get(&key).unwrap();
+        let (seen_structs, signature) = function_declarations.get(&key).unwrap().clone();
         let name = Self::translate_function_name(fname);
-        (
-            seen_datatypes.clone(),
-            IR::FunctionDependency {
-                name,
-                signature: signature.clone(),
-            },
-        )
+        (seen_structs, IR::FunctionDependency { name, signature })
     }
 
     //**********************************************************************************************
@@ -243,12 +237,8 @@ impl<'a> Context<'a> {
         IR::ModuleName(s)
     }
 
-    fn translate_datatype_name(n: DatatypeName) -> IR::DatatypeName {
-        IR::DatatypeName(n.0.value)
-    }
-
-    fn translate_variant_name(n: VariantName) -> IR::VariantName {
-        IR::VariantName(n.0.value)
+    fn translate_struct_name(n: StructName) -> IR::StructName {
+        IR::StructName(n.0.value)
     }
 
     fn translate_constant_name(n: ConstantName) -> IR::ConstantName {
@@ -263,39 +253,27 @@ impl<'a> Context<'a> {
     // Name resolution
     //**********************************************************************************************
 
-    pub fn struct_definition_name(&self, m: &ModuleIdent, s: DatatypeName) -> IR::DatatypeName {
+    pub fn struct_definition_name(&self, m: &ModuleIdent, s: StructName) -> IR::StructName {
         assert!(
             self.is_current_module(m),
             "ICE invalid struct definition lookup"
         );
-        Self::translate_datatype_name(s)
+        Self::translate_struct_name(s)
     }
 
-    pub fn enum_definition_name(&self, m: &ModuleIdent, e: DatatypeName) -> IR::DatatypeName {
-        assert!(
-            self.is_current_module(m),
-            "ICE invalid enum definition lookup"
-        );
-        Self::translate_datatype_name(e)
-    }
-
-    pub fn variant_name(&self, v: VariantName) -> IR::VariantName {
-        Self::translate_variant_name(v)
-    }
-
-    pub fn qualified_datatype_name(
+    pub fn qualified_struct_name(
         &mut self,
         m: &ModuleIdent,
-        s: DatatypeName,
-    ) -> IR::QualifiedDatatypeIdent {
+        s: StructName,
+    ) -> IR::QualifiedStructIdent {
         let mname = if self.is_current_module(m) {
             IR::ModuleName::module_self()
         } else {
-            self.seen_datatypes.insert((*m, s));
+            self.seen_structs.insert((*m, s));
             Self::ir_module_alias(m)
         };
-        let n = Self::translate_datatype_name(s);
-        IR::QualifiedDatatypeIdent::new(mname, n)
+        let n = Self::translate_struct_name(s);
+        IR::QualifiedStructIdent::new(mname, n)
     }
 
     pub fn function_definition_name(&self, m: &ModuleIdent, f: FunctionName) -> IR::FunctionName {

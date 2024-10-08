@@ -15,7 +15,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{NativesCostTable, object_runtime::ObjectRuntime};
+use crate::{object_runtime::ObjectRuntime, NativesCostTable};
 
 #[derive(Clone)]
 pub struct BorrowUidCostParams {

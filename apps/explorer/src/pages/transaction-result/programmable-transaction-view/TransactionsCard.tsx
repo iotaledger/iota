@@ -5,8 +5,8 @@
 import { type IotaTransaction } from '@iota/iota-sdk/client';
 
 import { Transaction } from './Transaction';
-import { CollapsibleCard, ProgrammableTxnBlockCard } from '~/components';
-import { TitleSize } from '@iota/apps-ui-kit';
+import { ProgrammableTxnBlockCard } from '~/components';
+import { CollapsibleSection } from '~/components/ui';
 
 interface TransactionsCardProps {
     transactions: IotaTransaction[];
@@ -21,13 +21,13 @@ export function TransactionsCard({ transactions }: TransactionsCardProps): JSX.E
         const [[type, data]] = Object.entries(transaction);
 
         return (
-            <CollapsibleCard key={index} title={type} titleSize={TitleSize.Small} collapsible>
+            <CollapsibleSection defaultOpen key={index} title={type}>
                 <div data-testid="transactions-card-content">
                     <div className="px-md pb-lg pt-xs">
                         <Transaction key={index} type={type} data={data} />
                     </div>
                 </div>
-            </CollapsibleCard>
+            </CollapsibleSection>
         );
     });
 

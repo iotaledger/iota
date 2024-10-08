@@ -2,11 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Display, fs::create_dir_all, io::Write, path::Path};
+use std::{
+    fmt::Display,
+    fs::create_dir_all,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
-use anyhow::anyhow;
 use clap::*;
-use move_core_types::identifier::Identifier;
 use move_package::source_package::layout::SourcePackageLayout;
 
 // TODO get a stable path to this stdlib
@@ -28,7 +31,7 @@ pub struct New {
 }
 
 impl New {
-    pub fn execute_with_defaults(self, path: Option<&Path>) -> anyhow::Result<()> {
+    pub fn execute_with_defaults(self, path: Option<PathBuf>) -> anyhow::Result<()> {
         self.execute(
             path,
             std::iter::empty::<(&str, &str)>(),
@@ -39,22 +42,21 @@ impl New {
 
     pub fn execute(
         self,
-        path: Option<&Path>,
+        path: Option<PathBuf>,
         deps: impl IntoIterator<Item = (impl Display, impl Display)>,
         addrs: impl IntoIterator<Item = (impl Display, impl Display)>,
         custom: &str, // anything else that needs to end up being in Move.toml (or empty string)
     ) -> anyhow::Result<()> {
         // TODO warn on build config flags
         let Self { name } = self;
-
-        if !Identifier::is_valid(&name) {
-            return Err(anyhow!(
-                "Invalid package name. Package name must start with a lowercase letter \
-                 and consist only of lowercase letters, numbers, and underscores."
-            ));
-        }
-
-        let path = path.unwrap_or_else(|| Path::new(&name));
+        let p: PathBuf;
+        let path: &Path = match path {
+            Some(path) => {
+                p = path;
+                &p
+            }
+            None => Path::new(&name),
+        };
         create_dir_all(path.join(SourcePackageLayout::Sources.path()))?;
         let mut w = std::fs::File::create(path.join(SourcePackageLayout::Manifest.path()))?;
         writeln!(

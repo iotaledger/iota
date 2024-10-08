@@ -13,7 +13,7 @@ const header = `
 
 const config: CodegenConfig = {
     overwrite: true,
-    schema: '../typescript/src/graphql/generated/2024.9/schema.graphql',
+    schema: '../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql',
     documents: ['src/queries/*.graphql'],
     ignoreNoDocuments: true,
     generates: {

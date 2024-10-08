@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { expect } from 'vitest';
 
 import type { KioskClient, KioskOwnerCap } from '../../src/index.js';
@@ -12,7 +12,7 @@ import {
     TransferPolicyTransaction,
 } from '../../src/index.js';
 import type { TestToolbox } from './setup.js';
-import { executeTransaction, getPublisherObject } from './setup.js';
+import { executeTransactionBlock, getPublisherObject } from './setup.js';
 
 // Creates a fresh transfer policy for Heroes and attaches all the rules.
 export async function prepareHeroRuleset({
@@ -26,8 +26,8 @@ export async function prepareHeroRuleset({
 }) {
     /// Do a full rule setup for `Hero` type.
     const publisher = await getPublisherObject(toolbox);
-    const tx = new Transaction();
-    const tpTx = new TransferPolicyTransaction({ kioskClient, transaction: tx });
+    const txb = new TransactionBlock();
+    const tpTx = new TransferPolicyTransaction({ kioskClient, transactionBlock: txb });
 
     await tpTx.create({
         type: `${heroPackageId}::hero::Hero`,
@@ -40,7 +40,7 @@ export async function prepareHeroRuleset({
         .addPersonalKioskRule()
         .shareAndTransferCap(toolbox.address());
 
-    await executeTransaction(toolbox, tx);
+    await executeTransactionBlock(toolbox, txb);
 }
 
 // Creates a fresh transfer policy for Heroes and attaches all the rules.
@@ -55,8 +55,8 @@ export async function prepareVillainTransferPolicy({
 }) {
     /// Do a plain TP creation for `Villain` type.
     const publisher = await getPublisherObject(toolbox);
-    const tx = new Transaction();
-    const tpTx = new TransferPolicyTransaction({ kioskClient, transaction: tx });
+    const txb = new TransactionBlock();
+    const tpTx = new TransferPolicyTransaction({ kioskClient, transactionBlock: txb });
 
     await tpTx.createAndShare({
         type: `${heroPackageId}::hero::Villain`,
@@ -64,7 +64,7 @@ export async function prepareVillainTransferPolicy({
         address: toolbox.address(),
     });
 
-    await executeTransaction(toolbox, tx);
+    await executeTransactionBlock(toolbox, txb);
 }
 
 export async function testLockItemFlow(
@@ -74,8 +74,8 @@ export async function testLockItemFlow(
     itemType: string,
     itemId: string,
 ) {
-    const tx = new Transaction();
-    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
+    const txb = new TransactionBlock();
+    const kioskTx = new KioskTransaction({ transactionBlock: txb, kioskClient, cap });
 
     const policies = await kioskClient.getTransferPolicies({ type: itemType });
     expect(policies).toHaveLength(1);
@@ -88,7 +88,7 @@ export async function testLockItemFlow(
         })
         .finalize();
 
-    await executeTransaction(toolbox, tx);
+    await executeTransactionBlock(toolbox, txb);
 }
 
 // A helper that does a full run for kiosk management.
@@ -99,8 +99,8 @@ export async function existingKioskManagementFlow(
     itemType: string,
     itemId: string,
 ) {
-    const tx = new Transaction();
-    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
+    const txb = new TransactionBlock();
+    const kioskTx = new KioskTransaction({ transactionBlock: txb, kioskClient, cap });
 
     kioskTx
         .place({
@@ -140,7 +140,7 @@ export async function existingKioskManagementFlow(
         .withdraw(toolbox.address())
         .finalize();
 
-    await executeTransaction(toolbox, tx);
+    await executeTransactionBlock(toolbox, txb);
 }
 
 /**
@@ -159,8 +159,8 @@ export async function purchaseFlow(
      * Lists an item for sale
      */
     const SALE_PRICE = 100000n;
-    const sellTxb = new Transaction();
-    new KioskTransaction({ transaction: sellTxb, kioskClient, cap: sellerCap })
+    const sellTxb = new TransactionBlock();
+    new KioskTransaction({ transactionBlock: sellTxb, kioskClient, cap: sellerCap })
         .placeAndList({
             itemType,
             item: itemId,
@@ -168,14 +168,14 @@ export async function purchaseFlow(
         })
         .finalize();
 
-    await executeTransaction(toolbox, sellTxb);
+    await executeTransactionBlock(toolbox, sellTxb);
 
     /**
      * Purchases the item using a different kiosk (must be personal)
      */
-    const purchaseTxb = new Transaction();
+    const purchaseTxb = new TransactionBlock();
     const purchaseTx = new KioskTransaction({
-        transaction: purchaseTxb,
+        transactionBlock: purchaseTxb,
         kioskClient,
         cap: buyerCap,
     });
@@ -189,7 +189,7 @@ export async function purchaseFlow(
         })
     ).finalize();
 
-    await executeTransaction(toolbox, purchaseTxb);
+    await executeTransactionBlock(toolbox, purchaseTxb);
 }
 
 export async function purchaseOnNewKiosk(
@@ -204,8 +204,8 @@ export async function purchaseOnNewKiosk(
      * Lists an item for sale
      */
     const SALE_PRICE = 100000n;
-    const sellTxb = new Transaction();
-    new KioskTransaction({ transaction: sellTxb, kioskClient, cap: sellerCap })
+    const sellTxb = new TransactionBlock();
+    new KioskTransaction({ transactionBlock: sellTxb, kioskClient, cap: sellerCap })
         .placeAndList({
             itemType,
             item: itemId,
@@ -213,13 +213,13 @@ export async function purchaseOnNewKiosk(
         })
         .finalize();
 
-    await executeTransaction(toolbox, sellTxb);
+    await executeTransactionBlock(toolbox, sellTxb);
 
     /**
      * Purchases the item using a different kiosk (must be personal)
      */
-    const purchaseTxb = new Transaction();
-    const purchaseTx = new KioskTransaction({ transaction: purchaseTxb, kioskClient });
+    const purchaseTxb = new TransactionBlock();
+    const purchaseTx = new KioskTransaction({ transactionBlock: purchaseTxb, kioskClient });
 
     // create personal kiosk (`true` means that we can use this kiosk for extra transactions)
     if (personal) purchaseTx.createPersonal(true);
@@ -235,5 +235,5 @@ export async function purchaseOnNewKiosk(
     if (!personal) purchaseTx.shareAndTransferCap(toolbox.address());
     purchaseTx.finalize();
 
-    await executeTransaction(toolbox, purchaseTxb);
+    await executeTransactionBlock(toolbox, purchaseTxb);
 }

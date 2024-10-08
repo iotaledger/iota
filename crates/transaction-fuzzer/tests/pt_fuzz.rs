@@ -3,19 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::ObjectRef,
     effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Owner,
     transaction::{CallArg, ObjectArg, ProgrammableTransaction},
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
 };
 use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
     executor::Executor,
     programmable_transaction_gen::{
-        MAX_ITERATIONS_INPUT_MATCH, gen_many_input_match, gen_programmable_transaction,
+        gen_many_input_match, gen_programmable_transaction, MAX_ITERATIONS_INPUT_MATCH,
     },
     type_arg_fuzzer::{run_pt, run_pt_effects},
 };
@@ -96,10 +96,13 @@ pub fn run_pt_success(
     // functions as we have increases complexity of the code to the point that
     // it fails verification)
     assert!(
-        matches!(status, ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
-            command: _,
-        }),
+        matches!(
+            status,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
+                command: _,
+            }
+        ),
         "{:?}",
         status
     );

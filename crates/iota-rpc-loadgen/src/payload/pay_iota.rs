@@ -13,8 +13,8 @@ use iota_types::{
 use tracing::debug;
 
 use crate::payload::{
-    PayIota, ProcessPayload, RpcCommandProcessor, SignerInfo,
-    rpc_command_processor::DEFAULT_GAS_BUDGET,
+    rpc_command_processor::DEFAULT_GAS_BUDGET, PayIota, ProcessPayload, RpcCommandProcessor,
+    SignerInfo,
 };
 
 #[async_trait]

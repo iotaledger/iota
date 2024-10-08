@@ -32,7 +32,7 @@ coins to your address:
 ```ts
 import { IotaClient } from '@iota/iota-sdk/client/';
 import type { IotaObjectRef, IotaObjectResponse } from '@iota/iota-sdk/client/';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const client = new IotaClient({
     url: 'https://fullnode.testnet.iota.io:443',
@@ -52,23 +52,23 @@ async function splitCoinAndTransferToSelf(
     coinObjectId: string,
     yourAddressSecretKey: string,
 ) {
-    const tx = new Transaction();
+    const txb = new TransactionBlock();
     const coinToPay = await client.getObject({ id: coinObjectId });
-    const newcoins1 = tx.splitCoins(tx.gas, [tx.pure(300000000)]);
-    // const newcoins2 = tx.splitCoins(tx.gas, [tx.pure(300000000)]);
-    tx.transferObjects(
+    const newcoins1 = txb.splitCoins(txb.gas, [txb.pure(300000000)]);
+    // const newcoins2 = txb.splitCoins(txb.gas, [txb.pure(300000000)]);
+    txb.transferObjects(
         [
             newcoins1,
             // newcoins2
         ],
-        tx.pure(getKeyPair(yourAddressSecretKey).getPublicKey().toIotaAddress()),
+        txb.pure(getKeyPair(yourAddressSecretKey).getPublicKey().toIotaAddress()),
     );
-    tx.setGasPayment([toIotaObjectRef(coinToPay)]);
-    tx.setGasBudget(100000000);
+    txb.setGasPayment([toIotaObjectRef(coinToPay)]);
+    txb.setGasBudget(100000000);
     await client
-        .signAndExecuteTransaction({
+        .signAndExecuteTransactionBlock({
             signer: getKeyPair(yourAddressSecretKey),
-            transaction: tx,
+            transactionBlock: txb,
             requestType: 'WaitForLocalExecution',
             options: {
                 showEffects: true,
@@ -102,14 +102,14 @@ import { DefaultSplitStrategy, ExecutorServiceHandler } from 'iotaoop';
 const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
 // Define the number of transactions to execute
 const promises = [];
-let tx: TransactionBlockWithLambda;
+let txb: TransactionBlockWithLambda;
 for (let i = 0; i < 10; i++) {
-    tx = new TransactionBlockWithLambda(
-        () => createPaymenttx('<recipient-address>'), // Use a test user address to receive the txs
+    txb = new TransactionBlockWithLambda(
+        () => createPaymentTxb('<recipient-address>'), // Use a test user address to receive the txbs
     );
     promises.push(
         eshandler.execute(
-            tx,
+            txb,
             client,
             new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 NANOS
         ),
@@ -155,32 +155,32 @@ while (i <= 20) {
 // ...
 ```
 
-Now that you have the coins and the admin caps, you can define the `mintNFTtx` function that creates
-and returns the transaction of type `TransactionBlockWithLambda`.
+Now that you have the coins and the admin caps, you can define the `mintNFTTxb` function that
+creates and returns the transaction block of type `TransactionBlockWithLambda`.
 
 ```ts
-function mintNFTtx(
+function mintNFTTxb(
     env: EnvironmentVariables,
     adminKeypair: Ed25519Keypair,
 ): TransactionBlockWithLambda {
-    const txLambda = (adminCapId: string) => {
-        const tx = new Transaction();
-        const hero = tx.moveCall({
+    const txbLambda = (adminCapId: string) => {
+        const txb = new TransactionBlock();
+        const hero = txb.moveCall({
             arguments: [
-                tx.object(adminCapId),
-                tx.pure('zed'),
-                tx.pure('gold'),
-                tx.pure(3),
-                tx.pure('ipfs://example.com/'),
+                txb.object(adminCapId),
+                txb.pure('zed'),
+                txb.pure('gold'),
+                txb.pure(3),
+                txb.pure('ipfs://example.com/'),
             ],
             target: `${env.NFT_APP_PACKAGE_ID}::hero_nft::mint_hero`,
         });
 
-        tx.transferObjects([hero], tx.pure(adminKeypair.getPublicKey().toIotaAddress()));
-        tx.setGasBudget(10000000);
-        return tx;
+        txb.transferObjects([hero], txb.pure(adminKeypair.getPublicKey().toIotaAddress()));
+        txb.setGasBudget(10000000);
+        return txb;
     };
-    return new TransactionBlockWithLambda(txLambda, ['AdminCap']);
+    return new TransactionBlockWithLambda(txbLambda, ['AdminCap']);
 }
 ```
 
@@ -190,11 +190,11 @@ and execute the transactions.
 ```ts
 const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
 const promises: Promise<IotaTransactionBlockResponse>[] = [];
-let tx: TransactionBlockWithLambda;
+let txb: TransactionBlockWithLambda;
 for (let i = 0; i < NUMBER_OF_TRANSACTION_TO_EXECUTE; i++) {
-    tx = mintNFTtx(env, adminKeypair);
+    txb = mintNFTTxb(env, adminKeypair);
     promises.push(
-        eshandler.execute(tx, client, new IncludeAdminCapStrategy('<your-nft-package-id>')),
+        eshandler.execute(txb, client, new IncludeAdminCapStrategy('<your-nft-package-id>')),
     );
 }
 

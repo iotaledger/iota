@@ -7,11 +7,11 @@ module tto::M4 {
     use iota::tx_context::{Self, TxContext};
     use iota::transfer::{Self, Receiving};
 
-    public struct A has key, store {
+    struct A has key, store {
         id: UID,
     }
 
-    public struct B has key, store {
+    struct B has key, store {
         id: UID,
     }
 

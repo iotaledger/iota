@@ -12,7 +12,7 @@ use iota_types::{
 use jsonrpsee::rpc_params;
 use tracing::{debug, info};
 
-use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
+use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 
 pub struct CoinMergeSplitTest;
 

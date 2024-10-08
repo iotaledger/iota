@@ -30,14 +30,14 @@ import {
   formatAddress,
   isValidIotaAddress,
   isValidIotaObjectId,
-  NANOS_PER_IOTA,
+  NANO_PER_IOTA,
 } from '@iota/iota-sdk/utils';
 import { bcs } from '@iota/iota-sdk/bcs';
 import { program } from 'commander';
 import { KIOSK_LISTING, KioskClient, KioskTransaction, Network } from '@iota/kiosk';
 import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 /**
  * List of known types for shorthand search in the `search` command.
@@ -118,7 +118,7 @@ program
   .command('list')
   .description('list an item in the Kiosk for the specified amount of IOTA')
   .argument('<item ID>', 'The ID of the item to list')
-  .argument('<amount NANOS>', 'The amount of IOTA to list the item for')
+  .argument('<amount nano>', 'The amount of IOTA to list the item for')
   .action(listItem);
 
 program
@@ -173,14 +173,14 @@ async function newKiosk() {
     throw new Error(`Kiosk already exists for ${sender}`);
   }
 
-  const tx = new Transaction();
+  const txb = new TransactionBlock();
 
-  new KioskTransaction({ transaction: tx, kioskClient })
+  new KioskTransaction({ transactionBlock: txb, kioskClient })
     .create()
     .shareAndTransferCap(sender)
     .finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -326,17 +326,17 @@ async function placeItem(itemId) {
     throw new Error(`Item ${itemId} is not owned by ${owner}; use \`inventory\` to see your items`);
   }
 
-  const tx = new Transaction();
-  const itemArg = tx.objectRef({ ...item.data });
+  const txb = new TransactionBlock();
+  const itemArg = txb.objectRef({ ...item.data });
 
-  new KioskTransaction({ transaction: tx, kioskClient, kioskCap })
+  new KioskTransaction({ txb, kioskClient, cap: kioskCap })
     .place({
       type: item.data.type,
       item: itemArg,
     })
     .finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -374,10 +374,10 @@ async function lockItem(itemId) {
     throw new Error(`Item ${itemId} with type ${item.data.type} does not have a TransferPolicy`);
   }
 
-  const tx = new Transaction();
-  const itemArg = tx.objectRef({ ...item.data });
+  const txb = new TransactionBlock();
+  const itemArg = txb.objectRef({ ...item.data });
 
-  new KioskTransaction({ transaction: tx, kioskClient, kioskCap: cap })
+  new KioskTransaction({ txb, kioskClient, cap })
     .lock({
       itemType: item.data.type,
       itemId: itemArg,
@@ -385,7 +385,7 @@ async function lockItem(itemId) {
     })
     .finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -415,9 +415,9 @@ async function takeItem(itemId, { address }) {
     throw new Error(`Item ${itemId} not found; error: ` + item.error);
   }
 
-  const tx = new Transaction();
+  const txb = new TransactionBlock();
 
-  new KioskTransaction({ transaction: tx, kioskClient, kioskCap: cap })
+  new KioskTransaction({ txb, kioskClient, cap })
     .transfer({
       itemType: item.data.type,
       itemId,
@@ -425,7 +425,7 @@ async function takeItem(itemId, { address }) {
     })
     .finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -449,9 +449,9 @@ async function listItem(itemId, price) {
     throw new Error(`Item ${itemId} not found; error: ` + item.error);
   }
 
-  const tx = new Transaction();
+  const txb = new TransactionBlock();
 
-  new KioskTransaction({ transaction: tx, kioskClient, kioskCap: cap })
+  new KioskTransaction({ txb, kioskClient, cap })
     .list({
       itemType: item.data.type,
       itemId,
@@ -459,7 +459,7 @@ async function listItem(itemId, price) {
     })
     .finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -483,16 +483,16 @@ async function delistItem(itemId) {
     throw new Error(`Item ${itemId} not found; error: ` + item.error);
   }
 
-  const tx = new Transaction();
+  const txb = new TransactionBlock();
 
-  new KioskTransaction({ transaction: tx, kioskClient, kioskCap: cap })
+  new KioskTransaction({ txb, kioskClient, cap })
     .delist({
       itemType: item.data.type,
       itemId,
     })
     .finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -564,8 +564,8 @@ async function purchaseItem(itemId, opts) {
   }
 
   const price = listing.data.content.fields.value;
-  const tx = new Transaction();
-  const fromKioskArg = tx.object(kiosk.data.objectId);
+  const txb = new TransactionBlock();
+  const fromKioskArg = txb.object(kiosk.data.objectId);
   const cap = await findKioskCap().catch(() => null);
 
   if (cap === null) {
@@ -573,7 +573,7 @@ async function purchaseItem(itemId, opts) {
       'No Kiosk found for sender; use `new` to create one; cannot place item to Kiosk',
     );
   }
-  const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, kioskCap: cap });
+  const kioskTx = new KioskTransaction({ txb, kioskClient, cap });
 
   (
     await kioskTx.purchaseAndResolve({
@@ -584,7 +584,7 @@ async function purchaseItem(itemId, opts) {
     })
   ).finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -667,11 +667,11 @@ async function withdrawAll() {
     throw new Error('No Kiosk found for sender; use `new` to create one');
   }
 
-  const tx = new Transaction();
+  const txb = new TransactionBlock();
 
-  new KioskTransaction({ transaction: tx, kioskClient, kioskCap: cap }).withdraw(sender).finalize();
+  new KioskTransaction({ txb, kioskClient, cap }).withdraw(sender).finalize();
 
-  return sendTx(tx);
+  return sendTx(txb);
 }
 
 /**
@@ -733,11 +733,11 @@ async function findKioskCap(address) {
  * Send the transaction and print the `object changes: created` result.
  * If there are errors, print them.
  */
-async function sendTx(tx) {
+async function sendTx(txb) {
   return client
-    .signAndExecuteTransaction({
+    .signAndExecuteTransactionBlock({
       signer: keypair,
-      transaction: tx,
+      transactionBlock: txb,
       options: {
         showEffects: true,
         showObjectChanges: true,
@@ -764,7 +764,7 @@ async function sendTx(tx) {
       console.log('Storage rebate:            %s', gas.storageRebate);
       console.log('NonRefundable Storage Fee: %s', gas.nonRefundableStorageFee);
       console.log(
-        'Total Gas:                 %s IOTA (%s NANOS)',
+        'Total Gas:                 %s IOTA (%s nano)',
         formatAmount(total),
         total.toString(),
       );
@@ -792,15 +792,15 @@ function formatType(type) {
 }
 
 /**
- * Formats the NANOS into IOTA.
+ * Formats the nano into IOTA.
  */
 function formatAmount(amount) {
   if (!amount) {
     return null;
   }
 
-  if (amount <= NANOS_PER_IOTA) {
-    return Number(amount) / Number(NANOS_PER_IOTA);
+  if (amount <= NANO_PER_IOTA) {
+    return Number(amount) / Number(NANO_PER_IOTA);
   }
 
   let len = amount.toString().length;

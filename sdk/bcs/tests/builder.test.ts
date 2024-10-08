@@ -255,18 +255,9 @@ describe('bcs', () => {
             Variant2: bcs.string(),
         });
 
-        testType('Enum::Variant0(1)', E, { Variant0: 1 }, '000100', {
-            $kind: 'Variant0',
-            Variant0: 1,
-        });
-        testType('Enum::Variant1(1)', E, { Variant1: 1 }, '0101', {
-            $kind: 'Variant1',
-            Variant1: 1,
-        });
-        testType('Enum::Variant2("hello")', E, { Variant2: 'hello' }, '020568656c6c6f', {
-            $kind: 'Variant2',
-            Variant2: 'hello',
-        });
+        testType('Enum::Variant0(1)', E, { Variant0: 1 }, '000100');
+        testType('Enum::Variant1(1)', E, { Variant1: 1 }, '0101');
+        testType('Enum::Variant2("hello")', E, { Variant2: 'hello' }, '020568656c6c6f');
     });
 });
 
@@ -288,7 +279,7 @@ function testType<T, Input>(
         const deserialized = schema.parse(bytes);
         expect(deserialized).toEqual(expected);
 
-        const writer = new BcsWriter({ initialSize: bytes.length });
+        const writer = new BcsWriter({ size: bytes.length });
         schema.write(value, writer);
         expect(toHEX(writer.toBytes())).toBe(hex);
 

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSignTransaction, useIotaClient } from '@iota/dapp-kit';
+import { useSignTransactionBlock, useIotaClient } from '@iota/dapp-kit';
 import { IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
-import { Transaction } from '@iota/iota-sdk/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // A helper to execute transactions by:
 // 1. Signing them using the wallet
@@ -13,20 +13,21 @@ export function useTransactionExecution() {
     const provider = useIotaClient();
 
     // sign transaction from the wallet
-    const { mutateAsync: signTransaction } = useSignTransaction();
+    const { mutateAsync: signTransactionBlock } = useSignTransactionBlock();
 
-    // tx: Transaction
+    // tx: TransactionBlock
     const signAndExecute = async ({
         tx,
         options = { showEffects: true },
     }: {
-        tx: Transaction;
+        tx: TransactionBlock;
         options?: IotaTransactionBlockResponseOptions | undefined;
     }) => {
-        const signedTx = await signTransaction({ transaction: tx });
+        // @ts-expect-error: This is an issue with type references not working together:
+        const signedTx = await signTransactionBlock({ transactionBlock: tx });
 
         const res = await provider.executeTransactionBlock({
-            transactionBlock: signedTx.bytes,
+            transactionBlock: signedTx.transactionBlockBytes,
             signature: signedTx.signature,
             options,
         });

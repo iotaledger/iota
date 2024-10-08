@@ -23,3 +23,4 @@
 # Can assign to the other field as well
 --assign c1 c.1
 
+--gas-budget 1

@@ -2,18 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_ADDRESS, TypeTag,
     authenticator_state::{ActiveJwk, AuthenticatorStateInner},
     crypto::ToFromBytes,
     dynamic_field::{DynamicFieldType, Field},
-    signature::{GenericSignature, VerifyParams},
-    signature_verification::VerifiedDigestCache,
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     transaction::TransactionData,
+    TypeTag, IOTA_AUTHENTICATOR_STATE_ADDRESS,
 };
 use shared_crypto::intent::{
     AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
@@ -23,7 +20,6 @@ use tracing::warn;
 use crate::{
     config::ZkLoginConfig,
     error::Error,
-    server::watermark_task::Watermark,
     types::{
         base64::Base64,
         dynamic_field::{DynamicField, DynamicFieldName},
@@ -47,7 +43,7 @@ pub(crate) enum ZkLoginIntentScope {
 #[derive(SimpleObject, Clone, Debug)]
 pub(crate) struct ZkLoginVerifyResult {
     /// The boolean result of the verification. If true, errors should be empty.
-    pub success: bool,
+    success: bool,
     /// The errors field captures any verification error
     pub errors: Vec<String>,
 }
@@ -62,10 +58,8 @@ pub(crate) async fn verify_zklogin_signature(
     intent_scope: ZkLoginIntentScope,
     author: IotaAddress,
 ) -> Result<ZkLoginVerifyResult, Error> {
-    let Watermark { checkpoint, .. } = *ctx.data_unchecked();
-
     // get current epoch from db.
-    let Some(curr_epoch) = Epoch::query(ctx, None, checkpoint).await? else {
+    let Some(curr_epoch) = Epoch::query(ctx, None, None).await? else {
         return Err(Error::Internal(
             "Cannot get current epoch from db".to_string(),
         ));
@@ -88,7 +82,7 @@ pub(crate) async fn verify_zklogin_signature(
 
     // fetch on-chain JWKs from dynamic field of system object.
     let df = DynamicField::query(
-        ctx,
+        ctx.data_unchecked(),
         IOTA_AUTHENTICATOR_STATE_ADDRESS.into(),
         None,
         DynamicFieldName {
@@ -96,7 +90,7 @@ pub(crate) async fn verify_zklogin_signature(
             bcs: Base64(bcs::to_bytes(&1u64).unwrap()),
         },
         DynamicFieldType::DynamicField,
-        checkpoint,
+        None,
     )
     .await
     .map_err(|e| as_jwks_read_error(e.to_string()))?;
@@ -121,14 +115,8 @@ pub(crate) async fn verify_zklogin_signature(
             }
         }
     }
-    let verify_params = VerifyParams::new(
-        oidc_provider_jwks,
-        vec![],
-        zklogin_env_native,
-        true,
-        true,
-        Some(30),
-    );
+    let verify_params =
+        VerifyParams::new(oidc_provider_jwks, vec![], zklogin_env_native, true, true);
 
     let bytes = bytes.0;
     match intent_scope {
@@ -136,13 +124,15 @@ pub(crate) async fn verify_zklogin_signature(
             let tx_data: TransactionData = bcs::from_bytes(&bytes)
                 .map_err(|_| Error::Client("Invalid tx data bytes".to_string()))?;
             let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
-            let sig = GenericSignature::ZkLoginAuthenticator(zklogin_sig);
-            match sig.verify_authenticator(
+            let tx_sender = tx_data.execution_parts().1;
+            if tx_sender != author.into() {
+                return Err(Error::Client("Tx sender mismatch author".to_string()));
+            }
+            match zklogin_sig.verify_authenticator(
                 &intent_msg,
-                author.into(),
-                curr_epoch,
+                tx_sender,
+                Some(curr_epoch),
                 &verify_params,
-                Arc::new(VerifiedDigestCache::new_empty()),
             ) {
                 Ok(_) => Ok(ZkLoginVerifyResult {
                     success: true,
@@ -165,13 +155,11 @@ pub(crate) async fn verify_zklogin_signature(
                 data,
             );
 
-            let sig = GenericSignature::ZkLoginAuthenticator(zklogin_sig);
-            match sig.verify_authenticator(
+            match zklogin_sig.verify_authenticator(
                 &intent_msg,
                 author.into(),
-                curr_epoch,
+                Some(curr_epoch),
                 &verify_params,
-                Arc::new(VerifiedDigestCache::new_empty()),
             ) {
                 Ok(_) => Ok(ZkLoginVerifyResult {
                     success: true,

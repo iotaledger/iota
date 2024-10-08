@@ -14,8 +14,8 @@ use iota_types::base_types::TransactionDigest;
 use tracing::log::warn;
 
 use crate::payload::{
-    AddressQueryType, ProcessPayload, QueryTransactionBlocks, RpcCommandProcessor, SignerInfo,
-    validation::cross_validate_entities,
+    validation::cross_validate_entities, AddressQueryType, ProcessPayload, QueryTransactionBlocks,
+    RpcCommandProcessor, SignerInfo,
 };
 
 #[async_trait]

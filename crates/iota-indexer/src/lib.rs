@@ -1,25 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 #![recursion_limit = "256"]
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::net::SocketAddr;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use clap::Parser;
-use diesel::r2d2::R2D2Connection;
 use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
-use iota_metrics::spawn_monitored_task;
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
-use secrecy::{ExposeSecret, Secret};
-use system_package_task::SystemPackageTask;
 use tokio::runtime::Handle;
-use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use url::Url;
 
@@ -34,6 +28,7 @@ use crate::{
 pub mod apis;
 pub mod db;
 pub mod errors;
+pub mod framework;
 pub mod handlers;
 pub mod indexer;
 pub mod indexer_reader;
@@ -42,7 +37,6 @@ pub mod models;
 pub mod processors;
 pub mod schema;
 pub mod store;
-pub mod system_package_task;
 pub mod test_utils;
 pub mod types;
 
@@ -54,11 +48,11 @@ pub mod types;
 )]
 pub struct IndexerConfig {
     #[clap(long)]
-    pub db_url: Option<Secret<String>>,
+    pub db_url: Option<String>,
     #[clap(long)]
     pub db_user_name: Option<String>,
     #[clap(long)]
-    pub db_password: Option<Secret<String>>,
+    pub db_password: Option<String>,
     #[clap(long)]
     pub db_host: Option<String>,
     #[clap(long)]
@@ -67,8 +61,6 @@ pub struct IndexerConfig {
     pub db_name: Option<String>,
     #[clap(long, default_value = "http://0.0.0.0:9000", global = true)]
     pub rpc_client_url: String,
-    #[clap(long, default_value = Some("https://checkpoints.mainnet.iota.io"), global = true)]
-    pub remote_store_url: Option<String>,
     #[clap(long, default_value = "0.0.0.0", global = true)]
     pub client_metric_host: String,
     #[clap(long, default_value = "9184", global = true)]
@@ -84,17 +76,14 @@ pub struct IndexerConfig {
     #[clap(long)]
     pub rpc_server_worker: bool,
     #[clap(long)]
-    pub data_ingestion_path: Option<PathBuf>,
-    #[clap(long)]
     pub analytical_worker: bool,
 }
 
 impl IndexerConfig {
     /// returns connection url without the db name
     pub fn base_connection_url(&self) -> Result<String, anyhow::Error> {
-        let url_secret = self.get_db_url()?;
-        let url_str = url_secret.expose_secret();
-        let url = Url::parse(url_str).expect("Failed to parse URL");
+        let url_str = self.get_db_url()?;
+        let url = Url::parse(&url_str).expect("Failed to parse URL");
         Ok(format!(
             "{}://{}:{}@{}:{}/",
             url.scheme(),
@@ -105,7 +94,7 @@ impl IndexerConfig {
         ))
     }
 
-    pub fn get_db_url(&self) -> Result<Secret<String>, anyhow::Error> {
+    pub fn get_db_url(&self) -> Result<String, anyhow::Error> {
         match (
             &self.db_url,
             &self.db_user_name,
@@ -122,14 +111,10 @@ impl IndexerConfig {
                 Some(db_host),
                 Some(db_port),
                 Some(db_name),
-            ) => Ok(secrecy::Secret::new(format!(
+            ) => Ok(format!(
                 "postgres://{}:{}@{}:{}/{}",
-                db_user_name,
-                db_password.expose_secret(),
-                db_host,
-                db_port,
-                db_name
-            ))),
+                db_user_name, db_password, db_host, db_port, db_name
+            )),
             _ => Err(anyhow!(
                 "Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
             )),
@@ -140,16 +125,13 @@ impl IndexerConfig {
 impl Default for IndexerConfig {
     fn default() -> Self {
         Self {
-            db_url: Some(secrecy::Secret::new(
-                "postgres://postgres:postgres@localhost:5432/iota_indexer".to_string(),
-            )),
+            db_url: Some("postgres://postgres:postgres@localhost:5432/iota_indexer".to_string()),
             db_user_name: None,
             db_password: None,
             db_host: None,
             db_port: None,
             db_name: None,
             rpc_client_url: "http://127.0.0.1:9000".to_string(),
-            remote_store_url: Some("https://checkpoints.mainnet.iota.io".to_string()),
             client_metric_host: "0.0.0.0".to_string(),
             client_metric_port: 9184,
             rpc_server_url: "0.0.0.0".to_string(),
@@ -157,20 +139,18 @@ impl Default for IndexerConfig {
             reset_db: false,
             fullnode_sync_worker: true,
             rpc_server_worker: true,
-            data_ingestion_path: None,
             analytical_worker: false,
         }
     }
 }
 
-pub async fn build_json_rpc_server<T: R2D2Connection>(
+pub async fn build_json_rpc_server(
     prometheus_registry: &Registry,
-    reader: IndexerReader<T>,
+    reader: IndexerReader,
     config: &IndexerConfig,
     custom_runtime: Option<Handle>,
 ) -> Result<ServerHandle, IndexerError> {
-    let mut builder =
-        JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
+    let mut builder = JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry);
     let http_client = crate::get_http_client(config.rpc_client_url.as_str())?;
 
     builder.register_module(WriteApi::new(http_client.clone()))?;
@@ -187,21 +167,8 @@ pub async fn build_json_rpc_server<T: R2D2Connection>(
         config.rpc_server_url.as_str().parse().unwrap(),
         config.rpc_server_port,
     );
-
-    let cancel = CancellationToken::new();
-    let system_package_task =
-        SystemPackageTask::new(reader.clone(), cancel.clone(), Duration::from_secs(10));
-
-    tracing::info!("Starting system package task");
-    spawn_monitored_task!(async move { system_package_task.run().await });
-
     Ok(builder
-        .start(
-            default_socket_addr,
-            custom_runtime,
-            ServerType::Http,
-            Some(cancel),
-        )
+        .start(default_socket_addr, custom_runtime, Some(ServerType::Http))
         .await?)
 }
 

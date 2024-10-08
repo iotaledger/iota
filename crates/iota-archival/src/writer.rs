@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 #![allow(dead_code)]
 
 use std::{
@@ -15,14 +14,14 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
-    FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
     compress,
     object_store::util::{copy_file, path_to_filesystem},
+    FileCompression, StorageFormat,
 };
 use iota_types::{
     messages_checkpoint::{
@@ -32,7 +31,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use object_store::DynObjectStore;
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tokio::{
     sync::{
         mpsc,
@@ -43,9 +42,9 @@ use tokio::{
 use tracing::{debug, info};
 
 use crate::{
-    CHECKPOINT_FILE_MAGIC, CHECKPOINT_FILE_SUFFIX, CheckpointUpdates, EPOCH_DIR_PREFIX,
-    FileMetadata, FileType, MAGIC_BYTES, Manifest, SUMMARY_FILE_MAGIC, SUMMARY_FILE_SUFFIX,
-    create_file_metadata, read_manifest, write_manifest,
+    create_file_metadata, read_manifest, write_manifest, CheckpointUpdates, FileMetadata, FileType,
+    Manifest, CHECKPOINT_FILE_MAGIC, CHECKPOINT_FILE_SUFFIX, EPOCH_DIR_PREFIX, MAGIC_BYTES,
+    SUMMARY_FILE_MAGIC, SUMMARY_FILE_SUFFIX,
 };
 
 pub struct ArchiveMetrics {
@@ -178,9 +177,6 @@ impl CheckpointWriter {
 
         let contents_blob = Blob::encode(&checkpoint_contents, BlobEncoding::Bcs)?;
         let blob_size = contents_blob.size();
-        // Flushes the on-hold checkpoint and summary contents if it exceeds the commit
-        // file size or the commit duration has elapsed, then resets the writer
-        // to write the new contents.
         let cut_new_checkpoint_file = (self.checkpoint_buf_offset + blob_size)
             > self.commit_file_size
             || (self.last_commit_instant.elapsed() > self.commit_duration);
@@ -237,9 +233,6 @@ impl CheckpointWriter {
         )?;
         Ok(file_metadata)
     }
-
-    /// Finalizes the on-hold checkpoint and summary contents, and sends the
-    /// CheckpointUpdates to notify the channel listeners.
     fn cut(&mut self) -> Result<()> {
         if !self.checkpoint_range.is_empty() {
             let checkpoint_file_metadata = self.finalize()?;
@@ -365,9 +358,6 @@ impl ArchiveWriter {
         })
     }
 
-    /// Initializes the ArchiveWriter from the state of the remote archive store
-    /// if it exists; otherwise, it starts from genesis. It then creates
-    /// archive files for checkpoints and uploads them to the remote store.
     pub async fn start<S>(&self, store: S) -> Result<tokio::sync::broadcast::Sender<()>>
     where
         S: WriteStore + Send + Sync + 'static,
@@ -400,8 +390,6 @@ impl ArchiveWriter {
         )
         .expect("Failed to create checkpoint writer");
         let (kill_sender, kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
-
-        // Receives CheckpointUpdates and uploads them to the remote store.
         tokio::spawn(Self::start_syncing_with_remote(
             self.remote_object_store.clone(),
             self.local_object_store.clone(),
@@ -410,8 +398,6 @@ impl ArchiveWriter {
             kill_sender.subscribe(),
             self.archive_metrics.clone(),
         ));
-
-        // Tails checkpoints from the store and writes them to the CheckpointWriter.
         tokio::task::spawn_blocking(move || {
             Self::start_tailing_checkpoints(
                 start_checkpoint_sequence_number,
@@ -423,10 +409,6 @@ impl ArchiveWriter {
         Ok(kill_sender)
     }
 
-    /// Checks if the checkpoint with `checkpoint_sequence_number` is available
-    /// to read from store, if not, sleeps for some time (3 secs) and retries.
-    /// If the checkpoint is available, writes the checkpoint contents and
-    /// summary to the CheckpointWriter.
     fn start_tailing_checkpoints<S>(
         start_checkpoint_sequence_number: CheckpointSequenceNumber,
         mut checkpoint_writer: CheckpointWriter,
@@ -464,8 +446,6 @@ impl ArchiveWriter {
         Ok(())
     }
 
-    /// By monitoring a channel that receives CheckpointUpdates, the system
-    /// uploads summary, checkpoint files, and MANIFEST to the remote store
     async fn start_syncing_with_remote(
         remote_object_store: Arc<DynObjectStore>,
         local_object_store: Arc<DynObjectStore>,
@@ -518,7 +498,6 @@ impl ArchiveWriter {
         Ok(())
     }
 
-    /// Syncs a file to the remote store and deletes the local one.
     async fn sync_file_to_remote(
         dir: PathBuf,
         path: object_store::path::Path,

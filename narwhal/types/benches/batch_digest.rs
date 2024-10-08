@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use criterion::{
-    BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main,
+    criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
 };
 use fastcrypto::hash::Hash;
 use narwhal_types as types;

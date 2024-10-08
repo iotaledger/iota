@@ -15,8 +15,8 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, log::warn};
 
 use crate::payload::{
-    GetCheckpoints, ProcessPayload, RpcCommandProcessor, SignerInfo,
-    checkpoint_utils::get_latest_checkpoint_stats, validation::check_transactions,
+    checkpoint_utils::get_latest_checkpoint_stats, validation::check_transactions, GetCheckpoints,
+    ProcessPayload, RpcCommandProcessor, SignerInfo,
 };
 
 #[async_trait]

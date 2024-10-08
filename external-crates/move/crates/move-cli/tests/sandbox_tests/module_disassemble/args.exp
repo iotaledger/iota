@@ -13,8 +13,6 @@ struct S {
 	i: u64
 }
 
-
-
 public foo(Arg0: u64): vector<u64> {
 B0:
 	0: Call bar(): u64
@@ -24,13 +22,11 @@ B0:
 	4: Add
 	5: Call vector::singleton<u64>(u64): vector<u64>
 	6: Ret
-
 }
 public bar(): u64 {
 B0:
 	0: LdU64(7)
 	1: Ret
-
 }
 }
 Command `sandbox view storage/0x000000000000000000000000000000000000000000000000000000000000000c/modules/M.mv`:
@@ -44,19 +40,15 @@ use 000000000000000000000000000000000000000000000000000000000000000b::M as 2M;
 
 
 
-
-
 public f(): u64 {
 B0:
 	0: LdU64(7)
 	1: Ret
-
 }
 public g(): u64 {
 B0:
 	0: LdU64(12)
 	1: Ret
-
 }
 public call_f(): u64 {
 B0:
@@ -66,7 +58,6 @@ B0:
 	3: Call 2M::f(): u64
 	4: Add
 	5: Ret
-
 }
 public call_g(): u64 {
 B0:
@@ -76,6 +67,5 @@ B0:
 	3: Call B::g(): u64
 	4: Add
 	5: Ret
-
 }
 }

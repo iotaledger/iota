@@ -20,7 +20,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -107,7 +107,7 @@ function StakingCard() {
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
 
-    const { mutateAsync: stakeTokenMutateAsync } = useMutation({
+    const stakeToken = useMutation({
         mutationFn: async ({
             tokenTypeArg,
             amount,
@@ -126,7 +126,7 @@ function StakingCard() {
             // });
             try {
                 const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransaction({
+                return await signer.signAndExecuteTransactionBlock({
                     transactionBlock,
                     requestType: effectsOnlySharedTransactions
                         ? 'WaitForEffectsCert'
@@ -143,13 +143,13 @@ function StakingCard() {
         },
         onSuccess: (_, { amount, validatorAddress }) => {
             ampli.stakedIota({
-                stakedAmount: Number(amount / NANOS_PER_IOTA),
+                stakedAmount: Number(amount / NANO_PER_IOTA),
                 validatorAddress: validatorAddress,
             });
         },
     });
 
-    const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
+    const unStakeToken = useMutation({
         mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
             if (!stakedIotaId || !signer) {
                 throw new Error('Failed, missing required field.');
@@ -159,7 +159,7 @@ function StakingCard() {
             // 	name: 'stake',
             // });
             const transactionBlock = createUnstakeTransaction(stakedIotaId);
-            return await signer.signAndExecuteTransaction({
+            return await signer.signAndExecuteTransactionBlock({
                 transactionBlock,
                 requestType: effectsOnlySharedTransactions
                     ? 'WaitForEffectsCert'
@@ -195,13 +195,13 @@ function StakingCard() {
                     if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
                         return;
                     }
-                    response = await unStakeTokenMutateAsync({
+                    response = await unStakeToken.mutateAsync({
                         stakedIotaId: stakeIotaIdParams,
                     });
 
                     txDigest = response.digest;
                 } else {
-                    response = await stakeTokenMutateAsync({
+                    response = await stakeToken.mutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
                         validatorAddress: validatorAddress,
@@ -253,8 +253,8 @@ function StakingCard() {
             navigate,
             stakeData,
             stakeIotaIdParams,
-            unStakeTokenMutateAsync,
-            stakeTokenMutateAsync,
+            unStakeToken,
+            stakeToken,
         ],
     );
 

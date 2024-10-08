@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module serializer::serializer_tests {
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::object::{Self, UID};
     use iota::clock::Clock;
-    use std::option::Option;
-    use iota::object::ID;
-    use std::string::String;
-    use std::ascii;
 
-    public struct MutableShared has key {
+    struct MutableShared has key {
         id: UID,
         value: u64,
     }
@@ -23,7 +22,7 @@ module serializer::serializer_tests {
 
     public entry fun use_clock(_clock: &Clock) {}
 
-    public entry fun list<T: key + store>(
+    public entry fun list<T: key + store, C>(
         item: T,
         ctx: &mut TxContext
     ) {
@@ -52,16 +51,4 @@ module serializer::serializer_tests {
     public fun test_abort() {
         abort 0
     }
-
-    public fun addr(_: address) {}
-    public fun id(_: ID) {}
-
-    public fun ascii_(_: ascii::String) {}
-    public fun string(_: String) {}
-
-    public fun vec(_: vector<ascii::String>) {}
-    public fun opt(_: Option<ascii::String>) {}
-
-    public fun ints(_u8: u8, _u16: u16, _u32: u32, _u64: u64, _u128: u128, _u256: u256) {}
-    public fun boolean(_bool: bool) {}
 }

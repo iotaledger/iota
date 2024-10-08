@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type ReactNode, useMemo, useState, createContext, useContext } from 'react';
-import { TriangleDown } from '@iota/ui-icons';
-import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
-import clsx from 'clsx';
+import { Link } from './Link';
+import { ArrowRight } from '@iota/ui-icons';
 
 type ExpandableListContextType = {
     handleShowAllClick: () => void;
@@ -55,27 +54,13 @@ export function ExpandableListControl(): JSX.Element | null {
     }
 
     return (
-        <div className="flex w-full cursor-pointer justify-center">
-            <Button
-                size={ButtonSize.Small}
-                type={ButtonType.Ghost}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    handleShowAllClick();
-                }}
-                text={showAllText}
-                iconAfterText
-                icon={
-                    <TriangleDown
-                        className={clsx(
-                            'ml-xxxs h-5 w-5 text-neutral-60',
-                            showAll
-                                ? 'rotate-180 transition-transform ease-linear'
-                                : 'rotate-0 transition-transform ease-linear',
-                        )}
-                    />
-                }
-            />
+        <div className="flex cursor-pointer items-center text-neutral-40 dark:text-neutral-60">
+            <Link variant="text" onClick={handleShowAllClick}>
+                <div className="flex items-center gap-xxxs">
+                    <span className="text-body-sm ">{showAllText}</span>
+                    <ArrowRight />
+                </div>
+            </Link>
         </div>
     );
 }

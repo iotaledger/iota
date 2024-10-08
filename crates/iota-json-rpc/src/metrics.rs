@@ -8,10 +8,10 @@ use http_body::Body;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
 };
-use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
+use jsonrpsee::{server::HttpRequest, types::Params, MethodKind};
 use prometheus::{
-    HistogramVec, IntCounterVec, IntGaugeVec, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec,
 };
 use tokio::time::Instant;
 

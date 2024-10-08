@@ -6,15 +6,15 @@ use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{get_key_pair, AccountKeyPair},
     object::Owner,
 };
 use jsonrpsee::rpc_params;
 use tracing::info;
 
 use crate::{
-    TestCaseImpl, TestContext,
     helper::{BalanceChangeChecker, ObjectChecker},
+    TestCaseImpl, TestContext,
 };
 
 pub struct NativeTransferTest;

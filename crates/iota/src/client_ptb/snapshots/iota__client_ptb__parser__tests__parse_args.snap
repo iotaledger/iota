@@ -26,10 +26,8 @@ expression: parsed
             start: 0,
             end: 1,
         },
-        value: InferredNum(
-            U256(
-                1,
-            ),
+        value: U64(
+            1,
         ),
     },
     Spanned {
@@ -37,10 +35,8 @@ expression: parsed
             start: 0,
             end: 5,
         },
-        value: InferredNum(
-            U256(
-                1000,
-            ),
+        value: U64(
+            1000,
         ),
     },
     Spanned {
@@ -48,10 +44,8 @@ expression: parsed
             start: 0,
             end: 11,
         },
-        value: InferredNum(
-            U256(
-                100000000,
-            ),
+        value: U64(
+            100000000,
         ),
     },
     Spanned {
@@ -86,10 +80,8 @@ expression: parsed
             start: 0,
             end: 3,
         },
-        value: InferredNum(
-            U256(
-                1,
-            ),
+        value: U64(
+            1,
         ),
     },
     Spanned {
@@ -97,10 +89,8 @@ expression: parsed
             start: 0,
             end: 7,
         },
-        value: InferredNum(
-            U256(
-                4096,
-            ),
+        value: U64(
+            4096,
         ),
     },
     Spanned {
@@ -108,10 +98,8 @@ expression: parsed
             start: 0,
             end: 13,
         },
-        value: InferredNum(
-            U256(
-                4294967296,
-            ),
+        value: U64(
+            4294967296,
         ),
     },
     Spanned {
@@ -222,10 +210,8 @@ expression: parsed
                     end: 6,
                 },
                 value: Some(
-                    InferredNum(
-                        U256(
-                            1,
-                        ),
+                    U64(
+                        1,
                     ),
                 ),
             },
@@ -243,10 +229,8 @@ expression: parsed
                     end: 8,
                 },
                 value: Some(
-                    InferredNum(
-                        U256(
-                            1,
-                        ),
+                    U64(
+                        1,
                     ),
                 ),
             },
@@ -322,10 +306,8 @@ expression: parsed
                         start: 7,
                         end: 8,
                     },
-                    value: InferredNum(
-                        U256(
-                            1,
-                        ),
+                    value: U64(
+                        1,
                     ),
                 },
                 Spanned {
@@ -333,10 +315,8 @@ expression: parsed
                         start: 10,
                         end: 11,
                     },
-                    value: InferredNum(
-                        U256(
-                            2,
-                        ),
+                    value: U64(
+                        2,
                     ),
                 },
                 Spanned {
@@ -344,10 +324,8 @@ expression: parsed
                         start: 13,
                         end: 14,
                     },
-                    value: InferredNum(
-                        U256(
-                            3,
-                        ),
+                    value: U64(
+                        3,
                     ),
                 },
             ],
@@ -365,10 +343,8 @@ expression: parsed
                         start: 7,
                         end: 8,
                     },
-                    value: InferredNum(
-                        U256(
-                            1,
-                        ),
+                    value: U64(
+                        1,
                     ),
                 },
                 Spanned {
@@ -376,10 +352,8 @@ expression: parsed
                         start: 10,
                         end: 11,
                     },
-                    value: InferredNum(
-                        U256(
-                            2,
-                        ),
+                    value: U64(
+                        2,
                     ),
                 },
                 Spanned {
@@ -387,10 +361,8 @@ expression: parsed
                         start: 13,
                         end: 14,
                     },
-                    value: InferredNum(
-                        U256(
-                            3,
-                        ),
+                    value: U64(
+                        3,
                     ),
                 },
             ],

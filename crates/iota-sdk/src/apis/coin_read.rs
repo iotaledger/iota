@@ -4,7 +4,7 @@
 
 use std::{future, sync::Arc};
 
-use futures::{StreamExt, stream};
+use futures::{stream, StreamExt};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
 use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCoinMetadata};
@@ -14,8 +14,8 @@ use iota_types::{
 };
 
 use crate::{
-    RpcClient,
     error::{Error, IotaRpcResult},
+    RpcClient,
 };
 
 /// Coin Read API provides the functionality needed to get information from the
@@ -69,6 +69,7 @@ impl CoinReadApi {
             .get_coins(owner, coin_type.into(), cursor.into(), limit.into())
             .await?)
     }
+
     /// Return a paginated response with all the coins for the given address, or
     /// an error upon failure.
     ///
@@ -291,16 +292,16 @@ impl CoinReadApi {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let coin_metadata = iota
     ///         .coin_read_api()
-    ///         .get_coin_metadata("0x2::iota::IOTA".to_string())
+    ///         .get_coin_metadata("0x2::iota::IOTA")
     ///         .await?;
     ///     Ok(())
     /// }
     /// ```
     pub async fn get_coin_metadata(
         &self,
-        coin_type: String,
+        coin_type: impl Into<String>,
     ) -> IotaRpcResult<Option<IotaCoinMetadata>> {
-        Ok(self.api.http.get_coin_metadata(coin_type).await?)
+        Ok(self.api.http.get_coin_metadata(coin_type.into()).await?)
     }
 
     /// Return the total supply for a given coin type, or an error upon failure.
@@ -315,12 +316,12 @@ impl CoinReadApi {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///     let total_supply = iota
     ///         .coin_read_api()
-    ///         .get_total_supply("0x2::iota::IOTA".to_string())
+    ///         .get_total_supply("0x2::iota::IOTA")
     ///         .await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_total_supply(&self, coin_type: String) -> IotaRpcResult<Supply> {
-        Ok(self.api.http.get_total_supply(coin_type).await?)
+    pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
+        Ok(self.api.http.get_total_supply(coin_type.into()).await?)
     }
 }

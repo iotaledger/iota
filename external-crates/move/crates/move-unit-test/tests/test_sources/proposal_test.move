@@ -1,12 +1,13 @@
 // This is a test based on the example in the unit testing proposal
-module 0x1::TestonlyModule {
+address 0x1 {
+module TestonlyModule {
     #[test_only]
     public fun aborts() {
         abort 42
     }
 }
 
-module 0x1::Module {
+module Module {
     fun a(a: u64): bool {
         a == 10
     }
@@ -25,7 +26,7 @@ module 0x1::Module {
 
     // A test only struct. This will only be included in test mode.
     #[test_only, allow(unused_field)]
-    public struct C<T> has drop, key, store { x: T }
+    struct C<T> has drop, key, store { x: T }
 
     #[test] // test entry point.
     fun tests_a() { // an actual test that will be run
@@ -45,4 +46,5 @@ module 0x1::Module {
     fun other_module_aborts() {
        TestonlyModule::aborts()
     }
+}
 }

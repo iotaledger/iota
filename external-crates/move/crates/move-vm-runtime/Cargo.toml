@@ -9,8 +9,6 @@ publish = false
 repository = "https://github.com/diem/diem"
 description = "Core Move execution logic"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 better_any.workspace = true
 fail.workspace = true
@@ -19,7 +17,6 @@ parking_lot.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
-# referred to via path for execution versioning
 move-binary-format.workspace = true
 move-bytecode-verifier = { path = "../move-bytecode-verifier" }
 move-core-types.workspace = true
@@ -30,9 +27,6 @@ move-vm-types.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 hex.workspace = true
-proptest.workspace = true
-
-move-binary-format = { workspace = true, features = ["fuzzing"] }
 
 [features]
 default = []

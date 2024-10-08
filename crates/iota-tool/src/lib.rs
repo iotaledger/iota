@@ -11,19 +11,18 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     sync::{
-        Arc,
         atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc,
     },
     time::Duration,
 };
 
-use anyhow::{Result, anyhow};
-use clap::ValueEnum;
+use anyhow::{anyhow, Result};
 use eyre::ContextCompat;
 use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
 use futures::{
+    future::{join_all, AbortHandle},
     StreamExt, TryStreamExt,
-    future::{AbortHandle, join_all},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use iota_archival::{
@@ -31,35 +30,34 @@ use iota_archival::{
     verify_archive_with_checksums, verify_archive_with_genesis_config,
 };
 use iota_config::{
-    NodeConfig,
     genesis::Genesis,
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+    NodeConfig,
 };
 use iota_core::{
-    authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
+    authority::{authority_store_tables::AuthorityPerpetualTables, AuthorityStore},
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    execution_cache::build_execution_cache_from_env,
+    execution_cache::ExecutionCache,
     storage::RocksDbStore,
 };
-use iota_network::default_iota_network_config;
+use iota_network::default_iota_network_stack_config;
 use iota_protocol_config::Chain;
-use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk::IotaClientBuilder;
 use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
 use iota_storage::{
     object_store::{
-        ObjectStoreGetExt,
         http::HttpDownloaderBuilder,
-        util::{MANIFEST_FILENAME, Manifest, PerEpochManifest, copy_file, exists, get_path},
+        util::{copy_file, exists, get_path, Manifest, PerEpochManifest, MANIFEST_FILENAME},
+        ObjectStoreGetExt,
     },
     verify_checkpoint_range,
 };
 use iota_types::{
     accumulator::Accumulator,
     base_types::*,
-    committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
@@ -67,66 +65,65 @@ use iota_types::{
         TransactionInfoRequest, TransactionStatus,
     },
     multiaddr::Multiaddr,
-    object::Owner,
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;
 use prometheus::Registry;
-use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;
 use typed_store::rocks::MetricConf;
 
 pub mod commands;
 pub mod db_tool;
-
-#[derive(
-    Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
-)]
-pub enum SnapshotVerifyMode {
-    /// verification of both db state and downloaded checkpoints are skipped.
-    /// This is the fastest mode, but is unsafe, and thus should only be used
-    /// if you fully trust the source for both the snapshot and the checkpoint
-    /// archive.
-    None,
-    /// verify snapshot state during download, but no post-restore db
-    /// verification. Checkpoint verification is performed.
-    #[default]
-    Normal,
-    /// In ADDITION to the behavior of `--verify normal`, verify db state
-    /// post-restore against the end of epoch state root commitment.
-    Strict,
-}
+pub mod pkg_dump;
 
 // This functions requires at least one of genesis or fullnode_rpc to be `Some`.
 async fn make_clients(
-    iota_client: &Arc<IotaClient>,
+    genesis: Option<PathBuf>,
+    fullnode_rpc: Option<String>,
 ) -> Result<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>> {
-    let mut net_config = default_iota_network_config();
+    let mut net_config = default_iota_network_stack_config();
     net_config.connect_timeout = Some(Duration::from_secs(5));
     let mut authority_clients = BTreeMap::new();
 
-    let active_validators = iota_client
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators;
+    if let Some(fullnode_rpc) = fullnode_rpc {
+        let iota_client = IotaClientBuilder::default().build(fullnode_rpc).await?;
+        let active_validators = iota_client
+            .governance_api()
+            .get_latest_iota_system_state()
+            .await?
+            .active_validators;
 
-    for validator in active_validators {
-        let net_addr = Multiaddr::try_from(validator.net_address).unwrap();
-        let channel = net_config
-            .connect_lazy(&net_addr)
-            .map_err(|err| anyhow!(err.to_string()))?;
-        let client = NetworkAuthorityClient::new(channel);
-        let public_key_bytes =
-            AuthorityPublicKeyBytes::from_bytes(&validator.protocol_pubkey_bytes)?;
-        authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
+        for validator in active_validators {
+            let net_addr = Multiaddr::try_from(validator.net_address).unwrap();
+            let channel = net_config
+                .connect_lazy(&net_addr)
+                .map_err(|err| anyhow!(err.to_string()))?;
+            let client = NetworkAuthorityClient::new(channel);
+            let public_key_bytes =
+                AuthorityPublicKeyBytes::from_bytes(&validator.protocol_pubkey_bytes)?;
+            authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
+        }
+    } else {
+        if genesis.is_none() {
+            return Err(anyhow!("Either genesis or fullnode_rpc must be specified"));
+        }
+        let genesis = Genesis::load(genesis.unwrap())?;
+        for validator in genesis.validator_set_for_tooling() {
+            let metadata = validator.verified_metadata();
+            let channel = net_config
+                .connect_lazy(&metadata.net_address)
+                .map_err(|err| anyhow!(err.to_string()))?;
+            let client = NetworkAuthorityClient::new(channel);
+            let public_key_bytes = metadata.iota_pubkey_bytes();
+            authority_clients.insert(public_key_bytes, (metadata.net_address.clone(), client));
+        }
     }
 
     Ok(authority_clients)
 }
 
-type ObjectVersionResponses = (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64);
+type ObjectVersionResponses = Vec<(Option<SequenceNumber>, Result<ObjectInfoResponse>, f64)>;
 pub struct ObjectData {
     requested_id: ObjectID,
     responses: Vec<(AuthorityName, Multiaddr, ObjectVersionResponses)>,
@@ -148,107 +145,83 @@ where
     }
 }
 
-#[allow(clippy::type_complexity)]
-pub struct GroupedObjectOutput {
-    pub grouped_results: BTreeMap<
-        Option<(
-            Option<SequenceNumber>,
-            ObjectDigest,
-            TransactionDigest,
-            Owner,
-            Option<TransactionDigest>,
-        )>,
-        Vec<AuthorityName>,
-    >,
-    pub voting_power: Vec<(
-        Option<(
-            Option<SequenceNumber>,
-            ObjectDigest,
-            TransactionDigest,
-            Owner,
-            Option<TransactionDigest>,
-        )>,
-        u64,
-    )>,
-    pub available_voting_power: u64,
-    pub fully_locked: bool,
-}
-
-impl GroupedObjectOutput {
-    pub fn new(
-        object_data: ObjectData,
-        committee: Arc<BTreeMap<AuthorityPublicKeyBytes, u64>>,
-    ) -> Self {
-        let mut grouped_results = BTreeMap::new();
-        let mut voting_power = BTreeMap::new();
-        let mut available_voting_power = 0;
-        for (name, _, (version, resp, _elapsed)) in &object_data.responses {
-            let stake = committee.get(name).unwrap();
-            let key = match resp {
-                Ok(r) => {
-                    let obj_digest = r.object.compute_object_reference().2;
-                    let parent_tx_digest = r.object.previous_transaction;
-                    let owner = r.object.owner;
-                    let lock = r.lock_for_debugging.as_ref().map(|lock| *lock.digest());
-                    if lock.is_none() {
-                        available_voting_power += stake;
-                    }
-                    Some((*version, obj_digest, parent_tx_digest, owner, lock))
-                }
-                Err(_) => None,
-            };
-            let entry = grouped_results.entry(key).or_insert_with(Vec::new);
-            entry.push(*name);
-            let entry: &mut u64 = voting_power.entry(key).or_default();
-            *entry += stake;
-        }
-        let voting_power = voting_power
-            .into_iter()
-            .sorted_by(|(_, v1), (_, v2)| Ord::cmp(v2, v1))
-            .collect::<Vec<_>>();
-        let mut fully_locked = false;
-        if !voting_power.is_empty()
-            && voting_power.first().unwrap().1 + available_voting_power < QUORUM_THRESHOLD
-        {
-            fully_locked = true;
-        }
-        Self {
-            grouped_results,
-            voting_power,
-            available_voting_power,
-            fully_locked,
-        }
-    }
-}
+pub struct GroupedObjectOutput(pub ObjectData);
 
 #[allow(clippy::format_in_format_args)]
 impl std::fmt::Display for GroupedObjectOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "available stake: {}", self.available_voting_power)?;
-        writeln!(f, "fully locked: {}", self.fully_locked)?;
-        writeln!(f, "{:<100}\n", "-".repeat(100))?;
-        for (key, stake) in &self.voting_power {
-            let val = self.grouped_results.get(key).unwrap();
-            writeln!(f, "total stake: {stake}")?;
-            match key {
-                Some((_version, obj_digest, parent_tx_digest, owner, lock)) => {
-                    let lock = lock.opt_debug("no-known-lock");
-                    writeln!(f, "obj ref: {obj_digest}")?;
-                    writeln!(f, "parent tx: {parent_tx_digest}")?;
-                    writeln!(f, "owner: {owner}")?;
-                    writeln!(f, "lock: {lock}")?;
-                    for (i, name) in val.iter().enumerate() {
-                        writeln!(f, "        {:<4} {:<20}", i, name.concise(),)?;
-                    }
+        let responses = self
+            .0
+            .responses
+            .iter()
+            .flat_map(|(name, multiaddr, resp)| {
+                resp.iter().map(|(seq_num, r, timespent)| {
+                    (
+                        *name,
+                        multiaddr.clone(),
+                        seq_num,
+                        r,
+                        timespent,
+                        r.as_ref().err(),
+                    )
+                })
+            })
+            .sorted_by(|a, b| {
+                Ord::cmp(&b.2, &a.2)
+                    .then_with(|| Ord::cmp(&format!("{:?}", &b.5), &format!("{:?}", &a.5)))
+            })
+            .chunk_by(|(_, _, seq_num, _r, _ts, _)| **seq_num);
+        for (seq_num, group) in &responses {
+            writeln!(f, "seq num: {}", seq_num.opt_debug("latest-seq-num"))?;
+            let cur_version_resp = group.chunk_by(|(_, _, _, r, _, _)| match r {
+                Ok(result) => {
+                    let parent_tx_digest = result.object.previous_transaction;
+                    let obj_digest = result.object.compute_object_reference().2;
+                    let lock = result
+                        .lock_for_debugging
+                        .as_ref()
+                        .map(|lock| *lock.digest());
+                    let owner = result.object.owner;
+                    Some((parent_tx_digest, obj_digest, lock, owner))
                 }
-                None => {
-                    writeln!(f, "ERROR")?;
-                    for (i, name) in val.iter().enumerate() {
-                        writeln!(f, "        {:<4} {:<20}", i, name.concise(),)?;
+                Err(_) => None,
+            });
+            for (result, group) in &cur_version_resp {
+                match result {
+                    Some((parent_tx_digest, obj_digest, lock, owner)) => {
+                        let lock = lock.opt_debug("no-known-lock");
+                        writeln!(f, "obj ref: {obj_digest}")?;
+                        writeln!(f, "parent tx: {parent_tx_digest}")?;
+                        writeln!(f, "owner: {owner}")?;
+                        writeln!(f, "lock: {lock}")?;
+                        for (i, (name, multiaddr, _, _, timespent, _)) in group.enumerate() {
+                            writeln!(
+                                f,
+                                "        {:<4} {:<20} {:<56} ({:.3}s)",
+                                i,
+                                name.concise(),
+                                format!("{}", multiaddr),
+                                timespent
+                            )?;
+                        }
                     }
-                }
-            };
-            writeln!(f, "{:<100}\n", "-".repeat(100))?;
+                    None => {
+                        writeln!(f, "ERROR")?;
+                        for (i, (name, multiaddr, _, resp, timespent, _)) in group.enumerate() {
+                            writeln!(
+                                f,
+                                "        {:<4} {:<20} {:<56} ({:.3}s) {:?}",
+                                i,
+                                name.concise(),
+                                format!("{}", multiaddr),
+                                timespent,
+                                resp
+                            )?;
+                        }
+                    }
+                };
+                writeln!(f, "{:<100}\n", "-".repeat(100))?;
+            }
         }
         Ok(())
     }
@@ -267,27 +240,29 @@ impl ConciseObjectOutput {
 
 impl std::fmt::Display for ConciseObjectOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (name, _multi_addr, (version, resp, _time_elapsed)) in &self.0.responses {
-            write!(
-                f,
-                "{:<20} {:<8}",
-                format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
-            )?;
-            match resp {
-                Err(_) => writeln!(
+        for (name, _multi_addr, versions) in &self.0.responses {
+            for (version, resp, _time_elapsed) in versions {
+                write!(
                     f,
-                    "{:<66} {:<45} {:<51}",
-                    "object-fetch-failed", "no-cert-available", "no-owner-available"
-                )?,
-                Ok(resp) => {
-                    let obj_digest = resp.object.compute_object_reference().2;
-                    let parent = resp.object.previous_transaction;
-                    let owner = resp.object.owner;
-                    write!(f, " {:<66} {:<45} {:<51}", obj_digest, parent, owner)?;
+                    "{:<20} {:<8}",
+                    format!("{:?}", name.concise()),
+                    version.map(|s| s.value()).opt_debug("-")
+                )?;
+                match resp {
+                    Err(_) => writeln!(
+                        f,
+                        "{:<66} {:<45} {:<51}",
+                        "object-fetch-failed", "no-cert-available", "no-owner-available"
+                    )?,
+                    Ok(resp) => {
+                        let obj_digest = resp.object.compute_object_reference().2;
+                        let parent = resp.object.previous_transaction;
+                        let owner = resp.object.owner;
+                        write!(f, " {:<66} {:<45} {:<51}", obj_digest, parent, owner)?;
+                    }
                 }
+                writeln!(f)?;
             }
-            writeln!(f)?;
         }
         Ok(())
     }
@@ -299,43 +274,46 @@ impl std::fmt::Display for VerboseObjectOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Object: {}", self.0.requested_id)?;
 
-        for (name, multiaddr, (version, resp, timespent)) in &self.0.responses {
+        for (name, multiaddr, versions) in &self.0.responses {
             writeln!(f, "validator: {:?}, addr: {:?}", name.concise(), multiaddr)?;
-            writeln!(
-                f,
-                "-- version: {} ({:.3}s)",
-                version.opt_debug("<version not available>"),
-                timespent,
-            )?;
 
-            match resp {
-                Err(e) => writeln!(f, "Error fetching object: {}", e)?,
-                Ok(resp) => {
-                    writeln!(
-                        f,
-                        "  -- object digest: {}",
-                        resp.object.compute_object_reference().2
-                    )?;
-                    if resp.object.is_package() {
-                        writeln!(f, "  -- object: <Move Package>")?;
-                    } else if let Some(layout) = &resp.layout {
+            for (version, resp, timespent) in versions {
+                writeln!(
+                    f,
+                    "-- version: {} ({:.3}s)",
+                    version.opt_debug("<version not available>"),
+                    timespent,
+                )?;
+
+                match resp {
+                    Err(e) => writeln!(f, "Error fetching object: {}", e)?,
+                    Ok(resp) => {
                         writeln!(
                             f,
-                            "  -- object: Move Object: {}",
-                            resp.object
-                                .data
-                                .try_as_move()
-                                .unwrap()
-                                .to_move_struct(layout)
-                                .unwrap()
+                            "  -- object digest: {}",
+                            resp.object.compute_object_reference().2
+                        )?;
+                        if resp.object.is_package() {
+                            writeln!(f, "  -- object: <Move Package>")?;
+                        } else if let Some(layout) = &resp.layout {
+                            writeln!(
+                                f,
+                                "  -- object: Move Object: {}",
+                                resp.object
+                                    .data
+                                    .try_as_move()
+                                    .unwrap()
+                                    .to_move_struct(layout)
+                                    .unwrap()
+                            )?;
+                        }
+                        writeln!(f, "  -- owner: {}", resp.object.owner)?;
+                        writeln!(
+                            f,
+                            "  -- locked by: {}",
+                            resp.lock_for_debugging.opt_debug("<not locked>")
                         )?;
                     }
-                    writeln!(f, "  -- owner: {}", resp.object.owner)?;
-                    writeln!(
-                        f,
-                        "  -- locked by: {}",
-                        resp.lock_for_debugging.opt_debug("<not locked>")
-                    )?;
                 }
             }
         }
@@ -347,8 +325,11 @@ pub async fn get_object(
     obj_id: ObjectID,
     version: Option<u64>,
     validator: Option<AuthorityName>,
-    clients: Arc<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>>,
+    genesis: Option<PathBuf>,
+    fullnode_rpc: Option<String>,
 ) -> Result<ObjectData> {
+    let clients = make_clients(genesis, fullnode_rpc).await?;
+
     let responses = join_all(
         clients
             .iter()
@@ -360,8 +341,8 @@ pub async fn get_object(
                 }
             })
             .map(|(name, (address, client))| async {
-                let object_version = get_object_impl(client, obj_id, version).await;
-                (*name, address.clone(), object_version)
+                let object_versions = get_object_impl(client, obj_id, version).await;
+                (*name, address.clone(), object_versions)
             }),
     )
     .await;
@@ -374,11 +355,11 @@ pub async fn get_object(
 
 pub async fn get_transaction_block(
     tx_digest: TransactionDigest,
+    genesis: Option<PathBuf>,
     show_input_tx: bool,
-    fullnode_rpc: String,
+    fullnode_rpc: Option<String>,
 ) -> Result<String> {
-    let iota_client = Arc::new(IotaClientBuilder::default().build(fullnode_rpc).await?);
-    let clients = make_clients(&iota_client).await?;
+    let clients = make_clients(genesis, fullnode_rpc).await?;
     let timer = Instant::now();
     let responses = join_all(clients.iter().map(|(name, (address, client))| async {
         let result = client
@@ -473,11 +454,15 @@ pub async fn get_transaction_block(
     Ok(s)
 }
 
+// Keep the return type a vector in case we need support for lamport versions in
+// the near future
 async fn get_object_impl(
     client: &NetworkAuthorityClient,
     id: ObjectID,
     version: Option<u64>,
-) -> (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64) {
+) -> Vec<(Option<SequenceNumber>, Result<ObjectInfoResponse>, f64)> {
+    let mut ret = Vec::new();
+
     let start = Instant::now();
     let resp = client
         .handle_object_info_request(ObjectInfoRequest {
@@ -493,7 +478,9 @@ async fn get_object_impl(
     let elapsed = start.elapsed().as_secs_f64();
 
     let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
-    (resp_version.map(SequenceNumber::from), resp, elapsed)
+    ret.push((resp_version.map(SequenceNumber::from), resp, elapsed));
+
+    ret
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
@@ -587,15 +574,16 @@ fn start_summary_sync(
     epoch: u64,
     num_parallel_downloads: usize,
     verify: bool,
-    all_checkpoints: bool,
 ) -> JoinHandle<Result<(), anyhow::Error>> {
     tokio::spawn(async move {
         info!("Starting summary sync");
         let store =
             AuthorityStore::open_no_genesis(perpetual_db, usize::MAX, false, &Registry::default())?;
-        let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
-        let state_sync_store =
-            RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
+        let state_sync_store = RocksDbStore::new(
+            Arc::new(ExecutionCache::new_for_tests(store, &Registry::default())),
+            committee_store,
+            checkpoint_store.clone(),
+        );
         // Only insert the genesis checkpoint if the DB is empty and doesn't have it
         // already
         if checkpoint_store
@@ -618,25 +606,13 @@ fn start_summary_sync(
         archive_reader.sync_manifest_once().await?;
         let manifest = archive_reader.get_manifest().await?;
 
-        let end_of_epoch_checkpoint_seq_nums = (0..=epoch)
-            .map(|e| manifest.next_checkpoint_after_epoch(e) - 1)
-            .collect::<Vec<_>>();
-        let last_checkpoint = end_of_epoch_checkpoint_seq_nums
-            .last()
-            .expect("Expected at least one checkpoint");
-
-        let num_to_sync = if all_checkpoints {
-            *last_checkpoint
-        } else {
-            end_of_epoch_checkpoint_seq_nums.len() as u64
-        };
+        let last_checkpoint = manifest.next_checkpoint_after_epoch(epoch) - 1;
         let sync_progress_bar = m.add(
-            ProgressBar::new(num_to_sync).with_style(
-                ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})")
+            ProgressBar::new(last_checkpoint).with_style(
+                ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len}({msg})")
                     .unwrap(),
             ),
         );
-
         let cloned_progress_bar = sync_progress_bar.clone();
         let sync_checkpoint_counter = Arc::new(AtomicU64::new(0));
         let s_instant = Instant::now();
@@ -667,33 +643,34 @@ fn start_summary_sync(
             }
         });
 
-        if all_checkpoints {
-            archive_reader
-                .read_summaries_for_range_no_verify(
-                    state_sync_store.clone(),
-                    s_start..last_checkpoint + 1,
-                    sync_checkpoint_counter,
-                )
-                .await?;
-        } else {
-            archive_reader
-                .read_summaries_for_list_no_verify(
-                    state_sync_store.clone(),
-                    end_of_epoch_checkpoint_seq_nums.clone(),
-                    sync_checkpoint_counter,
-                )
-                .await?;
-        }
+        let sync_range = s_start..last_checkpoint + 1;
+        archive_reader
+            .read_summaries(
+                state_sync_store.clone(),
+                sync_range.clone(),
+                sync_checkpoint_counter,
+                // rather than blocking on verify, sync all summaries first, then verify later
+                false,
+            )
+            .await?;
         sync_progress_bar.finish_with_message("Checkpoint summary sync is complete");
 
-        let checkpoint = checkpoint_store
-            .get_checkpoint_by_sequence_number(*last_checkpoint)?
-            .ok_or(anyhow!("Failed to read last checkpoint"))?;
+        // verify checkpoint summaries
         if verify {
+            let v_start = s_start;
+            // update highest verified to be highest synced. We will move back
+            // iff parallel verification succeeds
+            let latest_verified = checkpoint_store
+                .get_checkpoint_by_sequence_number(latest_synced)
+                .expect("Failed to get checkpoint")
+                .expect("Expected checkpoint to exist after summary sync");
+            checkpoint_store
+                .update_highest_verified_checkpoint(&latest_verified)
+                .expect("Failed to update highest verified checkpoint");
             let verify_progress_bar = m.add(
-                ProgressBar::new(num_to_sync).with_style(
+                ProgressBar::new(last_checkpoint).with_style(
                     ProgressStyle::with_template(
-                        "[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})",
+                        "[{elapsed_precise}] {wide_bar} {pos}/{len}({msg})",
                     )
                     .unwrap(),
                 ),
@@ -704,7 +681,6 @@ fn start_summary_sync(
             let v_instant = Instant::now();
 
             tokio::spawn(async move {
-                let v_start = if all_checkpoints { s_start } else { 0 };
                 loop {
                     if cloned_verify_progress_bar.is_finished() {
                         break;
@@ -721,51 +697,20 @@ fn start_summary_sync(
                 }
             });
 
-            if all_checkpoints {
-                // in this case we need to verify all the checkpoints in the range pairwise
-                let v_start = s_start;
-                // update highest verified to be highest synced. We will move back
-                // iff parallel verification succeeds
-                let latest_verified = checkpoint_store
-                    .get_checkpoint_by_sequence_number(latest_synced)
-                    .expect("Failed to get checkpoint")
-                    .expect("Expected checkpoint to exist after summary sync");
-                checkpoint_store
-                    .update_highest_verified_checkpoint(&latest_verified)
-                    .expect("Failed to update highest verified checkpoint");
-
-                let verify_range = v_start..last_checkpoint + 1;
-                verify_checkpoint_range(
-                    verify_range,
-                    state_sync_store,
-                    verify_checkpoint_counter,
-                    num_parallel_downloads,
-                )
-                .await;
-            } else {
-                // in this case we only need to verify the end of epoch checkpoints by checking
-                // signatures against the corresponding epoch committee.
-                for (cp_epoch, epoch_last_cp_seq_num) in
-                    end_of_epoch_checkpoint_seq_nums.iter().enumerate()
-                {
-                    let epoch_last_checkpoint = checkpoint_store
-                        .get_checkpoint_by_sequence_number(*epoch_last_cp_seq_num)?
-                        .ok_or(anyhow!("Failed to read checkpoint"))?;
-                    let committee = state_sync_store
-                        .get_committee(cp_epoch as u64)
-                        .expect("store operation should not fail")
-                        .expect(
-                            "Expected committee to exist after syncing all end of epoch checkpoints",
-                        );
-                    epoch_last_checkpoint
-                        .verify_authority_signatures(&committee)
-                        .expect("Failed to verify checkpoint");
-                    verify_checkpoint_counter.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-
+            let verify_range = v_start..last_checkpoint + 1;
+            verify_checkpoint_range(
+                verify_range,
+                state_sync_store,
+                verify_checkpoint_counter,
+                num_parallel_downloads,
+            )
+            .await;
             verify_progress_bar.finish_with_message("Checkpoint summary verification is complete");
         }
+
+        let checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(last_checkpoint)?
+            .ok_or(anyhow!("Failed to read last checkpoint"))?;
 
         checkpoint_store.update_highest_verified_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_synced_checkpoint(&checkpoint)?;
@@ -830,14 +775,12 @@ pub async fn download_formal_snapshot(
     archive_store_config: ObjectStoreConfig,
     num_parallel_downloads: usize,
     network: Chain,
-    verify: SnapshotVerifyMode,
-    all_checkpoints: bool,
+    verify: bool,
 ) -> Result<(), anyhow::Error> {
-    let m = MultiProgress::new();
-    m.println(format!(
-        "Beginning formal snapshot restore to end of epoch {}, network: {:?}, verification mode: {:?}",
-        epoch, network, verify,
-    ))?;
+    eprintln!(
+        "Beginning formal snapshot restore to end of epoch {}, network: {:?}",
+        epoch, network,
+    );
     let path = path.join("staging").to_path_buf();
     if path.exists() {
         fs::remove_dir_all(path.clone())?;
@@ -857,6 +800,7 @@ pub async fn download_formal_snapshot(
         None,
     ));
 
+    let m = MultiProgress::new();
     let summaries_handle = start_summary_sync(
         perpetual_db.clone(),
         committee_store.clone(),
@@ -866,8 +810,7 @@ pub async fn download_formal_snapshot(
         archive_store_config.clone(),
         epoch,
         num_parallel_downloads,
-        verify != SnapshotVerifyMode::None,
-        all_checkpoints,
+        verify,
     );
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let perpetual_db_clone = perpetual_db.clone();
@@ -880,7 +823,6 @@ pub async fn download_formal_snapshot(
     // TODO if verify is false, we should skip generating these and
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads);
-    let m_clone = m.clone();
 
     let snapshot_handle = tokio::spawn(async move {
         let local_store_config = ObjectStoreConfig {
@@ -894,7 +836,7 @@ pub async fn download_formal_snapshot(
             &local_store_config,
             usize::MAX,
             NonZeroUsize::new(num_parallel_downloads).unwrap(),
-            m_clone,
+            m,
         )
         .await
         .unwrap_or_else(|err| panic!("Failed to create reader: {}", err));
@@ -905,9 +847,7 @@ pub async fn download_formal_snapshot(
         Ok::<(), anyhow::Error>(())
     });
     let mut root_accumulator = Accumulator::default();
-    let mut num_live_objects = 0;
-    while let Some((partial_acc, num_objects)) = receiver.recv().await {
-        num_live_objects += num_objects;
+    while let Some(partial_acc) = receiver.recv().await {
         root_accumulator.union(&partial_acc);
     }
     summaries_handle
@@ -920,7 +860,7 @@ pub async fn download_formal_snapshot(
         .expect("Expected nonempty checkpoint store");
 
     // Perform snapshot state verification
-    if verify != SnapshotVerifyMode::None {
+    if verify {
         assert_eq!(
             last_checkpoint.epoch(),
             epoch,
@@ -947,26 +887,18 @@ pub async fn download_formal_snapshot(
                 assert_eq!(
                     *consensus_digest, local_digest,
                     "End of epoch {} root state digest {} does not match \
-                    local root state hash {} computed from snapshot data",
+                    local root state hash {} after restoring from formal snapshot",
                     epoch, consensus_digest.digest, local_digest.digest,
                 );
-                let progress_bar = m.add(
-                    ProgressBar::new(1).with_style(
-                        ProgressStyle::with_template(
-                            "[{elapsed_precise}] {wide_bar} Verifying snapshot contents against root state hash ({msg})",
-                        )
-                        .unwrap(),
-                    ),
-                );
-                progress_bar.finish_with_message("Verification complete");
+                eprintln!("Formal snapshot state verification completed successfully!");
             }
         };
     } else {
-        m.println(
+        eprintln!(
             "WARNING: Skipping snapshot verification! \
             This is highly discouraged unless you fully trust the source of this snapshot and its contents.
-            If this was unintentional, rerun with `--verify` set to `normal` or `strict`.",
-        )?;
+            If this was unintentional, rerun with `--verify` set to `true`"
+        );
     }
 
     snapshot_handle
@@ -982,14 +914,10 @@ pub async fn download_formal_snapshot(
 
     setup_db_state(
         epoch,
-        root_accumulator.clone(),
-        perpetual_db.clone(),
+        root_accumulator,
+        perpetual_db,
         checkpoint_store,
         committee_store,
-        network,
-        verify == SnapshotVerifyMode::Strict,
-        num_live_objects,
-        m,
     )
     .await?;
 
@@ -999,7 +927,7 @@ pub async fn download_formal_snapshot(
     }
     fs::rename(&path, &new_path)?;
     fs::remove_dir_all(snapshot_dir.clone())?;
-    println!(
+    info!(
         "Successfully restored state from snapshot at end of epoch {}",
         epoch
     );
@@ -1062,7 +990,7 @@ pub async fn download_db_snapshot(
         let progress_bar = m.add(
             ProgressBar::new(files.len() as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} files done ({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} files done\n({msg})",
                 )
                 .unwrap(),
             ),

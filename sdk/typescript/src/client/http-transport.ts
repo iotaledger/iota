@@ -12,7 +12,7 @@ import { WebsocketClient } from './rpc-websocket-client.js';
  */
 export type HttpHeaders = { [header: string]: string };
 
-export interface IotaHTTPTransportOptions {
+interface IotaHTTPTransportOptions {
     fetch?: typeof fetch;
     WebSocketConstructor?: typeof WebSocket;
     url: string;
@@ -56,20 +56,20 @@ export class IotaHTTPTransport implements IotaTransport {
     }
 
     fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-        const fetchFn = this.#options.fetch ?? fetch;
+        const fetch = this.#options.fetch ?? globalThis.fetch;
 
-        if (!fetchFn) {
+        if (!this.fetch) {
             throw new Error(
                 'The current environment does not support fetch, you can provide a fetch implementation in the options for IotaHTTPTransport.',
             );
         }
 
-        return fetchFn(input, init);
+        return fetch(input, init);
     }
 
     #getWebsocketClient(): WebsocketClient {
         if (!this.#websocketClient) {
-            const WebSocketConstructor = this.#options.WebSocketConstructor ?? WebSocket;
+            const WebSocketConstructor = this.#options.WebSocketConstructor ?? globalThis.WebSocket;
             if (!WebSocketConstructor) {
                 throw new Error(
                     'The current environment does not support WebSocket, you can provide a WebSocketConstructor in the options for IotaHTTPTransport.',

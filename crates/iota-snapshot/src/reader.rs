@@ -10,32 +10,32 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
-        Arc,
         atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc,
     },
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
-    StreamExt, TryStreamExt,
     future::{AbortRegistration, Abortable},
+    StreamExt, TryStreamExt,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::{
-    AuthorityStore,
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    AuthorityStore,
 };
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
-        ObjectStoreGetExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
         util::{copy_file, copy_files, path_to_filesystem},
+        ObjectStoreGetExt, ObjectStorePutExt,
     },
 };
 use iota_types::{
@@ -51,7 +51,7 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
+    FileMetadata, FileType, Manifest, MAGIC_BYTES, MANIFEST_FILE_MAGIC, OBJECT_FILE_MAGIC,
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
 };
 
@@ -65,20 +65,18 @@ pub struct StateSnapshotReaderV1 {
     ref_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     object_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     indirect_objects_threshold: usize,
-    multi_progress_bar: MultiProgress,
+    m: MultiProgress,
     concurrency: usize,
 }
 
 impl StateSnapshotReaderV1 {
-    /// Downloads the MANIFEST, FileMetadata of objects and references from the
-    /// remote store, then creates a StateSnapshotReaderV1 instance.
     pub async fn new(
         epoch: u64,
         remote_store_config: &ObjectStoreConfig,
         local_store_config: &ObjectStoreConfig,
         indirect_objects_threshold: usize,
         download_concurrency: NonZeroUsize,
-        multi_progress_bar: MultiProgress,
+        m: MultiProgress,
     ) -> Result<Self> {
         let epoch_dir = format!("epoch_{}", epoch);
         let remote_object_store = if remote_store_config.no_sign_request {
@@ -98,7 +96,7 @@ impl StateSnapshotReaderV1 {
             fs::remove_dir_all(&local_epoch_dir_path)?;
         }
         fs::create_dir_all(&local_epoch_dir_path)?;
-        // Downloads MANIFEST from remote store
+        // Download MANIFEST first
         let manifest_file_path = Path::from(epoch_dir.clone()).child("MANIFEST");
         copy_file(
             &manifest_file_path,
@@ -111,7 +109,6 @@ impl StateSnapshotReaderV1 {
             local_staging_dir_root.clone(),
             &manifest_file_path,
         )?)?;
-        // Verifies MANIFEST
         let snapshot_version = manifest.snapshot_version();
         if snapshot_version != 1u8 {
             return Err(anyhow!("Unexpected snapshot version: {}", snapshot_version));
@@ -125,34 +122,25 @@ impl StateSnapshotReaderV1 {
         if manifest.epoch() != epoch {
             return Err(anyhow!("Download manifest is not for epoch: {}", epoch,));
         }
-        // Stores the objects and references FileMetadata in MANIFEST to the local
-        // directory
         let mut object_files = BTreeMap::new();
         let mut ref_files = BTreeMap::new();
         for file_metadata in manifest.file_metadata() {
             match file_metadata.file_type {
                 FileType::Object => {
-                    // Gets the object FileMetadata bucket with the bucket number, or inserts a new
-                    // one if it doesn't exist.
                     let entry = object_files
                         .entry(file_metadata.bucket_num)
                         .or_insert_with(BTreeMap::new);
-                    // Inserts the object FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
                 FileType::Reference => {
-                    // Gets the reference FileMetadata bucket with the bucket number, or inserts a
-                    // new one if it doesn't exist.
                     let entry = ref_files
                         .entry(file_metadata.bucket_num)
                         .or_insert_with(BTreeMap::new);
-                    // Inserts the reference FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
             }
         }
         let epoch_dir_path = Path::from(epoch_dir);
-        // Collects the path of all reference files
         let files: Vec<Path> = ref_files
             .values()
             .flat_map(|entry| {
@@ -164,16 +152,14 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
 
-        let progress_bar = multi_progress_bar.add(
+        let progress_bar = m.add(
             ProgressBar::new(files.len() as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .ref files done ({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .ref files done\n({msg})",
                 )
                 .unwrap(),
             ),
         );
-        // Downloads all reference files from remote store to local store in parallel
-        // and updates the progress bar accordingly
         copy_files(
             &files,
             &files,
@@ -192,7 +178,7 @@ impl StateSnapshotReaderV1 {
             ref_files,
             object_files,
             indirect_objects_threshold,
-            multi_progress_bar,
+            m,
             concurrency: download_concurrency.get(),
         })
     }
@@ -201,28 +187,27 @@ impl StateSnapshotReaderV1 {
         &mut self,
         perpetual_db: &AuthorityPerpetualTables,
         abort_registration: AbortRegistration,
-        sender: Option<tokio::sync::mpsc::Sender<(Accumulator, u64)>>,
+        sender: Option<tokio::sync::mpsc::Sender<Accumulator>>,
     ) -> Result<()> {
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
-        // compare sha3 digest of object references per *.obj file against this.
-        // This allows us to pre-fetch object references during restoration,
-        // start building the state accumulator, and fail early if the state root hash
-        // doesn't match. However, we still need to ensure that objects match references
+        // match sha3 digest of object references per *.obj file against this.
+        // We do this so during restore we can pre fetch object references and
+        // start building state accumulator and fail early if the state root hash
+        // doesn't match but we still need to ensure that objects match references
         // exactly.
         let sha3_digests: Arc<Mutex<DigestByBucketAndPartition>> =
             Arc::new(Mutex::new(BTreeMap::new()));
 
-        // Counts the total number of partitions
         let num_part_files = self
             .ref_files
             .values()
             .map(|part_files| part_files.len())
             .sum::<usize>();
 
+        // Generate checksums
         info!("Computing checksums");
-        // Creates a progress bar for checksumming
-        let checksum_progress_bar = self.multi_progress_bar.add(
+        let checksum_progress_bar = self.m.add(
             ProgressBar::new(num_part_files as u64).with_style(
                 ProgressStyle::with_template(
                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files checksummed ({msg})",
@@ -231,28 +216,21 @@ impl StateSnapshotReaderV1 {
             ),
         );
 
-        // Iterates over all FileMetadata in the ref files by partition and build up the
-        // sha3 digests mapping: (bucket, (partition, sha3_digest))
         for (bucket, part_files) in self.ref_files.clone().iter() {
             for (part, _part_file) in part_files.iter() {
                 let mut sha3_digests = sha3_digests.lock().await;
                 let ref_iter = self.ref_iter(*bucket, *part)?;
                 let mut hasher = Sha3_256::default();
                 let mut empty = true;
-                // TODO: This can be removed, the same operation is done in ref_iter() in line
-                // 238
                 self.object_files
                     .get(bucket)
                     .context(format!("No bucket exists for: {bucket}"))?
                     .get(part)
                     .context(format!("No part exists for bucket: {bucket}, part: {part}"))?;
-                // Inserts the sha3 digest of each object into the hasher
                 for object_ref in ref_iter {
                     hasher.update(object_ref.2.inner());
                     empty = false;
                 }
-                // Computes the sha3 digest of the partition and insert sit into the
-                // sha3_digests map
                 if !empty {
                     sha3_digests
                         .entry(*bucket)
@@ -269,8 +247,6 @@ impl StateSnapshotReaderV1 {
         let accum_handle =
             sender.map(|sender| self.spawn_accumulation_tasks(sender, num_part_files));
 
-        // Downloads all object files from remote in parallel and inserts the objects
-        // into the AuthorityPerpetualTables
         self.sync_live_objects(perpetual_db, abort_registration, sha3_digests)
             .await?;
 
@@ -280,27 +256,24 @@ impl StateSnapshotReaderV1 {
         Ok(())
     }
 
-    /// Spawns accumulation tasks to accumulate the sha3 digests of all objects
-    /// then sends the accumulator to the sender.
     fn spawn_accumulation_tasks(
         &self,
-        sender: tokio::sync::mpsc::Sender<(Accumulator, u64)>,
+        sender: tokio::sync::mpsc::Sender<Accumulator>,
         num_part_files: usize,
     ) -> JoinHandle<()> {
-        // Spawns accumulation progress bar
+        // Spawn accumulation progress bar
         let concurrency = self.concurrency;
         let accum_counter = Arc::new(AtomicU64::new(0));
         let cloned_accum_counter = accum_counter.clone();
-        let accum_progress_bar = self.multi_progress_bar.add(
+        let accum_progress_bar = self.m.add(
              ProgressBar::new(num_part_files as u64).with_style(
                  ProgressStyle::with_template(
-                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot ({msg})",
+                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated ({msg})",
                  )
                  .unwrap(),
              ),
          );
         let cloned_accum_progress_bar = accum_progress_bar.clone();
-        // Spawns accumulation progress bar update task
         tokio::spawn(async move {
             let a_instant = Instant::now();
             loop {
@@ -319,7 +292,7 @@ impl StateSnapshotReaderV1 {
             }
         });
 
-        // spawns accumualation task
+        // spawn accumualation task
         let ref_files = self.ref_files.clone();
         let epoch_dir = self.epoch_dir();
         let local_staging_dir_root = self.local_staging_dir_root.clone();
@@ -331,12 +304,8 @@ impl StateSnapshotReaderV1 {
                     .map(|(part, _part_files)| {
                         // TODO depending on concurrency limit here, we may be
                         // materializing too many refs into memory at once.
-
-                        // Takes the sha3 digests of every object in the partition
                         // This is only done because ObjectRefIter is not Send
                         let obj_digests = {
-                            // TODO: Make sure that we can remove this getter, just take _part_files
-                            // here
                             let file_metadata = ref_files
                                 .get(bucket)
                                 .expect("No ref files found for bucket: {bucket_num}")
@@ -353,16 +322,12 @@ impl StateSnapshotReaderV1 {
                         }
                         .map(|obj_ref| obj_ref.2)
                         .collect::<Vec<ObjectDigest>>();
-
-                        // Spawns a task to accumulate the sha3 digests and send the accumulator
-                        // to the sender.
                         let sender_clone = sender.clone();
                         tokio::spawn(async move {
                             let mut partial_acc = Accumulator::default();
-                            let num_objects = obj_digests.len();
                             partial_acc.insert_all(obj_digests);
                             sender_clone
-                                .send((partial_acc, num_objects as u64))
+                                .send(partial_acc)
                                 .await
                                 .expect("Unable to send accumulator from snapshot reader");
                         })
@@ -370,7 +335,6 @@ impl StateSnapshotReaderV1 {
                     .boxed()
                     .buffer_unordered(concurrency)
                     .for_each(|result| {
-                        // Update the progress bar
                         result.expect("Failed to generate partial accumulator");
                         accum_counter.fetch_add(1, Ordering::Relaxed);
                         futures::future::ready(())
@@ -381,8 +345,6 @@ impl StateSnapshotReaderV1 {
         })
     }
 
-    /// Downloads all object files from remote in parallel and inserts the
-    /// objects into the AuthorityPerpetualTables.
     async fn sync_live_objects(
         &self,
         perpetual_db: &AuthorityPerpetualTables,
@@ -393,8 +355,6 @@ impl StateSnapshotReaderV1 {
         let concurrency = self.concurrency;
         let threshold = self.indirect_objects_threshold;
         let remote_object_store = self.remote_object_store.clone();
-        // collects a vector of all object FileMetadata in the form of:
-        // (bucket, (partition, File_metadata))
         let input_files: Vec<_> = self
             .object_files
             .iter()
@@ -406,11 +366,10 @@ impl StateSnapshotReaderV1 {
                     .collect::<Vec<_>>()
             })
             .collect();
-        // Creates a progress bar for object files
-        let obj_progress_bar = self.multi_progress_bar.add(
+        let obj_progress_bar = self.m.add(
             ProgressBar::new(input_files.len() as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done ({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done\n({msg})",
                 )
                 .unwrap(),
             ),
@@ -421,8 +380,6 @@ impl StateSnapshotReaderV1 {
 
         let ret = Abortable::new(
             async move {
-                // Downloads all object files from remote store to local store in parallel
-                // and inserts the objects into the AuthorityPerpetualTables
                 futures::stream::iter(input_files.iter())
                     .map(|(bucket, (part_num, file_metadata))| {
                         let epoch_dir = epoch_dir.clone();
@@ -430,7 +387,7 @@ impl StateSnapshotReaderV1 {
                         let remote_object_store = remote_object_store.clone();
                         let sha3_digests_cloned = sha3_digests.clone();
                         async move {
-                            // Downloads object file with retries
+                            // Download object file with retries
                             let max_timeout = Duration::from_secs(30);
                             let mut timeout = Duration::from_secs(2);
                             timeout += timeout / 2;
@@ -450,9 +407,8 @@ impl StateSnapshotReaderV1 {
                                         );
                                         if timeout > max_timeout {
                                             panic!(
-                                                "Failed to get obj file {} after {} attempts",
-                                                file_metadata.file_path(&epoch_dir),
-                                                attempts,
+                                                "Failed to get obj file after {} attempts",
+                                                attempts
                                             );
                                         } else {
                                             attempts += 1;
@@ -464,7 +420,6 @@ impl StateSnapshotReaderV1 {
                                 }
                             };
 
-                            // Gets the sha3 digest of the partition
                             let sha3_digest = sha3_digests_cloned.lock().await;
                             let bucket_map = sha3_digest
                                 .get(bucket)
@@ -484,7 +439,6 @@ impl StateSnapshotReaderV1 {
                     .buffer_unordered(concurrency)
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
                         let bytes_len = bytes.len();
-                        // Inserts live objects into the AuthorityStore
                         let result: Result<(), anyhow::Error> =
                             LiveObjectIter::new(&file_metadata, bytes).map(|obj_iter| {
                                 AuthorityStore::bulk_insert_live_objects(
@@ -496,7 +450,6 @@ impl StateSnapshotReaderV1 {
                                 .expect("Failed to insert live objects");
                             });
                         downloaded_bytes.fetch_add(bytes_len, Ordering::Relaxed);
-                        // Updates the progress bar
                         obj_progress_bar_clone.inc(1);
                         obj_progress_bar_clone.set_message(format!(
                             "Download speed: {} MiB/s",
@@ -515,9 +468,7 @@ impl StateSnapshotReaderV1 {
         ret
     }
 
-    /// Returns an iterator over all references in a .ref file.
     pub fn ref_iter(&self, bucket_num: u32, part_num: u32) -> Result<ObjectRefIter> {
-        // Gets the reference file metadata for the {bucket_num}_{part_num}
         let file_metadata = self
             .ref_files
             .get(&bucket_num)
@@ -533,7 +484,6 @@ impl StateSnapshotReaderV1 {
         )
     }
 
-    /// Returns a list of all buckets.
     fn buckets(&self) -> Result<Vec<u32>> {
         Ok(self.ref_files.keys().copied().collect())
     }
@@ -542,28 +492,21 @@ impl StateSnapshotReaderV1 {
         Path::from(format!("epoch_{}", self.epoch))
     }
 
-    /// Reads the MANIFEST file, verifies it with the checksum, and returns the
-    /// Manifest.
     fn read_manifest(path: PathBuf) -> anyhow::Result<Manifest> {
         let manifest_file = File::open(path)?;
         let manifest_file_size = manifest_file.metadata()?.len() as usize;
         let mut manifest_reader = BufReader::new(manifest_file);
-        // Make sure the file is MANIFEST with correct magic bytes
         manifest_reader.rewind()?;
         let magic = manifest_reader.read_u32::<BigEndian>()?;
         if magic != MANIFEST_FILE_MAGIC {
             return Err(anyhow!("Unexpected magic byte: {}", magic));
         }
-        // Gets the sha3 digest from the end of the file
         manifest_reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
         let mut sha3_digest = [0u8; SHA3_BYTES];
         manifest_reader.read_exact(&mut sha3_digest)?;
-        // Rewinds to the beginning of the file and read the contents
         manifest_reader.rewind()?;
         let mut content_buf = vec![0u8; manifest_file_size - SHA3_BYTES];
         manifest_reader.read_exact(&mut content_buf)?;
-        // Computes the sha3 digest of the content and check if it matches the one at
-        // the end
         let mut hasher = Sha3_256::default();
         hasher.update(&content_buf);
         let computed_digest = hasher.finalize().digest;

@@ -21,9 +21,9 @@ module iota::package_tests {
         let mut scenario = test_scenario::begin(@0x1);
         let pub = package::test_claim(TEST_OTW {}, scenario.ctx());
 
-        assert!(pub.from_package<CustomType>());
-        assert!(pub.from_package<Scenario>());
-        assert!(&@0x2.to_ascii_string() == pub.published_package());
+        assert!(pub.from_package<CustomType>(), 0);
+        assert!(pub.from_package<Scenario>(), 0);
+        assert!(&@0x2.to_ascii_string() == pub.published_package(), 0);
 
         pub.burn_publisher();
         scenario.end();
@@ -34,10 +34,10 @@ module iota::package_tests {
         let mut scenario = test_scenario::begin(@0x1);
         let pub = package::test_claim(TEST_OTW {}, scenario.ctx());
 
-        assert!(pub.from_module<CustomType>());
-        assert!(pub.from_module<Scenario>() == false);
+        assert!(pub.from_module<CustomType>(), 0);
+        assert!(pub.from_module<Scenario>() == false, 0);
 
-        assert!(&b"package_tests".to_ascii_string() == pub.published_module());
+        assert!(&b"package_tests".to_ascii_string() == pub.published_module(), 0);
 
         pub.burn_publisher();
         scenario.end();
@@ -48,11 +48,11 @@ module iota::package_tests {
         let mut scenario = test_scenario::begin(@0x1);
         let mut cap = package::test_publish(@0x42.to_id(), scenario.ctx());
 
-        assert!(cap.upgrade_policy() == package::compatible_policy());
+        assert!(cap.upgrade_policy() == package::compatible_policy(), 0);
         cap.only_additive_upgrades();
-        assert!(cap.upgrade_policy() == package::additive_policy());
+        assert!(cap.upgrade_policy() == package::additive_policy(), 1);
         cap.only_dep_upgrades();
-        assert!(cap.upgrade_policy() == package::dep_only_policy());
+        assert!(cap.upgrade_policy() == package::dep_only_policy(), 2);
         cap.make_immutable();
 
         scenario.end();
@@ -106,7 +106,7 @@ module iota::package_tests {
         test_utils::assert_eq(ticket.ticket_policy(), package::dep_only_policy());
         let receipt = ticket.test_upgrade();
         cap.commit_upgrade(receipt);
-        assert!(cap.version() == version + 1);
+        assert!(cap.version() == version + 1, 0);
 
         cap.make_immutable();
         scenario.end();
@@ -119,7 +119,7 @@ module iota::package_tests {
         let mut cap = package::test_publish(@0x42.to_id(), scenario.ctx());
 
         cap.only_dep_upgrades();
-        assert!(cap.upgrade_policy() == package::dep_only_policy());
+        assert!(cap.upgrade_policy() == package::dep_only_policy(), 1);
 
         cap.only_additive_upgrades();
         abort 0

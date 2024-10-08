@@ -8,15 +8,15 @@ module tto::M1 {
     use iota::transfer::{Self, Receiving};
     use iota::dynamic_object_field;
 
-    public struct A has key, store {
+    struct A has key, store {
         id: UID,
     }
 
-    public struct B has key, store {
+    struct B has key, store {
         id: UID,
     }
 
-    public struct C has key {
+    struct C has key {
         id: UID, 
         wrapped: B,
     }
@@ -26,7 +26,7 @@ module tto::M1 {
         let a_address = object::id_address(&a);
         let b = B { id: object::new(ctx) };
         let c = A { id: object::new(ctx) };
-        let mut d = A { id: object::new(ctx) };
+        let d = A { id: object::new(ctx) };
         let e = A { id: object::new(ctx) };
         dynamic_object_field::add(&mut d.id, 0, e);
 

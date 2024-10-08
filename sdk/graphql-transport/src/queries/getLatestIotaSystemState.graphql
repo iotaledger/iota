@@ -53,10 +53,11 @@ query getLatestIotaSystemState {
             validatorCandidatesSize
             pendingRemovals
             totalStake
-            stakingPoolMappingsId
-            pendingActiveValidatorsId
-            validatorCandidatesId
-            inactivePoolsId
+
+            # inactivePoolsId
+            # validatorCandidatesId
+            # pendingActiveValidatorsId
+            # stakingPoolMappingsId
         }
     }
 }

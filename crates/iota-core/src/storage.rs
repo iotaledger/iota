@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::TransactionDigest,
     committee::{Committee, EpochId},
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
@@ -15,28 +15,24 @@ use iota_types::{
         FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     object::Object,
-    storage::{
-        AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestStateReader, WriteStore,
-        error::{Error as StorageError, Result},
-    },
+    storage::{error::Error as StorageError, ObjectKey, ObjectStore, ReadStore, WriteStore},
     transaction::VerifiedTransaction,
 };
-use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
-use tap::Pipe;
 
 use crate::{
-    authority::AuthorityState,
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    execution_cache::ExecutionCacheTraitPointers,
-    rest_index::{CoinIndexInfo, OwnerIndexInfo, OwnerIndexKey, RestIndexStore},
+    execution_cache::{ExecutionCacheRead, StateSyncAPI},
 };
 
 #[derive(Clone)]
 pub struct RocksDbStore {
-    cache_traits: ExecutionCacheTraitPointers,
+    // Note: All three of these Arcs point to the same object,
+    // but we need to store them separately to satisfy the trait bounds.
+    execution_cache: Arc<dyn ExecutionCacheRead>,
+    object_store: Arc<dyn ObjectStore + Send + Sync>,
+    state_sync_store: Arc<dyn StateSyncAPI>,
 
     committee_store: Arc<CommitteeStore>,
     checkpoint_store: Arc<CheckpointStore>,
@@ -47,12 +43,14 @@ pub struct RocksDbStore {
 
 impl RocksDbStore {
     pub fn new(
-        cache_traits: ExecutionCacheTraitPointers,
+        execution_cache: Arc<impl ExecutionCacheRead + ObjectStore + StateSyncAPI + 'static>,
         committee_store: Arc<CommitteeStore>,
         checkpoint_store: Arc<CheckpointStore>,
     ) -> Self {
         Self {
-            cache_traits,
+            execution_cache: execution_cache.clone(),
+            object_store: execution_cache.clone(),
+            state_sync_store: execution_cache.clone(),
             committee_store,
             checkpoint_store,
             highest_verified_checkpoint: Arc::new(Mutex::new(None)),
@@ -61,9 +59,7 @@ impl RocksDbStore {
     }
 
     pub fn get_objects(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>, IotaError> {
-        self.cache_traits
-            .object_cache_reader
-            .multi_get_objects_by_key(object_keys)
+        self.execution_cache.multi_get_objects_by_key(object_keys)
     }
 
     pub fn get_last_executed_checkpoint(&self) -> Result<Option<VerifiedCheckpoint>, IotaError> {
@@ -111,16 +107,10 @@ impl ReadStore for RocksDbStore {
     }
 
     fn get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber, StorageError> {
-        let highest_pruned_cp = self
-            .checkpoint_store
+        self.checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()
-            .map_err(Into::<StorageError>::into)?;
-
-        if highest_pruned_cp == 0 {
-            Ok(0)
-        } else {
-            Ok(highest_pruned_cp + 1)
-        }
+            .map(|seq| seq + 1)
+            .map_err(Into::into)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
@@ -165,8 +155,7 @@ impl ReadStore for RocksDbStore {
                 for tx in contents.iter() {
                     if let (Some(t), Some(e)) = (
                         self.get_transaction(&tx.transaction)?,
-                        self.cache_traits
-                            .transaction_cache_reader
+                        self.execution_cache
                             .get_effects(&tx.effects)
                             .map_err(iota_types::storage::error::Error::custom)?,
                     ) {
@@ -204,8 +193,7 @@ impl ReadStore for RocksDbStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<Arc<VerifiedTransaction>>, StorageError> {
-        self.cache_traits
-            .transaction_cache_reader
+        self.execution_cache
             .get_transaction_block(digest)
             .map_err(StorageError::custom)
     }
@@ -214,8 +202,7 @@ impl ReadStore for RocksDbStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEffects>, StorageError> {
-        self.cache_traits
-            .transaction_cache_reader
+        self.execution_cache
             .get_executed_effects(digest)
             .map_err(StorageError::custom)
     }
@@ -224,16 +211,14 @@ impl ReadStore for RocksDbStore {
         &self,
         digest: &TransactionEventsDigest,
     ) -> Result<Option<TransactionEvents>, StorageError> {
-        self.cache_traits
-            .transaction_cache_reader
+        self.execution_cache
             .get_events(digest)
             .map_err(StorageError::custom)
     }
 
     fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.checkpoint_store
-            .get_highest_executed_checkpoint()
-            .map_err(iota_types::storage::error::Error::custom)?
+            .get_latest_certified_checkpoint()
             .ok_or_else(|| {
                 iota_types::storage::error::Error::missing("unable to get latest checkpoint")
             })
@@ -252,17 +237,11 @@ impl ReadStore for RocksDbStore {
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        _sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        match self.get_checkpoint_by_sequence_number(sequence_number) {
-            Ok(Some(checkpoint)) => {
-                self.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        }
+        todo!()
     }
 }
 
@@ -271,7 +250,7 @@ impl ObjectStore for RocksDbStore {
         &self,
         object_id: &iota_types::base_types::ObjectID,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.cache_traits.object_store.get_object(object_id)
+        self.object_store.get_object(object_id)
     }
 
     fn get_object_by_key(
@@ -279,9 +258,7 @@ impl ObjectStore for RocksDbStore {
         object_id: &iota_types::base_types::ObjectID,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.cache_traits
-            .object_store
-            .get_object_by_key(object_id, version)
+        self.object_store.get_object_by_key(object_id, version)
     }
 }
 
@@ -341,8 +318,7 @@ impl WriteStore for RocksDbStore {
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
     ) -> Result<(), iota_types::storage::error::Error> {
-        self.cache_traits
-            .state_sync_store
+        self.state_sync_store
             .multi_insert_transaction_and_effects(contents.transactions())
             .map_err(iota_types::storage::error::Error::custom)?;
         self.checkpoint_store
@@ -358,225 +334,5 @@ impl WriteStore for RocksDbStore {
             .insert_new_committee(&new_committee)
             .unwrap();
         Ok(())
-    }
-}
-
-pub struct RestReadStore {
-    state: Arc<AuthorityState>,
-    rocks: RocksDbStore,
-}
-
-impl RestReadStore {
-    pub fn new(state: Arc<AuthorityState>, rocks: RocksDbStore) -> Self {
-        Self { state, rocks }
-    }
-
-    fn index(&self) -> iota_types::storage::error::Result<&RestIndexStore> {
-        self.state.rest_index.as_deref().ok_or_else(|| {
-            iota_types::storage::error::Error::custom("rest index store is disabled")
-        })
-    }
-}
-
-impl ObjectStore for RestReadStore {
-    fn get_object(
-        &self,
-        object_id: &iota_types::base_types::ObjectID,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.rocks.get_object(object_id)
-    }
-
-    fn get_object_by_key(
-        &self,
-        object_id: &iota_types::base_types::ObjectID,
-        version: iota_types::base_types::VersionNumber,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.rocks.get_object_by_key(object_id, version)
-    }
-}
-
-impl ReadStore for RestReadStore {
-    fn get_committee(
-        &self,
-        epoch: EpochId,
-    ) -> iota_types::storage::error::Result<Option<Arc<Committee>>> {
-        self.rocks.get_committee(epoch)
-    }
-
-    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.rocks.get_latest_checkpoint()
-    }
-
-    fn get_highest_verified_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.rocks.get_highest_verified_checkpoint()
-    }
-
-    fn get_highest_synced_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        self.rocks.get_highest_synced_checkpoint()
-    }
-
-    fn get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        self.rocks.get_lowest_available_checkpoint()
-    }
-
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &CheckpointDigest,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        self.rocks.get_checkpoint_by_digest(digest)
-    }
-
-    fn get_checkpoint_by_sequence_number(
-        &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        self.rocks
-            .get_checkpoint_by_sequence_number(sequence_number)
-    }
-
-    fn get_checkpoint_contents_by_digest(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
-        self.rocks.get_checkpoint_contents_by_digest(digest)
-    }
-
-    fn get_checkpoint_contents_by_sequence_number(
-        &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
-        self.rocks
-            .get_checkpoint_contents_by_sequence_number(sequence_number)
-    }
-
-    fn get_transaction(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
-        self.rocks.get_transaction(digest)
-    }
-
-    fn get_transaction_effects(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
-        self.rocks.get_transaction_effects(digest)
-    }
-
-    fn get_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.rocks.get_events(digest)
-    }
-
-    fn get_full_checkpoint_contents_by_sequence_number(
-        &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<FullCheckpointContents>> {
-        self.rocks
-            .get_full_checkpoint_contents_by_sequence_number(sequence_number)
-    }
-
-    fn get_full_checkpoint_contents(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<FullCheckpointContents>> {
-        self.rocks.get_full_checkpoint_contents(digest)
-    }
-}
-
-impl RestStateReader for RestReadStore {
-    fn get_transaction_checkpoint(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
-        self.index()?
-            .get_transaction_info(digest)
-            .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
-            .map_err(StorageError::custom)
-    }
-
-    fn get_lowest_available_checkpoint_objects(
-        &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        let highest_pruned_cp = self
-            .state
-            .get_object_cache_reader()
-            .get_highest_pruned_checkpoint()
-            .map_err(StorageError::custom)?;
-
-        if highest_pruned_cp == 0 {
-            Ok(0)
-        } else {
-            Ok(highest_pruned_cp + 1)
-        }
-    }
-
-    fn get_chain_identifier(
-        &self,
-    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        self.state
-            .get_chain_identifier()
-            .ok_or_else(|| StorageError::missing("unable to query chain identifier"))
-    }
-
-    fn account_owned_objects_info_iter(
-        &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
-        let iter = self.index()?.owner_iter(owner, cursor)?.map(
-            |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
-                AccountOwnedObjectInfo {
-                    owner,
-                    object_id,
-                    version,
-                    type_,
-                }
-            },
-        );
-
-        Ok(Box::new(iter) as _)
-    }
-
-    fn dynamic_field_iter(
-        &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
-    ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>,
-    > {
-        let iter = self.index()?.dynamic_field_iter(parent, cursor)?;
-
-        Ok(Box::new(iter) as _)
-    }
-
-    fn get_coin_info(
-        &self,
-        coin_type: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<CoinInfo>> {
-        self.index()?
-            .get_coin_info(coin_type)?
-            .map(
-                |CoinIndexInfo {
-                     coin_metadata_object_id,
-                     treasury_object_id,
-                 }| CoinInfo {
-                    coin_metadata_object_id,
-                    treasury_object_id,
-                },
-            )
-            .pipe(Ok)
     }
 }

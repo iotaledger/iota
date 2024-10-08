@@ -1,7 +1,6 @@
 processed 4 tasks
 
-task 0, lines 1-13:
-//# run
+task 0 'run'. lines 1-13:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,
@@ -10,8 +9,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 1)],
 }
 
-task 1, lines 15-29:
-//# run
+task 1 'run'. lines 15-29:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,
@@ -20,8 +18,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 2)],
 }
 
-task 2, lines 31-42:
-//# run
+task 2 'run'. lines 31-42:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,
@@ -30,8 +27,7 @@ Error: Unable to publish module '00000000000000000000000000000000000000000000000
     offsets: [(FunctionDefinitionIndex(0), 3)],
 }
 
-task 3, lines 44-56:
-//# run
+task 3 'run'. lines 44-56:
 Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000042::m'. Got VMError: {
     major_status: TYPE_MISMATCH,
     sub_status: None,

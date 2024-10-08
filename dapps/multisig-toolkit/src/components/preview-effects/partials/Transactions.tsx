@@ -7,7 +7,7 @@ import {
     IotaCallArg,
     IotaTransaction,
     TransactionBlockData,
-} from '@iota/iota-sdk/client';
+} from '@iota/iota-sdk/src/client';
 import { ReactNode } from 'react';
 
 import { ObjectLink } from '../ObjectLink';

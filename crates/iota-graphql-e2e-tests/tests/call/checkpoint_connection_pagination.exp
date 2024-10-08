@@ -1,11 +1,9 @@
 processed 18 tasks
 
-task 1, line 31:
-//# create-checkpoint 12
+task 1 'create-checkpoint'. lines 32-32:
 Checkpoint created: 12
 
-task 2, lines 33-45:
-//# run-graphql --cursors {"c":12,"s":6}
+task 2 'run-graphql'. lines 34-46:
 Response: {
   "data": {
     "checkpoints": {
@@ -43,8 +41,7 @@ Response: {
   }
 }
 
-task 3, lines 47-59:
-//# run-graphql --cursors {"c":12,"s":6} {"c":12,"s":8}
+task 3 'run-graphql'. lines 48-60:
 Response: {
   "data": {
     "checkpoints": {
@@ -64,8 +61,7 @@ Response: {
   }
 }
 
-task 4, lines 61-73:
-//# run-graphql --cursors {"c":12,"s":6}
+task 4 'run-graphql'. lines 62-74:
 Response: {
   "data": {
     "checkpoints": {
@@ -103,8 +99,7 @@ Response: {
   }
 }
 
-task 5, lines 75-87:
-//# run-graphql --cursors {"c":12,"s":3} {"c":12,"s":6}
+task 5 'run-graphql'. lines 76-88:
 Response: {
   "data": {
     "checkpoints": {
@@ -130,8 +125,7 @@ Response: {
   }
 }
 
-task 6, lines 89-101:
-//# run-graphql --cursors {"c":12,"s":3}
+task 6 'run-graphql'. lines 90-102:
 Response: {
   "data": {
     "checkpoints": {
@@ -163,8 +157,7 @@ Response: {
   }
 }
 
-task 7, lines 103-115:
-//# run-graphql --cursors {"c":12,"s":6}
+task 7 'run-graphql'. lines 104-116:
 Response: {
   "data": {
     "checkpoints": {
@@ -202,8 +195,7 @@ Response: {
   }
 }
 
-task 8, lines 117-129:
-//# run-graphql --cursors {"c":12,"s":4}
+task 8 'run-graphql'. lines 118-130:
 Response: {
   "data": {
     "checkpoints": {
@@ -241,8 +233,7 @@ Response: {
   }
 }
 
-task 9, lines 131-143:
-//# run-graphql --cursors {"c":12,"s":4}
+task 9 'run-graphql'. lines 132-144:
 Response: {
   "data": {
     "checkpoints": {
@@ -304,8 +295,7 @@ Response: {
   }
 }
 
-task 10, lines 145-157:
-//# run-graphql --cursors {"c":12,"s":6}
+task 10 'run-graphql'. lines 146-158:
 Response: {
   "data": {
     "checkpoints": {
@@ -343,8 +333,7 @@ Response: {
   }
 }
 
-task 11, lines 159-171:
-//# run-graphql --cursors {"c":12,"s":3} {"c":12,"s":6}
+task 11 'run-graphql'. lines 160-172:
 Response: {
   "data": {
     "checkpoints": {
@@ -370,8 +359,7 @@ Response: {
   }
 }
 
-task 12, lines 173-185:
-//# run-graphql --cursors {"c":12,"s":9}
+task 12 'run-graphql'. lines 174-186:
 Response: {
   "data": {
     "checkpoints": {
@@ -403,8 +391,7 @@ Response: {
   }
 }
 
-task 13, lines 187-199:
-//# run-graphql
+task 13 'run-graphql'. lines 188-200:
 Response: {
   "data": {
     "checkpoints": {
@@ -496,8 +483,7 @@ Response: {
   }
 }
 
-task 14, lines 201-213:
-//# run-graphql
+task 14 'run-graphql'. lines 202-214:
 Response: {
   "data": {
     "checkpoints": {
@@ -535,8 +521,7 @@ Response: {
   }
 }
 
-task 15, lines 215-227:
-//# run-graphql
+task 15 'run-graphql'. lines 216-228:
 Response: {
   "data": {
     "checkpoints": {
@@ -574,8 +559,7 @@ Response: {
   }
 }
 
-task 16, lines 229-241:
-//# run-graphql
+task 16 'run-graphql'. lines 230-242:
 Response: {
   "data": null,
   "errors": [
@@ -597,8 +581,7 @@ Response: {
   ]
 }
 
-task 17, lines 243-256:
-//# run-graphql --cursors {"c":10,"s":3} {"c":12,"s":6}
+task 17 'run-graphql'. lines 244-257:
 Response: {
   "data": null,
   "errors": [

@@ -19,7 +19,6 @@ use crate::{
     },
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::Object,
     transaction::{Transaction, VerifiedTransaction},
 };
 
@@ -122,13 +121,7 @@ pub struct QuorumDriverRequest {
 #[derive(Debug, Clone)]
 pub struct QuorumDriverResponse {
     pub effects_cert: VerifiedCertifiedTransactionEffects,
-    // pub events: TransactionEvents,
-    pub events: Option<TransactionEvents>,
-    // Input objects will only be populated in the happy path
-    pub input_objects: Option<Vec<Object>>,
-    // Output objects will only be populated in the happy path
-    pub output_objects: Option<Vec<Object>>,
-    pub auxiliary_data: Option<Vec<u8>>,
+    pub events: TransactionEvents,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -145,51 +138,6 @@ impl ExecuteTransactionRequest {
             TransactionType::SingleWriter
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionRequestV3 {
-    pub transaction: Transaction,
-
-    pub include_events: bool,
-    pub include_input_objects: bool,
-    pub include_output_objects: bool,
-    pub include_auxiliary_data: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct VerifiedExecuteTransactionResponseV3 {
-    pub effects: VerifiedCertifiedTransactionEffects,
-    pub events: Option<TransactionEvents>,
-    // Input objects will only be populated in the happy path
-    pub input_objects: Option<Vec<Object>>,
-    // Output objects will only be populated in the happy path
-    pub output_objects: Option<Vec<Object>>,
-    pub auxiliary_data: Option<Vec<u8>>,
-}
-
-impl ExecuteTransactionRequestV3 {
-    pub fn new_v2<T: Into<Transaction>>(transaction: T) -> Self {
-        Self {
-            transaction: transaction.into(),
-            include_events: true,
-            include_input_objects: false,
-            include_output_objects: false,
-            include_auxiliary_data: false,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExecuteTransactionResponseV3 {
-    pub effects: FinalizedEffects,
-
-    pub events: Option<TransactionEvents>,
-    // Input objects will only be populated in the happy path
-    pub input_objects: Option<Vec<Object>>,
-    // Output objects will only be populated in the happy path
-    pub output_objects: Option<Vec<Object>>,
-    pub auxiliary_data: Option<Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

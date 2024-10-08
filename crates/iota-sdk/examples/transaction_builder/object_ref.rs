@@ -16,14 +16,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_object_ref("0x8".parse()?)
         .await?;
 
-    println!("Single object ref: {object_ref:?}");
-
-    let object_refs = client
-        .transaction_builder()
-        .input_refs(&["0x5".parse()?, "0x8".parse()?])
-        .await?;
-
-    println!("Multiple object refs: {object_refs:?}");
+    println!("{object_ref:?}");
 
     Ok(())
 }

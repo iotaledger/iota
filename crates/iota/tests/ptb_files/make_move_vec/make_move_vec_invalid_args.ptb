@@ -1,3 +1,5 @@
+--gas-budget 10000000
+
 # No type args
 --make-move-vec [100]
 

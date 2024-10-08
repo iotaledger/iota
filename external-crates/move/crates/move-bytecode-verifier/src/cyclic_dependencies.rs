@@ -7,6 +7,7 @@
 use std::collections::BTreeSet;
 
 use move_binary_format::{
+    access::ModuleAccess,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::CompiledModule,
 };

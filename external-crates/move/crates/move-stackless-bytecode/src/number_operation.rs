@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use move_model::{
     ast::TempIndex,
-    model::{DatatypeId, FieldId, FunId, FunctionEnv, ModuleId, NodeId, StructEnv},
+    model::{FieldId, FunId, FunctionEnv, ModuleId, NodeId, StructEnv, StructId},
     ty::Type,
 };
 
@@ -47,7 +47,7 @@ pub type OperationVec = Vec<NumOperation>;
 // NumOperation of a field
 pub type StructFieldOperationMap = BTreeMap<FieldId, NumOperation>;
 pub type FuncOperationMap = BTreeMap<(ModuleId, FunId), OperationMap>;
-pub type StructOperationMap = BTreeMap<(ModuleId, DatatypeId), StructFieldOperationMap>;
+pub type StructOperationMap = BTreeMap<(ModuleId, StructId), StructFieldOperationMap>;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd)]
 pub struct GlobalNumberOperationState {

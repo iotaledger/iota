@@ -7,18 +7,18 @@ use std::{
     fmt::{Debug, Formatter},
     future::Future,
     sync::{
-        Arc,
         atomic::{AtomicU64, Ordering},
+        Arc,
     },
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use futures::{
-    FutureExt, StreamExt,
-    future::{BoxFuture, try_join_all},
+    future::{try_join_all, BoxFuture},
     stream::FuturesUnordered,
+    FutureExt, StreamExt,
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use iota_types::{
@@ -27,17 +27,17 @@ use iota_types::{
     transaction::{Transaction, TransactionDataAPI},
 };
 use prometheus::{
-    CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGauge, Registry,
     register_counter_vec_with_registry, register_gauge_vec_with_registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_with_registry,
+    register_int_gauge_with_registry, CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGauge,
+    Registry,
 };
 use rand::seq::SliceRandom;
 use sysinfo::System;
 use tokio::{
     sync::{
+        mpsc::{channel, Sender},
         Barrier, OnceCell,
-        mpsc::{Sender, channel},
     },
     task::{JoinHandle, JoinSet},
     time,
@@ -48,10 +48,10 @@ use tracing::{debug, error, info, warn};
 
 use super::{BenchmarkStats, Interval, StressStats};
 use crate::{
-    ExecutionEffects, ValidatorProxy,
-    drivers::{HistogramWrapper, driver::Driver},
+    drivers::{driver::Driver, HistogramWrapper},
     system_state_observer::SystemStateObserver,
-    workloads::{GroupID, WorkloadInfo, payload::Payload},
+    workloads::{payload::Payload, GroupID, WorkloadInfo},
+    ExecutionEffects, ValidatorProxy,
 };
 pub struct BenchMetrics {
     pub benchmark_duration: IntGauge,

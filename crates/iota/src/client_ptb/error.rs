@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use miette::{LabeledSpan, Severity, miette};
+use miette::{miette, LabeledSpan, Severity};
 use thiserror::Error;
 
 pub type PTBResult<T> = Result<T, PTBError>;

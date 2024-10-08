@@ -8,20 +8,19 @@
 /// This is used to commit to swapping a particular object in a
 /// particular, fixed state during escrow.
 module escrow::lock {
-    use iota::{
-        event,
-        dynamic_object_field::{Self as dof}
-    };
+    use iota::tx_context::sender;
+    use iota::event;
+    use iota::dynamic_object_field::{Self as dof};
 
     /// The `name` of the DOF that holds the Locked object.
     /// Allows better discoverability for the locked object.
     public struct LockedObjectKey has copy, store, drop {}
-
+  
     /// A wrapper that protects access to `obj` by requiring access to a `Key`.
     ///
     /// Used to ensure an object is not modified if it might be involved in a
-    /// swap.
-    ///
+    /// swap. 
+    /// 
     /// Object is added as a Dynamic Object Field so that it can still be looked-up.
     public struct Locked<phantom T: key + store> has key, store {
         id: UID,
@@ -52,7 +51,7 @@ module escrow::lock {
         event::emit(LockCreated {
             lock_id: object::id(&lock),
             key_id: object::id(&key),
-            creator: ctx.sender(),
+            creator: sender(ctx),
             item_id: object::id(&obj)
         });
 
@@ -67,14 +66,14 @@ module escrow::lock {
     public fun unlock<T: key + store>(mut locked: Locked<T>, key: Key): T {
         assert!(locked.key == object::id(&key), ELockKeyMismatch);
         let Key { id } = key;
-        id.delete();
+        object::delete(id);
 
         let obj = dof::remove<LockedObjectKey, T>(&mut locked.id, LockedObjectKey {});
 
         event::emit(LockDestroyed { lock_id: object::id(&locked) });
 
         let Locked { id, key: _ } = locked;
-        id.delete();
+        object::delete(id);
         obj
     }
 
@@ -102,7 +101,7 @@ module escrow::lock {
 
     #[test_only]
     fun test_coin(ts: &mut Scenario): Coin<IOTA> {
-        coin::mint_for_testing<IOTA>(42, ts.ctx())
+        coin::mint_for_testing<IOTA>(42, ts::ctx(ts))
     }
 
     #[test]
@@ -110,11 +109,11 @@ module escrow::lock {
         let mut ts = ts::begin(@0xA);
         let coin = test_coin(&mut ts);
 
-        let (lock, key) = lock(coin, ts.ctx());
-        let coin = lock.unlock(key);
+        let (lock, key) = lock(coin, ts::ctx(&mut ts));
+        let coin = unlock(lock, key);
 
         coin::burn_for_testing(coin);
-        ts.end();
+        ts::end(ts);
     }
 
     #[test]
@@ -123,10 +122,10 @@ module escrow::lock {
         let mut ts = ts::begin(@0xA);
         let coin = test_coin(&mut ts);
         let another_coin = test_coin(&mut ts);
-        let (l, _k) = lock(coin, ts.ctx());
-        let (_l, k) = lock(another_coin, ts.ctx());
+        let (l, _k) = lock(coin, ts::ctx(&mut ts));
+        let (_l, k) = lock(another_coin, ts::ctx(&mut ts));
 
-        let _key = l.unlock(k);
+        let _key = unlock(l, k);
         abort 1337
     }
 }
