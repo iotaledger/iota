@@ -34,9 +34,9 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 ### `CoinReadApi` (4/6)
 
 - [x] `get_coins`
-- [ ] `get_all_coins`
+- [x] `get_all_coins`
 - [x] `get_balance`
-- [ ] `get_all_balances`
+- [x] `get_all_balances`
 - [x] `get_coin_metadata`
 - [x] `get_total_supply`
 
