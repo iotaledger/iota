@@ -308,6 +308,37 @@ For example, `SERVICE OWNERS` are given `AdminCap` and `MODERATORS` are given `M
 
 To learn more about the capabilities pattern, see [The Move Book](https://move-book.com/programmability/capability.html).
 
+## Deployment
+
+Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps for deployment of the contract. 
+
+**Step 1: Create the `.env` File**
+You need to create a `.env` file that contains important environment variables required for the deployment. Here's an example of what the .env file should look like:
+
+```shell
+# Admin mnemonic phrase (for deployment account)
+ADMIN_PHRASE="your-secret-mnemonic-phrase-here"
+
+# Admin account address (linked to the mnemonic phrase above)
+ADMIN_ADDRESS="your-admin-account-address-here"
+
+# (Optional) Additional configuration variables can be added here
+```
+Replace `your-secret-mnemonic-phrase-here` with the secret phrase for the admin account that will be used to deploy the contracts. Also, update the `ADMIN_ADDRESS` with the corresponding account address.
+
+**Step 2: Running the publish.sh Script**
+The `publish.sh` script automates the process of deploying a Move contract to the IOTA Alphanet. Here’s how you can run it:
+
+```shell
+sh publish.sh
+```
+
+**Output**
+On successful deployment below text will be returned.
+```shell
+Contract Deployment finished!
+```
+
 ## Conclusion
 
 This tutorial explains how to build a decentralized review rating platform using multisig on IOTA. Service owners can list their services, while reviewers provide feedback that is rated by readers. Moderators maintain quality control, ensuring that only appropriate reviews remain. Reviews are scored based on their content, upvotes, and proof of experience (PoE), with top reviews earning rewards. The multisig setup enhances security, as key actions like removing reviews or distributing rewards require approval from multiple parties. By storing the review algorithm and data on-chain using Move-based smart contracts, the platform guarantees transparency and fairness.
