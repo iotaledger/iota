@@ -3,6 +3,9 @@ title: Custom Indexer
 description: You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA Full node, and provides efficient assemblage of checkpoint data.
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/advanced/custom-indexer.json';
+
 You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
 
 Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA Full node, and provides efficient assemblage of checkpoint data.
@@ -126,3 +129,4 @@ Code for the cargo.toml manifest file for the custom indexer.
 
 Find the following source code in the [IOTA repo](https://github.com/iotaledger/iota/tree/main/examples/custom-indexer/rust).
 
+<Quiz questions={questions} />
