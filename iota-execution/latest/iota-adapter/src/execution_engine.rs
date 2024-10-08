@@ -1340,7 +1340,7 @@ mod checked {
     /// The function constructs a transaction that invokes
     /// the `randomness_state_update` function from the Iota framework,
     /// passing the randomness state object, the `randomness_round``,
-    /// and the `random_bytes`` as arguments. It then executes the transaction
+    /// and the `random_bytes` as arguments. It then executes the transaction
     /// using the system execution mode.
     fn setup_randomness_state_update(
         update: RandomnessStateUpdate,
