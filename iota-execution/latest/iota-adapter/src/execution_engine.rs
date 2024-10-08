@@ -247,12 +247,12 @@ mod checked {
         )
     }
 
-    /// Executes a state update during the genesis phase, applying the provided
-    /// `ProgrammableTransaction` to update the genesis state. The function
-    /// creates an `InnerTemporaryStore`, processes the input objects,
-    /// and executes the transaction in unmetered mode using the `Genesis`
-    /// execution mode. After execution, it updates the object versions and
-    /// previous transaction references.
+    /// Executes a `GenesisTransaction` generated during the genesis phase.
+    /// The function creates an `InnerTemporaryStore`, processes the input 
+    /// objects, and executes the transaction in unmetered mode using the 
+    /// `Genesis` execution mode. It returns an inner temporary store that 
+    /// contains the objects found into the input `GenesisTransaction` by 
+    /// adding the data for `previous_transaction` and `storage_rebate`fields.
     pub fn execute_genesis_state_update(
         store: &dyn BackingStore,
         protocol_config: &ProtocolConfig,
