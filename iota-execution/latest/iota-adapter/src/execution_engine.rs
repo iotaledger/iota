@@ -247,7 +247,7 @@ mod checked {
         )
     }
 
-    /// Executes a `GenesisTransaction` generated during the genesis phase.
+    /// Function dedicated to the execution of a GenesisTransaction.
     /// The function creates an `InnerTemporaryStore`, processes the input
     /// objects, and executes the transaction in unmetered mode using the
     /// `Genesis` execution mode. It returns an inner temporary store that
@@ -1151,9 +1151,7 @@ mod checked {
         )
     }
 
-    /// Add to a `ProgrammableTransactionBuilder` a Move call to the Iota
-    /// framework's `authenticator_state_create` function.
-    /// state. This function adds a Move call to the Iota framework's
+    /// This function adds a Move call to the Iota framework's
     /// `authenticator_state_create` function, preparing the transaction for
     /// execution.
     fn setup_authenticator_state_create(
