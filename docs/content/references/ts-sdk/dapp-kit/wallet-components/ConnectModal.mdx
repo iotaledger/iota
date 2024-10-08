@@ -1,8 +1,3 @@
-import {
-    ControlledConnectModalExample,
-    UncontrolledConnectModalExample,
-} from '@site/src/components/sdk-examples/wallet-components';
-
 # ConnectModal
 
 The `ConnectModal` component opens a modal that guides the user through connecting their wallet to
@@ -10,56 +5,104 @@ the dApp.
 
 ## Controlled example
 
-```tsx
-import { ConnectModal, useCurrentAccount } from '@iota/dapp-kit';
+```tsx live noInline
+const NETWORKS = {
+  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
+};
 
-export function YourApp() {
-    const currentAccount = useCurrentAccount();
-    const [open, setOpen] = useState(false);
+function withProviders(Component: () => React.JSX.Element) {
+  return () => {
+
+    if(typeof window === 'undefined') {
+      return null
+    }
+
+    // Work around server-side pre-rendering
+    const queryClient = useMemo(() => new QueryClient(), []);
 
     return (
-        <ConnectModal
-            trigger={
-                <button disabled={!!currentAccount}>
-                    {' '}
-                    {currentAccount ? 'Connected' : 'Connect'}
-                </button>
-            }
-            open={open}
-            onOpenChange={(isOpen) => setOpen(isOpen)}
-        />
+      <QueryClientProvider client={queryClient}>
+        <IotaClientProvider networks={NETWORKS}>
+          <WalletProvider>
+            <Component />
+          </WalletProvider>
+        </IotaClientProvider>
+      </QueryClientProvider>
     );
+  };
 }
+
+const ControlledConnectModalExample = withProviders(() => {
+  const currentAccount = useCurrentAccount();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <ConnectModal
+      trigger={
+        <button disabled={!!currentAccount}>
+          {' '}
+          {currentAccount ? 'Connected' : 'Connect'}
+        </button>
+      }
+      open={open}
+      onOpenChange={(isOpen) => setOpen(isOpen)}
+    />
+  );
+});
+
+render(<ControlledConnectModalExample />);
 ```
 
-Click **Connect** to connect your wallet and see the previous code in action:
-
-<ControlledConnectModalExample />
+Click **Connect** to connect your wallet and see the previous code in action
 
 ## Uncontrolled example
 
-```tsx
-import { ConnectModal, useCurrentAccount } from '@iota/dapp-kit';
+```tsx live noInline
+const NETWORKS = {
+  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
+};
 
-export function YourApp() {
-    const currentAccount = useCurrentAccount();
+function withProviders(Component: () => React.JSX.Element) {
+  return () => {
+
+    if(typeof window === 'undefined') {
+      return null
+    }
+
+    // Work around server-side pre-rendering
+    const queryClient = useMemo(() => new QueryClient(), []);
 
     return (
-        <ConnectModal
-            trigger={
-                <button disabled={!!currentAccount}>
-                    {' '}
-                    {currentAccount ? 'Connected' : 'Connect'}
-                </button>
-            }
-        />
+      <QueryClientProvider client={queryClient}>
+        <IotaClientProvider networks={NETWORKS}>
+          <WalletProvider>
+            <Component />
+          </WalletProvider>
+        </IotaClientProvider>
+      </QueryClientProvider>
     );
+  };
 }
+
+const UncontrolledConnectModalExample = withProviders(() => {
+  const currentAccount = useCurrentAccount();
+
+  return (
+    <ConnectModal
+      trigger={
+        <button disabled={!!currentAccount}>
+          {' '}
+          {currentAccount ? 'Connected' : 'Connect'}
+        </button>
+      }
+    />
+  );
+});
+
+render(<UncontrolledConnectModalExample />);
 ```
 
-Click **Connect** to connect your wallet and see the previous code in action:
-
-<UncontrolledConnectModalExample />
+Click **Connect** to connect your wallet and see the previous code in action
 
 ## Controlled props
 

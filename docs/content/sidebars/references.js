@@ -56,6 +56,7 @@ const references = [
             'references/cli/move',
             'references/cli/validator',
             'references/cli/ceremony',
+            'references/cli/cheatsheet',
         ],
     },
     {
@@ -324,6 +325,25 @@ const references = [
                 label: 'Rust',
                 href: 'https://docs.rs/identity_iota/latest/identity_iota/index.html',
                 description: 'IOTA Identity Rust Documentation',
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Expert topics',
+        items: [
+            {
+                type: 'category',
+                label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'references/execution-architecture/execution-layer',
+                },
+                items: [
+                    'references/execution-architecture/iota-execution',
+                    'references/execution-architecture/adapter',
+                    'references/execution-architecture/natives',
+                ],
             },
         ],
     },

@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { CoinIcon } from './CoinIcon';
 import { type CoinBalanceVerified } from './OwnedCoins';
 import CoinsPanel from './OwnedCoinsPanel';
-import { Card, CardBody, Chip, Tooltip } from '@iota/apps-ui-kit';
+import { Card, CardBody, Chip, Tooltip, Divider } from '@iota/apps-ui-kit';
 import { ArrowUp, Warning } from '@iota/ui-icons';
 
 type OwnedCoinViewProps = {
@@ -33,7 +33,13 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
         trailingElement: <ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />,
     };
     return (
-        <div data-testid="ownedcoinlabel">
+        <div
+            data-testid="ownedcoinlabel"
+            className={clsx(
+                'rounded-xl border',
+                areCoinDetailsOpen ? 'border-shader-neutral-light-8' : 'border-transparent',
+            )}
+        >
             <Card>
                 <div className="rounded-full border border-neutral-92 dark:border-neutral-10">
                     <CoinIcon coinType={coin.coinType} size="lg" />
@@ -56,9 +62,16 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                 </div>
             </Card>
             {areCoinDetailsOpen && (
-                <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-xs--rs">
-                    <CoinsPanel id={id} coinType={coin.coinType} />
-                </div>
+                <>
+                    <div className="flex justify-center">
+                        <div className="w-9/12 ">
+                            <Divider />
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-xs--rs">
+                        <CoinsPanel id={id} coinType={coin.coinType} />
+                    </div>
+                </>
             )}
         </div>
     );

@@ -16,7 +16,7 @@ pub mod worker_node;
 #[derive(Debug, Error, Clone)]
 pub enum NodeError {
     #[error("Failure while booting node: {0}")]
-    NodeBootstrapError(#[from] SubscriberError),
+    NodeBootstrap(#[from] SubscriberError),
 
     #[error("Node is already running")]
     NodeAlreadyRunning,
