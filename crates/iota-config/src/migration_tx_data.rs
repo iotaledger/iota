@@ -54,24 +54,23 @@ impl MigrationTxData {
             .inner
             .get(&digest)
             .with_context(|| format!("No transaction found for digest: {:?}", digest))?;
-        if let TransactionKind::Genesis(GenesisTransaction { objects, .. }) =
+        let TransactionKind::Genesis(GenesisTransaction { objects, .. }) =
             tx.transaction_data().kind()
-        {
-            for GenesisObject::RawObject { data, owner } in objects {
-                migration_objects.push(
-                    ObjectInner {
-                        data: data.to_owned(),
-                        owner: owner.to_owned(),
-                        previous_transaction: *tx.digest(),
-                        storage_rebate: 0,
-                    }
-                    .into(),
-                );
-            }
-        } else {
+        else {
             panic!("wrong transaction type of migration data");
-        }
-        Ok(migration_objects)
+        };
+        Ok(objects
+            .iter()
+            .map(|GenesisObject::RawObject { data, owner }| {
+                ObjectInner {
+                    data: data.to_owned(),
+                    owner: owner.to_owned(),
+                    previous_transaction: *tx.digest(),
+                    storage_rebate: 0,
+                }
+                .into()
+            })
+            .collect())
     }
 
     fn validate_from_genesis_components(
