@@ -252,7 +252,7 @@ mod checked {
     /// objects, and executes the transaction in unmetered mode using the
     /// `Genesis` execution mode. It returns an inner temporary store that
     /// contains the objects found into the input `GenesisTransaction` by
-    /// adding the data for `previous_transaction` and `storage_rebate`fields.
+    /// adding the data for `previous_transaction` and `storage_rebate` fields.
     pub fn execute_genesis_state_update(
         store: &dyn BackingStore,
         protocol_config: &ProtocolConfig,
