@@ -55,7 +55,7 @@ Instead of using inheritance (which is not a thing in Move), the static `coin::
 After publishing this package, the `init` functionality is called, and we now have some metadata published and a `TreasuryCap` object, which we received. We can use this `TreasuryCap` with the functionality in the `Coin` module to mint and burn tokens, such as using the command line tools or an SDK. In this example, we use the CLI to mint five new tokens and transfer them to a new address:
 
 ```bash
-./iota client call --function mint_and_transfer --module coin --package 0x...<package_address>... --args 0x...<owned_cap_object_addr>... 5 "0x...receiver..." --type-args $0x...<deployed_token_addr>...::exampletoken::EXAMPLETOKEN --gas-budget 10000
+./iota client call --function mint_and_transfer --module coin --package 0x...<package_address>... --args 0x...<owned_cap_object_addr>... 5 "0x...receiver..." --type-args $0x...<deployed_token_addr>...::exampletoken::EXAMPLETOKEN
 ```
 
 An important thing to note here is that unlike with ERC-20, a `Coin` has some properties that hold true for every `Coin` type, including the ability to freely transfer `Coin` objects without limitation (except [Regulated Coins](../standards/coin.mdx#regulated-coins) which can block transfers on a per-address base). You can't simply add limiting logic to your module like you can with an ERC-20 contract. Still, you would need to wrap the `Coin` in another module that does hold these constraints to implement this logic.

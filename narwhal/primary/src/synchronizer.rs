@@ -1321,14 +1321,14 @@ impl Synchronizer {
                 let inner = inner.clone();
                 async move {
                     let result = client.synchronize(worker_name, message).await.map_err(|e| {
-                        backoff::Error::transient(DagError::NetworkError(format!("{e:?}")))
+                        backoff::Error::transient(DagError::Network(format!("{e:?}")))
                     });
                     if result.is_ok() {
                         for digest in &digests {
                             inner
                                 .payload_store
                                 .write(digest, &worker_id)
-                                .map_err(|e| backoff::Error::permanent(DagError::StoreError(e)))?
+                                .map_err(|e| backoff::Error::permanent(DagError::Store(e)))?
                         }
                     }
                     result
@@ -1344,7 +1344,7 @@ impl Synchronizer {
                 results = &mut wait_synchronize => {
                     break results
                         .map(|_| ())
-                        .map_err(|e| DagError::NetworkError(format!("error synchronizing batches: {e:?}")))
+                        .map_err(|e| DagError::Network(format!("error synchronizing batches: {e:?}")))
                 },
                 // This aborts based on consensus round and not narwhal round. When this function
                 // is used as part of handling vote requests, this may cause us to wait a bit

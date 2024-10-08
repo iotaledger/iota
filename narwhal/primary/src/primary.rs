@@ -559,16 +559,16 @@ fn authority_for_request<'a, T>(
 ) -> DagResult<&'a Authority> {
     let peer_id = request
         .peer_id()
-        .ok_or_else(|| DagError::NetworkError("Unable to access remote peer ID".to_owned()))?;
+        .ok_or_else(|| DagError::Network("Unable to access remote peer ID".to_owned()))?;
     let peer_network_key = NetworkPublicKey::from_bytes(&peer_id.0).map_err(|e| {
-        DagError::NetworkError(format!(
+        DagError::Network(format!(
             "Unable to interpret remote peer ID {peer_id:?} as a NetworkPublicKey: {e:?}"
         ))
     })?;
     committee
         .authority_by_network_key(&peer_network_key)
         .ok_or_else(|| {
-            DagError::NetworkError(format!(
+            DagError::Network(format!(
                 "Unable to find authority with network key {peer_network_key:?}"
             ))
         })
@@ -618,7 +618,7 @@ impl PrimaryReceiverHandler {
         let peer_authority = authority_for_request(&self.committee, &request)?;
         ensure!(
             header.author() == peer_authority.id(),
-            DagError::NetworkError(format!(
+            DagError::Network(format!(
                 "Header author {:?} must match requesting peer {peer_authority:?}",
                 header.author()
             ))
@@ -745,7 +745,7 @@ impl PrimaryReceiverHandler {
         let result = self
             .vote_digest_store
             .read(&header.author())
-            .map_err(DagError::StoreError)?;
+            .map_err(DagError::Store)?;
 
         if let Some(vote_info) = result {
             ensure!(
