@@ -71,6 +71,7 @@ pub const DEFAULT_RETRIES: usize = 4;
 #[path = "unit_tests/authority_aggregator_tests.rs"]
 pub mod authority_aggregator_tests;
 
+/// Configuration for timeouts in the authority aggregator.
 #[derive(Clone)]
 pub struct TimeoutConfig {
     pub pre_quorum_timeout: Duration,
@@ -112,6 +113,7 @@ pub struct AuthAggMetrics {
 }
 
 impl AuthAggMetrics {
+    /// Create a new instance of `AuthAggMetrics` with a Prometheus registry.
     pub fn new(registry: &prometheus::Registry) -> Self {
         Self {
             total_tx_certificates_created: register_int_counter_with_registry!(
@@ -197,12 +199,14 @@ impl AuthAggMetrics {
         }
     }
 
+    /// Creates a new instance of `AuthAggMetrics` for testing.
     pub fn new_for_tests() -> Self {
         let registry = prometheus::Registry::new();
         Self::new(&registry)
     }
 }
 
+/// Errors that can occur when processing transactions in an aggregator.
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum AggregatorProcessTransactionError {
     #[error(
@@ -281,6 +285,7 @@ pub enum AggregatorProcessCertificateError {
     RetryableExecuteCertificate { retryable_errors: GroupedErrors },
 }
 
+/// Groups the errors by error type and stake.
 pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> GroupedErrors {
     #[allow(clippy::mutable_key_type)]
     let mut grouped_errors = HashMap::new();
@@ -300,6 +305,8 @@ pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> 
         .collect()
 }
 
+/// `RetryableOverloadInfo` stores information about the state of overloaded
+/// validators that request clients to retry operations.
 #[derive(Debug, Default)]
 pub struct RetryableOverloadInfo {
     // Total stake of validators that are overloaded and request client to retry.
@@ -373,6 +380,8 @@ struct ProcessTransactionState {
 }
 
 impl ProcessTransactionState {
+    /// Returns the conflicting transaction digest and its validators with the
+    /// most stake.
     #[allow(clippy::type_complexity)]
     pub fn conflicting_tx_digest_with_most_stake(
         &self,
@@ -387,6 +396,8 @@ impl ProcessTransactionState {
             .map(|(digest, (validators, stake))| (*digest, validators, *stake))
     }
 
+    /// Records the conflicting transaction, returns `true` if there is any, and
+    /// returns `false` otherwise.
     pub fn record_conflicting_transaction_if_any(
         &mut self,
         validator_name: AuthorityName,
@@ -413,6 +424,7 @@ impl ProcessTransactionState {
         false
     }
 
+    /// Checks if the error indicates that the transaction is already finalized.
     pub fn check_if_error_indicates_tx_finalized_with_different_user_sig(
         &self,
         validity_threshold: StakeUnit,
@@ -442,6 +454,7 @@ impl ProcessTransactionState {
     }
 }
 
+/// State for processing a certificate.
 struct ProcessCertificateState {
     // Different authorities could return different effects.  We want at least one effect to come
     // from 2f+1 authorities, which meets quorum and can be considered the approved effect.
@@ -465,6 +478,7 @@ struct ProcessCertificateState {
     auxiliary_data: Option<Vec<u8>>,
 }
 
+/// The result of processing a transaction.
 #[derive(Debug)]
 pub enum ProcessTransactionResult {
     Certified {
@@ -480,6 +494,7 @@ pub enum ProcessTransactionResult {
 }
 
 impl ProcessTransactionResult {
+    /// Returns the `CertifiedTransaction` if it is a `Certified` variant.
     pub fn into_cert_for_testing(self) -> CertifiedTransaction {
         match self {
             Self::Certified { certificate, .. } => certificate,
@@ -487,6 +502,8 @@ impl ProcessTransactionResult {
         }
     }
 
+    /// Returns the `VerifiedCertifiedTransactionEffects` if it is an
+    /// `Executed` variant.
     pub fn into_effects_for_testing(self) -> VerifiedCertifiedTransactionEffects {
         match self {
             Self::Certified { .. } => panic!("Wrong type"),
@@ -495,6 +512,8 @@ impl ProcessTransactionResult {
     }
 }
 
+/// The AuthorityAggregator is responsible for aggregating the responses from
+/// the validators and determining the final state of the transaction.
 #[derive(Clone)]
 pub struct AuthorityAggregator<A: Clone> {
     /// Our Iota committee.
@@ -516,6 +535,7 @@ pub struct AuthorityAggregator<A: Clone> {
 }
 
 impl<A: Clone> AuthorityAggregator<A> {
+    /// Create a new `AuthorityAggregator`.
     pub fn new(
         committee: Committee,
         committee_store: Arc<CommitteeStore>,
@@ -602,10 +622,12 @@ impl<A: Clone> AuthorityAggregator<A> {
         })
     }
 
+    /// Gets the authority client for the given name.
     pub fn get_client(&self, name: &AuthorityName) -> Option<&Arc<SafeClient<A>>> {
         self.authority_clients.get(name)
     }
 
+    /// Gets the cloned authority client for the given name.
     pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
     where
         A: Clone,
@@ -613,14 +635,17 @@ impl<A: Clone> AuthorityAggregator<A> {
         self.authority_clients[name].clone()
     }
 
+    /// Gets the cloned `CommitteeStore`.
     pub fn clone_committee_store(&self) -> Arc<CommitteeStore> {
         self.committee_store.clone()
     }
 
+    /// Gets the cloned `Committee`.
     pub fn clone_inner_committee_test_only(&self) -> Committee {
         (*self.committee).clone()
     }
 
+    /// Get the cloned authority clients.
     pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>> {
         (*self.authority_clients)
             .clone()
@@ -630,6 +655,7 @@ impl<A: Clone> AuthorityAggregator<A> {
     }
 }
 
+/// Creates safe clients for each authority.
 fn create_safe_clients<A: Clone>(
     authority_clients: BTreeMap<AuthorityName, A>,
     committee_store: &Arc<CommitteeStore>,
@@ -906,7 +932,7 @@ where
         }
     }
 
-    /// Query the object with highest version number from the authorities.
+    /// Queries the object with highest version number from the authorities.
     /// We stop after receiving responses from 2f+1 validators.
     /// This function is untrusted because we simply assume each response is
     /// valid and there are no byzantine validators.
@@ -969,7 +995,7 @@ where
         Ok(result.0)
     }
 
-    /// Get the latest system state object from the authorities.
+    /// Gets the latest system state object from the authorities.
     /// This function assumes all validators are honest.
     /// It should only be used for testing or benchmarking.
     pub async fn get_latest_system_state_object_for_testing(
@@ -1189,6 +1215,7 @@ where
         }
     }
 
+    /// Records the rpc error if it is.
     fn record_rpc_error_maybe(
         metrics: Arc<AuthAggMetrics>,
         display_name: &String,
@@ -1202,6 +1229,7 @@ where
         }
     }
 
+    /// Handles the transaction processing error.
     fn handle_process_transaction_error(
         &self,
         original_tx_digest: &TransactionDigest,
@@ -1300,6 +1328,7 @@ where
         }
     }
 
+    /// Debug logs the transaction processing metrics.
     fn record_process_transaction_metrics(
         &self,
         tx_digest: &TransactionDigest,
@@ -1321,6 +1350,7 @@ where
         }
     }
 
+    /// Handles the `PlainTransactionInfoResponse` variants.
     fn handle_process_transaction_response(
         &self,
         tx_digest: &TransactionDigest,
@@ -1346,6 +1376,8 @@ where
         }
     }
 
+    /// Handles the `SignedTransaction`. based on the transaction signature
+    /// insertion result.
     fn handle_transaction_response_with_signed(
         &self,
         state: &mut ProcessTransactionState,
@@ -1381,6 +1413,9 @@ where
         }
     }
 
+    /// Handles `CertifiedTransaction`. Use the certificate if it's in the same
+    /// epoch. Or update the `ProcessTransactionState` by the
+    /// `SignedTransactionEffects` if there is no certificate yet.
     fn handle_transaction_response_with_executed(
         &self,
         state: &mut ProcessTransactionState,
@@ -1437,7 +1472,7 @@ where
         }
     }
 
-    /// Check if we have some signed TransactionEffects but not a quorum
+    /// Checks if we have some signed TransactionEffects but not a quorum.
     fn record_non_quorum_effects_maybe(
         &self,
         tx_digest: &TransactionDigest,
@@ -1496,6 +1531,7 @@ where
         state
     }
 
+    /// Gets the retryable stake for the transaction.
     fn get_retryable_stake(&self, state: &ProcessTransactionState) -> StakeUnit {
         self.committee.total_votes()
             - state.conflicting_tx_total_stake
@@ -1504,6 +1540,8 @@ where
             - state.tx_signatures.total_votes()
     }
 
+    /// Processes a given certificate by broadcasting it to authorities and
+    /// aggregating the results until reaching a quorum.
     #[instrument(level = "trace", skip_all)]
     pub async fn process_certificate(
         &self,
@@ -1717,6 +1755,7 @@ where
         Ok(result)
     }
 
+    /// Handles the `HandleCertificateResponseV2` variants.
     fn handle_process_certificate_response(
         committee: Arc<Committee>,
         tx_digest: &TransactionDigest,
@@ -1865,6 +1904,8 @@ where
     }
 }
 
+/// `AuthorityAggregatorBuilder` is used to build an `AuthorityAggregator` with
+/// customizable configurations for the Iota network.
 #[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
     network_config: Option<&'a NetworkConfig>,
@@ -1876,6 +1917,7 @@ pub struct AuthorityAggregatorBuilder<'a> {
 }
 
 impl<'a> AuthorityAggregatorBuilder<'a> {
+    /// Creates a new `AuthorityAggregatorBuilder` from a `NetworkConfig`.
     pub fn from_network_config(config: &'a NetworkConfig) -> Self {
         Self {
             network_config: Some(config),
@@ -1883,6 +1925,7 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         }
     }
 
+    /// Creates a new `AuthorityAggregatorBuilder` from a `Genesis`.
     pub fn from_genesis(genesis: &'a Genesis) -> Self {
         Self {
             genesis: Some(genesis),
@@ -1890,6 +1933,7 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         }
     }
 
+    /// Creates a new `AuthorityAggregatorBuilder` from a `Committee`.
     pub fn from_committee(committee: Committee) -> Self {
         Self {
             committee: Some(committee),
@@ -1897,16 +1941,19 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         }
     }
 
+    /// Sets the `CommitteeStore`.
     pub fn with_committee_store(mut self, committee_store: Arc<CommitteeStore>) -> Self {
         self.committee_store = Some(committee_store);
         self
     }
 
+    /// Sets the Prometheus registry.
     pub fn with_registry(mut self, registry: &'a Registry) -> Self {
         self.registry = Some(registry);
         self
     }
 
+    /// Sets the timeouts configuration.
     pub fn with_timeouts_config(mut self, timeouts_config: TimeoutConfig) -> Self {
         self.timeouts_config = Some(timeouts_config);
         self
