@@ -594,23 +594,26 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn get_committee_info() {
-    let cluster = TestClusterBuilder::new().build().await;
+    let cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(10000)
+        .build()
+        .await;
 
     let client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
     // Test with no specified epoch
-    let indexer_response = client.get_committee_info(None).await.unwrap();
+    let response = client.get_committee_info(None).await.unwrap();
 
-    let (epoch_id, validators) = (indexer_response.epoch, indexer_response.validators);
+    let (epoch_id, validators) = (response.epoch, response.validators);
 
     assert!(epoch_id == 0);
     assert_eq!(validators.len(), 4);
 
     // Test with specified epoch 0
-    let indexer_response = client.get_committee_info(Some(0.into())).await.unwrap();
+    let response = client.get_committee_info(Some(0.into())).await.unwrap();
 
-    let (epoch_id, validators) = (indexer_response.epoch, indexer_response.validators);
+    let (epoch_id, validators) = (response.epoch, response.validators);
 
     assert!(epoch_id == 0);
     assert_eq!(validators.len(), 4);
@@ -619,6 +622,17 @@ async fn get_committee_info() {
     let response = client.get_committee_info(Some(1.into())).await;
 
     assert!(response.is_err());
+
+    // Sleep for 20 seconds
+    sleep(Duration::from_millis(20000)).await;
+
+    // Test with specified epoch 1
+    let response = client.get_committee_info(Some(1.into())).await.unwrap();
+
+    let (epoch_id, validators) = (response.epoch, response.validators);
+
+    assert!(epoch_id == 1);
+    assert_eq!(validators.len(), 4);
 }
 
 #[sim_test]
