@@ -108,7 +108,7 @@ module iota_system::iota_system_state_inner {
 
     /// Event containing system-level epoch information, emitted during
     /// the epoch advancement transaction.
-    public struct SystemEpochInfoEvent has copy, drop {
+    public struct SystemEpochInfoEventV1 has copy, drop {
         epoch: u64,
         protocol_version: u64,
         reference_gas_price: u64,
@@ -741,7 +741,7 @@ module iota_system::iota_system_state_inner {
             );
 
         event::emit(
-            SystemEpochInfoEvent {
+            SystemEpochInfoEventV1 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
                 reference_gas_price: self.reference_gas_price,
