@@ -105,15 +105,14 @@ describe('Publickey', () => {
     });
 
     it('`toIotaBytesForAddress()` should return the correct byte representation of the public key with the signature scheme flag', async () => {
-        const pk1IotaBytes = new Uint8Array(pk1.toRawBytes().length + 1);
-        pk1IotaBytes.set([0x00]);
-        pk1IotaBytes.set(pk1.toRawBytes(), 1);
+        const pk1IotaBytes = new Uint8Array(pk1.toRawBytes().length);
+        pk1IotaBytes.set(pk1.toRawBytes());
 
         expect(pk1.toIotaBytesForAddress()).toEqual(pk1IotaBytes);
         expect(pk1.toIotaBytesForAddress()).toEqual(
             new Uint8Array([
-                0, 90, 226, 32, 180, 178, 246, 94, 151, 124, 18, 237, 230, 21, 121, 255, 81, 112,
-                182, 194, 44, 0, 97, 104, 195, 123, 94, 124, 97, 175, 1, 128, 131,
+                90, 226, 32, 180, 178, 246, 94, 151, 124, 18, 237, 230, 21, 121, 255, 81, 112, 182,
+                194, 44, 0, 97, 104, 195, 123, 94, 124, 97, 175, 1, 128, 131,
             ]),
         );
 

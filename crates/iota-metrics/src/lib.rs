@@ -11,7 +11,14 @@ use std::{
     time::Instant,
 };
 
-use axum::{Router, extract::Extension, http::StatusCode, routing::get};
+use axum::{
+    Router,
+    extract::{Extension, Request},
+    http::StatusCode,
+    middleware::Next,
+    response::Response,
+    routing::get,
+};
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
@@ -55,6 +62,13 @@ pub struct Metrics {
 }
 
 impl Metrics {
+    /// Creates a new instance of the monitoring metrics, registering various
+    /// gauges and histograms with the provided metrics `Registry`. The
+    /// gauges track metrics such as the number of running tasks, pending
+    /// futures, channel items, and scope activities, while the histogram
+    /// measures the duration of thread stalls. Each metric is registered
+    /// with descriptive labels to facilitate performance monitoring and
+    /// analysis.
     fn new(registry: &Registry) -> Self {
         Self {
             tasks: register_int_gauge_vec_with_registry!(
@@ -125,6 +139,11 @@ impl Metrics {
 
 static METRICS: OnceCell<Metrics> = OnceCell::new();
 
+/// Initializes the global `METRICS` instance by setting it to a new `Metrics`
+/// object registered with the provided `Registry`. If `METRICS` is already set,
+/// a warning is logged indicating that the metrics registry was overwritten.
+/// This function is intended to be called once during initialization to set up
+/// metrics collection.
 pub fn init_metrics(registry: &Registry) {
     let _ = METRICS
         .set(Metrics::new(registry))
@@ -132,6 +151,7 @@ pub fn init_metrics(registry: &Registry) {
         .tap_err(|_| warn!("init_metrics registry overwritten"));
 }
 
+/// Retrieves the global `METRICS` instance if it has been initialized.
 pub fn get_metrics() -> Option<&'static Metrics> {
     METRICS.get()
 }
@@ -155,6 +175,26 @@ pub async fn with_new_server_timing<T>(fut: impl Future<Output = T> + Send + 'st
         .await;
 
     ret.unwrap()
+}
+
+pub async fn server_timing_middleware(request: Request, next: Next) -> Response {
+    with_new_server_timing(async move {
+        let mut response = next.run(request).await;
+        add_server_timing("finish_request");
+
+        if let Ok(header_value) = get_server_timing()
+            .expect("server timing not set")
+            .lock()
+            .header_value()
+            .try_into()
+        {
+            response
+                .headers_mut()
+                .insert(Timer::header_key(), header_value);
+        }
+        response
+    })
+    .await
 }
 
 /// Create a new task-local ServerTiming context and run the provided future
@@ -328,7 +368,14 @@ pub fn monitored_scope(name: &'static str) -> Option<MonitoredScopeGuard> {
     }
 }
 
+/// A trait extension for `Future` to allow monitoring the execution of the
+/// future within a specific scope. Provides the `in_monitored_scope` method to
+/// wrap the future in a `MonitoredScopeFuture`, which tracks the future's
+/// execution using a `MonitoredScopeGuard` for monitoring purposes.
 pub trait MonitoredFutureExt: Future + Sized {
+    /// Wraps the current future in a `MonitoredScopeFuture` that is associated
+    /// with a specific monitored scope name. The scope helps track the
+    /// execution of the future for performance analysis and metrics collection.
     fn in_monitored_scope(self, name: &'static str) -> MonitoredScopeFuture<Self>;
 }
 
@@ -341,6 +388,10 @@ impl<F: Future> MonitoredFutureExt for F {
     }
 }
 
+/// A future that runs within a monitored scope. This struct wraps a pinned
+/// future and holds an optional `MonitoredScopeGuard` to measure and monitor
+/// the execution of the future. It forwards polling operations
+/// to the underlying future while maintaining the monitoring scope.
 pub struct MonitoredScopeFuture<F: Sized> {
     f: Pin<Box<F>>,
     _scope: Option<MonitoredScopeGuard>,
@@ -354,6 +405,10 @@ impl<F: Future> Future for MonitoredScopeFuture<F> {
     }
 }
 
+/// A future that runs within a monitored scope. This struct wraps a pinned
+/// future and holds an optional `MonitoredScopeGuard` to measure and monitor
+/// the execution of the future. It forwards polling operations
+/// to the underlying future while maintaining the monitoring scope.
 pub struct CancelMonitor<F: Sized> {
     finished: bool,
     inner: Pin<Box<F>>,
@@ -363,6 +418,8 @@ impl<F> CancelMonitor<F>
 where
     F: Future,
 {
+    /// Creates a new `CancelMonitor` that wraps the given future (`inner`). The
+    /// monitor tracks whether the future has completed.
     pub fn new(inner: F) -> Self {
         Self {
             finished: false,
@@ -370,6 +427,7 @@ where
         }
     }
 
+    /// Returns `true` if the future has completed; otherwise, `false`.
     pub fn is_finished(&self) -> bool {
         self.finished
     }
@@ -381,6 +439,10 @@ where
 {
     type Output = F::Output;
 
+    /// Polls the inner future to determine if it is ready or still pending. For
+    /// `CancelMonitor`, if the future completes (`Poll::Ready`), `finished`
+    /// is set to `true`. If it is still pending, the status remains
+    /// unchanged. This allows monitoring of the future's completion status.
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.inner.as_mut().poll(cx) {
             Poll::Ready(output) => {
@@ -393,6 +455,10 @@ where
 }
 
 impl<F: Sized> Drop for CancelMonitor<F> {
+    /// When the `CancelMonitor` is dropped, it checks whether the future has
+    /// finished executing. If the future was not completed (`finished` is
+    /// `false`), it records that the future was cancelled by logging the
+    /// cancellation status using the current span.
     fn drop(&mut self) {
         if !self.finished {
             Span::current().record("cancelled", true);
@@ -552,6 +618,13 @@ pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
     registry_service
 }
 
+/// Handles a request to retrieve metrics, using the provided `RegistryService`
+/// to gather all registered metric families. The metrics are then encoded to a
+/// text format for easy consumption by monitoring systems. If successful, it
+/// returns the metrics string with an `OK` status. If an error occurs during
+/// encoding, it returns an `INTERNAL_SERVER_ERROR` status along with an error
+/// message. Returns a tuple containing the status code and either the metrics
+/// data or an error description.
 pub async fn metrics(
     Extension(registry_service): Extension<RegistryService>,
 ) -> (StatusCode, String) {

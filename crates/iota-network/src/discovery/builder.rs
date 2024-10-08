@@ -131,6 +131,7 @@ impl UnstartedDiscovery {
         } = self;
 
         let discovery_config = config.discovery.clone().unwrap_or_default();
+        // Builds the set of allowlisted peers from allowlisted_peers and seed_peers.
         let allowlisted_peers = Arc::new(
             discovery_config
                 .allowlisted_peers

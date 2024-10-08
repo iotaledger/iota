@@ -79,11 +79,10 @@ expression: "results.join(\"\\n\")"
    ╰────
 
   × Error when processing PTB
-    ╭─[9:37]
+    ╭─[9:38]
   8 │ --move-call std::option::is_none<u64> a b
   9 │ --move-call iota::coin::destroy_zero @0x1
-    ·                                     ──┬─
-    ·                                       ╰── Not enough type parameters supplied for Move call
+    ·                                      ──┬─
+    ·                                        ╰── Not enough type parameters supplied for Move call
  10 │ --move-call std::option::is_none<u64, bool> a 
     ╰────
-

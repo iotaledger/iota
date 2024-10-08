@@ -135,6 +135,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/2983"]
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;

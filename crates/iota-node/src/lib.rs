@@ -79,14 +79,13 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
-use iota_metrics::{RegistryService, spawn_monitored_task};
+use iota_metrics::{RegistryService, server_timing_middleware, spawn_monitored_task};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::ServerBuilder;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_rest_api::RestMetrics;
-use iota_service::server_timing::server_timing_middleware;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, IndexStore, StorageFormat,
@@ -228,7 +227,8 @@ pub struct IotaNode {
     /// Broadcast channel to send the starting system state for the next epoch.
     end_of_epoch_channel: broadcast::Sender<IotaSystemState>,
 
-    /// Broadcast channel to notify state-sync for new validator peers.
+    /// Broadcast channel to notify [`DiscoveryEventLoop`] for new validator
+    /// peers.
     trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
 
     _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
@@ -928,6 +928,8 @@ impl IotaNode {
         }
     }
 
+    /// Creates an StateSnapshotUploader and start it if the StateSnapshotConfig
+    /// is set.
     fn start_state_snapshot(
         config: &NodeConfig,
         prometheus_registry: &Registry,
@@ -1514,7 +1516,8 @@ impl IotaNode {
     /// This function awaits the completion of checkpoint execution of the
     /// current epoch, after which it initiates reconfiguration of the
     /// entire system. This function also handles role changes for the node when
-    /// epoch changes.
+    /// epoch changes and advertises capabilities to the committee if the node
+    /// is a validator.
     pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
         let checkpoint_executor_metrics =
             CheckpointExecutorMetrics::new(&self.registry_service.default_registry());
@@ -1904,7 +1907,8 @@ impl IotaNode {
     }
 }
 
-/// Notify state-sync that a new list of trusted peers are now available.
+/// Notify [`DiscoveryEventLoop`] that a new list of trusted peers are now
+/// available.
 fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
