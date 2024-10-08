@@ -68,7 +68,7 @@ public fun confirm_with_treasury_cap<T>(
 An example of a transaction implemented in TypeScript with @iota/iota-sdk, confirming an action request with a `TreasuryCap`. Here the admin account owns the `TreasuryCap`, which is used to mint and confirm the transfer request for the token:
 
 ```js
-let tx = new TransactionBlock();
+let tx = new Transaction();
 let tokenType = '0x....::my_token::MY_TOKEN';
 let treasuryCapArg = tx.object('0x....');
 
@@ -121,7 +121,7 @@ If it's a `spend` request, use the `confirm_request_mut` function instead.
 An example of a client transfer request confirmation in JavaScript:
 
 ```js
-let tx = new TransactionBlock();
+let tx = new Transaction();
 let tokenType = '0x....::my_token::MY_TOKEN';
 let myTokenArg = tx.object('0x...token_object');
 let receiverArg = tx.pure.address('0x...receiver');
@@ -167,7 +167,7 @@ public fun confirm_with_policy_cap<T>(
 An example of a client transfer request confirmation in JavaScript:
 
 ```js
-let tx = new TransactionBlock();
+let tx = new Transaction();
 let tokenType = '0x....::my_token::MY_TOKEN';
 let myTokenArg = tx.object('0x...token_object');
 let receiverArg = tx.pure.address('0x...receiver');
