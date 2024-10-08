@@ -7,6 +7,7 @@
 //!
 //! cargo run --example sign_tx_guide
 
+#[path = "../utils.rs"]
 mod utils;
 
 use anyhow::anyhow;
