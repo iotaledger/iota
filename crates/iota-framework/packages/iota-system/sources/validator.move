@@ -9,7 +9,7 @@ module iota_system::validator {
     use iota::balance::Balance;
     use iota::iota::IOTA;
     use iota_system::validator_cap::{Self, ValidatorOperationCap};
-    use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPool};
+    use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPoolV1};
     use std::string::String;
     use iota::url::Url;
     use iota::url;
@@ -128,7 +128,7 @@ module iota_system::validator {
         /// Gas price quote, updated only at end of epoch.
         gas_price: u64,
         /// Staking pool for this validator.
-        staking_pool: StakingPool,
+        staking_pool: StakingPoolV1,
         /// Commission rate of the validator, in basis point.
         commission_rate: u64,
         /// Total amount of stake that would be active in the next epoch.
@@ -856,7 +856,7 @@ module iota_system::validator {
 
     public native fun validate_metadata_bcs(metadata: vector<u8>);
 
-    public(package) fun get_staking_pool_ref(self: &ValidatorV1) : &StakingPool {
+    public(package) fun get_staking_pool_ref(self: &ValidatorV1) : &StakingPoolV1 {
         &self.staking_pool
     }
 

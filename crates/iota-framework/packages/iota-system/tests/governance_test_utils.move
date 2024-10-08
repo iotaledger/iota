@@ -8,7 +8,7 @@ module iota_system::governance_test_utils {
     use iota::balance;
     use iota::iota::{Self, IOTA};
     use iota::coin::{Self, Coin};
-    use iota_system::staking_pool::{StakedIota, StakingPool};
+    use iota_system::staking_pool::{StakedIota, StakingPoolV1};
     use iota::test_utils::assert_eq;
     use iota_system::validator::{Self, ValidatorV1};
     use iota_system::iota_system::{Self, IotaSystemState};
@@ -328,7 +328,7 @@ module iota_system::governance_test_utils {
         amount
     }
 
-    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPool, scenario: &mut Scenario): u64 {
+    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPoolV1, scenario: &mut Scenario): u64 {
         let mut sum = 0;
         scenario.next_tx(addr);
         let mut stake_ids = scenario.ids_for_sender<StakedIota>();
