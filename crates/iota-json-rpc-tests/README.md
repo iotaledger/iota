@@ -78,22 +78,22 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [ ] `get_normalized_move_struct`
 - [ ] `get_normalized_move_function`
 
-### `ReadApi` (2/14)
+### `ReadApi` (14/14)
 
-- [ ] `get_transaction_block`
-- [ ] `multi_get_transaction_blocks`
+- [x] `get_transaction_block`
+- [x] `multi_get_transaction_blocks`
 - [x] `get_object`
 - [x] `multi_get_objects`
-- [ ] `try_get_past_object`
-- [ ] `try_multi_get_past_objects`
-- [ ] `get_loaded_child_objects`
-- [ ] `get_checkpoint`
-- [ ] `get_checkpoints`
-- [ ] `get_events`
-- [ ] `get_total_transaction_blocks`
-- [ ] `get_latest_checkpoint_sequence_number`
-- [ ] `get_protocol_config`
-- [ ] `get_chain_identifier`
+- [x] `try_get_past_object`
+- [x] `try_multi_get_past_objects`
+- [x] `try_get_object_before_version`
+- [x] `get_checkpoint`
+- [x] `get_checkpoints`
+- [x] `get_events`
+- [x] `get_total_transaction_blocks`
+- [x] `get_latest_checkpoint_sequence_number`
+- [x] `get_protocol_config`
+- [x] `get_chain_identifier`
 
 ### `TransactionBuilder` (7/15)
 
