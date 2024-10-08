@@ -8,15 +8,15 @@ use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
-    publish_basics_package_and_make_counter, TestTransactionBuilder,
+    TestTransactionBuilder, publish_basics_package_and_make_counter,
 };
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectRef},
     coin::{PAY_JOIN_FUNC_NAME, PAY_MODULE_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
     gas_coin::GAS,
     transaction::{CallArg, ObjectArg, TransactionData},
-    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -183,19 +183,14 @@ async fn create_txes(
     ret.insert(CommonTransactionCosts::SharedCounterCreate, transaction);
 
     let transaction = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-        .move_call(
-            counter_package_id,
-            "counter",
-            "assert_value",
-            vec![
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: counter_id,
-                    initial_shared_version: counter_initial_shared_version,
-                    mutable: true,
-                }),
-                CallArg::Pure(0u64.to_le_bytes().to_vec()),
-            ],
-        )
+        .move_call(counter_package_id, "counter", "assert_value", vec![
+            CallArg::Object(ObjectArg::SharedObject {
+                id: counter_id,
+                initial_shared_version: counter_initial_shared_version,
+                mutable: true,
+            }),
+            CallArg::Pure(0u64.to_le_bytes().to_vec()),
+        ])
         .build();
 
     ret.insert(

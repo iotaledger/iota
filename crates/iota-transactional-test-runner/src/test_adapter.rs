@@ -23,11 +23,11 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
-use iota_core::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
+use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_graphql_rpc::{
     config::ConnectionConfig,
-    test_infra::cluster::{serve_executor, ExecutorCluster, SnapshotLagConfig},
+    test_infra::cluster::{ExecutorCluster, SnapshotLagConfig, serve_executor},
 };
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
@@ -37,11 +37,16 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
+    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID,
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS,
+    STARDUST_PACKAGE_ID,
     base_types::{
-        IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber, IOTA_ADDRESS_LENGTH,
+        IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
     },
     committee::EpochId,
-    crypto::{get_authority_key_pair, get_key_pair_from_rng, AccountKeyPair, RandomnessRound},
+    crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
@@ -51,7 +56,7 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_package::MovePackage,
-    object::{self, bounded_visitor::BoundedVisitor, Object, GAS_VALUE_FOR_TESTING},
+    object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{ObjectStore, ReadStore},
     transaction::{
@@ -59,11 +64,6 @@ use iota_types::{
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
-    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS,
-    STARDUST_PACKAGE_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -71,9 +71,9 @@ use move_command_line_common::{
     address::ParsedAddress, files::verify_and_create_named_address_mapping,
 };
 use move_compiler::{
+    Flags, FullyCompiledProgram,
     editions::{Edition, Flavor},
     shared::{NumberFormat, NumericalAddress, PackageConfig, PackagePaths},
-    Flags, FullyCompiledProgram,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -84,18 +84,19 @@ use move_core_types::{
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::{
     framework::{
-        compile_any, store_modules, CompiledState, MaybeNamedCompiledModule, MoveTestAdapter,
+        CompiledState, MaybeNamedCompiledModule, MoveTestAdapter, compile_any, store_modules,
     },
     tasks::{InitCommand, RunCommand, SyntaxChoice, TaskCommand, TaskInput},
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
-use rand::{rngs::StdRng, Rng, SeedableRng};
-use tempfile::{tempdir, NamedTempFile};
+use rand::{Rng, SeedableRng, rngs::StdRng};
+use tempfile::{NamedTempFile, tempdir};
 
 use crate::{
-    args::*, programmable_transaction_test_parser::parser::ParsedCommand,
-    simulator_persisted_store::PersistedStore, TransactionalAdapter, ValidatorWithFullnode,
+    TransactionalAdapter, ValidatorWithFullnode, args::*,
+    programmable_transaction_test_parser::parser::ParsedCommand,
+    simulator_persisted_store::PersistedStore,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -2237,14 +2238,11 @@ async fn init_sim_executor(
         objects.push(o.clone());
         account_objects.insert(name.clone(), o.id());
 
-        accounts.insert(
-            name.to_owned(),
-            TestAccount {
-                address: addr,
-                key_pair: kp,
-                gas: o.id(),
-            },
-        );
+        accounts.insert(name.to_owned(), TestAccount {
+            address: addr,
+            key_pair: kp,
+            gas: o.id(),
+        });
     }
     let o = sim
         .store()

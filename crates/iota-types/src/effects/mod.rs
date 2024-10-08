@@ -17,8 +17,8 @@ use crate::{
     base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     crypto::{
-        default_hash, AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo,
-        EmptySignInfo,
+        AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
+        default_hash,
     },
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     error::IotaResult,
@@ -411,7 +411,7 @@ impl TransactionEvents {
 
 #[derive(Debug)]
 pub struct TransactionEffectsDebugSummary {
-    /// Size of bcs serialized byets of the effects.
+    /// Size of bcs serialized bytes of the effects.
     pub bcs_size: usize,
     pub status: ExecutionStatus,
     pub gas_used: GasCostSummary,

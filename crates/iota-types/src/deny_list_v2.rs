@@ -11,21 +11,21 @@ use move_core_types::{
     ident_str,
     language_storage::{StructTag, TypeTag},
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID},
     config::{Config, Setting},
     deny_list_v1::{
-        input_object_coin_types_for_denylist_check, DENY_LIST_COIN_TYPE_INDEX, DENY_LIST_MODULE,
+        DENY_LIST_COIN_TYPE_INDEX, DENY_LIST_MODULE, input_object_coin_types_for_denylist_check,
     },
-    dynamic_field::{get_dynamic_field_from_store, DOFWrapper},
+    dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::UID,
     object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
-    MoveTypeTagTrait, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 
 pub const CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS: usize = 1000;

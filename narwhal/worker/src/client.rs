@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     net::Ipv4Addr,
     sync::{Arc, Mutex},
 };
 
 use arc_swap::{ArcSwap, ArcSwapOption};
 use iota_metrics::metered_channel::Sender;
-use iota_network_stack::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{Multiaddr, multiaddr::Protocol};
 use thiserror::Error;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{Duration, sleep, timeout};
 use tracing::info;
 use types::{Transaction, TxResponse};
 

@@ -8,10 +8,10 @@
 //! - The first field has type `iota::object::UID`
 
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     error::ExecutionError,
     fp_ensure,
     id::{OBJECT_MODULE_NAME, UID_STRUCT_NAME},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use move_binary_format::file_format::{CompiledModule, SignatureToken};
 

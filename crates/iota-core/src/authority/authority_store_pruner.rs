@@ -24,15 +24,15 @@ use iota_types::{
 };
 use once_cell::sync::Lazy;
 use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 use tokio::{
     sync::oneshot::{self, Sender},
     time::Instant,
 };
 use tracing::{debug, error, info, warn};
-use typed_store::{rocksdb::LiveFile, Map, TypedStoreError};
+use typed_store::{Map, TypedStoreError, rocksdb::LiveFile};
 
 use super::authority_store_tables::AuthorityPerpetualTables;
 use crate::{
@@ -55,12 +55,18 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     .collect()
 });
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
+
+/// The `AuthorityStorePruner` manages the pruning process for object stores
+/// within the `AuthorityStore`. It includes a cancellation handle that can be
+/// used to stop the pruning task for objects.
 pub struct AuthorityStorePruner {
     _objects_pruner_cancel_handle: oneshot::Sender<()>,
 }
 
 static MIN_PRUNING_TICK_DURATION_MS: u64 = 10 * 1000;
 
+/// The `AuthorityStorePruningMetrics` tracks various metrics related to the
+/// pruning process of the `AuthorityStore`.
 pub struct AuthorityStorePruningMetrics {
     pub last_pruned_checkpoint: IntGauge,
     pub num_pruned_objects: IntCounter,
@@ -71,6 +77,9 @@ pub struct AuthorityStorePruningMetrics {
 }
 
 impl AuthorityStorePruningMetrics {
+    /// Initializes a new instance of `AuthorityStorePruningMetrics` with the
+    /// provided registry, registering various metrics that track the pruning
+    /// operations in the `AuthorityStore`.
     pub fn new(registry: &Registry) -> Arc<Self> {
         let this = Self {
             last_pruned_checkpoint: register_int_gauge_with_registry!(
@@ -113,11 +122,14 @@ impl AuthorityStorePruningMetrics {
         Arc::new(this)
     }
 
+    /// Creates a new instance of `AuthorityStorePruningMetrics` for testing
+    /// purposes.
     pub fn new_for_test() -> Arc<Self> {
         Self::new(&Registry::new())
     }
 }
 
+/// Pruning modes for the `AuthorityStore`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PruningMode {
     Objects,
@@ -235,6 +247,11 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
+    /// Prunes checkpoint-related data from the `AuthorityStore`, including
+    /// transaction effects, executed transactions, and checkpoint contents,
+    /// based on the specified checkpoint number and list of checkpoints to
+    /// prune. This function removes outdated data, updates pruning metrics,
+    /// and maintains database consistency by updating watermarks.
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
@@ -294,13 +311,10 @@ impl AuthorityStorePruner {
         checkpoints_batch
             .delete_batch(&checkpoint_db.checkpoint_by_digest, checkpoints_to_prune)?;
 
-        checkpoints_batch.insert_batch(
-            &checkpoint_db.watermarks,
-            [(
-                &CheckpointWatermark::HighestPruned,
-                &(checkpoint_number, CheckpointDigest::random()),
-            )],
-        )?;
+        checkpoints_batch.insert_batch(&checkpoint_db.watermarks, [(
+            &CheckpointWatermark::HighestPruned,
+            &(checkpoint_number, CheckpointDigest::random()),
+        )])?;
 
         if let Some(rest_index) = rest_index {
             rest_index.prune(&checkpoint_content_to_prune)?;
@@ -357,6 +371,14 @@ impl AuthorityStorePruner {
         .await
     }
 
+    /// Asynchronously prunes checkpoint data for eligible epochs based on the
+    /// configuration and current state of the `AuthorityStore`. This
+    /// function determines the range of checkpoints that can be pruned,
+    /// taking into account retention policies, archival watermarks, and
+    /// smoothing options. It then delegates the pruning to the
+    /// `prune_for_eligible_epochs` method.
+    /// The function also updates pruning metrics and ensures proper handling of
+    /// indirect objects.
     pub async fn prune_checkpoints_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -545,6 +567,12 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
+    /// Identifies and compacts the next eligible SST file in the
+    /// `AuthorityStore` that meets the specified conditions for manual
+    /// compaction. This function checks each SST file's metadata, including
+    /// modification time and size, against a delay threshold to determine if it
+    /// should be compacted. If a suitable file is found, it triggers a
+    /// manual compaction and updates the last processed timestamp.
     fn compact_next_sst_file(
         perpetual_db: Arc<AuthorityPerpetualTables>,
         delay_days: usize,
@@ -592,10 +620,15 @@ impl AuthorityStorePruner {
         Ok(Some(sst_file))
     }
 
+    /// Calculates the duration in milliseconds for a pruning tick based on the
+    /// provided epoch duration. The function returns the lesser of half the
+    /// epoch duration or 60 seconds.
     fn pruning_tick_duration_ms(epoch_duration_ms: u64) -> u64 {
         min(epoch_duration_ms / 2, MIN_PRUNING_TICK_DURATION_MS)
     }
 
+    /// Calculates a smoothed maximum eligible checkpoint number for pruning,
+    /// balancing the pruning operation over the epoch's duration.
     fn smoothed_max_eligible_checkpoint_number(
         checkpoint_store: &Arc<CheckpointStore>,
         mut max_eligible_checkpoint: CheckpointSequenceNumber,
@@ -709,6 +742,8 @@ impl AuthorityStorePruner {
         sender
     }
 
+    /// Initializes a new instance of `AuthorityStorePruner` with the provided
+    /// configuration, database connections, and metrics registry.
     pub fn new(
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
@@ -749,6 +784,8 @@ impl AuthorityStorePruner {
         }
     }
 
+    /// Compacts the entire range of objects stored in the `AuthorityStore` by
+    /// invoking a range compaction on the database.
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
             &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN),
@@ -772,8 +809,8 @@ mod tests {
     use prometheus::Registry;
     use tracing::log::info;
     use typed_store::{
-        rocks::{util::reference_count_merge_operator, DBMap, MetricConf, ReadWriteOptions},
         Map,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, util::reference_count_merge_operator},
     };
 
     use super::AuthorityStorePruner;
@@ -781,8 +818,8 @@ mod tests {
         authority_store_pruner::AuthorityStorePruningMetrics,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{
-            get_store_object_pair, ObjectContentDigest, StoreData, StoreObject, StoreObjectPair,
-            StoreObjectWrapper,
+            ObjectContentDigest, StoreData, StoreObject, StoreObjectPair, StoreObjectWrapper,
+            get_store_object_pair,
         },
     };
 
@@ -847,16 +884,16 @@ mod tests {
                     Object::immutable_with_id_for_testing(id),
                     indirect_object_threshold,
                 );
-                batch.insert_batch(
-                    &db.objects,
-                    [(ObjectKey(id, SequenceNumber::from(seq)), obj.clone())],
-                )?;
+                batch.insert_batch(&db.objects, [(
+                    ObjectKey(id, SequenceNumber::from(seq)),
+                    obj.clone(),
+                )])?;
                 if let StoreObject::Value(o) = obj.into_inner() {
                     if let StoreData::IndirectObject(metadata) = o.data {
-                        batch.merge_batch(
-                            &db.indirect_move_objects,
-                            [(metadata.digest, indirect_obj.unwrap())],
-                        )?;
+                        batch.merge_batch(&db.indirect_move_objects, [(
+                            metadata.digest,
+                            indirect_obj.unwrap(),
+                        )])?;
                     }
                 }
             }
@@ -865,10 +902,10 @@ mod tests {
             if num_object_versions_to_retain == 0 {
                 let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
                 println!("Adding tombstone object {:?}", tombstone_key);
-                batch.insert_batch(
-                    &db.objects,
-                    [(tombstone_key, StoreObjectWrapper::V1(StoreObject::Deleted))],
-                )?;
+                batch.insert_batch(&db.objects, [(
+                    tombstone_key,
+                    StoreObjectWrapper::V1(StoreObject::Deleted),
+                )])?;
                 tombstones.push(tombstone_key);
             }
         }
@@ -1093,13 +1130,13 @@ mod pprof_tests {
     use pprof::Symbol;
     use prometheus::Registry;
     use tracing::log::{error, info};
-    use typed_store::{rocks::DBMap, Map};
+    use typed_store::{Map, rocks::DBMap};
 
     use super::AuthorityStorePruner;
     use crate::authority::{
-        authority_store_pruner::{tests, tests::lock_table, AuthorityStorePruningMetrics},
+        authority_store_pruner::{AuthorityStorePruningMetrics, tests, tests::lock_table},
         authority_store_tables::AuthorityPerpetualTables,
-        authority_store_types::{get_store_object_pair, StoreObjectWrapper},
+        authority_store_types::{StoreObjectWrapper, get_store_object_pair},
     };
 
     fn insert_keys(

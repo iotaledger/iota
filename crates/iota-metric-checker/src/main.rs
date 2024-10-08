@@ -5,13 +5,13 @@
 use std::{fs::File, io::Read, time::Duration};
 
 use anyhow::anyhow;
-use backoff::{future::retry, ExponentialBackoff};
+use backoff::{ExponentialBackoff, future::retry};
 use chrono::{DateTime, Utc};
 use clap::*;
 use iota_metric_checker::{
-    fails_threshold_condition,
+    Config, NowProvider, QueryType, fails_threshold_condition,
     query::{instant_query, range_query},
-    timestamp_string_to_unix_seconds, Config, NowProvider, QueryType,
+    timestamp_string_to_unix_seconds,
 };
 use once_cell::sync::Lazy;
 use prometheus_http_query::Client;

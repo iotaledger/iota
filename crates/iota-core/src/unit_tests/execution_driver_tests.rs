@@ -15,13 +15,13 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::TransactionDigest,
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     object::{Object, Owner},
     transaction::{
-        CertifiedTransaction, Transaction, VerifiedCertificate,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
+        VerifiedCertificate,
     },
 };
 use itertools::Itertools;
@@ -32,9 +32,9 @@ use tokio::{
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_tests::{send_consensus, send_consensus_no_execution},
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     authority_aggregator::authority_aggregator_tests::{
         create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,

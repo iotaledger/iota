@@ -6,13 +6,13 @@ use std::{
     collections::BTreeMap, num::NonZeroUsize, ops::Range, path::PathBuf, sync::Arc, time::Duration,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use backoff::future::retry;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use indicatif::ProgressBar;
 use itertools::Itertools;
-use object_store::{path::Path, DynObjectStore, Error, ObjectStore};
+use object_store::{DynObjectStore, Error, ObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{error, warn};
@@ -422,7 +422,7 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::object_store::util::{
-        copy_recursively, delete_recursively, write_snapshot_manifest, MANIFEST_FILENAME,
+        MANIFEST_FILENAME, copy_recursively, delete_recursively, write_snapshot_manifest,
     };
 
     #[tokio::test]

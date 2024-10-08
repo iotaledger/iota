@@ -728,7 +728,7 @@ mod tests {
 
     use smallvec::SmallVec;
 
-    use crate::{allocators::new_malloc_size_ops, MallocSizeOf, MallocSizeOfOps};
+    use crate::{MallocSizeOf, MallocSizeOfOps, allocators::new_malloc_size_ops};
     impl_smallvec!(3);
 
     #[test]

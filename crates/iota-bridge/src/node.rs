@@ -13,12 +13,12 @@ use arc_swap::ArcSwap;
 use ethers::types::Address as EthAddress;
 use iota_metrics::spawn_logged_monitored_task;
 use iota_types::{
+    Identifier,
     bridge::{
         BRIDGE_COMMITTEE_MODULE_NAME, BRIDGE_LIMITER_MODULE_NAME, BRIDGE_MODULE_NAME,
         BRIDGE_TREASURY_MODULE_NAME,
     },
     event::EventID,
-    Identifier,
 };
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -33,7 +33,7 @@ use crate::{
     metrics::BridgeMetrics,
     monitor::BridgeMonitor,
     orchestrator::BridgeOrchestrator,
-    server::{handler::BridgeRequestHandler, run_server, BridgeNodePublicMetadata},
+    server::{BridgeNodePublicMetadata, handler::BridgeRequestHandler, run_server},
     storage::BridgeOrchestratorTables,
 };
 
@@ -247,7 +247,7 @@ mod tests {
     use iota_types::{
         base_types::IotaAddress,
         bridge::BridgeChainId,
-        crypto::{get_key_pair, EncodeDecodeBase64, IotaKeyPair, KeypairTraits},
+        crypto::{EncodeDecodeBase64, IotaKeyPair, KeypairTraits, get_key_pair},
         digests::TransactionDigest,
         event::EventID,
     };

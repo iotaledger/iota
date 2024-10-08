@@ -9,7 +9,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Ok};
+use anyhow::{Ok, anyhow};
 use clap::{Parser, ValueEnum};
 use comfy_table::{Cell, ContentArrangement, Row, Table};
 use iota_archival::reader::ArchiveReaderBalancer;
@@ -27,13 +27,13 @@ use iota_core::{
     epoch::committee_store::CommitteeStoreTables,
     rest_index::RestIndexStore,
 };
-use iota_storage::{mutex_table::RwLockTable, IndexStoreTables};
+use iota_storage::{IndexStoreTables, mutex_table::RwLockTable};
 use iota_types::base_types::{EpochId, ObjectID};
 use prometheus::Registry;
 use strum_macros::EnumString;
 use tracing::info;
 use typed_store::{
-    rocks::{default_db_options, MetricConf},
+    rocks::{MetricConf, default_db_options},
     rocksdb::MultiThreaded,
     traits::{Map, TableSummary},
 };
@@ -325,7 +325,7 @@ mod test {
         authority_store_tables::AuthorityPerpetualTables,
     };
 
-    use crate::db_tool::db_dump::{dump_table, list_tables, StoreName};
+    use crate::db_tool::db_dump::{StoreName, dump_table, list_tables};
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {

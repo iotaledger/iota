@@ -7,7 +7,7 @@ use std::{str::FromStr, sync::Arc};
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use fastcrypto_zkp::{
     bn254::{
-        zk_login::{parse_jwks, JwkId, OIDCProvider, ZkLoginInputs, JWK},
+        zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs, parse_jwks},
         zk_login_api::ZkLoginEnv,
     },
     zk_login_utils::Bn254FrElement,
@@ -21,8 +21,8 @@ use crate::{
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     utils::{
-        get_zklogin_user_address, load_test_vectors, make_zklogin_tx, sign_zklogin_personal_msg,
-        SHORT_ADDRESS_SEED,
+        SHORT_ADDRESS_SEED, get_zklogin_user_address, load_test_vectors, make_zklogin_tx,
+        sign_zklogin_personal_msg,
     },
     zk_login_util::DEFAULT_JWK_BYTES,
 };

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use prometheus_http_query::Client;
-use reqwest::header::{HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderValue};
 use tracing::{debug, info};
 
 use crate::unix_seconds_to_timestamp_string;

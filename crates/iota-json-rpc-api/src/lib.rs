@@ -16,13 +16,13 @@ use iota_metrics::histogram::Histogram;
 use jsonrpsee::{
     core::ClientError,
     types::{
-        error::{INTERNAL_ERROR_CODE, UNKNOWN_ERROR_CODE},
         ErrorObjectOwned,
+        error::{INTERNAL_ERROR_CODE, UNKNOWN_ERROR_CODE},
     },
 };
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
 use once_cell::sync::Lazy;
-use prometheus::{register_int_counter_with_registry, IntCounter};
+use prometheus::{IntCounter, register_int_counter_with_registry};
 pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};
 use tap::TapFallible;
 use tracing::warn;

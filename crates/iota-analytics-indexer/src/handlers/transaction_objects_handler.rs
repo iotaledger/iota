@@ -11,9 +11,9 @@ use iota_types::{
 use tokio::sync::Mutex;
 
 use crate::{
+    FileType,
     handlers::{AnalyticsHandler, InputObjectTracker, ObjectStatusTracker},
     tables::TransactionObjectEntry,
-    FileType,
 };
 
 pub struct TransactionObjectsHandler {

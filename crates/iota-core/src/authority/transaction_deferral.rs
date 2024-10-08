@@ -104,9 +104,9 @@ pub fn transaction_deferral_within_limit(
 #[cfg(test)]
 mod object_cost_tests {
     use typed_store::{
+        DBMapUtils, Map,
         rocks::{DBMap, MetricConf},
         traits::{TableSummary, TypedStoreDebug},
-        DBMapUtils, Map,
     };
 
     use super::*;

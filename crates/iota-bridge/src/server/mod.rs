@@ -6,17 +6,17 @@
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use ethers::types::Address as EthAddress;
 use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::ToFromBytes,
 };
-use iota_types::{bridge::BridgeChainId, TypeTag};
+use iota_types::{TypeTag, bridge::BridgeChainId};
 use tracing::{info, instrument};
 
 use crate::{

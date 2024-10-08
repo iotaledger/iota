@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
     subscription_handler::SubscriptionHandler,
 };

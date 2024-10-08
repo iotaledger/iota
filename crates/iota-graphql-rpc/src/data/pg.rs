@@ -6,10 +6,10 @@ use std::{fmt, time::Instant};
 
 use async_trait::async_trait;
 use diesel::{
+    QueryResult, RunQueryDsl,
     pg::Pg,
     query_builder::{Query, QueryFragment, QueryId},
     query_dsl::LoadQuery,
-    QueryResult, RunQueryDsl,
 };
 use iota_indexer::{
     indexer_reader::IndexerReader, run_query_async, run_query_repeatable_async,
@@ -135,7 +135,7 @@ pub(crate) fn bytea_literal(slice: &[u8]) -> ByteaLiteral<'_> {
 /// Support for calculating estimated query cost using EXPLAIN and then logging
 /// it.
 mod query_cost {
-    use diesel::{query_builder::AstPass, sql_types::Text, PgConnection, QueryResult};
+    use diesel::{PgConnection, QueryResult, query_builder::AstPass, sql_types::Text};
     use serde_json::Value;
     use tap::{TapFallible, TapOptional};
     use tracing::{debug, info, warn};

@@ -61,14 +61,14 @@
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc, RwLock,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
 
-use anemo::{types::PeerEvent, PeerId, Request, Response, Result};
-use futures::{stream::FuturesOrdered, FutureExt, StreamExt};
+use anemo::{PeerId, Request, Response, Result, types::PeerEvent};
+use futures::{FutureExt, StreamExt, stream::FuturesOrdered};
 use iota_config::p2p::StateSyncConfig;
 use iota_types::{
     committee::Committee,

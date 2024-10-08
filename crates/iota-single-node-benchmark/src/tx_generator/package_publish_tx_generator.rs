@@ -8,7 +8,7 @@ use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::ObjectID,
-    transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE},
+    transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
 };
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 use move_symbol_pool::Symbol;

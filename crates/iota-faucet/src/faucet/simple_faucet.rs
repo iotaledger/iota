@@ -33,10 +33,11 @@ use shared_crypto::intent::Intent;
 use tap::tap::TapFallible;
 use tokio::{
     sync::{
+        Mutex,
         mpsc::{self, Receiver, Sender},
-        oneshot, Mutex,
+        oneshot,
     },
-    time::{timeout, Duration},
+    time::{Duration, timeout},
 };
 use tracing::{error, info, warn};
 use ttl_cache::TtlCache;
@@ -45,8 +46,8 @@ use uuid::Uuid;
 
 use super::write_ahead_log::WriteAheadLog;
 use crate::{
-    faucet::write_ahead_log, metrics::FaucetMetrics, BatchFaucetReceipt, BatchSendStatus,
-    BatchSendStatusType, CoinInfo, Faucet, FaucetConfig, FaucetError, FaucetReceipt,
+    BatchFaucetReceipt, BatchSendStatus, BatchSendStatusType, CoinInfo, Faucet, FaucetConfig,
+    FaucetError, FaucetReceipt, faucet::write_ahead_log, metrics::FaucetMetrics,
 };
 
 pub struct SimpleFaucet {
@@ -1730,11 +1731,9 @@ mod tests {
 
         // We traverse the list twice, which must trigger the split gas to be kicked out
         futures::future::join_all((0..2).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                &[30000000000],
-            )
+            faucet.send(Uuid::new_v4(), IotaAddress::random_for_testing_only(), &[
+                30000000000,
+            ])
         }))
         .await;
 

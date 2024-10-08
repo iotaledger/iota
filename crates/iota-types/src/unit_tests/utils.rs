@@ -5,26 +5,26 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use serde::Deserialize;
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
-    base_types::{dbg_addr, ObjectID},
+    IotaAddress,
+    base_types::{ObjectID, dbg_addr},
     committee::Committee,
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair, Signature, SignatureScheme, Signer,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair,
+        Signature, SignatureScheme, Signer, get_key_pair, get_key_pair_from_rng,
     },
     multisig::{MultiSig, MultiSigPublicKey},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        SenderSignedData, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
     },
     zk_login_authenticator::ZkLoginAuthenticator,
-    IotaAddress,
 };
 
 #[derive(Deserialize)]
@@ -238,10 +238,9 @@ mod zk_login {
         let authenticator =
             GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(proof, 10, s.clone()));
 
-        let tx = Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            vec![authenticator.clone()],
-        ));
+        let tx = Transaction::new(SenderSignedData::new(tx.transaction_data().clone(), vec![
+            authenticator.clone(),
+        ]));
         (data.execution_parts().1, tx, authenticator)
     }
 
@@ -282,10 +281,9 @@ mod zk_login {
 
         // Any 2 of 3 signatures verifies ok.
         let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
-        Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            vec![GenericSignature::MultiSig(multi_sig1)],
-        ))
+        Transaction::new(SenderSignedData::new(tx.transaction_data().clone(), vec![
+            GenericSignature::MultiSig(multi_sig1),
+        ]))
     }
 }
 pub use zk_login::*;

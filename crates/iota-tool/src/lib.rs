@@ -11,19 +11,19 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::ValueEnum;
 use eyre::ContextCompat;
 use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
 use futures::{
-    future::{join_all, AbortHandle},
     StreamExt, TryStreamExt,
+    future::{AbortHandle, join_all},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use iota_archival::{
@@ -31,13 +31,13 @@ use iota_archival::{
     verify_archive_with_checksums, verify_archive_with_genesis_config,
 };
 use iota_config::{
+    NodeConfig,
     genesis::Genesis,
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-    NodeConfig,
 };
 use iota_core::{
-    authority::{authority_store_tables::AuthorityPerpetualTables, AuthorityStore},
+    authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
@@ -50,9 +50,9 @@ use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
 use iota_storage::{
     object_store::{
-        http::HttpDownloaderBuilder,
-        util::{copy_file, exists, get_path, Manifest, PerEpochManifest, MANIFEST_FILENAME},
         ObjectStoreGetExt,
+        http::HttpDownloaderBuilder,
+        util::{MANIFEST_FILENAME, Manifest, PerEpochManifest, copy_file, exists, get_path},
     },
     verify_checkpoint_range,
 };

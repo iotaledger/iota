@@ -16,9 +16,9 @@ use iota_types::{
     },
     object::Object,
     storage::{
-        error::{Error as StorageError, Result},
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
         ObjectStore, ReadStore, RestStateReader, WriteStore,
+        error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
 };

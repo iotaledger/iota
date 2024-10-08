@@ -9,13 +9,13 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{bail, Context};
-use iota_json_rpc_types::{get_new_package_obj_from_response, IotaTransactionBlockResponse};
+use anyhow::{Context, bail};
+use iota_json_rpc_types::{IotaTransactionBlockResponse, get_new_package_obj_from_response};
 use iota_sdk::wallet_context::WalletContext;
 use iota_types::base_types::ObjectID;
 use move_core_types::account_address::AccountAddress;
 use move_package::{
-    lock_file::{self, schema::ManagedPackage, LockFile},
+    lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,
     source_package::layout::SourcePackageLayout,
 };

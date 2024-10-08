@@ -4,7 +4,7 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{routing::post, Extension, Router};
+use axum::{Extension, Router, routing::post};
 use iota_sdk::IotaClient;
 use once_cell::sync::Lazy;
 use tracing::info;

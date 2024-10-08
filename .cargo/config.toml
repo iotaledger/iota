@@ -1,18 +1,6 @@
 [alias]
 ci-fmt = "fmt --check"
 ci-clippy = "clippy --all-targets --all-features -- -D warnings"
-ci-clippy-external = [
-  "clippy",
-  "--manifest-path",
-  "external-crates/move/Cargo.toml",
-  "--",
-  "-Aclippy::upper_case_acronyms",
-  "-Aclippy::type_complexity",
-  "-Aclippy::new_without_default",
-  "-Aclippy::box_default",
-  "-Aclippy::manual_slice_size_calculation",
-  "-Dwarnings",
-]
 ci-license = "license-template --template .license_template"
 ci-udeps = "udeps --all-targets --backend=depinfo"
 ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"

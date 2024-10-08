@@ -19,7 +19,7 @@ use tracing::{debug, info, instrument, trace};
 
 use super::{CheckpointMetrics, CheckpointStore};
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, StableSyncAuthoritySigner},
+    authority::{StableSyncAuthoritySigner, authority_per_epoch_store::AuthorityPerEpochStore},
     consensus_adapter::SubmitToConsensus,
     epoch::reconfiguration::ReconfigurationInitiator,
 };

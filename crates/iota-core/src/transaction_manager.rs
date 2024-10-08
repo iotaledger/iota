@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::{max, Reverse},
-    collections::{hash_map, BTreeSet, BinaryHeap, HashMap, HashSet},
+    cmp::{Reverse, max},
+    collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
     sync::Arc,
     time::Duration,
 };
@@ -29,7 +29,7 @@ use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityMetrics},
+    authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
 

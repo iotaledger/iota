@@ -12,8 +12,8 @@ use iota_types::{
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{
-        write_sep, Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
-        ProgrammableTransaction,
+        Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
+        ProgrammableTransaction, write_sep,
     },
 };
 use move_core_types::{
@@ -22,7 +22,7 @@ use move_core_types::{
 };
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
 
 use crate::{displays::Pretty, replay::LocalExec};

@@ -16,6 +16,7 @@
 use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
     bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
@@ -24,7 +25,6 @@ use iota_types::{
     id::OBJECT_MODULE_NAME,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     randomness_state::RANDOMNESS_MODULE_NAME,
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
 use move_abstract_interpreter::absint::{
     AbstractDomain, AbstractInterpreter, FunctionContext, JoinResult, TransferFunctions,
@@ -43,8 +43,8 @@ use move_core_types::{
 };
 
 use crate::{
-    check_for_verifier_timeout, to_verification_timeout_error, verification_failure,
-    TEST_SCENARIO_MODULE_NAME,
+    TEST_SCENARIO_MODULE_NAME, check_for_verifier_timeout, to_verification_timeout_error,
+    verification_failure,
 };
 pub(crate) const JOIN_BASE_COST: u128 = 10;
 pub(crate) const JOIN_PER_LOCAL_COST: u128 = 5;

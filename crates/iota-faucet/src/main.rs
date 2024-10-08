@@ -6,7 +6,7 @@ use std::{env, sync::Arc};
 
 use clap::Parser;
 use iota_config::iota_config_dir;
-use iota_faucet::{create_wallet_context, start_faucet, AppState, FaucetConfig, SimpleFaucet};
+use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use tracing::info;
 
 const CONCURRENCY_LIMIT: usize = 30;

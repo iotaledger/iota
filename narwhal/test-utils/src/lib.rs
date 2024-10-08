@@ -11,12 +11,12 @@ use std::{
 
 use anemo::async_trait;
 use config::{
-    utils::get_available_port, Authority, AuthorityIdentifier, Committee, CommitteeBuilder, Epoch,
-    Stake, WorkerCache, WorkerId, WorkerIndex, WorkerInfo,
+    Authority, AuthorityIdentifier, Committee, CommitteeBuilder, Epoch, Stake, WorkerCache,
+    WorkerId, WorkerIndex, WorkerInfo, utils::get_available_port,
 };
 use crypto::{
-    to_intent_message, KeyPair, NarwhalAuthoritySignature, NetworkKeyPair, NetworkPublicKey,
-    PublicKey, Signature,
+    KeyPair, NarwhalAuthoritySignature, NetworkKeyPair, NetworkPublicKey, PublicKey, Signature,
+    to_intent_message,
 };
 use fastcrypto::{
     hash::Hash as _,
@@ -27,12 +27,13 @@ use iota_network_stack::Multiaddr;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use once_cell::sync::OnceCell;
 use rand::{
+    Rng, RngCore, SeedableRng,
     distributions::{Bernoulli, Distribution},
     rngs::{OsRng, StdRng},
-    thread_rng, Rng, RngCore, SeedableRng,
+    thread_rng,
 };
 use store::rocks::{DBMap, MetricConf, ReadWriteOptions};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tracing::info;
 use types::{
     Batch, BatchDigest, Certificate, CertificateAPI, CertificateDigest, FetchBatchesRequest,

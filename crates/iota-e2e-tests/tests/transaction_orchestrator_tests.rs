@@ -100,7 +100,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
 async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
     #[cfg(msim)]
     {
-        use iota_core::authority::{init_checkpoint_timeout_config, CheckpointTimeoutConfig};
+        use iota_core::authority::{CheckpointTimeoutConfig, init_checkpoint_timeout_config};
         init_checkpoint_timeout_config(CheckpointTimeoutConfig {
             warning_timeout: Duration::from_secs(2),
             panic_timeout: None,

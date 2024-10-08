@@ -14,27 +14,27 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use axum::{
+    Extension, Json, Router,
     extract::{Query, State},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
-    Extension, Json, Router,
 };
 use hyper::{
-    http::{HeaderName, HeaderValue, Method},
     HeaderMap, StatusCode,
+    http::{HeaderName, HeaderValue, Method},
 };
 use iota_metrics::RegistryService;
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
-    rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectID, IotaClientBuilder,
+    IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectID,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::oneshot::Sender};
 use tower::ServiceBuilder;
@@ -131,16 +131,12 @@ pub enum Network {
 
 impl fmt::Display for Network {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Network::Mainnet => "mainnet",
-                Network::Testnet => "testnet",
-                Network::Devnet => "devnet",
-                Network::Localnet => "localnet",
-            }
-        )
+        write!(f, "{}", match self {
+            Network::Mainnet => "mainnet",
+            Network::Testnet => "testnet",
+            Network::Devnet => "devnet",
+            Network::Localnet => "localnet",
+        })
     }
 }
 
@@ -357,13 +353,10 @@ pub async fn sources_list(sources: &NetworkLookup) -> NetworkLookup {
         for (address, symbols) in addresses {
             let mut symbol_map = SourceLookup::new();
             for (symbol, source_info) in symbols {
-                symbol_map.insert(
-                    *symbol,
-                    SourceInfo {
-                        path: source_info.path.file_name().unwrap().into(),
-                        source: None,
-                    },
-                );
+                symbol_map.insert(*symbol, SourceInfo {
+                    path: source_info.path.file_name().unwrap().into(),
+                    source: None,
+                });
             }
             address_map.insert(*address, symbol_map);
         }

@@ -16,7 +16,7 @@ use iota_types::{
         EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind,
     },
 };
-use move_binary_format::{errors::PartialVMResult, CompiledModule};
+use move_binary_format::{CompiledModule, errors::PartialVMResult};
 
 use crate::{
     consistency::ConsistentIndexCursor,

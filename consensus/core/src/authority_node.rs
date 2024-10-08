@@ -11,6 +11,7 @@ use prometheus::Registry;
 use tracing::{info, warn};
 
 use crate::{
+    CommitConsumer,
     authority_service::AuthorityService,
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
@@ -26,14 +27,13 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::{
-        anemo_network::AnemoManager, tonic_network::TonicManager, NetworkClient as _,
-        NetworkManager,
+        NetworkClient as _, NetworkManager, anemo_network::AnemoManager,
+        tonic_network::TonicManager,
     },
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
-    CommitConsumer,
 };
 
 /// ConsensusAuthority is used by Iota to manage the lifetime of AuthorityNode.
@@ -396,8 +396,8 @@ mod tests {
         time::Duration,
     };
 
-    use consensus_config::{local_committee_and_keys, Parameters};
-    use iota_metrics::monitored_mpsc::{unbounded_channel, UnboundedReceiver};
+    use consensus_config::{Parameters, local_committee_and_keys};
+    use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;
     use prometheus::Registry;
     use rstest::rstest;
@@ -407,9 +407,9 @@ mod tests {
 
     use super::*;
     use crate::{
+        CommittedSubDag,
         block::{BlockAPI as _, GENESIS_ROUND},
         transaction::NoopTransactionVerifier,
-        CommittedSubDag,
     };
 
     #[rstest]

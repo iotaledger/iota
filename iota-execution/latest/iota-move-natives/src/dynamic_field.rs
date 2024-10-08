@@ -23,9 +23,8 @@ use smallvec::smallvec;
 use tracing::instrument;
 
 use crate::{
-    get_nested_struct_field, get_object_id,
-    object_runtime::{object_store::ObjectResult, ObjectRuntime},
-    NativesCostTable,
+    NativesCostTable, get_nested_struct_field, get_object_id,
+    object_runtime::{ObjectRuntime, object_store::ObjectResult},
 };
 
 const E_KEY_DOES_NOT_EXIST: u64 = 1;
@@ -454,10 +453,9 @@ pub fn has_child_object(
     let parent = pop_arg!(args, AccountAddress).into();
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
     let has_child = object_runtime.child_object_exists(parent, child_id)?;
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::bool(has_child)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::bool(has_child)
+    ]))
 }
 
 #[derive(Clone)]
@@ -535,8 +533,7 @@ pub fn has_child_object_with_ty(
         child_id,
         &MoveObjectType::from(tag),
     )?;
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::bool(has_child)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::bool(has_child)
+    ]))
 }

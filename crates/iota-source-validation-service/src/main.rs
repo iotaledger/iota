@@ -9,9 +9,9 @@ use std::{
 
 use clap::Parser;
 use iota_source_validation_service::{
-    host_port, initialize, parse_config, serve, start_prometheus_server, watch_for_upgrades,
-    AppState, DirectorySource, Network, PackageSource, RepositorySource, SourceServiceMetrics,
-    METRICS_HOST_PORT,
+    AppState, DirectorySource, METRICS_HOST_PORT, Network, PackageSource, RepositorySource,
+    SourceServiceMetrics, host_port, initialize, parse_config, serve, start_prometheus_server,
+    watch_for_upgrades,
 };
 use telemetry_subscribers::TelemetryConfig;
 use tracing::info;

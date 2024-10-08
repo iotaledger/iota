@@ -23,7 +23,7 @@ pub mod diesel_macro {
     macro_rules! read_only_repeatable_blocking {
         ($pool:expr, $query:expr) => {{
             use downcast::Any;
-            use $crate::db::{get_pool_connection, PoolConnection};
+            use $crate::db::{PoolConnection, get_pool_connection};
             #[cfg(feature = "postgres-feature")]
             {
                 let mut pool_conn = get_pool_connection($pool)?;
@@ -55,7 +55,7 @@ pub mod diesel_macro {
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
             use downcast::Any;
-            use $crate::db::{get_pool_connection, PoolConnection};
+            use $crate::db::{PoolConnection, get_pool_connection};
             #[cfg(feature = "postgres-feature")]
             {
                 let mut pool_conn = get_pool_connection($pool)?;
@@ -87,7 +87,7 @@ pub mod diesel_macro {
     macro_rules! transactional_blocking_with_retry {
         ($pool:expr, $query:expr, $max_elapsed:expr) => {{
             use $crate::{
-                db::{get_pool_connection, PoolConnection},
+                db::{PoolConnection, get_pool_connection},
                 errors::IndexerError,
             };
             let mut backoff = backoff::ExponentialBackoff::default();
@@ -159,7 +159,7 @@ pub mod diesel_macro {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
             use downcast::Any;
             use $crate::{
-                db::{get_pool_connection, PoolConnection},
+                db::{PoolConnection, get_pool_connection},
                 errors::IndexerError,
                 store::diesel_macro::CALLED_FROM_BLOCKING_POOL,
             };

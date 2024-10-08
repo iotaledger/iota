@@ -4,10 +4,10 @@
 
 use std::{ops::Range, path::PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arrow_array::Int32Array;
 use clap::*;
-use gcp_bigquery_client::{model::query_request::QueryRequest, Client};
+use gcp_bigquery_client::{Client, model::query_request::QueryRequest};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_rest_api::CheckpointData;
@@ -29,19 +29,19 @@ use crate::{
     analytics_metrics::AnalyticsMetrics,
     analytics_processor::AnalyticsProcessor,
     handlers::{
-        checkpoint_handler::CheckpointHandler, df_handler::DynamicFieldHandler,
+        AnalyticsHandler, checkpoint_handler::CheckpointHandler, df_handler::DynamicFieldHandler,
         event_handler::EventHandler, move_call_handler::MoveCallHandler,
         object_handler::ObjectHandler, package_handler::PackageHandler,
         transaction_handler::TransactionHandler,
         transaction_objects_handler::TransactionObjectsHandler,
-        wrapped_object_handler::WrappedObjectHandler, AnalyticsHandler,
+        wrapped_object_handler::WrappedObjectHandler,
     },
     tables::{
         CheckpointEntry, DynamicFieldEntry, EventEntry, InputObjectKind, MoveCallEntry,
         MovePackageEntry, ObjectEntry, ObjectStatus, OwnerType, TransactionEntry,
         TransactionObjectEntry, WrappedObjectEntry,
     },
-    writers::{csv_writer::CSVWriter, parquet_writer::ParquetWriter, AnalyticsWriter},
+    writers::{AnalyticsWriter, csv_writer::CSVWriter, parquet_writer::ParquetWriter},
 };
 
 pub mod analytics_metrics;

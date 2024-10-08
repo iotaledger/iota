@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
     num::NonZeroUsize,
     sync::Arc,
@@ -33,16 +33,16 @@ use tracing::{debug, error, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
+        AuthorityMetrics, AuthorityState,
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndicesWithStats,
         },
         epoch_start_configuration::EpochStartConfigTrait,
-        AuthorityMetrics, AuthorityState,
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
     consensus_throughput_calculator::ConsensusThroughputCalculator,
     consensus_types::{
-        committee_api::CommitteeAPI, consensus_output_api::ConsensusOutputAPI, AuthorityIndex,
+        AuthorityIndex, committee_api::CommitteeAPI, consensus_output_api::ConsensusOutputAPI,
     },
     execution_cache::ObjectCacheRead,
     scoring_decision::update_low_scoring_authorities,
@@ -897,7 +897,7 @@ mod tests {
 
     use iota_protocol_config::ConsensusTransactionOrdering;
     use iota_types::{
-        base_types::{random_object_ref, AuthorityName, IotaAddress},
+        base_types::{AuthorityName, IotaAddress, random_object_ref},
         committee::Committee,
         iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
         messages_consensus::{
@@ -1068,15 +1068,12 @@ mod tests {
     fn test_order_by_gas_price() {
         let mut v = vec![cap_txn(10), user_txn(42), user_txn(100), cap_txn(1)];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
-        assert_eq!(
-            extract(v),
-            vec![
-                "cap(10)".to_string(),
-                "cap(1)".to_string(),
-                "user(100)".to_string(),
-                "user(42)".to_string(),
-            ]
-        );
+        assert_eq!(extract(v), vec![
+            "cap(10)".to_string(),
+            "cap(1)".to_string(),
+            "user(100)".to_string(),
+            "user(42)".to_string(),
+        ]);
 
         let mut v = vec![
             user_txn(1200),
@@ -1089,19 +1086,16 @@ mod tests {
             user_txn(1000),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
-        assert_eq!(
-            extract(v),
-            vec![
-                "cap(10)".to_string(),
-                "cap(1)".to_string(),
-                "user(1200)".to_string(),
-                "user(1000)".to_string(),
-                "user(1000)".to_string(),
-                "user(100)".to_string(),
-                "user(42)".to_string(),
-                "user(12)".to_string(),
-            ]
-        );
+        assert_eq!(extract(v), vec![
+            "cap(10)".to_string(),
+            "cap(1)".to_string(),
+            "user(1200)".to_string(),
+            "user(1000)".to_string(),
+            "user(1000)".to_string(),
+            "user(100)".to_string(),
+            "user(42)".to_string(),
+            "user(12)".to_string(),
+        ]);
 
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
@@ -1112,16 +1106,13 @@ mod tests {
             eop_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
-        assert_eq!(
-            extract(v),
-            vec![
-                "cap(10)".to_string(),
-                "eop(12)".to_string(),
-                "eop(10)".to_string(),
-                "cap(1)".to_string(),
-                "eop(11)".to_string(),
-            ]
-        );
+        assert_eq!(extract(v), vec![
+            "cap(10)".to_string(),
+            "eop(12)".to_string(),
+            "eop(10)".to_string(),
+            "cap(1)".to_string(),
+            "eop(11)".to_string(),
+        ]);
     }
 
     fn extract(v: Vec<VerifiedSequencedConsensusTransaction>) -> Vec<String> {

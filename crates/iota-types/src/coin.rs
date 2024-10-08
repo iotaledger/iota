@@ -12,12 +12,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
     base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     object::{Data, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");

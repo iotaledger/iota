@@ -27,7 +27,7 @@ use move_core_types::parser::parse_struct_tag;
 use parking_lot::RwLock;
 use rand::Rng;
 
-use crate::types::{ReplayEngineError, EPOCH_CHANGE_STRUCT_TAG};
+use crate::types::{EPOCH_CHANGE_STRUCT_TAG, ReplayEngineError};
 
 /// This trait defines the interfaces for fetching data from some local or
 /// remote store

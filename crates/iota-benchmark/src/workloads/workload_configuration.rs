@@ -18,9 +18,9 @@ use crate::{
     options::{Opts, RunSpec},
     system_state_observer::SystemStateObserver,
     workloads::{
-        batch_payment::BatchPaymentWorkloadBuilder, delegation::DelegationWorkloadBuilder,
-        shared_counter::SharedCounterWorkloadBuilder,
-        transfer_object::TransferObjectWorkloadBuilder, GroupID, WorkloadBuilderInfo, WorkloadInfo,
+        GroupID, WorkloadBuilderInfo, WorkloadInfo, batch_payment::BatchPaymentWorkloadBuilder,
+        delegation::DelegationWorkloadBuilder, shared_counter::SharedCounterWorkloadBuilder,
+        transfer_object::TransferObjectWorkloadBuilder,
     },
 };
 

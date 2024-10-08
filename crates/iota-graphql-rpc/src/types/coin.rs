@@ -7,11 +7,11 @@ use async_graphql::{
     *,
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
-use iota_types::{coin::Coin as NativeCoin, TypeTag};
+use iota_types::{TypeTag, coin::Coin as NativeCoin};
 
 use crate::{
     connection::ScanConnection,
-    consistency::{build_objects_query, View},
+    consistency::{View, build_objects_query},
     data::{Db, QueryExecutor},
     error::Error,
     filter,

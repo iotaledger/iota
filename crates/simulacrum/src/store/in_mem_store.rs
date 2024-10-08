@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        get_module, load_package_object_from_object_store, BackingPackageStore,
-        ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        get_module, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };

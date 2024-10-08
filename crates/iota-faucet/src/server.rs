@@ -11,27 +11,26 @@ use std::{
 };
 
 use axum::{
+    BoxError, Extension, Json, Router,
     error_handling::HandleErrorLayer,
     extract::Path,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    BoxError, Extension, Json, Router,
 };
 use http::Method;
 use iota_config::IOTA_CLIENT_CONFIG;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
 use prometheus::Registry;
-use tower::{limit::RateLimitLayer, ServiceBuilder};
+use tower::{ServiceBuilder, limit::RateLimitLayer};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-
 use crate::{
-    faucet::Faucet, AppState, BatchFaucetResponse, BatchStatusFaucetResponse, FaucetConfig,
-    FaucetError, FaucetRequest, FaucetResponse, RequestMetricsLayer,
+    AppState, BatchFaucetResponse, BatchStatusFaucetResponse, FaucetConfig, FaucetError,
+    FaucetRequest, FaucetResponse, RequestMetricsLayer, faucet::Faucet,
 };
 
 pub async fn start_faucet(
@@ -120,11 +119,10 @@ async fn batch_request_gas(
         let result = spawn_monitored_task!(async move {
             state
                 .faucet
-                .batch_send(
-                    id,
-                    request.recipient,
-                    &vec![state.config.amount; state.config.num_coins],
-                )
+                .batch_send(id, request.recipient, &vec![
+                    state.config.amount;
+                    state.config.num_coins
+                ])
                 .await
         })
         .await
@@ -150,11 +148,10 @@ async fn batch_request_gas(
         let result = spawn_monitored_task!(async move {
             state
                 .faucet
-                .send(
-                    id,
-                    request.recipient,
-                    &vec![state.config.amount; state.config.num_coins],
-                )
+                .send(id, request.recipient, &vec![
+                    state.config.amount;
+                    state.config.num_coins
+                ])
                 .await
         })
         .await
@@ -219,11 +216,10 @@ async fn request_gas(
             spawn_monitored_task!(async move {
                 state
                     .faucet
-                    .send(
-                        id,
-                        requests.recipient,
-                        &vec![state.config.amount; state.config.num_coins],
-                    )
+                    .send(id, requests.recipient, &vec![
+                        state.config.amount;
+                        state.config.num_coins
+                    ])
                     .await
             })
             .await
@@ -252,7 +248,6 @@ async fn request_gas(
         }
     }
 }
-
 
 pub fn create_wallet_context(
     timeout_secs: u64,

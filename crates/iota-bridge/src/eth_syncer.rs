@@ -215,7 +215,7 @@ where
 mod tests {
     use std::{collections::HashSet, str::FromStr};
 
-    use ethers::types::{Log, TxHash, U256, U64};
+    use ethers::types::{Log, TxHash, U64, U256};
     use prometheus::Registry;
     use tokio::sync::mpsc::error::TryRecvError;
 
@@ -253,13 +253,9 @@ mod tests {
             log_index_in_tx: 0,
             log: log.clone(),
         };
-        mock_get_logs(
-            &mock_provider,
-            EthAddress::zero(),
-            100,
-            777,
-            vec![log.clone()],
-        );
+        mock_get_logs(&mock_provider, EthAddress::zero(), 100, 777, vec![
+            log.clone(),
+        ]);
         let (_handles, mut logs_rx, mut finalized_block_rx) =
             EthSyncer::new(Arc::new(client), addresses)
                 .run(Arc::new(BridgeMetrics::new_for_testing()))
@@ -276,13 +272,9 @@ mod tests {
         assert_eq!(received_logs, vec![eth_log.clone()]);
         assert_eq!(logs_rx.try_recv().unwrap_err(), TryRecvError::Empty);
 
-        mock_get_logs(
-            &mock_provider,
-            EthAddress::zero(),
-            778,
-            888,
-            vec![log.clone()],
-        );
+        mock_get_logs(&mock_provider, EthAddress::zero(), 778, 888, vec![
+            log.clone(),
+        ]);
         // The latest finalized block is updated to 888, event listener should query
         // again.
         mock_last_finalized_block(&mock_provider, 888);
@@ -328,13 +320,9 @@ mod tests {
             log_index_in_tx: 0,
             log: log1.clone(),
         };
-        mock_get_logs(
-            &mock_provider,
-            EthAddress::zero(),
-            100,
-            198,
-            vec![log1.clone()],
-        );
+        mock_get_logs(&mock_provider, EthAddress::zero(), 100, 198, vec![
+            log1.clone(),
+        ]);
         let log2 = Log {
             address: another_address,
             transaction_hash: Some(TxHash::random()),
@@ -344,13 +332,9 @@ mod tests {
         };
         // Mock logs for another_address although it shouldn't be queried. We don't
         // expect to see log2 in the logs channel later on.
-        mock_get_logs(
-            &mock_provider,
-            another_address,
-            200,
-            198,
-            vec![log2.clone()],
-        );
+        mock_get_logs(&mock_provider, another_address, 200, 198, vec![
+            log2.clone(),
+        ]);
 
         let (_handles, mut logs_rx, mut finalized_block_rx) =
             EthSyncer::new(Arc::new(client), addresses)
@@ -380,13 +364,9 @@ mod tests {
             log_index_in_tx: 0,
             log: log1.clone(),
         };
-        mock_get_logs(
-            &mock_provider,
-            EthAddress::zero(),
-            199,
-            400,
-            vec![log1.clone()],
-        );
+        mock_get_logs(&mock_provider, EthAddress::zero(), 199, 400, vec![
+            log1.clone(),
+        ]);
         let log2 = Log {
             address: another_address,
             transaction_hash: Some(TxHash::random()),
@@ -400,13 +380,9 @@ mod tests {
             log_index_in_tx: 0,
             log: log2.clone(),
         };
-        mock_get_logs(
-            &mock_provider,
-            another_address,
-            200,
-            400,
-            vec![log2.clone()],
-        );
+        mock_get_logs(&mock_provider, another_address, 200, 400, vec![
+            log2.clone(),
+        ]);
         mock_last_finalized_block(&mock_provider, 400);
 
         finalized_block_rx.changed().await.unwrap();

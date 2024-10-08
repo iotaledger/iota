@@ -19,9 +19,9 @@ use tokio::{
 };
 
 use super::{
+    Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
     metrics::Metrics,
     server::{CheckpointContentsDownloadLimitLayer, Server},
-    Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
 };
 
 pub struct Builder<S> {

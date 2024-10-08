@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::{path::Path, DynObjectStore, ObjectMeta};
+use object_store::{DynObjectStore, ObjectMeta, path::Path};
 
 pub mod http;
 pub mod util;

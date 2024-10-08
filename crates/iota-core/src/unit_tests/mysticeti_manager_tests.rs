@@ -15,9 +15,8 @@ use crate::{
     checkpoints::CheckpointServiceNoop,
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{
-        mysticeti_manager::MysticetiManager,
+        ConsensusManagerMetrics, ConsensusManagerTrait, mysticeti_manager::MysticetiManager,
         narwhal_manager::narwhal_manager_tests::checkpoint_service_for_testing,
-        ConsensusManagerMetrics, ConsensusManagerTrait,
     },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     mysticeti_adapter::LazyMysticetiClient,

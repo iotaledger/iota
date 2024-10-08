@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
 use iota_sdk2::types::{Address, ObjectId};
@@ -14,10 +14,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    RestError, RestService, Result,
     accept::AcceptFormat,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
-    RestError, RestService, Result,
 };
 
 pub struct GetSystemStateSummary;

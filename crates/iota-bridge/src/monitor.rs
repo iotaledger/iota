@@ -289,16 +289,16 @@ mod tests {
     use iota_types::{
         base_types::IotaAddress,
         bridge::{BridgeCommitteeSummary, MoveTypeCommitteeMember},
-        crypto::{get_key_pair, ToFromBytes},
+        crypto::{ToFromBytes, get_key_pair},
     };
     use prometheus::Registry;
 
     use super::*;
     use crate::{
-        events::{init_all_struct_tags, NewTokenEvent},
+        events::{NewTokenEvent, init_all_struct_tags},
         iota_mock_client::IotaMockClient,
         test_utils::{bridge_committee_to_bridge_committee_summary, get_test_authority_and_key},
-        types::{BridgeAuthority, BridgeCommittee, BRIDGE_PAUSED, BRIDGE_UNPAUSED},
+        types::{BRIDGE_PAUSED, BRIDGE_UNPAUSED, BridgeAuthority, BridgeCommittee},
     };
 
     #[tokio::test]
@@ -315,16 +315,13 @@ mod tests {
             new_url: "http://new.url".to_string(),
         };
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -348,16 +345,13 @@ mod tests {
         // second. Since the retry interval is 2 seconds, it should return the
         // next retry.
         let old_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://old.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://old.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -385,16 +379,13 @@ mod tests {
         // Test the case where the onchain url is newer. It should retry up to
         // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
         let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -420,16 +411,13 @@ mod tests {
         let pk_as_bytes2 = BridgeAuthorityPublicKeyBytes::from(&pk2);
         let pk_bytes2 = pk_as_bytes2.as_bytes().to_vec();
         let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes2.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes2.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes2.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes2.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -466,16 +454,13 @@ mod tests {
             public_keys: vec![pk.clone()],
         };
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: true,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -497,16 +482,13 @@ mod tests {
             public_keys: vec![pk.clone()],
         };
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -525,16 +507,13 @@ mod tests {
         // in 1 second. Since the retry interval is 2 seconds, it should return
         // the next retry.
         let old_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: true,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -559,16 +538,13 @@ mod tests {
         // Test the case where the onchain url is newer. It should retry up to
         // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
         let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: true,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -591,16 +567,13 @@ mod tests {
         let pk_as_bytes2 = BridgeAuthorityPublicKeyBytes::from(&pk2);
         let pk_bytes2 = pk_as_bytes2.as_bytes().to_vec();
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes2.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes2.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes2.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes2.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -627,26 +600,20 @@ mod tests {
         };
         let summary = BridgeCommitteeSummary {
             members: vec![
-                (
-                    pk_bytes.clone(),
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::random_for_testing_only(),
-                        bridge_pubkey_bytes: pk_bytes.clone(),
-                        voting_power: 5000,
-                        http_rest_url: "http://pk.url".to_string().as_bytes().to_vec(),
-                        blocklisted: true,
-                    },
-                ),
-                (
-                    pk_bytes2.clone(),
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::random_for_testing_only(),
-                        bridge_pubkey_bytes: pk_bytes2.clone(),
-                        voting_power: 5000,
-                        http_rest_url: "http://pk2.url".to_string().as_bytes().to_vec(),
-                        blocklisted: false,
-                    },
-                ),
+                (pk_bytes.clone(), MoveTypeCommitteeMember {
+                    iota_address: IotaAddress::random_for_testing_only(),
+                    bridge_pubkey_bytes: pk_bytes.clone(),
+                    voting_power: 5000,
+                    http_rest_url: "http://pk.url".to_string().as_bytes().to_vec(),
+                    blocklisted: true,
+                }),
+                (pk_bytes2.clone(), MoveTypeCommitteeMember {
+                    iota_address: IotaAddress::random_for_testing_only(),
+                    bridge_pubkey_bytes: pk_bytes2.clone(),
+                    voting_power: 5000,
+                    http_rest_url: "http://pk2.url".to_string().as_bytes().to_vec(),
+                    blocklisted: false,
+                }),
             ],
             member_registration: vec![],
             last_committee_update_epoch: 0,

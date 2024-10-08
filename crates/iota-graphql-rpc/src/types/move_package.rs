@@ -10,11 +10,11 @@ use async_graphql::{
     *,
 };
 use diesel::{
-    prelude::QueryableByName, BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl,
-    Selectable,
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, Selectable,
+    prelude::QueryableByName,
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
-use iota_package_resolver::{error::Error as PackageCacheError, Package as ParsedMovePackage};
+use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
 use iota_types::{is_system_package, move_package::MovePackage as NativeMovePackage, object::Data};
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,7 @@ use crate::{
         big_int::BigInt,
         coin::Coin,
         cursor::{BcsCursor, JsonCursor, Page, RawPaginated, ScanLimited, Target},
-        iota_address::{addr, IotaAddress},
+        iota_address::{IotaAddress, addr},
         move_module::MoveModule,
         move_object::MoveObject,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
@@ -492,15 +492,12 @@ impl MovePackage {
                 c: checkpoint_viewed_at,
             })
             .encode_cursor();
-            connection.edges.push(Edge::new(
-                cursor,
-                MoveModule {
-                    storage_id: self.super_.address,
-                    native: native.clone(),
-                    parsed: parsed.clone(),
-                    checkpoint_viewed_at,
-                },
-            ))
+            connection.edges.push(Edge::new(cursor, MoveModule {
+                storage_id: self.super_.address,
+                native: native.clone(),
+                parsed: parsed.clone(),
+                checkpoint_viewed_at,
+            }))
         }
 
         if connection.edges.is_empty() {

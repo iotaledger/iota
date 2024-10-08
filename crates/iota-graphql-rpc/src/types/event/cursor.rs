@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::{
+    BoolExpressionMethods, ExpressionMethods, QueryDsl,
     backend::Backend,
     deserialize::{self, FromSql, QueryableByName},
     row::NamedRow,
-    BoolExpressionMethods, ExpressionMethods, QueryDsl,
 };
 use iota_indexer::{models::events::StoredEvent, schema::events};
 use serde::{Deserialize, Serialize};

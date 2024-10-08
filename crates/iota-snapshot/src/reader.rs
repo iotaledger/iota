@@ -10,32 +10,32 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
-    future::{AbortRegistration, Abortable},
     StreamExt, TryStreamExt,
+    future::{AbortRegistration, Abortable},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::{
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     AuthorityStore,
+    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
 };
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
+        ObjectStoreGetExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
         util::{copy_file, copy_files, path_to_filesystem},
-        ObjectStoreGetExt, ObjectStorePutExt,
     },
 };
 use iota_types::{
@@ -51,7 +51,7 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    FileMetadata, FileType, Manifest, MAGIC_BYTES, MANIFEST_FILE_MAGIC, OBJECT_FILE_MAGIC,
+    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
 };
 

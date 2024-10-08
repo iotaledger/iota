@@ -14,7 +14,7 @@ use tracing::info;
 
 use crate::{
     data_fetcher::{DataFetcher, RemoteFetcher},
-    types::{ReplayEngineError, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD},
+    types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
 };
 
 const VALID_CHECKPOINT_START: u64 = 1;

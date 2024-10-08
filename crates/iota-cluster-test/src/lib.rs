@@ -7,14 +7,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use cluster::{Cluster, ClusterFactory};
 use config::ClusterTestOpt;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use helper::ObjectChecker;
 use iota_faucet::CoinInfo;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},

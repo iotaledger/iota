@@ -15,7 +15,7 @@ use fastcrypto::{
     hash::{HashFunction, Keccak256},
 };
 use iota_bridge::{
-    abi::{eth_iota_bridge, EthBridgeCommittee, EthIotaBridge},
+    abi::{EthBridgeCommittee, EthIotaBridge, eth_iota_bridge},
     crypto::BridgeAuthorityPublicKeyBytes,
     error::BridgeResult,
     iota_client::IotaBridgeClient,
@@ -24,19 +24,19 @@ use iota_bridge::{
         BlocklistCommitteeAction, BlocklistType, BridgeAction, EmergencyAction,
         EmergencyActionType, EvmContractUpgradeAction, LimitUpdateAction,
     },
-    utils::{get_eth_signer_client, EthSigner},
+    utils::{EthSigner, get_eth_signer_client},
 };
 use iota_config::Config;
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_keys::keypair_file::read_key;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
+    BRIDGE_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    bridge::{BridgeChainId, BRIDGE_MODULE_NAME},
+    bridge::{BRIDGE_MODULE_NAME, BridgeChainId},
     crypto::{IotaKeyPair, Signature},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, Transaction, TransactionData},
-    TypeTag, BRIDGE_PACKAGE_ID,
 };
 use move_core_types::ident_str;
 use serde::{Deserialize, Serialize};
@@ -745,13 +745,10 @@ mod tests {
 
         // Decode the data excluding the selector
         let tokens = function.decode_input(&call_data[4..]).unwrap();
-        assert_eq!(
-            tokens,
-            vec![
-                ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
-                ethers::abi::Token::Bool(false),
-                ethers::abi::Token::String("hello".to_string())
-            ]
-        )
+        assert_eq!(tokens, vec![
+            ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
+            ethers::abi::Token::Bool(false),
+            ethers::abi::Token::String("hello".to_string())
+        ])
     }
 }

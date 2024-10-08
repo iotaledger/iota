@@ -13,7 +13,7 @@ use fastcrypto::{
 use url::Url;
 
 use crate::{
-    crypto::{verify_signed_bridge_action, BridgeAuthorityPublicKeyBytes},
+    crypto::{BridgeAuthorityPublicKeyBytes, verify_signed_bridge_action},
     error::{BridgeError, BridgeResult},
     server::APPLICATION_JSON,
     types::{BridgeAction, BridgeCommittee, VerifiedSignedBridgeAction},
@@ -238,11 +238,11 @@ mod tests {
         traits::KeyPair,
     };
     use iota_types::{
+        TypeTag,
         base_types::IotaAddress,
         bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDT},
         crypto::get_key_pair,
         digests::TransactionDigest,
-        TypeTag,
     };
     use prometheus::Registry;
 

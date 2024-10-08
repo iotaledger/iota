@@ -15,7 +15,7 @@ use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
-    publish_basics_package, publish_basics_package_and_make_counter, TestTransactionBuilder,
+    TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -351,15 +351,10 @@ async fn call_shared_object_contract() {
     for gas in objects {
         // Ensure the value of the counter is `0`.
         let transaction = TestTransactionBuilder::new(sender, gas, rgp)
-            .move_call(
-                package_id,
-                "counter",
-                "assert_value",
-                vec![
-                    CallArg::Object(counter_object_arg_imm),
-                    CallArg::Pure(0u64.to_le_bytes().to_vec()),
-                ],
-            )
+            .move_call(package_id, "counter", "assert_value", vec![
+                CallArg::Object(counter_object_arg_imm),
+                CallArg::Pure(0u64.to_le_bytes().to_vec()),
+            ])
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
@@ -415,19 +410,14 @@ async fn call_shared_object_contract() {
         let transaction = test_cluster
             .test_transaction_builder()
             .await
-            .move_call(
-                package_id,
-                "counter",
-                "assert_value",
-                vec![
-                    CallArg::Object(if imm {
-                        counter_object_arg_imm
-                    } else {
-                        counter_object_arg
-                    }),
-                    CallArg::Pure(1u64.to_le_bytes().to_vec()),
-                ],
-            )
+            .move_call(package_id, "counter", "assert_value", vec![
+                CallArg::Object(if imm {
+                    counter_object_arg_imm
+                } else {
+                    counter_object_arg
+                }),
+                CallArg::Pure(1u64.to_le_bytes().to_vec()),
+            ])
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
@@ -448,12 +438,9 @@ async fn call_shared_object_contract() {
     let transaction = test_cluster
         .test_transaction_builder()
         .await
-        .move_call(
-            package_id,
-            "counter",
-            "increment",
-            vec![CallArg::Object(counter_object_arg_imm)],
-        )
+        .move_call(package_id, "counter", "increment", vec![CallArg::Object(
+            counter_object_arg_imm,
+        )])
         .build();
     let effects = test_cluster
         .wallet

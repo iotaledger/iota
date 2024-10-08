@@ -186,17 +186,14 @@ impl IotaSystemStateSummary {
                 let name = AuthorityName::from_bytes(&validator.protocol_pubkey_bytes).unwrap();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: Multiaddr::try_from(validator.net_address.clone())
-                                .unwrap(),
-                            narwhal_primary_address: Multiaddr::try_from(
-                                validator.primary_address.clone(),
-                            )
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: Multiaddr::try_from(validator.net_address.clone())
                             .unwrap(),
-                        },
-                    ),
+                        narwhal_primary_address: Multiaddr::try_from(
+                            validator.primary_address.clone(),
+                        )
+                        .unwrap(),
+                    }),
                 )
             })
             .collect();

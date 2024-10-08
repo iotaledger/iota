@@ -9,7 +9,7 @@ use iota_types::{base_types::ObjectID, transaction::TransactionDataAPI};
 use move_core_types::identifier::IdentStr;
 use tokio::sync::Mutex;
 
-use crate::{handlers::AnalyticsHandler, tables::MoveCallEntry, FileType};
+use crate::{FileType, handlers::AnalyticsHandler, tables::MoveCallEntry};
 
 pub struct MoveCallHandler {
     state: Mutex<State>,

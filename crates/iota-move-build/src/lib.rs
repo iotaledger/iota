@@ -12,28 +12,25 @@ use std::{
 };
 
 use fastcrypto::encoding::Base64;
-use iota_package_management::{resolve_published_id, PublishedAtError};
+use iota_package_management::{PublishedAtError, resolve_published_id};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
+    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     is_system_package,
     move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
-    BRIDGE_ADDRESS, DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
-    MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
 use move_binary_format::{
-    normalized::{self, Type},
     CompiledModule,
+    normalized::{self, Type},
 };
-use move_bytecode_utils::{
-    layout::SerdeLayoutBuilder,
-    module_cache::GetModule,
-};
+use move_bytecode_utils::{layout::SerdeLayoutBuilder, module_cache::GetModule};
 use move_compiler::{
     compiled_unit::AnnotatedCompiledModule,
-    diagnostics::{report_diagnostics_to_buffer, report_warnings, Diagnostics},
+    diagnostics::{Diagnostics, report_diagnostics_to_buffer, report_warnings},
     editions::Edition,
     linters::LINT_WARNING_PREFIX,
     shared::files::MappedFiles,
@@ -43,13 +40,13 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use move_package::{
+    BuildConfig as MoveBuildConfig,
     compilation::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
     },
     package_hooks::{PackageHooks, PackageIdentifier},
     resolution::resolution_graph::{Package, ResolvedGraph},
     source_package::parsed_manifest::{CustomDepInfo, SourceManifest},
-    BuildConfig as MoveBuildConfig,
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
@@ -703,15 +700,12 @@ pub fn gather_published_ids(
         };
     }
 
-    (
-        published_at,
-        PackageDependencies {
-            published,
-            unpublished,
-            invalid,
-            conflicting,
-        },
-    )
+    (published_at, PackageDependencies {
+        published,
+        unpublished,
+        invalid,
+        conflicting,
+    })
 }
 
 pub fn published_at_property(package: &Package) -> Result<ObjectID, PublishedAtError> {

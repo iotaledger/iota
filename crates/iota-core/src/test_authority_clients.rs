@@ -30,7 +30,7 @@ use iota_types::{
 };
 
 use crate::{
-    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     authority_client::AuthorityAPI,
 };
 

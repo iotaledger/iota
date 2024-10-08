@@ -5,16 +5,16 @@
 use std::{
     net::SocketAddr,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
 
 use async_graphql::{
+    Response, ServerError, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery},
     parser::types::{ExecutableDocument, OperationType},
-    Response, ServerError, ServerResult,
 };
 use async_graphql_value::Variables;
 use tokio::time::timeout;

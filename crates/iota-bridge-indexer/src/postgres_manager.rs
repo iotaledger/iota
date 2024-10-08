@@ -3,22 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::{
+    BoolExpressionMethods, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    SelectableHelper,
     pg::PgConnection,
     r2d2::{ConnectionManager, Pool},
     result::Error,
-    BoolExpressionMethods, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
-    SelectableHelper,
 };
 use iota_types::digests::TransactionDigest;
 
 use crate::{
+    ProcessedTxnData,
     models::{IotaProgressStore, TokenTransfer as DBTokenTransfer},
     schema,
     schema::{
         iota_error_transactions, iota_progress_store::txn_digest, token_transfer,
         token_transfer_data,
     },
-    ProcessedTxnData,
 };
 
 pub(crate) type PgPool = Pool<ConnectionManager<PgConnection>>;

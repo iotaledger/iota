@@ -16,15 +16,15 @@ use iota_data_ingestion_core::Worker;
 use iota_rest_api::CheckpointData;
 use iota_storage::object_store::util::{copy_file, path_to_filesystem};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use object_store::{path::Path, DynObjectStore};
+use object_store::{DynObjectStore, path::Path};
 use serde::Serialize;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{Mutex, mpsc, oneshot};
 use tracing::{error, info};
 
 use crate::{
+    AnalyticsIndexerConfig, EPOCH_DIR_PREFIX, FileMetadata, MaxCheckpointReader, ParquetSchema,
     analytics_metrics::AnalyticsMetrics, handlers::AnalyticsHandler, join_paths,
-    writers::AnalyticsWriter, AnalyticsIndexerConfig, FileMetadata, MaxCheckpointReader,
-    ParquetSchema, EPOCH_DIR_PREFIX,
+    writers::AnalyticsWriter,
 };
 
 struct State<S: Serialize + ParquetSchema> {

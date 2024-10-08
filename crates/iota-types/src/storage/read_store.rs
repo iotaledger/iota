@@ -7,7 +7,7 @@ use std::sync::Arc;
 use move_core_types::language_storage::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use super::{error::Result, ObjectStore};
+use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::Committee,

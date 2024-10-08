@@ -11,7 +11,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_json_rpc::{get_balance_changes_from_effect, get_object_changes, ObjectProvider};
+use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_rest_api::CheckpointData;
 use iota_types::{

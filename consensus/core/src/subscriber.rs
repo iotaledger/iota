@@ -12,12 +12,12 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info};
 
 use crate::{
+    Round,
     block::BlockAPI as _,
     context::Context,
     dag_state::DagState,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
-    Round,
 };
 
 /// Subscriber manages the block stream subscriptions to other peers, taking
@@ -229,7 +229,7 @@ mod test {
         block::{BlockRef, VerifiedBlock},
         commit::CommitRange,
         error::ConsensusResult,
-        network::{test_network::TestService, BlockStream},
+        network::{BlockStream, test_network::TestService},
         storage::mem_store::MemStore,
     };
 

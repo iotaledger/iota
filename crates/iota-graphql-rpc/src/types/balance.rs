@@ -9,11 +9,11 @@ use async_graphql::{
     *,
 };
 use diesel::{
-    sql_types::{BigInt as SqlBigInt, Nullable, Text},
     OptionalExtension, QueryableByName,
+    sql_types::{BigInt as SqlBigInt, Nullable, Text},
 };
 use iota_indexer::types::OwnerType;
-use iota_types::{parse_iota_type_tag, TypeTag};
+use iota_types::{TypeTag, parse_iota_type_tag};
 use serde::{Deserialize, Serialize};
 
 use crate::{

@@ -17,8 +17,8 @@ use iota_move_build::BuildConfig;
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthoritySignature,
-        KeypairTraits, Signature, Signer,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, KeypairTraits, Signature, Signer,
+        get_key_pair, get_key_pair_from_rng,
     },
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -28,7 +28,7 @@ use iota_types::{
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use shared_crypto::intent::{Intent, IntentScope};
 use tokio::time::Instant;
 
@@ -542,10 +542,10 @@ async fn test_process_transaction_fault_success() {
             config_before_process_certificate.fail_after_handle_confirmation = true;
         }
         assert!(
-            execute_transaction_with_fault_configs(
-                &[(0, config_before_process_transaction)],
-                &[(1, config_before_process_certificate)],
-            )
+            execute_transaction_with_fault_configs(&[(0, config_before_process_transaction)], &[(
+                1,
+                config_before_process_certificate
+            )],)
             .await
         );
     }
@@ -581,13 +581,10 @@ async fn test_process_certificate_fault_fail() {
         ..Default::default()
     };
     assert!(
-        !execute_transaction_with_fault_configs(
-            &[],
-            &[
-                (0, fail_before_process_certificate_config),
-                (1, fail_before_process_certificate_config),
-            ],
-        )
+        !execute_transaction_with_fault_configs(&[], &[
+            (0, fail_before_process_certificate_config),
+            (1, fail_before_process_certificate_config),
+        ],)
         .await
     );
 }

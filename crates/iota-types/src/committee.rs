@@ -13,15 +13,15 @@ use fastcrypto::traits::KeyPair;
 pub use iota_protocol_config::ProtocolVersion;
 use once_cell::sync::OnceCell;
 use rand::{
+    Rng, SeedableRng,
     rngs::{StdRng, ThreadRng},
     seq::SliceRandom,
-    Rng, SeedableRng,
 };
 use serde::{Deserialize, Serialize};
 
 use super::base_types::*;
 use crate::{
-    crypto::{random_committee_key_pairs_of_size, AuthorityKeyPair, AuthorityPublicKey},
+    crypto::{AuthorityKeyPair, AuthorityPublicKey, random_committee_key_pairs_of_size},
     error::{IotaError, IotaResult},
     multiaddr::Multiaddr,
 };
@@ -427,7 +427,7 @@ mod test {
     use fastcrypto::traits::KeyPair;
 
     use super::*;
-    use crate::crypto::{get_key_pair, AuthorityKeyPair};
+    use crate::crypto::{AuthorityKeyPair, get_key_pair};
 
     #[test]
     fn test_shuffle_by_weight() {

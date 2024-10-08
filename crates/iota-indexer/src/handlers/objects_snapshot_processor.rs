@@ -22,13 +22,13 @@ use tracing::info;
 
 use crate::{
     handlers::{
-        checkpoint_handler::CheckpointHandler, tx_processor::IndexingPackageBuffer,
-        TransactionObjectChangesToCommit,
+        TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
+        tx_processor::IndexingPackageBuffer,
     },
     metrics::IndexerMetrics,
     store::{
-        package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
         IndexerStore,
+        package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
     },
     types::IndexerResult,
 };

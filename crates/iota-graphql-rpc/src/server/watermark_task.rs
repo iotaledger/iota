@@ -7,7 +7,7 @@ use std::{mem, sync::Arc, time::Duration};
 use async_graphql::ServerError;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::schema::checkpoints;
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{RwLock, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 

@@ -15,12 +15,12 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{dkg, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JwkId, OIDCProvider, JWK},
+    zk_login::{JWK, JwkId, OIDCProvider},
     zk_login_api::ZkLoginEnv,
 };
 use futures::{
-    future::{join_all, select, Either},
     FutureExt,
+    future::{Either, join_all, select},
 };
 use iota_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
 use iota_config::node::{ConsensusProtocol, ExpensiveSafetyCheckConfig};
@@ -31,7 +31,7 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     accumulator::Accumulator,
-    authenticator_state::{get_authenticator_state, ActiveJwk},
+    authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
         AuthorityName, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
@@ -50,9 +50,9 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        check_total_jwk_size, AuthorityCapabilitiesV1, AuthorityCapabilitiesV2,
-        ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind,
-        VersionedDkgConfirmation,
+        AuthorityCapabilitiesV1, AuthorityCapabilitiesV2, ConsensusTransaction,
+        ConsensusTransactionKey, ConsensusTransactionKind, VersionedDkgConfirmation,
+        check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
@@ -62,7 +62,7 @@ use iota_types::{
         VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
 use narwhal_executor::ExecutionIndices;
 use narwhal_types::{Round, TimestampMs};
@@ -73,29 +73,28 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
-    retry_transaction_forever,
+    DBMapUtils, Map, TypedStoreError, retry_transaction_forever,
     rocks::{
-        default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf,
-        ReadWriteOptions,
+        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        read_size_from_env,
     },
     rocksdb::Options,
     traits::{TableSummary, TypedStoreDebug},
-    DBMapUtils, Map, TypedStoreError,
 };
 
 use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
     shared_object_congestion_tracker::SharedObjectCongestionTracker,
-    transaction_deferral::{transaction_deferral_within_limit, DeferralKey, DeferralReason},
+    transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
 use crate::{
     authority::{
+        AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
-        AuthorityMetrics, ResolverWrapper,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -109,8 +108,8 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            DkgStatus, RandomnessManager, RandomnessReporter, VersionedProcessedMessage,
-            VersionedUsedProcessedMessages, SINGLETON_KEY,
+            DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
     },
@@ -1254,10 +1253,10 @@ impl AuthorityPerEpochStore {
         if let Some(effects_signature) = effects_signature {
             batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
 
-            batch.insert_batch(
-                &tables.signed_effects_digests,
-                [(tx_digest, effects_digest)],
-            )?;
+            batch.insert_batch(&tables.signed_effects_digests, [(
+                tx_digest,
+                effects_digest,
+            )])?;
         }
 
         if !matches!(tx_key, TransactionKey::Digest(_)) {
@@ -1289,10 +1288,10 @@ impl AuthorityPerEpochStore {
         let tables = self.tables()?;
         let mut batch = tables.effects_signatures.batch();
         batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
-        batch.insert_batch(
-            &tables.signed_effects_digests,
-            [(tx_digest, effects_digest)],
-        )?;
+        batch.insert_batch(&tables.signed_effects_digests, [(
+            tx_digest,
+            effects_digest,
+        )])?;
         batch.write()?;
         Ok(())
     }
@@ -3836,10 +3835,10 @@ impl AuthorityPerEpochStore {
                 checkpoint_height: Some(commit_height),
                 position_in_commit,
             };
-            batch.insert_batch(
-                &self.tables()?.builder_checkpoint_summary_v2,
-                [(&sequence_number, summary)],
-            )?;
+            batch.insert_batch(&self.tables()?.builder_checkpoint_summary_v2, [(
+                &sequence_number,
+                summary,
+            )])?;
             batch.insert_batch(
                 &self.tables()?.builder_digest_to_checkpoint,
                 transactions
@@ -4222,27 +4221,24 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some(reconfig_state) = &self.reconfig_state {
-            batch.insert_batch(
-                &tables.reconfig_state,
-                [(RECONFIG_STATE_INDEX, reconfig_state)],
-            )?;
+            batch.insert_batch(&tables.reconfig_state, [(
+                RECONFIG_STATE_INDEX,
+                reconfig_state,
+            )])?;
         }
 
         if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
-            batch.insert_batch(
-                &tables.last_consensus_index,
-                [(
-                    LAST_CONSENSUS_STATS_ADDR,
-                    ExecutionIndicesWithHash {
-                        index: consensus_commit_stats.index,
-                        hash: consensus_commit_stats.hash,
-                    },
-                )],
-            )?;
-            batch.insert_batch(
-                &tables.last_consensus_stats,
-                [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
-            )?;
+            batch.insert_batch(&tables.last_consensus_index, [(
+                LAST_CONSENSUS_STATS_ADDR,
+                ExecutionIndicesWithHash {
+                    index: consensus_commit_stats.index,
+                    hash: consensus_commit_stats.hash,
+                },
+            )])?;
+            batch.insert_batch(&tables.last_consensus_stats, [(
+                LAST_CONSENSUS_STATS_ADDR,
+                consensus_commit_stats,
+            )])?;
         }
 
         batch.insert_batch(
@@ -4296,10 +4292,10 @@ impl ConsensusCommitOutput {
 
         if let Some((round, commit_timestamp)) = self.next_randomness_round {
             batch.insert_batch(&tables.randomness_next_round, [(SINGLETON_KEY, round)])?;
-            batch.insert_batch(
-                &tables.randomness_last_round_timestamp,
-                [(SINGLETON_KEY, commit_timestamp)],
-            )?;
+            batch.insert_batch(&tables.randomness_last_round_timestamp, [(
+                SINGLETON_KEY,
+                commit_timestamp,
+            )])?;
         }
 
         batch.insert_batch(&tables.dkg_confirmations_v2, self.dkg_confirmations)?;

@@ -10,6 +10,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
     base_types::IotaAddress,
     committee::EpochId,
     crypto::Signature,
@@ -21,7 +22,6 @@ use iota_types::{
         make_zklogin_tx,
     },
     zk_login_authenticator::ZkLoginAuthenticator,
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -81,12 +81,9 @@ async fn test_zklogin_feature_deny() {
         .await
         .unwrap_err();
 
-    assert!(matches!(
-        err,
-        IotaError::UserInput {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInput {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]

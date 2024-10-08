@@ -173,8 +173,8 @@ impl SharedObjectCongestionTracker {
 mod object_cost_tests {
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{random_object_ref, SequenceNumber},
-        crypto::{get_key_pair, AccountKeyPair},
+        base_types::{SequenceNumber, random_object_ref},
+        crypto::{AccountKeyPair, get_key_pair},
         transaction::{CallArg, ObjectArg, VerifiedTransaction},
     };
     use rstest::rstest;
@@ -422,12 +422,9 @@ mod object_cost_tests {
         }
 
         // Insert `tx`` as previously deferred transaction due to randomness.
-        previously_deferred_tx_digests.insert(
-            *tx.digest(),
-            DeferralKey::Randomness {
-                deferred_from_round: 4,
-            },
-        );
+        previously_deferred_tx_digests.insert(*tx.digest(), DeferralKey::Randomness {
+            deferred_from_round: 4,
+        });
 
         // New deferral key should have deferred_from_round equal to the deferred
         // randomness round.
@@ -450,13 +447,10 @@ mod object_cost_tests {
         }
 
         // Insert `tx`` as previously deferred consensus transaction.
-        previously_deferred_tx_digests.insert(
-            *tx.digest(),
-            DeferralKey::ConsensusRound {
-                future_round: 10,
-                deferred_from_round: 5,
-            },
-        );
+        previously_deferred_tx_digests.insert(*tx.digest(), DeferralKey::ConsensusRound {
+            future_round: 10,
+            deferred_from_round: 5,
+        });
 
         // New deferral key should have deferred_from_round equal to the one in the old
         // deferral key.

@@ -83,8 +83,7 @@
                 "^\\.git$",
                 "^scripts",
                 "packages_compiled/*",
-                "bytecode_snapshot/*",
-                "examples/move/nft-rental/c4-architecture/\\.structurizr/index/*"
+                "bytecode_snapshot/*"
             ],
             "files": [
                 "20873329\\.yaml",

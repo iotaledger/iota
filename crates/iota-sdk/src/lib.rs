@@ -73,6 +73,12 @@
 //! For detailed examples, please check the APIs docs and the examples folder
 //! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
+pub mod apis;
+pub mod error;
+pub mod iota_client_config;
+pub mod json_rpc_error;
+pub mod wallet_context;
+
 use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
@@ -100,19 +106,13 @@ use jsonrpsee::{
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::language_storage::StructTag;
-use rustls::crypto::{ring, CryptoProvider};
+use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
 
 use crate::{
     apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi},
     error::{Error, IotaRpcResult},
 };
-
-pub mod apis;
-pub mod error;
-pub mod iota_client_config;
-pub mod json_rpc_error;
-pub mod wallet_context;
 
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
@@ -411,7 +411,7 @@ impl IotaClientBuilder {
 /// ```rust,no_run
 /// use std::str::FromStr;
 ///
-/// use iota_sdk::{types::base_types::IotaAddress, IotaClientBuilder};
+/// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {

@@ -16,24 +16,25 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_move_build::BuildConfig;
 use iota_sdk::{
+    IotaClient,
     rpc_types::{
         IotaData, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
         IotaTransactionBlockResponse, OwnedObjectRef,
     },
-    IotaClient,
 };
 use iota_types::{
+    TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_STAKING, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_STAKING,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
-    TypeTag,
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use rand::seq::{IteratorRandom, SliceRandom};
@@ -349,11 +350,9 @@ async fn test_pay_multiple_coin_multiple_recipient() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay(
-                vec![coin1, coin2],
-                vec![recipient1, recipient2],
-                vec![100000, 200000],
-            )
+            .pay(vec![coin1, coin2], vec![recipient1, recipient2], vec![
+                100000, 200000,
+            ])
             .unwrap();
         builder.finish()
     };
@@ -387,10 +386,9 @@ async fn test_pay_iota_multiple_coin_same_recipient() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_iota(
-                vec![recipient1, recipient1, recipient1],
-                vec![100000, 100000, 100000],
-            )
+            .pay_iota(vec![recipient1, recipient1, recipient1], vec![
+                100000, 100000, 100000,
+            ])
             .unwrap();
         builder.finish()
     };

@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use iota_replay::{execute_replay_command, ReplayToolCommand};
+use iota_replay::{ReplayToolCommand, execute_replay_command};
 
 #[tokio::test]
 #[ignore = "sandbox snapshots are invalidated by rename"]

@@ -17,7 +17,7 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use fastcrypto_tbls::{dkg, dkg::Output, dkg_v1, nodes, nodes::PartyId};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
 use iota_types::{
@@ -31,8 +31,8 @@ use iota_types::{
 use narwhal_types::{Round, TimestampMs};
 use parking_lot::Mutex;
 use rand::{
-    rngs::{OsRng, StdRng},
     SeedableRng,
+    rngs::{OsRng, StdRng},
 };
 use serde::{Deserialize, Serialize};
 use tokio::{sync::OnceCell, task::JoinHandle};

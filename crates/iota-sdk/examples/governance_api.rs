@@ -9,6 +9,7 @@
 //! cargo run --example governance_api
 
 mod utils;
+
 use utils::setup_for_read;
 
 #[tokio::main]

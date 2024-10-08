@@ -14,7 +14,7 @@ use std::{
 
 use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, MockError};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
 /// Helper type that can be used to pass through the `params` value.

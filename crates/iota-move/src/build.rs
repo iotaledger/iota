@@ -5,7 +5,7 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-use iota_move_build::{check_invalid_dependencies, check_unpublished_dependencies, BuildConfig};
+use iota_move_build::{BuildConfig, check_invalid_dependencies, check_unpublished_dependencies};
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
 use serde_json::json;

@@ -12,6 +12,7 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent, IotaTransactionBlockResponse};
 use iota_types::{
+    Identifier,
     base_types::{ObjectID, ObjectRef},
     bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeParsedTokenTransferMessage},
     digests::TransactionDigest,
@@ -19,7 +20,6 @@ use iota_types::{
     gas_coin::GasCoin,
     object::Owner,
     transaction::{ObjectArg, Transaction},
-    Identifier,
 };
 
 use crate::{

@@ -4,9 +4,9 @@
 
 use std::{env, fs, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::*;
-use object_store::{aws::AmazonS3Builder, ClientOptions, DynObjectStore};
+use object_store::{ClientOptions, DynObjectStore, aws::AmazonS3Builder};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use tracing::info;

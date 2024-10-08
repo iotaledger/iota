@@ -6,8 +6,8 @@ use std::{
     cmp::{max, min},
     hash::Hasher,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
         Weak,
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -271,22 +271,23 @@ pub fn overload_monitor_accept_tx(
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution driver interaction.
+#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution
+// driver interaction.
 mod tests {
     use std::sync::Arc;
 
     use iota_macros::sim_test;
     use rand::{
-        rngs::{OsRng, StdRng},
         Rng, SeedableRng,
+        rngs::{OsRng, StdRng},
     };
     use tokio::{
         sync::{
-            mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+            mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
             oneshot,
         },
         task::JoinHandle,
-        time::{interval, Instant, MissedTickBehavior},
+        time::{Instant, MissedTickBehavior, interval},
     };
 
     use super::*;

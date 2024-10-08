@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::Result;
-use fs_extra::dir::{copy, CopyOptions};
+use fs_extra::dir::{CopyOptions, copy};
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_types::stardust::error::StardustError;
 use tempfile::tempdir;

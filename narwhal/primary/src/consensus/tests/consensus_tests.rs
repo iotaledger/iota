@@ -9,17 +9,17 @@ use iota_protocol_config::ProtocolConfig;
 use prometheus::Registry;
 use storage::NodeStorage;
 use telemetry_subscribers::TelemetryGuards;
-use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+use test_utils::{CommitteeFixture, latest_protocol_version, temp_dir};
 use tokio::sync::watch;
 use types::{
     Certificate, CertificateAPI, HeaderAPI, PreSubscribedBroadcastSender, ReputationScores,
 };
 
 use crate::{
+    NUM_SHUTDOWN_RECEIVERS,
     consensus::{
         Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
     },
-    NUM_SHUTDOWN_RECEIVERS,
 };
 
 /// This test is trying to compare the output of the Consensus algorithm when:

@@ -6,6 +6,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use fastcrypto::traits::ToFromBytes;
 use iota_types::{
+    BRIDGE_PACKAGE_ID, Identifier, TypeTag,
     base_types::{IotaAddress, ObjectRef},
     bridge::{
         BRIDGE_CREATE_ADD_TOKEN_ON_IOTA_MESSAGE_FUNCTION_NAME,
@@ -14,7 +15,6 @@ use iota_types::{
     },
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, TransactionData},
-    Identifier, TypeTag, BRIDGE_PACKAGE_ID,
 };
 use move_core_types::ident_str;
 
@@ -624,11 +624,12 @@ mod tests {
     use ethers::types::Address as EthAddress;
     use iota_types::{
         bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDC},
-        crypto::{get_key_pair, ToFromBytes},
+        crypto::{ToFromBytes, get_key_pair},
     };
     use test_cluster::TestClusterBuilder;
 
     use crate::{
+        BRIDGE_ENABLE_PROTOCOL_VERSION,
         crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes},
         iota_client::IotaClient,
         test_utils::{
@@ -636,7 +637,6 @@ mod tests {
             get_test_eth_to_iota_bridge_action, get_test_iota_to_eth_bridge_action,
         },
         types::{BridgeAction, EmergencyAction, EmergencyActionType, *},
-        BRIDGE_ENABLE_PROTOCOL_VERSION,
     };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]

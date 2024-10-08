@@ -20,7 +20,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -106,7 +106,7 @@ function StakingCard() {
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
 
-    const stakeToken = useMutation({
+    const { mutateAsync: stakeTokenMutateAsync } = useMutation({
         mutationFn: async ({
             tokenTypeArg,
             amount,
@@ -142,13 +142,13 @@ function StakingCard() {
         },
         onSuccess: (_, { amount, validatorAddress }) => {
             ampli.stakedIota({
-                stakedAmount: Number(amount / NANO_PER_IOTA),
+                stakedAmount: Number(amount / NANOS_PER_IOTA),
                 validatorAddress: validatorAddress,
             });
         },
     });
 
-    const unStakeToken = useMutation({
+    const { mutateAsync: unStakeTokenMutateAsync } = useMutation({
         mutationFn: async ({ stakedIotaId }: { stakedIotaId: string }) => {
             if (!stakedIotaId || !signer) {
                 throw new Error('Failed, missing required field.');
@@ -194,13 +194,13 @@ function StakingCard() {
                     if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
                         return;
                     }
-                    response = await unStakeToken.mutateAsync({
+                    response = await unStakeTokenMutateAsync({
                         stakedIotaId: stakeIotaIdParams,
                     });
 
                     txDigest = response.digest;
                 } else {
-                    response = await stakeToken.mutateAsync({
+                    response = await stakeTokenMutateAsync({
                         amount: bigIntAmount,
                         tokenTypeArg: coinType,
                         validatorAddress: validatorAddress,
@@ -252,8 +252,8 @@ function StakingCard() {
             navigate,
             stakeData,
             stakeIotaIdParams,
-            unStakeToken,
-            stakeToken,
+            unStakeTokenMutateAsync,
+            stakeTokenMutateAsync,
         ],
     );
 

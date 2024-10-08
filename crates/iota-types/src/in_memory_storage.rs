@@ -16,8 +16,8 @@ use crate::{
     inner_temporary_store::WrittenObjects,
     object::{Object, Owner},
     storage::{
-        get_module, get_module_by_id, load_package_object_from_object_store, BackingPackageStore,
-        ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        get_module, get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,

@@ -7,7 +7,7 @@ use std::{fs, io::Read, path::PathBuf};
 use anyhow::anyhow;
 use iota_light_client::{
     construct::construct_proof,
-    proof::{verify_proof, Proof, ProofTarget},
+    proof::{Proof, ProofTarget, verify_proof},
 };
 use iota_rest_api::CheckpointData;
 use iota_types::{

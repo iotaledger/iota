@@ -10,15 +10,15 @@ use tokio::time::Instant;
 use tracing::{debug, info};
 
 use crate::{
+    CommitConsumer, CommittedSubDag,
     block::{BlockAPI, VerifiedBlock},
-    commit::{load_committed_subdag_from_store, CommitAPI, CommitIndex},
+    commit::{CommitAPI, CommitIndex, load_committed_subdag_from_store},
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
     storage::Store,
-    CommitConsumer, CommittedSubDag,
 };
 
 /// Role of CommitObserver
@@ -218,7 +218,7 @@ impl CommitObserver {
 
 #[cfg(test)]
 mod tests {
-    use iota_metrics::monitored_mpsc::{unbounded_channel, UnboundedReceiver};
+    use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use parking_lot::RwLock;
 
     use super::*;

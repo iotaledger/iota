@@ -9,9 +9,9 @@ use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     object::Owner,
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::TestCluster;
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{RwLock, watch};
 
 use crate::{
     surf_strategy::SurfStrategy,
