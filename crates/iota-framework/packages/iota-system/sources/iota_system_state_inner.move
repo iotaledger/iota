@@ -10,7 +10,7 @@ module iota_system::iota_system_state_inner {
     use iota_system::validator::{Self, ValidatorV1};
     use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
-    use iota_system::storage_fund::{Self, StorageFund};
+    use iota_system::storage_fund::{Self, StorageFundV1};
     use iota_system::staking_pool::PoolTokenExchangeRateV1;
     use iota::vec_map::{Self, VecMap};
     use iota::vec_set::{Self, VecSet};
@@ -73,7 +73,7 @@ module iota_system::iota_system_state_inner {
         /// Contains all information about the validators.
         validators: ValidatorSetV1,
         /// The storage fund.
-        storage_fund: StorageFund,
+        storage_fund: StorageFundV1,
         /// A list of system config parameters.
         parameters: SystemParametersV1,
         /// The reference gas price for the current epoch.
