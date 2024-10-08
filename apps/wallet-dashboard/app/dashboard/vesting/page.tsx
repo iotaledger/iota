@@ -21,11 +21,7 @@ import {
     useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
-import {
-    useCurrentAccount,
-    useIotaClient,
-    useSignAndExecuteTransactionBlock,
-} from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -41,7 +37,7 @@ function VestingDashboardPage(): JSX.Element {
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
-    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
@@ -96,9 +92,9 @@ function VestingDashboardPage(): JSX.Element {
             addNotification('Failed to create a Transaction', NotificationType.Error);
             return;
         }
-        signAndExecuteTransactionBlock(
+        signAndExecuteTransaction(
             {
-                transactionBlock: unlockAllTimelockedObjects.transactionBlock,
+                transaction: unlockAllTimelockedObjects.transactionBlock,
             },
             {
                 onSuccess: (tx) => {

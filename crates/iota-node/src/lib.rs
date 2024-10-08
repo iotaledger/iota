@@ -79,14 +79,13 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
-use iota_metrics::{RegistryService, spawn_monitored_task};
+use iota_metrics::{RegistryService, server_timing_middleware, spawn_monitored_task};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::ServerBuilder;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_rest_api::RestMetrics;
-use iota_service::server_timing::server_timing_middleware;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, IndexStore, StorageFormat,

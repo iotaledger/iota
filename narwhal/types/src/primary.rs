@@ -858,8 +858,7 @@ impl Certificate {
         }
     }
 
-    // Used for testing
-    pub fn default() -> Certificate {
+    pub fn default_for_testing() -> Certificate {
         Certificate::V2(CertificateV2::default())
     }
 }
