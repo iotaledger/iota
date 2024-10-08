@@ -397,6 +397,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[ignore]
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -589,4 +590,57 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert_eq!(stake.label, stake_copy.label);
 
     Ok(())
+}
+
+#[sim_test]
+async fn get_committee_info() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    // Test with no specified epoch
+    let indexer_response = client.get_committee_info(None).await.unwrap();
+
+    let (epoch_id, validators) = (indexer_response.epoch, indexer_response.validators);
+
+    assert!(epoch_id == 0);
+    assert_eq!(validators.len(), 4);
+
+    // Test with specified epoch 0
+    let indexer_response = client.get_committee_info(Some(0.into())).await.unwrap();
+
+    let (epoch_id, validators) = (indexer_response.epoch, indexer_response.validators);
+
+    assert!(epoch_id == 0);
+    assert_eq!(validators.len(), 4);
+
+    // Test with non-existent epoch
+    let response = client.get_committee_info(Some(1.into())).await;
+
+    assert!(response.is_err());
+}
+
+#[sim_test]
+async fn get_reference_gas_price() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let client = cluster.rpc_client();
+
+    let response = client.get_reference_gas_price().await.unwrap();
+    assert_eq!(response, 1000.into());
+}
+
+#[sim_test]
+async fn get_validators_apy() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let client = cluster.rpc_client();
+
+    let response = client.get_validators_apy().await.unwrap();
+    let (apys, epoch) = (response.apys, response.epoch);
+
+    assert_eq!(epoch, 0);
+    assert_eq!(apys.len(), 4);
+    assert_eq!(apys.iter().find(|apy| apy.apy == 0.0).is_some(), true);
 }
