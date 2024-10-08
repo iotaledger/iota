@@ -20,7 +20,7 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
     const [open, onOpenChange] = useState(defaultOpen);
 
     return (
-        <Accordion hideBorder>
+        <Accordion>
             <AccordionHeader hideBorder isExpanded={open} onToggle={() => onOpenChange(!open)}>
                 <div className="flex items-center gap-xs truncate break-words pl-md--rs text-body-md text-neutral-40">
                     <div className="block w-full truncate break-words">
