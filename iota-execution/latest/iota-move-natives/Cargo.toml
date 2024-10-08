@@ -15,7 +15,7 @@ rand = { workspace = true, features = ["small_rng"] }
 smallvec.workspace = true
 
 fastcrypto.workspace = true
-fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", features = ["experimental"] }
+fastcrypto-vdf.workspace = true
 fastcrypto-zkp.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true

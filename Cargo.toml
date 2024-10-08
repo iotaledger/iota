@@ -280,6 +280,7 @@ integer-encoding = "3.0.1"
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
+leb128 = "0.2.5"
 lru = "0.10"
 mockall = "0.11.4"
 more-asserts = "0.3.1"
@@ -378,6 +379,7 @@ move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
 coset = "0.3"
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
 fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597" }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", features = ["experimental"] }
 fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "5f2c63266a065996d53f98156f0412782b468597", package = "fastcrypto-zkp" }
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 passkey-authenticator = { version = "0.2.0" }
