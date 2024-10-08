@@ -10,10 +10,13 @@ mod checked {
     use std::{collections::HashSet, sync::Arc};
 
     use iota_move_natives::all_natives;
-    use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
+    use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
+        BRIDGE_ADDRESS, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID,
+        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        IOTA_SYSTEM_PACKAGE_ID,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -27,16 +30,16 @@ mod checked {
             IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, TxContext,
         },
         bridge::{
-            BridgeChainId, BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER, BRIDGE_CREATE_FUNCTION_NAME,
-            BRIDGE_INIT_COMMITTEE_FUNCTION_NAME, BRIDGE_MODULE_NAME,
+            BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER, BRIDGE_CREATE_FUNCTION_NAME,
+            BRIDGE_INIT_COMMITTEE_FUNCTION_NAME, BRIDGE_MODULE_NAME, BridgeChainId,
         },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
         deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
-        digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier, ChainIdentifier},
+        digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{is_certificate_denied, ExecutionResults, ExecutionResultsV2},
+        execution::{ExecutionResults, ExecutionResultsV2, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
@@ -44,12 +47,12 @@ mod checked {
         id::UID,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
-            AdvanceEpochParams, ADVANCE_EPOCH_FUNCTION_NAME, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME,
+            ADVANCE_EPOCH_FUNCTION_NAME, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME, AdvanceEpochParams,
             IOTA_SYSTEM_MODULE_NAME,
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        object::{Object, ObjectInner, OBJECT_START_VERSION},
+        object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::{
             RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
@@ -61,9 +64,6 @@ mod checked {
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
-        BRIDGE_ADDRESS, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID,
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-        IOTA_SYSTEM_PACKAGE_ID,
     };
     use move_binary_format::CompiledModule;
     use move_core_types::ident_str;
@@ -79,17 +79,17 @@ mod checked {
         type_layout_resolver::TypeLayoutResolver,
     };
 
-    /// The main entry point to the adapter's transaction execution. It 
-    /// prepares a transaction for execution, then executes it through an 
-    /// inner execution method and finally produces an instance of 
+    /// The main entry point to the adapter's transaction execution. It
+    /// prepares a transaction for execution, then executes it through an
+    /// inner execution method and finally produces an instance of
     /// transaction effects. It also returns the inner temporary store, which
     /// contains the objects resulting from the transction execution, the gas
     /// status instance, which tracks the gas usage, and the execution result.
-    /// The function handles transaction execution based on the provided 
-    /// `TransactionKind`. It checks for any expensive operations, manages 
-    /// shared object references, and ensures transaction dependencies are 
-    /// met. The returned objects are not committed to the store until the 
-    /// resulting effects are applied by the caller. 
+    /// The function handles transaction execution based on the provided
+    /// `TransactionKind`. It checks for any expensive operations, manages
+    /// shared object references, and ensures transaction dependencies are
+    /// met. The returned objects are not committed to the store until the
+    /// resulting effects are applied by the caller.
     #[instrument(name = "tx_execute_to_effects", level = "debug", skip_all)]
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
@@ -248,10 +248,10 @@ mod checked {
     }
 
     /// Executes a `GenesisTransaction` generated during the genesis phase.
-    /// The function creates an `InnerTemporaryStore`, processes the input 
-    /// objects, and executes the transaction in unmetered mode using the 
-    /// `Genesis` execution mode. It returns an inner temporary store that 
-    /// contains the objects found into the input `GenesisTransaction` by 
+    /// The function creates an `InnerTemporaryStore`, processes the input
+    /// objects, and executes the transaction in unmetered mode using the
+    /// `Genesis` execution mode. It returns an inner temporary store that
+    /// contains the objects found into the input `GenesisTransaction` by
     /// adding the data for `previous_transaction` and `storage_rebate`fields.
     pub fn execute_genesis_state_update(
         store: &dyn BackingStore,
@@ -500,8 +500,8 @@ mod checked {
                 }
             }
         } // else, we're in the genesis transaction which mints the IOTA supply, and hence
-          // does not satisfy IOTA conservation, or we're in the non-production
-          // dev inspect mode which allows us to violate conservation
+        // does not satisfy IOTA conservation, or we're in the non-production
+        // dev inspect mode which allows us to violate conservation
         result
     }
 
