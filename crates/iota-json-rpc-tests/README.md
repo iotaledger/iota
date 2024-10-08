@@ -31,7 +31,7 @@ instances.
 
 That is, expect for the `WriteApi` methods that serve requests relayed by `iota-indexer`
 
-### `CoinReadApi` (4/6)
+### `CoinReadApi` (6/6)
 
 - [x] `get_coins`
 - [x] `get_all_coins`
