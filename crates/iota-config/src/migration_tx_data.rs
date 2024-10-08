@@ -90,7 +90,7 @@ impl MigrationTxData {
             let (tx, effects, events) = self
                 .inner
                 .get(valid_tx_digest)
-                .ok_or(anyhow::anyhow!("Missing transaction digest"))?;
+                .ok_or(anyhow::anyhow!("missing transaction digest"))?;
 
             if &effects.digest() != valid_effects_digest
                 || effects.transaction_digest() != valid_tx_digest
