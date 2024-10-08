@@ -1,6 +1,6 @@
 # Genesis Ceremony
 
-This document lays out the step-by-step process for orchestrating an Iota Genesis Ceremony.
+This document lays out the step-by-step process for orchestrating an IOTA Genesis Ceremony.
 
 ## Prerequisites
 
