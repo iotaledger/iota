@@ -139,7 +139,7 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
         <ObjectDetailPanel
             headerContent={
                 <div className="flex shrink-0 items-center gap-xxs">
-                    <Badge type={BadgeType.PrimarySoft} label={name} />
+                    <Badge type={BadgeType.Neutral} label={name} />
                     {objectId && <ObjectLink objectId={objectId} />}
                 </div>
             }
