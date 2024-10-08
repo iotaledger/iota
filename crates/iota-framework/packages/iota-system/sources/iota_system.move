@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Iota System State Type Upgrade Guide
-/// `IotaSystemState` is a thin wrapper around `IotaSystemStateInnerV1` that provides a versioned interface.
-/// The `IotaSystemState` object has a fixed ID 0x5, and the `IotaSystemStateInnerV1` object is stored as a dynamic field.
-/// There are a few different ways to upgrade the `IotaSystemStateInnerV1` type:
+/// `IotaSystemState` is a thin wrapper around `IotaSystemStateV1` that provides a versioned interface.
+/// The `IotaSystemState` object has a fixed ID 0x5, and the `IotaSystemStateV1` object is stored as a dynamic field.
+/// There are a few different ways to upgrade the `IotaSystemStateV1` type:
 ///
 /// The simplest and one that doesn't involve a real upgrade is to just add dynamic fields to the `extra_fields` field
-/// of `IotaSystemStateInnerV1` or any of its sub type. This is useful when we are in a rush, or making a small change,
+/// of `IotaSystemStateV1` or any of its sub type. This is useful when we are in a rush, or making a small change,
 /// or still experimenting a new field.
 ///
-/// To properly upgrade the `IotaSystemStateInnerV1` type, we need to ship a new framework that does the following:
-/// 1. Define a new `IotaSystemStateInner`type (e.g. `IotaSystemStateInnerV2`).
-/// 2. Define a data migration function that migrates the old (e.g. `IotaSystemStateInnerV1`) to the new one (e.g. `IotaSystemStateInnerV2`).
-/// 3. Replace all uses of `IotaSystemStateInnerV1` with `IotaSystemStateInnerV2` in both iota_system.move and iota_system_state_inner.move,
+/// To properly upgrade the `IotaSystemStateV1` type, we need to ship a new framework that does the following:
+/// 1. Define a new `IotaSystemStateInner`type (e.g. `IotaSystemStateV2`).
+/// 2. Define a data migration function that migrates the old (e.g. `IotaSystemStateV1`) to the new one (e.g. `IotaSystemStateV2`).
+/// 3. Replace all uses of `IotaSystemStateV1` with `IotaSystemStateV2` in both iota_system.move and iota_system_state_inner.move,
 ///    with the exception of the `iota_system_state_inner::create` function, which should always return the genesis type.
 /// 4. Inside `load_inner_maybe_upgrade` function, check the current version in the wrapper, and if it's not the latest version,
 ///   call the data migration function to upgrade the inner object. Make sure to also update the version in the wrapper.
@@ -34,10 +34,10 @@
 /// 4. In validator_wrapper::upgrade_to_latest, check the current version in the wrapper, and if it's not the latest version,
 ///  call the data migration function to upgrade it.
 /// In Rust, we also need to add a new case in `get_validator_from_table`.
-/// Note that it is possible to upgrade IotaSystemStateInnerV1 without upgrading ValidatorV1, but not the other way around.
-/// And when we only upgrade IotaSystemStateInnerV1, the version of ValidatorV1 in the wrapper will not be updated, and hence may become
-/// inconsistent with the version of IotaSystemStateInnerV1. This is fine as long as we don't use the ValidatorV1 version to determine
-/// the IotaSystemStateInnerV1 version, or vice versa.
+/// Note that it is possible to upgrade IotaSystemStateV1 without upgrading ValidatorV1, but not the other way around.
+/// And when we only upgrade IotaSystemStateV1, the version of ValidatorV1 in the wrapper will not be updated, and hence may become
+/// inconsistent with the version of IotaSystemStateV1. This is fine as long as we don't use the ValidatorV1 version to determine
+/// the IotaSystemStateV1 version, or vice versa.
 
 module iota_system::iota_system {
     use iota::balance::Balance;
@@ -49,7 +49,7 @@ module iota_system::iota_system {
     use iota::timelock::SystemTimelockCap;
     use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
-    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateInnerV1};
+    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
     use iota::vec_map::VecMap;
@@ -568,16 +568,16 @@ module iota_system::iota_system {
         storage_rebate
     }
 
-    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateInnerV1 {
+    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV1 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInnerV1 {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateInnerV1 {
-        let inner: &mut IotaSystemStateInnerV1 = dynamic_field::borrow_mut(
+    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
+        let inner: &mut IotaSystemStateV1 = dynamic_field::borrow_mut(
             &mut self.id,
             self.version
         );
