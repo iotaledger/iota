@@ -6,7 +6,7 @@
 module iota_system::validator_set_tests {
     use iota::balance;
     use iota::coin;
-    use iota_system::staking_pool::StakedIota;
+    use iota_system::staking_pool::StakedIotaV1;
     use iota_system::validator::{Self, ValidatorV1, staking_pool_id};
     use iota_system::validator_set::{Self, ValidatorSetV1, active_validator_addresses};
     use iota::test_scenario::{Self, Scenario};
@@ -368,7 +368,7 @@ module iota_system::validator_set_tests {
         // Withdraw the stake from @0x4.
         scenario.next_tx(@0x42);
         {
-            let stake = scenario.take_from_sender<StakedIota>();
+            let stake = scenario.take_from_sender<StakedIotaV1>();
             let ctx = scenario.ctx();
             let withdrawn_balance = validator_set.request_withdraw_stake(
                 stake,

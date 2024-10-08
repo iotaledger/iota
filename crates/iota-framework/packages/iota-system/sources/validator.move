@@ -9,7 +9,7 @@ module iota_system::validator {
     use iota::balance::Balance;
     use iota::iota::IOTA;
     use iota_system::validator_cap::{Self, ValidatorOperationCap};
-    use iota_system::staking_pool::{Self, PoolTokenExchangeRateV1, StakedIota, StakingPoolV1};
+    use iota_system::staking_pool::{Self, PoolTokenExchangeRateV1, StakedIotaV1, StakingPoolV1};
     use std::string::String;
     use iota::url::Url;
     use iota::url;
@@ -285,7 +285,7 @@ module iota_system::validator {
         stake: Balance<IOTA>,
         staker_address: address,
         ctx: &mut TxContext,
-    ) : StakedIota {
+    ) : StakedIotaV1 {
         let stake_amount = stake.value();
         assert!(stake_amount > 0, EInvalidStakeAmount);
         let stake_epoch = ctx.epoch() + 1;
@@ -323,12 +323,12 @@ module iota_system::validator {
     }
 
     /// Internal request to add stake to the validator's staking pool at genesis.
-    /// Returns a StakedIota
+    /// Returns a StakedIotaV1
     public(package) fun request_add_stake_at_genesis_with_receipt(
         self: &mut ValidatorV1,
         stake: Balance<IOTA>,
         ctx: &mut TxContext,
-    ) : StakedIota {
+    ) : StakedIotaV1 {
         assert!(ctx.epoch() == 0, ECalledDuringNonGenesis);
         let stake_amount = stake.value();
         assert!(stake_amount > 0, EInvalidStakeAmount);
@@ -349,7 +349,7 @@ module iota_system::validator {
     /// Request to withdraw stake from the validator's staking pool, processed at the end of the epoch.
     public(package) fun request_withdraw_stake(
         self: &mut ValidatorV1,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         ctx: &TxContext,
     ) : Balance<IOTA> {
         let principal_amount = staked_iota.staked_iota_amount();

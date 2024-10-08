@@ -11,7 +11,7 @@ module iota_system::validator_tests {
     use iota::test_scenario;
     use iota::test_utils;
     use iota::url;
-    use iota_system::staking_pool::StakedIota;
+    use iota_system::staking_pool::StakedIotaV1;
     use iota_system::validator::{Self, ValidatorV1};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
@@ -82,7 +82,7 @@ module iota_system::validator_tests {
         // Check that after destroy, the original stake still exists.
         scenario.next_tx(sender);
         {
-            let stake = scenario.take_from_sender<StakedIota>();
+            let stake = scenario.take_from_sender<StakedIotaV1>();
                 assert!(stake.amount() == 10_000_000_000);
                 scenario.return_to_sender(stake);
         };
@@ -110,8 +110,8 @@ module iota_system::validator_tests {
 
         scenario.next_tx(sender);
         {
-            let coin_ids = scenario.ids_for_sender<StakedIota>();
-            let stake = scenario.take_from_sender_by_id<StakedIota>(coin_ids[0]);
+            let coin_ids = scenario.ids_for_sender<StakedIotaV1>();
+            let stake = scenario.take_from_sender_by_id<StakedIotaV1>(coin_ids[0]);
             let ctx = scenario.ctx();
             let withdrawn_balance = validator.request_withdraw_stake(stake, ctx);
             transfer::public_transfer(withdrawn_balance.into_coin(ctx), sender);

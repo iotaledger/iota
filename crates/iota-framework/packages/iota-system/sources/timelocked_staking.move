@@ -10,7 +10,7 @@ module iota_system::timelocked_staking {
     use iota::timelock::{Self, TimeLock};
 
     use iota_system::iota_system::{IotaSystemState};
-    use iota_system::staking_pool::StakedIota;
+    use iota_system::staking_pool::StakedIotaV1;
     use iota_system::validator::{ValidatorV1};
 
     /// For when trying to stake an expired time-locked balance.
@@ -22,7 +22,7 @@ module iota_system::timelocked_staking {
     public struct TimelockedStakedIota has key {
         id: UID,
         /// A self-custodial object holding the staked IOTA tokens.
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         /// This is the epoch time stamp of when the lock expires.
         expiration_timestamp_ms: u64,
         /// Timelock related label.
@@ -289,7 +289,7 @@ module iota_system::timelocked_staking {
     // === Internal ===
 
     /// A utility function to destroy a `TimelockedStakedIota`.
-    fun unpack(self: TimelockedStakedIota): (StakedIota, u64, Option<String>) {
+    fun unpack(self: TimelockedStakedIota): (StakedIotaV1, u64, Option<String>) {
         let TimelockedStakedIota {
             id,
             staked_iota,

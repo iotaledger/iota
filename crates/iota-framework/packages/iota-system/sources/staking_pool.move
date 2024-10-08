@@ -10,7 +10,7 @@ module iota_system::staking_pool {
     use iota::bag::Bag;
     use iota::bag;
 
-    /// StakedIota objects cannot be split to below this amount.
+    /// StakedIotaV1 objects cannot be split to below this amount.
     const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 IOTA
 
     const EInsufficientPoolTokenBalance: u64 = 0;
@@ -43,7 +43,7 @@ module iota_system::staking_pool {
         /// `Some(<epoch_number>)` if in-active, and it was de-activated at epoch `<epoch_number>`.
         deactivation_epoch: Option<u64>,
         /// The total number of IOTA tokens in this pool, including the IOTA in the rewards_pool, as well as in all the principal
-        /// in the `StakedIota` object, updated at epoch boundaries.
+        /// in the `StakedIotaV1` object, updated at epoch boundaries.
         iota_balance: u64,
         /// The epoch stake rewards will be added here at the end of each epoch.
         rewards_pool: Balance<IOTA>,
@@ -71,7 +71,7 @@ module iota_system::staking_pool {
     }
 
     /// A self-custodial object holding the staked IOTA tokens.
-    public struct StakedIota has key, store {
+    public struct StakedIotaV1 has key, store {
         id: UID,
         /// ID of the staking pool we are staking with.
         pool_id: ID,
@@ -109,11 +109,11 @@ module iota_system::staking_pool {
         stake: Balance<IOTA>,
         stake_activation_epoch: u64,
         ctx: &mut TxContext
-    ) : StakedIota {
+    ) : StakedIotaV1 {
         let iota_amount = stake.value();
         assert!(!is_inactive(pool), EDelegationToInactivePool);
         assert!(iota_amount > 0, EDelegationOfZeroIota);
-        let staked_iota = StakedIota {
+        let staked_iota = StakedIotaV1 {
             id: object::new(ctx),
             pool_id: object::id(pool),
             stake_activation_epoch,
@@ -128,7 +128,7 @@ module iota_system::staking_pool {
     /// A proportional amount of pool token withdraw is recorded and processed at epoch change time.
     public(package) fun request_withdraw_stake(
         pool: &mut StakingPoolV1,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         ctx: &TxContext
     ) : Balance<IOTA> {
         // stake is inactive
@@ -159,12 +159,12 @@ module iota_system::staking_pool {
         principal_withdraw
     }
 
-    /// Withdraw the principal IOTA stored in the StakedIota object, and calculate the corresponding amount of pool
+    /// Withdraw the principal IOTA stored in the StakedIotaV1 object, and calculate the corresponding amount of pool
     /// tokens using exchange rate at staking epoch.
     /// Returns values are amount of pool tokens withdrawn and withdrawn principal portion of IOTA.
     public(package) fun withdraw_from_principal(
         pool: &StakingPoolV1,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
     ) : (u64, Balance<IOTA>) {
 
         // Check that the stake information matches the pool.
@@ -183,8 +183,8 @@ module iota_system::staking_pool {
         )
     }
 
-    fun unwrap_staked_iota(staked_iota: StakedIota): Balance<IOTA> {
-        let StakedIota {
+    fun unwrap_staked_iota(staked_iota: StakedIotaV1): Balance<IOTA> {
+        let StakedIotaV1 {
             id,
             pool_id: _,
             stake_activation_epoch: _,
@@ -194,8 +194,8 @@ module iota_system::staking_pool {
         principal
     }
 
-    /// Allows calling `.into_balance()` on `StakedIota` to invoke `unwrap_staked_iota`
-    public use fun unwrap_staked_iota as StakedIota.into_balance;
+    /// Allows calling `.into_balance()` on `StakedIotaV1` to invoke `unwrap_staked_iota`
+    public use fun unwrap_staked_iota as StakedIotaV1.into_balance;
 
     // ==== functions called at epoch boundaries ===
 
@@ -241,7 +241,7 @@ module iota_system::staking_pool {
     ///     2. Using the above number and the given `principal_withdraw_amount`, calculates the rewards portion of the
     ///        stake we should withdraw.
     ///     3. Withdraws the rewards portion from the rewards pool at the current exchange rate. We only withdraw the rewards
-    ///        portion because the principal portion was already taken out of the staker's self custodied StakedIota.
+    ///        portion because the principal portion was already taken out of the staker's self custodied StakedIotaV1.
     fun withdraw_rewards(
         pool: &mut StakingPoolV1,
         principal_withdraw_amount: u64,
@@ -292,14 +292,14 @@ module iota_system::staking_pool {
 
     public fun iota_balance(pool: &StakingPoolV1): u64 { pool.iota_balance }
 
-    public fun pool_id(staked_iota: &StakedIota): ID { staked_iota.pool_id }
+    public fun pool_id(staked_iota: &StakedIotaV1): ID { staked_iota.pool_id }
 
-    public fun staked_iota_amount(staked_iota: &StakedIota): u64 { staked_iota.principal.value() }
+    public fun staked_iota_amount(staked_iota: &StakedIotaV1): u64 { staked_iota.principal.value() }
 
-    /// Allows calling `.amount()` on `StakedIota` to invoke `staked_iota_amount`
-    public use fun staked_iota_amount as StakedIota.amount;
+    /// Allows calling `.amount()` on `StakedIotaV1` to invoke `staked_iota_amount`
+    public use fun staked_iota_amount as StakedIotaV1.amount;
 
-    public fun stake_activation_epoch(staked_iota: &StakedIota): u64 {
+    public fun stake_activation_epoch(staked_iota: &StakedIotaV1): u64 {
         staked_iota.stake_activation_epoch
     }
 
@@ -313,17 +313,17 @@ module iota_system::staking_pool {
         pool.deactivation_epoch.is_some()
     }
 
-    /// Split StakedIota `self` to two parts, one with principal `split_amount`,
+    /// Split StakedIotaV1 `self` to two parts, one with principal `split_amount`,
     /// and the remaining principal is left in `self`.
-    /// All the other parameters of the StakedIota like `stake_activation_epoch` or `pool_id` remain the same.
-    public fun split(self: &mut StakedIota, split_amount: u64, ctx: &mut TxContext): StakedIota {
+    /// All the other parameters of the StakedIotaV1 like `stake_activation_epoch` or `pool_id` remain the same.
+    public fun split(self: &mut StakedIotaV1, split_amount: u64, ctx: &mut TxContext): StakedIotaV1 {
         let original_amount = self.principal.value();
         assert!(split_amount <= original_amount, EInsufficientIotaTokenBalance);
         let remaining_amount = original_amount - split_amount;
         // Both resulting parts should have at least MIN_STAKING_THRESHOLD.
         assert!(remaining_amount >= MIN_STAKING_THRESHOLD, EStakedIotaBelowThreshold);
         assert!(split_amount >= MIN_STAKING_THRESHOLD, EStakedIotaBelowThreshold);
-        StakedIota {
+        StakedIotaV1 {
             id: object::new(ctx),
             pool_id: self.pool_id,
             stake_activation_epoch: self.stake_activation_epoch,
@@ -331,20 +331,20 @@ module iota_system::staking_pool {
         }
     }
 
-    /// Split the given StakedIota to the two parts, one with principal `split_amount`,
+    /// Split the given StakedIotaV1 to the two parts, one with principal `split_amount`,
     /// transfer the newly split part to the sender address.
-    public entry fun split_staked_iota(stake: &mut StakedIota, split_amount: u64, ctx: &mut TxContext) {
+    public entry fun split_staked_iota(stake: &mut StakedIotaV1, split_amount: u64, ctx: &mut TxContext) {
         transfer::transfer(split(stake, split_amount, ctx), ctx.sender());
     }
 
-    /// Allows calling `.split_to_sender()` on `StakedIota` to invoke `split_staked_iota`
-    public use fun split_staked_iota as StakedIota.split_to_sender;
+    /// Allows calling `.split_to_sender()` on `StakedIotaV1` to invoke `split_staked_iota`
+    public use fun split_staked_iota as StakedIotaV1.split_to_sender;
 
     /// Consume the staked iota `other` and add its value to `self`.
     /// Aborts if some of the staking parameters are incompatible (pool id, stake activation epoch, etc.)
-    public entry fun join_staked_iota(self: &mut StakedIota, other: StakedIota) {
+    public entry fun join_staked_iota(self: &mut StakedIotaV1, other: StakedIotaV1) {
         assert!(is_equal_staking_metadata(self, &other), EIncompatibleStakedIota);
-        let StakedIota {
+        let StakedIotaV1 {
             id,
             pool_id: _,
             stake_activation_epoch: _,
@@ -355,11 +355,11 @@ module iota_system::staking_pool {
         self.principal.join(principal);
     }
 
-    /// Allows calling `.join()` on `StakedIota` to invoke `join_staked_iota`
-    public use fun join_staked_iota as StakedIota.join;
+    /// Allows calling `.join()` on `StakedIotaV1` to invoke `join_staked_iota`
+    public use fun join_staked_iota as StakedIotaV1.join;
 
     /// Returns true if all the staking parameters of the staked iota except the principal are identical
-    public fun is_equal_staking_metadata(self: &StakedIota, other: &StakedIota): bool {
+    public fun is_equal_staking_metadata(self: &StakedIotaV1, other: &StakedIotaV1): bool {
         (self.pool_id == other.pool_id) &&
         (self.stake_activation_epoch == other.stake_activation_epoch)
     }
@@ -454,7 +454,7 @@ module iota_system::staking_pool {
     #[test_only]
     public fun calculate_rewards(
         pool: &StakingPoolV1,
-        staked_iota: &StakedIota,
+        staked_iota: &StakedIotaV1,
         current_epoch: u64,
     ): u64 {
         let staked_amount = staked_iota_amount(staked_iota);

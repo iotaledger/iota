@@ -43,7 +43,7 @@ module iota_system::iota_system {
     use iota::balance::Balance;
 
     use iota::coin::Coin;
-    use iota_system::staking_pool::StakedIota;
+    use iota_system::staking_pool::StakedIotaV1;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
     use iota::timelock::SystemTimelockCap;
@@ -242,7 +242,7 @@ module iota_system::iota_system {
         stake: Coin<IOTA>,
         validator_address: address,
         ctx: &mut TxContext,
-    ): StakedIota {
+    ): StakedIotaV1 {
         let self = load_system_state_mut(wrapper);
         self.request_add_stake(stake, validator_address, ctx)
     }
@@ -263,7 +263,7 @@ module iota_system::iota_system {
     /// Withdraw stake from a validator's staking pool.
     public entry fun request_withdraw_stake(
         wrapper: &mut IotaSystemState,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         ctx: &mut TxContext,
     ) {
         let withdrawn_stake = request_withdraw_stake_non_entry(wrapper, staked_iota, ctx);
@@ -273,7 +273,7 @@ module iota_system::iota_system {
     /// Non-entry version of `request_withdraw_stake` that returns the withdrawn IOTA instead of transferring it to the sender.
     public fun request_withdraw_stake_non_entry(
         wrapper: &mut IotaSystemState,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);

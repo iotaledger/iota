@@ -8,7 +8,7 @@ module iota_system::validator_set {
     use iota::iota::IOTA;
     use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address};
     use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
-    use iota_system::staking_pool::{PoolTokenExchangeRateV1, StakedIota, pool_id};
+    use iota_system::staking_pool::{PoolTokenExchangeRateV1, StakedIotaV1, pool_id};
     use iota::priority_queue as pq;
     use iota::vec_map::{Self, VecMap};
     use iota::vec_set::VecSet;
@@ -264,7 +264,7 @@ module iota_system::validator_set {
         validator_address: address,
         stake: Balance<IOTA>,
         ctx: &mut TxContext,
-    ) : StakedIota {
+    ) : StakedIotaV1 {
         let iota_amount = stake.value();
         assert!(iota_amount >= MIN_STAKING_THRESHOLD, EStakingBelowThreshold);
         let validator = get_candidate_or_active_validator_mut(self, validator_address);
@@ -279,7 +279,7 @@ module iota_system::validator_set {
     ///    the stake and any rewards corresponding to it will be immediately processed.
     public(package) fun request_withdraw_stake(
         self: &mut ValidatorSetV1,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         ctx: &TxContext,
     ) : Balance<IOTA> {
         let staking_pool_id = pool_id(&staked_iota);

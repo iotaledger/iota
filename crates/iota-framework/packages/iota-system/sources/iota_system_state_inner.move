@@ -5,7 +5,7 @@
 module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
     use iota::coin::Coin;
-    use iota_system::staking_pool::StakedIota;
+    use iota_system::staking_pool::StakedIotaV1;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota_system::validator::{Self, ValidatorV1};
     use iota_system::validator_set::{Self, ValidatorSetV1};
@@ -345,7 +345,7 @@ module iota_system::iota_system_state_inner {
         stake: Coin<IOTA>,
         validator_address: address,
         ctx: &mut TxContext,
-    ) : StakedIota {
+    ) : StakedIotaV1 {
         self.validators.request_add_stake(
             validator_address,
             stake.into_balance(),
@@ -360,7 +360,7 @@ module iota_system::iota_system_state_inner {
         stake_amount: option::Option<u64>,
         validator_address: address,
         ctx: &mut TxContext,
-    ) : StakedIota {
+    ) : StakedIotaV1 {
         let balance = extract_coin_balance(stakes, stake_amount, ctx);
         self.validators.request_add_stake(validator_address, balance, ctx)
     }
@@ -368,7 +368,7 @@ module iota_system::iota_system_state_inner {
     /// Withdraw some portion of a stake from a validator's staking pool.
     public(package) fun request_withdraw_stake(
         self: &mut IotaSystemStateV1,
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         ctx: &TxContext,
     ) : Balance<IOTA> {
         self.validators.request_withdraw_stake(staked_iota, ctx)
