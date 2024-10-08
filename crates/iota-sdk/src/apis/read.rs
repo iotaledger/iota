@@ -728,4 +728,16 @@ impl ReadApi {
             .try_get_object_before_version(object_id, version)
             .await?)
     }
+
+    pub async fn try_get_object_before_version(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+    ) -> IotaRpcResult<IotaPastObjectResponse> {
+        Ok(self
+            .api
+            .http
+            .try_get_object_before_version(object_id, version)
+            .await?)
+    }
 }

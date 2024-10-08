@@ -38,10 +38,15 @@ COPY external-crates external-crates
 COPY docs docs
 
 # TODO: Remove "--mount=type=ssh" when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+<<<<<<<< HEAD:docker/iota-bridge-indexer/Dockerfile
 RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin bridge-indexer
 
 # Copy the built binary to the working directory depending on the profile, so we can copy it to the runtime image
 RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/bridge-indexer ./
+========
+RUN --mount=type=ssh cargo build --profile ${PROFILE} --bin narwhal-node
+RUN --mount=type=ssh cargo build --profile ${PROFILE} --features=benchmark --bin narwhal-benchmark-client
+>>>>>>>> e6e5cdcf1d (feat: update restructured genesis to mainnet v1.32.2 (#3135)):narwhal/Docker/Dockerfile
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
@@ -50,6 +55,10 @@ FROM debian:bullseye-slim AS runtime
 RUN apt-get update && apt-get install -y libjemalloc-dev ca-certificates curl
 ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libjemalloc.so
 
+<<<<<<<< HEAD:docker/iota-bridge-indexer/Dockerfile
+========
+ARG PROFILE=release
+>>>>>>>> e6e5cdcf1d (feat: update restructured genesis to mainnet v1.32.2 (#3135)):narwhal/Docker/Dockerfile
 WORKDIR "$WORKDIR/iota"
 COPY --from=builder /iota/bridge-indexer /usr/local/bin
 RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql

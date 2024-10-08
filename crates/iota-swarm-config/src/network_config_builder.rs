@@ -451,7 +451,8 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 builder = builder.add_validator_signature(&validator.key_pair);
             }
 
-            builder.build()
+            let migration_tx_data = builder.take_migration_tx_data();
+            (builder.build(), migration_tx_data)
         };
 
         if let Some(migration_tx_data) = migration_tx_data {
