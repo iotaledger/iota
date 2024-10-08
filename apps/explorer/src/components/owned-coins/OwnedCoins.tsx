@@ -267,10 +267,10 @@ interface CoinListProps {
 
 function CoinList({ coins, id }: CoinListProps) {
     return (
-        <>
+        <div className="flex w-full flex-col gap-xxs">
             {coins.map((coin, index) => (
                 <OwnedCoinView key={`${coin.coinType}-${index}`} coin={coin} id={id} />
             ))}
-        </>
+        </div>
     );
 }
