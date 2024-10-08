@@ -44,33 +44,27 @@ impl MigrationTxData {
         self.inner.is_empty()
     }
 
-    pub fn objects_by_tx_digest(
-        &self,
-        digest: TransactionDigest,
-    ) -> Result<Vec<Object>, anyhow::Error> {
-        let mut migration_objects = Vec::new();
-
-        let (tx, _, _) = self
-            .inner
-            .get(&digest)
-            .with_context(|| format!("No transaction found for digest: {:?}", digest))?;
+    pub fn objects_by_tx_digest(&self, digest: TransactionDigest) -> Option<Vec<Object>> {
+        let (tx, _, _) = self.inner.get(&digest)?;
         let TransactionKind::Genesis(GenesisTransaction { objects, .. }) =
             tx.transaction_data().kind()
         else {
             panic!("wrong transaction type of migration data");
         };
-        Ok(objects
-            .iter()
-            .map(|GenesisObject::RawObject { data, owner }| {
-                ObjectInner {
-                    data: data.to_owned(),
-                    owner: owner.to_owned(),
-                    previous_transaction: *tx.digest(),
-                    storage_rebate: 0,
-                }
-                .into()
-            })
-            .collect())
+        Some(
+            objects
+                .iter()
+                .map(|GenesisObject::RawObject { data, owner }| {
+                    ObjectInner {
+                        data: data.to_owned(),
+                        owner: owner.to_owned(),
+                        previous_transaction: *tx.digest(),
+                        storage_rebate: 0,
+                    }
+                    .into()
+                })
+                .collect(),
+        )
     }
 
     fn validate_from_genesis_components(
