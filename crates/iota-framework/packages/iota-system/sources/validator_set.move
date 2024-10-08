@@ -8,7 +8,7 @@ module iota_system::validator_set {
     use iota::iota::IOTA;
     use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address};
     use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
-    use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota, pool_id};
+    use iota_system::staking_pool::{PoolTokenExchangeRateV1, StakedIota, pool_id};
     use iota::priority_queue as pq;
     use iota::vec_map::{Self, VecMap};
     use iota::vec_set::VecSet;
@@ -69,7 +69,7 @@ module iota_system::validator_set {
         voting_power: u64,
         commission_rate: u64,
         pool_staking_reward: u64,
-        pool_token_exchange_rate: PoolTokenExchangeRate,
+        pool_token_exchange_rate: PoolTokenExchangeRateV1,
         tallying_rule_reporters: vector<address>,
         tallying_rule_global_score: u64,
     }
@@ -525,7 +525,7 @@ module iota_system::validator_set {
 
     public(package) fun pool_exchange_rates(
         self: &mut ValidatorSetV1, pool_id: &ID
-    ) : &Table<u64, PoolTokenExchangeRate> {
+    ) : &Table<u64, PoolTokenExchangeRateV1> {
         let validator =
             // If the pool id is recorded in the mapping, then it must be either candidate or active.
             if (self.staking_pool_mappings.contains(*pool_id)) {

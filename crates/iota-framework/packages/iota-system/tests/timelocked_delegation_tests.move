@@ -14,7 +14,7 @@ module iota_system::timelocked_stake_tests {
     use iota::test_utils;
 
     use iota_system::iota_system::IotaSystemState;
-    use iota_system::staking_pool::{Self, PoolTokenExchangeRate};
+    use iota_system::staking_pool::{Self, PoolTokenExchangeRateV1};
     use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::governance_test_utils::{
         add_validator,
@@ -987,7 +987,7 @@ module iota_system::timelocked_stake_tests {
     }
 
     fun assert_exchange_rate_eq(
-        rates: &Table<u64, PoolTokenExchangeRate>, epoch: u64, iota_amount: u64, pool_token_amount: u64
+        rates: &Table<u64, PoolTokenExchangeRateV1>, epoch: u64, iota_amount: u64, pool_token_amount: u64
     ) {
         let rate = &rates[epoch];
         assert_eq(rate.iota_amount(), iota_amount * NANOS_PER_IOTA);

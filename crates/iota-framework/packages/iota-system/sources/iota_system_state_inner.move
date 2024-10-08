@@ -11,7 +11,7 @@ module iota_system::iota_system_state_inner {
     use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFund};
-    use iota_system::staking_pool::PoolTokenExchangeRate;
+    use iota_system::staking_pool::PoolTokenExchangeRateV1;
     use iota::vec_map::{Self, VecMap};
     use iota::vec_set::{Self, VecSet};
     use iota::event;
@@ -873,7 +873,7 @@ module iota_system::iota_system_state_inner {
     public(package) fun pool_exchange_rates(
         self: &mut IotaSystemStateV1,
         pool_id: &ID
-    ): &Table<u64, PoolTokenExchangeRate>  {
+    ): &Table<u64, PoolTokenExchangeRateV1>  {
         let validators = &mut self.validators;
         validators.pool_exchange_rates(pool_id)
     }

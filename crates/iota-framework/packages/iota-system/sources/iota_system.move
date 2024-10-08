@@ -50,7 +50,7 @@ module iota_system::iota_system {
     use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
-    use iota_system::staking_pool::PoolTokenExchangeRate;
+    use iota_system::staking_pool::PoolTokenExchangeRateV1;
     use iota::dynamic_field;
     use iota::vec_map::VecMap;
 
@@ -514,7 +514,7 @@ module iota_system::iota_system {
     public fun pool_exchange_rates(
         wrapper: &mut IotaSystemState,
         pool_id: &ID
-    ): &Table<u64, PoolTokenExchangeRate>  {
+    ): &Table<u64, PoolTokenExchangeRateV1>  {
         let self = load_system_state_mut(wrapper);
         self.pool_exchange_rates(pool_id)
     }

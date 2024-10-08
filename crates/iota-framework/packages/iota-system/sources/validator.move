@@ -9,7 +9,7 @@ module iota_system::validator {
     use iota::balance::Balance;
     use iota::iota::IOTA;
     use iota_system::validator_cap::{Self, ValidatorOperationCap};
-    use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPoolV1};
+    use iota_system::staking_pool::{Self, PoolTokenExchangeRateV1, StakedIota, StakingPoolV1};
     use std::string::String;
     use iota::url::Url;
     use iota::url;
@@ -566,7 +566,7 @@ module iota_system::validator {
         self.commission_rate
     }
 
-    public fun pool_token_exchange_rate_at_epoch(self: &ValidatorV1, epoch: u64): PoolTokenExchangeRate {
+    public fun pool_token_exchange_rate_at_epoch(self: &ValidatorV1, epoch: u64): PoolTokenExchangeRateV1 {
         self.staking_pool.pool_token_exchange_rate_at_epoch(epoch)
     }
 

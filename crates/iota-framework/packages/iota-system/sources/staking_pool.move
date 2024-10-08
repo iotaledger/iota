@@ -52,7 +52,7 @@ module iota_system::staking_pool {
         /// Exchange rate history of previous epochs. Key is the epoch number.
         /// The entries start from the `activation_epoch` of this pool and contains exchange rates at the beginning of each epoch,
         /// i.e., right after the rewards for the previous epoch have been deposited into the pool.
-        exchange_rates: Table<u64, PoolTokenExchangeRate>,
+        exchange_rates: Table<u64, PoolTokenExchangeRateV1>,
         /// Pending stake amount for this epoch, emptied at epoch boundaries.
         pending_stake: u64,
         /// Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
@@ -65,7 +65,7 @@ module iota_system::staking_pool {
     }
 
     /// Struct representing the exchange rate of the stake pool token to IOTA.
-    public struct PoolTokenExchangeRate has store, copy, drop {
+    public struct PoolTokenExchangeRateV1 has store, copy, drop {
         iota_amount: u64,
         pool_token_amount: u64,
     }
@@ -211,7 +211,7 @@ module iota_system::staking_pool {
         process_pending_stake(pool);
         pool.exchange_rates.add(
             new_epoch,
-            PoolTokenExchangeRate { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance },
+            PoolTokenExchangeRateV1 { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance },
         );
         check_balance_invariants(pool, new_epoch);
     }
@@ -229,7 +229,7 @@ module iota_system::staking_pool {
     public(package) fun process_pending_stake(pool: &mut StakingPoolV1) {
         // Use the most up to date exchange rate with the rewards deposited and withdraws effectuated.
         let latest_exchange_rate =
-            PoolTokenExchangeRate { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
+            PoolTokenExchangeRateV1 { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
         pool.iota_balance = pool.iota_balance + pool.pending_stake;
         pool.pool_token_balance = get_token_amount(&latest_exchange_rate, pool.iota_balance);
         pool.pending_stake = 0;
@@ -364,7 +364,7 @@ module iota_system::staking_pool {
         (self.stake_activation_epoch == other.stake_activation_epoch)
     }
 
-    public fun pool_token_exchange_rate_at_epoch(pool: &StakingPoolV1, epoch: u64): PoolTokenExchangeRate {
+    public fun pool_token_exchange_rate_at_epoch(pool: &StakingPoolV1, epoch: u64): PoolTokenExchangeRateV1 {
         // If the pool is preactive then the exchange rate is always 1:1.
         if (is_preactive_at_epoch(pool, epoch)) {
             return initial_exchange_rate()
@@ -394,15 +394,15 @@ module iota_system::staking_pool {
         staking_pool.pending_total_iota_withdraw
     }
 
-    public(package) fun exchange_rates(pool: &StakingPoolV1): &Table<u64, PoolTokenExchangeRate> {
+    public(package) fun exchange_rates(pool: &StakingPoolV1): &Table<u64, PoolTokenExchangeRateV1> {
         &pool.exchange_rates
     }
 
-    public fun iota_amount(exchange_rate: &PoolTokenExchangeRate): u64 {
+    public fun iota_amount(exchange_rate: &PoolTokenExchangeRateV1): u64 {
         exchange_rate.iota_amount
     }
 
-    public fun pool_token_amount(exchange_rate: &PoolTokenExchangeRate): u64 {
+    public fun pool_token_amount(exchange_rate: &PoolTokenExchangeRateV1): u64 {
         exchange_rate.pool_token_amount
     }
 
@@ -412,7 +412,7 @@ module iota_system::staking_pool {
         is_preactive(pool) || (*pool.activation_epoch.borrow() > epoch)
     }
 
-    fun get_iota_amount(exchange_rate: &PoolTokenExchangeRate, token_amount: u64): u64 {
+    fun get_iota_amount(exchange_rate: &PoolTokenExchangeRateV1, token_amount: u64): u64 {
         // When either amount is 0, that means we have no stakes with this pool.
         // The other amount might be non-zero when there's dust left in the pool.
         if (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) {
@@ -424,7 +424,7 @@ module iota_system::staking_pool {
         res as u64
     }
 
-    fun get_token_amount(exchange_rate: &PoolTokenExchangeRate, iota_amount: u64): u64 {
+    fun get_token_amount(exchange_rate: &PoolTokenExchangeRateV1, iota_amount: u64): u64 {
         // When either amount is 0, that means we have no stakes with this pool.
         // The other amount might be non-zero when there's dust left in the pool.
         if (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) {
@@ -436,8 +436,8 @@ module iota_system::staking_pool {
         res as u64
     }
 
-    fun initial_exchange_rate(): PoolTokenExchangeRate {
-        PoolTokenExchangeRate { iota_amount: 0, pool_token_amount: 0 }
+    fun initial_exchange_rate(): PoolTokenExchangeRateV1 {
+        PoolTokenExchangeRateV1 { iota_amount: 0, pool_token_amount: 0 }
     }
 
     fun check_balance_invariants(pool: &StakingPoolV1, epoch: u64) {

@@ -7,7 +7,7 @@ module iota_system::stake_tests {
     use iota::coin;
     use iota::test_scenario;
     use iota_system::iota_system::IotaSystemState;
-    use iota_system::staking_pool::{Self, StakedIota, PoolTokenExchangeRate};
+    use iota_system::staking_pool::{Self, StakedIota, PoolTokenExchangeRateV1};
     use iota::test_utils::assert_eq;
     use iota_system::validator_set;
     use iota::test_utils;
@@ -534,7 +534,7 @@ module iota_system::stake_tests {
     }
 
     fun assert_exchange_rate_eq(
-        rates: &Table<u64, PoolTokenExchangeRate>, epoch: u64, iota_amount: u64, pool_token_amount: u64
+        rates: &Table<u64, PoolTokenExchangeRateV1>, epoch: u64, iota_amount: u64, pool_token_amount: u64
     ) {
         let rate = &rates[epoch];
         assert_eq(rate.iota_amount(), iota_amount * NANOS_PER_IOTA);
