@@ -123,12 +123,14 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && needs.diff.outputs.isRust == 'true' && success('dprint-format', 'license-check', 'typos'))
+    if: (!cancelled() && !failure())
     uses: ./.github/workflows/_rust.yml
     secrets: inherit
+    with:
+      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
-    if: (!cancelled() && needs.diff.outputs.isRust == 'true' && success('dprint-format', 'license-check', 'typos') && !github.event.pull_request.draft)
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft)
     needs:
       - diff
       - dprint-format
