@@ -35,7 +35,7 @@ pub const NUM_SHUTDOWN_RECEIVERS: u64 = 25;
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum ConsensusError {
     #[error("Storage failure: {0}")]
-    StoreError(#[from] StoreError),
+    Store(#[from] StoreError),
 
     #[error("Certificate {0:?} equivocates with earlier certificate {1:?}")]
     CertificateEquivocation(Certificate, Certificate),
