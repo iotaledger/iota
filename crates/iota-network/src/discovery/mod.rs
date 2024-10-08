@@ -26,6 +26,7 @@ use tracing::{debug, info, trace};
 const TIMEOUT: Duration = Duration::from_secs(1);
 const ONE_DAY_MILLISECONDS: u64 = 24 * 60 * 60 * 1_000;
 
+// Includes the generated Discovery code from the OUT_DIR
 mod generated {
     include!(concat!(env!("OUT_DIR"), "/iota.Discovery.rs"));
 }
@@ -67,11 +68,11 @@ pub struct NodeInfo {
     /// should be retained.
     pub timestamp_ms: u64,
 
-    /// See docstring for `AccessType`.
     pub access_type: AccessType,
 }
 
 #[derive(Clone, Debug, Default)]
+/// Contains a new list of available trusted peers.
 pub struct TrustedPeerChangeEvent {
     pub new_peers: Vec<PeerInfo>,
 }
@@ -91,6 +92,7 @@ struct DiscoveryEventLoop {
 }
 
 impl DiscoveryEventLoop {
+    /// Starts the discovery event loop.
     pub async fn start(mut self) {
         info!("Discovery started");
 
@@ -112,16 +114,18 @@ impl DiscoveryEventLoop {
                 peer_event = peer_events.recv() => {
                     self.handle_peer_event(peer_event);
                 },
+                // This is signaled when new trusted peer (committee member) is added.
                 Ok(()) = self.trusted_peer_change_rx.changed() => {
                     let event: TrustedPeerChangeEvent = self.trusted_peer_change_rx.borrow_and_update().clone();
                     self.handle_trusted_peer_change_event(event);
                 }
+                // Handles the result of a task from tasks.
                 Some(task_result) = self.tasks.join_next() => {
                     match task_result {
                         Ok(()) => {},
                         Err(e) => {
                             if e.is_cancelled() {
-                                // avoid crashing on ungraceful shutdown
+                                // avoid crashing on ungraceful shutdown.
                             } else if e.is_panic() {
                                 // propagate panics.
                                 std::panic::resume_unwind(e.into_panic());
@@ -131,7 +135,7 @@ impl DiscoveryEventLoop {
                         },
                     };
                 },
-                // Once the shutdown notification resolves we can terminate the event loop
+                // Once the shutdown notification is resolved we can terminate the event loop.
                 _ = &mut self.shutdown_handle => {
                     break;
                 }
@@ -141,6 +145,7 @@ impl DiscoveryEventLoop {
         info!("Discovery ended");
     }
 
+    /// Constructs [`NodeInfo`] of the node.
     fn construct_our_info(&mut self) {
         if self.state.read().unwrap().our_info.is_some() {
             return;
@@ -163,7 +168,12 @@ impl DiscoveryEventLoop {
         self.state.write().unwrap().our_info = Some(our_info);
     }
 
+    /// Configures known peers list in [`Network`] using allowlisted peers and
+    /// seed peers.
     fn configure_preferred_peers(&mut self) {
+        // Iterates over the allowlisted peers and seed peers to check if they have
+        // an address that can be converted to anemo address. If they do, they are added
+        // to the known peers list.
         for (peer_id, address) in self
             .discovery_config
             .allowlisted_peers
@@ -204,6 +214,8 @@ impl DiscoveryEventLoop {
 
     // TODO: we don't boot out old committee member yets, however we may want to do
     // this in the future along with other network management work.
+    /// Handles a [`TrustedPeerChangeEvent`] by adding the new trusted peers to
+    /// known peers list.
     fn handle_trusted_peer_change_event(
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
@@ -214,17 +226,24 @@ impl DiscoveryEventLoop {
         }
     }
 
+    /// Handles a [`PeerEvent`].
+    ///
+    /// * NewPeer: Adds the peer to the connected peers list and queries the
+    ///   peer for their known peers.
+    /// * LostPeer: Removes the peer from the connected peers list.
+    /// * Closed: Panics if the channel is closed.
     fn handle_peer_event(&mut self, peer_event: Result<PeerEvent, RecvError>) {
         match peer_event {
             Ok(PeerEvent::NewPeer(peer_id)) => {
                 if let Some(peer) = self.network.peer(peer_id) {
+                    // Adds the peer to the connected peers list.
                     self.state
                         .write()
                         .unwrap()
                         .connected_peers
                         .insert(peer_id, ());
 
-                    // Query the new node for any peers
+                    // Queries the new node for any peers.
                     self.tasks.spawn(query_peer_for_their_known_peers(
                         peer,
                         self.state.clone(),
@@ -247,6 +266,16 @@ impl DiscoveryEventLoop {
         }
     }
 
+    /// This function performs several tasks:
+    ///
+    /// 1. Update the timestamp of our own info.
+    /// 2. Queries a subset of connected peers for their known peers.
+    /// 3. Culls old known peers older than a day.
+    /// 4. Cleans out the pending_dials, dial_seed_peers_task if it's done.
+    /// 5. Selects a subset of known peers to dial if we're not connected to
+    ///    enough peers.
+    /// 6. If we have no neighbors and we aren't presently trying to connect to
+    ///    anyone we need to try the seed peers.
     fn handle_tick(&mut self, _now: std::time::Instant, now_unix: u64) {
         self.update_our_info_timestamp(now_unix);
 
@@ -259,22 +288,24 @@ impl DiscoveryEventLoop {
                 self.allowlisted_peers.clone(),
             ));
 
-        // Cull old peers older than a day
+        // Culls old known peers older than a day.
         self.state
             .write()
             .unwrap()
             .known_peers
             .retain(|_k, v| now_unix.saturating_sub(v.timestamp_ms) < ONE_DAY_MILLISECONDS);
 
-        // Clean out the pending_dials
+        // Cleans out the pending_dials.
         self.pending_dials.retain(|_k, v| !v.is_finished());
+        // Cleans out the dial_seed_peers_task if it's done.
         if let Some(abort_handle) = &self.dial_seed_peers_task {
             if abort_handle.is_finished() {
                 self.dial_seed_peers_task = None;
             }
         }
 
-        // Spawn some dials
+        // Selects a subset of known peers to dial if we're not connected to enough
+        // peers.
         let state = self.state.read().unwrap();
         let eligible = state
             .known_peers
@@ -299,7 +330,7 @@ impl DiscoveryEventLoop {
                 .saturating_sub(number_of_connections),
         );
 
-        // randomize the order
+        // Randomly selects the number_to_dial of peers to connect to.
         for (peer_id, info) in rand::seq::SliceRandom::choose_multiple(
             eligible.as_slice(),
             &mut rand::thread_rng(),
@@ -370,7 +401,7 @@ async fn try_to_connect_to_seed_peers(
     .for_each_concurrent(
         config.target_concurrent_connections(),
         |(seed, address)| async move {
-            // Ignore the result and just log the error  if there is one
+            // Ignores the result and just logs the error if there is one.
             let _ = if let Some(peer_id) = seed.peer_id {
                 network.connect_with_peer_id(address, peer_id).await
             } else {
@@ -412,6 +443,7 @@ async fn query_peer_for_their_known_peers(
     }
 }
 
+/// Queries a subset of neighbors for their known peers.
 async fn query_connected_peers_for_their_known_peers(
     network: Network,
     config: Arc<DiscoveryConfig>,
@@ -421,12 +453,14 @@ async fn query_connected_peers_for_their_known_peers(
 ) {
     use rand::seq::IteratorRandom;
 
+    // Randomly selects a subset of neighbors to query.
     let peers_to_query = network
         .peers()
         .into_iter()
         .flat_map(|id| network.peer(id))
         .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
 
+    // Queries the selected neighbors for their known peers in parallel.
     let found_peers = peers_to_query
         .into_iter()
         .map(DiscoveryClient::new)
@@ -457,6 +491,10 @@ async fn query_connected_peers_for_their_known_peers(
     update_known_peers(state, metrics, found_peers, allowlisted_peers);
 }
 
+/// Updates the known peers list with the found peers. The found peer is ignored
+/// if it is too old or too far in the future from our clock.
+/// If a peer is already known, the NodeInfo is updated, otherwise the peer is
+/// inserted.
 fn update_known_peers(
     state: Arc<RwLock<State>>,
     metrics: Metrics,
@@ -488,6 +526,7 @@ fn update_known_peers(
         }
 
         match known_peers.entry(peer.peer_id) {
+            // Updates the NodeInfo of the peer if it exists.
             Entry::Occupied(mut o) => {
                 if peer.timestamp_ms > o.get().timestamp_ms {
                     if o.get().addresses.is_empty() && !peer.addresses.is_empty() {
@@ -499,6 +538,7 @@ fn update_known_peers(
                     o.insert(peer);
                 }
             }
+            // Inserts the the peer if it doesn't exist.
             Entry::Vacant(v) => {
                 if !peer.addresses.is_empty() {
                     metrics.inc_num_peers_with_external_address();
