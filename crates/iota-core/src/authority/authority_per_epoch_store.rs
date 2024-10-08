@@ -586,26 +586,26 @@ pub struct AuthorityEpochTables {
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
     pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
-    
+
     /// Records messages used to generate a DKG confirmation. Updated when
     /// enough DKG messages are received to progress to the next phase.
     pub(crate) dkg_used_messages: DBMap<u64, VersionedUsedProcessedMessages>,
-    
+
     /// Records confirmations received from other nodes. Updated when receiving
     /// a new dkg::Confirmation via consensus.
     pub(crate) dkg_confirmations: DBMap<PartyId, VersionedDkgConfirmation>,
-    
+
     /// Records the final output of DKG after completion, including the public
     /// VSS key and any local private shares.
     pub(crate) dkg_output: DBMap<u64, dkg::Output<PkG, EncG>>,
-    
+
     /// Holds the value of the next RandomnessRound to be generated.
     pub(crate) randomness_next_round: DBMap<u64, RandomnessRound>,
-    
+
     /// Holds the value of the highest completed RandomnessRound (as reported to
     /// RandomnessReporter).
     pub(crate) randomness_highest_completed_round: DBMap<u64, RandomnessRound>,
-    
+
     /// Holds the timestamp of the most recently generated round of randomness.
     pub(crate) randomness_last_round_timestamp: DBMap<u64, TimestampMs>,
 }
@@ -4285,10 +4285,7 @@ impl ConsensusCommitOutput {
         }
 
         batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;
-        batch.insert_batch(
-            &tables.dkg_processed_messages,
-            self.dkg_processed_messages,
-        )?;
+        batch.insert_batch(&tables.dkg_processed_messages, self.dkg_processed_messages)?;
         batch.insert_batch(
             &tables.dkg_used_messages,
             // using Option as iter
