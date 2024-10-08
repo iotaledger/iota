@@ -5761,6 +5761,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-adapter-v0"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "iota-macros",
+ "iota-metrics",
+ "iota-move-natives-v0",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-v0",
+ "leb128",
+ "move-binary-format",
+ "move-bytecode-utils",
+ "move-bytecode-verifier-meter",
+ "move-bytecode-verifier-v0",
+ "move-core-types",
+ "move-vm-config",
+ "move-vm-profiler",
+ "move-vm-runtime-v0",
+ "move-vm-types",
+ "parking_lot 0.12.3",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "iota-analytics-indexer"
 version = "0.2.0"
 dependencies = [
@@ -6422,15 +6449,20 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.15.4",
  "iota-adapter-latest",
+ "iota-adapter-v0",
  "iota-move-natives-latest",
+ "iota-move-natives-v0",
  "iota-protocol-config",
  "iota-types",
  "iota-verifier-latest",
+ "iota-verifier-v0",
  "move-binary-format",
  "move-bytecode-verifier",
  "move-bytecode-verifier-meter",
+ "move-bytecode-verifier-v0",
  "move-vm-config",
  "move-vm-runtime",
+ "move-vm-runtime-v0",
  "petgraph 0.5.1",
 ]
 
@@ -6553,13 +6585,13 @@ dependencies = [
  "fastcrypto",
  "flate2",
  "fs_extra",
- "iota-adapter-latest",
+ "iota-adapter-v0",
  "iota-config",
  "iota-execution",
  "iota-framework",
  "iota-framework-snapshot",
  "iota-move-build",
- "iota-move-natives-latest",
+ "iota-move-natives-v0",
  "iota-protocol-config",
  "iota-sdk 1.1.5",
  "iota-simulator",
@@ -6570,7 +6602,7 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-package",
- "move-vm-runtime",
+ "move-vm-runtime-v0",
  "packable",
  "prefix-hex",
  "prometheus",
@@ -7121,6 +7153,28 @@ dependencies = [
  "move-core-types",
  "move-stdlib-natives",
  "move-vm-runtime",
+ "move-vm-types",
+ "rand 0.8.5",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "iota-move-natives-v0"
+version = "0.1.0"
+dependencies = [
+ "bcs",
+ "better_any",
+ "fastcrypto",
+ "fastcrypto-vdf",
+ "fastcrypto-zkp",
+ "indexmap 2.5.0",
+ "iota-protocol-config",
+ "iota-types",
+ "move-binary-format",
+ "move-core-types",
+ "move-stdlib-natives-v0",
+ "move-vm-runtime-v0",
  "move-vm-types",
  "rand 0.8.5",
  "smallvec",
@@ -8185,6 +8239,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-verifier-v0"
+version = "0.1.0"
+dependencies = [
+ "iota-protocol-config",
+ "iota-types",
+ "move-abstract-interpreter-v0",
+ "move-abstract-stack",
+ "move-binary-format",
+ "move-bytecode-utils",
+ "move-bytecode-verifier-meter",
+ "move-bytecode-verifier-v0",
+ "move-core-types",
+ "move-vm-config",
+]
+
+[[package]]
 name = "iota_stronghold"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9245,6 +9315,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-abstract-interpreter-v0"
+version = "0.1.0"
+dependencies = [
+ "move-binary-format",
+ "move-bytecode-verifier-meter",
+]
+
+[[package]]
 name = "move-abstract-stack"
 version = "0.0.1"
 
@@ -9343,6 +9421,20 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-vm-config",
+]
+
+[[package]]
+name = "move-bytecode-verifier-v0"
+version = "0.1.0"
+dependencies = [
+ "move-abstract-interpreter",
+ "move-abstract-stack",
+ "move-binary-format",
+ "move-borrow-graph",
+ "move-bytecode-verifier-meter",
+ "move-core-types",
+ "move-vm-config",
+ "petgraph 0.5.1",
 ]
 
 [[package]]
@@ -9716,6 +9808,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-stdlib-natives-v0"
+version = "0.1.1"
+dependencies = [
+ "hex",
+ "move-binary-format",
+ "move-core-types",
+ "move-vm-runtime-v0",
+ "move-vm-types",
+ "sha2 0.9.9",
+ "sha3 0.9.1",
+ "smallvec",
+]
+
+[[package]]
 name = "move-symbol-pool"
 version = "0.1.0"
 dependencies = [
@@ -9809,6 +9915,24 @@ dependencies = [
  "fail",
  "move-binary-format",
  "move-bytecode-verifier",
+ "move-core-types",
+ "move-vm-config",
+ "move-vm-profiler",
+ "move-vm-types",
+ "once_cell",
+ "parking_lot 0.11.2",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "move-vm-runtime-v0"
+version = "0.1.0"
+dependencies = [
+ "better_any",
+ "fail",
+ "move-binary-format",
+ "move-bytecode-verifier-v0",
  "move-core-types",
  "move-vm-config",
  "move-vm-profiler",
