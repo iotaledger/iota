@@ -22,8 +22,14 @@ export function AccountItemApproveConnection({
         formatAddress(account?.address || '');
     const { unlockAccount, lockAccount } = useUnlockAccount();
 
+    function onUnlockedAccountClick() {
+        if (account.isLocked) {
+            unlockAccount(account);
+        }
+    }
+
     return (
-        <>
+        <div onClick={onUnlockedAccountClick}>
             <Account
                 title={accountName}
                 subtitle={formatAddress(account.address)}
@@ -34,6 +40,6 @@ export function AccountItemApproveConnection({
                 onUnlockAccountClick={() => unlockAccount(account)}
                 avatarContent={() => <AccountIcon account={account} />}
             />
-        </>
+        </div>
     );
 }
