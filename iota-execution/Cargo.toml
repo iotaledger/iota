@@ -34,7 +34,7 @@ move-vm-runtime-v0 = { path = "../external-crates/move/move-execution/v0/crates/
 
 [dev-dependencies]
 cargo_metadata = "0.15"
-petgraph = "0.5"
+petgraph = "0.6"
 
 [features]
 default = []
