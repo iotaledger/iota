@@ -29,12 +29,16 @@ env:
 
 jobs:
   release:
-    name: build release binaries
+    name: build release binaries (${{ matrix.toolchain }})
     runs-on: [self-hosted]
+    strategy:
+      matrix:
+        toolchain: [stable, stable-aarch64-apple-darwin]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: cargo build
         uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # pin@v1.0.3
         with:
+          toolchain: ${{ matrix.toolchain }}
           command: build
           args: --all-targets --all-features --release --profile=release
