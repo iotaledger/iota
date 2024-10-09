@@ -5,7 +5,7 @@
 import { Title, TitleSize } from '@iota/apps-ui-kit';
 import { useAppSelector } from '_hooks';
 import cn from 'clsx';
-import { Feature } from '_src/shared/experimentation/features';
+import { Feature } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect, useMemo } from 'react';

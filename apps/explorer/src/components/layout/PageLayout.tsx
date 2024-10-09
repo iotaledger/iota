@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useAppsBackend } from '@iota/core';
+import { useAppsBackend, Feature } from '@iota/core';
 import { LoadingIndicator } from '@iota/ui';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ type PageLayoutProps = {
 export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
-    const outageOverride = useFeatureIsOn('network-outage-override');
+    const outageOverride = useFeatureIsOn(Feature.NetworkOutageOverride as string);
 
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Controller, Get, Query } from '@nestjs/common';
-
-import { featuresMock } from './features.mock';
+import { Feature } from '@iota/core';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -11,7 +10,51 @@ export class FeaturesController {
     getDevelopmentFeatures() {
         return {
             status: 200,
-            features: featuresMock,
+            features: {
+                [Feature.RecognizedPackages]: {
+                    defaultValue: [],
+                },
+                [Feature.WalletSentryTracing]: {
+                    defaultValue: 0.0025,
+                },
+                // Note: we'll add wallet dapps when evm will be ready
+                [Feature.WalletDapps]: {
+                    defaultValue: [],
+                },
+                [Feature.WalletBalanceRefetchInterval]: {
+                    defaultValue: 1000,
+                },
+                [Feature.KioskOriginbytePackageid]: {
+                    defaultValue: '',
+                },
+                [Feature.WalletAppsBannerConfig]: {
+                    defaultValue: {
+                        enabled: false,
+                        bannerUrl: '',
+                        imageUrl: '',
+                    },
+                },
+                [Feature.WalletInterstitialConfig]: {
+                    defaultValue: {
+                        enabled: false,
+                        dismissKey: '',
+                        imageUrl: '',
+                        bannerUrl: '',
+                    },
+                },
+                [Feature.PollingTxnTable]: {
+                    defaultValue: true,
+                },
+                [Feature.NetworkOutageOverride]: {
+                    defaultValue: false,
+                },
+                [Feature.ModuleSourceVerification]: {
+                    defaultValue: true,
+                },
+                [Feature.AccountFinder]: {
+                    defaultValue: false,
+                },
+            },
             dateUpdated: new Date().toISOString(),
         };
     }
@@ -20,33 +63,60 @@ export class FeaturesController {
     getProductionFeatures() {
         return {
             status: 200,
-            features: featuresMock,
+            features: {
+                [Feature.RecognizedPackages]: {
+                    defaultValue: [],
+                },
+                [Feature.WalletSentryTracing]: {
+                    defaultValue: 0.0025,
+                },
+                // Note: we'll add wallet dapps when evm will be ready
+                [Feature.WalletDapps]: {
+                    defaultValue: [],
+                },
+                [Feature.WalletBalanceRefetchInterval]: {
+                    defaultValue: 1000,
+                },
+                [Feature.KioskOriginbytePackageid]: {
+                    defaultValue: '',
+                },
+                [Feature.WalletAppsBannerConfig]: {
+                    defaultValue: {
+                        enabled: false,
+                        bannerUrl: '',
+                        imageUrl: '',
+                    },
+                },
+                [Feature.WalletInterstitialConfig]: {
+                    defaultValue: {
+                        enabled: false,
+                        dismissKey: '',
+                        imageUrl: '',
+                        bannerUrl: '',
+                    },
+                },
+                [Feature.PollingTxnTable]: {
+                    defaultValue: true,
+                },
+                [Feature.NetworkOutageOverride]: {
+                    defaultValue: false,
+                },
+                [Feature.ModuleSourceVerification]: {
+                    defaultValue: true,
+                },
+                [Feature.AccountFinder]: {
+                    defaultValue: false,
+                },
+            },
             dateUpdated: new Date().toISOString(),
         };
     }
 
     @Get('/apps')
     getAppsFeatures(@Query('network') network: string) {
-        const apps = featuresMock['wallet-dapps'].rules
-            .filter((rule) => rule.condition.network === network)
-            .reduce(
-                (acc, rule) => {
-                    const { force } = rule;
-                    force.forEach((item) => {
-                        if (!acc.map[item.name]) {
-                            acc.result.push(item);
-                            acc.map[item.name] = true;
-                        }
-                    });
-
-                    return acc;
-                },
-                { result: [], map: {} },
-            );
-
         return {
             status: 200,
-            apps: apps.result,
+            apps: [], // Note: we'll add wallet dapps when evm will be ready
             dateUpdated: new Date().toISOString(),
         };
     }
