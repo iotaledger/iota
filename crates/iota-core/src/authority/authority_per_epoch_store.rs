@@ -380,8 +380,6 @@ pub struct AuthorityPerEpochStore {
     pub(crate) metrics: Arc<EpochMetrics>,
     epoch_start_configuration: Arc<EpochStartConfiguration>,
 
-    executed_in_epoch_table_enabled: once_cell::sync::OnceCell<bool>,
-
     /// Execution state that has to restart at each epoch change
     execution_component: ExecutionComponents,
 
@@ -935,7 +933,6 @@ impl AuthorityPerEpochStore {
             epoch_close_time: Default::default(),
             metrics,
             epoch_start_configuration,
-            executed_in_epoch_table_enabled: once_cell::sync::OnceCell::new(),
             execution_component,
             chain_identifier,
             jwk_aggregator,
@@ -1042,14 +1039,6 @@ impl AuthorityPerEpochStore {
         };
 
         self.epoch_start_configuration.flags().contains(&flag)
-    }
-
-    pub fn executed_in_epoch_table_enabled(&self) -> bool {
-        *self.executed_in_epoch_table_enabled.get_or_init(|| {
-            self.epoch_start_configuration
-                .flags()
-                .contains(&EpochFlag::ExecutedInEpochTable)
-        })
     }
 
     /// Returns `&Arc<EpochStartConfiguration>`
@@ -1267,28 +1256,15 @@ impl AuthorityPerEpochStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn insert_tx_key_and_effects_signature(
+    pub fn insert_tx_key_and_digest(
         &self,
         tx_key: &TransactionKey,
         tx_digest: &TransactionDigest,
-        effects_digest: &TransactionEffectsDigest,
-        effects_signature: Option<&AuthoritySignInfo>,
     ) -> IotaResult {
         let tables = self.tables()?;
         let mut batch = self.tables()?.effects_signatures.batch();
 
-        if self.executed_in_epoch_table_enabled() {
-            batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
-        }
-
-        if let Some(effects_signature) = effects_signature {
-            batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
-
-            batch.insert_batch(&tables.signed_effects_digests, [(
-                tx_digest,
-                effects_digest,
-            )])?;
-        }
+        batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
 
         if !matches!(tx_key, TransactionKey::Digest(_)) {
             batch.insert_batch(&tables.transaction_key_to_digest, [(tx_key, tx_digest)])?;
@@ -1332,11 +1308,7 @@ impl AuthorityPerEpochStore {
         digests: impl IntoIterator<Item = &'a TransactionDigest>,
     ) -> IotaResult<Vec<bool>> {
         let tables = self.tables()?;
-        if self.executed_in_epoch_table_enabled() {
-            Ok(tables.executed_in_epoch.multi_contains_keys(digests)?)
-        } else {
-            Ok(tables.effects_signatures.multi_contains_keys(digests)?)
-        }
+        Ok(tables.executed_in_epoch.multi_contains_keys(digests)?)
     }
 
     pub fn get_effects_signature(
@@ -4062,12 +4034,6 @@ impl AuthorityPerEpochStore {
     }
 
     pub(crate) fn check_all_executed_transactions_in_checkpoint(&self) {
-        if !self.executed_in_epoch_table_enabled() {
-            error!(
-                "Cannot check executed transactions in checkpoint because executed_in_epoch table is not enabled"
-            );
-            return;
-        }
         let tables = self.tables().unwrap();
 
         info!("Verifying that all executed transactions are in a checkpoint");

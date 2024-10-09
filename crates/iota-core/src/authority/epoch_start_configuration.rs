@@ -58,8 +58,6 @@ pub enum EpochFlag {
 
     StateAccumulatorV2EnabledTestnet = 1,
     StateAccumulatorV2EnabledMainnet = 2,
-
-    ExecutedInEpochTable = 3,
 }
 
 impl EpochFlag {
@@ -77,7 +75,7 @@ impl EpochFlag {
         cache_config: &ExecutionCacheConfig,
         enable_state_accumulator_v2: bool,
     ) -> Vec<Self> {
-        let mut new_flags = vec![EpochFlag::ExecutedInEpochTable];
+        let mut new_flags = vec![];
 
         if matches!(
             choose_execution_cache(cache_config),
@@ -101,7 +99,6 @@ impl fmt::Display for EpochFlag {
         // is used as metric key
         match self {
             EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
-            EpochFlag::ExecutedInEpochTable => write!(f, "ExecutedInEpochTable"),
             EpochFlag::StateAccumulatorV2EnabledTestnet => {
                 write!(f, "StateAccumulatorV2EnabledTestnet")
             }
