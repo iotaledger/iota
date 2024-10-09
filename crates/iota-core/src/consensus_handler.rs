@@ -197,7 +197,7 @@ fn update_index_and_hash(
     let hash = hasher.finish();
     // Log hash every 1000th transaction of the subdag
     if index.transaction_index % 1000 == 0 {
-        info!(
+        debug!(
             "Integrity hash for consensus output at subdag {} transaction {} is {:016x}",
             index.sub_dag_index, index.transaction_index, hash
         );
@@ -278,7 +278,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             timestamp
         };
 
-        info!(
+        debug!(
             %consensus_output,
             epoch = ?self.epoch_store.epoch(),
             "Received consensus output"
