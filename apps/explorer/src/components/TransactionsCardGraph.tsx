@@ -9,7 +9,14 @@ import { ParentSize } from '@visx/responsive';
 
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import { LabelText, LabelTextSize, Panel, Title, TitleSize, TooltipPosition } from '@iota/apps-ui-kit';
+import {
+    LabelText,
+    LabelTextSize,
+    Panel,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 
 interface TooltipContentProps {
     data: {
