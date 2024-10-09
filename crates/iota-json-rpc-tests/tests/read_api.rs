@@ -1,7 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::Path, str::FromStr, time::Duration};
+#[cfg(not(msim))]
+use std::str::FromStr;
+use std::{path::Path, time::Duration};
 
 use iota_json_rpc_api::{
     IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
