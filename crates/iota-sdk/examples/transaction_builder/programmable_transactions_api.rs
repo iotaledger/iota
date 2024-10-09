@@ -17,6 +17,7 @@
 //!
 //! cargo run --example programmable_transactions_api
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_sdk::types::{
