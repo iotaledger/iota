@@ -595,7 +595,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn get_committee_info() {
     let cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10000)
+        .with_epoch_duration_ms(1000)
         .build()
         .await;
 
@@ -623,8 +623,8 @@ async fn get_committee_info() {
 
     assert!(response.is_err());
 
-    // Sleep for 20 seconds
-    sleep(Duration::from_millis(20000)).await;
+    // Sleep for 5 seconds
+    sleep(Duration::from_millis(5000)).await;
 
     // Test with specified epoch 1
     let response = client.get_committee_info(Some(1.into())).await.unwrap();
@@ -656,5 +656,5 @@ async fn get_validators_apy() {
 
     assert_eq!(epoch, 0);
     assert_eq!(apys.len(), 4);
-    assert_eq!(apys.iter().find(|apy| apy.apy == 0.0).is_some(), true);
+    assert!(apys.iter().any(|apy| apy.apy == 0.0));
 }
