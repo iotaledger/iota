@@ -1,9 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(not(msim))]
-use std::str::FromStr;
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, str::FromStr};
 
 use iota_json::{call_args, type_args};
 use iota_json_rpc::authority_state::StateRead;
