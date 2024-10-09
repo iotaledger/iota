@@ -112,6 +112,7 @@ pub struct Builder {
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
+    migration_tx_data_is_validated: bool,
 }
 
 impl Default for Builder {
@@ -133,6 +134,7 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources: Default::default(),
             migration_tx_data: Default::default(),
+            migration_tx_data_is_validated: false,
         }
     }
 
@@ -172,7 +174,17 @@ impl Builder {
     }
 
     pub fn take_migration_tx_data(&mut self) -> Option<MigrationTxData> {
-        self.migration_tx_data.take()
+        if self.contains_migrations() {
+            self.validate_migration_tx_data();
+            self.migration_tx_data_is_validated = true;
+            Some(
+                self.migration_tx_data
+                    .take()
+                    .expect("it should contain the migration tx data"),
+            )
+        } else {
+            None
+        }
     }
 
     pub fn add_object(mut self, object: Object) -> Self {
@@ -724,7 +736,20 @@ impl Builder {
                 .expect("signature should be valid");
         }
 
-        // Validate migration content in order to avoid corrupted or malicious data
+        // Validate migration content
+        if !self.migration_tx_data_is_validated {
+            self.validate_migration_tx_data();
+        }
+    }
+
+    // Validate migration content in order to avoid corrupted or malicious data
+    fn validate_migration_tx_data(&self) {
+        // If genesis hasn't been built yet, just early return as there is nothing to
+        // validate yet
+        let Some(unsigned_genesis) = self.unsigned_genesis_checkpoint() else {
+            return;
+        };
+
         if let Some(migration_tx_data) = &self.migration_tx_data {
             migration_tx_data
                 .validate_from_unsigned_genesis(&unsigned_genesis)
@@ -822,6 +847,7 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources,
             migration_tx_data,
+            migration_tx_data_is_validated: false,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
