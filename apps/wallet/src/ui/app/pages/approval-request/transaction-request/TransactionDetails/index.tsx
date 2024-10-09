@@ -21,7 +21,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useEffect, useState } from 'react';
 import { Loading } from '_src/ui/app/components';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 interface TransactionDetailsProps {
     sender?: string;
@@ -95,9 +95,9 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                     <Loading loading={isPending}>
                         {isError ? (
                             <InfoBox
-                                type={InfoBoxType.Default}
+                                type={InfoBoxType.Error}
                                 title="Couldn't gather data"
-                                icon={<Info />}
+                                icon={<Warning />}
                                 style={InfoBoxStyle.Elevated}
                             />
                         ) : null}

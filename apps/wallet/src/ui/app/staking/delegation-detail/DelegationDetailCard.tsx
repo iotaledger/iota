@@ -36,7 +36,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Info, Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -128,7 +128,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                     title="Something went wrong"
                     supportingText={error?.message ?? 'An error occurred'}
                     style={InfoBoxStyle.Default}
-                    type={InfoBoxType.Warning}
+                    type={InfoBoxType.Error}
                     icon={<Warning />}
                 />
             </div>
@@ -156,11 +156,11 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                 <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
                 {hasInactiveValidatorDelegation ? (
                     <InfoBox
-                        type={InfoBoxType.Default}
+                        type={InfoBoxType.Error}
                         title="Earn with active validators"
                         supportingText="Unstake IOTA from the inactive validators and stake on an active
                                 validator to start earning rewards again."
-                        icon={<Info />}
+                        icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
                 ) : null}

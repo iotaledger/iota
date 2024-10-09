@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -81,9 +81,9 @@ export function PasswordInputDialog({
                             <ErrorMessage
                                 render={(error) => (
                                     <InfoBox
-                                        type={InfoBoxType.Default}
+                                        type={InfoBoxType.Error}
                                         title={error}
-                                        icon={<Info />}
+                                        icon={<Warning />}
                                         style={InfoBoxStyle.Elevated}
                                     />
                                 )}

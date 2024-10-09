@@ -27,7 +27,7 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 interface ValidatorFormDetailProps {
     validatorAddress: string;
@@ -109,9 +109,9 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     if (isError || errorValidators) {
         return (
             <InfoBox
-                type={InfoBoxType.Default}
+                type={InfoBoxType.Error}
                 title={error?.message ?? 'Error loading validator data'}
-                icon={<Info />}
+                icon={<Warning />}
                 style={InfoBoxStyle.Elevated}
             />
         );

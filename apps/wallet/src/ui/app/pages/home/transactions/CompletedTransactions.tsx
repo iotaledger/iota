@@ -15,7 +15,7 @@ export function CompletedTransactions() {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
                 <InfoBox
-                    type={InfoBoxType.Warning}
+                    type={InfoBoxType.Error}
                     title="Something went wrong"
                     supportingText={error?.message ?? 'An error occurred'}
                     icon={<Warning />}

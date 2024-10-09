@@ -11,7 +11,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { forwardRef } from 'react';
 import { Pill, type PillProps } from './Pill';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 const styles = cva(
     [
@@ -116,9 +116,9 @@ export function InputWithAction({
             {(meta?.touched && meta?.error) || (meta.value !== '' && meta.error) ? (
                 <div className="mt-3">
                     <InfoBox
-                        type={InfoBoxType.Default}
+                        type={InfoBoxType.Error}
                         title={meta?.error}
-                        icon={<Info />}
+                        icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
                 </div>
@@ -273,9 +273,9 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
                 {errorString ? (
                     <div className="mt-3">
                         <InfoBox
-                            type={InfoBoxType.Default}
+                            type={InfoBoxType.Error}
                             title={errorString}
-                            icon={<Info />}
+                            icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />
                     </div>

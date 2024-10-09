@@ -14,7 +14,7 @@ import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { SelectValidatorCard } from './SelectValidatorCard';
 import { ValidatorsCard } from './ValidatorsCard';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Warning } from '@iota/ui-icons';
 
 export function Validators() {
     const accountAddress = useActiveAddress();
@@ -45,9 +45,9 @@ export function Validators() {
                     {isError ? (
                         <div className="mb-2">
                             <InfoBox
-                                type={InfoBoxType.Default}
+                                type={InfoBoxType.Error}
                                 title={error?.message}
-                                icon={<Info />}
+                                icon={<Warning />}
                                 style={InfoBoxStyle.Elevated}
                             />
                         </div>

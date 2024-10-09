@@ -16,7 +16,7 @@ function Fallback({ error }: FallbackProps) {
                 title="Something went wrong"
                 supportingText={error?.message ?? 'An error occurred'}
                 style={InfoBoxStyle.Default}
-                type={InfoBoxType.Warning}
+                type={InfoBoxType.Error}
                 icon={<Warning />}
             />
         </div>
