@@ -83,7 +83,6 @@ interface OwnedObjectsProps {
 }
 export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const [limit, setLimit] = useState(50);
-    const [currentSlice, setCurrentSlice] = useState(1);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,
         undefined,
