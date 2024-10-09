@@ -19,7 +19,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
+        CheckpointRequestV2, CheckpointResponseV2,
     },
     messages_grpc::{
         HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
@@ -74,12 +74,6 @@ pub trait AuthorityAPI {
         &self,
         request: TransactionInfoRequest,
     ) -> Result<TransactionInfoResponse, IotaError>;
-
-    /// Handles a `CheckpointRequest` for this account.
-    async fn handle_checkpoint(
-        &self,
-        request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, IotaError>;
 
     /// Handles a `CheckpointRequestV2` for this account.
     async fn handle_checkpoint_v2(
@@ -226,18 +220,6 @@ impl AuthorityAPI for NetworkAuthorityClient {
     ) -> Result<TransactionInfoResponse, IotaError> {
         self.client()?
             .transaction_info(request)
-            .await
-            .map(tonic::Response::into_inner)
-            .map_err(Into::into)
-    }
-
-    /// Handles a `CheckpointRequest` for this account.
-    async fn handle_checkpoint(
-        &self,
-        request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, IotaError> {
-        self.client()?
-            .checkpoint(request)
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)

@@ -21,7 +21,7 @@ use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockRes
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
-    messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointRequestV2, CheckpointResponseV2, CheckpointSequenceNumber},
     messages_grpc::TransactionInfoRequest,
     transaction::{SenderSignedData, Transaction},
 };
@@ -636,13 +636,14 @@ impl ToolCommand {
 
                 for (name, (_, client)) in clients {
                     let resp = client
-                        .handle_checkpoint(CheckpointRequest {
+                        .handle_checkpoint_v2(CheckpointRequestV2 {
                             sequence_number,
                             request_content: true,
+                            certified: true,
                         })
                         .await
                         .unwrap();
-                    let CheckpointResponse {
+                    let CheckpointResponseV2 {
                         checkpoint,
                         contents,
                     } = resp;

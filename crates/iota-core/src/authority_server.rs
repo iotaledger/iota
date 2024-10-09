@@ -24,7 +24,7 @@ use iota_types::{
     fp_ensure,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
+        CheckpointRequestV2, CheckpointResponseV2,
     },
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -918,14 +918,6 @@ impl ValidatorService {
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
-    async fn checkpoint_impl(
-        &self,
-        request: tonic::Request<CheckpointRequest>,
-    ) -> WrappedServiceResponse<CheckpointResponse> {
-        let request = request.into_inner();
-        let response = self.state.handle_checkpoint_request(&request)?;
-        Ok((tonic::Response::new(response), Weight::one()))
-    }
 
     async fn checkpoint_v2_impl(
         &self,
@@ -1203,14 +1195,6 @@ impl Validator for ValidatorService {
         request: tonic::Request<TransactionInfoRequest>,
     ) -> Result<tonic::Response<TransactionInfoResponse>, tonic::Status> {
         handle_with_decoration!(self, transaction_info_impl, request)
-    }
-
-    /// Handles a `CheckpointRequest` request.
-    async fn checkpoint(
-        &self,
-        request: tonic::Request<CheckpointRequest>,
-    ) -> Result<tonic::Response<CheckpointResponse>, tonic::Status> {
-        handle_with_decoration!(self, checkpoint_impl, request)
     }
 
     /// Handles a `CheckpointRequestV2` request.

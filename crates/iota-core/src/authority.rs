@@ -84,8 +84,8 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointRequestV2,
-        CheckpointResponse, CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointRequestV2,
+        CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary,
         CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
         VerifiedCheckpoint,
     },
@@ -2583,29 +2583,6 @@ impl AuthorityState {
         })
     }
 
-    #[instrument(level = "trace", skip_all)]
-    pub fn handle_checkpoint_request(
-        &self,
-        request: &CheckpointRequest,
-    ) -> IotaResult<CheckpointResponse> {
-        let summary = match request.sequence_number {
-            Some(seq) => self
-                .checkpoint_store
-                .get_checkpoint_by_sequence_number(seq)?,
-            None => self.checkpoint_store.get_latest_certified_checkpoint(),
-        }
-        .map(|v| v.into_inner());
-        let contents = match &summary {
-            Some(s) => self
-                .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest)?,
-            None => None,
-        };
-        Ok(CheckpointResponse {
-            checkpoint: summary,
-            contents,
-        })
-    }
 
     #[instrument(level = "trace", skip_all)]
     pub fn handle_checkpoint_request_v2(
