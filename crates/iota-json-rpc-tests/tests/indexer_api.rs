@@ -193,7 +193,11 @@ async fn query_events() {
         .query_events(EventFilter::Sender(IotaAddress::ZERO), None, None, None)
         .await;
 
-    assert!(result.is_ok());
+    let event_page = result.unwrap();
+
+    for event in event_page.data {
+        assert_eq!(event.sender, IotaAddress::ZERO);
+    }
 }
 
 #[sim_test]
