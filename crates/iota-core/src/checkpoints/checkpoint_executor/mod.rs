@@ -329,7 +329,7 @@ impl CheckpointExecutor {
 
                 received = self.mailbox.recv() => match received {
                     Ok(checkpoint) => {
-                        info!(
+                        debug!(
                             sequence_number = ?checkpoint.sequence_number,
                             "Received checkpoint summary from state sync"
                         );
