@@ -15,9 +15,10 @@ import {
     ButtonSegmentType,
     ButtonSegment,
     SegmentedButton,
+    Select,
+    DropdownPosition,
 } from '@iota/apps-ui-kit';
 import { ListViewLarge, ListViewMedium, ListViewSmall } from '@iota/ui-icons';
-import { Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -82,6 +83,7 @@ interface OwnedObjectsProps {
 }
 export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const [limit, setLimit] = useState(50);
+    const [currentSlice, setCurrentSlice] = useState(1);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,
         undefined,
@@ -258,26 +260,27 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                 <Pagination {...pagination} />
                                 <div className="ml-auto flex items-center">
                                     {!isPending && (
-                                        <Text variant="body/medium" color="steel">
-                                            Showing {start} - {end}
-                                        </Text>
+                                        <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                            Showing {currentSlice} - {end}
+                                        </span>
                                     )}
                                 </div>
                                 <div className="hidden sm:block">
-                                    <select
-                                        className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                        value={limit}
-                                        onChange={(e) => {
-                                            setLimit(Number(e.target.value));
-                                            pagination.onFirst();
+                                    <Select
+                                        dropdownPosition={DropdownPosition.Top}
+                                        value={limit.toString()}
+                                        options={[
+                                            { label: '10 Per Page', id: '10' },
+                                            { label: '20 Per Page', id: '20' },
+                                            { label: '30 Per Page', id: '30' },
+                                            { label: '40 Per Page', id: '40' },
+                                            { label: '50 Per Page', id: '50' },
+                                        ]}
+                                        onValueChange={(value) => {
+                                            setLimit(Number(value));
+                                            setCurrentSlice(1);
                                         }}
-                                    >
-                                        {PAGE_SIZES.map((size) => (
-                                            <option key={size} value={size}>
-                                                {size} Per Page
-                                            </option>
-                                        ))}
-                                    </select>
+                                    />
                                 </div>
                             </div>
                         </div>
