@@ -164,7 +164,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                     validator.authority_name(),
                     (validator.voting_power, NetworkMetadata {
                         network_address: validator.iota_net_address.clone(),
-                        narwhal_primary_address: validator.narwhal_primary_address.clone(),
+                        primary_address: validator.primary_address.clone(),
                     }),
                 )
             })
@@ -189,7 +189,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                 stake: validator.voting_power as consensus_config::Stake,
                 // TODO(mysticeti): Add EpochStartValidatorInfoV2 with new field for mysticeti
                 // address.
-                address: validator.narwhal_primary_address.clone(),
+                address: validator.primary_address.clone(),
                 hostname: validator.hostname.clone(),
                 authority_key: consensus_config::AuthorityPublicKey::new(
                     validator.protocol_pubkey.clone(),
@@ -282,8 +282,8 @@ pub struct EpochStartValidatorInfoV1 {
     pub narwhal_worker_pubkey: NetworkPublicKey,
     pub iota_net_address: Multiaddr,
     pub p2p_address: Multiaddr,
-    pub narwhal_primary_address: Multiaddr,
-    pub narwhal_worker_address: Multiaddr,
+    pub primary_address: Multiaddr,
+    pub worker_address: Multiaddr,
     pub voting_power: StakeUnit,
     pub hostname: String,
 }
@@ -326,8 +326,8 @@ mod test {
                 narwhal_worker_pubkey: narwhal_network_key.public().clone(),
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
-                narwhal_primary_address: Multiaddr::empty(),
-                narwhal_worker_address: Multiaddr::empty(),
+                primary_address: Multiaddr::empty(),
+                worker_address: Multiaddr::empty(),
                 voting_power: 1_000,
                 hostname: format!("host-{i}").to_string(),
             })

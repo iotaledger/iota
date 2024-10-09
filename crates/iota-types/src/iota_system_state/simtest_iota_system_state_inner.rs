@@ -174,7 +174,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                     name,
                     (validator.voting_power, NetworkMetadata {
                         network_address: verified_metadata.net_address.clone(),
-                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
                     }),
                 )
             })
@@ -209,8 +209,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
+                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }
@@ -287,7 +287,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                     name,
                     (validator.voting_power, NetworkMetadata {
                         network_address: verified_metadata.net_address.clone(),
-                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
                     }),
                 )
             })
@@ -322,8 +322,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
+                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }
@@ -429,7 +429,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                     name,
                     (validator.voting_power, NetworkMetadata {
                         network_address: verified_metadata.net_address.clone(),
-                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        primary_address: verified_metadata.primary_address.clone(),
                     }),
                 )
             })
@@ -464,8 +464,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
-                        narwhal_primary_address: metadata.primary_address.clone(),
-                        narwhal_worker_address: metadata.worker_address.clone(),
+                        primary_address: metadata.primary_address.clone(),
+                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }

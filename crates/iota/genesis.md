@@ -10,8 +10,8 @@ Each validator participating in the ceremony will need the following:
 - Ed25519 Public key(s)
 - Iota network address
 - p2p_address network address
-- Narwhal_primary_address network address
-- Narwhal_worker_address network address
+- primary_address network address
+- worker_address network address
 
 Note:
 

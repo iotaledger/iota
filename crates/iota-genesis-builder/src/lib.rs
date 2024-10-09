@@ -522,11 +522,11 @@ impl Builder {
             assert_eq!(validator.info.network_address(), &metadata.net_address);
             assert_eq!(validator.info.p2p_address, metadata.p2p_address);
             assert_eq!(
-                validator.info.narwhal_primary_address,
+                validator.info.primary_address,
                 metadata.primary_address
             );
             assert_eq!(
-                validator.info.narwhal_worker_address,
+                validator.info.worker_address,
                 metadata.worker_address
             );
 
@@ -1660,8 +1660,8 @@ mod test {
             commission_rate: DEFAULT_COMMISSION_RATE,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),
             p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-            narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-            narwhal_worker_address: local_ip_utils::new_local_udp_address_for_testing(),
+            primary_address: local_ip_utils::new_local_udp_address_for_testing(),
+            worker_address: local_ip_utils::new_local_udp_address_for_testing(),
             description: String::new(),
             image_url: String::new(),
             project_url: String::new(),

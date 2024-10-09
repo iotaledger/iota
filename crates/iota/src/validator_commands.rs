@@ -336,11 +336,11 @@ impl IotaValidatorCommand {
                             host_name
                         ))?,
                         p2p_address: Multiaddr::try_from(format!("/dns/{}/udp/8084", host_name))?,
-                        narwhal_primary_address: Multiaddr::try_from(format!(
+                        primary_address: Multiaddr::try_from(format!(
                             "/dns/{}/udp/8081",
                             host_name
                         ))?,
-                        narwhal_worker_address: Multiaddr::try_from(format!(
+                        worker_address: Multiaddr::try_from(format!(
                             "/dns/{}/udp/8082",
                             host_name
                         ))?,
@@ -399,8 +399,8 @@ impl IotaValidatorCommand {
                     ),
                     CallArg::Pure(bcs::to_bytes(validator.network_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(validator.p2p_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.narwhal_primary_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.narwhal_worker_address()).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(validator.primary_address()).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(validator.worker_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(&validator.gas_price()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(&validator.commission_rate()).unwrap()),
                 ];

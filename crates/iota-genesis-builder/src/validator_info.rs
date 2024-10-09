@@ -31,8 +31,8 @@ pub struct ValidatorInfo {
     pub commission_rate: u64,
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,
-    pub narwhal_primary_address: Multiaddr,
-    pub narwhal_worker_address: Multiaddr,
+    pub primary_address: Multiaddr,
+    pub worker_address: Multiaddr,
     pub description: String,
     pub image_url: String,
     pub project_url: String,
@@ -71,12 +71,12 @@ impl ValidatorInfo {
         &self.network_address
     }
 
-    pub fn narwhal_primary_address(&self) -> &Multiaddr {
-        &self.narwhal_primary_address
+    pub fn primary_address(&self) -> &Multiaddr {
+        &self.primary_address
     }
 
-    pub fn narwhal_worker_address(&self) -> &Multiaddr {
-        &self.narwhal_worker_address
+    pub fn worker_address(&self) -> &Multiaddr {
+        &self.worker_address
     }
 
     pub fn p2p_address(&self) -> &Multiaddr {
@@ -129,27 +129,27 @@ impl GenesisValidatorInfo {
             bail!("p2p address must be <= {MAX_VALIDATOR_METADATA_LENGTH} bytes long");
         }
 
-        if !self.info.narwhal_primary_address.to_string().is_ascii() {
+        if !self.info.primary_address.to_string().is_ascii() {
             bail!("primary address must be ascii");
         }
-        if self.info.narwhal_primary_address.len() > MAX_VALIDATOR_METADATA_LENGTH {
+        if self.info.primary_address.len() > MAX_VALIDATOR_METADATA_LENGTH {
             bail!("primary address must be <= {MAX_VALIDATOR_METADATA_LENGTH} bytes long");
         }
 
-        if !self.info.narwhal_worker_address.to_string().is_ascii() {
+        if !self.info.worker_address.to_string().is_ascii() {
             bail!("worker address must be ascii");
         }
-        if self.info.narwhal_worker_address.len() > MAX_VALIDATOR_METADATA_LENGTH {
+        if self.info.worker_address.len() > MAX_VALIDATOR_METADATA_LENGTH {
             bail!("worker address must be <= {MAX_VALIDATOR_METADATA_LENGTH} bytes long");
         }
 
         if let Err(e) = self.info.p2p_address.to_anemo_address() {
             bail!("p2p address must be valid anemo address: {e}");
         }
-        if let Err(e) = self.info.narwhal_primary_address.to_anemo_address() {
+        if let Err(e) = self.info.primary_address.to_anemo_address() {
             bail!("primary address must be valid anemo address: {e}");
         }
-        if let Err(e) = self.info.narwhal_worker_address.to_anemo_address() {
+        if let Err(e) = self.info.worker_address.to_anemo_address() {
             bail!("worker address must be valid anemo address: {e}");
         }
 
@@ -191,8 +191,8 @@ impl From<GenesisValidatorInfo> for GenesisValidatorMetadata {
             worker_public_key: info.worker_key.as_bytes().to_vec(),
             network_address: info.network_address,
             p2p_address: info.p2p_address,
-            primary_address: info.narwhal_primary_address,
-            worker_address: info.narwhal_worker_address,
+            primary_address: info.primary_address,
+            worker_address: info.worker_address,
         }
     }
 }

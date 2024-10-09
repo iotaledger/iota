@@ -81,11 +81,11 @@ pub enum CeremonyCommand {
         /// The narwhal primary address. This must be a UDP address in ASCII
         /// format.
         #[clap(long)]
-        narwhal_primary_address: Multiaddr,
+        primary_address: Multiaddr,
         /// The narwhal worker address. This must be a UDP address in ASCII
         /// format.
         #[clap(long)]
-        narwhal_worker_address: Multiaddr,
+        worker_address: Multiaddr,
         /// An optional description of the validator.
         #[clap(long)]
         description: Option<String>,
@@ -190,8 +190,8 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             network_key_file,
             network_address,
             p2p_address,
-            narwhal_primary_address,
-            narwhal_worker_address,
+            primary_address,
+            worker_address,
             description,
             image_url,
             project_url,
@@ -213,8 +213,8 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address,
                     p2p_address,
-                    narwhal_primary_address,
-                    narwhal_worker_address,
+                    primary_address: primary_address,
+                    worker_address: worker_address,
                     description: description.unwrap_or_default(),
                     image_url: image_url.unwrap_or_default(),
                     project_url: project_url.unwrap_or_default(),
@@ -393,8 +393,8 @@ mod test {
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address: local_ip_utils::new_local_tcp_address_for_testing(),
                     p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-                    narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-                    narwhal_worker_address: local_ip_utils::new_local_udp_address_for_testing(),
+                    primary_address: local_ip_utils::new_local_udp_address_for_testing(),
+                    worker_address: local_ip_utils::new_local_udp_address_for_testing(),
                     description: String::new(),
                     image_url: String::new(),
                     project_url: String::new(),
@@ -447,8 +447,8 @@ mod test {
                     account_key_file: account_key_file.into(),
                     network_address: validator.network_address().to_owned(),
                     p2p_address: validator.p2p_address().to_owned(),
-                    narwhal_primary_address: validator.narwhal_primary_address.clone(),
-                    narwhal_worker_address: validator.narwhal_worker_address.clone(),
+                    primary_address: validator.primary_address.clone(),
+                    worker_address: validator.worker_address.clone(),
                     description: None,
                     image_url: None,
                     project_url: None,
