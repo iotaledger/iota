@@ -19,7 +19,7 @@ use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     client_commands::{
         IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
-        estimate_gas_budget,
+        estimate_gas_budget, EmitOption
     },
     client_ptb::ptb::PTB,
     iota_commands::{IotaCommand, parse_host_port},
@@ -2113,6 +2113,10 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     // Purposely add a conflicting `published-at` address to the Move manifest.
     lines.insert(idx + 1, "published-at = \"0xbad\"".to_string());
     let new = lines.join("\n");
+
+    #[cfg(target_os = "windows")]
+    move_toml.seek_write(new.as_bytes(), 0).unwrap();
+    #[cfg(not(target_os = "windows"))]
     move_toml.write_at(new.as_bytes(), 0).unwrap();
 
     // Create a new build config for the upgrade. Initialize its lock file to the
@@ -2965,6 +2969,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
+            emit: Vec::new(),
         },
     }
     .execute(context)
@@ -2979,6 +2984,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
+            emit: Vec::new(),
         },
     }
     .execute(context)
@@ -2994,6 +3000,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
+            emit: Vec::new(),
         },
     }
     .execute(context)
@@ -3845,6 +3852,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: Vec::new(),
         },
     }
     .execute(context)
@@ -4088,4 +4096,152 @@ async fn test_parse_host_port() {
     assert!(parse_host_port(input.to_string(), 9123).is_err());
     let input = "127.9.0.1:asb";
     assert!(parse_host_port(input.to_string(), 9123).is_err());
+}
+
+#[sim_test]
+async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
+    // Publish the package
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("dummy_modules_upgrade");
+    let build_config = BuildConfig::new_for_testing().config;
+    let resp = IotaClientCommands::Publish {
+        package_path: package_path.clone(),
+        build_config,
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+    }
+    .execute(context)
+    .await?;
+
+    let effects = match resp {
+        IotaClientCommandResult::TransactionBlock(response) => response.effects.unwrap(),
+        _ => panic!("Expected TransactionBlock response"),
+    };
+
+    let package = effects
+        .created()
+        .iter()
+        .find(|refe| matches!(refe.owner, Owner::Immutable))
+        .unwrap();
+
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            vec![EmitOption::BalanceChanges],
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        // Assert Balance Changes are present in the response
+        assert!(tx_block_response.balance_changes.is_some());
+
+        // Assert every other field is not present in the response
+        assert!(tx_block_response.effects.is_none());
+        assert!(tx_block_response.object_changes.is_none());
+        assert!(tx_block_response.events.is_none());
+        assert!(tx_block_response.transaction.is_none());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    // Make another call, this time with multiple emit args
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            vec![
+                EmitOption::BalanceChanges,
+                EmitOption::Effects,
+                EmitOption::ObjectChanges,
+            ],
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    start_call_result.print(true);
+
+    // Assert Balance Changes, effects and object changes are present in the
+    // response
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        assert!(tx_block_response.balance_changes.is_some());
+        assert!(tx_block_response.effects.is_some());
+        assert!(tx_block_response.object_changes.is_some());
+        assert!(tx_block_response.events.is_none());
+        assert!(tx_block_response.transaction.is_none());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    // Make another call, this time with no emit args. This should return the full
+    // response
+    let start_call_result = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "trusted_coin".to_string(),
+        function: "f".to_string(),
+        type_args: vec![],
+        gas_price: None,
+        args: vec![],
+        opts: OptsWithGas::for_testing_emit_options(
+            None,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            vec![],
+        ),
+    }
+    .execute(context)
+    .await?;
+
+    // Assert all fields are present in the response
+    if let Some(tx_block_response) = start_call_result.tx_block_response() {
+        assert!(tx_block_response.balance_changes.is_some());
+        assert!(tx_block_response.effects.is_some());
+        assert!(tx_block_response.object_changes.is_some());
+        assert!(tx_block_response.events.is_some());
+        assert!(tx_block_response.transaction.is_some());
+    } else {
+        panic!("Transaction block response is None");
+    }
+
+    Ok(())
 }

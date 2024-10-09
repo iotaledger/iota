@@ -154,6 +154,7 @@ impl PTB {
                 gas_budget: program_metadata.gas_budget.map(|x| x.value),
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
+                emit: Vec::new(),
             },
         };
 

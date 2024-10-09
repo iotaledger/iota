@@ -649,6 +649,13 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
+
+    /// Select which fields of the response to display.
+    /// If not provided, all fields are displayed.
+    /// The fields are: effects, input, events, object_changes,
+    /// balance_changes.
+    #[clap(long, required = false, value_delimiter = ',', num_args = 0.., value_parser = parse_emit_opts)]
+    pub emit: Vec<EmitOption>,
 }
 
 /// Global options with gas
@@ -665,23 +672,37 @@ pub struct OptsWithGas {
 
 impl Opts {
     /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false.
+    /// other flags to false, and emit to an empty vector(defaulting to all emit options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: vec![],
         }
     }
     /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false.
+    /// true, and sets all other flags to false, and emit to an empty vector(defaulting to all emit options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: true,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
+            emit: vec![],
+        }
+    }
+
+    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
+    /// false, and sets all other flags to false, and emit to the passed emit vector.
+    pub fn for_testing_emit_options(gas_budget: u64, emit: Vec<EmitOption>) -> Self {
+        Self {
+            gas_budget: Some(gas_budget),
+            dry_run: false,
+            serialize_unsigned_transaction: false,
+            serialize_signed_transaction: false,
+            emit,
         }
     }
 }
@@ -702,6 +723,50 @@ impl OptsWithGas {
             gas,
             rest: Opts::for_testing_dry_run(gas_budget),
         }
+    }
+
+    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
+    /// budget variable. Dry run is set to false, and emit to the passed emit vector.
+    /// All other flags are set to false.
+    pub fn for_testing_emit_options(
+        gas: Option<ObjectID>,
+        gas_budget: u64,
+        emit: Vec<EmitOption>,
+    ) -> Self {
+        Self {
+            gas,
+            rest: Opts::for_testing_emit_options(gas_budget, emit),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum EmitOption {
+    Effects,
+    Input,
+    Events,
+    ObjectChanges,
+    BalanceChanges,
+}
+
+/// Converts a string into the corresponding `EmitOption` enum.
+///
+/// # Arguments
+/// * `s` - A string representing an option.
+///
+/// # Returns
+/// * `Ok(EmitOption)` if the string is valid.
+/// * `Err(String)` if the string is invalid.
+///
+/// Valid options: "effects", "input", "events", "object_changes", "balance_changes".
+fn parse_emit_opts(s: &str) -> Result<EmitOption, String> {
+    match s {
+        "effects" => Ok(EmitOption::Effects),
+        "input" => Ok(EmitOption::Input),
+        "events" => Ok(EmitOption::Events),
+        "object_changes" => Ok(EmitOption::ObjectChanges),
+        "balance_changes" => Ok(EmitOption::BalanceChanges),
+        _ => Err(format!("Invalid option: {}", s)),
     }
 }
 
@@ -2930,18 +2995,28 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
-            let mut response = context.execute_transaction_may_fail(transaction).await?;
-            if let Some(effects) = response.effects.as_mut() {
-                prerender_clever_errors(effects, client.read_api()).await;
-            }
-            let effects = response.effects.as_ref().ok_or_else(|| {
-                anyhow!("Effects from IotaTransactionBlockResult should not be empty")
-            })?;
-            if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(anyhow!(
-                    "Error executing transaction '{}': {error}",
-                    response.digest
-                ));
+            let response: iota_json_rpc_types::IotaTransactionBlockResponse =
+                    client
+                        .quorum_driver_api()
+                        .execute_transaction_block(
+                            transaction,
+                            if opts.emit.is_empty() {
+                                IotaTransactionBlockResponseOptions::new()
+                                  .with_effects()
+                                  .with_input()
+                                  .with_events()
+                                  .with_object_changes()
+                                  .with_balance_changes()
+                              } else {
+                                opts_from_cli(opts.emit)
+                              },
+                            Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                        )
+                        .await?;
+
+            let errors: &Vec<String> = response.errors.as_ref();
+            if !errors.is_empty() {
+                return Err(anyhow!("Error executing transaction: {:#?}", errors));
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
@@ -2958,4 +3033,27 @@ pub(crate) async fn prerender_clever_errors(
             *error = rendered;
         }
     }
+}
+
+fn opts_from_cli(opts: Vec<EmitOption>) -> IotaTransactionBlockResponseOptions {
+    if opts.is_empty() {
+        return IotaTransactionBlockResponseOptions::new()
+            .with_effects()
+            .with_input()
+            .with_events()
+            .with_object_changes()
+            .with_balance_changes();
+    }
+
+    let mut options = IotaTransactionBlockResponseOptions::new();
+    for opt in opts {
+        match opt {
+            EmitOption::Input => options.show_input = true,
+            EmitOption::Events => options.show_events = true,
+            EmitOption::ObjectChanges => options.show_object_changes = true,
+            EmitOption::BalanceChanges => options.show_balance_changes = true,
+            EmitOption::Effects => options.show_effects = true,
+        }
+    }
+    options
 }
