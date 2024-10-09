@@ -85,7 +85,7 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
     let tx = cluster
         .wallet
         .sign_transaction(&transaction_bytes.clone().to_data()?);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+    let (tx_bytes, _signatures) = tx.to_tx_bytes_and_signatures();
 
     let dryrun_response = http_client.dry_run_transaction_block(tx_bytes).await?;
 
