@@ -109,7 +109,6 @@ path = "examples/read_api/transaction_subscription.rs"
 name = "transactions_with_options"
 path = "examples/read_api/transactions_with_options.rs"
 
-
 # Transaction builder folder
 [[example]]
 name = "batch_tx"
