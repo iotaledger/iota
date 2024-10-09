@@ -43,15 +43,15 @@ Review readers use the platform to access feedback, helping them make informed d
 
 Moderators operate within a multisignature setup, ensuring that significant actions, such as removing reviews or distributing rewards, require authorization from multiple parties. This approach enhances security and transparency, as decisions are made collectively, promoting accountability in the moderation process. Moderators review the content and have the authority to remove reviews containing inappropriate material.
 
-While this guide does not include an incentive mechanism for moderators, service owners could contribute to a pool that compensates moderators on a rolling basis. Additionally, a staking system could be introduced where individuals stake tokens to influence the distribution of rewards among moderators, similar to how validators are staked on-chain. Moderator decisions would be based on a quorum determined by the weight of the staked tokens, creating incentives for moderators to carry out their duties effectively.
+Although this guide does not provide a built-in incentive structure for moderators, service owners could contribute to a compensation pool that rewards moderators over time. A staking mechanism could also be implemented, where individuals stake tokens to influence how rewards are allocated to moderators, akin to staking systems for on-chain validators. In this setup, moderator decisions would be influenced by a quorum based on the amount of staked tokens, creating incentives for moderators to perform their duties effectively.
 
-Moderators operate within a multisig setup, ensuring key actions like removing inappropriate reviews or distributing rewards require authorization from multiple parties. This enhances platform security, promotes collective decision-making, and provides transparency.
+Moderators work within a multisig environment, meaning key actions—such as removing inappropriate reviews or distributing rewards—must be approved by multiple parties. This approach enhances security, encourages collaborative decision-making, and ensures transparency.
 
-#### Creating a Multisig for Moderators
+## Creating a Multisig for Moderators
 
 To implement multisig for moderators, follow these steps:
 
-**Step 1: Create Keys for Each Moderator**
+### Step 1: Create Keys for Each Moderator
 Each moderator needs a unique key. To generate these keys, use the following commands to create an IOTA address and corresponding key for each moderator:
 
 ```shell
@@ -59,14 +59,14 @@ iota client new-address ed25519
 iota client new-address secp256k1
 iota client new-address secp256r1
 ```
-**Step 2: Add Keys to IOTA Keystore**
+### Step 2: Add Keys to IOTA Keystore
 
 ```shell
 iota keytool list
 ```
 This command will list the generated keys with their corresponding addresses and public keys.
 
-**Step 3: Create a Multisig Address**
+### Step 3: Create a Multisig Address
 Create the multisig address by combining the public keys of all moderators and setting their weights and a threshold:
 
 ```shell
@@ -74,30 +74,30 @@ iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3
 ```
 This command sets up a multisig address where at least two out of the three keys must sign to authorize a transaction.
 
-**Step 4: Moderator Multisig Transaction Workflow**
+### Step 4: Moderator Multisig Transaction Workflow
 To remove a review, moderators must sign a transaction using the multisig setup. The transaction will require signatures from two out of the three moderators to be executed.
 
-**Step 5: Serialize a Transaction**
+### Step 5: Serialize a Transaction
 Serialize the transaction to be signed by the multisig account:
 
 ```shell
 iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --gas-budget <GAS-AMOUNT> --serialize-unsigned-transaction
 ```
 
-**Step 6: Sign the Transaction**
+### Step 6: Sign the Transaction
 Each moderator signs the serialized transaction:
 
 ```shell
 iota keytool sign --address <IOTA-ADDRESS> --data <TX_BYTES>
 ```
 
-**Step 7: Combine Signatures**
+### Step 7: Combine Signatures
 Once two moderators have signed, combine their signatures into a single multisig signature:
 
 ```shell
 iota keytool multi-sig-combine-partial-sig --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> --weights 1 1 1 --threshold 2 --sigs <SIGNATURE-1> <SIGNATURE-2>
 ```
-**Step 8: Execute the Multisig Transaction**
+### Step 8: Execute the Multisig Transaction
 Finally, execute the multisig transaction using the combined signatures:
 
 ```shell
@@ -106,7 +106,7 @@ iota client execute-signed-tx --tx-bytes <TX_BYTES> --signatures <SERIALIZED-MUL
 The transaction will now be processed, and the review will be removed from the platform.
 This multisig setup ensures that no single moderator can act unilaterally, thus maintaining fairness and accountability on the platform.
 
-## How reviews are scored
+## How Reviews are Scored
 
 The reviews are scored on chain using the following criteria:
 
@@ -181,7 +181,7 @@ After `total_score` is updated, the [`update_top_reviews`](#casting-votes) funct
 
 #### Code Explanation
 
-`Review` Struct:
+#### `Review` Struct:
 
 - **`id: UID`**: Unique identifier for the review.
 - **`owner: address`**: Address of the review owner.
@@ -201,7 +201,7 @@ After `total_score` is updated, the [`update_top_reviews`](#casting-votes) funct
 `calculate_total_score` Function:
 
 - This function calculates the `total_score` based on both intrinsic and extrinsic factors.
-    - **`intrinsic_score`**: The score based on the length of the review (`len`). It is capped at 150 using `math::min`.
+    - **`intrinsic_score`**: The score based on the length of the review (`len`). It is capped at 150.
     - **`extrinsic_score`**: The score based on the number of votes, with each vote contributing 10 points.
     - **VM (Vote Multiplier)**: If the reviewer has proof of experience (`has_poe` is `true`), the score is multiplied by 2; otherwise, it's multiplied by 1.
 - The total score is the sum of the intrinsic and extrinsic scores, multiplied by the VM factor.
@@ -236,54 +236,52 @@ A reader can cast a vote on a review to rate it as follows:
 
 #### Code Explanation
 
-`upvote` Function:
-- **Purpose**: This function upvotes a review and reorders the top reviews list.
-- **Parameters**:
-    - **`service: &mut Service`**: A mutable reference to the `Service` that contains the reviews.
-    - **`review_id: ID`**: The unique identifier of the review being upvoted.
-- **Process**:
-    - Retrieves the review from `service.reviews` using the `review_id`.
-    - Calls the `upvote()` method on the review to increment its upvote count.
-    - Calls `service.reorder(review_id, review.get_total_score())` to reorder the list of top reviews based on the updated total score of the review.
 
-`reorder` Function:
-- **Purpose**: This function reorders the `top_reviews` list after a review is updated.
-- **Parameters**:
-    - **`service: &mut Service`**: A mutable reference to the `Service` whose `top_reviews` list is being reordered.
-    - **`review_id: ID`**: The unique identifier of the review being reordered.
-    - **`total_score: u64`**: The updated total score of the review.
-- **Process**:
-    - Checks if the `review_id` is already in the `top_reviews` list by calling `service.top_reviews.index_of(&review_id)`, which returns whether the review is present (`contains`) and its index (`idx`).
-    - If the review is not in `top_reviews`, it calls `service.update_top_reviews(review_id, total_score)` to add the review if it qualifies.
-    - If the review is already in `top_reviews`, it removes the review from its current position, finds the new correct position using `service.find_idx(total_score)`, and reinserts it at the correct position.
+### `upvote` Function
 
-`update_top_reviews` Function:
-- **Purpose**: This function updates the `top_reviews` list by inserting a review if it qualifies for the top 10.
-- **Parameters**:
-    - **`service: &mut Service`**: A mutable reference to the `Service`.
-    - **`review_id: ID`**: The unique identifier of the review to be added.
-    - **`total_score: u64`**: The total score of the review.
-- **Process**:
-    - Checks if the review should be added to `top_reviews` by calling `service.should_update_top_reviews(total_score)`.
-    - If it qualifies, the appropriate insertion index is found by calling `service.find_idx(total_score)`.
-    - The review is inserted at the calculated index, and `service.prune_top_reviews()` is called to ensure the list doesn’t exceed the maximum allowed number of top reviews.
+The `upvote` function is responsible for recording an upvote for a specific review. It takes two key pieces of information: the review’s ID and a reference to the `Service` that contains all the reviews.
 
-`find_idx` Function:
-- **Purpose**: This function finds the correct index to insert a review into the `top_reviews` list based on its total score.
-- **Parameters**:
-    - **`service: &Service`**: A reference to the `Service` that contains the `top_reviews`.
-    - **`total_score: u64`**: The total score of the review.
-- **Process**:
-    - Loops through the `top_reviews` list in reverse order (from highest score to lowest) and compares the `total_score` of the current review with those already in the list.
-    - The loop stops when it finds a review in the list with a higher score than the new review. The appropriate index (`i`) for insertion is then returned.
+- **Retrieving the Review**: It fetches the review from the `service.reviews` using the `review_id` provided. Once the review is found, the function proceeds to update its score.
+  
+- **Incrementing the Score**: It calls the `upvote()` method on the review object. This method increases the total number of upvotes for that particular review.
 
-`prune_top_reviews` Function:
-- **Purpose**: This function ensures that the `top_reviews` list does not exceed the allowed number of reviews to reward.
-- **Parameters**:
-    - **`service: &mut Service`**: A mutable reference to the `Service`.
-- **Process**:
-    - Checks if the length of `top_reviews` exceeds `MAX_REVIEWERS_TO_REWARD`.
-    - If the list is too long, the review with the lowest score (the last entry) is removed by calling `service.top_reviews.pop_back()`.
+- **Reordering the Top Reviews**: After the score is updated, the `upvote` function calls another function, `service.reorder()`. This step ensures that the list of top reviews reflects the new score, potentially moving the upvoted review to a higher position or introducing it to the list if it wasn’t previously in the top reviews.
+
+### `reorder` Function
+
+The `reorder` function takes care of updating the order of the `top_reviews` list when a review’s score changes. It works as follows:
+
+- **Checking if the Review is in Top Reviews**: It first checks whether the review is already in the `top_reviews` list by finding its position or verifying if it is missing.
+
+- **Handling Reviews Already in the List**: If the review is already in the `top_reviews`, the function removes it from its current position and calculates the new position based on its updated score.
+
+- **Adding New Reviews to Top Reviews**: If the review isn’t currently in the `top_reviews`, it calls another function, `service.update_top_reviews()`, to determine if the review now qualifies to be part of the top reviews based on its new score.
+
+### `update_top_reviews` Function
+
+This function ensures that the top reviews list is always up to date with the most highly rated reviews. It does the following:
+
+- **Checking if the Review Qualifies**: It first checks whether the review's score is high enough to place it within the top 10 reviews.
+
+- **Inserting the Review**: If the review qualifies, it finds the correct position for the new review by comparing its score with the reviews already in the list.
+
+- **Ensuring Top Reviews Limit**: After inserting the review, it checks if the number of top reviews exceeds the allowed limit. If it does, the review with the lowest score is removed from the list.
+
+### `find_idx` Function
+
+The `find_idx` function determines where a review should be placed in the `top_reviews` list based on its total score. Here’s how it works:
+
+- **Looping Through Reviews**: It loops through the current `top_reviews` list, comparing the new review’s score with each existing review.
+
+- **Finding the Right Spot**: The loop stops when it finds a review with a higher score, meaning the new review should be inserted right before it. This ensures that the list remains sorted in descending order of scores.
+
+### `prune_top_reviews` Function
+
+Finally, the `prune_top_reviews` function ensures that the `top_reviews` list never exceeds a certain number of entries (defined by `MAX_REVIEWERS_TO_REWARD`).
+
+- **Checking the Length**: It checks if the length of the `top_reviews` list is greater than the maximum allowed number of top reviews.
+
+- **Removing the Lowest Review**: If the list is too long, the function removes the review with the lowest score by popping the last review from the list.
 
 Whenever someone casts a vote on a review, the `total_score` of the review is updated and the `update_top_reviews` function updates the `top_reviews` field, as needed.
 Casting a vote also triggers a reordering of the `top_reviews` field to ensure that the top rated reviews are always at the top.
@@ -303,7 +301,7 @@ Casting a vote also triggers a reordering of the `top_reviews` field to ensure t
     }
 ```
 
-This example follows a capabilities pattern to manage authorizations.
+This example follows a [capabilities](../iota-101/move-overview/patterns/capabilities.mdx) pattern to manage authorizations.
 For example, `SERVICE OWNERS` are given `AdminCap` and `MODERATORS` are given `Moderator` such that only they are allowed to perform privileged operations.
 
 To learn more about the capabilities pattern, see [The Move Book](https://move-book.com/programmability/capability.html).
@@ -312,7 +310,7 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 Navigate to the [`publish.sh`](https://github.com/iotaledger/iota/blob/devx/tutorial-for-review-rating-with-multisig/examples/move/reviews_rating/publish.sh) script of the repository and follow the below steps for deployment of the contract. 
 
-**Step 1: Create the `.env` File**
+### Step 1: Create the `.env` File
 You need to create a `.env` file that contains important environment variables required for the deployment. Here's an example of what the .env file should look like:
 
 ```shell
@@ -326,14 +324,14 @@ ADMIN_ADDRESS="your-admin-account-address-here"
 ```
 Replace `your-secret-mnemonic-phrase-here` with the secret phrase for the admin account that will be used to deploy the contracts. Also, update the `ADMIN_ADDRESS` with the corresponding account address.
 
-**Step 2: Running the publish.sh Script**
+### Step 2: Running the publish.sh Script
 The `publish.sh` script automates the process of deploying a Move contract to the IOTA Alphanet. Here’s how you can run it:
 
 ```shell
 sh publish.sh
 ```
 
-**Output**
+### Output
 On successful deployment below text will be returned.
 ```shell
 Contract Deployment finished!
