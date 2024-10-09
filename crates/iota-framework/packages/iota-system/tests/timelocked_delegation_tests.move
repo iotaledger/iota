@@ -14,8 +14,8 @@ module iota_system::timelocked_stake_tests {
     use iota::test_utils;
 
     use iota_system::iota_system::IotaSystemState;
-    use iota_system::staking_pool::{Self, PoolTokenExchangeRate};
-    use iota_system::validator_set::{Self, ValidatorSet};
+    use iota_system::staking_pool::{Self, PoolTokenExchangeRateV1};
+    use iota_system::validator_set::{Self, ValidatorSetV1};
     use iota_system::governance_test_utils::{
         add_validator,
         add_validator_candidate,
@@ -30,7 +30,7 @@ module iota_system::timelocked_stake_tests {
         total_iota_balance,
         unstake,
     };
-    use iota_system::timelocked_staking::{Self, TimelockedStakedIota};
+    use iota_system::timelocked_staking::{Self, TimelockedStakedIotaV1};
 
     use iota::labeler::LabelerCap;
     use iota::timelock::{Self, TimeLock};
@@ -63,7 +63,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let mut staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let mut staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             let ctx = scenario.ctx();
             staked_iota.split_to_sender(20 * NANOS_PER_IOTA, ctx);
             scenario.return_to_sender(staked_iota);
@@ -72,11 +72,11 @@ module iota_system::timelocked_stake_tests {
         // Verify the correctness of the split and send the join txn
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
             assert!(staked_iota_ids.length() == 2, 101); // staked iota split to 2 coins
 
-            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
-            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[1]);
 
             let amount1 = part1.amount();
             let amount2 = part2.amount();
@@ -105,9 +105,9 @@ module iota_system::timelocked_stake_tests {
         // Verify that these cannot be merged
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
-            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
-            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[1]);
 
             part1.join(part2);
 
@@ -129,9 +129,9 @@ module iota_system::timelocked_stake_tests {
         // Verify that these cannot be merged
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
-            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
-            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[1]);
 
             part1.join(part2);
 
@@ -163,9 +163,9 @@ module iota_system::timelocked_stake_tests {
         // Verify that these can be merged
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
-            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
-            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[1]);
 
             part1.join(part2);
 
@@ -204,9 +204,9 @@ module iota_system::timelocked_stake_tests {
         // Verify that these cannot be merged
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
-            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
-            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(staked_iota_ids[1]);
 
             part1.join(part2);
 
@@ -239,7 +239,7 @@ module iota_system::timelocked_stake_tests {
         // Verify that it can be split
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let mut original = scenario.take_from_sender<TimelockedStakedIota>();
+            let mut original = scenario.take_from_sender<TimelockedStakedIotaV1>();
             let split = original.split(20 * NANOS_PER_IOTA, scenario.ctx());
 
             assert_eq(original.staked_iota_amount(), 40 * NANOS_PER_IOTA);
@@ -267,7 +267,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let mut staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let mut staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             let ctx = scenario.ctx();
             // The remaining amount after splitting is below the threshold so this should fail.
             staked_iota.split_to_sender(1 * NANOS_PER_IOTA + 1, ctx);
@@ -287,7 +287,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let mut staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let mut staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             let ctx = scenario.ctx();
             // The remaining amount after splitting is below the threshold so this should fail.
             let stake = staked_iota.split(1 * NANOS_PER_IOTA + 1, ctx);
@@ -328,7 +328,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             assert_eq(staked_iota.amount(), 60 * NANOS_PER_IOTA);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -394,7 +394,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             assert_eq(staked_iota.amount(), 60 * NANOS_PER_IOTA);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -468,11 +468,11 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let stake_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
+            let stake_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
 
-            let staked_iota1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(stake_iota_ids[0]);
+            let staked_iota1 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(stake_iota_ids[0]);
             assert_eq(staked_iota1.amount(), 30 * NANOS_PER_IOTA);
-            let staked_iota2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(stake_iota_ids[1]);
+            let staked_iota2 = scenario.take_from_sender_by_id<TimelockedStakedIotaV1>(stake_iota_ids[1]);
             assert_eq(staked_iota2.amount(), 60 * NANOS_PER_IOTA);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -496,7 +496,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             assert_eq(staked_iota.amount(), 60 * NANOS_PER_IOTA);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -518,7 +518,7 @@ module iota_system::timelocked_stake_tests {
 
         scenario.next_tx(STAKER_ADDR_1);
         {
-            assert_eq(scenario.has_most_recent_for_sender<TimelockedStakedIota>(), false);
+            assert_eq(scenario.has_most_recent_for_sender<TimelockedStakedIotaV1>(), false);
 
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
@@ -562,7 +562,7 @@ module iota_system::timelocked_stake_tests {
 
             assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
 
-            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
 
             // Unstake from VALIDATOR_ADDR_1
@@ -620,7 +620,7 @@ module iota_system::timelocked_stake_tests {
 
             assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
 
-            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
 
             // Unstake from VALIDATOR_ADDR_1
@@ -670,7 +670,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIotaV1>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
 
             // Unstake from VALIDATOR_ADDR_1
@@ -893,7 +893,7 @@ module iota_system::timelocked_stake_tests {
         let scenario = &mut scenario_val;
         stake_timelocked_with(@0x42, @0x2, 100, 10, scenario); // stakes 100 IOTA with 0x2
         scenario.next_tx(@0x42);
-        let staked_iota = scenario.take_from_address<TimelockedStakedIota>(@0x42);
+        let staked_iota = scenario.take_from_address<TimelockedStakedIotaV1>(@0x42);
         let pool_id = staked_iota.pool_id();
         test_scenario::return_to_address(@0x42, staked_iota);
         advance_epoch(scenario); // advances epoch to effectuate the stake
@@ -987,7 +987,7 @@ module iota_system::timelocked_stake_tests {
     }
 
     fun assert_exchange_rate_eq(
-        rates: &Table<u64, PoolTokenExchangeRate>, epoch: u64, iota_amount: u64, pool_token_amount: u64
+        rates: &Table<u64, PoolTokenExchangeRateV1>, epoch: u64, iota_amount: u64, pool_token_amount: u64
     ) {
         let rate = &rates[epoch];
         assert_eq(rate.iota_amount(), iota_amount * NANOS_PER_IOTA);
@@ -1081,7 +1081,7 @@ module iota_system::timelocked_stake_tests {
         staker: address, staked_iota_idx: u64, scenario: &mut Scenario
     ) {
         scenario.next_tx(staker);
-        let stake_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
+        let stake_iota_ids = scenario.ids_for_sender<TimelockedStakedIotaV1>();
         let staked_iota = scenario.take_from_sender_by_id(stake_iota_ids[staked_iota_idx]);
         let mut system_state = scenario.take_shared<IotaSystemState>();
 
@@ -1115,7 +1115,7 @@ module iota_system::timelocked_stake_tests {
         scenario.has_most_recent_for_sender<Coin<IOTA>>()
     }
 
-    fun is_active_validator_by_iota_address(set: &ValidatorSet, validator_address: address): bool {
+    fun is_active_validator_by_iota_address(set: &ValidatorSetV1, validator_address: address): bool {
         let validators = set.active_validators();
         let length = validators.length();
         let mut i = 0;

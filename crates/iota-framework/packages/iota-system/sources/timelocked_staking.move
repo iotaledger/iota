@@ -10,19 +10,19 @@ module iota_system::timelocked_staking {
     use iota::timelock::{Self, TimeLock};
 
     use iota_system::iota_system::{IotaSystemState};
-    use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Validator};
+    use iota_system::staking_pool::StakedIotaV1;
+    use iota_system::validator::{ValidatorV1};
 
     /// For when trying to stake an expired time-locked balance.
     const ETimeLockShouldNotBeExpired: u64 = 0;
-    /// Incompatible objects when joining TimelockedStakedIota 
+    /// Incompatible objects when joining TimelockedStakedIotaV1 
     const EIncompatibleTimelockedStakedIota: u64 = 1;
 
     /// A self-custodial object holding the timelocked staked IOTA tokens.
-    public struct TimelockedStakedIota has key {
+    public struct TimelockedStakedIotaV1 has key {
         id: UID,
         /// A self-custodial object holding the staked IOTA tokens.
-        staked_iota: StakedIota,
+        staked_iota: StakedIotaV1,
         /// This is the epoch time stamp of when the lock expires.
         expiration_timestamp_ms: u64,
         /// Timelock related label.
@@ -76,7 +76,7 @@ module iota_system::timelocked_staking {
     /// Withdraw a time-locked stake from a validator's staking pool.
     public entry fun request_withdraw_stake(
         iota_system: &mut IotaSystemState,
-        timelocked_staked_iota: TimelockedStakedIota,
+        timelocked_staked_iota: TimelockedStakedIotaV1,
         ctx: &mut TxContext,
     ) {
         // Withdraw the time-locked balance.
@@ -102,7 +102,7 @@ module iota_system::timelocked_staking {
         timelocked_balance: TimeLock<Balance<IOTA>>,
         validator_address: address,
         ctx: &mut TxContext,
-    ) : TimelockedStakedIota {
+    ) : TimelockedStakedIotaV1 {
         // Check the preconditions.
         assert!(timelocked_balance.is_locked(ctx), ETimeLockShouldNotBeExpired);
 
@@ -118,7 +118,7 @@ module iota_system::timelocked_staking {
         );
 
         // Create and return a receipt.
-        TimelockedStakedIota {
+        TimelockedStakedIotaV1 {
             id: object::new(ctx),
             staked_iota,
             expiration_timestamp_ms,
@@ -133,7 +133,7 @@ module iota_system::timelocked_staking {
         mut timelocked_balances: vector<TimeLock<Balance<IOTA>>>,
         validator_address: address,
         ctx: &mut TxContext,
-    ) : vector<TimelockedStakedIota> {
+    ) : vector<TimelockedStakedIotaV1> {
         // Create a vector to store the results.
         let mut result = vector[];
 
@@ -164,10 +164,10 @@ module iota_system::timelocked_staking {
     /// instead of transferring it to the sender.
     public fun request_withdraw_stake_non_entry(
         iota_system: &mut IotaSystemState,
-        timelocked_staked_iota: TimelockedStakedIota,
+        timelocked_staked_iota: TimelockedStakedIotaV1,
         ctx: &mut TxContext,
     ) : (TimeLock<Balance<IOTA>>, Balance<IOTA>) {
-        // Unpack the `TimelockedStakedIota` instance.
+        // Unpack the `TimelockedStakedIotaV1` instance.
         let (staked_iota, expiration_timestamp_ms, label) = timelocked_staked_iota.unpack();
 
         // Store the original stake amount.
@@ -185,15 +185,15 @@ module iota_system::timelocked_staking {
         (timelock::system_pack(sys_timelock_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
     }
 
-    // === TimelockedStakedIota balance functions ===
+    // === TimelockedStakedIotaV1 balance functions ===
 
-    /// Split `TimelockedStakedIota` into two parts, one with principal `split_amount`,
+    /// Split `TimelockedStakedIotaV1` into two parts, one with principal `split_amount`,
     /// and the remaining principal is left in `self`.
-    /// All the other parameters of the `TimelockedStakedIota` like `stake_activation_epoch` or `pool_id` remain the same.
-    public fun split(self: &mut TimelockedStakedIota, split_amount: u64, ctx: &mut TxContext): TimelockedStakedIota {
+    /// All the other parameters of the `TimelockedStakedIotaV1` like `stake_activation_epoch` or `pool_id` remain the same.
+    public fun split(self: &mut TimelockedStakedIotaV1, split_amount: u64, ctx: &mut TxContext): TimelockedStakedIotaV1 {
         let split_stake = self.staked_iota.split(split_amount, ctx);
 
-        TimelockedStakedIota {
+        TimelockedStakedIotaV1 {
             id: object::new(ctx),
             staked_iota: split_stake,
             expiration_timestamp_ms: self.expiration_timestamp_ms,
@@ -201,21 +201,21 @@ module iota_system::timelocked_staking {
         }
     }
 
-    /// Split the given `TimelockedStakedIota` to the two parts, one with principal `split_amount`,
+    /// Split the given `TimelockedStakedIotaV1` to the two parts, one with principal `split_amount`,
     /// transfer the newly split part to the sender address.
-    public entry fun split_staked_iota(stake: &mut TimelockedStakedIota, split_amount: u64, ctx: &mut TxContext) {
+    public entry fun split_staked_iota(stake: &mut TimelockedStakedIotaV1, split_amount: u64, ctx: &mut TxContext) {
         split(stake, split_amount, ctx).transfer_to_sender(ctx);
     }
 
-    /// Allows calling `.split_to_sender()` on `TimelockedStakedIota` to invoke `split_staked_iota`
-    public use fun split_staked_iota as TimelockedStakedIota.split_to_sender;
+    /// Allows calling `.split_to_sender()` on `TimelockedStakedIotaV1` to invoke `split_staked_iota`
+    public use fun split_staked_iota as TimelockedStakedIotaV1.split_to_sender;
 
     /// Consume the staked iota `other` and add its value to `self`.
     /// Aborts if some of the staking parameters are incompatible (pool id, stake activation epoch, etc.)
-    public entry fun join_staked_iota(self: &mut TimelockedStakedIota, other: TimelockedStakedIota) {
+    public entry fun join_staked_iota(self: &mut TimelockedStakedIotaV1, other: TimelockedStakedIotaV1) {
         assert!(self.is_equal_staking_metadata(&other), EIncompatibleTimelockedStakedIota);
 
-        let TimelockedStakedIota {
+        let TimelockedStakedIotaV1 {
             id,
             staked_iota,
             expiration_timestamp_ms: _,
@@ -227,57 +227,57 @@ module iota_system::timelocked_staking {
         self.staked_iota.join(staked_iota);
     }
 
-    /// Allows calling `.join()` on `TimelockedStakedIota` to invoke `join_staked_iota`
-    public use fun join_staked_iota as TimelockedStakedIota.join;
+    /// Allows calling `.join()` on `TimelockedStakedIotaV1` to invoke `join_staked_iota`
+    public use fun join_staked_iota as TimelockedStakedIotaV1.join;
 
-    // === TimelockedStakedIota public utilities ===
+    // === TimelockedStakedIotaV1 public utilities ===
 
-    /// A utility function to transfer a `TimelockedStakedIota`.
-    public fun transfer_to_sender(stake: TimelockedStakedIota, ctx: &TxContext) {
+    /// A utility function to transfer a `TimelockedStakedIotaV1`.
+    public fun transfer_to_sender(stake: TimelockedStakedIotaV1, ctx: &TxContext) {
         transfer(stake, ctx.sender())
     }
 
-    /// A utility function to transfer multiple `TimelockedStakedIota`.
-    public fun transfer_to_sender_multiple(stakes: vector<TimelockedStakedIota>, ctx: &TxContext) {
+    /// A utility function to transfer multiple `TimelockedStakedIotaV1`.
+    public fun transfer_to_sender_multiple(stakes: vector<TimelockedStakedIotaV1>, ctx: &TxContext) {
         transfer_multiple(stakes, ctx.sender())
     }
 
     /// A utility function that returns true if all the staking parameters 
     /// of the staked iota except the principal are identical
-    public fun is_equal_staking_metadata(self: &TimelockedStakedIota, other: &TimelockedStakedIota): bool {
+    public fun is_equal_staking_metadata(self: &TimelockedStakedIotaV1, other: &TimelockedStakedIotaV1): bool {
         self.staked_iota.is_equal_staking_metadata(&other.staked_iota) &&
         (self.expiration_timestamp_ms == other.expiration_timestamp_ms) &&
         (self.label() == other.label())
     }
 
-    // === TimelockedStakedIota getters ===
+    // === TimelockedStakedIotaV1 getters ===
 
-    /// Function to get the pool id of a `TimelockedStakedIota`.
-    public fun pool_id(self: &TimelockedStakedIota): ID { self.staked_iota.pool_id() }
+    /// Function to get the pool id of a `TimelockedStakedIotaV1`.
+    public fun pool_id(self: &TimelockedStakedIotaV1): ID { self.staked_iota.pool_id() }
 
-    /// Function to get the staked iota amount of a `TimelockedStakedIota`.
-    public fun staked_iota_amount(self: &TimelockedStakedIota): u64 { self.staked_iota.staked_iota_amount() }
+    /// Function to get the staked iota amount of a `TimelockedStakedIotaV1`.
+    public fun staked_iota_amount(self: &TimelockedStakedIotaV1): u64 { self.staked_iota.staked_iota_amount() }
 
-    /// Allows calling `.amount()` on `TimelockedStakedIota` to invoke `staked_iota_amount`
-    public use fun staked_iota_amount as TimelockedStakedIota.amount;
+    /// Allows calling `.amount()` on `TimelockedStakedIotaV1` to invoke `staked_iota_amount`
+    public use fun staked_iota_amount as TimelockedStakedIotaV1.amount;
 
-    /// Function to get the stake activation epoch of a `TimelockedStakedIota`.
-    public fun stake_activation_epoch(self: &TimelockedStakedIota): u64 {
+    /// Function to get the stake activation epoch of a `TimelockedStakedIotaV1`.
+    public fun stake_activation_epoch(self: &TimelockedStakedIotaV1): u64 {
         self.staked_iota.stake_activation_epoch()
     }
 
-    /// Function to get the expiration timestamp of a `TimelockedStakedIota`.
-    public fun expiration_timestamp_ms(self: &TimelockedStakedIota): u64 {
+    /// Function to get the expiration timestamp of a `TimelockedStakedIotaV1`.
+    public fun expiration_timestamp_ms(self: &TimelockedStakedIotaV1): u64 {
         self.expiration_timestamp_ms
     }
 
-    /// Function to get the label of a `TimelockedStakedIota`.
-    public fun label(self: &TimelockedStakedIota): Option<String> {
+    /// Function to get the label of a `TimelockedStakedIotaV1`.
+    public fun label(self: &TimelockedStakedIotaV1): Option<String> {
         self.label
     }
 
-    /// Check if a `TimelockedStakedIota` is labeled with the type `L`.
-    public fun is_labeled_with<L>(self: &TimelockedStakedIota): bool {
+    /// Check if a `TimelockedStakedIotaV1` is labeled with the type `L`.
+    public fun is_labeled_with<L>(self: &TimelockedStakedIotaV1): bool {
         if (self.label.is_some()) {
             self.label.borrow() == timelock::type_name<L>()
         }
@@ -288,9 +288,9 @@ module iota_system::timelocked_staking {
 
     // === Internal ===
 
-    /// A utility function to destroy a `TimelockedStakedIota`.
-    fun unpack(self: TimelockedStakedIota): (StakedIota, u64, Option<String>) {
-        let TimelockedStakedIota {
+    /// A utility function to destroy a `TimelockedStakedIotaV1`.
+    fun unpack(self: TimelockedStakedIotaV1): (StakedIotaV1, u64, Option<String>) {
+        let TimelockedStakedIotaV1 {
             id,
             staked_iota,
             expiration_timestamp_ms,
@@ -303,13 +303,13 @@ module iota_system::timelocked_staking {
     }
 
     
-    /// A utility function to transfer a `TimelockedStakedIota` to a receiver.
-    fun transfer(stake: TimelockedStakedIota, receiver: address) {
+    /// A utility function to transfer a `TimelockedStakedIotaV1` to a receiver.
+    fun transfer(stake: TimelockedStakedIotaV1, receiver: address) {
         transfer::transfer(stake, receiver);
     }
 
-    /// A utility function to transfer a vector of `TimelockedStakedIota` to a receiver.
-    fun transfer_multiple(mut stakes: vector<TimelockedStakedIota>, receiver: address) {
+    /// A utility function to transfer a vector of `TimelockedStakedIotaV1` to a receiver.
+    fun transfer_multiple(mut stakes: vector<TimelockedStakedIotaV1>, receiver: address) {
         // Transfer all the time-locked stakes to the recipient.
         while (!stakes.is_empty()) {
            let stake = stakes.pop_back();
@@ -324,7 +324,7 @@ module iota_system::timelocked_staking {
     
     /// Request to add timelocked stake to the validator's staking pool at genesis
     public(package) fun request_add_stake_at_genesis(
-        validator: &mut Validator,
+        validator: &mut ValidatorV1,
         stake: Balance<IOTA>,
         staker_address: address,
         expiration_timestamp_ms: u64,
@@ -332,7 +332,7 @@ module iota_system::timelocked_staking {
         ctx: &mut TxContext,
     ) {
         let staked_iota = validator.request_add_stake_at_genesis_with_receipt(stake, ctx);
-        let timelocked_staked_iota = TimelockedStakedIota {
+        let timelocked_staked_iota = TimelockedStakedIotaV1 {
             id: object::new(ctx),
             staked_iota,
             expiration_timestamp_ms,

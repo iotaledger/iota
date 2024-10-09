@@ -8,9 +8,9 @@ module iota_system::governance_test_utils {
     use iota::balance;
     use iota::iota::{Self, IOTA};
     use iota::coin::{Self, Coin};
-    use iota_system::staking_pool::{StakedIota, StakingPool};
+    use iota_system::staking_pool::{StakedIotaV1, StakingPoolV1};
     use iota::test_utils::assert_eq;
-    use iota_system::validator::{Self, Validator};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
     use iota::test_scenario::{Self, Scenario};
@@ -22,7 +22,7 @@ module iota_system::governance_test_utils {
 
     public fun create_validator_for_testing(
         addr: address, init_stake_amount_in_iota: u64, ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         let validator = validator::new_for_testing(
             addr,
             x"AA",
@@ -47,7 +47,7 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<Validator> {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<ValidatorV1> {
         let mut i = 0;
         let mut validators = vector[];
         while (i < stakes.length()) {
@@ -59,7 +59,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun create_iota_system_state_for_testing(
-        validators: vector<Validator>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
+        validators: vector<ValidatorV1>, iota_supply_amount: u64, storage_fund_amount: u64, ctx: &mut TxContext
     ) {
         let system_parameters = iota_system_state_inner::create_system_parameters(
             42,  // epoch_duration_ms, doesn't matter what number we put here
@@ -188,7 +188,7 @@ module iota_system::governance_test_utils {
         staker: address, staked_iota_idx: u64, scenario: &mut Scenario
     ) {
         scenario.next_tx(staker);
-        let stake_iota_ids = scenario.ids_for_sender<StakedIota>();
+        let stake_iota_ids = scenario.ids_for_sender<StakedIotaV1>();
         let staked_iota = scenario.take_from_sender_by_id(stake_iota_ids[staked_iota_idx]);
         let mut system_state = scenario.take_shared<IotaSystemState>();
 
@@ -328,15 +328,15 @@ module iota_system::governance_test_utils {
         amount
     }
 
-    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPool, scenario: &mut Scenario): u64 {
+    public fun stake_plus_current_rewards(addr: address, staking_pool: &StakingPoolV1, scenario: &mut Scenario): u64 {
         let mut sum = 0;
         scenario.next_tx(addr);
-        let mut stake_ids = scenario.ids_for_sender<StakedIota>();
+        let mut stake_ids = scenario.ids_for_sender<StakedIotaV1>();
         let current_epoch = scenario.ctx().epoch();
 
         while (!stake_ids.is_empty()) {
             let staked_iota_id = stake_ids.pop_back();
-            let staked_iota = scenario.take_from_sender_by_id<StakedIota>(staked_iota_id);
+            let staked_iota = scenario.take_from_sender_by_id<StakedIotaV1>(staked_iota_id);
             sum = sum + staking_pool.calculate_rewards(&staked_iota, current_epoch);
             scenario.return_to_sender(staked_iota);
         };

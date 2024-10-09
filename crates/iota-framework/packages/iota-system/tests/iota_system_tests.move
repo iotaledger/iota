@@ -13,7 +13,7 @@ module iota_system::iota_system_tests {
     use iota_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_iota_system_state, create_iota_system_state_for_testing, stake_with, unstake};
     use iota_system::iota_system::IotaSystemState;
     use iota_system::iota_system_state_inner;
-    use iota_system::validator::{Self, Validator};
+    use iota_system::validator::{Self, ValidatorV1};
     use iota_system::validator_set;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota::balance;
@@ -383,7 +383,7 @@ module iota_system::iota_system_tests {
 
 
     fun verify_candidate(
-        validator: &Validator,
+        validator: &ValidatorV1,
         name: vector<u8>,
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
@@ -442,7 +442,7 @@ module iota_system::iota_system_tests {
     }
 
     fun verify_metadata(
-        validator: &Validator,
+        validator: &ValidatorV1,
         name: vector<u8>,
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
@@ -495,7 +495,7 @@ module iota_system::iota_system_tests {
     }
 
     fun verify_current_epoch_metadata(
-        validator: &Validator,
+        validator: &ValidatorV1,
         name: vector<u8>,
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
@@ -523,7 +523,7 @@ module iota_system::iota_system_tests {
 
 
     fun verify_metadata_after_advancing_epoch(
-        validator: &Validator,
+        validator: &ValidatorV1,
         name: vector<u8>,
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
