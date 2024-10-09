@@ -108,7 +108,7 @@ async fn test_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/3007"]
 #[sim_test]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new()
@@ -397,7 +397,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore]
+#[ignore = "https://github.com/iotaledger/iota/issues/3007"]
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -600,7 +600,6 @@ async fn get_committee_info() {
         .await;
 
     let client = cluster.rpc_client();
-    let address = cluster.get_address_0();
 
     // Test with no specified epoch
     let response = client.get_committee_info(None).await.unwrap();
