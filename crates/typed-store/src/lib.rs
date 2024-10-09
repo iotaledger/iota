@@ -42,17 +42,20 @@ pub type StoreError = typed_store_error::TypedStoreError;
 /// using annotations We can also supply column family options on the default
 /// ones A user defined function of signature () -> Options can be provided for
 /// each table If a an override function is not specified, the default in
-/// `typed_store::rocks::default_db_options` is used ```
-/// use typed_store::rocks::DBOptions;
-/// use typed_store::rocks::DBMap;
-/// use typed_store::rocks::MetricConf;
-/// use typed_store::DBMapUtils;
-/// use typed_store::traits::TypedStoreDebug;
-/// use typed_store::traits::TableSummary;
+/// `typed_store::rocks::default_db_options` is used
+/// ```
 /// use core::fmt::Error;
+///
+/// use typed_store::{
+///     DBMapUtils,
+///     rocks::{DBMap, DBOptions, MetricConf},
+///     traits::{TableSummary, TypedStoreDebug},
+/// };
 /// /// Define a struct with all members having type DBMap<K, V>
 ///
-/// fn custom_fn_name1() -> DBOptions {DBOptions::default()}
+/// fn custom_fn_name1() -> DBOptions {
+///     DBOptions::default()
+/// }
 /// fn custom_fn_name2() -> DBOptions {
 ///     let mut op = custom_fn_name1();
 ///     op.options.set_write_buffer_size(123456);
@@ -73,28 +76,37 @@ pub type StoreError = typed_store_error::TypedStoreError;
 ///
 /// // b. Options specified by DB opener
 /// // For finer control, we also allow the opener of the DB to specify their
-/// own options which override the defaults set by the definer // This is done
-/// via a configurator which gives one a struct with field similarly named as
-/// that of the DB, but of type Options
+/// // own options which override the defaults set by the definer
+/// // This is done via a configurator which gives one a struct with field
+/// // similarly named as that of the DB, but of type Options
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
-/// // Get a configurator for this table
-/// let mut config = Tables::configurator();
-/// // Config table 1
-/// config.table1 = DBOptions::default();
-/// config.table1.options.create_if_missing(true);
-/// config.table1.options.set_write_buffer_size(123456);
+///     // Get a configurator for this table
+///     let mut config = Tables::configurator();
+///     // Config table 1
+///     config.table1 = DBOptions::default();
+///     config.table1.options.create_if_missing(true);
+///     config.table1.options.set_write_buffer_size(123456);
 ///
-/// let primary_path = tempfile::tempdir().expect("Failed to open temporary
-/// directory").into_path();
+///     let primary_path = tempfile::tempdir()
+///         .expect(
+///             "Failed to open temporary
+/// directory",
+///         )
+///         .into_path();
 ///
-/// // We can then open the DB with the configs
-/// let _ = Tables::open_tables_read_write(primary_path, MetricConf::default(),
-/// None, Some(config.build())); Ok(())
+///     // We can then open the DB with the configs
+///     let _ = Tables::open_tables_read_write(
+///         primary_path,
+///         MetricConf::default(),
+///         None,
+///         Some(config.build()),
+///     );
+///     Ok(())
 /// }
 /// ```
-/// 
+///
 /// 2. Auto-generated `open` routine The function `open_tables_read_write` is
 ///    generated which allows for specifying DB wide options and custom table
 ///    configs as mentioned above
@@ -104,13 +116,14 @@ pub type StoreError = typed_store_error::TypedStoreError;
 ///    dumping and counting the keys in the tables
 ///
 /// Use the function `Tables::get_read_only_handle` which returns a handle that
-/// only allows read only features ```
+/// only allows read only features
+/// ```
 /// use core::fmt::Error;
 ///
 /// use typed_store::{
+///     DBMapUtils,
 ///     rocks::{DBMap, DBOptions},
 ///     traits::{TableSummary, TypedStoreDebug},
-///     DBMapUtils,
 /// };
 /// /// Define a struct with all members having type DBMap<K, V>
 ///

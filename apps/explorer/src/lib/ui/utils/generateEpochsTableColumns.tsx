@@ -7,6 +7,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
+import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
@@ -98,7 +99,11 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
                 const epochEndTimestamp = epochMetrics.endOfEpochInfo?.epochEndTimestamp;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochEndTimestamp || '--'}</TableCellText>
+                        <TableCellText>
+                            {epochEndTimestamp
+                                ? getElapsedTime(Number(epochEndTimestamp), Date.now())
+                                : '--'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
