@@ -80,8 +80,11 @@ function AppWrapper() {
                                 persister,
                                 dehydrateOptions: {
                                     shouldDehydrateQuery: (query: Query) => {
-                                        return  !query.meta?.skipPersistedCache && defaultShouldDehydrateQuery(query)
-                                    }
+                                        return (
+                                            !query.meta?.skipPersistedCache &&
+                                            defaultShouldDehydrateQuery(query)
+                                        );
+                                    },
                                 },
                             }}
                         >

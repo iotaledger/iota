@@ -35,8 +35,8 @@ export function useRestrictedGuard() {
         gcTime: 0,
         retry: 0,
         meta: {
-            skipPersistedCache: true
-        }
+            skipPersistedCache: true,
+        },
     });
 
     useEffect(() => {
