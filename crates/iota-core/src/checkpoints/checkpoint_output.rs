@@ -166,7 +166,7 @@ impl CertifiedCheckpointOutput for LogCheckpointOutput {
         &self,
         summary: &CertifiedCheckpointSummary,
     ) -> IotaResult {
-        info!(
+        debug!(
             "Certified checkpoint with sequence {} and digest {}",
             summary.sequence_number,
             summary.digest()
@@ -192,7 +192,7 @@ impl CertifiedCheckpointOutput for SendCheckpointToStateSync {
         &self,
         summary: &CertifiedCheckpointSummary,
     ) -> IotaResult {
-        info!(
+        debug!(
             "Certified checkpoint with sequence {} and digest {}",
             summary.sequence_number,
             summary.digest()
