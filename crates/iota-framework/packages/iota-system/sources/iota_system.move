@@ -403,7 +403,7 @@ module iota_system::iota_system {
         self.update_candidate_validator_p2p_address(p2p_address, ctx)
     }
 
-    /// Update a validator's narwhal primary address.
+    /// Update a validator's primary address.
     /// The change will only take effects starting from the next epoch.
     public entry fun update_validator_next_epoch_primary_address(
         self: &mut IotaSystemState,
@@ -414,7 +414,7 @@ module iota_system::iota_system {
         self.update_validator_next_epoch_primary_address(primary_address, ctx)
     }
 
-    /// Update candidate validator's narwhal primary address.
+    /// Update candidate validator's primary address.
     public entry fun update_candidate_validator_primary_address(
         self: &mut IotaSystemState,
         primary_address: vector<u8>,
@@ -424,7 +424,7 @@ module iota_system::iota_system {
         self.update_candidate_validator_primary_address(primary_address, ctx)
     }
 
-    /// Update a validator's narwhal worker address.
+    /// Update a validator's worker address.
     /// The change will only take effects starting from the next epoch.
     public entry fun update_validator_next_epoch_worker_address(
         self: &mut IotaSystemState,
@@ -435,7 +435,7 @@ module iota_system::iota_system {
         self.update_validator_next_epoch_worker_address(worker_address, ctx)
     }
 
-    /// Update candidate validator's narwhal worker address.
+    /// Update candidate validator's worker address.
     public entry fun update_candidate_validator_worker_address(
         self: &mut IotaSystemState,
         worker_address: vector<u8>,

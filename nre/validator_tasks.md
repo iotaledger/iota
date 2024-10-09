@@ -73,10 +73,10 @@ Configuration templates are available here:
 Iota Node uses the following ports by default:
 
 | protocol/port | reachability     | purpose                           |
-| ------------- | ---------------- | --------------------------------- |
+| ------------- | ---------------- |-----------------------------------|
 | TCP/8080      | inbound          | protocol/transaction interface    |
-| UDP/8081      | inbound/outbound | narwhal primary interface         |
-| UDP/8082      | inbound/outbound | narwhal worker interface          |
+| UDP/8081      | inbound/outbound | primary interface                 |
+| UDP/8082      | inbound/outbound | worker interface                  |
 | TCP/8083      | localhost        | iota -> narwhal interface         |
 | UDP/8084      | inbound/outbound | peer to peer state sync interface |
 | TCP/8443      | outbound         | metrics pushing                   |

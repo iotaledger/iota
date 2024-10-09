@@ -84,7 +84,7 @@ module iota_system::validator {
         /// The public key bytes corresponding to the private key that the validator
         /// uses to establish TLS connections
         network_pubkey_bytes: vector<u8>,
-        /// The public key bytes correstponding to the Narwhal Worker
+        /// The public key bytes correstponding to the Worker
         worker_pubkey_bytes: vector<u8>,
         /// This is a proof that the validator has ownership of the private key
         proof_of_possession: vector<u8>,
@@ -97,9 +97,9 @@ module iota_system::validator {
         net_address: String,
         /// The address of the validator used for p2p activities such as state sync (could also contain extra info such as port, DNS and etc.).
         p2p_address: String,
-        /// The address of the narwhal primary
+        /// The address of the primary
         primary_address: String,
-        /// The address of the narwhal worker
+        /// The address of the worker
         worker_address: String,
 
         /// "next_epoch" metadata only takes effects in the next epoch.
@@ -794,13 +794,13 @@ module iota_system::validator {
         validate_metadata(&self.metadata);
     }
 
-    /// Update Narwhal worker public key of this validator, taking effects from next epoch
+    /// Update worker public key of this validator, taking effects from next epoch
     public(package) fun update_next_epoch_worker_pubkey(self: &mut Validator, worker_pubkey: vector<u8>) {
         self.metadata.next_epoch_worker_pubkey_bytes = option::some(worker_pubkey);
         validate_metadata(&self.metadata);
     }
 
-    /// Update Narwhal worker public key of this candidate validator
+    /// Update worker public key of this candidate validator
     public(package) fun update_candidate_worker_pubkey(self: &mut Validator, worker_pubkey: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         self.metadata.worker_pubkey_bytes = worker_pubkey;

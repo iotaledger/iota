@@ -78,11 +78,11 @@ pub enum CeremonyCommand {
         /// format.
         #[clap(long)]
         p2p_address: Multiaddr,
-        /// The narwhal primary address. This must be a UDP address in ASCII
+        /// The primary address. This must be a UDP address in ASCII
         /// format.
         #[clap(long)]
         primary_address: Multiaddr,
-        /// The narwhal worker address. This must be a UDP address in ASCII
+        /// The worker address. This must be a UDP address in ASCII
         /// format.
         #[clap(long)]
         worker_address: Multiaddr,
