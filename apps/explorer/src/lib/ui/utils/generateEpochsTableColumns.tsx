@@ -31,15 +31,13 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
             header: 'Transaction Blocks',
             accessorKey: 'epochTotalTransactions',
             cell: ({ getValue, row }) => {
-                let epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
+                const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
                 const isCurrentEpoch = row.original.epoch === currentEpoch;
-                const hasNoTransactions = !epochTotalTransactions || epochTotalTransactions === '0';
-                if (isCurrentEpoch && hasNoTransactions) {
-                    epochTotalTransactions = '--';
-                }
+                const displayedEpochTotalTransactions =
+                    isCurrentEpoch || !epochTotalTransactions ? '--' : epochTotalTransactions;
                 return (
                     <TableCellBase>
-                        <TableCellText>{epochTotalTransactions}</TableCellText>
+                        <TableCellText>{displayedEpochTotalTransactions}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -49,17 +47,16 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
             id: 'stakeRewards',
             accessorKey: 'endOfEpochInfo.totalStakeRewardsDistributed',
             cell: ({ row: { original: epochMetrics } }) => {
-                let totalStakeRewardsDistributed =
-                    epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
                 const isCurrentEpoch = epochMetrics.epoch === currentEpoch;
-                const hasNoTransactions =
-                    !totalStakeRewardsDistributed || totalStakeRewardsDistributed === '0';
-                if (isCurrentEpoch && hasNoTransactions) {
-                    totalStakeRewardsDistributed = '--';
-                }
+                const totalStakeRewardsDistributed =
+                    epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
+                const displayedTotalStakeRewardsDistributed =
+                    isCurrentEpoch || !totalStakeRewardsDistributed
+                        ? '--'
+                        : totalStakeRewardsDistributed;
                 return (
                     <TableCellBase>
-                        <TableCellText>{totalStakeRewardsDistributed}</TableCellText>
+                        <TableCellText>{displayedTotalStakeRewardsDistributed}</TableCellText>
                     </TableCellBase>
                 );
             },
