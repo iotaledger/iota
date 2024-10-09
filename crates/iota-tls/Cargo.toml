@@ -9,8 +9,8 @@ description = "tools for rustls-based certificate generation and verification"
 
 [dependencies]
 anyhow.workspace = true
-ed25519 = { version = "1.5.0", features = ["pkcs8", "alloc", "zeroize"] }
-pkcs8 = { version = "0.9.0", features = ["std"] }
+ed25519 = { version = "2.2", features = ["pkcs8", "alloc", "zeroize"] }
+pkcs8 = { version = "0.10", features = ["std"] }
 rcgen = "0.13"
 rustls.workspace = true
 webpki = { version = "0.102", package = "rustls-webpki", features = ["alloc", "std"] }
