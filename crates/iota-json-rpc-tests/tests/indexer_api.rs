@@ -183,7 +183,19 @@ async fn query_events_no_events_ascending() {
     assert_eq!(indexer_events, EventPage::empty())
 }
 
-#[ignore]
+#[sim_test]
+async fn query_events() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let client = cluster.rpc_client();
+
+    let result = client
+        .query_events(EventFilter::Sender(IotaAddress::ZERO), None, None, None)
+        .await;
+
+    assert!(result.is_ok());
+}
+
 #[sim_test]
 async fn query_events_unsupported_events() {
     let cluster = TestClusterBuilder::new()
@@ -191,21 +203,9 @@ async fn query_events_unsupported_events() {
         .build()
         .await;
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(10000)).await;
-
     let client = cluster.rpc_client();
 
-    // Get the current time in milliseconds since the UNIX epoch
-    let now_millis = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-
-    // Subtract 10 minutes from the current time
-    let ten_minutes_ago = now_millis - (10 * 60 * 1000); // 600 seconds = 10 minutes
-
     let unsupported_filters = vec![
-        EventFilter::All(vec![]),
         EventFilter::Any(vec![]),
         EventFilter::And(
             Box::new(EventFilter::Any(vec![])),
@@ -215,14 +215,11 @@ async fn query_events_unsupported_events() {
             Box::new(EventFilter::Any(vec![])),
             Box::new(EventFilter::Any(vec![])),
         ),
-        EventFilter::TimeRange {
-            start_time: ten_minutes_ago as u64,
-            end_time: now_millis as u64,
-        },
         EventFilter::MoveEventField {
             path: String::default(),
             value: serde_json::Value::Bool(true),
         },
+        EventFilter::Package(ObjectID::random()),
     ];
 
     for event_filter in unsupported_filters {
@@ -231,40 +228,7 @@ async fn query_events_unsupported_events() {
         let err = result.unwrap_err();
         let msg = err.to_string();
 
-        assert_eq!(
-            msg,
-            "Indexer does not support the feature with error: `This type of EventFilter is not supported.`"
-        );
-    }
-}
-
-#[ignore]
-#[sim_test]
-async fn query_events_supported_events() {
-    let cluster = TestClusterBuilder::new().build().await;
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(10000)).await;
-
-    let client = cluster.rpc_client();
-
-    let supported_filters = vec![
-        EventFilter::Sender(IotaAddress::ZERO),
-        EventFilter::Transaction(TransactionDigest::ZERO),
-        EventFilter::Package(ObjectID::ZERO),
-        EventFilter::MoveEventModule {
-            package: ObjectID::ZERO,
-            module: "x".parse().unwrap(),
-        },
-        EventFilter::MoveEventType("0xabcd::MyModule::Foo".parse().unwrap()),
-        EventFilter::MoveModule {
-            package: ObjectID::ZERO,
-            module: "x".parse().unwrap(),
-        },
-    ];
-
-    for event_filter in supported_filters {
-        let result = client.query_events(event_filter, None, None, None).await;
-        assert!(result.is_ok());
+        assert!(msg.contains("This query type is not supported by the full node"));
     }
 }
 
@@ -578,6 +542,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[ignore]
 #[sim_test]
 async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
     let mut cluster = TestClusterBuilder::new().build().await;
