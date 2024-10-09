@@ -261,7 +261,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                 <div className="ml-auto flex items-center">
                                     {!isPending && (
                                         <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
-                                            Showing {currentSlice} - {end}
+                                            Showing {start} - {end}
                                         </span>
                                     )}
                                 </div>
