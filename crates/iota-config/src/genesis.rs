@@ -38,6 +38,8 @@ use iota_types::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
 
+use crate::migration_tx_data::MigrationTxData;
+
 #[derive(Clone, Debug)]
 pub struct Genesis {
     checkpoint: CertifiedCheckpointSummary,
@@ -56,6 +58,11 @@ pub struct UnsignedGenesis {
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
     pub objects: Vec<Object>,
+}
+
+pub struct GenesisBuildEffects {
+    pub genesis: Genesis,
+    pub migration_tx_data: Option<MigrationTxData>,
 }
 
 // Hand implement PartialEq in order to get around the fact that AuthSigs don't
@@ -626,5 +633,14 @@ impl TokenDistributionScheduleBuilder {
 
         schedule.validate();
         schedule
+    }
+}
+
+impl GenesisBuildEffects {
+    pub fn new(genesis: Genesis, migration_tx_data: Option<MigrationTxData>) -> Self {
+        Self {
+            genesis,
+            migration_tx_data,
+        }
     }
 }

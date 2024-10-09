@@ -6,7 +6,11 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
-use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
+use iota_config::{
+    genesis::{Genesis, GenesisBuildEffects},
+    local_ip_utils,
+    node::AuthorityOverloadConfig,
+};
 use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_macros::nondeterministic;
@@ -258,7 +262,7 @@ async fn init_genesis(
         builder = builder.add_validator_signature(key);
     }
 
-    let genesis = builder.build();
+    let GenesisBuildEffects { genesis, .. } = builder.build();
     (genesis, key_pairs, pkg_id)
 }
 

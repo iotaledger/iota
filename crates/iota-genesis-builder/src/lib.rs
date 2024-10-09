@@ -18,8 +18,8 @@ use flate2::bufread::GzDecoder;
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{
-        Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
-        UnsignedGenesis,
+        Genesis, GenesisBuildEffects, GenesisCeremonyParameters, GenesisChainParameters,
+        TokenDistributionSchedule, UnsignedGenesis,
     },
     migration_tx_data::{MigrationTxData, TransactionsData},
 };
@@ -112,7 +112,6 @@ pub struct Builder {
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
-    migration_tx_data_is_validated: bool,
 }
 
 impl Default for Builder {
@@ -134,7 +133,6 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources: Default::default(),
             migration_tx_data: Default::default(),
-            migration_tx_data_is_validated: false,
         }
     }
 
@@ -171,20 +169,6 @@ impl Builder {
     pub fn with_protocol_version(mut self, v: ProtocolVersion) -> Self {
         self.parameters.protocol_version = v;
         self
-    }
-
-    pub fn take_migration_tx_data(&mut self) -> Option<MigrationTxData> {
-        if self.contains_migrations() {
-            self.validate_migration_tx_data();
-            self.migration_tx_data_is_validated = true;
-            Some(
-                self.migration_tx_data
-                    .take()
-                    .expect("it should contain the migration tx data"),
-            )
-        } else {
-            None
-        }
     }
 
     pub fn add_object(mut self, object: Object) -> Self {
@@ -372,7 +356,7 @@ impl Builder {
         self.parameters.protocol_version
     }
 
-    pub fn build(mut self) -> Genesis {
+    pub fn build(mut self) -> GenesisBuildEffects {
         if self.built_genesis.is_none() {
             self.build_and_cache_unsigned_genesis();
         }
@@ -400,13 +384,16 @@ impl Builder {
             CertifiedCheckpointSummary::new(checkpoint, signatures, &committee).unwrap()
         };
 
-        Genesis::new(
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
+        GenesisBuildEffects::new(
+            Genesis::new(
+                checkpoint,
+                checkpoint_contents,
+                transaction,
+                effects,
+                events,
+                objects,
+            ),
+            self.migration_tx_data,
         )
     }
 
@@ -735,31 +722,6 @@ impl Builder {
                 )
                 .expect("signature should be valid");
         }
-
-        // Validate migration content
-        if !self.migration_tx_data_is_validated {
-            self.validate_migration_tx_data();
-        }
-    }
-
-    // Validate migration content in order to avoid corrupted or malicious data
-    fn validate_migration_tx_data(&self) {
-        // If genesis hasn't been built yet, just early return as there is nothing to
-        // validate yet
-        let Some(unsigned_genesis) = self.unsigned_genesis_checkpoint() else {
-            return;
-        };
-
-        if let Some(migration_tx_data) = &self.migration_tx_data {
-            migration_tx_data
-                .validate_from_unsigned_genesis(&unsigned_genesis)
-                .expect("the migration data is corrupted");
-        } else {
-            assert!(
-                !self.contains_migrations(),
-                "genesis that contains migration should have migration data"
-            );
-        }
     }
 
     pub async fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self, anyhow::Error> {
@@ -847,7 +809,6 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources,
             migration_tx_data,
-            migration_tx_data_is_validated: false,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);

@@ -10,7 +10,9 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{
+        GenesisBuildEffects, TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis,
+    },
 };
 use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl};
 use iota_keys::keypair_file::{
@@ -327,7 +329,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
             check_protocol_version(&builder, protocol_version)?;
 
-            let genesis = builder.build();
+            let GenesisBuildEffects { genesis, .. } = builder.build();
             genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
             println!("Successfully built {IOTA_GENESIS_FILENAME}");
