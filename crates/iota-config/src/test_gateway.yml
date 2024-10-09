@@ -9,8 +9,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ny2-iotaval-1.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ny2-iotaval-1.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ny2-iotaval-1.testnet.iota.io/udp/8082
+    primary-address: /dns/ny2-iotaval-1.testnet.iota.io/udp/8081
+    worker-address: /dns/ny2-iotaval-1.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-14
     account-key: APxJHKslYpWYWmMIlpKfzBTj9K5I84diueoJ4sWHwjmS
@@ -21,8 +21,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/mh1-iotaval-2.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/mh1-iotaval-2.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/mh1-iotaval-2.testnet.iota.io/udp/8082
+    primary-address: /dns/mh1-iotaval-2.testnet.iota.io/udp/8081
+    worker-address: /dns/mh1-iotaval-2.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-13
     account-key: AF7odQ5Mwj8PBN/7LYTqyB/gS1OywSBOcKuCS/+VNyLd
@@ -33,8 +33,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/mh1-iotaval-1.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/mh1-iotaval-1.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/mh1-iotaval-1.testnet.iota.io/udp/8082
+    primary-address: /dns/mh1-iotaval-1.testnet.iota.io/udp/8081
+    worker-address: /dns/mh1-iotaval-1.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-17
     account-key: AO6lcah9+F9DfVBwE5+30kmi8pkw7nHPeolO0LNIJUQi
@@ -45,8 +45,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ty6-iotaval-1.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ty6-iotaval-1.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ty6-iotaval-1.testnet.iota.io/udp/8082
+    primary-address: /dns/ty6-iotaval-1.testnet.iota.io/udp/8081
+    worker-address: /dns/ty6-iotaval-1.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-10
     account-key: AEM7kl/d6VlBG1IgY+lHdxzudYT6ZhtXiYBh3kCxLZCq
@@ -57,8 +57,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ny2-iotaval-2.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ny2-iotaval-2.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ny2-iotaval-2.testnet.iota.io/udp/8082
+    primary-address: /dns/ny2-iotaval-2.testnet.iota.io/udp/8081
+    worker-address: /dns/ny2-iotaval-2.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-7
     account-key: ALO4VmUJME24oEDq0tzE7MRi+83HZE3UCuLTVPIE4ZQK
@@ -69,8 +69,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/dal2-iotaval-3.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/dal2-iotaval-3.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/dal2-iotaval-3.testnet.iota.io/udp/8082
+    primary-address: /dns/dal2-iotaval-3.testnet.iota.io/udp/8081
+    worker-address: /dns/dal2-iotaval-3.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-8
     account-key: AJN7LZADOBBRulSlRjE0HJs3YR8I3WPwg2ejh4HbDmIS
@@ -81,8 +81,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ny2-iotaval-0.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ny2-iotaval-0.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ny2-iotaval-0.testnet.iota.io/udp/8082
+    primary-address: /dns/ny2-iotaval-0.testnet.iota.io/udp/8081
+    worker-address: /dns/ny2-iotaval-0.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-4
     account-key: ACfae1xB9WlL4aSAEbIeTzHSK70s6pUFK4MWerGsas0i
@@ -93,8 +93,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/dal2-iotaval-0.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/dal2-iotaval-0.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/dal2-iotaval-0.testnet.iota.io/udp/8082
+    primary-address: /dns/dal2-iotaval-0.testnet.iota.io/udp/8081
+    worker-address: /dns/dal2-iotaval-0.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-18
     account-key: AE6+TGtd9SgOFPJh7sswMd8YDf7G080NeGYwzuIS3/zM
@@ -105,8 +105,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ty6-iotaval-2.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ty6-iotaval-2.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ty6-iotaval-2.testnet.iota.io/udp/8082
+    primary-address: /dns/ty6-iotaval-2.testnet.iota.io/udp/8081
+    worker-address: /dns/ty6-iotaval-2.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-2
     account-key: AGhrMVMiJ67VCxth8gWXNFOLnFuNkIMjV0GK3EFBfaio
@@ -117,8 +117,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/la2-iotaval-2.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/la2-iotaval-2.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/la2-iotaval-2.testnet.iota.io/udp/8082
+    primary-address: /dns/la2-iotaval-2.testnet.iota.io/udp/8081
+    worker-address: /dns/la2-iotaval-2.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-11
     account-key: AK6LecW3y0UyqzCHu3lUgffRyhGrxEQPjaHRxCilP6Rp
@@ -129,8 +129,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ny2-iotaval-3.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ny2-iotaval-3.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ny2-iotaval-3.testnet.iota.io/udp/8082
+    primary-address: /dns/ny2-iotaval-3.testnet.iota.io/udp/8081
+    worker-address: /dns/ny2-iotaval-3.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-16
     account-key: AImuNvQVTUSNUQrsBSi7dzT+a+wVsSQM5fQMfdQ1CTZ0
@@ -141,8 +141,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ty6-iotaval-0.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ty6-iotaval-0.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ty6-iotaval-0.testnet.iota.io/udp/8082
+    primary-address: /dns/ty6-iotaval-0.testnet.iota.io/udp/8081
+    worker-address: /dns/ty6-iotaval-0.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-15
     account-key: AFDDthZ/GakRrsI2QZJ8gQFEt+fJvKwpJJoYm+p/NW07
@@ -153,8 +153,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/mh1-iotaval-3.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/mh1-iotaval-3.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/mh1-iotaval-3.testnet.iota.io/udp/8082
+    primary-address: /dns/mh1-iotaval-3.testnet.iota.io/udp/8081
+    worker-address: /dns/mh1-iotaval-3.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-5
     account-key: ALaZN89Ud2dli3QScggR+9+2CqSkct2f7qMXQ1osFaBd
@@ -165,8 +165,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/dal2-iotaval-1.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/dal2-iotaval-1.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/dal2-iotaval-1.testnet.iota.io/udp/8082
+    primary-address: /dns/dal2-iotaval-1.testnet.iota.io/udp/8081
+    worker-address: /dns/dal2-iotaval-1.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-19
     account-key: AFhY6i8XnpRoImndz7kj+M6mjIpZz1248oyO5Ou/ajG8
@@ -177,8 +177,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/ty6-iotaval-3.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/ty6-iotaval-3.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/ty6-iotaval-3.testnet.iota.io/udp/8082
+    primary-address: /dns/ty6-iotaval-3.testnet.iota.io/udp/8081
+    worker-address: /dns/ty6-iotaval-3.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-12
     account-key: AAYmiOgJnOyXfMPEwP49TUUUTw4dlIA/8IXeKEv8M4RK
@@ -189,8 +189,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/mh1-iotaval-0.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/mh1-iotaval-0.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/mh1-iotaval-0.testnet.iota.io/udp/8082
+    primary-address: /dns/mh1-iotaval-0.testnet.iota.io/udp/8081
+    worker-address: /dns/mh1-iotaval-0.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-3
     account-key: AIyUji/hvun9TdRLQXpN8UNgn3sIjSosETJWkPSwDzHr
@@ -201,8 +201,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/la2-iotaval-3.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/la2-iotaval-3.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/la2-iotaval-3.testnet.iota.io/udp/8082
+    primary-address: /dns/la2-iotaval-3.testnet.iota.io/udp/8081
+    worker-address: /dns/la2-iotaval-3.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-1
     account-key: AG+M0+OIB31YRR/FQKdzt7aP4qUPBQSMyCWK+Da9Zmax
@@ -213,8 +213,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/la2-iotaval-1.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/la2-iotaval-1.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/la2-iotaval-1.testnet.iota.io/udp/8082
+    primary-address: /dns/la2-iotaval-1.testnet.iota.io/udp/8081
+    worker-address: /dns/la2-iotaval-1.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-6
     account-key: AGq4caYZr20U1EM7WkRo6CYVuKfjWmda1b5AGdgaSN2s
@@ -225,8 +225,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/dal2-iotaval-2.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/dal2-iotaval-2.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/dal2-iotaval-2.testnet.iota.io/udp/8082
+    primary-address: /dns/dal2-iotaval-2.testnet.iota.io/udp/8081
+    worker-address: /dns/dal2-iotaval-2.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
   - name: validator-0
     account-key: APlYeKnmB0RcPB5cYaII7aAvjjAt19cVt3d9eJBCQwjX
@@ -237,8 +237,8 @@ validator_set:
     delegation: 0
     gas-price: 1
     network-address: /dns/la2-iotaval-0.testnet.iota.io/tcp/8080/http
-    narwhal-primary-address: /dns/la2-iotaval-0.testnet.iota.io/udp/8081
-    narwhal-worker-address: /dns/la2-iotaval-0.testnet.iota.io/udp/8082
+    primary-address: /dns/la2-iotaval-0.testnet.iota.io/udp/8081
+    worker-address: /dns/la2-iotaval-0.testnet.iota.io/udp/8082
     narwhal-consensus-address: /ip4/127.0.0.1/tcp/8083/http
 send_timeout:
   secs: 30

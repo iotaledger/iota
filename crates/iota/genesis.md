@@ -51,8 +51,8 @@ $ iota genesis-ceremony add-validator \
     --network-key-file <Ed25519KeyPair NETWORK_KEY_FILE> \
     --network-address <multiaddr TCP> \
     --p2p-address <multiaddr UDP> \
-    --narwhal-primary-address <multiaddr UDP> \
-    --narwhal-worker-address <multiaddr UDP> \
+    --primary-address <multiaddr UDP> \
+    --worker-address <multiaddr UDP> \
     --description <validator description> \
     --image-url <validator image url> \
     --project-url <validator project url>
@@ -73,8 +73,8 @@ $ iota genesis-ceremony add-validator \
     --network-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
     --network-address /ip4/127.0.0.1/tcp/38189/http \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
-    --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
-    --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
+    --primary-address /ip4/127.0.0.1/udp/38603 \
+    --worker-address /ip4/127.0.0.1/udp/36603 \
     --description validator0 \
     --image-url https://www.iota.org/favicon.png \
     --project-url https://www.iota.org

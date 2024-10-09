@@ -54,21 +54,21 @@
     protocol: tcp
     comment: iota-node consensus
 
-- name: Allow UDP destination port 8081 / iota-node narwhal-primary-address connectivity
+- name: Allow UDP destination port 8081 / iota-node primary-address connectivity
   iptables:
     chain: INPUT
     destination_port: 8081
     jump: ACCEPT
     protocol: udp
-    comment: iota-node narwhal-primary-address
+    comment: iota-node primary-address
 
-- name: Allow UDP destination port 8082 / iota-node narwhal-worker-address connectivity
+- name: Allow UDP destination port 8082 / iota-node worker-address connectivity
   iptables:
     chain: INPUT
     destination_port: 8082
     jump: ACCEPT
     protocol: udp
-    comment: iota-node narwhal-worker-address
+    comment: iota-node worker-address
 
 - name: Allow UDP destination port 8084 / iota-node peer-to-peer connectivity
   iptables:
