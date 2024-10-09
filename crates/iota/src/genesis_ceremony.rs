@@ -10,11 +10,12 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{
-        GenesisBuildEffects, TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis,
-    },
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
-use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl};
+use iota_genesis_builder::{
+    Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
+    genesis_build_effects::GenesisBuildEffects,
+};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };

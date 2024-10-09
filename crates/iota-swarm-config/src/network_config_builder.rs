@@ -11,9 +11,10 @@ use std::{
 
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
-    genesis::{GenesisBuildEffects, TokenAllocation, TokenDistributionScheduleBuilder},
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
 };
+use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_macros::nondeterministic;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},

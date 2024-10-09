@@ -6,13 +6,11 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
-use iota_config::{
-    genesis::{Genesis, GenesisBuildEffects},
-    local_ip_utils,
-    node::AuthorityOverloadConfig,
-};
+use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
-use iota_genesis_builder::validator_info::ValidatorInfo;
+use iota_genesis_builder::{
+    genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
+};
 use iota_macros::nondeterministic;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;

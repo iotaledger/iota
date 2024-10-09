@@ -15,11 +15,12 @@ use anyhow::{Context, bail};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use flate2::bufread::GzDecoder;
+use genesis_build_effects::GenesisBuildEffects;
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{
-        Genesis, GenesisBuildEffects, GenesisCeremonyParameters, GenesisChainParameters,
-        TokenDistributionSchedule, UnsignedGenesis,
+        Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
+        UnsignedGenesis,
     },
     migration_tx_data::{MigrationTxData, TransactionsData},
 };
@@ -80,6 +81,7 @@ use stardust::migration::MigrationObjects;
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
+pub mod genesis_build_effects;
 mod stake;
 pub mod stardust;
 pub mod validator_info;

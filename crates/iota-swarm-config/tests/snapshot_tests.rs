@@ -22,10 +22,12 @@ use std::num::NonZeroUsize;
 use fastcrypto::traits::KeyPair;
 use insta::assert_yaml_snapshot;
 use iota_config::{
-    genesis::{GenesisBuildEffects, GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
+    genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
+use iota_genesis_builder::{
+    Builder, genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
+};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
     base_types::IotaAddress,
