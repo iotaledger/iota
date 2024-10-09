@@ -595,7 +595,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn get_committee_info() {
     let cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(1000)
+        .with_epoch_duration_ms(2000)
         .build()
         .await;
 
