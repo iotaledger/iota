@@ -12,7 +12,7 @@
 /// or still experimenting a new field.
 ///
 /// To properly upgrade the `IotaSystemStateV1` type, we need to ship a new framework that does the following:
-/// 1. Define a new `IotaSystemStateInner`type (e.g. `IotaSystemStateV2`).
+/// 1. Define a new `IotaSystemState`type (e.g. `IotaSystemStateV2`).
 /// 2. Define a data migration function that migrates the old (e.g. `IotaSystemStateV1`) to the new one (e.g. `IotaSystemStateV2`).
 /// 3. Replace all uses of `IotaSystemStateV1` with `IotaSystemStateV2` in both iota_system.move and iota_system_state_inner.move,
 ///    with the exception of the `iota_system_state_inner::create` function, which should always return the genesis type.
@@ -20,7 +20,7 @@
 ///   call the data migration function to upgrade the inner object. Make sure to also update the version in the wrapper.
 /// A detailed example can be found in iota/tests/framework_upgrades/mock_iota_systems/shallow_upgrade.
 /// Along with the Move change, we also need to update the Rust code to support the new type. This includes:
-/// 1. Define a new `IotaSystemStateInner` struct type that matches the new Move type, and implement the `IotaSystemStateTrait`.
+/// 1. Define a new `IotaSystemState` struct type that matches the new Move type, and implement the `IotaSystemStateTrait`.
 /// 2. Update the `IotaSystemState` struct to include the new version as a new enum variant.
 /// 3. Update the `get_iota_system_state` function to handle the new version.
 /// To test that the upgrade will be successful, we need to modify `iota_system_state_production_upgrade_test` test in
