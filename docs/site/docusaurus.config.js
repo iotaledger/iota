@@ -151,7 +151,7 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
+  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -224,9 +224,18 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
+      socials: [
+        'https://www.youtube.com/c/iotafoundation',
+        'https://www.github.com/iotaledger/',
+        'https://discord.iota.org/',
+        'https://www.twitter.com/iota/',
+        'https://www.reddit.com/r/iota/',
+        'https://www.linkedin.com/company/iotafoundation/',
+        'https://www.instagram.com/iotafoundation/',
+      ],
       prism: {
-        theme: themes.github,
-        darkTheme: themes.jettwaveDark,
+        theme: themes.vsLight,
+        darkTheme: themes.vsDark,
         additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
     }),
