@@ -189,10 +189,8 @@ impl IotaSystemStateSummary {
                     (validator.voting_power, NetworkMetadata {
                         network_address: Multiaddr::try_from(validator.net_address.clone())
                             .unwrap(),
-                        primary_address: Multiaddr::try_from(
-                            validator.primary_address.clone(),
-                        )
-                        .unwrap(),
+                        primary_address: Multiaddr::try_from(validator.primary_address.clone())
+                            .unwrap(),
                     }),
                 )
             })

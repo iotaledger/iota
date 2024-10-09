@@ -521,14 +521,8 @@ impl Builder {
             assert_eq!(validator.info.project_url, metadata.project_url);
             assert_eq!(validator.info.network_address(), &metadata.net_address);
             assert_eq!(validator.info.p2p_address, metadata.p2p_address);
-            assert_eq!(
-                validator.info.primary_address,
-                metadata.primary_address
-            );
-            assert_eq!(
-                validator.info.worker_address,
-                metadata.worker_address
-            );
+            assert_eq!(validator.info.primary_address, metadata.primary_address);
+            assert_eq!(validator.info.worker_address, metadata.worker_address);
 
             assert_eq!(validator.info.gas_price, onchain_validator.gas_price);
             assert_eq!(
