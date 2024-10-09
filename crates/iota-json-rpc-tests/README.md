@@ -98,10 +98,10 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 ### `TransactionBuilder` (7/15)
 
 - [x] `transfer_object`
-- [ ] `transfer_iota`
-- [ ] `pay`
-- [ ] `pay_iota`
-- [ ] `pay_all_iota`
+- [x] `transfer_iota`
+- [x] `pay`
+- [x] `pay_iota`
+- [x] `pay_all_iota`
 - [x] `move_call`
 - [x] `publish`
 - [ ] `split_coin`
@@ -116,5 +116,5 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 ### `WriteApi` (2/3)
 
 - [x] `execute_transaction_block`
-- [ ] `dev_inspect_transaction_block`
+- [x] `dev_inspect_transaction_block`
 - [x] `dry_run_transaction_block`
