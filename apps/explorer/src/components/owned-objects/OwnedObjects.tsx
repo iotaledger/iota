@@ -268,13 +268,10 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     <Select
                                         dropdownPosition={DropdownPosition.Top}
                                         value={limit.toString()}
-                                        options={[
-                                            { label: '10 Per Page', id: '10' },
-                                            { label: '20 Per Page', id: '20' },
-                                            { label: '30 Per Page', id: '30' },
-                                            { label: '40 Per Page', id: '40' },
-                                            { label: '50 Per Page', id: '50' },
-                                        ]}
+                                        options={PAGE_SIZES.map((size) => ({
+                                            label: `${size} Per Page`,
+                                            id: size.toString(),
+                                        }))}
                                         onValueChange={(value) => {
                                             setLimit(Number(value));
                                             pagination.onFirst();
