@@ -146,7 +146,6 @@ impl Validator {
             net_address: Some(v.net_address.clone()),
             p2p_address: Some(v.p2p_address.clone()),
             primary_address: Some(v.primary_address.clone()),
-            worker_address: Some(v.worker_address.clone()),
         };
         Some(credentials)
     }
@@ -165,7 +164,6 @@ impl Validator {
             net_address: v.next_epoch_net_address.clone(),
             p2p_address: v.next_epoch_p2p_address.clone(),
             primary_address: v.next_epoch_primary_address.clone(),
-            worker_address: v.next_epoch_worker_address.clone(),
         };
         Some(credentials)
     }

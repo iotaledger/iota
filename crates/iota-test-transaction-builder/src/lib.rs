@@ -215,7 +215,6 @@ impl TestTransactionBuilder {
                 CallArg::Pure(bcs::to_bytes(&validator.network_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.p2p_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.primary_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.worker_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&DEFAULT_VALIDATOR_GAS_PRICE).unwrap()), // gas_price
                 CallArg::Pure(bcs::to_bytes(&0u64).unwrap()), // commission_rate
             ],

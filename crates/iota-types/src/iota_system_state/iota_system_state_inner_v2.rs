@@ -178,7 +178,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
-                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: metadata.name.clone(),
                     }

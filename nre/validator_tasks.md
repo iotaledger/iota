@@ -350,7 +350,7 @@ In order for an Iota address to join the validator set, they need to first sign 
 
 ```shell
 iota client call --package 0x3 --module iota_system --function request_add_validator_candidate --args 0x5 {protocol_pubkey_bytes} {network_pubkey_bytes} {worker_pubkey_bytes} {proof_of_possession} {name} {description} {image_url} {project_url} {net_address}
-{p2p_address} {primary_address} {worker_address} {gas_price} {commission_rate} --gas-budget 10000
+{p2p_address} {primary_address} {gas_price} {commission_rate} --gas-budget 10000
 ```
 
 After an address becomes a validator candidate, any address (including the candidate address itself) can start staking with the candidate's staking pool. Once a candidate's staking pool has accumulated at least `iota_system::MIN_VALIDATOR_JOINING_STAKE` amount of stake, the candidate can call `iota_system::request_add_validator` to officially add themselves to the next epoch's active validator set:

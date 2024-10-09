@@ -340,10 +340,6 @@ impl IotaValidatorCommand {
                             "/dns/{}/udp/8081",
                             host_name
                         ))?,
-                        worker_address: Multiaddr::try_from(format!(
-                            "/dns/{}/udp/8082",
-                            host_name
-                        ))?,
                         description,
                         image_url,
                         project_url,
@@ -400,7 +396,6 @@ impl IotaValidatorCommand {
                     CallArg::Pure(bcs::to_bytes(validator.network_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(validator.p2p_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(validator.primary_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.worker_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(&validator.gas_price()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(&validator.commission_rate()).unwrap()),
                 ];
@@ -1141,8 +1136,6 @@ pub enum MetadataUpdate {
     NetworkAddress { network_address: Multiaddr },
     /// Update Primary Address. Effectuate from next epoch.
     PrimaryAddress { primary_address: Multiaddr },
-    /// Update Worker Address. Effectuate from next epoch.
-    WorkerAddress { worker_address: Multiaddr },
     /// Update P2P Address. Effectuate from next epoch.
     P2pAddress { p2p_address: Multiaddr },
     /// Update Network Public Key. Effectuate from next epoch.
@@ -1216,21 +1209,6 @@ async fn update_metadata(
             call_0x5(
                 context,
                 "update_validator_next_epoch_primary_address",
-                args,
-                gas_budget,
-            )
-            .await
-        }
-        MetadataUpdate::WorkerAddress { worker_address } => {
-            worker_address.to_anemo_address().map_err(|_| {
-                anyhow!("Invalid worker address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
-            })?;
-            // Only an active validator can leave committee.
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&worker_address).unwrap())];
-            call_0x5(
-                context,
-                "update_validator_next_epoch_worker_address",
                 args,
                 gas_budget,
             )

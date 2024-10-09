@@ -33,7 +33,6 @@ module iota_system::genesis {
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
     }
 
     public struct GenesisChainParameters has drop, copy {
@@ -88,7 +87,6 @@ module iota_system::genesis {
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
             } = *vector::borrow(&genesis_validators, i);
 
             let validator = validator::new(
@@ -99,7 +97,6 @@ module iota_system::genesis {
                 network_address,
                 p2p_address,
                 primary_address,
-                worker_address,
                 balance::split(&mut iota_supply, 2500),
                 ctx
             );

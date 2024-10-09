@@ -1025,7 +1025,6 @@ Response: {
                                     "net_address": "/ip4/127.0.0.1/tcp/8000/http",
                                     "p2p_address": "/ip4/127.0.0.1/udp/8001/http",
                                     "primary_address": "/ip4/127.0.0.1/udp/8004/http",
-                                    "worker_address": "/ip4/127.0.0.1/udp/8005/http",
                                     "next_epoch_protocol_pubkey_bytes": null,
                                     "next_epoch_proof_of_possession": null,
                                     "next_epoch_network_pubkey_bytes": null,
@@ -1033,7 +1032,6 @@ Response: {
                                     "next_epoch_net_address": null,
                                     "next_epoch_p2p_address": null,
                                     "next_epoch_primary_address": null,
-                                    "next_epoch_worker_address": null,
                                     "extra_fields": {
                                       "id": "0x27cadc03c150315b25b85a37580936f58705119a9eba52d9699c5e4170f20f20",
                                       "size": "0"

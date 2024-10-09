@@ -19,7 +19,6 @@ validator_config_info:
     gas_price: 1000
     name: validator1
     primary_address: /dns/validator1/udp/8081
-    worker_address: /dns/validator1/udp/8082
     network_address: /dns/validator1/tcp/8080/http
     p2p_address: /dns/validator1/udp/8084
     stake: 20000000000000000
@@ -30,7 +29,6 @@ validator_config_info:
     gas_price: 1000
     name: validator2
     primary_address: /dns/validator2/udp/8081
-    worker_address: /dns/validator2/udp/8082
     network_address: /dns/validator2/tcp/8080/http
     p2p_address: /dns/validator2/udp/8084
     stake: 20000000000000000
@@ -39,7 +37,6 @@ validator_config_info:
     gas_price: 1000
     name: validator3
     primary_address: /dns/validator3/udp/8081
-    worker_address: /dns/validator3/udp/8082
     network_address: /dns/validator3/tcp/8080/http
     p2p_address: /dns/validator3/udp/8084
     stake: 20000000000000000
@@ -48,7 +45,6 @@ validator_config_info:
     gas_price: 1000
     name: validator4
     primary_address: /dns/validator4/udp/8081
-    worker_address: /dns/validator4/udp/8082
     network_address: /dns/validator4/tcp/8080/http
     p2p_address: /dns/validator4/udp/8084
     stake: 20000000000000000

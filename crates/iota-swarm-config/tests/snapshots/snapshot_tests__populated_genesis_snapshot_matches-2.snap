@@ -235,7 +235,6 @@ validators:
         net_address: /ip4/127.0.0.1/tcp/80
         p2p_address: /ip4/127.0.0.1/udp/80
         primary_address: /ip4/127.0.0.1/udp/80
-        worker_address: /ip4/127.0.0.1/udp/80
         next_epoch_protocol_pubkey_bytes: ~
         next_epoch_proof_of_possession: ~
         next_epoch_network_pubkey_bytes: ~
@@ -243,7 +242,6 @@ validators:
         next_epoch_net_address: ~
         next_epoch_p2p_address: ~
         next_epoch_primary_address: ~
-        next_epoch_worker_address: ~
         extra_fields:
           id:
             id: "0xe7d648e1a5c6da060c89e1cabd57d7ae1eb1c8f5b6d99f5b8950200a19fc6599"

@@ -123,7 +123,6 @@ module iota_system::iota_system {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
@@ -141,7 +140,6 @@ module iota_system::iota_system {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             gas_price,
             commission_rate,
             ctx,
@@ -422,27 +420,6 @@ module iota_system::iota_system {
     ) {
         let self = load_system_state_mut(self);
         self.update_candidate_validator_primary_address(primary_address, ctx)
-    }
-
-    /// Update a validator's worker address.
-    /// The change will only take effects starting from the next epoch.
-    public entry fun update_validator_next_epoch_worker_address(
-        self: &mut IotaSystemState,
-        worker_address: vector<u8>,
-        ctx: &TxContext,
-    ) {
-        let self = load_system_state_mut(self);
-        self.update_validator_next_epoch_worker_address(worker_address, ctx)
-    }
-
-    /// Update candidate validator's worker address.
-    public entry fun update_candidate_validator_worker_address(
-        self: &mut IotaSystemState,
-        worker_address: vector<u8>,
-        ctx: &TxContext,
-    ) {
-        let self = load_system_state_mut(self);
-        self.update_candidate_validator_worker_address(worker_address, ctx)
     }
 
     /// Update a validator's public key of protocol key and proof of possession.
@@ -732,7 +709,6 @@ module iota_system::iota_system {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
@@ -750,7 +726,6 @@ module iota_system::iota_system {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             gas_price,
             commission_rate,
             ctx

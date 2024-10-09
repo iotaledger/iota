@@ -11,7 +11,6 @@ Each validator participating in the ceremony will need the following:
 - Iota network address
 - p2p_address network address
 - primary_address network address
-- worker_address network address
 
 Note:
 

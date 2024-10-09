@@ -208,23 +208,6 @@ async fn update_next_epoch_metadata(
     new_primary_addresses.push(Protocol::Udp(new_port));
     info!("New primary address: {:?}", new_primary_addresses);
 
-    // worker address
-    let mut new_worker_addresses = Multiaddr::try_from(
-        validators
-            .iter()
-            .find(|v| v.iota_address == iota_address)
-            .unwrap()
-            .worker_address
-            .clone(),
-    )
-    .unwrap();
-    info!("Current worker address: {:?}", new_worker_addresses);
-    // pop out udp
-    new_worker_addresses.pop().unwrap();
-    let new_port = local_ip_utils::get_available_port(&localhost);
-    new_worker_addresses.push(Protocol::Udp(new_port));
-    info!("New worker address:: {:?}", new_worker_addresses);
-
     // Save new config
     let mut new_config_path = iota_node_config_path.to_path_buf();
     new_config_path.pop();
@@ -294,15 +277,6 @@ async fn update_next_epoch_metadata(
         vec![CallArg::Pure(
             bcs::to_bytes(&new_primary_addresses).unwrap(),
         )],
-        iota_client,
-    )
-    .await?;
-
-    // update worker address
-    update_metadata_on_chain(
-        account_key,
-        "update_validator_next_epoch_worker_address",
-        vec![CallArg::Pure(bcs::to_bytes(&new_worker_addresses).unwrap())],
         iota_client,
     )
     .await?;

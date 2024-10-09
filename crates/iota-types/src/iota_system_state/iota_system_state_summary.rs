@@ -227,7 +227,6 @@ pub struct IotaValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
     #[schemars(with = "Option<Base64>")]
     #[serde_as(as = "Option<Base64>")]
     pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
@@ -243,7 +242,6 @@ pub struct IotaValidatorSummary {
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
-    pub next_epoch_worker_address: Option<String>,
 
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -366,7 +364,6 @@ impl Default for IotaValidatorSummary {
             net_address: String::new(),
             p2p_address: String::new(),
             primary_address: String::new(),
-            worker_address: String::new(),
             next_epoch_protocol_pubkey_bytes: None,
             next_epoch_proof_of_possession: None,
             next_epoch_network_pubkey_bytes: None,
@@ -374,7 +371,6 @@ impl Default for IotaValidatorSummary {
             next_epoch_net_address: None,
             next_epoch_p2p_address: None,
             next_epoch_primary_address: None,
-            next_epoch_worker_address: None,
             voting_power: 0,
             operation_cap_id: ObjectID::ZERO,
             gas_price: 0,

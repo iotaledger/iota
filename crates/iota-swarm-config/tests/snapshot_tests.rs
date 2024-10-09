@@ -74,7 +74,6 @@ fn populated_genesis_snapshot_matches() {
         network_address: "/ip4/127.0.0.1/tcp/80".parse().unwrap(),
         p2p_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
         primary_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
-        worker_address: "/ip4/127.0.0.1/udp/80".parse().unwrap(),
         description: String::new(),
         image_url: String::new(),
         project_url: String::new(),

@@ -16,5 +16,4 @@ pub(crate) struct ValidatorCredentials {
     pub net_address: Option<String>,
     pub p2p_address: Option<String>,
     pub primary_address: Option<String>,
-    pub worker_address: Option<String>,
 }

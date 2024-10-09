@@ -19,7 +19,6 @@ module iota_system::validator {
         net_address: String,
         p2p_address: String,
         primary_address: String,
-        worker_address: String,
         extra_fields: Bag,
     }
 
@@ -38,7 +37,6 @@ module iota_system::validator {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         init_stake: Balance<IOTA>,
         ctx: &mut TxContext
     ): Validator {
@@ -50,7 +48,6 @@ module iota_system::validator {
             net_address: string::from_ascii(ascii::string(net_address)),
             p2p_address: string::from_ascii(ascii::string(p2p_address)),
             primary_address: string::from_ascii(ascii::string(primary_address)),
-            worker_address: string::from_ascii(ascii::string(worker_address)),
             extra_fields: bag::new(ctx),
         };
 

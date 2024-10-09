@@ -245,7 +245,6 @@ async fn init_genesis(
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),
             p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
             primary_address: local_ip_utils::new_local_udp_address_for_testing(),
-            worker_address: local_ip_utils::new_local_udp_address_for_testing(),
             description: String::new(),
             image_url: String::new(),
             project_url: String::new(),

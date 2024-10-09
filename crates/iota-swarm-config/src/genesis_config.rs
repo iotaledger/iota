@@ -56,7 +56,6 @@ pub struct ValidatorGenesisConfig {
     pub gas_price: u64,
     pub commission_rate: u64,
     pub primary_address: Multiaddr,
-    pub worker_address: Multiaddr,
     pub consensus_address: Multiaddr,
     #[serde(default = "default_stake")]
     pub stake: u64,
@@ -82,7 +81,6 @@ impl ValidatorGenesisConfig {
             network_address,
             p2p_address: self.p2p_address.clone(),
             primary_address: self.primary_address.clone(),
-            worker_address: self.worker_address.clone(),
             description: String::new(),
             image_url: String::new(),
             project_url: String::new(),
@@ -171,7 +169,6 @@ impl ValidatorGenesisConfigBuilder {
             metrics_address,
             narwhal_metrics_address,
             primary_address,
-            worker_address,
             consensus_address,
         ) = if let Some(offset) = self.port_offset {
             (
@@ -183,7 +180,6 @@ impl ValidatorGenesisConfigBuilder {
                     .with_zero_ip(),
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 4),
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 5),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 6),
             )
         } else {
             (
@@ -191,7 +187,6 @@ impl ValidatorGenesisConfigBuilder {
                 local_ip_utils::new_udp_address_for_testing(&ip),
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
-                local_ip_utils::new_udp_address_for_testing(&ip),
                 local_ip_utils::new_udp_address_for_testing(&ip),
                 local_ip_utils::new_tcp_address_for_testing(&ip),
             )
@@ -214,7 +209,6 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            worker_address,
             consensus_address,
             stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             name: None,

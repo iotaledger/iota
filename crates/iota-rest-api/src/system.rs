@@ -244,7 +244,6 @@ pub struct ValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
     pub next_epoch_protocol_public_key: Option<iota_sdk2::types::Bls12381PublicKey>,
     pub next_epoch_network_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
     pub next_epoch_worker_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
@@ -254,7 +253,6 @@ pub struct ValidatorSummary {
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,
     pub next_epoch_primary_address: Option<String>,
-    pub next_epoch_worker_address: Option<String>,
 
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
@@ -341,7 +339,6 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             next_epoch_protocol_pubkey_bytes,
             next_epoch_proof_of_possession,
             next_epoch_network_pubkey_bytes,
@@ -349,7 +346,6 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
-            next_epoch_worker_address,
             voting_power,
             operation_cap_id,
             gas_price,
@@ -390,7 +386,6 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             next_epoch_protocol_public_key: next_epoch_protocol_pubkey_bytes
                 .map(|bytes| iota_sdk2::types::Bls12381PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_network_public_key: next_epoch_network_pubkey_bytes
@@ -401,7 +396,6 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             next_epoch_net_address,
             next_epoch_p2p_address,
             next_epoch_primary_address,
-            next_epoch_worker_address,
             voting_power,
             operation_cap_id: operation_cap_id.into(),
             gas_price,

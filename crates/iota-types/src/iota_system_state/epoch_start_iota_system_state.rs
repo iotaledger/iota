@@ -283,7 +283,6 @@ pub struct EpochStartValidatorInfoV1 {
     pub iota_net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
-    pub worker_address: Multiaddr,
     pub voting_power: StakeUnit,
     pub hostname: String,
 }
@@ -327,7 +326,6 @@ mod test {
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
-                worker_address: Multiaddr::empty(),
                 voting_power: 1_000,
                 hostname: format!("host-{i}").to_string(),
             })

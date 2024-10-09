@@ -366,7 +366,6 @@ module iota_system::iota_system_tests {
         system_state.update_candidate_validator_network_address(network_address, ctx);
         system_state.update_candidate_validator_p2p_address(p2p_address, ctx);
         system_state.update_candidate_validator_primary_address(b"/ip4/127.0.0.1/udp/80", ctx);
-        system_state.update_candidate_validator_worker_address(b"/ip4/127.0.0.1/udp/80", ctx);
         system_state.update_candidate_validator_protocol_pubkey(
             protocol_pub_key,
             pop,
@@ -399,7 +398,6 @@ module iota_system::iota_system_tests {
             protocol_pub_key,
             pop,
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             network_address,
             p2p_address,
             vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62],
@@ -431,7 +429,6 @@ module iota_system::iota_system_tests {
         system_state.update_validator_next_epoch_network_address(network_address, ctx);
         system_state.update_validator_next_epoch_p2p_address(p2p_address, ctx);
         system_state.update_validator_next_epoch_primary_address(b"/ip4/168.168.168.168/udp/80", ctx);
-        system_state.update_validator_next_epoch_worker_address(b"/ip4/168.168.168.168/udp/80", ctx);
         system_state.update_validator_next_epoch_protocol_pubkey(
             protocol_pub_key,
             pop,
@@ -464,7 +461,6 @@ module iota_system::iota_system_tests {
             protocol_pub_key,
             pop,
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             network_address,
             p2p_address,
             network_pubkey,
@@ -475,7 +471,6 @@ module iota_system::iota_system_tests {
         assert!(validator.next_epoch_network_address() == &option::some(new_network_address.to_string()));
         assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()));
         assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
-        assert!(validator.next_epoch_worker_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
         assert!(
             validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
             0
@@ -500,7 +495,6 @@ module iota_system::iota_system_tests {
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         network_pubkey_bytes: vector<u8>,
@@ -514,7 +508,6 @@ module iota_system::iota_system_tests {
         assert!(validator.network_address() == &network_address.to_string());
         assert!(validator.p2p_address() == &p2p_address.to_string());
         assert!(validator.primary_address() == &primary_address.to_string());
-        assert!(validator.worker_address() == &worker_address.to_string());
         assert!(validator.protocol_pubkey_bytes() == &protocol_pub_key);
         assert!(validator.proof_of_possession() == &pop);
         assert!(validator.worker_pubkey_bytes() == &worker_pubkey_bytes);
@@ -539,7 +532,6 @@ module iota_system::iota_system_tests {
             protocol_pub_key,
             pop,
             b"/ip4/168.168.168.168/udp/80",
-            b"/ip4/168.168.168.168/udp/80",
             network_address,
             p2p_address,
             network_pubkey,
@@ -550,7 +542,6 @@ module iota_system::iota_system_tests {
         assert!(validator.next_epoch_network_address().is_none());
         assert!(validator.next_epoch_p2p_address().is_none());
         assert!(validator.next_epoch_primary_address().is_none());
-        assert!(validator.next_epoch_worker_address().is_none());
         assert!(validator.next_epoch_protocol_pubkey_bytes().is_none());
         assert!(validator.next_epoch_proof_of_possession().is_none());
         assert!(validator.next_epoch_worker_pubkey_bytes().is_none());
@@ -595,7 +586,6 @@ module iota_system::iota_system_tests {
             b"image_url",
             b"project_url",
             b"/ip4/127.0.0.1/tcp/80",
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(100_000_000_000)),
@@ -667,7 +657,6 @@ module iota_system::iota_system_tests {
                 b"project_url2",
                 b"/ip4/127.0.0.2/tcp/80",
                 b"/ip4/127.0.0.2/udp/80",
-                b"/ip4/127.0.0.1/udp/80",
                 b"/ip4/127.0.0.1/udp/80",
                 1,
                 0,
@@ -780,7 +769,6 @@ module iota_system::iota_system_tests {
                 b"/ip4/127.0.0.2/tcp/80",
                 b"/ip4/127.0.0.2/udp/80",
                 b"/ip4/168.168.168.168/udp/80",
-                b"/ip4/168.168.168.168/udp/80",
                 1,
                 0,
                 scenario.ctx(),
@@ -846,7 +834,6 @@ module iota_system::iota_system_tests {
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             1,
             0,
             scenario.ctx(),
@@ -879,7 +866,6 @@ module iota_system::iota_system_tests {
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             1,
             0,
             scenario.ctx(),
@@ -897,7 +883,6 @@ module iota_system::iota_system_tests {
             b"project_url2",
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             1,
             0,
@@ -938,7 +923,6 @@ module iota_system::iota_system_tests {
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             option::some(balance::create_for_testing<IOTA>(100_000_000_000)),
             1,
             0,
@@ -964,7 +948,6 @@ module iota_system::iota_system_tests {
             b"project_url2",
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             1,
             0,

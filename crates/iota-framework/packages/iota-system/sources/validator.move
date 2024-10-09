@@ -38,23 +38,20 @@ module iota_system::validator {
     /// Invalid primary_address field in ValidatorMetadata
     const EMetadataInvalidPrimaryAddr: u64 = 6;
 
-    /// Invalidworker_address field in ValidatorMetadata
-    const EMetadataInvalidWorkerAddr: u64 = 7;
-
     /// Commission rate set by the validator is higher than the threshold
-    const ECommissionRateTooHigh: u64 = 8;
+    const ECommissionRateTooHigh: u64 = 7;
 
     /// Validator Metadata is too long
-    const EValidatorMetadataExceedingLengthLimit: u64 = 9;
+    const EValidatorMetadataExceedingLengthLimit: u64 = 8;
 
     /// Intended validator is not a candidate one.
-    const ENotValidatorCandidate: u64 = 10;
+    const ENotValidatorCandidate: u64 = 9;
 
     /// Stake amount is invalid or wrong.
-    const EInvalidStakeAmount: u64 = 11;
+    const EInvalidStakeAmount: u64 = 10;
 
     /// Function called during non-genesis times.
-    const ECalledDuringNonGenesis: u64 = 12;
+    const ECalledDuringNonGenesis: u64 = 11;
 
     /// New Capability is not created by the validator itself
     const ENewCapNotCreatedByValidatorItself: u64 = 100;
@@ -99,8 +96,6 @@ module iota_system::validator {
         p2p_address: String,
         /// The address of the primary
         primary_address: String,
-        /// The address of the worker
-        worker_address: String,
 
         /// "next_epoch" metadata only takes effects in the next epoch.
         /// If none, current value will stay unchanged.
@@ -111,7 +106,6 @@ module iota_system::validator {
         next_epoch_net_address: Option<String>,
         next_epoch_p2p_address: Option<String>,
         next_epoch_primary_address: Option<String>,
-        next_epoch_worker_address: Option<String>,
 
         /// Any extra fields that's not defined statically.
         extra_fields: Bag,
@@ -174,7 +168,6 @@ module iota_system::validator {
         net_address: String,
         p2p_address: String,
         primary_address: String,
-        worker_address: String,
         extra_fields: Bag,
     ): ValidatorMetadata {
         let metadata = ValidatorMetadata {
@@ -190,7 +183,6 @@ module iota_system::validator {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
             next_epoch_protocol_pubkey_bytes: option::none(),
             next_epoch_network_pubkey_bytes: option::none(),
             next_epoch_worker_pubkey_bytes: option::none(),
@@ -198,7 +190,6 @@ module iota_system::validator {
             next_epoch_net_address: option::none(),
             next_epoch_p2p_address: option::none(),
             next_epoch_primary_address: option::none(),
-            next_epoch_worker_address: option::none(),
             extra_fields,
         };
         metadata
@@ -217,7 +208,6 @@ module iota_system::validator {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext
@@ -226,7 +216,6 @@ module iota_system::validator {
             net_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && p2p_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && primary_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
-                && worker_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && name.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && description.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && image_url.length() <= MAX_VALIDATOR_METADATA_LENGTH
@@ -249,7 +238,6 @@ module iota_system::validator {
             net_address.to_ascii_string().to_string(),
             p2p_address.to_ascii_string().to_string(),
             primary_address.to_ascii_string().to_string(),
-            worker_address.to_ascii_string().to_string(),
             bag::new(ctx),
         );
 
@@ -465,10 +453,6 @@ module iota_system::validator {
         &self.metadata.primary_address
     }
 
-    public fun worker_address(self: &Validator): &String {
-        &self.metadata.worker_address
-    }
-
     public fun protocol_pubkey_bytes(self: &Validator): &vector<u8> {
         &self.metadata.protocol_pubkey_bytes
     }
@@ -495,10 +479,6 @@ module iota_system::validator {
 
     public fun next_epoch_primary_address(self: &Validator): &Option<String> {
         &self.metadata.next_epoch_primary_address
-    }
-
-    public fun next_epoch_worker_address(self: &Validator): &Option<String> {
-        &self.metadata.next_epoch_worker_address
     }
 
     public fun next_epoch_protocol_pubkey_bytes(self: &Validator): &Option<vector<u8>> {
@@ -743,29 +723,6 @@ module iota_system::validator {
         validate_metadata(&self.metadata);
     }
 
-    /// Update worker address of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_worker_address(self: &mut Validator, worker_address: vector<u8>) {
-        assert!(
-            worker_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
-            EValidatorMetadataExceedingLengthLimit
-        );
-        let worker_address = worker_address.to_ascii_string().to_string();
-        self.metadata.next_epoch_worker_address = option::some(worker_address);
-        validate_metadata(&self.metadata);
-    }
-
-    /// Update worker address of this candidate validator
-    public(package) fun update_candidate_worker_address(self: &mut Validator, worker_address: vector<u8>) {
-        assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(
-            worker_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
-            EValidatorMetadataExceedingLengthLimit
-        );
-        let worker_address = worker_address.to_ascii_string().to_string();
-        self.metadata.worker_address = worker_address;
-        validate_metadata(&self.metadata);
-    }
-
     /// Update protocol public key of this validator, taking effects from next epoch
     public(package) fun update_next_epoch_protocol_pubkey(self: &mut Validator, protocol_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
         self.metadata.next_epoch_protocol_pubkey_bytes = option::some(protocol_pubkey);
@@ -824,11 +781,6 @@ module iota_system::validator {
         if (next_epoch_primary_address(self).is_some()) {
             self.metadata.primary_address = self.metadata.next_epoch_primary_address.extract();
             self.metadata.next_epoch_primary_address = option::none();
-        };
-
-        if (next_epoch_worker_address(self).is_some()) {
-            self.metadata.worker_address = self.metadata.next_epoch_worker_address.extract();
-            self.metadata.next_epoch_worker_address = option::none();
         };
 
         if (next_epoch_protocol_pubkey_bytes(self).is_some()) {
@@ -909,7 +861,6 @@ module iota_system::validator {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         mut initial_stake_option: Option<Balance<IOTA>>,
         gas_price: u64,
         commission_rate: u64,
@@ -930,7 +881,6 @@ module iota_system::validator {
                 net_address.to_ascii_string().to_string(),
                 p2p_address.to_ascii_string().to_string(),
                 primary_address.to_ascii_string().to_string(),
-                worker_address.to_ascii_string().to_string(),
                 bag::new(ctx),
             ),
             gas_price,

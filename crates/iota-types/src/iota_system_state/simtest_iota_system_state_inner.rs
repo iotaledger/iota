@@ -79,7 +79,6 @@ pub struct SimTestValidatorMetadataV1 {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub worker_address: String,
     pub extra_fields: Bag,
 }
 
@@ -92,7 +91,6 @@ pub struct VerifiedSimTestValidatorMetadataV1 {
     pub net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
-    pub worker_address: Multiaddr,
 }
 
 impl SimTestValidatorMetadataV1 {
@@ -106,7 +104,6 @@ impl SimTestValidatorMetadataV1 {
         let net_address = Multiaddr::try_from(self.net_address.clone()).unwrap();
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone()).unwrap();
         let primary_address = Multiaddr::try_from(self.primary_address.clone()).unwrap();
-        let worker_address = Multiaddr::try_from(self.worker_address.clone()).unwrap();
         VerifiedSimTestValidatorMetadataV1 {
             iota_address: self.iota_address,
             protocol_pubkey,
@@ -115,7 +112,6 @@ impl SimTestValidatorMetadataV1 {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
         }
     }
 }
@@ -210,7 +206,6 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
-                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }
@@ -323,7 +318,6 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
-                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }
@@ -465,7 +459,6 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                         iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         primary_address: metadata.primary_address.clone(),
-                        worker_address: metadata.worker_address.clone(),
                         voting_power: validator.voting_power,
                         hostname: "".to_string(),
                     }

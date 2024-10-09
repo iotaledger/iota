@@ -27,7 +27,6 @@ module iota_system::validator_tests {
     const VALID_NET_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
     const VALID_P2P_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
     const VALID_CONSENSUS_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
-    const VALID_WORKER_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
 
     const TOO_LONG_257_BYTES: vector<u8> = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -47,7 +46,6 @@ module iota_system::validator_tests {
             VALID_NET_ADDR,
             VALID_P2P_ADDR,
             VALID_CONSENSUS_ADDR,
-            VALID_WORKER_ADDR,
             1,
             0,
             ctx
@@ -159,7 +157,6 @@ module iota_system::validator_tests {
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
             VALID_CONSENSUS_ADDR.to_string(),
-            VALID_WORKER_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -186,7 +183,6 @@ module iota_system::validator_tests {
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
             VALID_CONSENSUS_ADDR.to_string(),
-            VALID_WORKER_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -213,7 +209,6 @@ module iota_system::validator_tests {
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
             VALID_CONSENSUS_ADDR.to_string(),
-            VALID_WORKER_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -240,7 +235,6 @@ module iota_system::validator_tests {
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
             VALID_CONSENSUS_ADDR.to_string(),
-            VALID_WORKER_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -267,7 +261,6 @@ module iota_system::validator_tests {
             b"42".to_string(),
             VALID_P2P_ADDR.to_string(),
             VALID_CONSENSUS_ADDR.to_string(),
-            VALID_WORKER_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -294,7 +287,6 @@ module iota_system::validator_tests {
             VALID_NET_ADDR.to_string(),
             b"42".to_string(),
             VALID_CONSENSUS_ADDR.to_string(),
-            VALID_WORKER_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -320,34 +312,6 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            b"42".to_string(),
-            VALID_WORKER_ADDR.to_string(),
-            bag::new(ctx),
-        );
-
-        validator::validate_metadata(&metadata);
-        test_utils::destroy(metadata);
-        scenario_val.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = validator::EMetadataInvalidWorkerAddr)]
-    fun test_metadata_invalid_worker_addr() {
-        let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
-        let ctx = scenario_val.ctx();
-        let metadata = validator::new_metadata(
-            VALID_ADDRESS,
-            VALID_PUBKEY,
-            VALID_NET_PUBKEY,
-            VALID_WORKER_PUBKEY,
-            PROOF_OF_POSSESSION,
-            b"Validator1".to_string(),
-            b"Validator1".to_string(),
-            url::new_unsafe_from_bytes(b"image_url1"),
-            url::new_unsafe_from_bytes(b"project_url1"),
-            VALID_NET_ADDR.to_string(),
-            VALID_P2P_ADDR.to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
             b"42".to_string(),
             bag::new(ctx),
         );
@@ -375,7 +339,6 @@ module iota_system::validator_tests {
             validator.update_next_epoch_network_address(b"/ip4/192.168.1.1/tcp/80");
             validator.update_next_epoch_p2p_address(b"/ip4/192.168.1.1/udp/80");
             validator.update_next_epoch_primary_address(b"/ip4/192.168.1.1/udp/80");
-            validator.update_next_epoch_worker_address(b"/ip4/192.168.1.1/udp/80");
             validator.update_next_epoch_protocol_pubkey(new_protocol_pub_key, new_pop);
             validator.update_next_epoch_worker_pubkey( new_worker_pub_key);
             validator.update_next_epoch_network_pubkey(new_network_pub_key);
@@ -396,7 +359,6 @@ module iota_system::validator_tests {
             assert!(validator.network_address() == &VALID_NET_ADDR.to_string());
             assert!(validator.p2p_address() == &VALID_P2P_ADDR.to_string());
             assert!(validator.primary_address() == &VALID_CONSENSUS_ADDR.to_string());
-            assert!(validator.worker_address() == &VALID_WORKER_ADDR.to_string());
             assert!(validator.protocol_pubkey_bytes() == &VALID_PUBKEY);
             assert!(validator.proof_of_possession() == &PROOF_OF_POSSESSION);
             assert!(validator.network_pubkey_bytes() == &VALID_NET_PUBKEY);
@@ -406,7 +368,6 @@ module iota_system::validator_tests {
             assert!(validator.next_epoch_network_address() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
             assert!(validator.next_epoch_p2p_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
             assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
-            assert!(validator.next_epoch_worker_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
             assert!(
                 validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
                 0
@@ -497,19 +458,6 @@ module iota_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidWorkerAddr)]
-    #[test]
-    fun test_validator_update_metadata_invalid_worker_addr() {
-        let (sender, mut scenario, mut validator) = set_up();
-
-        scenario.next_tx(sender);
-        {
-            validator.update_next_epoch_worker_address(b"beef");
-        };
-
-        tear_down(validator, scenario);
-    }
-
     #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidP2pAddr)]
     #[test]
     fun test_validator_update_metadata_invalid_p2p_address() {
@@ -550,22 +498,6 @@ module iota_system::validator_tests {
         scenario.next_tx(sender);
         {
             validator.update_next_epoch_network_address(
-                // 257 bytes but limit is 256 bytes
-                TOO_LONG_257_BYTES,
-            );
-        };
-
-        tear_down(validator, scenario);
-    }
-
-
-    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
-    #[test]
-    fun test_validator_update_metadata_worker_address_too_long() {
-        let (sender, mut scenario, mut validator) = set_up();
-        scenario.next_tx(sender);
-        {
-            validator.update_next_epoch_worker_address(
                 // 257 bytes but limit is 256 bytes
                 TOO_LONG_257_BYTES,
             );

@@ -5381,7 +5381,6 @@
           "staking_pool_id",
           "staking_pool_iota_balance",
           "voting_power",
-          "worker_address",
           "worker_public_key"
         ],
         "properties": {
@@ -5460,9 +5459,6 @@
             "type": "string",
             "format": "u64"
           },
-          "next_epoch_worker_address": {
-            "type": "string"
-          },
           "next_epoch_worker_public_key": {
             "$ref": "#/components/schemas/Ed25519PublicKey"
           },
@@ -5538,9 +5534,6 @@
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
-          },
-          "worker_address": {
-            "type": "string"
           },
           "worker_public_key": {
             "$ref": "#/components/schemas/Ed25519PublicKey"
