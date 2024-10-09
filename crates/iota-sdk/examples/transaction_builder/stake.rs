@@ -6,6 +6,7 @@
 //!
 //! cargo run --example stake
 
+#[path = "../utils.rs"]
 mod utils;
 
 use futures::StreamExt;
