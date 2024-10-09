@@ -445,8 +445,11 @@ impl IotaNode {
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
         let genesis = config.genesis()?.clone();
-        let migration_tx_data =
-            (genesis.contains_migrations()).then_some(config.load_migration_tx_data()?);
+        let migration_tx_data = (genesis.contains_migrations()).then(|| {
+            config
+                .load_migration_tx_data()
+                .expect("missing migration transactions data")
+        });
 
         let secret = Arc::pin(config.protocol_key_pair().copy());
         let genesis_committee = genesis.committee()?;
