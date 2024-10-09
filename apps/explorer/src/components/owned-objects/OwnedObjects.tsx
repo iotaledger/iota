@@ -278,7 +278,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                         ]}
                                         onValueChange={(value) => {
                                             setLimit(Number(value));
-                                            setCurrentSlice(1);
+                                            pagination.onFirst();
                                         }}
                                     />
                                 </div>
