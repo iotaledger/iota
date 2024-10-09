@@ -47,7 +47,7 @@ pub type CheckpointTimestamp = u64;
 use iota_metrics::histogram::Histogram;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CheckpointRequestV2 {
+pub struct CheckpointRequest {
     /// if a sequence number is specified, return the checkpoint with that
     /// sequence number; otherwise if None returns the latest checkpoint
     /// stored (authenticated or pending, depending on the value of
@@ -78,7 +78,7 @@ impl CheckpointSummaryResponse {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CheckpointResponseV2 {
+pub struct CheckpointResponse {
     pub checkpoint: Option<CheckpointSummaryResponse>,
     pub contents: Option<CheckpointContents>,
 }

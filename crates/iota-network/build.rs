@@ -89,10 +89,10 @@ fn main() -> Result<()> {
         )
         .method(
             Method::builder()
-                .name("checkpoint_v2")
-                .route_name("CheckpointV2")
-                .input_type("iota_types::messages_checkpoint::CheckpointRequestV2")
-                .output_type("iota_types::messages_checkpoint::CheckpointResponseV2")
+                .name("checkpoint")
+                .route_name("Checkpoint")
+                .input_type("iota_types::messages_checkpoint::CheckpointRequest")
+                .output_type("iota_types::messages_checkpoint::CheckpointResponse")
                 .codec_path(codec_path)
                 .build(),
         )

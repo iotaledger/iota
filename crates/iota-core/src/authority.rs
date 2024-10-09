@@ -84,10 +84,9 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointRequestV2,
-        CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
+        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::{AuthorityCapabilitiesV1, AuthorityCapabilitiesV2},
     messages_grpc::{
@@ -2583,12 +2582,11 @@ impl AuthorityState {
         })
     }
 
-
     #[instrument(level = "trace", skip_all)]
     pub fn handle_checkpoint_request_v2(
         &self,
-        request: &CheckpointRequestV2,
-    ) -> IotaResult<CheckpointResponseV2> {
+        request: &CheckpointRequest,
+    ) -> IotaResult<CheckpointResponse> {
         let summary = if request.certified {
             let summary = match request.sequence_number {
                 Some(seq) => self
@@ -2613,7 +2611,7 @@ impl AuthorityState {
                 .get_checkpoint_contents(&s.content_digest())?,
             None => None,
         };
-        Ok(CheckpointResponseV2 {
+        Ok(CheckpointResponse {
             checkpoint: summary,
             contents,
         })
