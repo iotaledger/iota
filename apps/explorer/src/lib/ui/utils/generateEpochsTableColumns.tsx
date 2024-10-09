@@ -6,12 +6,12 @@ import type { EpochMetrics } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
-import { formatWithFallback, getEpochStorageFundFlow } from '~/lib/utils';
+import { getEpochStorageFundFlow } from '~/lib/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
  */
-export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
+export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<EpochMetrics>[] {
     return [
         {
             header: 'Epoch',
@@ -30,11 +30,16 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
         {
             header: 'Transaction Blocks',
             accessorKey: 'epochTotalTransactions',
-            cell: ({ getValue }) => {
-                const epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
+            cell: ({ getValue, row }) => {
+                let epochTotalTransactions = getValue<EpochMetrics['epochTotalTransactions']>();
+                const isCurrentEpoch = row.original.epoch === currentEpoch;
+                const hasNoTransactions = !epochTotalTransactions || epochTotalTransactions === '0';
+                if (isCurrentEpoch && hasNoTransactions) {
+                    epochTotalTransactions = '--';
+                }
                 return (
                     <TableCellBase>
-                        <TableCellText>{formatWithFallback(epochTotalTransactions)}</TableCellText>
+                        <TableCellText>{epochTotalTransactions}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -44,13 +49,17 @@ export function generateEpochsTableColumns(): ColumnDef<EpochMetrics>[] {
             id: 'stakeRewards',
             accessorKey: 'endOfEpochInfo.totalStakeRewardsDistributed',
             cell: ({ row: { original: epochMetrics } }) => {
-                const totalStakeRewardsDistributed =
+                let totalStakeRewardsDistributed =
                     epochMetrics.endOfEpochInfo?.totalStakeRewardsDistributed;
+                const isCurrentEpoch = epochMetrics.epoch === currentEpoch;
+                const hasNoTransactions =
+                    !totalStakeRewardsDistributed || totalStakeRewardsDistributed === '0';
+                if (isCurrentEpoch && hasNoTransactions) {
+                    totalStakeRewardsDistributed = '--';
+                }
                 return (
                     <TableCellBase>
-                        <TableCellText>
-                            {formatWithFallback(totalStakeRewardsDistributed)}
-                        </TableCellText>
+                        <TableCellText>{totalStakeRewardsDistributed}</TableCellText>
                     </TableCellBase>
                 );
             },

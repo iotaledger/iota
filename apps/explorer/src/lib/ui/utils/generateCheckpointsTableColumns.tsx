@@ -6,7 +6,6 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { Checkpoint } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
 import { CheckpointSequenceLink, CheckpointLink } from '~/components';
-import { formatWithFallback } from '~/lib/utils';
 
 /**
  * Generate table columns renderers for the checkpoints data.
@@ -75,7 +74,7 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
                 const transactions = getValue<Checkpoint['transactions']>();
                 return (
                     <TableCellBase>
-                        <TableCellText>{formatWithFallback(transactions.length)}</TableCellText>
+                        <TableCellText>{transactions.length}</TableCellText>
                     </TableCellBase>
                 );
             },

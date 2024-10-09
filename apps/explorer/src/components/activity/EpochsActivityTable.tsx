@@ -39,7 +39,8 @@ export function EpochsActivityTable({
     const { data, isFetching, pagination, isPending, isError } =
         useCursorPagination(epochMetricsQuery);
 
-    const tableColumns = generateEpochsTableColumns();
+    const currentEpoch = data?.data[0].epoch;
+    const tableColumns = generateEpochsTableColumns(currentEpoch);
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">

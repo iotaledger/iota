@@ -57,11 +57,3 @@ export async function genFileTypeMsg(displayString: string, signal: AbortSignal)
             return `1 Image File`;
         });
 }
-
-export function formatWithFallback<T>(value: number | string | undefined | null): string | T {
-    if (!value || value === '0') {
-        return '--';
-    }
-
-    return value as unknown as T;
-}
