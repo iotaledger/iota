@@ -161,7 +161,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             </div>
 
                             {displayedBalances.length > limit && (
-                                <div className="flex flex-col justify-between gap-2 px-sm--rs py-xs--rs md:flex-row">
+                                <div className="flex flex-col items-center justify-between gap-2 px-sm--rs py-xs--rs md:flex-row">
                                     <Pagination
                                         hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
@@ -174,7 +174,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         onFirst={() => setCurrentSlice(1)}
                                     />
                                     <div className="flex items-center gap-3">
-                                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
                                             {`Showing `}
                                             {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
