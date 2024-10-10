@@ -7,16 +7,20 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
 import { demoDappConnect } from './utils/dapp-connect';
-import { WindowMessageStream } from '_src/shared/messaging/WindowMessageStream';
-
-const { name: messageClientName, target: messageClientTarget } = WindowMessageStream.getClientIDs();
+import {
+    MESSAGE_CLIENT_NAME_FALLBACK,
+    MESSAGE_CLIENT_TARGET_FALLBACK,
+} from '_src/background/constants';
 
 function getInAppMessage(page: Page, id: string) {
     return page.evaluate(
         (anId) =>
             new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (msg.data.target === messageClientName && msg.data.payload.id === anId) {
+                    if (
+                        msg.data.target === MESSAGE_CLIENT_NAME_FALLBACK &&
+                        msg.data.payload.id === anId
+                    ) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
@@ -85,7 +89,7 @@ test.describe('site to content script messages', () => {
             await page.evaluate(
                 ({ aPayload: payload, aLabel: label }) => {
                     window.postMessage({
-                        target: messageClientTarget,
+                        target: MESSAGE_CLIENT_TARGET_FALLBACK,
                         payload: {
                             id: label,
                             payload,

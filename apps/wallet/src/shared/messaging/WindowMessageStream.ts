@@ -3,6 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Message } from '_messages';
+import {
+    MESSAGE_CLIENT_NAME_FALLBACK,
+    MESSAGE_CLIENT_TARGET_FALLBACK,
+} from '_src/background/constants';
 import { filter, fromEvent, map, share } from 'rxjs';
 import type { Observable } from 'rxjs';
 
@@ -48,7 +52,14 @@ export class WindowMessageStream {
         return appName.replace(/\s+/g, '-').toLowerCase();
     }
 
-    public static getClientIDs(appName: string = 'iota'): ClientConnection {
+    public static getClientIDs(appName: string): ClientConnection {
+        if (!appName) {
+            return {
+                name: MESSAGE_CLIENT_NAME_FALLBACK,
+                target: MESSAGE_CLIENT_TARGET_FALLBACK,
+            };
+        }
+
         const id = this.cleanAppName(appName);
 
         return {
