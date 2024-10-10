@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is the primary role of a quorum in the IOTA network?",
+        "answerOptions": [
+            { "answerText": "To validate transactions and update on-chain information.", "isCorrect": false },
+            { "answerText": "To ensure that more than two-thirds of validators agree on a transaction.", "isCorrect": true },
+            { "answerText": "To manage network reconfiguration.", "isCorrect": false },
+            { "answerText": "To generate new tokens.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which consensus engines does IOTA utilize to handle transactions?",
+        "answerOptions": [
+            { "answerText": "PoW and PoS", "isCorrect": false },
+            { "answerText": "Narwhal and Bullshark", "isCorrect": true },
+            { "answerText": "DAG and Blockchain", "isCorrect": false },
+            { "answerText": "BFT and DPoS", "isCorrect": false }
+        ]
+    }
+]

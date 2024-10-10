@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is the primary purpose of an IOTA archival node?",
+        "answerOptions": [
+            { "answerText": "To store the latest transactions only.", "isCorrect": false },
+            { "answerText": "To serve as a historical record of all transactions.", "isCorrect": true },
+            { "answerText": "To process transactions faster than regular nodes.", "isCorrect": false },
+            { "answerText": "To synchronize transactions with other nodes.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What configuration is required to enable fallback to an archive in case of lag?",
+        "answerOptions": [
+            { "answerText": "state-archive-write-config", "isCorrect": false },
+            { "answerText": "state-archive-read-config", "isCorrect": true },
+            { "answerText": "db-checkpoint-config", "isCorrect": false },
+            { "answerText": "state-sync-config", "isCorrect": false }
+        ]
+    }
+]

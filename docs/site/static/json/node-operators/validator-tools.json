@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What command should you use to display the metadata of a validator in Iota?",
+        "answerOptions": [
+            { "answerText": "$IOTA_BINARY validator show-metadata", "isCorrect": false },
+            { "answerText": "$IOTA_BINARY validator display-info", "isCorrect": false },
+            { "answerText": "$IOTA_BINARY validator display-metadata", "isCorrect": true },
+            { "answerText": "$IOTA_BINARY validator get-metadata", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which metadata changes take effect immediately for Iota validators?",
+        "answerOptions": [
+            { "answerText": "name, description, image URL, and project URL", "isCorrect": true },
+            { "answerText": "network address, protocol public key, and worker public key", "isCorrect": false },
+            { "answerText": "worker address, primary address, and protocol public key", "isCorrect": false },
+            { "answerText": "worker address, description, and project URL", "isCorrect": false }
+        ]
+    }
+]
