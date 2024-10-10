@@ -7,7 +7,13 @@ import { type DynamicFieldInfo } from '@iota/iota-sdk/client';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';
 import { ObjectLink } from '~/components/ui';
-import { Accordion, AccordionHeader, AccordionContent, Panel, LoadingIndicator } from '@iota/apps-ui-kit';
+import {
+    Accordion,
+    AccordionHeader,
+    AccordionContent,
+    Panel,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
 
 interface DynamicFieldRowProps {
     id: string;
