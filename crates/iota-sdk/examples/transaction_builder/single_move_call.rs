@@ -5,6 +5,7 @@
 //!
 //! cargo run --example single_move_call
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_json::IotaJsonValue;

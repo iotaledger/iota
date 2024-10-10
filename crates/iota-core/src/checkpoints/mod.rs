@@ -1352,7 +1352,7 @@ impl CheckpointBuilder {
             }
         }
         let last_checkpoint_seq = last_checkpoint.as_ref().map(|(seq, _)| *seq);
-        info!(
+        debug!(
             next_checkpoint_seq = last_checkpoint_seq.unwrap_or_default() + 1,
             checkpoint_timestamp = details.timestamp_ms,
             "Creating checkpoint(s) for {} transactions",

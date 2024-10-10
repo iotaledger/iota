@@ -6,6 +6,7 @@
 //!
 //! cargo run --example tx_data
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};

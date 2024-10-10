@@ -513,7 +513,7 @@ impl Core {
         // Now acknowledge the transactions for their inclusion to block
         ack_transactions(verified_block.reference());
 
-        info!("Created block {:?}", verified_block);
+        debug!("Created block {:?}", verified_block);
 
         self.context
             .metrics
@@ -596,7 +596,7 @@ impl Core {
                 let Some(last_decided) = decided_leaders.last().cloned() else {
                     break;
                 };
-                tracing::info!(
+                tracing::debug!(
                     "Decided {} leaders and {commits_until_update} commits can be made before next leader schedule change",
                     decided_leaders.len()
                 );
@@ -627,7 +627,7 @@ impl Core {
                 if sequenced_leaders.is_empty() {
                     break;
                 }
-                tracing::info!(
+                tracing::debug!(
                     "Committing {} leaders: {}",
                     sequenced_leaders.len(),
                     sequenced_leaders
