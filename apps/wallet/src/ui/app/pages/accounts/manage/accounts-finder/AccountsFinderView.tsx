@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@iota/icons';
+import { Search } from '@iota/ui-icons';
 import {
     LoadingIndicator,
     AccountBalanceItem,
@@ -103,7 +103,7 @@ export function AccountsFinderView(): JSX.Element {
         if (searchPhase === SearchPhase.Ready) {
             return {
                 text: 'Search',
-                icon: <Search24 />,
+                icon: <Search className="h-6 w-6" />,
             };
         }
         if (searchPhase === SearchPhase.Ongoing) {
@@ -114,7 +114,7 @@ export function AccountsFinderView(): JSX.Element {
         }
         return {
             text: 'Search again',
-            icon: <Search24 />,
+            icon: <Search className="h-6 w-6" />,
         };
     })();
 

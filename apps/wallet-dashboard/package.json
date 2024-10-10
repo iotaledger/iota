@@ -17,7 +17,7 @@
     "dependencies": {
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
-        "@iota/icons": "workspace:*",
+        "@iota/ui-icons": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-virtual": "^3.5.0",
