@@ -5,6 +5,7 @@
 //!
 //! cargo run --example pay_iota
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_config::{IOTA_KEYSTORE_FILENAME, iota_config_dir};

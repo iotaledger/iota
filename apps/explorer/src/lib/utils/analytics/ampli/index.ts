@@ -70,7 +70,7 @@ type LoadOptions =
 
 interface IdentifyProperties {
     /**
-     * The Iota network that the user is currently interacting with.
+     * The IOTA network that the user is currently interacting with.
      */
     activeNetwork: string;
     /**
@@ -396,7 +396,7 @@ export class Ampli {
    *
    * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/opened%20iota%20explorer)
    *
-   * When users first open Iota Explorer.
+   * When users first open IOTA Explorer.
    *
    * Owner: William Robertson
    *

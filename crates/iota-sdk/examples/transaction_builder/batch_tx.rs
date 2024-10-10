@@ -5,6 +5,7 @@
 //!
 //! cargo run --example batch_tx
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_json_rpc_types::{RPCTransactionRequestParams, TransferObjectParams};

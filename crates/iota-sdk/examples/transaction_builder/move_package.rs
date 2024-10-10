@@ -5,6 +5,7 @@
 //!
 //! cargo run --example move_package
 
+#[path = "../utils.rs"]
 mod utils;
 
 use std::path::Path;
