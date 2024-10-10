@@ -17,12 +17,12 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
-    IOTA_FRAMEWORK_ADDRESS,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -401,10 +401,10 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
     let expected_split_coin_balance = coin_to_split.balance - new_coin_1_amount - new_coin_2_amount;
 
-    assert_eq!(
-        new_coin_balances,
-        vec![new_coin_1_amount, new_coin_2_amount]
-    );
+    assert_eq!(new_coin_balances, vec![
+        new_coin_1_amount,
+        new_coin_2_amount
+    ]);
     assert_eq!(split_coin_balance, expected_split_coin_balance);
 
     Ok(())
@@ -471,17 +471,14 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
 
     assert_eq!(original_coin_balance, 30_000_000_000_000_000);
     assert_eq!(expected_split_coin_balance, 4_285_714_285_714_290);
-    assert_eq!(
-        new_coin_balances,
-        vec![
-            expected_new_coin_balances,
-            expected_new_coin_balances,
-            expected_new_coin_balances,
-            expected_new_coin_balances,
-            expected_new_coin_balances,
-            expected_new_coin_balances
-        ]
-    );
+    assert_eq!(new_coin_balances, vec![
+        expected_new_coin_balances,
+        expected_new_coin_balances,
+        expected_new_coin_balances,
+        expected_new_coin_balances,
+        expected_new_coin_balances,
+        expected_new_coin_balances
+    ]);
     assert_eq!(split_coin_balance, expected_split_coin_balance);
 
     Ok(())
