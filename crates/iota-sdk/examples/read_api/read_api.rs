@@ -10,6 +10,7 @@
 //!
 //! cargo run --example read_api
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_sdk::{

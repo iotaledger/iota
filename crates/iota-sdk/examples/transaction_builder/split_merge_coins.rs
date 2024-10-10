@@ -5,6 +5,7 @@
 //!
 //! cargo run --example split_merge_coins
 
+#[path = "../utils.rs"]
 mod utils;
 
 use std::time::Duration;

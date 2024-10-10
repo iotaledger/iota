@@ -5,6 +5,7 @@
 //!
 //! cargo run --example timelocked_stake
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_json_rpc_api::GovernanceReadApiClient;

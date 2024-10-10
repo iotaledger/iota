@@ -5,6 +5,7 @@
 //!
 //! cargo run --example transactions_with_options
 
+#[path = "../utils.rs"]
 mod utils;
 
 use std::time::Duration;
