@@ -17,37 +17,31 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
+use iota_sdk::wallet_context::WalletContext;
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
     balance::Supply,
-    base_types::ObjectID,
+    base_types::{IotaAddress, ObjectID},
     coin::{TreasuryCap, COIN_MODULE_NAME},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     IOTA_FRAMEWORK_ADDRESS,
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use jsonrpsee::http_client::HttpClient;
+use test_cluster::TestClusterBuilder;
 
-async fn create_and_mit_coins(cluster: &TestCluster) -> Result<String, anyhow::Error> {
-    let http_client = cluster.rpc_client();
-    let address = cluster.get_address_0();
-
-    let objects = http_client
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::new()
-                    .with_type()
-                    .with_owner()
-                    .with_previous_transaction(),
-            )),
-            None,
-            None,
-        )
+async fn create_and_mint_coins(
+    http_client: &HttpClient,
+    address: IotaAddress,
+    wallet: &WalletContext,
+    amount: u64,
+) -> Result<String, anyhow::Error> {
+    let coins = http_client
+        .get_coins(address, None, None, Some(1))
         .await
         .unwrap()
         .data;
-    let gas = objects.first().unwrap().object().unwrap();
+    let gas = &coins[0];
 
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -62,15 +56,13 @@ async fn create_and_mit_coins(cluster: &TestCluster) -> Result<String, anyhow::E
             address,
             compiled_modules_bytes,
             dependencies,
-            Some(gas.object_id),
+            Some(gas.coin_object_id),
             100_000_000.into(),
         )
         .await
         .unwrap();
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data().unwrap());
+    let tx = wallet.sign_transaction(&transaction_bytes.to_data().unwrap());
     let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
     let tx_response: IotaTransactionBlockResponse = http_client
@@ -137,17 +129,15 @@ async fn create_and_mit_coins(cluster: &TestCluster) -> Result<String, anyhow::E
             COIN_MODULE_NAME.to_string(),
             "mint_and_transfer".into(),
             type_args![coin_name.clone()].unwrap(),
-            call_args![treasury_cap, 100000, address].unwrap(),
-            Some(gas.object_id),
+            call_args![treasury_cap, amount, address].unwrap(),
+            Some(gas.coin_object_id),
             10_000_000.into(),
             None,
         )
         .await
         .unwrap();
 
-    let tx = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data().unwrap());
+    let tx = wallet.sign_transaction(&transaction_bytes.to_data().unwrap());
     let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
     let tx_response = http_client
@@ -331,10 +321,18 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    let coin_name = create_and_mit_coins(&cluster).await.unwrap();
+    let total_amount = 100000;
+    let coin_name = create_and_mint_coins(
+        http_client,
+        cluster.get_address_0(),
+        &cluster.wallet,
+        total_amount,
+    )
+    .await
+    .unwrap();
 
     let result: Supply = http_client.get_total_supply(coin_name).await?;
-    assert_eq!(100000, result.value);
+    assert_eq!(total_amount, result.value);
 
     Ok(())
 }
@@ -455,12 +453,54 @@ async fn test_get_all_coins() {
         .fullnode_handle
         .iota_node
         .with(|node| {
-            node.state().get_owned_coins(
-                address,
-                (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO),
-                100,
-                false,
-            )
+            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO);
+            node.state()
+                .get_owned_coins(address, coin_cursor, 100, false)
+        })
+        .unwrap();
+
+    assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
+    assert_eq!(fullnode_coins, rpc_all_coins.data);
+}
+
+#[sim_test]
+async fn test_get_all_coins_with_multiple_coin_types() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let total_amount = 100000;
+    let coin_name = create_and_mint_coins(http_client, address, &cluster.wallet, total_amount)
+        .await
+        .unwrap();
+
+    let rpc_all_coins: CoinPage = http_client
+        .get_all_coins(address, None, None)
+        .await
+        .unwrap();
+
+    assert!(rpc_all_coins
+        .data
+        .iter()
+        .any(|coin| coin.coin_type.contains("0x2::iota::IOTA")));
+    assert!(rpc_all_coins
+        .data
+        .iter()
+        .any(|coin| coin.coin_type.contains(&coin_name)));
+
+    assert!(!rpc_all_coins.data.is_empty(), "Should have some coins");
+    assert!(
+        !rpc_all_coins.has_next_page,
+        "Should not have next page initially"
+    );
+
+    let fullnode_coins = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO);
+            node.state()
+                .get_owned_coins(address, coin_cursor, 100, false)
         })
         .unwrap();
 
@@ -520,26 +560,11 @@ async fn test_get_all_coins_with_cursor_and_limit() {
     );
     let rpc_total_coins = rpc_all_coins.data.len();
 
-    let limit = 2;
-    let limited_coins: CoinPage = http_client
-        .get_all_coins(address, None, Some(limit))
-        .await
-        .unwrap();
-    assert_eq!(
-        limit,
-        limited_coins.data.len(),
-        "Should return exactly 'limit' coins"
-    );
-    assert!(
-        limited_coins.has_next_page,
-        "Should have next page with small limit"
-    );
-
     let mut collected_coins = Vec::new();
     let mut cursor = None;
     loop {
         let page: CoinPage = http_client
-            .get_all_coins(address, cursor, Some(limit))
+            .get_all_coins(address, cursor, Some(2))
             .await
             .unwrap();
         collected_coins.extend(page.data);
@@ -571,28 +596,28 @@ async fn get_all_coins_with_cursor_boundaries() {
         .await
         .unwrap();
 
-    if !full_result.data.is_empty() {
-        let last_coin = full_result.data.last().unwrap();
-        let result: CoinPage = http_client
-            .get_all_coins(address, Some(last_coin.coin_object_id), None)
-            .await
-            .unwrap();
-        assert!(
-            result.data.is_empty(),
-            "Should return no coins when cursor is at the last coin"
-        );
+    assert!(!full_result.data.is_empty());
 
-        let first_coin = full_result.data.first().unwrap();
-        let result: CoinPage = http_client
-            .get_all_coins(address, Some(first_coin.coin_object_id), None)
-            .await
-            .unwrap();
-        assert_eq!(
-            full_result.data.len() - 1,
-            result.data.len(),
-            "Should return all coins except the first one"
-        );
-    }
+    let last_coin = full_result.data.last().unwrap();
+    let result: CoinPage = http_client
+        .get_all_coins(address, Some(last_coin.coin_object_id), None)
+        .await
+        .unwrap();
+    assert!(
+        result.data.is_empty(),
+        "Should return no coins when cursor is at the last coin"
+    );
+
+    let first_coin = full_result.data.first().unwrap();
+    let result: CoinPage = http_client
+        .get_all_coins(address, Some(first_coin.coin_object_id), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        full_result.data.len() - 1,
+        result.data.len(),
+        "Should return all coins except the first one"
+    );
 }
 
 #[sim_test]
@@ -666,7 +691,10 @@ async fn test_get_all_balances() {
         "IOTA balance should match expected amount"
     );
 
-    create_and_mit_coins(&cluster).await.unwrap();
+    let total_amount = 100000;
+    let coin_name = create_and_mint_coins(http_client, address, &cluster.wallet, total_amount)
+        .await
+        .unwrap();
 
     let updated_balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
     assert!(
@@ -676,11 +704,11 @@ async fn test_get_all_balances() {
 
     let new_coin_balance = updated_balances
         .iter()
-        .find(|b| b.coin_type.contains("trusted_coin::TRUSTED_COIN"))
+        .find(|b| b.coin_type.contains(&coin_name))
         .expect("New coin balance should exist");
 
     assert_eq!(
-        100000, new_coin_balance.total_balance,
+        total_amount as u128, new_coin_balance.total_balance,
         "New coin should have correct balance"
     );
 }
