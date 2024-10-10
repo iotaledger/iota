@@ -257,7 +257,6 @@ export function SendTokenForm({
                                         allowNegative={false}
                                         name="to"
                                         placeholder="Enter Address"
-                                        shouldValidateManually
                                     />
                                 </div>
                             </Form>
