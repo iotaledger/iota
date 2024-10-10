@@ -2,6 +2,8 @@
 title: Simulating References
 description: Use the borrow module in the IOTA framework to include objects by reference in your programmable transaction blocks.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/simulating-refs.json';
 
 Everything on the IOTA blockchain is an object. When you develop Move packages for the IOTA network, you're typically manipulating or using on-chain objects in some way through functionality available in the IOTA API. For most API functions, you provide an object by reference.     
 
@@ -130,3 +132,5 @@ txb.moveCall({
 });
 ...
 ```
+
+<Quiz questions={questions} />

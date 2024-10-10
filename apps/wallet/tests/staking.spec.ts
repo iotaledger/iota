@@ -26,14 +26,14 @@ test('staking', async ({ page, extensionUrl }) => {
     await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
     await page.getByRole('button', { name: 'Stake' }).click();
 
-    await expect(page.getByTestId('loading-indicator')).toBeVisible({
+    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
         timeout: SHORT_TIMEOUT,
     });
+    await expect(page.getByText(/Successfully sent/)).toBeVisible({ timeout: SHORT_TIMEOUT });
+
     await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
         timeout: LONG_TIMEOUT,
     });
-
-    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
 
     await page.getByTestId('close-icon').click();
 
@@ -47,13 +47,13 @@ test('staking', async ({ page, extensionUrl }) => {
     await page.getByText('Unstake').click();
     await page.getByRole('button', { name: 'Unstake' }).click();
 
-    await expect(page.getByTestId('loading-indicator')).toBeVisible({
+    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
         timeout: SHORT_TIMEOUT,
     });
+    await expect(page.getByText(/Successfully sent/)).toBeVisible({ timeout: SHORT_TIMEOUT });
     await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
         timeout: LONG_TIMEOUT,
     });
-    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
 
     await page.getByTestId('close-icon').click();
     await expect(page.getByText(`${STAKE_AMOUNT} IOTA`)).not.toBeVisible({

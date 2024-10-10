@@ -2,16 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Divider, Title } from '@iota/apps-ui-kit';
+import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
 import { CoinFormat, type TransactionSummary, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import {
-    AddressLink,
-    CollapsibleCard,
-    CollapsibleSection,
-    CopyToClipboard,
-    ObjectLink,
-} from '~/components/ui';
+import { AddressLink, CollapsibleCard, CopyToClipboard, ObjectLink } from '~/components/ui';
 
 interface GasProps {
     amount?: bigint | number | string;
@@ -112,70 +106,74 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
 
     return (
         <CollapsibleCard collapsible render={({ isOpen }) => <Title title="Gas & Storage Fee" />}>
-            <CollapsibleSection hideBorder>
-                <div className="flex flex-col gap-xs">
-                    {isSponsored && owner && (
-                        <div className="flex items-center gap-md rounded-lg bg-neutral-92 p-xs dark:bg-neutral-12">
-                            <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
-                                Paid by
-                            </span>
-                            <AddressLink label={undefined} address={owner} />
+            <div className="px-md--rs pb-lg pt-xs">
+                <Accordion hideBorder>
+                    <AccordionContent isExpanded>
+                        <div className="flex flex-col gap-xs">
+                            {isSponsored && owner && (
+                                <div className="flex items-center gap-md rounded-lg bg-neutral-92 p-xs dark:bg-neutral-12">
+                                    <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                                        Paid by
+                                    </span>
+                                    <AddressLink label={undefined} address={owner} />
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-3">
+                                <TotalGasAmount amount={totalGas} />
+                                <Divider />
+                                <GasInfo
+                                    label="Gas Payment"
+                                    info={
+                                        gasPayment?.length && (
+                                            <GasPaymentLinks
+                                                objectIds={gasPayment.map((gas) => gas.objectId)}
+                                            />
+                                        )
+                                    }
+                                />
+                                <GasInfo
+                                    label="Gas Budget"
+                                    info={gasBudget && <GasAmount amount={BigInt(gasBudget)} />}
+                                />
+                            </div>
+                            <div className="mt-4 flex flex-col gap-3">
+                                <Divider />
+                                <GasInfo
+                                    label="Computation Fee"
+                                    info={
+                                        gasUsed?.computationCost && (
+                                            <GasAmount amount={Number(gasUsed?.computationCost)} />
+                                        )
+                                    }
+                                />
+                                <GasInfo
+                                    label="Storage Fee"
+                                    info={
+                                        gasUsed?.storageCost && (
+                                            <GasAmount amount={Number(gasUsed?.storageCost)} />
+                                        )
+                                    }
+                                />
+                                <GasInfo
+                                    label="Storage Rebate"
+                                    info={
+                                        gasUsed?.storageRebate && (
+                                            <GasAmount amount={-Number(gasUsed?.storageRebate)} />
+                                        )
+                                    }
+                                />
+                            </div>
+                            <div className="mt-6 flex flex-col gap-6">
+                                <Divider />
+                                <GasInfo
+                                    label="Gas Price"
+                                    info={gasPrice && <GasAmount amount={BigInt(gasPrice)} />}
+                                />
+                            </div>
                         </div>
-                    )}
-                    <div className="flex flex-col gap-3">
-                        <TotalGasAmount amount={totalGas} />
-                        <Divider />
-                        <GasInfo
-                            label="Gas Payment"
-                            info={
-                                gasPayment?.length && (
-                                    <GasPaymentLinks
-                                        objectIds={gasPayment.map((gas) => gas.objectId)}
-                                    />
-                                )
-                            }
-                        />
-                        <GasInfo
-                            label="Gas Budget"
-                            info={gasBudget && <GasAmount amount={BigInt(gasBudget)} />}
-                        />
-                    </div>
-                    <div className="mt-4 flex flex-col gap-3">
-                        <Divider />
-                        <GasInfo
-                            label="Computation Fee"
-                            info={
-                                gasUsed?.computationCost && (
-                                    <GasAmount amount={Number(gasUsed?.computationCost)} />
-                                )
-                            }
-                        />
-                        <GasInfo
-                            label="Storage Fee"
-                            info={
-                                gasUsed?.storageCost && (
-                                    <GasAmount amount={Number(gasUsed?.storageCost)} />
-                                )
-                            }
-                        />
-                        <GasInfo
-                            label="Storage Rebate"
-                            info={
-                                gasUsed?.storageRebate && (
-                                    <GasAmount amount={-Number(gasUsed?.storageRebate)} />
-                                )
-                            }
-                        />
-                    </div>
-                    <div className="mt-6 flex flex-col gap-6">
-                        <Divider />
-                        <GasInfo
-                            label="Gas Price"
-                            info={gasPrice && <GasAmount amount={BigInt(gasPrice)} />}
-                        />
-                    </div>
-                </div>
-            </CollapsibleSection>
+                    </AccordionContent>
+                </Accordion>
+            </div>
         </CollapsibleCard>
     );
 }

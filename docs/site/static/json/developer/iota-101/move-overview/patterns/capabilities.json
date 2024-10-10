@@ -1,0 +1,20 @@
+[
+  {
+    "questionText": "What is a capability in the context of the Move language?",
+    "answerOptions": [
+      { "answerText": "A pattern that enables the authorization of specific actions with an object.", "isCorrect": true },
+      { "answerText": "A function that handles data storage.", "isCorrect": false },
+      { "answerText": "A variable that holds numeric values.", "isCorrect": false },
+      { "answerText": "A module that compiles Move code.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is an example of a capability used to authorize package upgrades in Move?",
+    "answerOptions": [
+      { "answerText": "TreasuryCap", "isCorrect": false },
+      { "answerText": "UpgradeCap", "isCorrect": true },
+      { "answerText": "StorageCap", "isCorrect": false },
+      { "answerText": "ComputeCap", "isCorrect": false }
+    ]
+  }
+]
