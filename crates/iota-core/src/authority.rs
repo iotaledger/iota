@@ -4682,10 +4682,10 @@ impl AuthorityState {
                 )
             } else {
                 error!(
-                    "Unsupported protocol_config {:?}",
+                    "authority_capabilities_v1 not enabled with protocol_config {:?}",
                     epoch_store.protocol_config()
                 );
-                return Err(anyhow!("Unsupported protocol configuration"));
+                return Err(anyhow!("authority_capabilities_v1 not enabled"));
             };
 
         // since system packages are created during the current epoch, they should abide
