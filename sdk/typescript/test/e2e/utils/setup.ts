@@ -4,6 +4,7 @@
 
 import { execSync } from 'child_process';
 import { mkdtemp } from 'fs/promises';
+import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import tmp from 'tmp';
@@ -25,6 +26,18 @@ import { IOTA_TYPE_ARG } from '../../../src/utils/index.js';
 
 const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('localnet');
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl('localnet');
+
+const CONFIG_DATA = `
+---
+keystore:
+  File: ~/.iota/iota_config/iota.keystore
+envs:
+  - alias: localnet
+    rpc: "http://localhost:9000"
+    ws: ~
+    basic_auth: ~
+active_env: localnet
+`;
 
 const IOTA_BIN =
     import.meta.env.VITE_IOTA_BIN ?? path.resolve(__dirname, '../../../../../target/debug/iota');
@@ -124,6 +137,7 @@ export async function setup(options: { graphQLURL?: string; rpcURL?: string } = 
     const tmpDirPath = path.join(tmpdir(), 'config-');
     const tmpDir = await mkdtemp(tmpDirPath);
     const configPath = path.join(tmpDir, 'client.yaml');
+    writeFileSync(configPath, CONFIG_DATA, { flag: 'w', flush: true });
     return setupWithFundedAddress(keypair, address, configPath, options);
 }
 
@@ -159,7 +173,7 @@ export async function setupWithFundedAddress(
         },
     );
 
-    execSync(`${IOTA_BIN} client --yes`, { encoding: 'utf-8' });
+    execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
     return new TestToolbox(keypair, rpcURL, configPath);
 }
 
@@ -176,7 +190,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const { modules, dependencies } = JSON.parse(
         execSync(
-            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );
@@ -230,7 +244,7 @@ export async function upgradePackage(
 
     const { modules, dependencies, digest } = JSON.parse(
         execSync(
-            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );

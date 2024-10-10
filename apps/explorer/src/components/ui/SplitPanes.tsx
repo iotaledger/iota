@@ -94,7 +94,7 @@ function ResizeHandle({
         >
             <div
                 className={clsx(
-                    'relative bg-gray-45 group-hover/container:bg-hero',
+                    'relative bg-shader-neutral-light-8 group-hover/container:bg-primary-30 dark:bg-shader-neutral-dark-8',
                     isHorizontal ? 'h-full w-px' : 'h-px',
                     noHoverHidden && !isCollapsed && 'bg-transparent',
                 )}
@@ -107,8 +107,8 @@ function ResizeHandle({
                         className={clsx([
                             'group/button',
                             'flex h-6 w-6 cursor-pointer items-center justify-center rounded-full',
-                            'border-2 border-gray-45 bg-white text-gray-70 group-hover/container:border-hero-dark',
-                            'hover:bg-hero-dark hover:text-white',
+                            'border border-neutral-70 bg-white text-neutral-60 group-hover/container:border-primary-30',
+                            'hover:bg-primary-30 hover:text-white',
                             isHorizontal
                                 ? 'absolute left-1/2 top-10 -translate-x-2/4'
                                 : 'absolute left-10 top-1/2 -translate-y-2/4',
@@ -117,7 +117,7 @@ function ResizeHandle({
                     >
                         <ChevronButton
                             className={clsx(
-                                'h-4 w-4 text-gray-45 group-hover/button:!text-white group-hover/container:text-hero-dark',
+                                'h-4 w-4 text-neutral-70 group-hover/button:!text-white group-hover/container:text-primary-30',
                                 isCollapsed && 'rotate-180',
                             )}
                         />
@@ -153,7 +153,6 @@ function SplitPanel({
 
     const togglePanelCollapse = () => {
         const panelRef = ref.current;
-
         if (panelRef) {
             if (onCollapse) {
                 onCollapse(!isCollapsed);

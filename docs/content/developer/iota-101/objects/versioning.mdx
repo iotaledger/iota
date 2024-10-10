@@ -2,6 +2,8 @@
 title: Object and Package Versioning
 description: Versioning provides the ability to upgrade packages and objects on the IOTA network.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/versioning.json';
 
 In IOTA, every object stored on-chain is referenced by an ID and a version.
 When a transaction modifies an object,
@@ -245,3 +247,5 @@ these are treated as different packages rather than versions of the same package
 Consequently, you cannot use one package as a dependency override for the other.
 While you can specify such an override during the build process,
 it will result in an error during publishing or upgrading on-chain.
+
+<Quiz questions={questions} />

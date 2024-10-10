@@ -64,7 +64,6 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
                             label={formatAddress(packageId || '')}
                         />
                     }
-                    fullwidth
                 />
             );
         case ItemLabel.Module:
@@ -77,13 +76,12 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
                             label={moduleName || ''}
                         />
                     }
-                    fullwidth
                 />
             );
         case ItemLabel.Type:
-            return <KeyValueInfo keyText={label} value={typeName || ''} fullwidth />;
+            return <KeyValueInfo keyText={label} value={typeName || ''} />;
         default:
-            return <KeyValueInfo keyText={label} value="" fullwidth />;
+            return <KeyValueInfo keyText={label} value="" />;
     }
 }
 
@@ -146,7 +144,7 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
                 </div>
             }
             panelContent={
-                <div className="flex flex-col gap-xs px-md--rs py-sm--rs capitalize">
+                <div className="flex flex-col gap-xs px-md--rs py-sm--rs pr-16 capitalize">
                     {objectDetailLabels.map((label) => (
                         <Item
                             key={label}
