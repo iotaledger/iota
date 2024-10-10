@@ -1,0 +1,29 @@
+[
+  {
+    "questionText": "What is the key distinction between 'Dynamic Field' and 'Dynamic Object Field' in the IOTA framework?",
+    "answerOptions": [
+      { "answerText": "Dynamic Object Field only stores objects as values", "isCorrect": true },
+      { "answerText": "Dynamic Field supports object storage", "isCorrect": false },
+      { "answerText": "Dynamic Field stores only integers", "isCorrect": false },
+      { "answerText": "Dynamic Object Field allows non-object values", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is a major difference between 'Table' and 'LinkedTable' in IOTA?",
+    "answerOptions": [
+      { "answerText": "LinkedTable does not allow value removal", "isCorrect": false },
+      { "answerText": "LinkedTable maintains ordered insertion and removal", "isCorrect": true },
+      { "answerText": "Table is more efficient than LinkedTable", "isCorrect": false },
+      { "answerText": "Table stores values as linked lists", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which collection type in IOTA is implemented using a max heap?",
+    "answerOptions": [
+      { "answerText": "Priority Queue", "isCorrect": true },
+      { "answerText": "Vec Set", "isCorrect": false },
+      { "answerText": "Table Vec", "isCorrect": false },
+      { "answerText": "Object Bag", "isCorrect": false }
+    ]
+  }
+]
