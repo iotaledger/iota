@@ -63,8 +63,8 @@ That is, expect for the `WriteApi` methods that serve requests relayed by `iota-
 - [x] `get_owned_objects`
 - [x] `query_transaction_blocks`
 - [x] `query_events`
-- [ ] `subscribe_event` (currently, websocket is not supported by the test cluster)
-- [ ] `subscribe_transaction` (currently, websocket is not supported by the test cluster)
+- [ ] `subscribe_event` (ws is not supported by the test cluster)
+- [ ] `subscribe_transaction` (ws is not supported by the test cluster)
 - [ ] `get_dynamic_fields`
 - [ ] `get_dynamic_field_object`
 

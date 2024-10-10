@@ -34,7 +34,7 @@ use iota_types::{
 };
 use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use test_cluster::TestClusterBuilder;
-
+use move_core_types::ident_str;
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -546,7 +546,6 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[ignore]
 #[sim_test]
 async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
     let mut cluster = TestClusterBuilder::new().build().await;
@@ -566,43 +565,116 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
     let child_object = &objects[1]; // Get child object
     let gas = objects.last().unwrap(); // Get gas object
 
-    // Define the module and function details
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
-    let module = Identifier::from_str("dynamic_field")?;
-    let function = Identifier::from_str("add")?;
+    // Create a bag object
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let bag = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("bag")?,
+            Identifier::from_str("new")?,
+            vec![],
+            vec![],
+        );
 
-    // Build the transaction
-    let mut pt_builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_arg(address, bag);
+        builder.finish()
+    };
 
-    // Parent object must be passed as mutable reference (UID)
-    let parent_argument = pt_builder
-        .obj(ObjectArg::ImmOrOwnedObject(*parent_object))
-        .expect("valid obj");
-
-    // Field name and field value as pure u64 types
-    let field_name_argument = pt_builder.pure(0).expect("valid pure");
-    let field_value_argument = pt_builder.pure(0).expect("valid pure");
-
-    // Add the command to call the `add` function of the dynamic_field module
-    let cmd = Command::move_call(
-        package_id,
-        module,
-        function,
-        vec![TypeTag::U64, TypeTag::U64],
-        vec![parent_argument, field_name_argument, field_value_argument],
-    );
-    pt_builder.command(cmd);
-
-    let pt = pt_builder.finish();
-
-    // Finish building the transaction
     let tx_builder = TestTransactionBuilder::new(signer, *gas, 1000);
     let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
+    let res = context.execute_transaction_must_succeed(txn).await;
 
-    let resp = context.execute_transaction_must_succeed(txn).await;
-
-    // Sign and execute the transaction
+    // Wait for the transaction to be executed
     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+    // Find the bag object
+    let objects: ObjectsPage = rpc_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new(
+                Some(IotaObjectDataFilter::StructType(StructTag {
+                    address: IOTA_FRAMEWORK_ADDRESS.into(),
+                    module:     Identifier::from_str("bag")?,
+                    name: Identifier::from_str("Bag")?,
+                    type_params: Vec::new(),
+                })),
+                Some(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction()
+                        .with_display(),
+                ),
+            )),
+            None,
+            None,
+        )
+        .await?;
+
+    let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
+
+    // Add a dynamic field to the bag object
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let bag_argument = builder.input(CallArg::Object(ObjectArg::ImmOrOwnedObject(bag_object_ref))).expect("valid input");
+        let field_name_argument = builder.pure(0u64).expect("valid pure");
+        let field_value_argument = builder.pure(0u64).expect("valid pure");
+
+        let _ = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("bag")?,
+            Identifier::from_str("add")?,
+            vec![TypeTag::U64, TypeTag::U64],
+            vec![bag_argument, field_name_argument, field_value_argument],
+        );
+
+        builder.finish()
+    };
+
+    let tx_builder = TestTransactionBuilder::new(signer, *gas, 1000);
+    let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
+    let res = context.execute_transaction_must_succeed(txn).await;
+
+
+
+
+
+/*
+
+        // Step 2: Add a dynamic field to the bag object
+        let field_name_argument = builder.pure(0u64).expect("valid pure");
+        let field_value_argument = builder.pure(0u64).expect("valid pure");
+
+        let _ = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("bag")?,
+            Identifier::from_str("add")?,
+            vec![TypeTag::U64, TypeTag::U64],
+            vec![bag, field_name_argument, field_value_argument],
+        );
+
+        let _ = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("bag")?,
+            Identifier::from_str("remove")?,
+            vec![TypeTag::U64, TypeTag::U64],
+            vec![bag, field_name_argument],
+        );
+
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_ADDRESS.into(),
+            ident_str!("bag").to_owned(),
+            ident_str!("destroy_empty").to_owned(),
+            vec![],
+            vec![bag],
+        );
+
+
+ */
+
+
+
 
     // Verify that the dynamic field was successfully added
     let dynamic_fields = rpc_client
@@ -617,3 +689,8 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+use iota_types::collection_types::Bag;
+use move_core_types::language_storage::StructTag;
+use iota_types::base_types::ObjectRef;
+use iota_types::transaction::CallArg;
