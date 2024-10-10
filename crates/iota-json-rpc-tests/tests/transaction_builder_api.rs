@@ -393,20 +393,19 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         .map(|coin| coin.balance)
         .collect();
     new_coin_balances.sort();
-    let splitted_coin_balance = coins
+    let split_coin_balance = coins
         .iter()
         .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
         .unwrap()
         .balance;
 
-    let expected_splitted_coin_balane =
-        coin_to_split.balance - new_coin_1_amount - new_coin_2_amount;
+    let expected_split_coin_balance = coin_to_split.balance - new_coin_1_amount - new_coin_2_amount;
 
     assert_eq!(
         new_coin_balances,
         vec![new_coin_1_amount, new_coin_2_amount]
     );
-    assert_eq!(splitted_coin_balance, expected_splitted_coin_balane);
+    assert_eq!(split_coin_balance, expected_split_coin_balance);
 
     Ok(())
 }
@@ -459,7 +458,7 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
         .map(|coin| coin.balance)
         .collect();
     new_coin_balances.sort();
-    let splitted_coin_balance = coins
+    let split_coin_balance = coins
         .iter()
         .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
         .unwrap()
@@ -467,11 +466,11 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
 
     let original_coin_balance = coin_to_split.balance;
     let expected_new_coin_balances = 4_285_714_285_714_285;
-    let expected_splitted_coin_balance =
+    let expected_split_coin_balance =
         original_coin_balance - (expected_new_coin_balances * (split_count - 1));
 
     assert_eq!(original_coin_balance, 30_000_000_000_000_000);
-    assert_eq!(expected_splitted_coin_balance, 4_285_714_285_714_290);
+    assert_eq!(expected_split_coin_balance, 4_285_714_285_714_290);
     assert_eq!(
         new_coin_balances,
         vec![
@@ -483,7 +482,7 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
             expected_new_coin_balances
         ]
     );
-    assert_eq!(splitted_coin_balance, expected_splitted_coin_balance);
+    assert_eq!(split_coin_balance, expected_split_coin_balance);
 
     Ok(())
 }
@@ -599,7 +598,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             .await
             .unwrap()
             .data;
-        let splitted_coin_balance = coins
+        let split_coin_balance = coins
             .iter()
             .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
             .unwrap()
@@ -609,9 +608,9 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             .filter(|coin| created_coin_ids.contains(&coin.coin_object_id))
             .map(|coin| coin.balance)
             .collect();
-        let expected_splitted_coin_balance = coin_to_split.balance - amount_to_split;
+        let expected_split_coin_balance = coin_to_split.balance - amount_to_split;
 
-        assert_eq!(splitted_coin_balance, expected_splitted_coin_balance);
+        assert_eq!(split_coin_balance, expected_split_coin_balance);
         assert_eq!(new_coin_balances, vec![amount_to_split]);
     }
 
