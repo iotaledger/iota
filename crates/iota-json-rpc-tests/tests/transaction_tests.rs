@@ -2,26 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(not(msim))]
-use std::str::FromStr;
 
-use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, TransactionBlockBytes,
-    TransactionFilter,
+    IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::ObjectID,
-    gas_coin::GAS,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Command, SenderSignedData, TransactionData},
+    transaction::SenderSignedData,
 };
-use move_core_types::identifier::Identifier;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]

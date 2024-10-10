@@ -602,7 +602,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             address,
             Some(IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS.into(),
+                    address: IOTA_FRAMEWORK_ADDRESS,
                     module: Identifier::from_str("bag")?,
                     name: Identifier::from_str("Bag")?,
                     type_params: Vec::new(),
@@ -676,7 +676,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             vec![
                 TypeTag::U64,
                 TypeTag::Struct(Box::new(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS.into(),
+                    address: IOTA_FRAMEWORK_ADDRESS,
                     module: Identifier::from_str("coin")?,
                     name: Identifier::from_str("Coin")?,
                     type_params: vec![GAS::type_tag()],
@@ -702,7 +702,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             address,
             Some(IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS.into(),
+                    address: IOTA_FRAMEWORK_ADDRESS,
                     module: Identifier::from_str("object_bag")?,
                     name: Identifier::from_str("ObjectBag")?,
                     type_params: Vec::new(),
