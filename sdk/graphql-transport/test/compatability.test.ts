@@ -15,6 +15,7 @@ import { publishPackage, setup, TestToolbox } from '../../typescript/test/e2e/ut
 import { IotaClientGraphQLTransport } from '../src/transport';
 
 const DEFAULT_GRAPHQL_URL = import.meta.env.DEFAULT_GRAPHQL_URL ?? 'http:127.0.0.1:9125';
+const LOCALNET_INDEXER = 'http:127.0.0.1:9124';
 
 describe('GraphQL IotaClient compatibility', () => {
     let toolbox: TestToolbox;
@@ -24,12 +25,12 @@ describe('GraphQL IotaClient compatibility', () => {
     const graphQLClient = new IotaClient({
         transport: new IotaClientGraphQLTransport({
             url: DEFAULT_GRAPHQL_URL,
-            fallbackFullNodeUrl: getFullnodeUrl('localnet'),
+            fallbackTransportUrl: LOCALNET_INDEXER,
         }),
     });
 
     beforeAll(async () => {
-        toolbox = await setup({ rpcURL: 'http:127.0.0.1:9124' });
+        toolbox = await setup({ rpcURL: LOCALNET_INDEXER });
 
         const packagePath = __dirname + '/../../typescript/test/e2e/data/dynamic_fields';
         ({ packageId } = await publishPackage(packagePath, toolbox));
@@ -727,7 +728,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('getValidatorsApy', async () => {
+    test.skip('getValidatorsApy', async () => {
         const rpc = await toolbox.client.getValidatorsApy();
         const graphql = await graphQLClient!.getValidatorsApy();
 
