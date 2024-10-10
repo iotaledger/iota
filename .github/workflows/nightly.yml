@@ -41,4 +41,4 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           command: build
-          args: --all-targets --all-features --release --profile=release
+          args: --all-targets --all-features --release
