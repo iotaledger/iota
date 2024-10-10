@@ -223,7 +223,7 @@ export function SendTokenForm({
                                 );
 
                     async function onMaxTokenButtonClick() {
-                        await setFieldValue('amount', formattedTokenBalance, true);
+                        await setFieldValue('amount', formattedTokenBalance);
                     }
 
                     const isMaxActionDisabled =
@@ -257,7 +257,6 @@ export function SendTokenForm({
                                         allowNegative={false}
                                         name="to"
                                         placeholder="Enter Address"
-                                        shouldValidateManually
                                     />
                                 </div>
                             </Form>
