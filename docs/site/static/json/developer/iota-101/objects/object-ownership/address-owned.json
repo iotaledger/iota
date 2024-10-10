@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What types of addresses can own an address-owned object in IOTA?",
+    "answerOptions": [
+      { "answerText": "Only account addresses derived from signature schemes", "isCorrect": false },
+      { "answerText": "Only object IDs", "isCorrect": false },
+      { "answerText": "Either an account address or an object ID, both being 32-byte addresses", "isCorrect": true },
+      { "answerText": "Any 16-byte or 32-byte address", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which function should you use to create an address-owned object when defining a custom transfer policy?",
+    "answerOptions": [
+      { "answerText": "`iota::transfer::public_transfer`", "isCorrect": false },
+      { "answerText": "`iota::transfer::transfer`", "isCorrect": true },
+      { "answerText": "`iota::object::create_owned`", "isCorrect": false },
+      { "answerText": "`iota::ownership::assign`", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Once an address-owned object is created, what is true about its sharing capabilities?",
+    "answerOptions": [
+      { "answerText": "It can be shared with multiple addresses simultaneously", "isCorrect": false },
+      { "answerText": "It cannot be shared with others after creation", "isCorrect": true },
+      { "answerText": "It can be converted into a shared object at any time", "isCorrect": false },
+      { "answerText": "It automatically becomes a shared object after transfer", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "In which scenario can you access an address-owned object directly during a transaction in IOTA?",
+    "answerOptions": [
+      { "answerText": "When the owner address corresponds to an object ID", "isCorrect": false },
+      { "answerText": "When the owner address is a signature-derived account address signing the transaction", "isCorrect": true },
+      { "answerText": "When the object is public and not owned by any address", "isCorrect": false },
+      { "answerText": "When you have the object's UID and permissions", "isCorrect": false }
+    ]
+  }
+]

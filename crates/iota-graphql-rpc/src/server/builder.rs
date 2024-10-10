@@ -462,7 +462,11 @@ impl ServerBuilder {
                     .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
                     .build(url)
                     .await
-                    .map_err(|e| Error::Internal(format!("Failed to create IotaClient: {}", e)))?,
+                    .map_err(|e| {
+                        Error::Internal(format!(
+                            "Failed to connect to fullnode {e}. Is the node server running?"
+                        ))
+                    })?,
             )
         } else {
             warn!(

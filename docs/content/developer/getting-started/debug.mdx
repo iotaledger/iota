@@ -33,9 +33,9 @@ debug::print_stack_trace();
 
 Moreover, if an abort or assertion fails, the stack trace at that failure point is automatically printed.
 
-## Implementing Debug in `my_module`
+## Implementing Debug in `first_package`
 
-To demonstrate the use of the `std::debug` module, update your `my_module` by integrating debug statements. Specifically, modify the `new_sword` function to output the `forge` value both before and after incrementing `swords_created`. Incorporate a `print_stack_trace` as well, resulting in the following function:
+To demonstrate the use of the `std::debug` module, update your `first_package` by integrating debug statements. Specifically, modify the `new_sword` function to output the `forge` value both before and after incrementing `swords_created`. Incorporate a `print_stack_trace` as well, resulting in the following function:
 
 ```move
 /// Constructor for creating swords.
@@ -70,7 +70,7 @@ INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
-[debug] 0x0::my_module::Forge {
+[debug] 0x0::first_package::Forge {
   id: 0x2::object::UID {
     id: 0x2::object::ID {
       bytes: @<OBJECT-ID>
@@ -78,7 +78,7 @@ Running Move unit tests
   },
   swords_created: 0
 }
-[debug] 0x0::my_module::Forge {
+[debug] 0x0::first_package::Forge {
   id: 0x2::object::UID {
     id: 0x2::object::ID {
       bytes: @<OBJECT-ID>
@@ -87,7 +87,7 @@ Running Move unit tests
   swords_created: 1
 }
 Call Stack:
-    [0] 0000000000000000000000000000000000000000000000000000000000000000::my_module::test_sword_transactions
+    [0] 0000000000000000000000000000000000000000000000000000000000000000::first_package::test_sword_transactions
 
         Code:
             [24] LdU64(7)
@@ -111,7 +111,7 @@ Call Stack:
 
 Operand Stack:
 
-[ PASS    ] 0x0::my_module::test_sword_transactions
+[ PASS    ] 0x0::first_package::test_sword_transactions
 Test result: OK. Total tests: 1; passed: 1; failed: 0
 ```
 

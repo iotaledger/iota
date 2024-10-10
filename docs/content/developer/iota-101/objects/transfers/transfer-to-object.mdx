@@ -2,6 +2,8 @@
 title: Transfer to Object
 description: On IOTA, you can transfer objects to objects in the same way you can transfer objects to addresses.
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/objects/transfers/transfer-to-object.json';
 
 In IOTA, you have the flexibility to transfer objects not only to addresses but also directly to other objects.
 This feature is possible because the IOTA system does not differentiate between the 32-byte ID of an address
@@ -153,14 +155,14 @@ When creating transactions, you interact with `Receiving` transaction inputs in 
 
 ```ts
 ... // Setup Typescript SDK as normal.
-const tx = new TransactionBlock();
+const tx = new Transaction();
 tx.moveCall({
-  target: `${examplePackageId}::account::accept_payment`,
-  arguments: [tx.object("0xcafe"), tx.object("0xc0ffee")]
+    target: `${examplePackageId}::account::accept_payment`,
+    arguments: [tx.object("0xcafe"), tx.object("0xc0ffee")]
 });
-const result = await client.signAndExecuteTransactionBlock({
-      transactionBlock: tx,
-  });
+const result = await client.signAndExecuteTransaction({
+    transaction: tx,
+});
 ...
 ```
 
@@ -360,3 +362,5 @@ module examples::soul_bound {
     }
 }
 ```
+
+<Quiz questions={questions} />
