@@ -19,7 +19,7 @@ import type { IotaSignTransactionFeature } from './iotaSignTransaction.js';
 import type { IotaSignTransactionBlockFeature } from './iotaSignTransactionBlock.js';
 
 /**
- * Wallet Standard features that are unique to Iota, and that all Iota wallets are expected to implement.
+ * Wallet Standard features that are unique to IOTA, and that all IOTA wallets are expected to implement.
  */
 export type IotaFeatures = Partial<IotaSignTransactionBlockFeature> &
     Partial<IotaSignAndExecuteTransactionBlockFeature> &
@@ -39,7 +39,7 @@ export type IotaWalletFeatures = StandardConnectFeature &
 export type WalletWithIotaFeatures = WalletWithFeatures<IotaWalletFeatures>;
 
 /**
- * Represents a wallet with the absolute minimum feature set required to function in the Iota ecosystem.
+ * Represents a wallet with the absolute minimum feature set required to function in the IOTA ecosystem.
  */
 export type WalletWithRequiredFeatures = WalletWithFeatures<
     MinimallyRequiredFeatures &
