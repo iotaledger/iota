@@ -60,8 +60,6 @@ pub struct NodeConfig {
     pub account_key_pair: KeyPairWithPath,
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
-
-    #[serde(default)]
     pub db_path: PathBuf,
 
     /// The network address for gRPC communication.
