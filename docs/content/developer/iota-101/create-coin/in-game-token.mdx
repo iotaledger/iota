@@ -1,6 +1,9 @@
 ---
 title: In-Game Currency
 ---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/create-coin/in-game-token.json';
+
 
 Using the IOTA [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard, you can create in-game currency (such as gems or diamonds in mobile games) that you can grant to players for their actions or make available to purchase. You mint the tokens on IOTA, but players can only use the tokens within the economy of the game itself. These types of tokens are usually not transferrable and you would typically mint them in predefined amounts to maintain scarcity and game balance.
 
@@ -40,3 +43,5 @@ Toggle complete module code
 ```
 
 </details>
+
+<Quiz questions={questions} />

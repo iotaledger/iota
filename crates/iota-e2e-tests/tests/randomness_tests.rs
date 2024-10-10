@@ -10,7 +10,7 @@ use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_create_randomness_state_object() {
     let test_cluster = TestClusterBuilder::new()
-        .with_protocol_version(31.into())
+        .with_protocol_version(1.into())
         .with_epoch_duration_ms(10000)
         .build()
         .await;

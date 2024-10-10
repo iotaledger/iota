@@ -9,7 +9,14 @@ import { ParentSize } from '@visx/responsive';
 
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import { LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
+import {
+    LabelText,
+    LabelTextSize,
+    Panel,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 
 interface TooltipContentProps {
     data: {
@@ -89,6 +96,8 @@ export function TransactionsCardGraph() {
                             size={LabelTextSize.Large}
                             label="Total"
                             text={totalTransactions ? formatBalance(totalTransactions, 0) : '--'}
+                            tooltipPosition={TooltipPosition.Right}
+                            tooltipText="The total number of transaction blocks."
                         />
                     </div>
 
