@@ -3,19 +3,16 @@
 
 #[cfg(not(msim))]
 use std::str::FromStr;
-use std::time::SystemTime;
 
-use futures::stream::StreamExt;
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::IndexerApiClient;
 use iota_json_rpc_types::{
-    EventFilter, EventPage, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
+    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter,
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::IotaClientBuilder;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -24,15 +21,20 @@ use iota_types::{
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
+    dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     id::UID,
     object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{Command, ObjectArg, SenderSignedData, TransactionData},
+    transaction::{CallArg, Command, ObjectArg, TransactionData},
 };
-use move_core_types::{ident_str, identifier::Identifier, language_storage::TypeTag};
+use move_core_types::{
+    annotated_value::MoveValue,
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+};
 use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
@@ -546,10 +548,9 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
-    let mut cluster = TestClusterBuilder::new().build().await;
+async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
     let context = &cluster.wallet;
-    let client = context.get_client().await.unwrap();
     let rpc_client = cluster.rpc_client();
     let signer = cluster.get_address_0();
 
@@ -560,8 +561,6 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let parent_object = objects.first().unwrap(); // Get parent object (UID)
-    let child_object = &objects[1]; // Get child object
     let gas = objects.last().unwrap(); // Get gas object
 
     // Create a bag object
@@ -592,7 +591,7 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
 
     let tx_builder = TestTransactionBuilder::new(signer, *gas, 1000);
     let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
-    let res = context.execute_transaction_must_succeed(txn).await;
+    let _ = context.execute_transaction_must_succeed(txn).await;
 
     // Wait for the transaction to be executed
     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
@@ -632,6 +631,111 @@ async fn test_add_dynamic_field() -> Result<(), anyhow::Error> {
     assert!(
         !dynamic_fields.data.is_empty(),
         "Dynamic field was not added"
+    );
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let context = &cluster.wallet;
+    let rpc_client = cluster.rpc_client();
+    let signer = cluster.get_address_0();
+
+    // Get the first object owned by the signer (to act as parent UID object)
+    let address = cluster.get_address_0();
+    let objects = context
+        .get_all_gas_objects_owned_by_address(address)
+        .await
+        .unwrap();
+
+    let child_object = &objects[0]; // Get child object
+    let gas = objects.last().unwrap(); // Get gas object
+
+    // Create a bag object
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let bag = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("object_bag")?,
+            Identifier::from_str("new")?,
+            vec![],
+            vec![],
+        );
+
+        let field_name_argument = builder.pure(0u64).expect("valid pure");
+        let field_value_argument = builder
+            .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(*child_object)))
+            .unwrap();
+
+        let _ = builder.programmable_move_call(
+            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            Identifier::from_str("object_bag")?,
+            Identifier::from_str("add")?,
+            vec![
+                TypeTag::U64,
+                TypeTag::Struct(Box::new(StructTag {
+                    address: IOTA_FRAMEWORK_ADDRESS.into(),
+                    module: Identifier::from_str("coin")?,
+                    name: Identifier::from_str("Coin")?,
+                    type_params: vec![GAS::type_tag()],
+                })),
+            ],
+            vec![bag, field_name_argument, field_value_argument],
+        );
+
+        builder.transfer_arg(address, bag);
+        builder.finish()
+    };
+
+    let tx_builder = TestTransactionBuilder::new(signer, *gas, 1000);
+    let txn = context.sign_transaction(&tx_builder.programmable(pt).build());
+    let _ = context.execute_transaction_must_succeed(txn).await;
+
+    // Wait for the transaction to be executed
+    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+    // Find the bag object
+    let objects: ObjectsPage = rpc_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new(
+                Some(IotaObjectDataFilter::StructType(StructTag {
+                    address: IOTA_FRAMEWORK_ADDRESS.into(),
+                    module: Identifier::from_str("object_bag")?,
+                    name: Identifier::from_str("ObjectBag")?,
+                    type_params: Vec::new(),
+                })),
+                Some(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction()
+                        .with_display(),
+                ),
+            )),
+            None,
+            None,
+        )
+        .await?;
+
+    let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
+
+    let name = DynamicFieldName {
+        type_: TypeTag::U64,
+        value: IotaMoveValue::from(MoveValue::U64(0u64)).to_json_value(),
+    };
+
+    // Verify that the dynamic field was successfully added
+    let dynamic_fields = rpc_client
+        .get_dynamic_field_object(bag_object_ref.0, name)
+        .await
+        .expect("Failed to get dynamic field object");
+
+    assert!(
+        dynamic_fields.data.is_some(),
+        "Dynamic field object was not added"
     );
 
     Ok(())
