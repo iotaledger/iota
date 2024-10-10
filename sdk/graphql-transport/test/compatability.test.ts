@@ -25,7 +25,7 @@ describe('GraphQL IotaClient compatibility', () => {
     const graphQLClient = new IotaClient({
         transport: new IotaClientGraphQLTransport({
             url: DEFAULT_GRAPHQL_URL,
-            fallbackFullNodeUrl: LOCALNET_INDEXER,
+            fallbackTransportUrl: LOCALNET_INDEXER,
         }),
     });
 
