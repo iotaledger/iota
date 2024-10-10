@@ -4,10 +4,10 @@
 
 import { Text } from '_app/shared/text';
 import { IconTooltip } from '_app/shared/tooltip';
-import { LoadingIndicator } from '_components';
 import { roundFloat, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 const APY_DECIMALS = 3;
 

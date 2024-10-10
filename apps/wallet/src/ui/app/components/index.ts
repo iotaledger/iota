@@ -27,7 +27,6 @@ export * from './iota-apps';
 export * from './iota-apps/IotaApp';
 export * from './ledger';
 export * from './loading';
-export * from './loading/LoadingIndicator';
 export * from './menu';
 export * from './navigation';
 export * from './network-selector';

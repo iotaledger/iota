@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, LoadingIndicator } from '_components';
+import { Alert } from '_components';
 import {
     calculateStakeShare,
     formatPercentageDisplay,
@@ -18,7 +18,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
-import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
+import { KeyValueInfo, LoadingIndicator, Panel, TooltipPosition } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface ValidatorFormDetailProps {

@@ -4,9 +4,8 @@
 
 import { LockLocked16, LockUnlocked16 } from '@iota/icons';
 import { type ComponentPropsWithoutRef } from 'react';
-
 import { Tooltip } from '../../shared/tooltip';
-import { LoadingIndicator } from '_components';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 interface LockUnlockButtonProps extends ComponentPropsWithoutRef<'button'> {
     isLocked: boolean;

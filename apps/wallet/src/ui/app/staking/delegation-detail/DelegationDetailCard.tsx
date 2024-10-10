@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, LoadingIndicator } from '_components';
+import { Alert } from '_components';
 import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
@@ -21,10 +21,17 @@ import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { CardType, Panel, KeyValueInfo, Divider, Button, ButtonType } from '@iota/apps-ui-kit';
+import {
+    CardType,
+    Panel,
+    KeyValueInfo,
+    Divider,
+    Button,
+    ButtonType,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
 

@@ -12,8 +12,8 @@ import { Check12, X12 } from '@iota/icons';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-
-import { useIotaLedgerClient, LoadingIndicator } from '_components';
+import { useIotaLedgerClient } from '_components';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 export interface VerifyLedgerConnectionLinkProps {
     accountAddress: string;
@@ -40,12 +40,7 @@ export function VerifyLedgerConnectionStatus({
     switch (verificationStatus) {
         case VerificationStatus.Unknown:
             if (isPending) {
-                return (
-                    <div className="text-hero-dark flex gap-1">
-                        <LoadingIndicator color="inherit" />
-                        <Text variant="bodySmall">Please confirm on your Ledger...</Text>
-                    </div>
-                );
+                return <LoadingIndicator text="Please confirm on your Ledger..." />;
             }
 
             return (

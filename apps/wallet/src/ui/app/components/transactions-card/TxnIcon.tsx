@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '_components';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 import { ArrowBottomLeft, ArrowTopRight, Info, IotaLogoMark, Person, Stake } from '@iota/ui-icons';
 
 const ICON_COLORS = {

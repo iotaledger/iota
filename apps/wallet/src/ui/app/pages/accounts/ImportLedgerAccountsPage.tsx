@@ -15,8 +15,8 @@ import {
 } from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '../../hooks/useAccounts';
-import { Button } from '@iota/apps-ui-kit';
-import { CheckmarkFilled, Loader } from '@iota/ui-icons';
+import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
+import { CheckmarkFilled } from '@iota/ui-icons';
 
 const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
 
@@ -138,7 +138,7 @@ export function ImportLedgerAccountsPage() {
 function LedgerViewLoading() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
-            <Loader className="h-5 w-5 animate-spin text-primary-30" />
+            <LoadingIndicator size="h-5 w-5" />
             <span className="text-title-lg text-neutral-10">Looking for Accounts...</span>
         </div>
     );
