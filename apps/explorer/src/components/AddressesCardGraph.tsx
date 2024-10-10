@@ -12,7 +12,14 @@ import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
 import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetrics';
-import { LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
+import {
+    LabelText,
+    LabelTextSize,
+    Panel,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total addresses';
@@ -62,6 +69,8 @@ export function AddressesCardGraph(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Total"
                             text={cumulativeAddressesFormatted}
+                            tooltipPosition={TooltipPosition.Right}
+                            tooltipText="The total amount of addresses that have been part of transactions since the network started."
                         />
                     </div>
 
@@ -70,6 +79,8 @@ export function AddressesCardGraph(): JSX.Element {
                             size={LabelTextSize.Large}
                             label="Total Active"
                             text={cumulativeActiveAddressesFormatted}
+                            tooltipPosition={TooltipPosition.Right}
+                            tooltipText="The total number of addresses that have signed transactions since the network started."
                         />
                     </div>
                 </div>
@@ -81,6 +92,8 @@ export function AddressesCardGraph(): JSX.Element {
                             ? addressMetrics.dailyActiveAddresses.toString()
                             : '--'
                     }
+                    tooltipPosition={TooltipPosition.Right}
+                    tooltipText="The total number of addresses that have sent or received transactions during the last epoch."
                 />
                 <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
                     {isPending ? (
