@@ -57,7 +57,7 @@ $ pnpm run build
 $ pnpm sdk build
 ```
 
-> All `pnpm` commands below are intended to be run in the root of the IOTA repo.
+> All `pnpm` commands below are intended to be run in the root of the iota repo.
 
 ## Type Doc
 

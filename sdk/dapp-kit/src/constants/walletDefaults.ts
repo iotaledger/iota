@@ -6,7 +6,7 @@ import type { IotaWalletFeatures, WalletWithRequiredFeatures } from '@iota/walle
 
 import { createInMemoryStore } from '../utils/stateStorage.js';
 
-export const IOTA_WALLET_NAME = 'Iota Wallet';
+export const IOTA_WALLET_NAME = 'IOTA Wallet';
 
 export const DEFAULT_STORAGE =
     typeof window !== 'undefined' && window.localStorage ? localStorage : createInMemoryStore();

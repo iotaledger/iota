@@ -6,6 +6,7 @@
 //!
 //! cargo run --example simulate_transaction
 
+#[path = "../utils.rs"]
 mod utils;
 
 use iota_types::{

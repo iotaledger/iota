@@ -6,6 +6,7 @@
 //!
 //! cargo run --example pay
 
+#[path = "../utils.rs"]
 mod utils;
 
 use utils::{setup_for_write, sign_and_execute_transaction};

@@ -41,7 +41,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
 
     const networkDegradeBannerCopy =
         network === Network.Testnet
-            ? 'Iota Explorer (Testnet) is currently under-going maintenance. Some data may be incorrect or missing.'
+            ? 'IOTA Explorer (Testnet) is currently under-going maintenance. Some data may be incorrect or missing.'
             : "The explorer is running slower than usual. We're working to fix the issue and appreciate your patience.";
 
     return (
