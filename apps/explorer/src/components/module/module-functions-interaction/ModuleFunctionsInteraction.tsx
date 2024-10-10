@@ -39,7 +39,7 @@ export function ModuleFunctionsInteraction({
                 {error ? (
                     <InfoBox
                         style={InfoBoxStyle.Elevated}
-                        type={InfoBoxType.Warning}
+                        type={InfoBoxType.Error}
                         icon={<Warning />}
                         supportingText={`Error loading module ${moduleName} details.`}
                     />
